@@ -16,6 +16,8 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   [playwright-cli v0.1.20 to v0.1.22](https://github.com/microsoft/playwright-cli/releases).
 - **Declared `gh` as an optional prerequisite.** The vendored skill now shows attaching
   screenshots and videos to a pull request with `gh pr comment --attach`.
+- **Upstream records in the new reference text state our decision plus a live pointer.** The
+  `run-code` login example passes the password from the shell instead of `process.env`.
 
 ## [0.8.9] - 2026-10-04
 

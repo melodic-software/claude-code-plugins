@@ -49,14 +49,10 @@ Always pass `--size`, matched to the viewport set on `open`: without it the reco
 fit 800×800, whatever the viewport. See [Frame size](#frame-size-two-levers-not-one) below. Pick
 whatever resolution your evidence needs; `1440x900` here is only an illustration.
 
-For a demo a reviewer will watch, the `video-start` options that matter:
+For a demo a reviewer will watch, pass `--size`, `--fps=60` and `--cursor` to `video-start`, as
+above, so the viewer sees smooth motion and what caused each change on screen.
 
-- `--size "<W>x<H>"`: the output frame size. Required for anything but an 800-box recording.
-- `--fps=60`: smooth motion; the default frame rate is lower.
-- `--cursor`: draws an animated mouse cursor that travels to each action point and paces actions so
-  it has time to arrive. Without it the viewer sees elements change with no visible cause.
-
-Add a chapter card (blurred page plus a title dialog) at section transitions:
+Add a chapter card at section transitions:
 
 ```bash
 playwright-cli -s=demo video-chapter "Login" --description="Entering credentials" --duration=2000
@@ -74,18 +70,13 @@ playwright-cli -s=demo fill e2 "test"
 playwright-cli -s=demo video-hide-actions
 ```
 
-The callout naming the action is the only decoration `video-show-actions` draws by default. The
-target highlight box and the click-point marker are opt-in: each appears only when you pass its
-CSS (`--highlight-style`, `--point-style`); `--title-style` restyles the callout. For a polished
-look, pass `--highlight-style` at least. `--position` places the callout and `--cursor=none` hides
-the pointer.
+For a demo, pass `--highlight-style` (and `--point-style` when clicks should show) so the viewer
+can see which element each action targets.
 
-Claim: the `video-start`, `video-chapter` and `video-show-actions` options and defaults described in
-this section. Basis: `playwright-cli <command> --help` on `@playwright/cli` 0.1.22, and the
-[v0.1.21 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.21), which
-added `--fps`, `--cursor` and the style options and made the highlight and point opt-in. As of
-2026-10-04. Recheck when the frontmatter `upstream-version` moves; the per-command `--help` is the
-live source for exact flags and default values.
+- **Pointer**: when you need the exact flags or default values of `video-start`, `video-chapter` or
+  `video-show-actions`, run `playwright-cli <command> --help` live; for what changed, fetch the
+  [v0.1.21 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.21).
+  **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Frame size (two levers, not one)
 
@@ -140,7 +131,7 @@ For polished recordings (demos, PR evidence), build a single `run-code` script w
 - `page.screencast.showChapter(title, { description, duration })`: full-screen chapter card with blurred backdrop
 - `page.screencast.showOverlay(html, { duration })`: custom HTML callouts/labels/highlights
 - `page.screencast.start({ path, size, fps })` and `page.screencast.showActions({ cursor, duration, position, style })`:
-  the in-script equivalents of `video-start --size --fps` and `video-show-actions`, with the same opt-in styles
+  the in-script equivalents of `video-start --size --fps` and `video-show-actions`
 - `pressSequentially(text, { delay: 60 })`: realistic typing
 - Bounding-box-driven overlays for element highlighting
 
@@ -154,13 +145,13 @@ the browser context is created; see [Frame size](#frame-size-two-levers-not-one)
 the output a descriptive name with `--filename=` or `mv`, so evidence does not sit in
 `.playwright-cli/` as `page-<timestamp>.png`.
 
-GitHub accepts the `.webm` as is: `gh pr comment <n> --attach ./demo.webm` (also on `gh pr create`
-and `gh issue comment`) uploads it. Claim: `--attach` needs `gh` 2.99 or later and GitHub caps the
-video size per plan. Basis: the [`gh` v2.99.0 release notes](https://github.com/cli/cli/releases/tag/v2.99.0)
-and the upstream skill's PR-attachments guide added in
-[v0.1.20](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). As of 2026-10-04.
-Recheck when `gh pr comment --help` stops listing `--attach` or an upload is rejected for size;
-keep the script focused so the file stays small.
+Attach the `.webm` with `gh pr comment <n> --attach ./demo.webm`, and keep the script focused so
+the file stays small.
+
+- **Pointer**: when an attach fails or you need the `gh` version or size limits, fetch the
+  [`gh` v2.99.0 release notes](https://github.com/cli/cli/releases/tag/v2.99.0) and run
+  `gh pr comment --help` live. **As of**: 2026-10-04. **Recheck trigger**: `gh pr comment --help`
+  stops listing `--attach`, or an upload is rejected for size.
 
 ## Known costs
 

@@ -16,7 +16,9 @@ playwright-cli run-code --filename=script.js
 
 Return values from the function are printed as command result.
 
-The code runs in an isolated context, not full Node.js: `require`, `process` and Node modules are unavailable, while timers, `fetch`, `URL`, `Buffer` and `crypto` work. Claim: that split. Basis: [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22). As of 2026-10-04. Recheck when the frontmatter `upstream-version` moves.
+Treat the `run-code` body as a sandbox, not full Node.js: pass values such as secrets in from the shell (expand them into the argument string), never through `process.env` or a Node module inside the body.
+
+- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live. **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Common recipes
 
@@ -151,13 +153,15 @@ playwright-cli run-code "async page => {
 playwright-cli run-code "async page => {
   await page.goto('https://example.com/login');
   await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.E2E_TEST_PASSWORD!);
+  await page.getByRole('textbox', { name: 'Password' }).fill('$E2E_TEST_PASSWORD');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/dashboard');
   await page.context().storageState({ path: 'auth.json' });
   return 'Login successful';
 }"
 ```
+
+The shell expands `$E2E_TEST_PASSWORD` inside the double-quoted argument before `run-code` sees it. Set it in your own environment first; a value containing `'` breaks the JavaScript string.
 
 ## When to reach for `run-code`
 
