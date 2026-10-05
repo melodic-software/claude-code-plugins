@@ -3,6 +3,14 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-10-04
+
+### Fixed
+
+- `design` routes to an installed account-bound tool when account-bound tools are on and detect
+  reports its reachability as unknown, telling the user they may need to sign in. Before, a `null`
+  from detect, which is all it can report for an account, made every such row unroutable.
+
 ## [0.1.0] - 2026-10-04
 
 ### Added

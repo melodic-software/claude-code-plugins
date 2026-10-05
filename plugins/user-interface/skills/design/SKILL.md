@@ -60,8 +60,9 @@ its rows in rank order and use the first one for which all of these hold:
 - It has no `style`, or the project is in that style (for example pixel art).
 - Its `reachable` is not `false`: a server that is listed but not connected is skipped.
 - Its `account` is `none`, or account-bound tools are enabled (now:
-  `${user_config.account_tools_enabled}`) and `reachable` is `true`. A `paid` row is suggested
-  only when no free row covers the concern.
+  `${user_config.account_tools_enabled}`). A `paid` row is suggested only when no free row covers
+  the concern. When an account-bound row's `reachable` is `null`, route to it and tell the user
+  they may need to sign in.
 
 Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
 concern. A skill only its user can start (the Skill tool refuses it) is handed over instead: give
@@ -115,7 +116,8 @@ the user agrees.
   `installed` as `null`.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
-- A `null` in `reachable` is not a yes. Use the free routes, and say the account-bound one may work
-  once the user signs in.
+- A `null` in `reachable` means detect cannot tell, not that the tool is down. Route to the
+  account-bound row as Step 4 says; if it then fails, fall back to the next row and say signing in
+  may fix it.
 - The routing data ranks candidates; its `unconfirmed` rows have not yet been installed and tested
   here. Say so when you route to one.
