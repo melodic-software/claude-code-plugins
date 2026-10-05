@@ -84,7 +84,10 @@ claim carrying `subject_pool` is a single-publisher claim. Grade it against the 
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md):
 its `subject_pool` equals the one `pool` its Tier 0/1 sources share, it is worded as an
 attribution, it is at most MEDIUM, and it is not accepted. A claim whose Tier 0/1 sources all share
-the `pool` of the claim's own subject but that carries no `subject_pool` fails row 4.
+the `pool` of the claim's own subject but that carries no `subject_pool` fails row 4. A flagged
+first-party content claim is the exception: its subject is the artifact, not the publisher, so it
+carries `single_source:` and no `subject_pool`, and the single-publisher cap does not apply to it,
+whoever the publisher is. A claim carrying both keys fails row 4.
 
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
