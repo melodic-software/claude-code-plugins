@@ -244,6 +244,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | ci-health-review | AGT | R + WI + DC (optional) | repo | C1 (report/WI); optional direct CI-config change C4 (structural/config surface) | v1 |
 | rotating-quality-improver | AGT | DC (targeted PRs) | repo | C3 | join: proven recurring manual pattern |
 | cross-artifact-sync | AGT | DC (mirrored PR) | repo (multi) | C3 | join: proven recurring manual pattern |
+| feature-map-upkeep | AGT | R + DC (one PR confined to the map directory) | repo | C1 (report); gated map-PR portion C3 | join: proven recurring manual pattern |
 | **Product / business-adjacent** | | | | | |
 | release-cut | DET | DC (version + tag) | repo | n/a, no agent session | not-a-routine |
 | deploy-verification | AGT/HUM | R (go/no-go) | prod | C1; disposition human-gated | join: telemetry connector exists |
@@ -339,6 +340,21 @@ commentary, and a leaf that contradicts one is non-conforming.
   across cycles, are not representable in the generated prerequisite emission, so a `supported`
   verdict for this identity over-reports; the leaf states the predicate and the routine binding
   owns satisfying it.
+- **`feature-map-upkeep`: the run's driver sets its isolation, and the class has no leaf yet.**
+  The pass is `/testing:refresh-feature-map`, when the testing plugin is enabled. A headless
+  browser the run starts itself executes inside the boundary; a driver the host brokers to the
+  session stays on the host whatever the level, so an unattended run refuses it (see the
+  host-brokered tool surface paragraph under [isolation-ladder levels](guardrails/isolation-ladder.md#levels)).
+  Repository settings load no plugins into a cloud session, so a cloud run's setup script installs
+  the testing, playwright and source-control plugins plus a browser, and the network allowlist
+  admits the browser download. *Basis:* the harness documentation page for cloud environments,
+  section on what carries over from your setup, whose table states that a cloud session does not
+  install the plugins a repository enables in its settings. *As of:* 2026-10-04. This supersedes
+  the 2026-09-06 transfer-path record below on plugin loading. *Recheck trigger:* that table's
+  repository-settings plugin row changes, or a release note names plugin loading in cloud
+  sessions. The consumer picks the cadence (daily is a reasonable start); a
+  pass with no change since the last clean one skips, by the skill's own rule. No leaf under
+  `routines/` is written until a consumer records a manual run of the skill.
 
 ### v1 leaves
 
@@ -470,6 +486,10 @@ Hosting stance below. The following are illustrative bindings, not fixed require
   committed-artifact rule above is the binding path this contract requires, not the only path
   that exists. *Recheck trigger:* that section stops naming the cloned repository's skills
   directory, or a release note names skill loading in cloud or scheduled sessions.
+  *Superseded on plugin loading (2026-10-04):* the cloud environments page now states that a
+  cloud session does not install the plugins a repository enables in its settings, so the
+  repository-plugin route above no longer binds; see the `feature-map-upkeep` bullet in
+  Class parameters. Committed skills remain the binding path.
 - A desktop scheduling surface with per-task instruction files: the artifact is the
   task's instruction file tracked under the deployment's version-controlled dotfiles, and
   the task's prompt points to it.
