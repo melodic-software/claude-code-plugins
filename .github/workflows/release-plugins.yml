@@ -248,7 +248,8 @@ jobs:
           [ "$rc" = 0 ] || exit "$rc"
           # release-plugins.sh skips a plugin whose fragments fail validation; surface each one.
           skipped="$(sed -n 's/^release-plugins\.sh: skipped \([^:]*\):.*/\1/p' "$errors" | paste -sd ' ' -)"
-          for name in $skipped; do
+          read -ra names <<<"$skipped"
+          for name in "${names[@]}"; do
             echo "::warning::Skipped $name: a fragment under .changes/$name failed validation, so it is not in this release. Fix the fragment on main."
           done
           released="$(grep -c ' -> ' "$report" || true)"
@@ -325,7 +326,7 @@ jobs:
           #   <name>: no release; deleted <n> bump: none fragment(s): <path>...
           released_re='^([^:]+): ([^ ]+) -> ([^ ]+) \(([a-z]+)\) from [0-9]+ fragment\(s\): (.*)$'
           none_re='^([^:]+): no release; deleted [0-9]+ bump: none fragment\(s\): (.*)$'
-          code_list() { local p out=""; for p in $1; do out+="${out:+<br>}\`$p\`"; done; printf '%s' "$out"; }
+          code_list() { local p out="" ps; read -ra ps <<<"$1"; for p in "${ps[@]}"; do out+="${out:+<br>}\`$p\`"; done; printf '%s' "$out"; }
           body="$RUNNER_TEMP/body.md"
           # shellcheck disable=SC2016  # backticks in single quotes are Markdown, not command substitution
           {
@@ -356,4 +357,26 @@ jobs:
             echo "Updated release pull request #$number."
           else
             gh pr create --repo "$GITHUB_REPOSITORY" --base main --head release/plugins --title "$title" --body-file "$body"
+          fi
+      # With nothing released there is no new body to write, so name the skipped
+      # plugins on the open release pull request, once per set.
+      - name: Name the skipped plugins on the open release pull request
+        if: steps.decide.outputs.build == 'true' && steps.release.outputs.released == '0' && steps.release.outputs.skipped != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SKIPPED: ${{ steps.release.outputs.skipped }}
+        run: |
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
+          if [ -z "$number" ]; then
+            echo "No release pull request is open; the warnings above name the skipped plugins."
+            exit 0
+          fi
+          read -ra names <<<"$SKIPPED"
+          # shellcheck disable=SC2016  # backticks in single quotes are Markdown, not command substitution
+          line="**Not released, a fragment failed validation:** $(printf '`%s` ' "${names[@]}")(each stays on \`main\` until fixed)."
+          body="$RUNNER_TEMP/body.md"
+          gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json body --jq .body >"$body"
+          if ! grep -qxF -- "$line" "$body"; then
+            printf '\n%s\n' "$line" >>"$body"
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
