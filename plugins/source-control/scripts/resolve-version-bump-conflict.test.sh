@@ -146,4 +146,29 @@ else
   assert_eq "revert fixture conflicts" conflicted clean
 fi
 
+# 8. Main lists the plugin in scripts/fragment-plugins.txt: fragment mode, so
+#    no new version is computed and the pair is left for the fragment move. A
+#    list that names another plugin changes nothing.
+for listed in demo other; do
+  r=$(mkfixture 1.2.1 desc '' 1.2.1)
+  {
+    git -C "$r" checkout -q main
+    mkdir -p "$r/scripts"
+    printf '# comment\n%s  # inline\n' "$listed" >"$r/scripts/fragment-plugins.txt"
+    git -C "$r" add -A && git -C "$r" commit -qm list
+    git -C "$r" checkout -q pr
+    git -C "$r" merge -q main
+  } >/dev/null 2>&1
+  out=$(run "$r")
+  rc=$?
+  if [[ $listed == demo ]]; then
+    assert_exit "fragment-mode plugin: exit 1" 1 "$rc"
+    assert_contains "names fragment mode" "$out" "$P is in fragment mode"
+    assert_contains "markers untouched" "$(cat "$r/$P/CHANGELOG.md")" "<<<<<<<"
+  else
+    assert_exit "list naming another plugin: exit 0" 0 "$rc"
+    assert_eq "list naming another plugin: resolved" "$ORDER" "$(headings "$r")"
+  fi
+done
+
 [[ $FAILED -eq 0 ]] || exit 1

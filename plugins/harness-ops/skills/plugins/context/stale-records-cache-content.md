@@ -88,6 +88,13 @@ that was actually proved to work, rather than a suggestion: remove that version'
 the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from
 the clone.
 
+A marketplace that releases plugins from changelog fragments changes a plugin's files on its default
+branch without moving its version until the next release, so the same finding is expected there.
+When the clone's work tree holds `.changes/<plugin>/`, the checker sets `unreleased_changes` on that
+install, the row is labeled `(unreleased changes pending)`, and the render gives no delete-cache
+repair for it: the plugin's next release moves the version and brings a new cache directory, while
+recreating the directory now would install unreleased files under the released version number.
+
 `N` is `cache_content.stale_content`, and one row comes from each `cache_content.stale[]` entry:
 `id`, `version`, and `files_differ`, which sums every direction of disagreement: bytes that
 changed, files the tree has and the cache lacks, and files the cache holds and the tree does not.

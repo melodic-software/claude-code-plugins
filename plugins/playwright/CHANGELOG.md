@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.11] - 2026-10-04
+
+### Changed
+
+- The `update` action's finishing steps name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
 ## [0.8.10] - 2026-10-04
 
 ### Changed

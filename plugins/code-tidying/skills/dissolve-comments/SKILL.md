@@ -223,9 +223,10 @@ from them.
    paths and exempt surfaces, listing **every dropped path with its reason**, not only a per-reason
    tally: a silently dropped file is indistinguishable from one triaged and kept. Check survivors for
    SSOT/materialized-copy declarations (triage the source, run its sync, never touch a copy). Where
-   a source has synced copies, report how many and whether the sync gate demands a version bump per
-   consuming plugin; a comment-only edit that would force version bumps on consumers is **proposed,
-   never applied**, unless the user named the source as the target. The propagation cost is the
+   a source has synced copies, report how many and whether the sync gate demands a release record
+   per consuming plugin (a version bump plus CHANGELOG entry, or a changelog fragment where the repo
+   uses them; see the repo's AGENTS.md); a comment-only edit that would force release records on
+   consumers is **proposed, never applied**, unless the user named the source as the target. The propagation cost is the
    decision, and it is the user's, not the run's. Done
    when the file list, the per-path drop list, the tally, and the lifted set with each entry's
    channel are written down. A lifted file outside both grammar tables (`.json`) is neither scanned
