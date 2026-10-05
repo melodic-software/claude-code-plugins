@@ -167,7 +167,7 @@ run_case "a read caller passing a secret off the allowlist fails" 1 \
   "$CALLER:11: reads secrets.DEPLOY_TOKEN, which is not on the read-run allowlist"
 
 run_case "secrets: inherit in a read caller fails" 1 \
-  "sed -i 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER" \
+  "sed 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER >$CALLER.new && mv $CALLER.new $CALLER" \
   "$CALLER:9: passes secrets: inherit"
 
 run_case "toJSON(secrets) in a read caller's run fails" 1 \
