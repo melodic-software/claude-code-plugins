@@ -120,7 +120,8 @@ corroborator.
 **`subject_pool:` marks a single-publisher claim**, one whose every Tier 0/1 source is the
 publisher speaking about itself. It names that publisher and equals the one `pool` those sources
 share, so the verifier grades the label off the header, beside `pool`, for criterion 4. Omit the key
-on every other claim. Rule: `discipline.md`'s "Single-publisher facts".
+on every other claim, including a `HIGH (single source)` content claim, whose subject is the
+artifact. Rule: `discipline.md`'s "Single-publisher facts".
 
 **`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
 `sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's
