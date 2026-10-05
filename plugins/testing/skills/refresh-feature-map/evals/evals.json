@@ -1,0 +1,90 @@
+{
+  "skill_name": "refresh-feature-map",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-map-blocks",
+      "prompt": "/testing:refresh-feature-map. feature_map_dir resolves to the default .claude/skills/feature-map and that directory does not exist.",
+      "expected_output": "The outcome is blocked: no map exists at .claude/skills/feature-map. The report names /testing:map-features as the skill that writes one. No file is created.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked because no map exists",
+        "Names /testing:map-features to write the map",
+        "Creates no file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "skip-when-unchanged",
+      "prompt": "/testing:refresh-feature-map unattended. upkeep-skip.sh check printed `skip unchanged since the last clean pass`.",
+      "expected_output": "The unattended pass stops and reports the skip line. It dispatches no subagent, does not invoke /testing:run-e2e, edits nothing and opens no pull request.",
+      "files": [],
+      "expectations": [
+        "Stops and reports the skip line",
+        "Does not invoke /testing:run-e2e",
+        "Edits no file and opens no pull request"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unattended-chrome-refused",
+      "prompt": "/testing:refresh-feature-map unattended. The map index at .claude/skills/feature-map/SKILL.md records `Driver: chrome, from docs/conventions/testing.yaml`, and upkeep-skip.sh check printed `run HEAD moved since the last clean pass`.",
+      "expected_output": "The outcome is blocked: an unattended pass never drives the host-brokered chrome driver. The report says the map needs a driver that runs inside the boundary, such as playwright, set by re-running /testing:map-features or editing the index. It does not switch to another driver on its own and drives nothing.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked because the driver is chrome and the pass is unattended",
+        "Does not switch to another driver on its own",
+        "Does not invoke /testing:run-e2e"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "renamed-handle-corrected-in-map-only",
+      "prompt": "/testing:refresh-feature-map. The live pass shows the dashboard button the map's start-a-timer.md calls `Start` is now labelled `Begin`, and the timer still works through it. The source pass cites src/components/TimerRow.tsx:41 for the new label.",
+      "expected_output": "The outcome is changed. Only .claude/skills/feature-map/start-a-timer.md (and the index's written-at commit) is edited to use `Begin`; src/components/TimerRow.tsx is not touched. Because the pass is attended, the skill shows the proposed edit and asks before writing it, committing to feature-map-upkeep/claude-skills-feature-map or opening a pull request.",
+      "files": [],
+      "expectations": [
+        "Edits start-a-timer.md to name the `Begin` button",
+        "Edits no file outside the map directory",
+        "Asks the person before committing or opening a pull request",
+        "Names the branch feature-map-upkeep/claude-skills-feature-map"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "lost-behavior-reported-not-mapped",
+      "prompt": "/testing:refresh-feature-map. The map's weekly-timesheet-export.md lists a `Download CSV` entry point. Against a healthy app (the doctor passes), the button exists but the download now returns an empty file. The bugs plugin is enabled.",
+      "expected_output": "The export entry stays as written in the map; the map never records the empty download as current behavior. The failure is written up through /bugs:write with run-e2e's evidence. With no other difference the outcome is clean and the pass is recorded.",
+      "files": [],
+      "expectations": [
+        "Leaves the Download CSV entry in weekly-timesheet-export.md unchanged",
+        "Writes the failure up through /bugs:write",
+        "Does not change any product file"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "open-pr-updated-not-duplicated",
+      "prompt": "/testing:refresh-feature-map unattended. The pass found one stale trap in the map. The branch feature-map-upkeep/claude-skills-feature-map already exists and has an open pull request.",
+      "expected_output": "The correction is committed to feature-map-upkeep/claude-skills-feature-map (staging only the map file) and the branch is pushed, which updates the open pull request. No second pull request is opened. The report gives the branch, the commit and the existing pull request.",
+      "files": [],
+      "expectations": [
+        "Commits on feature-map-upkeep/claude-skills-feature-map",
+        "Updates the existing pull request by pushing the branch",
+        "Opens no second pull request"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "clean-pass-records",
+      "prompt": "/testing:refresh-feature-map. The source pass and the live pass both match every feature file, and the doctor passed.",
+      "expected_output": "The outcome is clean. Nothing is edited, no branch is created and no pull request is opened. The pass is recorded with upkeep-skip.sh record so the next pass skips until HEAD moves.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as clean",
+        "Runs upkeep-skip.sh record",
+        "Creates no branch and opens no pull request"
+      ]
+    }
+  ]
+}

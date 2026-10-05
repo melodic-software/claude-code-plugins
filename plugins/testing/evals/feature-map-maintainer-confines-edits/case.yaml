@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: feature-map-maintainer-confines-edits
+description: The feature-map maintainer corrects a stale map entry inside the map directory only, keeps a product regression out of the map and reports it, and changes no product file
+tags: [refresh-feature-map, edit-scope, regression, invented]
+expected_outcome: The reply plans one correction, in .claude/skills/feature-map/start-a-timer.md, naming the `Begin` button. It leaves the weekly-timesheet-export.md `Download CSV` entry as written and reports the empty download as a regression in the report (the bugs plugin is not enabled). It plans no change to src/components/TimerRow.tsx or any other product file, and writes nothing.
+execution:
+  prompt: "/testing:refresh-feature-map. Do not read the repository, drive the app or write any file. Treat both passes as already run, with these results. The map is at .claude/skills/feature-map/. Its start-a-timer.md lists the dashboard `Start` button as an entry point; the source pass cites src/components/TimerRow.tsx:41, where that button's label is now `Begin`, and the live pass started a timer through `Begin`. Its weekly-timesheet-export.md lists a `Download CSV` entry point; the doctor passed, the button exists, and the live pass got an empty CSV file where the map says a row per entry. The bugs plugin is not enabled. Tell me which files you would change and how, and where the empty CSV goes, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: corrects-map-entry
+    type: regex
+    pattern: 'start-a-timer\.md'
+    arm: both
+  - name: no-product-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'src/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: regression-reported-not-mapped
+    type: llm
+    criteria: "PASS only if the reply (1) plans to correct start-a-timer.md in the map directory so the entry point is the `Begin` button, (2) says the weekly-timesheet-export.md `Download CSV` entry stays as written rather than being changed to describe an empty download, (3) puts the empty CSV in its report as a regression or lost behavior, and (4) plans no change to src/components/TimerRow.tsx or any other file outside .claude/skills/feature-map/. FAIL if it edits or plans to edit a product file, rewrites the export entry to match the empty file, or drops the regression."

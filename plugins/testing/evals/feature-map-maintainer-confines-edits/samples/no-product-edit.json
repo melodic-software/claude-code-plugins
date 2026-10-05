@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": ".claude/skills/feature-map/start-a-timer.md"}}],
+      "why": "read the map, edited nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "src/components/TimerRow.tsx", "old_string": "Begin", "new_string": "Start"}}],
+      "why": "edited a product file"
+    }
+  ]
+}
