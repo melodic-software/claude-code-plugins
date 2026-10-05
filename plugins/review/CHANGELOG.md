@@ -7,7 +7,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill. The stop case also lists `Bash` and needs `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load.
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both prompts name `/review:fanout` so the with-arm loads the skill, and both grant `Read`, `Glob`, `Grep`, `Skill` and `Bash` and need `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load. Neither case carries a `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call.
 
 ### Changed
 
