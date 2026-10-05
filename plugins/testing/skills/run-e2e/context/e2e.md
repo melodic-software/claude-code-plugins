@@ -38,8 +38,8 @@ through `/testing:run-e2e`. Pick by the job, not by habit.
 | Verify a change from a terminal coding agent (default) | Playwright CLI through `/playwright:playwright`, headless. It writes snapshots and screenshots to disk, so only paths enter context. On WSL2, Linux-side Chromium; headed through WSLg only when the user asks | A browser the user is logged into |
 | Long-running exploration that holds browser state across many steps | Playwright MCP, opt-in (check how the consuming project enables it in its MCP config) | Routine verification: it streams page payloads into context |
 | Deep performance or network debugging: traces, Core Web Vitals, Lighthouse, protocol-level requests | Chrome DevTools MCP, when configured; the CLI's `console` and `network` cover the basics | UI navigation flows |
-| A regression the suite must keep catching | A committed `@playwright/test` spec run in CI | One-off checks during development: drive the app once and keep the evidence |
-| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL it is documented as unsupported, and a live test is pending; until it reports, use the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
+| A regression the suite must keep catching | A committed spec in the project's existing browser-test framework, run in CI; `@playwright/test` when the project has none | One-off checks during development: drive the app once and keep the evidence |
+| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, fetch the WSL note (pointer below) before routing here; while it does not list WSL as supported, and until the live test reports, use the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
 | API-only checks, health, structured logs, traces | Orchestrator MCP + `curl` | Anything user-facing |
 
 Claude in Chrome from WSL. Pointer: the WSL note at the top of
@@ -66,8 +66,8 @@ run:
    sufficient: no tool finds every failure, and in GDS's 2017 test, 29% of barriers were missed by
    all ten tools combined. Report manual accessibility review as not performed unless a person did it.
 2. **Geometry.** Assert layout from the DOM at two or more viewport widths (a phone and a desktop
-   width): sibling controls' bounding boxes do not overlap; text does not clip (`scrollWidth` or
-   `scrollHeight` larger than the client size under hidden overflow); elements meant to align share
+   width): sibling controls' bounding boxes do not overlap; text does not clip (under hidden overflow,
+   `scrollWidth` or `scrollHeight` larger than the client size is a failure); elements meant to align share
    an edge or center; changed elements are in the viewport. An aria snapshot is not a layout check:
    it records roles, names and text, and gave identical output for a broken and a correct layout in a
    local probe (2026-10-04), where geometry checks caught both defects.
@@ -76,9 +76,12 @@ run:
    whether the change is a defect.
 4. **Look at it.** Read cropped, element-level screenshots at each width and check each against a
    list: misaligned or inconsistent buttons, clipped or overlapping text, spacing, contrast,
-   anything unlike the design or the neighboring screens. Findings are leads: confirm each with a
-   step-2 check. "No issues found" is never a pass: in the DiffSpot benchmark the best vision model
-   found 40.7% of real visual changes.
+   anything unlike the design or the neighboring screens. Findings are leads: confirm a spatial
+   lead (alignment, clipping, overlap, viewport) with a step-2 check, and any other lead (contrast,
+   color, typography, divergence from the design) with a measurable check such as a contrast ratio,
+   the pixel baseline, or the design source; report a lead no check can confirm as unconfirmed, never
+   drop it. "No issues found" is never a pass: vision models miss many real visual changes (DiffSpot,
+   pointer below).
 
 Evidence pointers, as of 2026-10-04:
 [Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing) (automated

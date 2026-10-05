@@ -7,7 +7,7 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 ### Changed
 
-- The browser-automation offer's preference order points at the browser-tool rubric in `/testing:run-e2e` and applies its logged-in-browser row; Claude in Chrome's WSL status is read from that row.
+- The browser-automation offer's preference order points at the browser-tool rubric in `/testing:run-e2e` and applies its logged-in-browser row; Claude in Chrome's WSL status is read from that row, or from the upstream WSL note when the testing plugin is not installed.
 
 ## [0.3.29] - 2026-10-04
 
