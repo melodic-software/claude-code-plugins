@@ -912,6 +912,19 @@ path and prerequisite tests, local `--plugin-dir` smoke tests, and the repositor
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
 
+Run a test install (`claude plugin install` or `claude plugin marketplace add` with
+`--scope local`) from a throwaway folder outside any git repository, never from a linked worktree.
+Local scope writes `.claude/settings.local.json`, and in a worktree Claude Code keeps that file at
+the main checkout's root, so the install enables the plugin for every session there and outlives the
+worktree. Outside a git repository the file stays in the folder you ran from.
+
+- **Pointer:** [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
+  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference).
+  Observed for `plugin install --scope local` on Claude Code 2.1.289, WSL2.
+- **As of:** 2026-10-04.
+- **Recheck trigger:** that settings section stops placing a worktree's local file at the main
+  checkout, or a release note changes where `--scope local` writes.
+
 ## Instruction economy
 
 Every standing instruction this marketplace ships is a per-session tax on every consumer, paid
