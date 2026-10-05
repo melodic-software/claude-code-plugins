@@ -1,5 +1,5 @@
 ---
-description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight (version floor, sandbox backend, target type), static validation with no model call, a cost estimate under the configured ceiling, the run, and the with-versus-without delta read correctly. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'can plugin eval measure CLAUDE.md or rules' (it names the route that can). Not for designing success criteria (use /evals:design) or the skill-creator evals.json format (use /skill-quality:check validate-evals when installed)."
+description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight (version floor, sandbox backend, target type), static validation with no model call, a cost estimate under the configured ceiling, the run, and the with-versus-without delta read correctly. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules' (it names the route that can). Not for designing success criteria (use /evals:design) or the skill-creator evals.json format (use /skill-quality:check validate-evals when installed)."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -102,6 +102,25 @@ result from any directory; for `init` it is `claude plugin eval init --bare <nam
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | In a worktree-isolated session the built-in Bash guard refuses any command containing `eval`, including `claude plugin eval --help`, with `this command runs a string through eval, which can't be verified to stay inside the worktree`; the user's own `!` command is refused the same way | melodic-software/claude-code-plugins#5696 repro on Claude Code 2.1.285, Linux/WSL2, verified 2026-10-01 | Recheck trigger: a Claude Code release note touches worktree isolation or `plugin eval`. Then re-run `claude plugin eval --help` from an isolated worktree session and refresh this row with the outcome |
+
+### Linked-worktree refusal
+
+A different refusal, from the CLI itself and not the Bash guard: when the plugin sits inside a git
+repository that has many linked worktrees, `claude plugin eval` stops before any case runs, saying the
+repository "registers more linked worktrees than can be screened". A repository with dozens of linked
+worktrees, as this one routinely has, trips it from any checkout. It applies to `run` only.
+
+The workaround copies the plugin outside any git repository and evaluates the copy:
+
+1. Copy the plugin to a directory with no git repository above it, leaving out its gitignored results:
+   `rsync -a --exclude evals/results/ <plugin-dir>/ <dir outside git>/<plugin-name>/`.
+2. Run `claude plugin eval` against the copy, with an absolute `<target>` and an absolute `--json` path.
+3. Point `--json` at the original plugin's gitignored `evals/results/`, so the result lands where the
+   `read` action and the repository expect it. The copy is a scratch artifact; edits go to the original.
+
+| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
+|---|---|---|
+| `claude plugin eval <plugin-dir>` refuses a plugin inside a git repository with many linked worktrees (`registers more linked worktrees than can be screened`); copying the plugin outside any git repository and running against the copy works | Our own observation, not upstream text: melodic-software/claude-code-plugins#6374, Claude Code 2.1.289, Linux/WSL2, observed 2026-10-04, while running the `user-interface` suite | Recheck trigger: a Claude Code release note changes the linked-worktree limit or `plugin eval`'s repository screening. Then re-run `claude plugin eval` on a plugin in a repository with many linked worktrees and refresh this row with the outcome |
 
 ### Tested model and judge
 
