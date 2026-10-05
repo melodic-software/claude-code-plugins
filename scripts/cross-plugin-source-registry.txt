@@ -114,20 +114,6 @@ lib/check-retirements.sh
 # duplication audit: the root canonical and the copies.
 lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
 
-# Dedicated check: scripts/sync-shared-copies.sh --check
-skills/setup/reference/legacy-statusline-detect.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: the root canonical and the copies.
-lib/legacy-statusline-detect.md -> plugins/*/skills/setup/reference/legacy-statusline-detect.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check
-skills/setup/reference/unwrap-before-compose.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: the root canonical and the copies.
-lib/unwrap-before-compose.md -> plugins/*/skills/setup/reference/unwrap-before-compose.md
-
 # No dedicated check: worktree-root resolver. Canonical copy:
 # plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.

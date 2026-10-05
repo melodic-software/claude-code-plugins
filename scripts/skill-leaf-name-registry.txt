@@ -177,8 +177,12 @@ diagnose computer-use,songwriting,testing
 
 # Kept on merit. planning:design designs an implementation approach for a code
 # change; evals:design designs an evaluation suite (success criteria + graded
-# cases). Unrelated artifacts; the namespace supplies the object in both.
-design evals,planning
+# cases). user-interface:design designs what a person or agent interacts with
+# (CLI output, TUIs, mods, web and app UI), and its description's first clause
+# names that object. It is the plugin's one listed entry skill, so a longer leaf
+# would only repeat the namespace. Three unrelated artifacts; the namespace
+# supplies the object in each.
+design evals,planning,user-interface
 
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the

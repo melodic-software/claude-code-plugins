@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: project-system-first
+description: "Regression guard (the model passes it without the plugin): the project's own tokens and design-system rules decide an empty state"
+tags: [project-first, regression-guard]
+runs: 3
+expected_outcome: "The design reads design/tokens.json and docs/design-system.md, uses their values, and follows the empty-state rule: one muted line, one secondary button, no illustration"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Design the empty state for the Invoices list in this app, shown before the user has any invoices. Give the layout, the copy and the exact styling values you would use. This run cannot write files, so put the design in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600

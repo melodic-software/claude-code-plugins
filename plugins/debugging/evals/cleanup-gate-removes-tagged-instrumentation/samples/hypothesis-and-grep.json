@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Removed the three [DEBUG-a4f2] lines; `grep -rn \"\\[DEBUG-a4f2\\]\" *.py` now returns nothing. repro_checkout.py exits 0 and the unit test passes. Commit message: \"fix: price lookup lower-cased SKUs, so PRICES[sku.lower()] raised KeyError for upper-case SKUs\".",
+      "why": "grep clean + hypothesis for the commit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I removed the debug prints. You're done.",
+      "why": "no grep, no hypothesis"
+    }
+  ]
+}

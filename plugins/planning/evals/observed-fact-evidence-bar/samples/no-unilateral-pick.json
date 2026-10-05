@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Before adding warehouse capacity or workers, the repository shows cheaper levers. Ordered cheapest first:\n\n1. **Batch the inserts.** `etl/config.py` sets `BATCH_SIZE = 1`, and `etl/load.py` runs one `INSERT` per row inside the batch loop and commits after each batch, so every row is a round trip and a commit. Raising the batch size and switching to `executemany` cuts both.\n2. **Replace the customer linear scan.** `etl/transform.py` scans the whole customers list for every order (`[c for c in customers if c[\"id\"] == order[\"customer_id\"]]`), which is O(n*m). A dict keyed by id makes it O(n+m).\n3. **Load incrementally.** `etl/extract.py` runs `SELECT * FROM orders` and `load.py` starts with `TRUNCATE fact_orders`, a full reload every night. A watermark column would load only changed rows.\n4. **Add workers** (most ambitious). `WORKERS = 1` in `etl/config.py`, and `run_nightly.py` runs every stage serially; parallelism only pays after 1 to 3.\n\nWhich of these resonate? I would measure 1 first, since it is a one-line change.",
+      "why": "recommends a measurement but leaves the pick to the user"
+    },
+    {
+      "answer": "Grounded in the repo, cheapest to most ambitious:\n\n### 1. Batched loads\n`etl/load.py` inserts row by row because `BATCH_SIZE = 1` in `etl/config.py`.\n\n### 2. Index the customer lookup\n`etl/transform.py` does a linear scan of customers per order.\n\n### 3. Stop the nightly full reload\n`TRUNCATE fact_orders` in load.py plus `SELECT *` in extract.py reload the whole table each night.\n\nMark which of these you want to pursue and I will scope it.",
+      "why": "leaves the pick to the user"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. Batch inserts in `etl/load.py`.\n2. Index the customer lookup.\n\nI chose option 1 and will start implementing it.",
+      "why": "chooses for the user and starts"
+    }
+  ]
+}
