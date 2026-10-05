@@ -1389,6 +1389,20 @@ else
   ok "SKIP: strace unavailable — process-creation budget not asserted here"
 fi
 
+# The Stop row skips bash in the launcher with the same any-of test
+# gate_maybe_configured makes: either env presence, or a settings file that
+# mentions lane_stop_gate. Dropping ARM_ID from the list would skip an armed
+# lane. lib/exec-bash.gates.test.mjs proves the launcher side.
+if jq -e '[.hooks.Stop[].hooks[].args] == [[
+    "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+    "--run-if-any-set", "LANE_STOP_GATE_ARM_ID,LANE_STOP_GATE_ENABLED",
+    "--run-if-settings-mention", "lane_stop_gate",
+    "${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh"]]' "$HOOK_DIR/hooks.json" >/dev/null; then
+  ok "the Stop row gates the launcher on ARM_ID, ENABLED, or a settings mention"
+else
+  fail "the Stop row's launcher gate no longer matches gate_maybe_configured"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

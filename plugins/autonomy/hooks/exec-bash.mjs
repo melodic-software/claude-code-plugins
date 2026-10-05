@@ -20,14 +20,33 @@
 //   --skip-unless-stdin-contains TEXT
 //                                buffer stdin; skip when the payload lacks
 //                                TEXT, else write the same bytes to the script.
+//   --run-if-any-set A,B,...     run when any named variable is non-empty.
+//   --run-if-settings-mention TEXT
+//                                run when TEXT appears in the user settings.json
+//                                of a plugins/cache install (found from the
+//                                script's own path, never from the environment)
+//                                or in a managed-settings.json or one of its
+//                                managed-settings.d/*.json drop-ins. These two
+//                                --run-if-* flags form ONE any-of gate: it opens
+//                                when either does, and is ANDed with the rest.
+//   --skip-unless-marker SUBDIR  buffer stdin, read the payload's session_id,
+//                                and skip only when <marker-root>/SUBDIR exists
+//                                and neither it nor the tmp fallback
+//                                disk-hygiene-SUBDIR holds <session>.launched.
+//                                No session id, no such directory, or a stall
+//                                runs the script (fail closed).
+//   --marker-root DIR            the root for --skip-unless-marker, passed
+//                                explicitly. Empty or a literal
+//                                ${CLAUDE_PLUGIN_DATA} means none.
 //
 // Option flags are decided first, before stdin is touched. A stdin flag reads
 // stdin to EOF with an idle bound (2 s, or the stdin_read_timeout option read
-// the way hook-utils.sh reads it), and a stall exits 0 without running the
-// script. That fails OPEN, so a stdin flag is for advisory rows only: the
-// shared library treats a stalled payload as fail-closed for a blocking guard,
-// which must not use the flag as written. A row without a stdin flag keeps
-// stdin inherited.
+// the way hook-utils.sh reads it). On a stall --skip-unless-stdin-contains
+// exits 0 without running the script. That fails OPEN, so that flag is for
+// advisory rows only: the shared library treats a stalled payload as
+// fail-closed for a blocking guard, which must not use the flag as written.
+// On a stall --skip-unless-marker runs the script with the bytes that arrived.
+// A row without a stdin flag keeps stdin inherited.
 //
 // Bare `bash` is not a legal exec-form command: on Windows it resolves to the
 // WSL relay and a failed hook launch does not block. This process finds a
@@ -52,7 +71,7 @@
 // not a guard block. A guard's own exit 2 passes through.
 
 import { spawn } from "node:child_process";
-import { realpathSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -108,13 +127,20 @@ function literal(value) {
   return value ? value : null;
 }
 
+// A directory may be empty (an unset ${CLAUDE_PLUGIN_DATA}), but never a flag.
+function directory(value) {
+  return value === undefined || value.startsWith("-") ? null : value;
+}
+
 const optionValues = (names, env) => names.map((name) => env[`CLAUDE_PLUGIN_OPTION_${name}`]);
 const unsetOrTrue = (v) => v === undefined || v === "" || v === "true";
 
-// The launch flags. An `env` flag reads only CLAUDE_PLUGIN_OPTION_* values and
-// is decided before stdin is touched; a `stdin` flag reads the buffered
-// payload. `parse` returns the flag's value or null for a usage error; `open`
-// says whether the script runs.
+// The launch flags. `env` and `any` flags read only the environment and files
+// on disk and are decided before stdin is touched; the `any` flags together are
+// one any-of gate. A `stdin` flag reads the buffered payload, and `onStall` is
+// its verdict when stdin stalls. A `config` flag only supplies a value. `parse`
+// returns the flag's value or null for a usage error; `open` says whether the
+// script runs.
 const FLAGS = {
   "--require-true": {
     phase: "env",
@@ -134,19 +160,42 @@ const FLAGS = {
     problem: NAME_LIST,
     open: (names, env) => !optionValues(names, env).every((v) => v === "false"),
   },
+  "--run-if-any-set": {
+    phase: "any",
+    parse: nameList,
+    problem: NAME_LIST,
+    open: (names, env) => optionValues(names, env).some((v) => v !== undefined && v !== ""),
+  },
+  "--run-if-settings-mention": {
+    phase: "any",
+    parse: literal,
+    problem: "needs non-empty text to look for in settings files",
+    open: (text, env, ctx) => settingsMention(text, { ...ctx, env }),
+  },
   // Advisory rows only: never put this on a blocking guard row. A stdin stall
   // exits 0 without running the script, so a guard behind it would fail open.
   "--skip-unless-stdin-contains": {
     phase: "stdin",
     parse: literal,
     problem: "needs non-empty text to look for in stdin",
+    onStall: false,
     open: (text, input) => input.includes(text),
+  },
+  "--skip-unless-marker": {
+    phase: "stdin",
+    parse: literal,
+    problem: "needs the marker subdirectory name",
+    onStall: true,
+    open: (subdir, input, ctx) => !markerSkips(subdir, input, ctx),
+  },
+  "--marker-root": {
+    phase: "config",
+    parse: directory,
+    problem: "needs a directory (empty means none)",
   },
 };
 
-const USAGE = `usage: node exec-bash.mjs [${Object.keys(FLAGS)
-  .map((flag) => `${flag} V`)
-  .join(" | ")}]... <script> [args...]`;
+const USAGE = "usage: node exec-bash.mjs [--FLAG VALUE]... <script> [args...] (flags: header of exec-bash.mjs)";
 
 export function parseLaunchArgs(argv) {
   const gates = [];
@@ -163,23 +212,37 @@ export function parseLaunchArgs(argv) {
   return { gates, script, args: argv.slice(i + 1) };
 }
 
-function gatesOpen(gates, phase, subject) {
-  return gates.every((gate) => FLAGS[gate.flag].phase !== phase || FLAGS[gate.flag].open(gate.value, subject));
+const ofPhase = (gates, phase) => gates.filter((gate) => FLAGS[gate.flag].phase === phase);
+
+function withDefaults(gates, ctx) {
+  const markerRoot = gates.find((gate) => gate.flag === "--marker-root")?.value ?? "";
+  return { env: process.env, platform: process.platform, script: "", fs: DISK, markerRoot, ...ctx };
 }
 
 // The option flags. A closed gate exits 0 before stdin is read or bash is
-// resolved.
-export function optionGateOpen(gates, env) {
-  return gatesOpen(gates, "env", env);
+// resolved. ctx carries the script path, platform and file access.
+export function optionGateOpen(gates, env, ctx = {}) {
+  const c = withDefaults(gates, { ...ctx, env });
+  const any = ofPhase(gates, "any");
+  return (
+    ofPhase(gates, "env").every((gate) => FLAGS[gate.flag].open(gate.value, env, c)) &&
+    (any.length === 0 || any.some((gate) => FLAGS[gate.flag].open(gate.value, env, c)))
+  );
 }
 
 export function needsStdin(gates) {
-  return gates.some((gate) => FLAGS[gate.flag].phase === "stdin");
+  return ofPhase(gates, "stdin").length > 0;
 }
 
 // The stdin flags, over the buffered payload (a Buffer).
-export function stdinGateOpen(gates, input) {
-  return gatesOpen(gates, "stdin", input);
+export function stdinGateOpen(gates, input, ctx = {}) {
+  const c = withDefaults(gates, ctx);
+  return ofPhase(gates, "stdin").every((gate) => FLAGS[gate.flag].open(gate.value, input, c));
+}
+
+// The stdin flags' verdict when stdin stalls.
+export function stdinStallOpen(gates) {
+  return ofPhase(gates, "stdin").every((gate) => FLAGS[gate.flag].onStall);
 }
 
 // The idle bound hook::resolve_read_timeout_to applies: the stdin_read_timeout
@@ -191,31 +254,158 @@ export function stdinIdleMs(env) {
   return seconds >= 0.00001 ? seconds * 1000 : 2000;
 }
 
-// Read the stream to EOF. Resolves the bytes, or null when no byte arrives for
-// idleMs (a stall). A read error ends the read with what arrived.
+// Read the stream to EOF. Resolves { input, stalled }: the bytes that arrived,
+// and whether no byte arrived for idleMs first. A read error ends the read
+// with what arrived.
 export function readStdin(idleMs, stream = process.stdin) {
   return new Promise((resolve) => {
     const chunks = [];
     let timer;
-    const done = (value) => {
+    const done = (stalled) => {
       clearTimeout(timer);
-      resolve(value);
+      resolve({ input: Buffer.concat(chunks), stalled });
     };
     const arm = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
         stream.destroy();
-        done(null);
+        done(true);
       }, idleMs);
     };
     stream.on("data", (chunk) => {
       chunks.push(chunk);
       arm();
     });
-    stream.on("end", () => done(Buffer.concat(chunks)));
-    stream.on("error", () => done(Buffer.concat(chunks)));
+    stream.on("end", () => done(false));
+    stream.on("error", () => done(false));
     arm();
   });
+}
+
+// --- What a bash script would read, decided in node -------------------------
+// Each check below answers as the script's own early exit does, and where the
+// two could differ it answers "run": the launcher may skip only where the
+// script would also exit at once.
+
+const DISK = {
+  isFile,
+  isDir: (p) => {
+    try {
+      return statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  },
+  read: (p) => {
+    try {
+      return readFileSync(p);
+    } catch {
+      return null;
+    }
+  },
+  list: (p) => {
+    try {
+      return readdirSync(p);
+    } catch {
+      return [];
+    }
+  },
+};
+
+// The Git Bash root (the directory holding usr\bin), from the bash this
+// launcher would start.
+function msysRoot(ctx) {
+  if (!("msys" in ctx)) {
+    const bash = resolveBash(ctx.env, "win32", ctx.fs.isFile);
+    ctx.msys = (bash && /^(.*)[\\/](?:usr[\\/])?bin[\\/][^\\/]+$/i.exec(bash)?.[1]) || null;
+  }
+  return ctx.msys;
+}
+
+// The native paths a bash path names. On Windows, Git Bash reads /x/... as
+// drive X: and any other /... under its own root; elsewhere a path is itself.
+// An empty list means the path cannot be placed, which callers treat as "run".
+export function bashPaths(p, ctx) {
+  if (ctx.platform !== "win32" || !p.startsWith("/")) return [p];
+  const drive = /^\/([A-Za-z])(?:\/|$)/.exec(p);
+  if (drive) return [`${drive[1]}:/${p.slice(3)}`];
+  const root = msysRoot(ctx);
+  return root ? [`${root}${p}`] : [];
+}
+
+// lane-stop-gate.sh's pre-filter files: the managed primaries for every
+// platform, and the user settings.json beside a plugins/cache install.
+const MANAGED_PRIMARIES = [
+  "/Library/Application Support/ClaudeCode/managed-settings.json",
+  "C:/Program Files/ClaudeCode/managed-settings.json",
+  "/etc/claude-code/managed-settings.json",
+];
+const CACHE = "/plugins/cache/";
+
+// The script's directory by `${BASH_SOURCE[0]%/*}`, its parent as the plugin
+// root (a drive path with `\` folded to `/`), and <config>/settings.json when
+// that root matches <config>/plugins/cache/<marketplace>/<name>/... . A
+// --plugin-dir or directory-marketplace load has no such anchor, so no file.
+export function userSettingsFile(script) {
+  const cut = script.lastIndexOf("/");
+  const hookDir = cut === -1 ? "." : script.slice(0, cut);
+  let root;
+  if (hookDir.startsWith("/")) root = `${hookDir}/..`;
+  else if (/^.:[/\\]/.test(hookDir)) root = `${hookDir.replaceAll("\\", "/")}/..`;
+  else root = path.resolve(hookDir || "/", "..").replaceAll("\\", "/");
+  const at = root.indexOf(CACHE);
+  if (at === -1) return null;
+  const [marketplace, name, ...rest] = root.slice(at + CACHE.length).split("/");
+  return marketplace && name && rest.length > 0 ? `${root.slice(0, at)}/settings.json` : null;
+}
+
+// gate_maybe_configured's file half: does any of those files, or a
+// managed-settings.d/*.json beside a primary, contain text?
+export function settingsMention(text, ctx = {}) {
+  const c = withDefaults([], ctx);
+  const user = c.script ? userSettingsFile(c.script) : null;
+  const files = user ? bashPaths(user, c) : [];
+  for (const primary of MANAGED_PRIMARIES) {
+    for (const file of bashPaths(primary, c)) {
+      const dir = `${file.slice(0, file.lastIndexOf("/"))}/managed-settings.d`;
+      const dropIns = c.fs.list(dir).filter((e) => !e.startsWith(".") && e.toLowerCase().endsWith(".json"));
+      files.push(file, ...dropIns.map((e) => `${dir}/${e}`));
+    }
+  }
+  return files.some((f) => c.fs.isFile(f) && (c.fs.read(f)?.includes(text) ?? false));
+}
+
+// The session id run-python-hook.sh recovers: the payload up to its first NUL,
+// matched first at the opening key, then anywhere.
+const SPACE = "[ \\t\\n\\v\\f\\r]*";
+const SESSION_FIELD = `"session_id"${SPACE}:${SPACE}"([^"\\\\]*)"`;
+const SESSION_ANCHORED = new RegExp(`^${SPACE}\\{${SPACE}${SESSION_FIELD}`);
+const SESSION_ANYWHERE = new RegExp(SESSION_FIELD);
+
+export function payloadSessionId(input) {
+  const nul = input.indexOf(0);
+  const text = (nul === -1 ? input : input.subarray(0, nul)).toString("latin1");
+  return (SESSION_ANCHORED.exec(text) ?? SESSION_ANYWHERE.exec(text))?.[1] ?? "";
+}
+
+// run-python-hook.sh --skip-unless-marker skips when a candidate directory
+// exists and no candidate holds <session>.launched. This skips only when the
+// marker-root directory exists and no candidate it or Git Bash's /tmp could
+// name holds the file. A missing or non-printable-ASCII session id (bash folds
+// non-ASCII per locale) runs.
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the unsubstituted placeholder, verbatim
+const DATA_PLACEHOLDER = "${CLAUDE_PLUGIN_DATA}";
+function markerSkips(subdir, input, ctx) {
+  const session = payloadSessionId(input);
+  if (!session || /[^\x20-\x7e]/.test(session)) return false;
+  const name = `${session.replace(/[^a-zA-Z0-9_-]/g, "_")}.launched`;
+  const rooted = ctx.markerRoot && ctx.markerRoot !== DATA_PLACEHOLDER;
+  const rootDirs = rooted ? bashPaths(`${ctx.markerRoot}/${subdir}`, ctx) : [];
+  const tmpRoots = [ctx.env.TMPDIR || "/tmp"];
+  if (ctx.platform === "win32") tmpRoots.push(ctx.env.TEMP, ctx.env.TMP);
+  const tmpDirs = tmpRoots.filter(Boolean).flatMap((t) => bashPaths(`${t}/disk-hygiene-${subdir}`, ctx));
+  if ([...rootDirs, ...tmpDirs].some((d) => ctx.fs.isFile(`${d}/${name}`))) return false;
+  return rootDirs.some((d) => ctx.fs.isDir(d));
 }
 
 function pathCandidates(env, platform) {
@@ -286,11 +476,14 @@ function fail(line) {
 async function main() {
   const parsed = parseLaunchArgs(process.argv.slice(2));
   if (parsed.error) fail(failureLine("usage", { detail: parsed.error }));
-  if (!optionGateOpen(parsed.gates, process.env)) process.exit(0);
+  const gateCtx = { script: parsed.script };
+  if (!optionGateOpen(parsed.gates, process.env, gateCtx)) process.exit(0);
   let input = null;
   if (needsStdin(parsed.gates)) {
-    input = await readStdin(stdinIdleMs(process.env));
-    if (input === null || !stdinGateOpen(parsed.gates, input)) process.exit(0);
+    const read = await readStdin(stdinIdleMs(process.env));
+    input = read.input;
+    const open = read.stalled ? stdinStallOpen(parsed.gates) : stdinGateOpen(parsed.gates, input, gateCtx);
+    if (!open) process.exit(0);
   }
   const { platform } = process;
   const bash = resolveBash(process.env, platform, isFile);
