@@ -5,7 +5,7 @@
 // before the create call, the create call's title read from the gate).
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -210,6 +210,28 @@ describe("check-deck", () => {
       assert.equal(medium({ home: home("medium: file\n"), argument: "artifact" }).medium, "artifact");
       assert.equal(medium({ argument: "terminal" }, "PUBLIC").medium, "terminal");
     });
+    test("hosted is treated as artifact: a deck is never sent to a page host", () => {
+      for (const layers of [{ home: home("medium: hosted\n") }, { option: "hosted" }, { argument: "hosted" }]) {
+        const result = medium(layers);
+        assert.equal(result.medium, "artifact");
+        assert.match(result.reason, /sets medium: hosted, treated as artifact$/);
+      }
+      const team = medium({ project: repo([[".claude/rendered-views.md", "medium: hosted\n", true]]) });
+      assert.equal(team.medium, "file");
+    });
+  });
+
+  test("the CLI takes --argument hosted and never runs pages-publish", () => {
+    const bin = join(scratch, "fake-bin");
+    const marker = join(scratch, "pages-publish-ran");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "pages-publish"), `#!/bin/sh\ntouch "${marker}"\n`);
+    chmodSync(join(bin, "pages-publish"), 0o755);
+    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PROJECT_DIR: join(scratch, "no-project"), PATH: `${bin}:${process.env.PATH}` };
+    const out = spawnSync(process.execPath, [CHECK, deck(plain), "PUBLIC", "--class", "K0", "--argument", "hosted"], { encoding: "utf8", env });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(JSON.parse(out.stdout).medium, "artifact");
+    assert.equal(existsSync(marker), false);
   });
 
   test("the CLI refuses a missing class or an unknown flag, and reads only the given layers", () => {

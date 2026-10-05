@@ -3,6 +3,20 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The `hosted` medium and the `pages-publish` contract, 2026-10-04
+
+- **`medium` gains `hosted`.** A page goes to a shared page host through the operator's
+  `pages-publish` command, whose contract (arguments, stamp and temp-directory rules, JSON stdout,
+  exit codes) is in the new section The `hosted` medium. Only `/review:explain-change` publishes
+  hosted; every other lane reads `hosted` as `artifact`. A team layer cannot select it.
+- **The gate always runs for a hosted page.** No layer skips it: a credential refuses the upload,
+  and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private
+  host. The gate reads the built page, not the diff. Only the listed shapes are caught, and only
+  the plugin gate checks repository visibility.
+- **New credential shapes for every lane**: an R2 key pair, an Azure client secret, Cloudflare's
+  prefixed tokens, and upload tokens.
+- **Rule 7: the save button stays on a top-level `https:` page.** A framed page still loses it.
+
 ## Decks use the account's Slides Artifact type, 2026-10-03
 
 - **New section, Artifact types (#5867).** It says when a producer uses a claude.ai Artifact type

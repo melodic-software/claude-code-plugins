@@ -3,6 +3,16 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-04
+
+### Added
+
+- The `medium` option, `/visualization:present`'s `--argument`, and both skills' cascade reading accept `hosted`, treated as `artifact`: a deck or a visualization is never sent to a page host. Only `/review:explain-change` publishes hosted.
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: new credential shapes (an R2 key pair, an Azure client secret, Cloudflare's prefixed tokens, upload tokens) also keep a deck local.
+
 ## [0.11.4] - 2026-10-04
 
 ### Changed

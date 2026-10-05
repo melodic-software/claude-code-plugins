@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [0.28.9] - 2026-10-04
+
+### Changed
+
+- The rendered-view reference treats `medium: hosted` as `artifact`: the blindspot view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
 ## [0.28.8] - 2026-10-04
 
 ### Changed
