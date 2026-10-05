@@ -22,7 +22,7 @@
 # and per docs/conventions/native-references it states what the reference
 # documented on the as-of date, never that the running binary fires the event.
 #
-# The log is a mod (plugins/harness-ops/hooks/register.ts; ADR 0056). It hooks
+# The log is a mod (plugins/harness-ops/hooks/register.ts; ADR 0057). It hooks
 # `classic.<Event>` for each observable event, in a block between the module's
 # `GENERATED: observed events` markers that this script writes, and only while
 # session_event_log_enabled is true, so a default-off install starts no process

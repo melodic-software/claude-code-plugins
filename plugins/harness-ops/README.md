@@ -318,7 +318,7 @@ processes in the CLI only; where `$.process.run` cannot run, the module writes
 nothing and logs that once to the debug log. A row's `traceparent` key is not
 written, since a mod receives no per-hook `TRACEPARENT`. These differences from
 the settings rows the log replaced are recorded in
-[ADR 0056](../../docs/adr/0056-move-the-harness-ops-session-event-log-into-a-mod.md).
+[ADR 0057](../../docs/adr/0057-move-the-harness-ops-session-event-log-into-a-mod.md).
 
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 script, gated by the same switch, keeps the newest
