@@ -3,7 +3,8 @@
 # fixtures: a plugin at 1.2.0 listed in scripts/fragment-plugins.txt, a `pr`
 # branch that bumps it by hand, and a stub scripts/new-changelog-fragment.sh
 # with the real one's contract (print the path of a new fragment holding only
-# the front matter). The last case swaps in the repository's real scripts.
+# the front matter). Every fixture carries the repository's real
+# scripts/lib, and one case swaps in its real fragment and parity scripts.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,6 +17,8 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not available"
+REPO_SCRIPTS="$SCRIPT_DIR/../../../scripts"
+[[ -f $REPO_SCRIPTS/lib/changelog-fragments.sh ]] || skip_suite "no scripts/lib/changelog-fragments.sh at $REPO_SCRIPTS"
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -56,6 +59,7 @@ mkfixture() {
     git -C "$r" config commit.gpgsign false
     git -C "$r" config core.autocrlf false
     mkdir -p "$r/scripts"
+    cp -R "$REPO_SCRIPTS/lib" "$r/scripts/"
     printf '%s' "$STUB" >"$r/scripts/new-changelog-fragment.sh"
     chmod +x "$r/scripts/new-changelog-fragment.sh"
     [[ $list == none ]] || printf '# fragment mode\n%s\n' "$list" >"$r/scripts/fragment-plugins.txt"
@@ -197,7 +201,7 @@ bump "$r" demo 1.2.1 desc '### Notes
 - Something.'
 out=$(run "$r" "$CONVERT" main)
 assert_exit "unknown section: exit 1" 1 "$?"
-assert_contains "names the section" "$out" "rename the section(s) Notes"
+assert_contains "names the section" "$out" 'unknown section "### Notes"'
 assert_contains "still converted" "$(cat "$r/$(fragment "$r" demo)")" "### Notes"
 
 # 11. Mid-merge of main with no conflict: the merge tip is the base, and the
@@ -246,11 +250,9 @@ assert_exit "rebase in progress: exit 2" 2 "$?"
 # 14. Against the repository's real fragment scripts: the fragment passes
 #     check-changelog-fragments.sh --check and --check-required, and
 #     check-changelog-parity.sh --check-bump passes for the plugin.
-REPO_SCRIPTS="$SCRIPT_DIR/../../../scripts"
 if [[ -f $REPO_SCRIPTS/check-changelog-fragments.sh && -f $REPO_SCRIPTS/check-changelog-parity.sh ]]; then
   r=$(mkfixture)
   {
-    cp -R "$REPO_SCRIPTS/lib" "$r/scripts/"
     cp "$REPO_SCRIPTS/new-changelog-fragment.sh" "$REPO_SCRIPTS/check-changelog-fragments.sh" \
       "$REPO_SCRIPTS/check-changelog-parity.sh" "$r/scripts/"
     git -C "$r" add -A && git -C "$r" commit -qm 'real scripts'
@@ -274,5 +276,66 @@ if [[ -f $REPO_SCRIPTS/check-changelog-fragments.sh && -f $REPO_SCRIPTS/check-ch
 else
   skip_case "real fragment scripts not found at $REPO_SCRIPTS"
 fi
+
+# 15. Mid-merge after both sides bumped: main's 1.2.1 is the base, so the
+#     version lands on it, main's entry stays, and only the PR's entry moves.
+r=$(mkfixture)
+bump "$r" demo 1.3.0 desc '### Added
+
+- PR feature.'
+{
+  git -C "$r" checkout -q main
+  entry 1.2.1 4 '### Fixed
+
+- Main fix.'
+  MAIN_ENTRY=$E
+  write_plugin "$r" demo 1.2.1 desc "$E$BASE"
+  git -C "$r" commit -qam main
+  git -C "$r" checkout -q pr
+  git -C "$r" merge -q main
+  entry 1.3.0 5 '### Added
+
+- PR feature.'
+  write_plugin "$r" demo 1.3.0 desc "$E$MAIN_ENTRY$BASE"
+  git -C "$r" add -A
+} >/dev/null 2>&1
+out=$(run "$r" "$CONVERT")
+assert_exit "both bumped: converts" 0 "$?"
+assert_eq "version lands on main's" 1.2.1 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
+assert_eq "main's entry stays" "$(git -C "$r" show "main:$P/CHANGELOG.md")" "$(cat "$r/$P/CHANGELOG.md")"
+f=$(fragment "$r" demo)
+assert_contains "PR text in the fragment" "$(cat "$r/$f")" "- PR feature."
+assert_not_contains "main's text not in the fragment" "$(cat "$r/$f")" "Main fix."
+assert_contains "level against main's version" "$(cat "$r/$f")" "bump: minor"
+
+# 16. A CHANGELOG heading added with no version change fails the parity gate,
+#     so it is named, not passed.
+r=$(mkfixture)
+entry 1.2.1 5 '- Heading only.'
+write_plugin "$r" demo 1.2.0 desc "$E$BASE"
+git -C "$r" commit -qam 'heading only' >/dev/null 2>&1
+out=$(run "$r" "$CONVERT" main)
+assert_exit "heading without bump: exit 1" 1 "$?"
+assert_contains "names it" "$out" "CHANGELOG.md gained a version heading but plugin.json stayed at 1.2.0"
+
+# 17. A code fence holding # and ## lines: the ## line does not cut the entry
+#     short, and the fragment the validator rejects is named.
+r=$(mkfixture)
+bump "$r" demo 1.2.1 desc '### Changed
+
+- Example:
+
+  ```bash
+# comment
+## not a heading
+  ```
+
+- After the fence.'
+out=$(run "$r" "$CONVERT" main)
+assert_exit "fenced headings: exit 1" 1 "$?"
+assert_contains "names the fragment" "$out" "until scripts/check-changelog-fragments.sh --check passes"
+f=$(fragment "$r" demo)
+assert_contains "entry not cut at the fence" "$(cat "$r/$f")" "- After the fence."
+assert_eq "CHANGELOG back to base" "$(git -C "$r" show "main:$P/CHANGELOG.md")" "$(cat "$r/$P/CHANGELOG.md")"
 
 [[ $FAILED -eq 0 ]] || exit 1

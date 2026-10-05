@@ -23,7 +23,10 @@
 #   - scripts/new-changelog-fragment.sh <plugin> <level> creates the fragment,
 #     the body is appended to it, and all three files are staged.
 # A plugin whose files are still conflicted, whose version went down, or that
-# gained a version but no CHANGELOG heading is left untouched.
+# gained a version but no CHANGELOG heading is left untouched. A plugin whose
+# CHANGELOG gained a heading while its version stayed, or whose new fragment
+# fails changelog_fragments::validate (scripts/lib/changelog-fragments.sh), is
+# named for manual work too.
 #
 # Exit: 0 every bump converted, or none present; 1 at least one plugin left for
 # manual conversion (named on stderr); 2 usage, git failure, or a rebase or
@@ -42,6 +45,8 @@ if [[ ! -f $list ]]; then
   echo "No $list here: no plugin releases from fragments, nothing to convert."
   exit 0
 fi
+# shellcheck source=/dev/null  # the repository's own fragment library
+. scripts/lib/changelog-fragments.sh || exit 2
 if [[ -d $(git rev-parse --git-path rebase-merge) || -d $(git rev-parse --git-path rebase-apply) ]] ||
   git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null; then
   echo "A rebase or cherry-pick is in progress; finish it, then run this again." >&2
@@ -63,7 +68,6 @@ fi
 tmp=$(mktemp -d) || exit 2
 trap 'rm -rf "$tmp"' EXIT
 status=0
-sections=" Added Changed Deprecated Removed Fixed Security "
 
 semver() { [[ $1 =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; }
 version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort -u; }
@@ -87,7 +91,13 @@ convert() {
     left "$name" "plugin.json does not parse"
     return
   }
-  [[ $w == "$b" ]] && return 0
+  git show "$base:$changelog" 2>/dev/null | version_headings >"$tmp/base.h" || :
+  version_headings <"$changelog" >"$tmp/work.h" 2>/dev/null || :
+  comm -13 "$tmp/base.h" "$tmp/work.h" >"$tmp/added.h"
+  if [[ $w == "$b" ]]; then
+    [[ ! -s $tmp/added.h ]] || left "$name" "CHANGELOG.md gained a version heading but plugin.json stayed at $b"
+    return 0
+  fi
   semver "$b" || {
     left "$name" "base version $b is not semver"
     return
@@ -109,18 +119,17 @@ convert() {
     return
   fi
 
-  git show "$base:$changelog" 2>/dev/null | version_headings >"$tmp/base.h" || :
-  version_headings <"$changelog" >"$tmp/work.h" 2>/dev/null || :
-  comm -13 "$tmp/base.h" "$tmp/work.h" >"$tmp/added.h"
   if [[ ! -s $tmp/added.h ]]; then
     left "$name" "version moved $b -> $w but CHANGELOG.md gained no heading"
     return
   fi
   # Split the changelog into the added sections' bodies and everything else;
   # an added section's text ahead of its first ### section goes under Changed.
+  # A ## line inside a code fence is text, not a section boundary.
   awk -v heads="$tmp/added.h" -v body="$tmp/body.raw" -v rest="$tmp/cl.rest" '
     BEGIN { while ((getline h < heads) > 0) added[h] = 1; printf "" > body }
-    /^## / { key = $0; sub(/\].*/, "]", key); insec = (key in added); started = 0; if (insec) next }
+    /^[ \t]*(```|~~~)/ { fence = !fence }
+    !fence && /^## / { key = $0; sub(/\].*/, "]", key); insec = (key in added); started = 0; if (insec) next }
     insec {
       sub(/\r$/, "")
       if (!started) {
@@ -139,11 +148,6 @@ convert() {
     left "$name" "the added CHANGELOG section is empty"
     return
   fi
-  local s unknown=""
-  while IFS= read -r s; do
-    [[ $sections == *" $s "* ]] || unknown+=" $s"
-  done < <(sed -n 's/^### *//p' "$tmp/body" | sed 's/[[:space:]]*$//')
-
   path=$(scripts/new-changelog-fragment.sh "$name" "$level") || {
     left "$name" "scripts/new-changelog-fragment.sh $name $level failed"
     return
@@ -153,7 +157,7 @@ convert() {
   cp "$tmp/pj" "$manifest" && cp "$tmp/cl.rest" "$changelog" &&
     git add -- "$manifest" "$changelog" "$path" || return 2
   echo "converted plugins/$name: $b -> $w becomes $path (bump: $level)"
-  [[ -z $unknown ]] || left "$name" "rename the section(s)$unknown in $path to one of$sections"
+  changelog_fragments::validate "$path" || left "$name" "edit $path until scripts/check-changelog-fragments.sh --check passes"
 }
 
 while IFS= read -r name; do
