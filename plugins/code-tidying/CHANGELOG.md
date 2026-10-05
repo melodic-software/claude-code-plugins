@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.9] - 2026-10-04
+
+### Changed
+
+- `batch-simplify` repo mode and `dissolve-comments` name the repo's release record (a version bump plus changelog entry, or a changelog fragment where the repo uses them) instead of always a version bump.
+
 ## [0.28.8] - 2026-10-04
 
 ### Changed

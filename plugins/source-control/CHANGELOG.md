@@ -3,11 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.80.1] - 2026-10-04
+## [0.81.1] - 2026-10-04
 
 ### Changed
 
 - **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [0.81.0] - 2026-10-04
+
+### Added
+
+- **`commit` and `pull-request create` write changelog fragments in place of the hand version bump** in a repository with `scripts/fragment-plugins.txt`, for each plugin that list names. The new `scripts/write-changelog-fragments.sh` maps the Conventional Commits type to the bump (`feat` minor; `fix` and `perf` patch; `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or `BREAKING CHANGE` major) and files the subject and body under `Added`, `Fixed` or `Changed`. Repositories without the list, and plugins it does not name, keep the per-PR bump.
+
+### Changed
+
+- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment, which `resolve-conflicts` routes through `convert-bump-to-fragment.sh` on the branch before merging main again; `babysit-loop` and `babysit-prs` say so.
 
 ## [0.80.0] - 2026-10-04
 

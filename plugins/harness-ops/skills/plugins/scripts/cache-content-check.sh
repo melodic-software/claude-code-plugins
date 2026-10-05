@@ -161,6 +161,9 @@
 #   `unverifiable` counts every install whose verdict is neither `match` nor
 #   `stale-content` — the audit looked and could not decide, which is reported
 #   as its own number rather than folded into either side.
+#   `installs[].unreleased_changes` is true when the clone's work tree holds
+#   `.changes/<plugin>/`: changelog fragments for changes that ship without a
+#   version bump until the marketplace's next release.
 #   `skipped_absent_project_paths` counts project/local records whose
 #   `projectPath` is not a directory on this machine. Those records are not
 #   checked and not counted in `checked`. Absent is not dead: an unmounted
@@ -1003,6 +1006,15 @@ check_marketplace() {
     records_json+="{\"id\":$j_id,\"scope\":$j_scope,\"version\":$j_version,\"gitCommitSha\":$j_sha"
     records_json+=",\"installPath\":$j_path,\"verdict\":$j_verdict"
     records_json+=",\"differing\":$n_differ,\"missing_from_cache\":$n_missing,\"extra_in_cache\":$n_extra"
+    # A marketplace that releases from changelog fragments holds a plugin's
+    # unreleased changes under .changes/<plugin>/, with its version not yet
+    # bumped, so a stale-content verdict there is a pending release, not a
+    # cache defect.
+    if [[ -n "$install_loc_native" && -d "$install_loc_native/.changes/${i_id[k]%@*}" ]]; then
+      records_json+=",\"unreleased_changes\":true"
+    else
+      records_json+=",\"unreleased_changes\":false"
+    fi
     records_json+=",\"paths\":[$paths_json]}"
   done
 

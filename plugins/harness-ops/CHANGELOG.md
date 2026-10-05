@@ -3,11 +3,21 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.8.10] - 2026-10-04
+## [3.8.11] - 2026-10-04
 
 ### Changed
 
 - **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [3.8.10] - 2026-10-04
+
+### Fixed
+
+- **The `plugins` cache-content audit no longer tells you to delete the cache of a plugin with unreleased changes.** When the marketplace clone holds `.changes/<plugin>/`, the row reads `(unreleased changes pending)` and gets no delete-cache repair, since the plugin's next release brings a new cache directory.
+
+### Changed
+
+- `audit-native-overlap` and `inventory` name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of always a version bump.
 
 ## [3.8.9] - 2026-10-04
 
