@@ -1,4 +1,4 @@
-# Phase 4: Merge (squash + cleanup)
+# Phase 4: Merge (squash + worktree transition)
 
 ## 4.1 Pre-merge checks (readiness re-verification)
 
@@ -96,6 +96,8 @@ status.
 **Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
 ## 4.3 Worktree transition and next-task setup
+
+This phase never removes a worktree; one left behind is a cleanup candidate for `/source-control:worktree cleanup`.
 
 Detect if currently in a worktree (`git worktree list`).
 

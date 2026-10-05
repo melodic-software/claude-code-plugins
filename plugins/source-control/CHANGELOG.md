@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.1] - 2026-10-04
+
+### Fixed
+
+- **`pull-request merge` no longer reads as removing worktrees.** The routing row, the MERGED-state shortcut, the Phase 4 heading and the checklist said "worktree cleanup"; they now name what Phase 4.3 does: reuse the worktree for the next task, or release this session's lock on one it leaves. Phase 4.3 states that the merge phase never removes a worktree and that one left behind is a candidate for `/source-control:worktree cleanup`. No command changed (#6441).
+
 ## [0.80.0] - 2026-10-04
 
 ### Added
