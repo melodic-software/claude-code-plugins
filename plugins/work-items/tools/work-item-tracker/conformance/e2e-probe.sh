@@ -125,8 +125,8 @@ assert_eq "renew keeps holder" "$(jq -r '.holder' <<<"$CLAIM")" "$(jq -r '.holde
 # close verb by design — skills resolve via their own flow).
 gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 
-# 7. Graduation: item1's closure unblocks item2 (open-blocker count, NOT
-# blockedBy.totalCount — closed blockers linger there).
+# 7. Graduation: item1's closure (gh's default reason, completed) unblocks item2
+# (blocker count, NOT blockedBy.totalCount — closed blockers linger there).
 FRONTIER2="$(wit list-frontier --repo "$REPO")"
 record "frontier after item1 closed" "$FRONTIER2"
 IDS2="$(jq -c '[.items[].id]' <<<"$FRONTIER2")"

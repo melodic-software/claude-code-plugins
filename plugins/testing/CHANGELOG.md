@@ -3,6 +3,23 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.19] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.22.18] - 2026-10-04
+
+### Added
+
+- The test judge now relays a subagent's judged tests to that subagent when it stops (a `SubagentStop` hook). The parent's Stop skips tests whose subagent is still running, and relays a finished subagent's tests that were never relayed. A background judge run keeps the subagent's identity, so the judge class is chosen to differ from the subagent's model as well as the main session's ([#6060](https://github.com/melodic-software/claude-code-plugins/issues/6060)).
+
+### Fixed
+
+- An UNKNOWN verdict blocks an attended Stop only when it started as a FLAG. A quote that is no longer in the file but was in the judged snapshot is reported as stale, not as made up ([#6206](https://github.com/melodic-software/claude-code-plugins/issues/6206)).
+- Identical test bodies in files that are otherwise the same are judged once per Stop and share the verdict, and a PASS is reused for such a body later in the session. A judge repair that changes only comments or blank lines is rejected. The `test_judge_model` description now notes that haiku was not part of the calibration ([#6044](https://github.com/melodic-software/claude-code-plugins/issues/6044)).
+
 ## [0.22.17] - 2026-10-04
 
 ### Added

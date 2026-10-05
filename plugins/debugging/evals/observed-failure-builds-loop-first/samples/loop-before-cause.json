@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 1: build a failing test that posts a $1,200 order and asserts a response under 5s. Once it fails reliably we reproduce and only then rank hypotheses.",
+      "why": "loop gates the rest"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Large orders trigger the fraud-review call, which is slow. Raise the timeout and it will work.",
+      "why": "diagnosis and fix with no loop"
+    }
+  ]
+}

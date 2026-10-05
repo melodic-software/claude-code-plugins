@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Reproduced with `python3 report.py data/week.json`: ZeroDivisionError for the design team, which logged no hours.",
+      "why": "names the error"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Fixed: teams with no entries now report 0.0 h.",
+      "why": "no observed error"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

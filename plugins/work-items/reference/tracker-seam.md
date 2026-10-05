@@ -88,7 +88,8 @@ ways:
 | **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,
-`schema_version, id, title, state, assignees, labels, type, blocked_by_count, parent_id, url`
+`schema_version, id, title, state, assignees, labels, type, blocked_by_count,
+blocked_by_wont_do_count, parent_id, url`
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract"), and there is
 **no `body` field** in it; `--body` exists only as a *write* parameter on `create-item`. `get-item`
 is nonetheless authoritative for `parent_id`, which is how a slice reaches its container. Reading
