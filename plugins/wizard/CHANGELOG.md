@@ -3,6 +3,15 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6] - 2026-10-04
+
+### Fixed
+
+- `ask`, `ask_secret` and `write_env` refuse a key the shell already exports (`GH_TOKEN`,
+  `BROWSER`, `GIT_SSH_COMMAND` and the like). Assigning it kept the export flag, so the wizard's
+  value reached `gh`, `git` and the browser opener. The wizard stops with an error naming the key
+  and leaves the shell's environment alone.
+
 ## [0.6.5] - 2026-10-04
 
 ### Fixed

@@ -979,6 +979,14 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
+      # Parses workflows with the yaml package the runner-policy install
+      # above provides, so it gates on the same workflows filter group.
+      - name: Check no run reaching the read workflow references the App key
+        id: read_caller_keys
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        run: scripts/check-read-caller-keys.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1005,6 +1013,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -2083,6 +2092,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            .github/standards/runner-policy/package-lock.json
             plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -2146,6 +2156,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
+          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement .github/requirements-ci-animation.txt)
