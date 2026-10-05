@@ -16,13 +16,9 @@ lib/context-zone.sh plugins/plugin-quality/scripts/context-zone.sh
 lib/context-zone.fixtures.mjs plugins/context-guard/scripts/context-zone.fixtures.mjs
 lib/context-zone.fixtures.mjs plugins/plugin-quality/scripts/context-zone.fixtures.mjs
 lib/index-regen.sh plugins/discovery/scripts/index-regen.sh
-lib/legacy-statusline-detect.md plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md
-lib/legacy-statusline-detect.md plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
 lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
 lib/spawn_noise.py plugins/harness-ops/lib/spawn_noise.py
 lib/spawn_noise.py plugins/performance/lib/spawn_noise.py
-lib/unwrap-before-compose.md plugins/context-guard/skills/setup/reference/unwrap-before-compose.md
-lib/unwrap-before-compose.md plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh

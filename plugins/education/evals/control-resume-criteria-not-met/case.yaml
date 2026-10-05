@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: control-resume-criteria-not-met
+description: Control. Resuming a workspace that has met only one of three MISSION.md success criteria must keep teaching and must not offer to close the mission
+tags: [teach, pocock-24, control]
+expected_outcome: The reply continues the learning, for example with a retrieval question on INNER JOIN or the LEFT JOIN frontier concept, and does not say the mission is complete or offer to close it.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach resume sql-joins. The workspace is at learning/topic/sql-joins/ in this directory. This run cannot write files, so tell me in your reply what we do this session."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: read-mission
+    type: tool_used
+    tool: Read
+    input_match: 'MISSION\.md'
+    arm: both
+  - name: no-premature-close
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply continues the learning (a retrieval question, a review of INNER JOIN, or the next concept such as LEFT JOIN) and neither claims the mission's success criteria are all met nor offers to close, complete or retire the mission. FAIL if the reply says the mission is complete or nearly complete enough to close, or offers to close or retire it."

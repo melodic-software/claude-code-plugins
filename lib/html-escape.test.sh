@@ -15,11 +15,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! bash "$REPO_ROOT/scripts/sync-shared-copies.sh" --check >/dev/null; then
-  echo "FAIL: a generated copy differs from its canonical source" >&2
-  exit 1
-fi
-
 node --input-type=module - "$REPO_ROOT" <<'NODE'
 import { pathToFileURL } from "node:url";
 

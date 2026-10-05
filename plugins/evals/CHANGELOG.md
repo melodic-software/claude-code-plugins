@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.5.7] - 2026-10-04
+
+### Changed
+
+- **`plugin-eval` documents the CLI's linked-worktree refusal ([#6374](https://github.com/melodic-software/claude-code-plugins/issues/6374)).** `claude plugin eval` refuses a plugin inside a git repository that "registers more linked worktrees than can be screened"; a new record row in the worktree table gives the cause and the workaround (copy the plugin into a new empty directory outside git, excluding `.git` and results, run against the copy, write `--json` back to the plugin's gitignored results directory), with a dated basis and recheck trigger. The description gains a trigger phrase for it.
+
 ## [0.5.6] - 2026-10-04
 
 ### Fixed
