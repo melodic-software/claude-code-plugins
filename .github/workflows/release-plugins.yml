@@ -12,9 +12,17 @@ name: release-plugins
 # the release pull request needs `ci-status`. The commit goes through the GraphQL
 # createCommitOnBranch mutation, which GitHub signs, so main's
 # required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
+#
+# A scheduled run, and a push of a fragment to main, run `merge`: it queues a
+# release pull request that is current and green, rebuilds one that is stale or
+# conflicted, and builds one when none is open (ADR 0048, Rollout 3 and Resolved
+# decisions 1 and 2). workflow_dispatch runs either action by hand.
 on:
-  # The phase 2 pilot runs by hand only. A person starts `merge` until the pilot
-  # proves it (ADR 0048, Resolved decisions 1).
+  schedule:
+    - cron: '41 */3 * * *'
+  push:
+    branches: [main]
+    paths: ['.changes/**']
   workflow_dispatch:
     inputs:
       action:
@@ -26,14 +34,6 @@ on:
         type: choice
         options: [build, merge]
         default: build
-  # Phase 3 (ADR 0048, Rollout 3) adds the schedule, every 3 hours (Resolved
-  # decisions 2), and the push of a fragment to main:
-  #
-  #   schedule:
-  #     - cron: '41 */3 * * *'
-  #   push:
-  #     branches: [main]
-  #     paths: ['.changes/**']
 
 permissions: {}
 
@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   merge:
-    if: github.ref == 'refs/heads/main' && inputs.action == 'merge'
+    if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -74,12 +74,15 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
           if [ -z "$pr" ]; then
-            echo "::error::No release pull request is open; run this workflow with action build first."
-            exit 1
+            echo "No release pull request is open; building one."
+            echo "found=false" >>"$GITHUB_OUTPUT"
+            exit 0
           fi
           {
+            echo "found=true"
+            echo "mergeable=$(jq -r .mergeable <<<"$pr")"
             echo "id=$(jq -r .id <<<"$pr")"
             echo "number=$(jq -r .number <<<"$pr")"
             echo "head=$(jq -r .headRefOid <<<"$pr")"
@@ -90,8 +93,14 @@ jobs:
       - name: Check the release against main's live tip
         id: check
         env:
+          FOUND: ${{ steps.pr.outputs.found }}
+          MERGEABLE: ${{ steps.pr.outputs.mergeable }}
           HEAD_SHA: ${{ steps.pr.outputs.head }}
         run: |
+          if [ "$FOUND" != true ] || [ "$MERGEABLE" = CONFLICTING ]; then
+            echo "rebuild=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "$HEAD_SHA"
           main_sha="$(git rev-parse HEAD)"
           git checkout -q --detach "$HEAD_SHA"
@@ -109,7 +118,8 @@ jobs:
           esac
       # expectedHeadOid pins the queued head to the one checked above: a push to
       # release/plugins in between makes the call fail rather than queue an
-      # unchecked head. The call fails too while `ci-status` is not green on it.
+      # unchecked head. A head already queued, or whose latest `ci-status` has
+      # not passed, is left for a later run.
       - name: Queue the checked head
         if: steps.check.outputs.rebuild == 'false'
         env:
@@ -120,6 +130,20 @@ jobs:
         run: |
           owner="${GITHUB_REPOSITORY%/*}"
           name="${GITHUB_REPOSITORY#*/}"
+          # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
+          queued="$(gh api graphql -f id="$PR_ID" \
+            -f query='query($id: ID!) { node(id: $id) { ... on PullRequest { isInMergeQueue } } }' \
+            --jq '.data.node.isInMergeQueue')"
+          if [ "$queued" = true ]; then
+            echo "Release pull request #$PR_NUMBER is already in the merge queue."
+            exit 0
+          fi
+          ci="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=ci-status" \
+            --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')"
+          if [ "$ci" != success ]; then
+            echo "::notice::ci-status on release pull request #$PR_NUMBER is ${ci:-missing}; a later run queues it."
+            exit 0
+          fi
           # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
           queue="$(gh api graphql -f owner="$owner" -f name="$name" \
             -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { mergeQueue(branch: "main") { id } } }' \
@@ -139,7 +163,7 @@ jobs:
 
   build:
     needs: [merge]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.action != 'merge' || needs.merge.outputs.rebuild == 'true') }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
