@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.1.1] - 2026-10-04
+
+Patch. Wording only; no value, topology or invariant changed.
+
+- **The rate-limit contract file is the snapshot file (§6).** The README, the lane prompts and every
+  inlined operable floor call `~/.claude/rate-limit-guard/rate-limits.json` the snapshot file
+  instead of the tee file, and the floor's first bullet is `Snapshot file (fixed path)`.
+
 ## [10.1.0] - 2026-10-03
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

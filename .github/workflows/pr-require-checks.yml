@@ -306,7 +306,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           filters: |
             shell:
@@ -731,11 +731,11 @@ jobs:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-7446b5165511796b7b0d30b68d341689ebb8de61
+          key: npx-markdownlint-cli2-${{ runner.os }}-fb56986808750d6856c27de78df15e150027b8dc
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -743,7 +743,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: _typos.toml
           # A pack's vendored baseline is replaced verbatim from upstream by its
@@ -763,7 +763,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -771,7 +771,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .editorconfig-checker.json
 
@@ -785,13 +785,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -799,7 +799,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -807,16 +807,17 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
+            .github/workflows/release-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -849,12 +850,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1236,7 +1237,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1420,6 +1421,10 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The head branch of a pull request from this repository, never a
+          # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
+          # here as the release pull request.
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
@@ -1450,6 +1455,45 @@ jobs:
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check-order
 
+      # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
+      # takes a fragment under .changes/<plugin>/ in each pull request, and the
+      # release pull request (branch release/plugins) bumps it. --check
+      # validates every fragment in the tree; --check-required asks a change to
+      # such a plugin for one. --check-release keeps a release from merging past
+      # a fragment it never consumed: on the release pull request against the
+      # base, and in the merge queue against HEAD^1, the tree the queued squash
+      # commit lands on (main plus every entry ahead of it).
+      - name: Verify every changelog fragment is well formed
+        id: changelog_fragments_check
+        continue-on-error: true
+        run: scripts/check-changelog-fragments.sh --check
+      - name: Verify a change to a fragment-mode plugin adds a fragment
+        id: changelog_fragments_required
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+      - name: Verify a release consumes every pending fragment for the plugins it bumps
+        id: changelog_fragments_release
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
+            scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
+          else
+            echo "::notice::Declined: only the release pull request and the merge queue release plugins."
+          fi
+
       # Vendor version bump: ADR 0019's intra-plugin sharing keeps ONE
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
       # gate applies; the invariant that replaces it is delivery-by-version — a
@@ -1473,7 +1517,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1481,7 +1525,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -1634,6 +1678,9 @@ jobs:
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
             marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
@@ -1807,7 +1854,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2024,7 +2071,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2403,7 +2450,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -2511,7 +2558,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
