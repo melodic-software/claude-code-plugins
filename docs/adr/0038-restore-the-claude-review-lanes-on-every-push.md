@@ -198,8 +198,8 @@ Every push to a ready pull request started 4 jobs, a review job and a status job
 3. **Decision 4 is narrowed.** Each lane is one job, which goes red, naming the cause, when no
    review happened; a review that was not needed is green. The code-review check keeps its name,
    `review / claude-review-status`. The security-review check is `security-review /
-   security-review`, the context the disabled `security-review-gate` org ruleset in
-   melodic-software/github-iac names (`OrgRulesets.cs`); `security-review /
+   security-review`, the context the `security-review-gate` org ruleset named until
+   melodic-software/github-iac#614 retired it on 2026-10-04; `security-review /
    claude-security-review-status` and `review / review` no longer report. The babysit merge gate
    accepts either security check name (melodic-software/claude-code-plugins#5995). Decision 5 still
    holds: only `ci-status` is required.

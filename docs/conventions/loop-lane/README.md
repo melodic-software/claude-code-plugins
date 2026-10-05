@@ -169,7 +169,11 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 - **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
-  SHA-bound required check with no bypass actors. A PR **comment is never a hold**: comments are
+  SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
+  same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
+  the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
+  queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is never a hold**: comments are
   advisory by construction; no gate reads them, and an escalation comment on the PR obliges
   nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
@@ -833,7 +837,7 @@ assumption.
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
-**inlines the operable floor**, the fixed tee-file path, the pause threshold, the staleness rule,
+**inlines the operable floor**, the fixed snapshot-file path, the pause threshold, the staleness rule,
 and drain-then-pause, and cites the guard's reader contract for provenance only. This section names
 those four items and deliberately restates none of their values: a number written here would be a
 seventh copy, outside the block the check below compares.
@@ -897,7 +901,7 @@ identical to each other, which is the half a reviewer notices, while all three d
 source. The scan exists because a registry alone repeats that shape one level up: the first report
 of this coupling named five copies, and building the registry found six.
 
-**Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
+**Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
 way for the guard to detect it. Same-machine account rotation is real operating practice, not a
@@ -912,10 +916,10 @@ no machine, org size, or budget"
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
 gap removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and all three sides have landed.** The tee file carries an
+**The resolution is account identity, and all three sides have landed.** The snapshot file carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
-(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Snapshot file shape"). Reader-side
 invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
 lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
 names at pause entry, because the snapshot can be up to 10 minutes old), reads
@@ -997,6 +1001,9 @@ requires (freshness read, hold, then explanation):
 ```bash
 gh pr view <n> -R "$R" --json state,mergedAt
 gh pr edit <n> -R "$R" --add-label do-not-merge
+# Only when the PR is in the merge queue:
+gh api graphql -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' \
+  -f id="$(gh pr view <n> -R "$R" --json id -q .id)"
 gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
 ```
 

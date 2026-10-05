@@ -102,7 +102,7 @@ Parse `$ARGUMENTS`: first token = action, remainder = args. If empty or ambiguou
 | `mission` | Review or update learning mission | [context/mission.md](context/mission.md) |
 | `glossary` | Review or update compressed terminology | [context/glossary.md](context/glossary.md) |
 | `resources` | Manage curated learning sources | [context/resources.md](context/resources.md) |
-| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes the concept's single lesson file (`lesson.html`/`lesson.md` per [context/lessons.md](context/lessons.md)). Pedagogically ephemeral but durable machine state on disk; distill a durable `reference.md` alongside |
+| `explain <concept>` | Teach one tightly-scoped thing (a lesson) | Writes the concept's single lesson file (`lesson.html`/`lesson.md` per [context/lessons.md](context/lessons.md)), naming one `RESOURCES.md` entry as its primary source, with any others as further reading. Pedagogically ephemeral but durable machine state on disk; distill a durable `reference.md` alongside |
 | `primer <domain>` | Single-session domain primer. NO workspace | See "Primer action" below |
 | `exercise` | Colocated practice for a concept | Writes `concepts/<concept>/exercise.md`; design per [context/exercises.md](context/exercises.md) |
 | `assess` | Check understanding, update learning records | [context/assessment.md](context/assessment.md) |
@@ -171,6 +171,7 @@ Coach through a depth-first, one-question-at-a-time dialog:
 2. Read `GLOSSARY.md`, know what terms are established
 3. Read `NOTES.md`, recall teaching preferences
 4. Scan `learning-records/` for the latest entries, know the current frontier
+   - **Check the mission.** Compare the records against each `MISSION.md` "Success Looks Like" item. When every item is met, say so item by item and ask the learner whether to close the mission or revise it with a new goal before teaching anything new; the choice is theirs
 5. **Surface due-for-review concepts**. Weigh each floor concept's latest record age against the domain's velocity (see "Staleness"); list what is due for spaced retrieval practice BEFORE advancing the frontier, and open with a quick retrieval question on one due concept when any exist (spacing is how storage strength gets built. See "Fluency vs storage strength" in context/pedagogy.md)
 6. Pick the next concept from the zone of proximal development; open its `concepts/<concept>/` slice
 7. Before re-teaching an existing concept, run the Staleness check (see "Staleness")

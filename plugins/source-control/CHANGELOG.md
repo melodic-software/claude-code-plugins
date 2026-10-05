@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.0] - 2026-10-04
+
+### Added
+
+- `scripts/convert-bump-to-fragment.sh [<base-ref>]` moves a branch's hand-written version bump into a changelog fragment for each plugin listed in `scripts/fragment-plugins.txt` (ADR 0048), so a pull request opened before its plugin moved to fragment mode stops failing `FRAGMENT-MODE RELEASE`. Run on the branch after merging the default branch, or during that merge: it restores the plugin's `plugin.json` version and `CHANGELOG.md` to the base (MERGE_HEAD, else the merge base with `<base-ref>`, default origin's default branch) and keeps every other edit, writes the removed entries through `scripts/new-changelog-fragment.sh` at the level of the version delta, and stages all three files. A plugin whose files are still conflicted, whose version went down, or that gained no CHANGELOG heading is named and left alone (exit 1), as is one whose CHANGELOG gained a heading with no version change; a written fragment that fails the repository's fragment validation is named too (exit 1); a repository with no fragment list has nothing to convert (exit 0); a rebase or cherry-pick in progress is refused (exit 2). `scripts/convert-bump-to-fragment.test.sh` covers these paths and checks the result against the repository's real fragment and parity gates (#6006).
+
+## [0.79.21] - 2026-10-04
+
+### Changed
+
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.79.20] - 2026-10-04
+
+### Changed
+
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
 ## [0.79.19] - 2026-10-04
 
 ### Changed

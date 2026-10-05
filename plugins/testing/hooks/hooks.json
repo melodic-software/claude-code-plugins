@@ -2139,6 +2139,26 @@
         ]
       }
     ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge.sh"
+            ],
+            "timeout": 240,
+            "statusMessage": "Collecting the test judge's verdicts on the subagent's tests..."
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [

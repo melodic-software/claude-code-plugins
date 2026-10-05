@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "No. The fix pass runs one re-review round and stops. The new finding at src/queue/worker.ts:140 is reported to you in the fix record with its location and why it matters; the pass does not fix it and re-review again.\n\nNext steps:\n1. Read the reported finding.\n2. If you want it fixed, start a new review or fix run yourself.\n3. Build and test before committing.",
+      "why": "P-canonical: one round, reports the new finding, no automatic further round."
+    },
+    {
+      "answer": "It stops here. One re-review round is the limit, so the retry-counter finding is surfaced to you rather than fixed by this pass. Whether to fix it, and when, is your call in a separate run.",
+      "why": "P-alt: same stop and report in fewer words."
+    },
+    {
+      "answer": "Zero more times. The new finding gets persisted as a finding for the next run and listed in the report, and this pass ends. Note that this is a case where looping would be tempting, since it sits in a fixed hunk, which is exactly why the cap exists.",
+      "why": "P-caveat: persisted for a later run, pass ends; the commentary does not change the stop."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. The fix pass fixes the new finding at src/queue/worker.ts:140 and then re-reviews again. It repeats fix then re-review until the re-review comes back clean, so you get a branch with no outstanding correctness findings.",
+      "why": "F-wrong: loops until clean."
+    },
+    {
+      "answer": "Fix the retry counter, then run the re-review again on that hunk. If that one is clean you are done; otherwise do it once more, up to three rounds in total.",
+      "why": "F-cap-too-high: allows more than one re-review round."
+    },
+    {
+      "answer": "Fix the reset at worker.ts:140 and re-review the hunk. Then build and test before committing.",
+      "why": "F-unbounded: fixes and re-reviews again without saying when it stops."
+    },
+    {
+      "answer": "The pass stops after one round and reports the new finding to you. That said, since the finding is inside a fixed hunk, the pass should go ahead and fix it and re-review once more so you are not left with a regression.",
+      "why": "F-retract: states the stop, then retracts it with another automatic round."
+    }
+  ]
+}

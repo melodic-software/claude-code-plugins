@@ -1065,6 +1065,102 @@ else
   fail "dual-ecosystem coverage (rc=$RC): $OUT"
 fi
 
+# --- R3: a Python import names the module's file ---------------------------
+# `import m` and `from pkg.m import x` never spell m.py, so only the import
+# rule carries a module change out to the code that imports it. A name that
+# merely contains the stem, or the stem outside an import line, names nothing.
+mkdir -p "$repo/eco/imp/harness"
+printf 'X = 1\n' >"$repo/eco/imp/lib_mod.py"
+printf 'from lib_mod import X\n' >"$repo/eco/imp/user_mod.py"
+printf 'import user_mod\n' >"$repo/eco/imp/test_user_mod.py"
+printf 'def run():\n    return 1\n' >"$repo/eco/imp/harness/stub_h.py"
+printf 'from harness.stub_h import run\n' >"$repo/eco/imp/test_dotted.py"
+printf 'import os, harness.other\nfrom harness import (stub_h as s)\n' >"$repo/eco/imp/test_named.py"
+printf 'import lib_mod_extra\nNAME = "lib_mod"\n' >"$repo/eco/imp/test_lookalike.py"
+run_sel "$repo" eco/imp/lib_mod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_user_mod.py && ! has_line "$OUT" eco/imp/test_lookalike.py; then
+  ok "R3: a module change reaches the suite of the code importing it, and not a lookalike name"
+else
+  fail "python import of a module (rc=$RC): $OUT"
+fi
+printf 'from harness import (\n    other_name,\n    stub_h,\n)\n' >"$repo/eco/imp/test_wrapped.py"
+printf 'from harness import other_name, \\\n    stub_h\n' >"$repo/eco/imp/test_backslash.py"
+run_sel "$repo" eco/imp/harness/stub_h.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT" eco/imp/test_named.py &&
+  has_line "$OUT" eco/imp/test_wrapped.py && has_line "$OUT" eco/imp/test_backslash.py; then
+  ok "R3: a dotted component or an imported name equal to the stem names the module, on a wrapped line too"
+else
+  fail "python dotted, from-import or wrapped import (rc=$RC): $OUT"
+fi
+# A wrapped import longer than the joining window would lose its later names.
+OUT="$(cd "$repo" && AFFECTED_TESTS_WRAP_LINES=2 bash scripts/affected-tests.sh eco/imp/harness/stub_h.py 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$OUT" "ran past 2 lines"; then
+  ok "R3: a wrapped import cut short by the joining window fails loud"
+else
+  fail "python wrapped import past the window (rc=$RC): $OUT"
+fi
+
+# Importing a package, or a module inside it, runs its __init__.py.
+mkdir -p "$repo/eco/imp/pkgx" "$repo/eco/imp/other"
+printf 'VALUE = 1\n' >"$repo/eco/imp/pkgx/__init__.py"
+printf 'VALUE = 2\n' >"$repo/eco/imp/pkgx/mod.py"
+: >"$repo/eco/imp/other/__init__.py"
+printf 'from pkgx.mod import VALUE\n' >"$repo/eco/imp/test_pkg_user.py"
+printf 'import json\n' >"$repo/eco/imp/test_no_pkg.py"
+run_sel "$repo" eco/imp/pkgx/__init__.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_pkg_user.py && ! has_line "$OUT" eco/imp/test_no_pkg.py; then
+  ok "R3: a package's __init__.py reaches a suite outside the package that imports it"
+else
+  fail "python package __init__.py (rc=$RC): $OUT"
+fi
+
+# An ambiguous module name resolves to the one module of that name in the
+# nearest directory holding any, from the importer up: its own directory, a
+# tests/ parent, a plugin lib/ beside the importer's skill. A directory above
+# two modules of that name resolves to neither.
+mkdir -p "$repo/eco/amb/a/skill/scripts" "$repo/eco/amb/b/tests"
+printf 'A = 1\n' >"$repo/eco/amb/a/util.py"
+printf 'B = 1\n' >"$repo/eco/amb/b/util.py"
+printf 'import util\n' >"$repo/eco/amb/a/test_near.py"
+printf 'import util\n' >"$repo/eco/amb/a/skill/scripts/test_lib_user.py"
+printf 'import util\n' >"$repo/eco/amb/b/tests/test_child.py"
+printf 'import util\n' >"$repo/eco/amb/test_above.py"
+run_sel "$repo" eco/amb/a/util.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/amb/a/test_near.py && has_line "$OUT" eco/amb/a/skill/scripts/test_lib_user.py &&
+  ! has_line "$OUT" eco/amb/b/tests/test_child.py && ! has_line "$OUT" eco/amb/test_above.py; then
+  ok "R3: an ambiguous module resolves from the nearest directory holding one, never from above two"
+else
+  fail "python ambiguous import, nearest module (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/amb/b/util.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/amb/b/tests/test_child.py && ! has_line "$OUT" eco/amb/a/test_near.py; then
+  ok "R3: an ambiguous module resolves from its tests/ child"
+else
+  fail "python ambiguous import, tests/ child (rc=$RC): $OUT"
+fi
+
+# --- R2: conftest.py and __init__.py reach the test modules below them -----
+mkdir -p "$repo/eco/cf/sub" "$repo/eco/pk/tests"
+printf 'import pytest\n' >"$repo/eco/cf/conftest.py"
+printf 'assert True\n' >"$repo/eco/cf/test_top.py"
+printf 'assert True\n' >"$repo/eco/cf/sub/test_deep.py"
+: >"$repo/eco/pk/__init__.py"
+printf 'assert True\n' >"$repo/eco/pk/tests/test_pk.py"
+run_sel "$repo" eco/cf/conftest.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cf/test_top.py && has_line "$OUT" eco/cf/sub/test_deep.py &&
+  ! has_line "$OUT" eco/test_widget_mod.py; then
+  ok "R2: a conftest.py selects every test module at or below its directory, and none outside it"
+else
+  fail "conftest.py (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/pk/__init__.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pk/tests/test_pk.py && ! has_line "$OUT" eco/cf/test_top.py; then
+  ok "R2: a package __init__.py selects the test modules of its package"
+else
+  fail "__init__.py (rc=$RC): $OUT"
+fi
+
 # --- R4: another language counts only where it runs or loads the file ------
 # A file in another language that merely contains the name (a string, a log
 # message) is not a dependent and its suite is not selected: across languages

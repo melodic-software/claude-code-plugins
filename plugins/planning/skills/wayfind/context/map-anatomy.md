@@ -67,7 +67,11 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
 
 1. **Every closed in-scope decision has a Decisions-so-far pointer line.** Resolved-in-comment
    but no index line → add the line. Closed-as-out-of-scope items are indexed under
-   Out-of-scope instead, never under Decisions-so-far.
+   Out-of-scope instead, never under Decisions-so-far. An item closed as moot (another
+   resolution invalidated its premise) carries a closing comment linking that resolution and
+   no line in either index. A decision later found wrong keeps its line, rewritten as
+   `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`, so the index
+   holds one live answer per question.
 2. **No item resolved-in-comment yet still open.** In-scope resolution is atomic: comment →
    Decisions-so-far → close. A wrongly scoped item closes with one Out-of-scope line and no
    Decisions-so-far pointer (see Out-of-scope above). A dangling "resolved" comment on an
@@ -79,12 +83,18 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    `<memory_dir>/<slug>/` (default `.work/`) is the memory slice (never
    committed; slug spec shared with the pipeline skills). The map never cites a concrete
    `<memory_dir>/<slug>/` path as a coordination surface; the memory tier never holds map state.
+5. **No fog prose that an item already charts.** Charting fog is create-then-delete; an
+   interrupted run can leave the prose behind. Delete it, and chart nothing new from it.
 
 ## Graduation and closure
 
 - **Graduation (per resolution):** a resolved decision either sharpens the map (turns fog into
-  new typed items) or feeds the destination. When it produces buildable work, that work leaves
-  the map for `/work-items:track add`.
+  new typed items) or feeds the destination. Fog that becomes a typed item is deleted from
+  Not-yet-specified, so each uncertainty lives in one place. When it produces buildable work,
+  that work leaves the map for `/work-items:track add`.
+- **Sweep (per resolution):** open items whose premise the resolution invalidated are rewritten
+  or closed as moot, and a closed decision it shows was wrong is superseded by a new item, per
+  Work mode step 6.
 - **Closure (whole map):** frontier empty ∧ every decision item closed ⟹ the destination is
   coherent. Close the map and hand the destination to the pipeline entry that fits it
   (`/planning:interview` or `/planning:prd` → Brief/PRD; `/planning:plan` → PLAN). The
