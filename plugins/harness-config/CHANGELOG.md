@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.9.3] - 2026-10-04
+
+### Changed
+
+- `unhobble` says changelog parity also accepts a changelog fragment for a plugin in fragment mode.
+
 ## [1.9.2] - 2026-10-04
 
 ### Fixed

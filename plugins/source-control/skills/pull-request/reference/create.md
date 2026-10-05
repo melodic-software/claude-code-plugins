@@ -145,6 +145,16 @@ Stage specific files (never `git add -A`). Then invoke `/source-control:commit` 
 
 **When NOT to delegate:** if `/source-control:commit` is unavailable (e.g. skill discovery broken), inline the same heredoc form (`git commit -F - --cleanup=verbatim <<'EOF' ... EOF`) and proceed, but note the fallback to the user.
 
+### 2.3.3 Changelog fragments for the whole branch
+
+Only in a repository with a `fragment-plugins.txt` list in its `scripts/` directory; elsewhere skip this step, and the repository's own release record (a version bump plus CHANGELOG entry) applies. `/source-control:commit` writes a fragment per commit, but a branch can carry commits made outside it. After the last commit and before the push, run the script against the default branch with the drafted PR title (§2.4.1) as the message:
+
+```bash
+printf '%s\n' "<PR title>" | bash "<plugin-root>/scripts/write-changelog-fragments.sh" --base "origin/<default-branch>"
+```
+
+It writes a fragment, with the bump and section the title's Conventional Commits type maps to, only for a listed plugin the branch changes and that has no fragment from this branch yet; a plugin the list does not name keeps the per-PR bump. When it prints paths, stage them and commit through `/source-control:commit` (a `chore` subject naming the fragments). On exit 2 for a title it cannot map, rerun with `--level major|minor|patch|none`.
+
 ## 2.4 Push, create PR, and persist PR number
 
 ### 2.4.0 Resolve linked issue(s)
