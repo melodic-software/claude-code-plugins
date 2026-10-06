@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.9] - 2026-10-06
+
+### Changed
+
+- **chore(deps-dev): Bump source-map-js from 1.2.1 to 1.2.2 in /plugins/knowledge/skills/video-digest/extraction** (#6468).
+
 ## [0.19.8] - 2026-10-04
 
 ### Changed
