@@ -204,7 +204,7 @@
         "docs": "https://github.com/yt-dlp/yt-dlp#installation",
         "brew": "yt-dlp",
         "winget": "yt-dlp.yt-dlp",
-        "pip": "yt-dlp[default,curl-cffi] (the extras carry the YouTube challenge solver and browser impersonation)"
+        "pip": "yt-dlp[default,curl-cffi]"
       },
       "check": "/harness-ops:prerequisites"
     },

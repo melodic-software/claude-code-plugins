@@ -120,7 +120,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if the pre-computed context above shows
    MISSING, or a version below its floor, for yt-dlp, ffmpeg, or ImageMagick (install fallbacks
    and the upgrade policy: "Prerequisites" below). Cloud agents without the media toolchain fail
-   closed, and so does any run whose video download fails ("No video, no watch").
+   closed, and so does any run whose video exists but fails to download ("No video, no watch").
 2. **Phase 0b. Companion deep-dive**, only when `source/companion-sources.md` exists, and **before**
    CLI bootstrap.
 3. **CLI bootstrap**. Deterministic stages (acquire → transcript → coverage watching → link
@@ -243,13 +243,12 @@ platform's package manager, or one of the fallbacks below.
   micromamba, which installs into a user directory without root. Prefer a release build to a
   nightly: a nightly ffmpeg prints a git revision instead of a version, so no floor check can read
   it.
-- **yt-dlp from pip**: install the `default` and `curl-cffi` extras, not bare `yt-dlp`. Without
-  them YouTube extraction lacks its challenge-solver scripts and browser impersonation, and the
-  bot check and HTTP 429 hit far more often. The skill already passes a JavaScript runtime
-  (`--js-runtimes node`). Pointer: the yt-dlp README's
-  [Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies) section and the
-  [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS), as of 2026-10-06; recheck when a
-  yt-dlp release renames those extras or changes the JavaScript runtime it needs.
+- **yt-dlp from pip**: install the `default` and `curl-cffi` extras, not bare `yt-dlp`; a run
+  without them met the bot check where one with them did not. The skill already passes a
+  JavaScript runtime (`--js-runtimes node`). What each extra provides and which runtime YouTube
+  needs: the yt-dlp README's [Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies)
+  section and the [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS), as of 2026-10-06;
+  recheck when a yt-dlp release renames those extras or changes the JavaScript runtime it needs.
 - A tool installed outside the system path must be on `PATH` for the shell that runs `run.mjs`.
 
 **Use the newest safe release.** The floors are minimums, not targets. Before a run, compare each
@@ -261,12 +260,13 @@ exists; and its release notes and security advisories (the project's GitHub Secu
 <https://osv.dev>) show nothing open against that version. Never disable TLS verification to get a
 download through.
 
-**No video, no watch.** A `watch` needs the video file itself. When acquisition cannot download
-it (an HTTP 403 on the media stream, a bot check that cookies do not clear), `run-watch.js` exits
-non-zero, and the watch stops there: report the failure and the fix path from
-`context/gotchas.md`. Do not continue without frames, and do not switch to the `transcript`
-action on the user's behalf; a transcript-only digest runs only when the user asks for that
-action by name.
+**No video, no watch.** When the source has a video, a `watch` needs the file itself. When
+acquisition cannot download it (an HTTP 403 on the media stream, a bot check that cookies do not
+clear), `run-watch.js` exits non-zero, and the watch stops there: report the failure and the fix
+path from `context/gotchas.md`. Do not continue without frames, and do not switch to the
+`transcript` action on the user's behalf; a transcript-only digest runs only when the user asks
+for that action by name. A source with no video at all (the 0-video X result above) is not a
+failed download and keeps its text-only path.
 
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
 selected automatically for caption-absent entries and available on request via
