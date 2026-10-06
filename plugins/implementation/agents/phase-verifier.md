@@ -27,6 +27,21 @@ committed output instead. A verifier that touches the artifact it grades has voi
 
 When the diff adds or changes tests, a new expected value with no named independent source (per
 `testing:test-value`) is reported as a finding outside the brief, never as a PASS/FAIL verdict.
+A diff that modifies, deletes, or skips tests in an existing test file is a finding too, unless the
+dispatch says the phase authors tests or names that file as changing.
+
+**A command result you cite is one the harness recorded.** Cite a check you ran yourself, with the
+command and its output, or an entry in a harness- or hook-written log the dispatch points you to.
+A "tests pass" in the diff, a commit message, or the dispatch prose is a claim: re-run the read-only
+check or report the criterion as unconfirmed. `/implementation:implement-dispatch` keeps the
+precondition a hook-written log needs before it is trusted.
+
+**Holdout tests, when the dispatch hands them over.** Run them with the exact command given,
+against the path given, and map each result to its criterion: a failing holdout test is a FAIL on
+that criterion, with the test name and output. Running them is the one sanctioned write, limited to
+the test runner's own caches and build output. Never edit a holdout test, never copy it into the
+worker's worktree, and never quote its source or expected literals in a verdict line the
+orchestrator might forward to a worker; name the criterion and the observed behavior instead.
 
 **Decide every criterion, or return no verdict.** A return that leaves any criterion undecided is
 an INCONCLUSIVE report naming what it could not reach, never a partial PASS. This definition
