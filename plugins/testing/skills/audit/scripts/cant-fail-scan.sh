@@ -79,7 +79,13 @@
 #                                            shrinks the suite to one passing
 #                                            test instead of failing the run.
 #
-# Both are advisory in --check unless --strict, which gates them together with
+# rule-flaky-passes-suite also reads the other runners' retry settings (engine:
+# retry-config-scan.awk): pytest-rerunfailures reruns in a pytest config with
+# --fail-on-flaky absent from addopts, a Vitest config's test retry, and a Jest
+# jest.retryTimes call; Vitest and Jest have no fail-on-flaky switch, so a
+# retry count above zero is the finding.
+#
+# All are advisory in --check unless --strict, which gates them together with
 # mock-only-oracle; there is no finer switch. A config file is not a test file:
 # config findings are reported wherever they are found, but the exit-2 rule for
 # 0 examined TEST files is unchanged, and a config-only tree neither gates nor
@@ -161,7 +167,7 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [[--blocks] [--brief] 
   --check     exit 1 when a gating rule fired, 2 when the scan could not run, could not fully
               read its inputs, or examined 0 test files, 0 only for a fully read finding-free
               scan of at least one test file (fail closed)
-  --strict    with --check: mock-only-oracle and the playwright config findings gate too
+  --strict    with --check: mock-only-oracle and the runner config findings gate too
               (advisory otherwise; one switch for all three, no finer grain)
   --findings  emit a detector-findings-conforming findings file on stdout; coverage on stderr;
               refuses (exit 2) when no test file was examined or no branch is checked out
@@ -183,7 +189,8 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [[--blocks] [--brief] 
 
 Rules v1: testing/audit/rule-zero-assertion, testing/audit/rule-recomputed-expectation,
 testing/audit/rule-mock-only-oracle, and over each Playwright config found,
-testing/audit/rule-flaky-passes-suite and testing/audit/rule-only-not-forbidden.
+testing/audit/rule-flaky-passes-suite and testing/audit/rule-only-not-forbidden, and
+rule-flaky-passes-suite over pytest and Vitest configs and Jest retryTimes calls.
 Report-only, never gating: testing/audit/rule-inert-assertion,
 testing/audit/rule-constant-restatement, testing/audit/rule-source-text-read,
 testing/audit/rule-conditional-assertion, testing/audit/rule-recomputed-derived,
@@ -257,6 +264,7 @@ AWK_PROG="$SCRIPT_DIR/cant-fail-scan.awk"
 # engine itself and refuses the same way when missing.
 MASK_AWK="$SCRIPT_DIR/mask-js.awk"
 CONFIG_AWK="$SCRIPT_DIR/runner-config-scan.awk"
+RETRY_AWK="$SCRIPT_DIR/retry-config-scan.awk"
 require_readable() {
   # require_readable <path> <what it is>
   [[ -r "$1" ]] && return 0
@@ -266,6 +274,7 @@ require_readable() {
 require_readable "$AWK_PROG" 'rule engine'
 require_readable "$MASK_AWK" 'shared JavaScript masker'
 require_readable "$CONFIG_AWK" 'runner-config rule engine'
+require_readable "$RETRY_AWK" 'retry-setting rule engine'
 LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
@@ -585,6 +594,32 @@ mapfile -t cfg_files < <(collect_files \
   -o -name 'playwright.config.mts' -o -name 'playwright.config.mjs' \
   -o -name 'playwright.config.cts' -o -name 'playwright.config.cjs')
 
+# pytest, Vitest and Jest retry settings (engine: retry-config-scan.awk). The
+# pytest and Vitest files are configs, picked one per directory below; a Jest
+# retryTimes call sits in any JS/TS file, so every one that names it is read,
+# minus paths.exclude. An edit-scoped run (--lines) reads none of them: a
+# file-level setting is no finding about the lines an edit wrote.
+PYTEST_NAMES=(pytest.toml .pytest.toml pytest.ini .pytest.ini pyproject.toml tox.ini setup.cfg)
+VITEST_EXTS=(ts mts cts js mjs cjs)
+rc_py_files=()
+rc_vt_files=()
+rc_js_files=()
+if [[ -z "$LINES" ]]; then
+  rc_args=()
+  for n in "${PYTEST_NAMES[@]}"; do rc_args+=(${rc_args[@]+-o} -name "$n"); done
+  mapfile -t rc_py_files < <(collect_files "${rc_args[@]}")
+  rc_args=()
+  for n in "${VITEST_EXTS[@]}"; do rc_args+=(${rc_args[@]+-o} -name "vitest.config.$n" -o -name "vite.config.$n"); done
+  mapfile -t rc_vt_files < <(collect_files "${rc_args[@]}")
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if [[ ${#tc_exclude_re[@]} -gt 0 ]] && excluded "$f"; then continue; fi
+    rc_js_files+=("$f")
+  done < <(collect_files -name '*.js' -o -name '*.jsx' -o -name '*.mjs' -o -name '*.cjs' \
+    -o -name '*.ts' -o -name '*.tsx' -o -name '*.mts' -o -name '*.cts' |
+    tr '\n' '\0' | xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
+fi
+
 # --- Denominator --------------------------------------------------------------
 enum_js="${#js_files[@]}"
 enum_py="${#py_files[@]}"
@@ -602,6 +637,19 @@ cfg_examined=0
 cfg_shadowed=0
 cfg_unparsed=0
 cfg_unreadable=0
+# Retry settings: per runner, configs enumerated, examined and shadowed; Jest
+# files read. Their findings share rule-flaky-passes-suite, counted apart.
+rc_py_enum=0
+rc_py_exam=0
+rc_py_shadow=0
+rc_vt_enum="${#rc_vt_files[@]}"
+rc_vt_exam=0
+rc_vt_shadow=0
+rc_js_exam=0
+rc_unreadable=0
+n_rcfg=0
+x_rcfg=0
+d_rcfg=0
 
 # Findings: parallel arrays, file order.
 f_rule=()
@@ -840,7 +888,99 @@ for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
   done
 done
 
-cfg_findings=$((n_cfg1 + n_cfg2))
+scan_retry() {
+  # scan_retry <pytest|vitest|jest> <file>
+  local kind="$1" file="$2" rel rec slug line detail
+  rel="$REPO_PREFIX${file#"$ROOT"/}"
+  if [[ ! -f "$file" || ! -r "$file" ]]; then
+    # Logged, so the run stays fail-closed through walk_errors, and counted in
+    # the retry-settings denominator, never as an unreadable test file.
+    rc_unreadable=$((rc_unreadable + 1))
+    printf 'unreadable %s retry setting file: %s\n' "$kind" "$rel" >>"$WALK_ERR"
+    return 0
+  fi
+  case "$kind" in
+  pytest) rc_py_exam=$((rc_py_exam + 1)) ;;
+  vitest) rc_vt_exam=$((rc_vt_exam + 1)) ;;
+  *) rc_js_exam=$((rc_js_exam + 1)) ;;
+  esac
+  while IFS=$'\t' read -r rec slug line detail; do
+    [[ "$rec" == C ]] && continue
+    if [[ "$rec" == E ]]; then
+      printf 'retry engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR"
+      continue
+    fi
+    if [[ "$slug" != flaky-passes-suite ]]; then
+      printf 'engine drift: unknown retry-setting rule %s\n' "$slug" >>"$WALK_ERR"
+      continue
+    fi
+    case "$rec" in
+    F)
+      if [[ ${#rule_level[@]} -gt 0 ]]; then
+        rule_override "$slug" "$strict" || continue
+      fi
+      f_rule+=("$slug")
+      f_loc+=("$rel:$line")
+      f_detail+=("$detail")
+      f_lang+=("config-$kind")
+      n_rcfg=$((n_rcfg + 1))
+      ;;
+    X)
+      exempted=$((exempted + 1))
+      x_rcfg=$((x_rcfg + 1))
+      ;;
+    D) d_rcfg=$((d_rcfg + 1)) ;;
+    *) printf 'engine drift: unrecognized retry-setting record kind %s\n' "$rec" >>"$WALK_ERR" ;;
+    esac
+  done < <(awk -v KIND="$kind" -v NAME="${file##*/}" -f "$MASK_AWK" -f "$RETRY_AWK" "$file" 2>>"$WALK_ERR")
+}
+
+# pytest: per directory, the first file in pytest's order that holds pytest's
+# section (pytest.toml and pytest.ini match even when empty); a file without
+# the section is no pytest config and is not counted. The rest that hold one
+# are shadowed: pytest never merges two config files.
+declare -A rc_seen=()
+for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
+  d="$(dirname "$f")"
+  [[ -z "${rc_seen[$d]:-}" ]] || continue
+  rc_seen["$d"]=1
+  picked=""
+  for n in "${PYTEST_NAMES[@]}"; do
+    c="$d/$n"
+    [[ -f "$c" ]] || continue
+    case "$n" in
+    pyproject.toml) grep -qE '^[[:space:]]*\[[[:space:]]*tool\.pytest(\.ini_options)?[[:space:]]*\]' -- "$c" 2>/dev/null || continue ;;
+    tox.ini) grep -qE '^[[:space:]]*\[[[:space:]]*pytest[[:space:]]*\]' -- "$c" 2>/dev/null || continue ;;
+    setup.cfg) grep -qE '^[[:space:]]*\[[[:space:]]*tool:pytest[[:space:]]*\]' -- "$c" 2>/dev/null || continue ;;
+    *) ;;
+    esac
+    rc_py_enum=$((rc_py_enum + 1))
+    if [[ -z "$picked" ]]; then picked="$c"; else rc_py_shadow=$((rc_py_shadow + 1)); fi
+  done
+  [[ -z "$picked" ]] || scan_retry pytest "$picked"
+done
+# Vitest: per directory, vitest.config.* before vite.config.*, each in Vitest's
+# extension order; the rest are shadowed.
+rc_seen=()
+for f in ${rc_vt_files[@]+"${rc_vt_files[@]}"}; do
+  d="$(dirname "$f")"
+  [[ -z "${rc_seen[$d]:-}" ]] || continue
+  rc_seen["$d"]=1
+  picked=""
+  for n in vitest vite; do
+    for e in "${VITEST_EXTS[@]}"; do
+      c="$d/$n.config.$e"
+      [[ -f "$c" ]] || continue
+      if [[ -z "$picked" ]]; then picked="$c"; else rc_vt_shadow=$((rc_vt_shadow + 1)); fi
+    done
+  done
+  [[ -z "$picked" ]] || scan_retry vitest "$picked"
+done
+for f in ${rc_js_files[@]+"${rc_js_files[@]}"}; do
+  scan_retry jest "$f"
+done
+
+cfg_findings=$((n_cfg1 + n_cfg2 + n_rcfg))
 advisory=$((n_cf3 + cfg_findings + n_adv))
 report_only=$((n_ia + n_cr + n_st + n_ca + n_rd + n_so + n_wo + n_to))
 total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings + report_only))
@@ -859,6 +999,23 @@ rule_id() {
 }
 
 threshold_of() {
+  # threshold_of <slug> [<lexer language>]: the retry settings of the other
+  # runners share flaky-passes-suite and state their own condition.
+  case "$1:${2:-}" in
+  flaky-passes-suite:config-pytest)
+    printf 'threshold: --reruns, --force-reruns or reruns > 0 or not an integer, --fail-on-flaky absent from addopts'
+    return 0
+    ;;
+  flaky-passes-suite:config-vitest)
+    printf 'threshold: retry or retry.count under a test key > 0 or an expression; Vitest has no fail-on-flaky option'
+    return 0
+    ;;
+  flaky-passes-suite:config-jest)
+    printf 'threshold: jest.retryTimes(n) with n > 0 or an expression; Jest has no fail-on-flaky option'
+    return 0
+    ;;
+  *) ;;
+  esac
   case "$1" in
   zero-assertion) printf 'threshold: 0 assertion tokens' ;;
   recomputed-expectation) printf 'threshold: >=1 self-identical equality assertion' ;;
@@ -925,6 +1082,24 @@ action_of() {
   weak-oracle:*)
     printf 'Assert the value the code should produce (an exact value, or the exact exception type and message) instead of only that a value exists or that something threw.'
     ;;
+  # pytest-rerunfailures added --fail-on-flaky in 15.0 and made it fire only
+  # when a rerun happened in 15.1 (CHANGES.rst, read 2026-10-06; recheck on a
+  # release that renames the option or adds an ini form). Vitest and Jest ship
+  # no such switch (vitest.dev/config/retry and the Jest object page, read
+  # 2026-10-06; recheck when either documents one), so their remedy is the
+  # retry count itself.
+  flaky-passes-suite:config-pytest)
+    printf 'Add --fail-on-flaky to addopts beside the reruns so a test that passes only on a rerun fails the run (pytest-rerunfailures 15.0 or later), or drop the reruns where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
+    return 0
+    ;;
+  flaky-passes-suite:config-vitest)
+    printf 'Set retry: 0, or remove it, where the suite is meant to be deterministic; Vitest has no switch that fails a run on a retry-earned pass, so a retried test that passes leaves the run green. Where CI keeps retries, run local and agent loops with --retry 0. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
+    return 0
+    ;;
+  flaky-passes-suite:config-jest)
+    printf 'Remove the jest.retryTimes call, or pass 0, where the test is meant to be deterministic; Jest has no switch that fails a run on a retry-earned pass, so a retried test that passes leaves the run green. A deliberate flaky tolerance records that with a cant-fail-ok: annotation on the call'"'"'s line or the line above it.'
+    return 0
+    ;;
   throw-only-oracle:*)
     printf 'Assert what the constructed value should hold (a property the constructor sets, a result its first call returns) instead of only that it exists. A smoke test kept to prove construction or wiring succeeds records that with a cant-fail-ok: <why> annotation.'
     ;;
@@ -987,12 +1162,18 @@ tier_of() {
   esac
 }
 
+retry_counts() {
+  printf 'pytest configs %d examined of %d enumerated (%d shadowed), vitest configs %d examined of %d enumerated (%d shadowed), jest files naming retryTimes %d examined of %d enumerated, %d unreadable' \
+    "$rc_py_exam" "$rc_py_enum" "$rc_py_shadow" "$rc_vt_exam" "$rc_vt_enum" "$rc_vt_shadow" "$rc_js_exam" "${#rc_js_files[@]}" "$rc_unreadable"
+}
+
 surfaces_line() {
-  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-inert-assertion %d, testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d, testing/audit/rule-throw-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d]. Returned no result: [%s].\n' \
+  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-inert-assertion %d, testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d, testing/audit/rule-throw-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d; retry settings: %s; retry-setting findings: testing/audit/rule-flaky-passes-suite %d, declined %d, exempted %d]. Returned no result: [%s].\n' \
     "$examined" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$blocks" \
     "$n_cf1" "$n_cf2" "$n_cf3" "$n_ia" "$n_cr" "$n_st" "$n_ca" "$n_rd" "$n_so" "$n_wo" "$n_to" "$declined_cf1" "$declined_cf3" "$exempted" \
     "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable" \
     "$n_cfg1" "$n_cfg2" "$d_cfg1" "$d_cfg2" "$x_cfg1" "$x_cfg2" \
+    "$(retry_counts)" "$n_rcfg" "$d_rcfg" "$x_rcfg" \
     "$(if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
       printf '%d unreadable test file(s), %d unreadable playwright config(s), %d walk/read error line(s)' "$unreadable" "$cfg_unreadable" "$walk_errors"
     else
@@ -1019,6 +1200,13 @@ coverage_block() {
   else
     printf '  playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable)\n' \
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
+  fi
+  if [[ -n "$LINES" ]]; then
+    printf '  retry settings (pytest, vitest, jest): not read in a --lines run\n'
+  elif ((rc_py_enum + rc_vt_enum + ${#rc_js_files[@]} == 0)); then
+    printf '  retry settings (pytest, vitest, jest): 0 enumerated; not applicable\n'
+  else
+    printf '  retry settings: %s; findings %d, declined %d, exempted %d\n' "$(retry_counts)" "$n_rcfg" "$d_rcfg" "$x_rcfg"
   fi
   if ((tc_read)); then
     printf '  testing config: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
@@ -1053,8 +1241,9 @@ advisory_note() {
   if [[ "$strict" -eq 0 && "$advisory" -gt 0 ]]; then
     local ids
     ids="$(printf '%s\n' "${!a_advisory[@]}" | sort | paste -sd, - | sed 's/,/, /g')"
-    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d.\n' \
-      "$advisory" "$n_cf3" "$cfg_findings" "$ids" "$n_adv"
+    printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d%s.\n' \
+      "$advisory" "$n_cf3" "$((n_cfg1 + n_cfg2))" "$ids" "$n_adv" \
+      "$(((n_rcfg)) && printf ', pytest/vitest/jest retry settings %d' "$n_rcfg")"
   fi
   # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
@@ -1158,7 +1347,7 @@ emit_findings_file() {
     conf="$(confidence_of "${f_rule[$i]}")"
     printf '| %d | %s | %s | %s | testing:audit | %s: %s (%s) | %s |\n' \
       "$rank" "$(tier_of "${f_rule[$i]}")" "$conf" "${f_loc[$i]}" \
-      "$(rule_id "${f_rule[$i]}")" "$(esc_cell "${f_detail[$i]}")" "$(threshold_of "${f_rule[$i]}")" \
+      "$(rule_id "${f_rule[$i]}")" "$(esc_cell "${f_detail[$i]}")" "$(threshold_of "${f_rule[$i]}" "${f_lang[$i]}")" \
       "$(esc_cell "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")")"
   done
   printf '\n## Surfaces\n\n'
@@ -1184,7 +1373,7 @@ print_findings_lines() {
   for i in ${f_rule[@]+"${!f_rule[@]}"}; do
     printf 'finding [%s] %s: %s (%s). Action: %s\n' \
       "$(rule_id "${f_rule[$i]}")" "${f_loc[$i]}" "${f_detail[$i]}" \
-      "$(threshold_of "${f_rule[$i]}")" "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
+      "$(threshold_of "${f_rule[$i]}" "${f_lang[$i]}")" "$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
   done
 }
 
