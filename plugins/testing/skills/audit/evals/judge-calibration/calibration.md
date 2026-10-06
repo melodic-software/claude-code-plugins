@@ -88,6 +88,12 @@ calibration.md records it with a line `holdout-only: <commit sha>`, which `metri
 reads. While any such line is present, `metrics.sh` and `metrics.sh --table` score `holdout` rows
 only.
 
+2026-10-06: test-value section 1 gained the property, rewrite-pin, fake-grounding and same-agent
+oracle rules, and the judge prompt gained the canned-responses rule, so the judge is scored on
+`holdout` only from this commit on:
+
+holdout-only: a9cc815547260141fad42560ad16cff15bd911d1
+
 ### Raters
 
 Amended 2026-10-01 (user): the user, not a domain expert, delegated labeling to a blind panel of
