@@ -3,6 +3,15 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-06
+
+### Changed
+
+- `/verification:confirm` ranks test evidence by independence. Tests the producing session wrote are labeled self-authored, and tests added in the diff under review count as producer claims whose expected-value source the fresh-context verifier checks. A criterion proved only by a self-authored test with no named source is not COMPLETE.
+- A refactor Replace needs a differential run: inputs run, mismatches, mismatches explained by an intentional-differences ledger id, and unexplained mismatches. It is never CONFIRMED with an unexplained mismatch or without a differential run. A recorded baseline proves sameness, not correctness.
+- A fix for a symptom reported at the user level (UI, API response) needs a user-flow reproduction that fails before the fix.
+- `/verification:measure` gives behavior baselines (outputs recorded before a rewrite) a home under `baselines/`, with the same before-the-change rule.
+
 ## [0.7.5] - 2026-10-04
 
 ### Changed

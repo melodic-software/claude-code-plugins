@@ -33,7 +33,7 @@ If the fix appears to be a symptom fix rather than a root cause fix, flag it.
 
 | Evidence type | Source | Status |
 |--------------|--------|--------|
-| **Reproduction test** | A test that fails on the pre-fix code and passes on the fix | Required |
+| **Reproduction test** | A test that fails on the pre-fix code and passes on the fix. When the symptom was reported at user level (a UI, an API response), a user-flow test through that surface, not only a unit test at the guessed root | Required |
 | **Regression tests** | All existing tests still pass | Required |
 | **Root cause identified** | Explanation of WHY the bug occurred | Required |
 | **Fix is minimal** | Only the necessary change was made, no unrelated changes | Recommended |
@@ -55,6 +55,8 @@ Reproduction test: returns_null_when_user_is_deleted  # name it per your framewo
 ```
 
 If no reproduction test exists, flag this as a gap.
+
+**Reproduce at the level the symptom was reported.** When the report came from a user-facing surface (a UI, an API response), the reproduction is a user-flow test through that surface that fails on the pre-fix code. A unit test at the guessed root cause proves the guessed code changed; if the guess was wrong, it passes while the reported symptom remains. Keep the unit test as well when it pins the root cause. When no user-flow test can run here (no browser, no running app), say so and mark the user-level reproduction NOT VERIFIED rather than counting the unit test in its place. Basis: the end-to-end slice of the agent-self-check research, 2026-10-06 (repo gap; the external guidance behind it is held there as a Gap, not settled). Recheck trigger: that slice's Gap row is graded.
 
 ### 5. Verify regression
 
@@ -84,6 +86,7 @@ Pay special attention to tests in same module or feature area as the fix. These 
 | Check | Status | Details |
 |-------|--------|---------|
 | Reproduction test exists | PASS/FAIL | <test name> |
+| Reproduction at the reported level | PASS/FAIL/NOT VERIFIED/N/A | <user-flow test name, or why none ran; N/A when the symptom was not user-facing> |
 | Reproduction test fails pre-fix | PASS/FAIL/NOT VERIFIED | <evidence> |
 | Reproduction test passes post-fix | PASS/FAIL | <evidence> |
 | All existing tests pass | PASS/FAIL | <from Stage 1 results> |
@@ -98,5 +101,5 @@ Pay special attention to tests in same module or feature area as the fix. These 
 ### 7. Verdict
 
 - **CONFIRMED** if reproduction test passes, regressions pass, and root cause is addressed
-- **PARTIALLY CONFIRMED** if symptom is resolved but root cause is uncertain or siblings weren't checked
+- **PARTIALLY CONFIRMED** if symptom is resolved but root cause is uncertain, siblings weren't checked, or a user-level symptom has only a unit-level reproduction
 - **NOT CONFIRMED** if no reproduction test exists, or existing tests fail, or fix is symptom-only
