@@ -90,9 +90,10 @@ only.
 
 2026-10-06: test-value section 1 gained the property, rewrite-pin, fake-grounding and same-agent
 oracle rules, and the judge prompt gained the canned-responses rule, so the judge is scored on
-`holdout` only from this commit on:
+`holdout` only from this commit on (the squash commit of #6471; the branch commit first recorded
+here does not exist on main):
 
-holdout-only: a9cc815547260141fad42560ad16cff15bd911d1
+holdout-only: 25be5fdf79fb8ef622c5db4abe5878d7a864685e
 
 ### Raters
 
