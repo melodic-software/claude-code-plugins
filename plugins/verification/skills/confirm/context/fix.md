@@ -33,7 +33,8 @@ If the fix appears to be a symptom fix rather than a root cause fix, flag it.
 
 | Evidence type | Source | Status |
 |--------------|--------|--------|
-| **Reproduction test** | A test that fails on the pre-fix code and passes on the fix. When the symptom was reported at user level (a UI, an API response), a user-flow test through that surface, not only a unit test at the guessed root | Required |
+| **Reproduction test** | A test that fails on the pre-fix code and passes on the fix | Required |
+| **User-flow reproduction** | When the symptom was reported at user level (a UI, an API response), a user-flow test through that surface, not only a unit test at the guessed root | Recommended (PARTIALLY CONFIRMED without it) |
 | **Regression tests** | All existing tests still pass | Required |
 | **Root cause identified** | Explanation of WHY the bug occurred | Required |
 | **Fix is minimal** | Only the necessary change was made, no unrelated changes | Recommended |

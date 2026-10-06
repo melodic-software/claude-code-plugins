@@ -52,7 +52,7 @@ and the harness command so it can re-run the comparison.
 
 ## Checkpoints
 
-- Harness and recorded corpus committed, green against old vs old, before any new code
+- Harness and recorded corpus committed and green against the recorded baseline before any new code (old vs old where a field cannot be normalized)
 - Each slice of the new implementation committed with zero unexplained mismatches
 - Ledger entries signed off before the slice they excuse is committed
 - Old implementation deleted in its own commit, after cutover

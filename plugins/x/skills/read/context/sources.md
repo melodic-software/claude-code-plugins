@@ -28,18 +28,26 @@ Every service here gets the same treatment as the ladder:
   invocation together. When the budget stops you, say the result is partial and where it stopped.
 - **Report what you got and what you didn't**: "64 of 96 replies", not "the replies".
 
-Last checked 2026-10-06 against one post. Recheck a row when it stops returning what the row says.
+The table records our decision for each service: what we use it for, and where to read its
+current behavior. How each one paginates, ranks, rate-limits or fails is the service's to state,
+so read it at the pointer when a request needs it. Each pointer was checked 2026-10-06. Recheck a
+row when its template stops returning what the row says it is for, or when its pointer moves.
 
-| Service | Good for | Notes |
+| Service | Use it for | Current behavior lives at |
 |---|---|---|
-| [FxTwitter API](https://docs.fxembed.com/api/introduction/) (`api.fxtwitter.com`, open source, project name FxEmbed) | JSON for a post (`/2/status/<id>`), the author's thread (`/2/thread/<id>`), replies (`/2/conversation/<id>`) | Plain GET, no key. Replies come one page at a time. On 2026-10-06 the `cursor` for the next page returned 404, and so did the quotes endpoint. Each `ranking_mode` (`likes`, `recency`) returns a different first page, so fetching both and merging widens coverage. A reply that has replies of its own can be expanded with `/2/conversation/<reply-id>`, using the id exception in the skill's trust boundary, within the budget above. |
-| X syndication (`cdn.syndication.twimg.com/tweet-result`) | The data X's own embed widget uses: text, media, reply count | Run by X, so it's first-party. The endpoint is undocumented, so its shape can change without notice. |
-| X media CDN (`pbs.twimg.com/media/<key>.<ext>?name=orig`) | The image file at full resolution | Converters return these URLs. Download one only when it matches the media pattern in the skill's trust boundary. `name=orig` gets the largest version. `Read` the downloaded file to see the image; a converter's text says nothing about what the image shows. |
-| [vxtwitter](https://github.com/dylanpdx/BetterTwitFix) (`api.vxtwitter.com`) | Post JSON with media, similar to FxTwitter | Returned 403 from a cloud proxy on 2026-10-06. Try it when FxTwitter is down. |
+| FxTwitter API (`api.fxtwitter.com`, open source, project name FxEmbed) | A post, the author's thread, and replies. Expand a reply's own replies with its id (the id exception in the skill's trust boundary), within the budget above. | [FxEmbed API docs](https://docs.fxembed.com/api/introduction/) |
+| X syndication (`cdn.syndication.twimg.com`) | The data X's own embed widget uses: text, media, reply count. First-party, so try it when the third parties fail. | No public docs: the endpoint is undocumented, so treat any shape change as the row going stale. |
+| X media CDN (`pbs.twimg.com`) | The image file itself. Download one only when it matches the media pattern in the skill's trust boundary, then `Read` the file: a converter's text says nothing about what an image shows. | No public docs; the URL comes from a converter's response. |
+| vxtwitter (`api.vxtwitter.com`) | Post JSON with media, when FxTwitter is down. | [BetterTwitFix README](https://github.com/dylanpdx/BetterTwitFix) |
 
 Nothing on this list returns every reply. On a popular post, expect partial coverage and say so.
 
 ## Templates
+
+These request shapes are our decision, not a copy of the services' docs: the closed list only
+holds if every request is one of these fixed shapes, so a request shape is never read from a
+fetched page at run time. When a pointer above shows a route has moved, a template changes the
+same way a host joins the table, through a pull request to this file.
 
 `<ID>` is the gate-captured id, or a reply id that matched `^[0-9]{1,20}$`. `<HANDLE>` is the gate-captured
 handle (skip vxtwitter for the handle-less forms). `<MODE>` is `likes` or `recency`. `<data-dir>` is the plugin data directory named in the skill, single-quoted as the

@@ -867,6 +867,27 @@ assert_contains "a projects[] entry's retry fires and every occurrence is counte
 rc_file vt-spread/vitest.config.ts "export default defineConfig({" "  test: { retry: 2, ...shared }," "});"
 run_scan "$RC/vt-spread"
 assert_not_contains "a spread after a vitest retry declines rather than fires" "$out" "$FLAKY"
+# The spread makes only its own object's retry undecidable: a project retry
+# below it still fires, and the finding anchors to that firing retry.
+rc_file vt-spread-project/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 2, ...shared," \
+  "    projects: [{ test: { retry: 3 } }]," "  }," "});"
+run_scan "$RC/vt-spread-project"
+assert_contains "a project retry below an outer spread still fires, at its own line" "$out" \
+  "vitest.config.ts:4: retry: 3 at line 4; 2 retry occurrence(s)"
+rc_file vt-zero-first/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 0," \
+  "    projects: [{ test: { retry: 2 } }]," "  }," "});"
+run_scan "$RC/vt-zero-first"
+assert_contains "a retry: 0 ahead of a firing retry does not take the anchor" "$out" \
+  "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
+
+# jest: an argument on the next line is read there, so a wrapped 0 stays quiet
+# and a wrapped 2 fires with its value.
+rc_file jest-wrap/jest.setup.js "jest.retryTimes(" "  0," ");"
+run_scan "$RC/jest-wrap"
+assert_not_contains "a jest.retryTimes(0) wrapped onto the next line stays quiet" "$out" "$FLAKY"
+rc_file jest-wrap-ctl/jest.setup.js "jest.retryTimes(" "  2," ");"
+run_scan "$RC/jest-wrap-ctl"
+assert_contains "control: a wrapped jest.retryTimes(2) fires with its value" "$out" "jest.retryTimes(2) at line 1"
 
 # jest: each jest.retryTimes call fires at its line; a 0, a comment and a
 # string stay quiet; cant-fail-ok: on the line above suppresses that call only.

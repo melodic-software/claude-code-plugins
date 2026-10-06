@@ -198,9 +198,9 @@ function toml_closed(v,    i, n, c, d, q, c3) {
 # key above it is the runner setting.
 # ---------------------------------------------------------------------------
 
-function vitest_scan(    i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve, obj, k, under, ret_n, ret_line, ret_val, ret_key, ret_obj, ret_d, fire, spread, pending) {
+function vitest_scan(    i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve, obj, k, r, under, ret_n, first, pending) {
   d = 0; obj = 0
-  ret_n = 0; ret_line = 0; ret_val = ""; fire = 0; spread = 0
+  ret_n = 0
   pending = ""
   OBJ[0] = 0; PARENT[0] = ""
   for (i = 1; i <= nlines; i++) {
@@ -222,7 +222,9 @@ function vitest_scan(    i, j, s, rawline, c, d, seg_start, seg_colon, key, val,
       }
       if (c == "," || c == ";") { pending = ""; seg_start = j + 1; seg_colon = 0; continue }
       if (substr(s, j, 3) == "...") {
-        if (ret_n && d == ret_d && OBJ[d] == ret_obj) spread = 1
+        # A later spread can override a retry in the same object, so only that
+        # occurrence becomes undecidable; object ids are never reused.
+        for (r = 1; r <= ret_n; r++) if (R_OBJ[r] == OBJ[d]) R_SPREAD[r] = 1
         j += 2; continue
       }
       if (c == ":" && !seg_colon) {
@@ -242,18 +244,23 @@ function vitest_scan(    i, j, s, rawline, c, d, seg_start, seg_colon, key, val,
           # The object form names its count one level down.
           if (key == "retry" && val ~ /^\{/) continue
           ret_n++
-          if (ret_line == 0) { ret_line = i; ret_val = val; ret_key = key == "count" ? "retry.count" : "retry" }
-          ret_obj = OBJ[d]; ret_d = d
-          if (!is_int(val) || val + 0 > 0) fire = 1
+          R_LINE[ret_n] = i; R_VAL[ret_n] = val; R_KEY[ret_n] = key == "count" ? "retry.count" : "retry"
+          R_OBJ[ret_n] = OBJ[d]; R_SPREAD[ret_n] = 0
+          R_FIRE[ret_n] = !is_int(val) || val + 0 > 0
         }
       }
     }
   }
-  if (!ret_n || !fire) { emit("D", ret_line ? ret_line : 1, "retries-not-configured"); return }
-  if (spread) { emit("D", ret_line, "spread-undecidable"); return }
-  val = ret_key ": " ret_val " at line " ret_line
+  # The finding anchors to the first retry that fires and that no spread can undo.
+  first = 0
+  for (r = 1; r <= ret_n; r++) if (R_FIRE[r] && !R_SPREAD[r]) { first = r; break }
+  if (!first) {
+    for (r = 1; r <= ret_n; r++) if (R_FIRE[r]) { emit("D", R_LINE[r], "spread-undecidable"); return }
+    emit("D", ret_n ? R_LINE[1] : 1, "retries-not-configured"); return
+  }
+  val = R_KEY[first] ": " R_VAL[first] " at line " R_LINE[first]
   if (ret_n > 1) val = val "; " ret_n " retry occurrence(s)"
-  emit(exempt ? "X" : "F", ret_line, val " under a test key; Vitest has no option that fails a run on a retry-earned pass")
+  emit(exempt ? "X" : "F", R_LINE[first], val " under a test key; Vitest has no option that fails a run on a retry-earned pass")
 }
 
 function continued_value(i,   k, ve, v) {
@@ -291,6 +298,8 @@ function jest_scan(    i, s, r, ve, arg, seen, kind) {
       s = substr(s, RSTART + RLENGTH); r = substr(r, RSTART + RLENGTH)
       ve = value_end(s, 1)
       arg = trim(substr(r, 1, ve))
+      # The argument may sit on the next line when the line ends at the paren.
+      if (arg == "" && s ~ /^[[:space:]]*$/) arg = continued_value(i)
       seen = 1
       if (is_int(arg) && arg + 0 <= 0) { emit("D", i, "retries-not-configured"); continue }
       kind = (RAWL[i] ~ EXEMPT_ERE || (i > 1 && RAWL[i - 1] ~ EXEMPT_ERE)) ? "X" : "F"
