@@ -5,6 +5,20 @@ All notable changes to the `x` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-06
+
+### Added
+
+- **`/x:read` lists other sources for replies, media, and threads the ladder misses.** The new
+  `context/sources.md` names FxTwitter's API, X's syndication endpoint, X's media CDN, and vxtwitter.
+  Each row says what the service is for and what it returned when checked on 2026-10-06. The file
+  also tells the agent to search for current alternatives, because these services drift.
+- The trust boundary allows two narrow exceptions, each checked against an anchored pattern: a
+  reply's all-digit id may be sent back to the same service to expand that reply's own replies, and
+  an image URL on X's media CDN may be downloaded.
+- An eval case for a request that wants the image and the replies, graded on reporting partial reply
+  coverage as a count.
+
 ## [0.3.3] - 2026-10-04
 
 ### Changed
