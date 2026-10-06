@@ -33,6 +33,7 @@
   "enabledPlugins": {
     "ai-slop@melodic-software": true,
     "animation@melodic-software": false,
+    "attribution@melodic-software": true,
     "docs-naming@melodic-software": true,
     "dometrain-mcp@melodic-software": false,
     "evals@melodic-software": true,
