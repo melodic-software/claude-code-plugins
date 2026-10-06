@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-10-06
+
+### Changed
+
+- **Bump proxy-addr from 2.0.7 to 2.0.8 in /plugins/miro/server** (#6470).
+
 ## [0.6.6] - 2026-10-04
 
 ### Changed
