@@ -3,6 +3,12 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-10-06
+
+### Changed
+
+- `/toolchain:check` reports a pass that needed a retry as `PASS (flaky: N)` and names each flaky test, instead of a clean PASS. It also echoes any shuffle seed the runner printed and its slowest-tests section, or says how the project turns one on. The resolved test command is never edited to add flags.
+
 ## [0.15.2] - 2026-10-04
 
 ### Changed

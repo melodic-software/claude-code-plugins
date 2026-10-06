@@ -29,6 +29,14 @@ cd "$PROJECT_DIR" && uv run ruff format <files>
 cd "$PROJECT_DIR" && uv run pytest tests/ -x -q
 ```
 
+### Test output signals
+
+Read for the `Passed on retry` and `Run signals to echo` rules in `SKILL.md` §2:
+
+- **Retry-earned pass (pytest-rerunfailures).** A rerun shows as an `R` in the progress line and as `N rerun` in the final summary line (`2 passed, 1 rerun`), and the run still exits 0. Count the reruns that ended in a pass as flaky. With `-rR` the plugin also prints a `rerun test summary info` section naming each test, otherwise name them from the `R` outcomes. Pointer: <https://github.com/pytest-dev/pytest-rerunfailures/blob/master/CHANGES.rst> (rerun summary and `--fail-on-flaky`). As of: 2026-10-06, observed locally on pytest-rerunfailures 16.7 with pytest 9.1. Recheck trigger: a release changes the summary wording or the outcome letter.
+- **Slowest tests.** pytest prints a `slowest N durations` section only when the command or `addopts` passes `--durations=N` (`--durations=10` is the usual size). Absent it, the note names that flag for the consumer's own `test-cmd` or `addopts`.
+- **Shuffle seed (pytest-randomly).** The plugin prints `Using --randomly-seed=<n>` in the report header, which `-q` (the bundled default) hides. When pytest-randomly is a project dependency and no seed shows, report `seed: hidden by -q` and the replay form `--randomly-seed=last`, which reuses the previous run's seed. Pointer: <https://github.com/pytest-dev/pytest-randomly#readme>. As of: 2026-10-06, observed locally on pytest-randomly 5.0. Recheck trigger: the README changes the header line or the `last` form.
+
 ## Type check
 
 Part of `check-cmd`, which has no fix mode. `fix-cmd` is format-only; `code-fix-cmd` is ruff check only:
