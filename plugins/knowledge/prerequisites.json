@@ -124,7 +124,8 @@
         "docs": "https://ffmpeg.org/download.html",
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
-        "apt": "ffmpeg"
+        "apt": "ffmpeg",
+        "conda": "conda-forge ffmpeg (when the distro package is below 7.1; prefer a release build, since a nightly reports no version)"
       },
       "check": "/harness-ops:prerequisites"
     },
@@ -174,7 +175,8 @@
       "install": {
         "docs": "https://imagemagick.org/script/download.php",
         "brew": "imagemagick",
-        "winget": "ImageMagick.ImageMagick"
+        "winget": "ImageMagick.ImageMagick",
+        "conda": "conda-forge imagemagick (ImageMagick 7, for distros whose package is still ImageMagick 6)"
       },
       "check": "/harness-ops:prerequisites"
     },
@@ -188,13 +190,21 @@
       "detect": {
         "any": [
           "yt-dlp"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+\\.[0-9]+)",
+          "min": "2026.6"
+        }
       },
-      "degrade": "Without yt-dlp, /knowledge:video-digest cannot download a YouTube video or its captions, and stops.",
+      "degrade": "Without yt-dlp 2026.6 or newer, /knowledge:video-digest cannot download a YouTube video or its captions, and stops.",
       "install": {
         "docs": "https://github.com/yt-dlp/yt-dlp#installation",
         "brew": "yt-dlp",
-        "winget": "yt-dlp.yt-dlp"
+        "winget": "yt-dlp.yt-dlp",
+        "pip": "yt-dlp[default,curl-cffi] (the extras carry the YouTube challenge solver and browser impersonation)"
       },
       "check": "/harness-ops:prerequisites"
     },

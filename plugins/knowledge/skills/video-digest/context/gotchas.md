@@ -18,7 +18,11 @@ A successful `close` removes those recorded dirs on purpose, after it marks the 
 
 ## Cloud agent without media toolchain
 
-`watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed and not run watch**; route to the prerequisites fix path instead of producing a frameless run.
+`watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed and not run watch**; route to the prerequisites fix path instead of producing a frameless run. The tools can often be installed in place: `SKILL.md` "Prerequisites" lists the fallbacks to try when the platform package is missing or below its floor.
+
+## Video download blocked (HTTP 403 on the media stream)
+
+Captions and metadata can come through while the video itself is refused: yt-dlp fetches the caption track and then fails the media download with HTTP 403. YouTube applies this most to requests from datacenter IP ranges, so a cloud container sees it where a home connection does not. The full acquisition runs the video pass first, so `run-watch.js` exits non-zero before any slice is written, and the watch stops there ("No video, no watch" in `SKILL.md`). Fix paths, in order of preference: run the watch from a machine whose connection YouTube serves (a local session); supply authenticated cookies through the `yt_dlp_cookies_file` option (yt-dlp advises a throwaway account for this, since cookies used from a flagged IP put the account at risk); or install a proof-of-origin token provider plugin for yt-dlp. Current guidance on all three lives in the yt-dlp [PO Token Guide](https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide) and [cookies FAQ](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp), as of 2026-10-06; recheck when a yt-dlp release changes which clients need a token or how cookies are passed.
 
 ## Phase state lives only in `watch.json`
 
