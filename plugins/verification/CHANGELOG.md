@@ -11,6 +11,7 @@ All notable changes to the `verification` plugin are documented here. Format fol
 - A refactor Replace needs a differential run: inputs run, mismatches, mismatches explained by an intentional-differences ledger id, and unexplained mismatches. It is never CONFIRMED with an unexplained mismatch or without a differential run. A recorded baseline proves sameness, not correctness.
 - A fix for a symptom reported at the user level (UI, API response) needs a user-flow reproduction that fails before the fix.
 - `/verification:measure` gives behavior baselines (outputs recorded before a rewrite) a home under `baselines/`, with the same before-the-change rule.
+- `/verification:confirm` counts a command result as evidence only when this session ran it or the harness recorded it, never on an agent's say-so.
 
 ## [0.7.5] - 2026-10-04
 
