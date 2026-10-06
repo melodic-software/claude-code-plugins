@@ -3,6 +3,13 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-06
+
+### Changed
+
+- `reference/tracing-and-video.md` covers reading a failed `@playwright/test` run from the terminal: the `npx playwright trace` loop (1.59+), the error context (1.60+), and when to use each trace, screenshot and video retention mode. A routing row in `SKILL.md` points there.
+- Test generation treats the spec as the oracle and the app as the subject: every `expect` traces to a requirement, and an outcome only observed on the page is marked unconfirmed. The heal step reads the retained trace first, and when the feature is broken it marks the test `test.fail()` or `test.fixme()` with the reason instead of patching the expectation.
+
 ## [0.8.11] - 2026-10-04
 
 ### Changed
