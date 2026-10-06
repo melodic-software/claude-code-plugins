@@ -833,7 +833,7 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
-            .github/workflows/release-plugins.yml
+            .github/workflows/release-publish-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
