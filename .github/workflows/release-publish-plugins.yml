@@ -1,4 +1,4 @@
-name: release-plugins
+name: release-publish-plugins
 
 # The bot-maintained release pull request of ADR 0048
 # (docs/adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md).
@@ -348,7 +348,7 @@ jobs:
             if [ -n "$SKIPPED" ]; then
               printf '**Not released:** %s. A fragment for each failed validation; it stays on `main` until fixed, and the next release picks it up.\n\n' "$(code_list "$SKIPPED")"
             fi
-            echo "The \`release-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
+            echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
