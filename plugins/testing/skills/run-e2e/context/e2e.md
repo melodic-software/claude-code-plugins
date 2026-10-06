@@ -52,7 +52,15 @@ see `/playwright:playwright`, when the playwright plugin is enabled.
 
 ## UI evidence contract
 
-For UI changes, capture verifiable evidence rather than asserting "looks right": pre/post accessibility snapshots, screenshots of the changed state, a console check (no new errors), and network verification (correct calls, status codes). An authored E2E/integration test asserting the user-visible behavior also satisfies the contract. When the consuming project documents its own evidence requirements, those govern.
+For UI changes, capture verifiable evidence rather than asserting "looks right": pre/post accessibility snapshots, screenshots of the changed state, a console check (no new errors), and network verification (correct calls, status codes). A committed E2E user-flow suite, when the project has one, is the pass/fail oracle ([Flow suite as the oracle](#flow-suite-as-the-oracle)); the captures above are evidence beside it. When the consuming project documents its own evidence requirements, those govern.
+
+### Flow suite as the oracle
+
+When the project has committed E2E user-flow tests (a `@playwright/test`, Cypress or similar suite, found through its documented test command or config), run the specs that cover the changed flows first, through the project's own command, against the running app, with traces kept for failed tests. Their pass or fail is the verdict for the scenarios they cover.
+
+Ad-hoc driving and screenshots are evidence, not an oracle: they show what the app did, not whether that was right. They still run for the changed screens and the render checks below. A screenshot never overrides a failing spec, and a clean ad-hoc drive never stands in for a spec that was not run. A scenario no spec covers is reported as uncovered; its verdict rests on the expected outcome stated from the requirement before driving (workflow step 1), and the rubric's committed-spec row is the follow-up.
+
+Basis: LLM test generators, measured on benchmark repositories, mostly write oracles that assert what the code does rather than what it should do (arXiv [2410.21136](https://arxiv.org/abs/2410.21136), [2412.14137](https://arxiv.org/abs/2412.14137), [2607.22883](https://arxiv.org/abs/2607.22883)); that the same holds for an agent judging its own drive is inferred, not measured. Trace retention for a test run is the `trace` option on Playwright's [test use options](https://playwright.dev/docs/test-use-options) page. As of 2026-10-06. Recheck trigger: a study measures interactive coding agents' self-written oracles, or the use-options page renames the trace modes.
 
 ### Inspect the render
 
@@ -95,7 +103,7 @@ page changes what it says about automated accessibility coverage or same-environ
 
 ### Recording tier (optional)
 
-Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them.
+Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
 
 | `recording` | Capture path | Fits |
 |---|---|---|
@@ -105,10 +113,11 @@ Recording is off by default. The screenshot evidence above is the floor. When th
 
 ### Session artifacts
 
-When a run produces a recording or drives a named session, record its artifacts in the evidence output so a reviewer can retrace it:
+When a run produces a recording or a trace, or drives a named session, record its artifacts in the evidence output so a reviewer can retrace it:
 
 | Artifact | Points to |
 |---|---|
+| Trace path | the trace file from the drive (`tracing-stop`) or from each failed spec in the flow suite |
 | Recording path | the video/GIF file on disk (gitignored, alongside the other capture artifacts) |
 | Session ID | the playwright CLI / browser session name the run drove |
 | Transcript pointer | the run's evidence output: console/network capture and snapshot files |
@@ -121,7 +130,7 @@ Use the test plan from `/testing:plan` or generate scenarios from changes:
 
 - Which endpoints changed?
 - Which UI flows are affected?
-- What does "working correctly" look like?
+- What does "working correctly" look like? Write each scenario's expected outcome from the requirement or acceptance criterion, before driving, never from what the app shows
 
 ### 2. Verify health
 
@@ -129,7 +138,11 @@ Call the orchestrator's resource-list/health MCP or CLI → check all resources 
 
 If any resource is unhealthy, read its logs before proceeding (orchestrator's console + structured-log MCP calls per resource).
 
-### 3. Test API endpoints
+### 3. Run the committed flow suite
+
+When the project has one, run the specs covering the changed flows now, per [Flow suite as the oracle](#flow-suite-as-the-oracle). Each failed spec gets a failure packet (step 6). No suite: say so and go on.
+
+### 4. Test API endpoints
 
 For backend changes, verify endpoints directly via `curl` or Playwright CLI:
 
@@ -138,11 +151,12 @@ curl -s http://localhost:{port}/health | jq .
 playwright-cli -s=test open http://localhost:{port}/health
 ```
 
-### 4. Test UI flows (if applicable)
+### 5. Test UI flows (if applicable)
 
-Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands):
+Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). Start the trace before the first step, so a failure carries the state that led to it:
 
 ```bash
+playwright-cli -s=uitest tracing-start                     # trace from the first step, not from the failure
 playwright-cli -s=uitest open http://localhost:{port}      # opens browser, emits snapshot file path
 playwright-cli -s=uitest snapshot                          # refresh accessibility tree (YAML with element refs: e37, e48, ...)
 playwright-cli -s=uitest click e48                         # interact by element ref from snapshot
@@ -151,6 +165,7 @@ playwright-cli -s=uitest press Enter                       # keyboard
 playwright-cli -s=uitest screenshot                        # writes PNG to .playwright-cli/ (not context)
 playwright-cli -s=uitest console                           # summarize console messages
 playwright-cli -s=uitest network                           # list network requests
+playwright-cli -s=uitest tracing-stop                      # writes the trace; list its path as an artifact
 playwright-cli -s=uitest close                             # close session
 ```
 
@@ -161,7 +176,7 @@ Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** 
 - `click e48` where the snapshot shows `- button "Submit" [ref=e48]` (good)
 - CSS selectors like `#submit-btn` (bad: breaks on cosmetic changes)
 
-### 5. Capture evidence
+### 6. Capture evidence
 
 For each verified scenario:
 
@@ -169,10 +184,30 @@ For each verified scenario:
 - Console log check (no errors)
 - Network request verification (correct API calls, status codes)
 - The render checks in [Inspect the render](#inspect-the-render), each with its result
+- The trace path
 
 When `recording` resolves to `gif`, record the sequence with Claude in Chrome's `gif_creator`; when it resolves to `video`, record via the playwright CLI. See the recording tier above. Under `off`, the screenshots are the evidence.
 
-### 6. Check distributed traces (for multi-service flows)
+#### Failure packet
+
+A failed scenario, a failed spec from step 3 or a failed drive from step 5, gets one packet written to the evidence output, shaped so it can be the next agent's prompt as it stands. Every field is filled, or says why it is empty:
+
+```text
+Scenario: <name>
+Expected: <outcome from the requirement or acceptance criterion, with its source>
+Actual: <what the app did>
+Failing step: <spec file:line, or the drive step and its command>
+Trace: <path>
+Trace action: <output of `npx playwright trace action <n>` for the failing action>
+Error context: <the aria snapshot the runner reports for the failing expect>
+New console errors: <errors not present before the change, or none>
+Failed requests: <method, URL, status for each>
+Screenshot: <path>
+```
+
+`Expected` never comes from the app's current behavior. Find `<n>` with `npx playwright trace actions` after `npx playwright trace open <trace>`, and close the trace afterwards. The trace subcommands need Playwright 1.59 or later and the error context (`TestInfoError.errorContext`) 1.60 or later; on an older runner, or a trace the CLI cannot open, the field names the version or the reason. Pointer: the Version 1.59 "CLI trace analysis for agents" and Version 1.60 "Errors and Reporting" sections of the [Playwright release notes](https://playwright.dev/docs/release-notes). As of 2026-10-06. Recheck trigger: a Playwright release note that changes `npx playwright trace` or `errorContext`.
+
+### 7. Check distributed traces (for multi-service flows)
 
 When the orchestrator exposes trace MCP calls (e.g. `list_traces` + `list_trace_structured_logs`), use them to find the trace for the request and inspect the full request path. Skip when no orchestrator-side tracing available. Degrade to per-service log inspection.
 
