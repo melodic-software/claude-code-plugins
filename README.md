@@ -46,9 +46,10 @@ ignored if the locally registered marketplace came from a different source. That
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
 Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
 
-Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
-external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
-the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
+with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
+harness-maintenance, and external-service plugins carry it, and a few general-purpose ones in
+those categories do not. A plugin another enabled plugin depends on starts enabled
 regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way
