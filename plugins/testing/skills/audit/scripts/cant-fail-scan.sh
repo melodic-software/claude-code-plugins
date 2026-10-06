@@ -1243,7 +1243,7 @@ advisory_note() {
     ids="$(printf '%s\n' "${!a_advisory[@]}" | sort | paste -sd, - | sed 's/,/, /g')"
     printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d%s.\n' \
       "$advisory" "$n_cf3" "$((n_cfg1 + n_cfg2))" "$ids" "$n_adv" \
-      "$(((n_rcfg)) && printf ', pytest/vitest/jest retry settings %d' "$n_rcfg")"
+      "$( ((n_rcfg)) && printf ', pytest/vitest/jest retry settings %d' "$n_rcfg")"
   fi
   # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
