@@ -35,6 +35,50 @@ View with `npx playwright show-trace trace-<ts>.trace`.
 find .playwright-cli/traces -mtime +7 -delete
 ```
 
+## Reading a failed `@playwright/test` run
+
+The sections above trace a `playwright-cli` session. A committed `@playwright/test` suite records
+its own traces, videos and screenshots per test, and keeps them only when its config says to.
+Read a failure from that evidence first, before re-running the test or attaching a debugger.
+
+**Terminal trace loop.** `npx playwright show-trace` opens a GUI for a human. An agent reads the
+same trace in the terminal with `npx playwright trace` (Playwright 1.59+), one step at a time, so
+only the failing step enters context:
+
+1. `npx playwright trace open <trace.zip>` on the trace the failing test left in its result folder
+2. `npx playwright trace actions` to list the recorded actions and find the one that failed
+3. `npx playwright trace action <n>` for that action's detail
+4. `npx playwright trace snapshot ...` for the page at that action, when the action detail does
+   not explain the failure
+5. `npx playwright trace close`
+
+Read the failure's error context beside the trace: from 1.60 it carries the aria snapshot of the
+element an `expect` matcher failed on, which often answers "what was on the page" without the
+trace.
+
+**Retention modes.** Set these in the `use` block of `playwright.config.*`, or per project. Our
+choice per situation:
+
+| Situation | Setting |
+|---|---|
+| An agent or developer iterating locally, wanting evidence for every failure | `trace: 'retain-on-failure'`, `screenshot: 'only-on-failure'` |
+| CI with retries enabled, keeping recording cost down | `trace: 'on-first-retry'`, upstream's CI recommendation. Only the retry is recorded, so a suite with no retries leaves no trace |
+| Chasing a flaky test, where the retry passes and the failing attempt is the evidence | `trace: 'retain-on-failure-and-retries'` |
+| A human needs to watch the failure (a visual or timing bug) | add `video: 'retain-on-failure'`; leave video off otherwise, it is the heaviest artifact |
+
+`retain-on-failure` records every test and discards the artifact when the test passes, so green
+runs pay the recording overhead too. Exact mode semantics, the full mode list (it has more than
+these) and the `trace` subcommands' arguments change between releases, so read them live:
+
+- **Pointer**: modes in
+  [test-use-options, Recording options](https://playwright.dev/docs/test-use-options#recording-options);
+  the CI recommendation and what a trace holds in [Trace viewer](https://playwright.dev/docs/trace-viewer);
+  the trace CLI in Version 1.59 ("CLI trace analysis for agents") and `errorContext` in Version
+  1.60 of the [release notes](https://playwright.dev/docs/release-notes); arguments via
+  `npx playwright trace --help` live. **As of**: 2026-10-06, Playwright 1.63. **Recheck
+  trigger**: a Playwright release whose notes touch tracing, reporters or recording options, or a
+  `trace` subcommand above failing as unknown.
+
 ## Video basics
 
 ```bash

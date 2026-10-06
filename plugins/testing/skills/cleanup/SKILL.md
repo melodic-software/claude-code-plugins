@@ -73,20 +73,44 @@ Gather all four before any edit, and write the candidate list to `decisions.md`:
    to the current branch exactly (the frontmatter, not the directory, proves the branch), and keep
    the `testing/judge/rule-restated-expectation` rows whose `Location` is under the folder. A FLAG
    makes its test a candidate; a PASS clears no scanner finding.
-3. The tests the user names as flaky. Cleanup detects no flakiness itself.
+3. The tests the user names as flaky. Cleanup detects no flakiness itself. For each, ask for an
+   owner and a tracking issue, which step 2 writes into the reason; cleanup files no issue itself.
 4. The tests the user names as suspected duplicates or layer replays (a suite that re-proves,
    through a mock, what a stronger suite already proves). `mock-only-oracle` rows from input 1 are
    where layer replays usually surface.
 
-No candidate: report `nothing to clean in <folder>` and stop.
+Then sweep the folder's existing quarantines: `grep -rn -- "test-change: quarantined" "<folder>"`.
+A quarantine whose date is today or earlier is expired. List each expired one in `decisions.md`
+with its owner and tracking issue (`none` when its reason has neither), and ask the user, per
+item, to re-enable it (step 2 removes the skip) or escalate it (the skip stays, and the report
+names the owner and issue that must act). Renew a date only on the user's yes, writing the new
+date and why into the reason. Never re-enable, renew or delete a quarantine on your own;
+unattended, list the expired ones and change none.
+
+No candidate and no expired quarantine: report `nothing to clean in <folder>` and stop.
 
 ### 2. Quarantine
 
 Skip each named flaky test with the framework's own skip form, the `test_skip` or `body_skip`
 vocabulary of the adapter that claims its file (`${CLAUDE_PLUGIN_ROOT}/skills/audit/adapters/`),
-with the reason `test-change: quarantined <YYYY-MM-DD>: flaky, <evidence>`, the date 7 days out.
-The `test-change:` prefix is the marker the `test-weaken` hook accepts, so the edit is not denied
-under `test-weaken-block: error`. Quarantine comes first so both mutation runs skip these tests.
+with the reason `test-change: quarantined <YYYY-MM-DD>: flaky, <evidence>, owner <who>, tracked
+<issue>`. The date, 7 days out, is the expiry the step 1 sweep reads. Write `none` for an owner or
+issue the user did not give, and report that quarantine as untracked. The `test-change:` prefix is
+the marker the `test-weaken` hook accepts, so the edit is not denied under
+`test-weaken-block: error`. For each expired quarantine the user chose to re-enable, remove the
+skip and leave a `test-change: quarantine lifted <YYYY-MM-DD>, tracked <issue>` comment at the
+edit; a re-enabled test that still fails turns step 3's baseline red. Quarantine comes first so
+both mutation runs skip these tests.
+
+A quarantine keeps a flaky test off the blocking path while an owner tracks it to a fix; a skip
+with no owner and no expiry turns the test off for good. Basis, MEDIUM (two independent
+primaries): Google's auto-quarantine files a bug
+([Flaky Tests at Google](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html),
+2016, Google's internal CI; the post also warns quarantine can mask a real race condition), and
+Azure Pipelines pairs suppression with a bug and resets the flag when it resolves
+([flaky test management](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/flaky-test-management)).
+As of 2026-10-06. Recheck trigger: Google publishes a successor flaky-test post, or the Azure
+page's update date changes.
 
 ### 3. Record the baseline
 
@@ -162,7 +186,8 @@ shape `plugins/review/reference/findings-file-shape.md` gives: `Tier` and `Confi
 the source row, `Surface(s)` `testing:cleanup`, `Finding` the source row's `Finding` (rule id and
 threshold first) followed by `cleanup row <n>: <action>`, `Action` reading `applied by /testing:cleanup in this branch;
 review, do not re-apply` (or `kept: <reason>`). Quarantined tests have no rule and appear in
-`pr-body.md` only.
+`pr-body.md` only, each with its expiry, owner and tracking issue, beside each expired quarantine
+and the user's choice for it (re-enabled, escalated, renewed to a date, or undecided).
 
 Show the batch and wait for the user's approval. Then commit the batch's files only (named paths,
 never `git add -A`) and delete `before.tsv` and `after.tsv`. Push and the draft pull request go
@@ -173,7 +198,8 @@ user. Unattended runs stop before the commit.
 
 - Commit without the user's approval of the batch, or delete, merge or revert any test without a
   yes on that item.
-- Detect flaky tests, sweep expired quarantines, or bisect a lost kill.
+- Detect flaky tests, sweep quarantines outside the named folder, file a tracking issue, or bisect
+  a lost kill.
 - Clean more than one folder per batch, or turn the `test-weaken` hook off.
 
 ## Next

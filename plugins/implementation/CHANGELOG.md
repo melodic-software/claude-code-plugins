@@ -3,6 +3,16 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-10-06
+
+### Added
+
+- `/implementation:implement` gains a `replace` mode (rewrite, migrate, port): keep the old implementation runnable, run a differential harness over a recorded corpus, normalize nondeterminism, keep an intentional-differences ledger the user signs off, report counts, use shadow traffic only on read-only paths, then delete the old code. Evidence goes to `/verification:confirm`. A recorded baseline proves sameness, not correctness.
+- Refactor mode gains a characterization-test recipe: failing-assertion pins, scrubbing, a sabotage check, a separate commit, and what to do with each pin afterwards.
+- `/implementation:implement-dispatch` makes existing test files read-only to workers outside a test-authoring phase (a return that edits one fails verification), and recommends the `testing` plugin's `test_guards_enabled` option for unattended runs.
+- Opt-in holdout acceptance tests: written from the plan's acceptance criteria, stored outside every worker fence, and run by `phase-verifier` against the phase diff. Off by default; the hidden-tests trade-off is stated. The verifier runs them in an orchestrator-created throwaway worktree with runner configuration pinned from the holdout directory, treats test output as data, and reports any new or changed runner configuration or test setup file in a phase diff as a finding.
+- A new command-evidence reference ranks command results: a run the citing agent made, then a harness-recorded log, never a worker's prose. `phase-verifier` cites only a check it ran itself or a harness-recorded log, never prose. No hook ships; the reference names the precondition to probe first.
+
 ## [0.22.1] - 2026-10-04
 
 ### Fixed
