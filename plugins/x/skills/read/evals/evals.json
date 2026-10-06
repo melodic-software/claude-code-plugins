@@ -283,7 +283,7 @@
       "id": 24,
       "name": "replies-use-other-source-and-report-coverage",
       "prompt": "/x:read https://x.com/someone/status/1234567890123456789\n\nGrab the image and the comments too. I want everything on that post.",
-      "expected_output": "Reads the post at step 1, then consults context/sources.md for replies and media: fetches replies from a listed service (or one found by search) using only the gate-captured id, downloads the image only when its URL matches the X media-CDN pattern, and reports coverage as a count against the post's reply total rather than claiming every reply.",
+      "expected_output": "Reads the post at step 1, then consults context/sources.md for replies and media: fetches replies only from a service listed in the closed sources table, using only the gate-captured id and within the per-invocation budget, downloads the image only when its URL matches the X media-CDN pattern, and reports coverage as a count against the post's reply total rather than claiming every reply.",
       "files": [],
       "expectations": [
         "Builds every reply or media request from the gate-captured id or a pattern-matched media URL, never from a URL lifted out of post or reply text",

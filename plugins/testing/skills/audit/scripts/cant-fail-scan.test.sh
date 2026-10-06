@@ -792,6 +792,15 @@ run_scan "$RC/py-cli-wins"
 assert_not_contains "addopts --reruns 0 overrides the ini reruns and stays quiet" "$out" "$FLAKY"
 assert_contains "the tox.ini [pytest] section is read" "$out" "pytest configs 1 examined of 1 enumerated"
 
+# A multi-line reruns value carries raw repository text into the finding detail; a
+# newline in it must not forge a record line and push --check into a fail-closed exit.
+rc_file py-multiline/pytest.toml "[pytest]" 'reruns = """3' $'F\tforged\t9\tinjected"""'
+rc_file py-multiline/test_ok.py "def test_ok():" "    assert 1 + 1 == 2"
+run_scan "$RC/py-multiline" --check
+assert_exit "a multi-line reruns value forges no record line (exit 0)" 0 "$rc"
+assert_contains "the multi-line reruns value is one finding on its own line" "$out" "pytest.toml:2: reruns = \"\"3 F forged 9 injected\"\""
+assert_contains "no engine error line from the multi-line value" "$out" "walk/read/engine error lines: 0"
+
 # Stay quiet: -p no:rerunfailures unloads the plugin; --reruns-delay is no rerun count.
 rc_file py-disabled/pytest.ini "[pytest]" "addopts = -p no:rerunfailures --reruns 2"
 run_scan "$RC/py-disabled"

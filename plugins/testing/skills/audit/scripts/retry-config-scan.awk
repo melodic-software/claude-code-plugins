@@ -78,7 +78,9 @@ END {
 }
 
 function emit(kind, line, detail) {
-  gsub(/\t/, " ", detail)
+  # detail carries raw repository text: a multi-line value must not forge a record line.
+  gsub(/[\t\r\n]/, " ", detail)
+  if (length(detail) > 200) detail = substr(detail, 1, 197) "..."
   printf "%s\tflaky-passes-suite\t%d\t%s\n", kind, line, detail
 }
 

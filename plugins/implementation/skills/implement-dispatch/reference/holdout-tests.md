@@ -34,21 +34,40 @@ special-case.
    implementation, which does not exist yet, and its brief forbids reading the phase's worker
    worktrees. Each test names the criterion it checks.
 2. **Store outside every fence.** Write them to `<memory_dir>/<slug>/holdout/phase-N/` in the
-   orchestrator's checkout. The memory slice is self-ignored, so it is absent from a worker's
-   dedicated worktree. Every worker brief lists that directory as FORBIDDEN to read and to write. A
-   fence is an instruction, not a sandbox: a worker editing in the orchestrator's own checkout can
-   still reach the slice, so the option is strongest when every worker edits in a dedicated
-   worktree.
-3. **Check the tests can fail.** Run them against the phase's base before dispatching. A holdout
-   test that passes before the phase is built checks nothing new; rewrite it or drop it and log a
-   `DEVIATIONS.md` discovery.
-4. **Hand them to the verifier.** At the phase boundary the `phase-verifier` dispatch carries the
-   holdout path, the exact run command, and the criterion each test maps to. When the runner
-   accepts test paths outside the tree (most script-language runners), the command points at the
-   holdout files with the worker's worktree as the working directory. When the ecosystem needs the
-   tests inside the tree to build, the orchestrator creates a detached throwaway worktree at the
-   phase head, copies the tests in, and hands that path instead. It never copies them into the
-   worker's worktree.
+   orchestrator's checkout. The memory slice is self-ignored, so a worker's dedicated worktree
+   holds no copy of it. That is not isolation: a worker runs as the same user on the same
+   filesystem and can read the slice by absolute path. Every worker brief lists the whole
+   memory-slice root as FORBIDDEN to read and to write, and never names the holdout path, which
+   would tell the worker where to look. A fence is an instruction, not a sandbox, so the option
+   raises the cost of gaming the check rather than ruling it out, and it is weaker still when a
+   worker edits in the orchestrator's own checkout.
+3. **Check the tests can fail.** Run them against the phase's base before dispatching, with the
+   pinned command step 4 describes. A holdout test that passes before the phase is built checks
+   nothing new; rewrite it or drop it and log a `DEVIATIONS.md` discovery.
+4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator
+   creates a detached throwaway worktree at the phase head, never reusing a worker's worktree, and
+   the `phase-verifier` dispatch carries that path, the holdout path, the exact run command, and
+   the criterion each test maps to. When the ecosystem needs the tests inside the tree to build,
+   the orchestrator copies them into the throwaway worktree, never into a worker's. It removes the
+   throwaway worktree after the verdict.
+
+   The phase diff is worker-authored, and a test runner executes configuration it finds in the
+   tree: a new `conftest.py` hook can force a pass, a pytest ini can add options, a `pretest`
+   script runs before the tests, a Jest or Vitest config can name setup files. So the run command
+   takes its configuration from the holdout directory and invokes the runner binary directly,
+   never through a package script. For example, `pytest --noconftest -c <holdout>/pytest.ini
+   --rootdir <holdout> -p no:cacheprovider`, `vitest run --config <holdout>/vitest.config.ts`, or
+   `jest --config <holdout>/jest.config.js`. A runner configuration or test setup file the phase
+   diff adds or changes is a verifier finding (SKILL.md, Dispatch cadence item 1.12).
+
+   - **Pointer**: the runners' own flag references:
+     [pytest command-line flags](https://docs.pytest.org/en/stable/reference/reference.html#command-line-flags),
+     [Vitest CLI](https://vitest.dev/guide/cli),
+     [Jest CLI](https://jestjs.io/docs/cli).
+   - **As of**: 2026-10-06.
+   - **Recheck trigger**: a runner renames or drops a flag above, or starts loading configuration
+     or setup files from the tree despite an explicit config path.
+
 5. **Feed back the criterion, not the test.** A holdout FAIL fails its criterion. The re-brief
    names the criterion and the observed behavior, never the test's source or its expected
    literals, which would turn the holdout into a visible target.
