@@ -79,8 +79,9 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   touches. Judgment sections take the concise style in full.
 - **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
   skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
-  splitting it: every extra skill adds a description to the always-loaded listing. Split only
-  when the parts change independently or answer different requests.
+  splitting it: every extra model-invoked skill adds a description to the always-loaded listing
+  (a user-invoked one stays out of it). Split only when the parts change independently or answer
+  different requests.
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
