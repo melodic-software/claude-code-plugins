@@ -10,7 +10,7 @@ Per-run output (per-condition tables, graded commit SHAs) is posted as a comment
 issue. This file holds only the current grade of each fact: per the convention's "When a trigger
 fires", refreshing a date with no verdict change is no entry and no version bump.
 
-A refresh reads each page with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (the
+A refresh reads each page with the plugin's `scripts/fetch-docs.sh --cache` (the
 convention's rung 1). Every page below was fetched by that rung-1 route (the `.md` read to a file,
 searched locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and read from
 the bytes. No page text is stored here.

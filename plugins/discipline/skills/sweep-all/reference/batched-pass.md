@@ -63,8 +63,9 @@ unchanged and bind every member.
    exempt, read
    [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
    live, through the shared docs lookup
-   (`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache`, following
-   `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`), rather than
+   (the discipline plugin's `scripts/fetch-docs.sh --cache`, following its
+   `reference/docs-lookup-procedure.md`; both sit two levels above this
+   skill's directory), rather than
    from this file (as of 2026-10-02; recheck when that section
    changes the default, what takes a slot, or the exemptions). No per-session total applies:
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` is a documented no-op, so the
