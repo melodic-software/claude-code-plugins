@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-10-07
+
+### Changed
+
+- **Bump @modelcontextprotocol/sdk from 1.30.1 to 1.31.0 in /plugins/miro/server** (#6478).
+
 ## [0.6.6] - 2026-10-04
 
 ### Changed
