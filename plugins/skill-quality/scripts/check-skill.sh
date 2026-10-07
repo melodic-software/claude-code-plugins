@@ -2321,7 +2321,8 @@ fi
 # The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
 # `## History and provenance`: a skill body states the current rule, and the
 # issue or pull request that produced it belongs in the changelog and git
-# history. This flags a bare `#N` (`See PR #1234`, `TODO(#9)`) in the body.
+# history. This flags a bare hash-number reference in the body, including one
+# inside a tracked-work marker; the test file holds the concrete shapes.
 # The frontmatter is not read, and reference files are not checked.
 # Exempt: code spans and fenced code blocks; a cross-repo `owner/repo#N`
 # (anything glued to the `#` on the left); link anchors and URLs; and every

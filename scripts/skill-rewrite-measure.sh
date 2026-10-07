@@ -54,7 +54,7 @@
 #      and on the rewrite, then `measure-invocation.sh compare`.
 #   2. The plugin's own eval cases (plugins/<plugin>/evals), run the same way
 #      on the base and on the rewrite.
-#   3. Semantic diff of the rewritten bodies, labelled by a fresh agent:
+#   3. Semantic diff of the rewritten bodies, labeled by a fresh agent:
 #        /docs-hygiene:compress compare ORIG_DIR NEW_DIR [REASONS]
 # Paste this script's markdown table and the results of the steps above into
 # the pull request body.

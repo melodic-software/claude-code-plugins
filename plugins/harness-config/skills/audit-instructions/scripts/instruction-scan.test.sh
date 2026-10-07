@@ -601,8 +601,9 @@ assert_contains "a spaced file name is scanned" "$OUT" "$SPACED:2:I28-a"
 
 # --- Case 21: I40 this repository's history references in agent definitions ---
 # Expected rows come from the I40 row's Detect and its exemptions in
-# reference/criteria.md: a bare `#N`, `PR #N` or "added in #N" in an agents/*.md
-# file is a candidate; a code span, a cross-repository owner/repo#N, a TODO(#N),
+# reference/criteria.md: a bare hash-number reference, alone, after a pull-request
+# word, or after "added in", in an agents/*.md file is a candidate; a code span, a
+# cross-repository owner/repo reference, a tracked-work marker's issue link,
 # fenced code, and any line inside a block carrying both an as-of date and a
 # recheck trigger are not. The same text outside agents/ is not this row's.
 mkdir -p "$TEST_TMPDIR/agents"

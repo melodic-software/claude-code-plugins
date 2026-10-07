@@ -64,8 +64,9 @@
 #         I28-b blanket tool defaults ("default to using", "if in doubt, use")
 #   I25 retired sampling parameters (temperature/top_p/top_k prescriptions; the
 #       affected-model range is a criteria-owned Detect condition)
-#   I40 own-repository history reference (`#1234`, `PR #1234`) on agents/*.md
-#       paths only. Code spans, owner/repo#N, TODO(#N), fenced and indented code,
+#   I40 own-repository history reference (a bare hash-number, alone or after a
+#       pull-request word) on agents/*.md paths only. Code spans, owner/repo
+#       references, a tracked-work marker's issue link, fenced and indented code,
 #       and every line of a block carrying an as-of date and a recheck trigger
 #       are exempt.
 #
@@ -235,7 +236,7 @@ I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${
 # condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 # I40 this repository's history references, agent definitions only. Matched on
-# the lowercased line after code spans and TODO(#N) are removed, outside fenced
+# the lowercased line after code spans and tracked-work marker links are removed, outside fenced
 # and indented code blocks. The ERE itself rejects owner/repo#N:
 # a `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
 # entity, or a path, not a reference. A block (a run of non-blank lines) that

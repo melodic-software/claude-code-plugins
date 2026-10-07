@@ -16,7 +16,7 @@
     },
     {
       "answer": "| SEMANTIC LOSS | SKILL.md:9 \"Keep the last 7 rotated archives\" | none | the retention paragraph is gone from SKILL.md |",
-      "why": "the moved paragraph labelled as loss"
+      "why": "the moved paragraph labeled as loss"
     },
     {
       "answer": "The retention section moved to a reference file.\n\nRELOCATED: 1",

@@ -142,7 +142,7 @@ never copy a case's text and never use held-back cases.
    including near-misses aimed at same-plugin competitors.
 3. Measure before and after: the model-graded trigger rate on the probes
    (`/skill-quality:check measure-invocation`) and the plugin's eval cases.
-4. Diff meaning with `/docs-hygiene:compress compare`, labelled by a fresh agent.
+4. Diff meaning with `/docs-hygiene:compress compare`, labeled by a fresh agent.
 5. Ship on non-inferiority: no lost trigger, case or directive. A deterministic lexical score is a
    tripwire only, never the verdict.
 

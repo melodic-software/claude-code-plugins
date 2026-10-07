@@ -5,7 +5,7 @@ Prompt body and return contract for the `compare` action. Private to this skill;
 
 ## Dispatch shape
 
-Spawn one `docs-hygiene:compare-labeller` agent via the `Agent` tool; it is read-only (Read,
+Spawn one `docs-hygiene:compare-labeler` agent via the `Agent` tool; it is read-only (Read,
 Grep, Glob). Never substitute `general-purpose`, which can edit. Pass the prompt body
 below with `{ORIG_DIR}`, `{NEW_DIR}` and `{REASONS}` (a path, or `none`) substituted. The calling
 session never labels a difference itself, least of all its own cuts.
