@@ -7,14 +7,14 @@ import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = join(PLUGIN, "skills/present");
 const CHECK = join(SKILL, "scripts/check-deck.mjs");
-const { checkDeck: gate, k2Refusals } = await import(CHECK);
+const { checkDeck: gate, k2Refusals } = await import(pathToFileURL(CHECK).href);
 
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "present-test-")));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -221,13 +221,14 @@ describe("check-deck", () => {
     });
   });
 
-  test("the CLI takes --argument hosted and never runs pages-publish", () => {
+  // A shell-less spawn on Windows finds only a .exe or .com on PATH, so there the sh fake could never run and the test would prove nothing.
+  test("the CLI takes --argument hosted and never runs pages-publish", { skip: process.platform === "win32" && "the fake pages-publish is a sh script" }, () => {
     const bin = join(scratch, "fake-bin");
     const marker = join(scratch, "pages-publish-ran");
     mkdirSync(bin, { recursive: true });
     writeFileSync(join(bin, "pages-publish"), `#!/bin/sh\ntouch "${marker}"\n`);
     chmodSync(join(bin, "pages-publish"), 0o755);
-    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PROJECT_DIR: join(scratch, "no-project"), PATH: `${bin}:${process.env.PATH}` };
+    const env = { ...process.env, HOME, USERPROFILE: HOME, CLAUDE_PROJECT_DIR: join(scratch, "no-project"), PATH: `${bin}${delimiter}${process.env.PATH}` };
     const out = spawnSync(process.execPath, [CHECK, deck(plain), "PUBLIC", "--class", "K0", "--argument", "hosted"], { encoding: "utf8", env });
     assert.equal(out.status, 0, out.stderr);
     assert.equal(JSON.parse(out.stdout).medium, "artifact");
