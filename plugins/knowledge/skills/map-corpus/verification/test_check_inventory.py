@@ -43,6 +43,7 @@ class GateHarness(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp()
+        cls.addClassCleanup(shutil.rmtree, cls.dir, True)
         cls.snapshot = os.path.join(cls.dir, "source.md")
         with open(cls.snapshot, "wb") as fh:
             fh.write(SNAPSHOT)
@@ -74,10 +75,6 @@ class GateHarness(unittest.TestCase):
             "snapshot_sha256": sha(SNAPSHOT),
             "rows": rows,
         }
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.dir, ignore_errors=True)
 
     def run_gate(self, inventory=None, manifest_path=None, inventory_raw=None,
                  expect_code=0):

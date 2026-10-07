@@ -107,6 +107,9 @@ prints `#REFUSED`, the row, and the reason, and is never given an id.
 | I37 | `I37.harness-text-after-every-tool-result` | 1 |
 | I38 | `I38.progress-update-suppressor` | 1 |
 | I39 | `I39.same-file-contradiction` | 2 |
+| I40 | `I40.agent-history-reference` | 1 |
+| I41 | `I41.agent-unneeded-text` | 1 |
+| I42 | `I42.agent-rigid-step-script` | 1 |
 
 A new catalog check lands here and in `scripts/finding-ids.sh` in the same change;
 `scripts/finding-ids.test.sh` fails when the two tables or the catalog's check headings disagree.

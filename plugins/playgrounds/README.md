@@ -36,7 +36,8 @@ returns as a prompt. Generation and templates belong entirely to the upstream sk
 The wrapped capability is `playground@claude-plugins-official`
 (<https://github.com/anthropics/claude-plugins-official>, Apache-2.0). Upstream facts
 referenced by this plugin were read at commit
-`ed404106fcd80ba98ecb7c851e531dcb626d13b7` (verified current 2026-09-01). This
+`ed404106fcd80ba98ecb7c851e531dcb626d13b7` (verified current 2026-09-01; recheck when
+`playground@claude-plugins-official` publishes a commit that changes the playground skill). This
 wrapper is MIT-licensed and copies no upstream content.
 
 ## Install

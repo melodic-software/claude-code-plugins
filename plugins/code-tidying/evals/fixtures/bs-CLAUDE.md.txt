@@ -1,0 +1,4 @@
+# greeter
+
+Small bash toolkit. Run the behavior tests with `bash tests/run.sh` after any change to a script.
+`vendor/` is regenerated from upstream by `scripts/regen-vendor.sh`; never edit it by hand.

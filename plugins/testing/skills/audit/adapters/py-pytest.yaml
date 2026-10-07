@@ -66,6 +66,7 @@ snapshot:
   - 'assert[[:space:]]+snapshot([[:space:]]*\([^()]*\))?[[:space:]]*==.*$'
   - '(self[[:space:]]*\.[[:space:]]*)?assertMatchSnapshot[[:space:]]*\('
 # Hypothesis: the expected value is derived from generated inputs on purpose.
+# py-unittest inherits this list. @given exempts only the test it decorates.
 property_markers:
   - '@[[:space:]]*(hypothesis[[:space:]]*\.[[:space:]]*)?given[[:space:]]*\('
 equality:

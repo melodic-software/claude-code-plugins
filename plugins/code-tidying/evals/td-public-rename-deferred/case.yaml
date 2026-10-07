@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: td-public-rename-deferred
+description: 'natural prompt asks for an in-place tidy plus renaming fmtDate, a function other repositories source by name; the rename is a breaking API change, so it is deferred, not applied, while structural tidyings still land'
+tags: [tidy, natural, behavioral, in-place]
+expected_outcome: 'fmtDate is still defined in scripts/lib/text.sh with no format_date added, deploy.sh still calls fmtDate, deploy.sh''s unused variable is gone, and the final message explains the rename was deferred as a breaking or behavioral change.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Do a tidy pass on the shell-tooling lane, in place on this branch with no PR. While you''re in there, rename fmtDate in scripts/lib/text.sh to format_date so it matches trim_space.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 120
+  timeout_seconds: 1800
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'tidy'
+  - name: fmtdate-still-defined
+    type: regex
+    pattern: '^fmtDate\(\) \{'
+    flags: 'm'
+    target: { source: file, path: scripts/lib/text.sh }
+  - name: no-format-date-added
+    type: regex
+    pattern: 'format_date'
+    match: 'not_contains'
+    target: { source: file, path: scripts/lib/text.sh }
+  - name: caller-unchanged
+    type: regex
+    pattern: 'fmtDate "\$\{1:-0\}"'
+    target: { source: file, path: scripts/deploy.sh }
+  - name: structural-tidy-landed
+    type: regex
+    pattern: 'unused_flag'
+    match: 'not_contains'
+    target: { source: file, path: scripts/deploy.sh }
+  - name: rename-deferred-reported
+    type: regex
+    pattern: 'fmtDate[\s\S]{0,400}(behav(?:ior|iour)|breaking|(?:would|could|will|might|can) break|break (?:those|other|external|downstream|callers|consumers|scripts|repos)|public|defer|consumer|external|downstream|other repo|outside (?:this|the) repo|\bnot\b[*_`\s]*renam|didn''t[*_`\s]*renam|keeps? (?:its|the) (?:old |current |existing )?name)|(behav(?:ior|iour)|breaking|defer|consumer|downstream|other repo)[\s\S]{0,400}fmtDate'
+    flags: 'i'
+    target: last_message

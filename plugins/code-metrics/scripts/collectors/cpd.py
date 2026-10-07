@@ -21,7 +21,9 @@ namespaced `pmd-cpd` root documented in the CPD report formats page, one
 `duplication` element per clone group carrying `lines` and `tokens` with one
 `file` child per instance (`path`, `line`, `endline`). CPD exits 4 when it
 finds duplications and 5 on recoverable errors, so its exit code is not read:
-the parseable report is the success signal (design T1).
+the parseable report is the success signal (design T1). Recheck when a PMD
+release renames a `pmd cpd` option or changes the `duplication` and `file`
+attributes of the XML report, or when a live run disagrees with this form.
 
 Tunables arrive as environment variables the calling skill exports from the
 resolved configuration:

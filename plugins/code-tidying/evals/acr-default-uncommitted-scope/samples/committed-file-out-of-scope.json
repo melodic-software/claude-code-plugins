@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "cmd/worker.go: 2 finding(s) \u2014 T1=2, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | history-narration | 5 | \"// Run drains the queue; it no longer blocks on an empty queue.\" | Delete \u2014 version control owns history |\n| 1    | plan-reference | 8 | \"// in this refactor the print moved out of the handler\" | Delete |\n\nTotal: 1 file(s) audited, 2 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": ""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "cmd/worker.go: 2 finding(s) \u2014 T1=2, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | history-narration | 5 | \"// Run drains the queue; it no longer blocks on an empty queue.\" | Delete \u2014 version control owns history |\n| 1    | plan-reference | 8 | \"// in this refactor the print moved out of the handler\" | Delete |\n\nlib/legacy.py: 1 finding(s) \u2014 T1=1, T2=0\n\n| 1 | conversational-antecedent | 2 | \"# per our discussion with Dana, keep three attempts\" | Delete |\n\nTotal: 2 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "audited the committed file"
+    }
+  ]
+}

@@ -276,7 +276,8 @@ budget". What governs the category:
   `skillListingBudgetFraction` of the model's context window, **default `0.01`, i.e. 1%**, and
   `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides it with a fixed character count, **documented fallback
   8,000 characters**. Each entry's combined `description` + `when_to_use` text is separately capped at
-  `skillListingMaxDescChars`, **default `1536`**. For a 200K-token window, `200,000 × 4 × 0.01 = 8,000`
+  `skillListingMaxDescChars`, whose authoring limit `/playbooks:skill-authoring` `## Descriptions`
+  states and `/skill-quality:check` enforces on each `SKILL.md`. For a 200K-token window, `200,000 × 4 × 0.01 = 8,000`
   characters, which is why the env var's fallback is that number. Without the constant a report can say
   "overflowed" but not "by how much", so quote it. All three are upstream-owned: confirm them in Phase
   3 against [settings-reference](https://code.claude.com/docs/en/settings-reference) and

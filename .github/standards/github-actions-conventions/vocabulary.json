@@ -84,6 +84,11 @@
       { "name": "publish-binaries", "status": "in-use" },
       { "name": "publish-image", "status": "in-use" },
       { "name": "publish-packages", "status": "in-use" },
+      {
+        "name": "publish-plugins",
+        "status": "reserved",
+        "purpose": "Publish Claude Code plugins to their marketplace."
+      },
       { "name": "tag", "status": "in-use" }
     ],
     "maintenance": [

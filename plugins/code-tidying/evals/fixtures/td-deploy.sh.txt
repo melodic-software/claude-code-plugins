@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Print the deploy stamp for a Unix timestamp.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/text.sh
+source "$here/lib/text.sh"
+
+unused_flag=true
+
+stamp="$(fmtDate "${1:-0}")"
+# Print the stamp
+echo "deploy $(trim_space "  $stamp  ")"

@@ -70,6 +70,8 @@ build_drifted() {
 # --------------------------------------------------------------------------
 # Hot path — the case that runs on every write in the fleet
 # --------------------------------------------------------------------------
+repo="" noindex="" killrepo=""
+trap 'rm -rf "$repo" "$noindex" "$killrepo"' EXIT
 repo="$(build_drifted)"
 
 out="$(run_hook "$(payload_for "$repo/src/a.cs")")"
@@ -231,7 +233,6 @@ expect_has "injected failure names the hook on stderr" "$idx_abort_err" \
 idx_abort_lines=$(printf '%s\n' "$idx_abort_err" | grep -c . || true)
 expect_eq "injected failure writes one stderr line" "1" "$idx_abort_lines"
 
-rm -rf "$repo" "$noindex" "$killrepo"
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]] || exit 1

@@ -68,7 +68,7 @@ Final gates before the phase-boundary user gate.
 |---|-------|----------|--------|
 | 1 | SSOT reads sensibly in isolation (leaky-abstraction self-test) | Open the SSOT fresh; read top-to-bottom; confirm meaning is clear without surrounding context | `anti-patterns.md` #3 |
 | 2 | All cross-references / imports resolve | For each `per X.md "Y"` in the new SSOT, grep X.md for the literal heading "Y", an exact match. For code: build/typecheck pass. For config: schema-validate passes | Tier 0 verification at citation resolution |
-| 3 | SSOT file size within bound | Markdown: `wc -l <ssot-file>` < 500. Code/config: per language idiom | `decision-framework.md` test #5 |
+| 3 | SSOT file size within bound | Markdown: `wc -l <ssot-file>` under the line cap in `/playbooks:skill-authoring` `## Body`. Code/config: per language idiom | `decision-framework.md` test #5 |
 | 4 | Lint clean across all edited files | Markdown: `npx markdownlint-cli2` (or the repo's markdown linter). Code/config: the repo's per-ecosystem linter | The consuming repository's lint conventions |
 | 5 | The repo's own verification reports green for all changed ecosystems | Build + test + lint pass per the consuming repository's verification workflow | The consuming repository's verification conventions |
 | 6 | Working notes updated: phase marked done + next action recorded | Status entry in the working notes | SKILL.md "Phases per invocation" |
@@ -81,7 +81,7 @@ Every phase ends with a Sanity Check item in the working notes. For an `execute`
 
 ```markdown
 - [ ] **Sanity Check:**
-  - SSOT file at `<path>` exists and is < 500 lines
+  - SSOT file at `<path>` exists and is within the line cap of `/playbooks:skill-authoring` `## Body`
   - All N callsites migrated (list in the phase handoff entry)
   - `/docs-hygiene:rename-references` sweep ran clean
   - markdownlint clean
@@ -99,7 +99,7 @@ If post-extraction gates fail:
 |---------|--------|
 | Gate 1 (leaky abstraction) | Edit the SSOT to be self-contained; re-run the gate; if irrecoverable → `unwind` action |
 | Gate 2 (cross-reference doesn't resolve) | Either fix the citation OR fix the SSOT heading; re-run the sweep |
-| Gate 3 (>500 lines) | Split the SSOT into multiple files (one per coherent topic) OR push detail to a `context/<topic>.md` |
+| Gate 3 (over the line cap) | Split the SSOT into multiple files (one per coherent topic) OR push detail to a `context/<topic>.md` |
 | Gate 4 (lint failure) | Fix lint; re-run |
 | Gate 5 (repo verification red) | The failure is not out of scope. Fix it before proceeding, never defer |
 | Gate 6-7 (working notes not updated) | Update; re-run the gate |

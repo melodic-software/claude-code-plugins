@@ -9,7 +9,8 @@ deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
 exit code 1 as a non-blocking error and proceeds with the action... If your
 hook is meant to enforce a policy, use exit 2") — every internal failure path
 that could once fall through to the interpreter's default (uncaught exception
--> exit 1, no diagnostic) now denies instead (#1423).
+-> exit 1, no diagnostic) now denies instead (#1423). Recheck when the hooks reference states that a
+PreToolUse exit code 1 blocks the action.
 
 Investigation note for the one observed #1423 occurrence (engine-gate mode,
 ``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
@@ -1281,7 +1282,9 @@ def resolve_disk_hygiene_enabled() -> bool:
     reader it shares with the report-only probe) — never the process environment.
     Since Claude Code 2.1.207 that key is honored only from user, managed, and
     ``--settings`` scope, never a project or local ``settings.json``
-    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    (https://code.claude.com/docs/en/settings-reference#pluginconfigs and
+    https://code.claude.com/docs/en/settings#change-a-setting-for-one-session,
+    as of 2026-10-07), so a hostile repo cannot flip the
     switch. Managed settings are the highest-precedence, non-overridable scope, so
     a value configured there wins over the user file — that is how an organization
     enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
@@ -1943,7 +1946,8 @@ _POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
 # .Name` in turn only "Contains the verb's name"
 # (https://learn.microsoft.com/en-us/windows/win32/shell/folderitemverb-name,
 # fetched 2026-08-16) — so a verb named anything other than the enumerated
-# spellings below (a localized name, for instance) is NOT covered.
+# spellings below (a localized name, for instance) is NOT covered. Recheck when
+# either page documents a fixed verb-name set for `InvokeVerb`.
 #
 # Deliberately outside this rule, each still deferring:
 #   - `MoveHere` into an ordinary (non-bin) folder — that is a MOVE, not a

@@ -402,6 +402,9 @@ residency rules the decisions rest on were verified against
   drift rather than conflict, and if a future page documents README loading, that classification is
   what changes.
 
+Recheck the residency claims above when the skills page changes its listing-overflow drop order,
+its on-demand loading of supporting files, or documents plugin README loading.
+
 Non-residency claims are sourced the same way: issue #1225 and every ticket in the assessment were
 read first-hand via `gh issue view`, PR #1096 via `gh pr diff`, and population counts were produced
 by enumerating `plugins/*`, the globs in the table above, and `.claude-plugin/marketplace.json`. The

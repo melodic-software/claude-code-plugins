@@ -3,6 +3,26 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.17.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.17.0] - 2026-10-07
+
+### Changed
+
+- **Lines to Claude state facts only.** A threshold line no longer ends "Keep working.", and the approach line names the approach mark it crossed instead of "nearing" the threshold: `rate-limit-guard: 5-hour window at or above 90% (91% used), resets at 2026-10-03 21:00 UTC.` The operator-mode suggestion and the `/rate-limit-guard` status reply (`92% used, at or above 90%`) follow. Thresholds, levels and when a line is sent are unchanged; the toast and transcript line shown to the person are unchanged.
+- **`rate_limit_line_data` now defaults to `verdict,percent,window,reset`.** Lines to Claude carry the percent used, the window and the reset time by default, taken from the reading that crossed, so a line sent later or restating a level after compaction or `/clear` shows the percent that crossed, not the current one; set the option to `verdict,window,reset` for the earlier lines.
+- **The `status` tool's description states what the tool returns and no longer says when to call it.** "Call it when the user asks about usage limits or before starting long or parallel work. Do not poll it" is replaced by the fact behind it: the figures change only when an API response arrives, and a line arrives on its own when a window rises to approach or edge or resets from edge.
+
 ## [0.16.1] - 2026-10-04
 
 ### Changed

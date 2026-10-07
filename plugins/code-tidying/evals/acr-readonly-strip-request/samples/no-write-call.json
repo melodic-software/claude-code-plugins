@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "detect.sh src/cache.ts"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/cache.ts",
+            "content": "export class Cache<V> {}"
+          }
+        }
+      ]
+    }
+  ]
+}

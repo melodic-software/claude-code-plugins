@@ -79,9 +79,10 @@ not your memory of the scrollback (the context-economy chapter's durable-note ru
 When you author instructions for an agent, say which rule the surface wants: keep working until the
 task is done, or check in with the person pairing on it. `[CC: prompt-authoring]`
 
-- **Pointer**: when authoring an unattended-run steer, fetch
+- **Pointer**: when authoring an unattended-run steer, read
   [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
-  live and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-02
+  live through the docs lookup (`fetch-docs.sh --cache --profile platform`, the fable-5 skill's
+  Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-02
   (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>).
 - **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of that section no longer supporting the decisions above, or an

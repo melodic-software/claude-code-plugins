@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: bs-dot-repo-path
+description: './repo is a path, not the repo scope keyword: with no scope token the default 48h window applies, narrowed by pathspec to the repo/ directory'
+tags: [argument-parsing, path, window]
+expected_outcome: 'Only repo/tool.sh is simplified. src/greet.sh, changed in the same 48h commit but outside repo/, is unchanged; no whole-repository inventory gate is raised.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify unattended ./repo'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: tool-simplified
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:1"
+    target: { source: file, path: repo/tool.sh }
+  - name: greet-untouched
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:2"
+    target: { source: file, path: src/greet.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: helpers-untouched
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:2"
+    target: { source: file, path: src/helpers.sh }
+  - name: default-window-applied
+    type: tool_used
+    tool: Bash
+    input_match: '48 hours'
+    arm: both

@@ -1,6 +1,6 @@
 {
   "name": "ruff-format",
-  "version": "0.9.9",
+  "version": "0.9.13",
   "description": "Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo, using the consuming repo's own Ruff config.",
   "author": {
     "name": "Melodic Software",

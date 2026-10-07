@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Print the deploy stamp for a Unix timestamp.\nset -euo pipefail\n\nhere=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# shellcheck source=lib/text.sh\nsource \"$here/lib/text.sh\"\n\nstamp=\"$(fmtDate \"${1:-0}\")\"\necho \"deploy $(trim_space \"  $stamp  \")\"\n",
+      "why": "expected file state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Print the deploy stamp for a Unix timestamp.\nset -euo pipefail\n\nhere=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\n# shellcheck source=lib/text.sh\nsource \"$here/lib/text.sh\"\n\nunused_flag=true\n\nstamp=\"$(fmtDate \"${1:-0}\")\"\n# Print the stamp\necho \"deploy $(trim_space \"  $stamp  \")\"\n",
+      "why": "violating file state"
+    }
+  ]
+}

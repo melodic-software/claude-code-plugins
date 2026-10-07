@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL .claude/tidy-lanes/api.md: missing `## Verification commands`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL api.md: missing a required section",
+      "why": "section unnamed"
+    }
+  ]
+}
