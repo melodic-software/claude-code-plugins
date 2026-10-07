@@ -157,7 +157,8 @@ files read out of order, a reference never followed, one file read repeatedly (p
 bundled file never read (cut it). Carry a failure back as its general cause in your own words;
 never copy a case's text and never use held-back cases.
 
-**Rewriting an existing skill.**
+**Rewriting an existing skill.** To run these steps across a whole plugin, follow
+[rewrite-a-plugin.md](rewrite-a-plugin.md).
 
 1. Snapshot the before state: description, body, eval results.
 2. Cases first. Give every contract edge the rewrite will touch an outcome case, written from the
@@ -174,7 +175,8 @@ never copy a case's text and never use held-back cases.
    (`/skill-quality:check measure-invocation`, or `claude plugin eval` on the cases it emits) and
    the plugin's eval cases, per model the skill targets. Run the versions concurrently with the
    same flags: run conditions drift, so before and after runs made hours apart are not
-   comparable. Read a number only from a run `/evals:plugin-eval` judges valid.
+   comparable. Read a number only from a run `/evals:plugin-eval` judges valid, and compare the
+   versions with its two-version noise report.
 5. Diff meaning with `/docs-hygiene:compress compare`, labeled by a fresh agent.
 6. Ship on non-inferiority: no lost trigger, case or directive, with a margin of 5 points on
    mean case score and trigger rate (this protocol's house setting), and no single case dropping

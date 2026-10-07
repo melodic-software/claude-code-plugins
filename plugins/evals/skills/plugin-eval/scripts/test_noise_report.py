@@ -455,6 +455,91 @@ class NoiseReportTest(unittest.TestCase):
         proc = self.report(make_result([make_case("a", [1, 1, 1], [0, 0, 0])]))
         self.assertIn("n too small to call (comparable cases: 1;", proc.stdout)
 
+    def compare(self, after_cases, before_cases, *args):
+        before = Path(self.tmp.name) / "before.json"
+        before.write_text(json.dumps(before_cases), encoding="utf-8")
+        return self.report(after_cases, "--baseline", str(before), *args)
+
+    def test_baseline_compare_within_margin_is_non_inferior(self):
+        before = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abcd"]
+        after = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abc"]
+        after.append(make_case("d", [1, 1, 0.75], [0, 0, 0]))
+        proc = self.compare(make_result(after), make_result(before))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        # with-arm changes 0, 0, 0, -0.083: mean -0.02, half-width 0.04
+        self.assertIn(
+            "with-arm change (this minus baseline), paired over 4 cases: -0.02, 95% interval -0.06 to +0.02",
+            proc.stdout,
+        )
+        self.assertIn(
+            "compare verdict: not shown non-inferior at margin 0.05", proc.stdout
+        )
+        proc = self.compare(make_result(after), make_result(before), "--margin", "0.10")
+        self.assertIn("compare verdict: non-inferior at margin 0.10", proc.stdout)
+        self.assertNotIn("case drop", proc.stdout)
+
+    def test_baseline_compare_flags_a_case_that_drops_a_third(self):
+        before = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abcdefgh"]
+        after = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abcdefg"]
+        after.append(make_case("h", [1, 1, 0], [0, 0, 0]))
+        proc = self.compare(make_result(after), make_result(before), "--margin", "0.2")
+        self.assertIn("case drop: case h with-arm fell from 1.00 to 0.67", proc.stdout)
+        self.assertIn(
+            "compare verdict: non-inferior at margin 0.20 (the interval's lower end -0.12"
+            " is at or above -0.20), and 1 case(s) dropped by a third or more",
+            proc.stdout,
+        )
+
+    def test_baseline_compare_reports_the_without_arm_as_a_drift_control(self):
+        before = [make_case(n, [1, 1, 1], [0.5, 0.5, 0.5]) for n in "abc"]
+        after = [make_case(n, [1, 1, 1], [0.5, 0.5, 0.75]) for n in "abc"]
+        proc = self.compare(make_result(after), make_result(before))
+        self.assertIn(
+            "without-arm change (this minus baseline), paired over 3 cases: +0.08",
+            proc.stdout,
+        )
+
+    def test_baseline_compare_pairs_by_name_and_names_the_rest(self):
+        before = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abcx"]
+        after = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abcy"]
+        proc = self.compare(make_result(after), make_result(before))
+        self.assertIn(
+            "compare: case x left out (absent or not comparable in this result)",
+            proc.stdout,
+        )
+        self.assertIn(
+            "compare: case y left out (absent or not comparable in the baseline)",
+            proc.stdout,
+        )
+        self.assertIn("paired over 3 cases", proc.stdout)
+
+    def test_baseline_compare_with_too_few_shared_cases_calls_nothing(self):
+        before = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "ab"]
+        proc = self.compare(make_result(before), make_result(before))
+        self.assertIn(
+            "compare verdict: n too small to call (cases scored in both results: 2;",
+            proc.stdout,
+        )
+        self.assertNotIn("non-inferior", proc.stdout)
+
+    def test_partial_baseline_computes_no_comparison(self):
+        cases = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abc"]
+        proc = self.compare(
+            make_result(cases),
+            make_result(cases, partial=True, partial_reason="cost_ceiling"),
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("partial baseline (cost_ceiling)", proc.stdout)
+        self.assertNotIn("compare verdict", proc.stdout)
+
+    def test_unreadable_baseline_exits_2(self):
+        cases = [make_case(n, [1, 1, 1], [0, 0, 0]) for n in "abc"]
+        proc = self.report(
+            make_result(cases), "--baseline", str(Path(self.tmp.name) / "missing.json")
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("cannot read", proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
