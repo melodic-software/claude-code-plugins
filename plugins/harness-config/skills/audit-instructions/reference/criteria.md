@@ -1,6 +1,6 @@
 ---
-version: 1.28.0
-last-updated: 2026-10-04
+version: 1.29.0
+last-updated: 2026-10-07
 ---
 
 # Instruction-Audit Criteria
@@ -50,6 +50,9 @@ Look up a specific check by ID: run `grep -n '^### I<N>:'` over this file.
   - [I37: Harness text after every tool result](#i37-harness-text-after-every-tool-result)
   - [I38: Progress-update suppressor](#i38-progress-update-suppressor)
   - [I39: Contradiction inside one file](#i39-contradiction-inside-one-file)
+  - [I40: Own-repository history reference in an agent definition](#i40-own-repository-history-reference-in-an-agent-definition)
+  - [I41: Unneeded text in an agent definition](#i41-unneeded-text-in-an-agent-definition)
+  - [I42: Rigid step script for judgment work in an agent definition](#i42-rigid-step-script-for-judgment-work-in-an-agent-definition)
 - [Stopping condition](#stopping-condition)
 - [Out-of-catalog defects](#out-of-catalog-defects)
 - [AGENTS.md content-home advisory](#agentsmd-content-home-advisory)
@@ -171,8 +174,8 @@ memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.
 installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
 not. Checks I6–I12, I16–I28, I30, and I35–I39 apply to all surfaces. I15 also applies to all
 surfaces, but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14,
-I29, I31, I32, I33, and I34 name narrower surface sets in their own rows, and a lane runs each only
-on the surfaces its row names.
+I29, I31, I32, I33, I34, and I40–I42 name narrower surface sets in their own rows, and a lane runs
+each only on the surfaces its row names.
 
 ## Sources
 
@@ -259,6 +262,8 @@ on the surfaces its row names.
 - CLI reference (`claude doctor` and the other terminal forms):
   <https://code.claude.com/docs/en/cli-reference>
 - Subagents (what loads into a subagent at startup): <https://code.claude.com/docs/en/sub-agents>
+- Skill authoring best practices (the conciseness test and degrees of freedom, for I41 and I42):
+  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices>
 
 ---
 
@@ -325,7 +330,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   read again, so content that must survive compaction stays unscoped or in the project-root
   `CLAUDE.md` (or the `AGENTS.md` read natively, whether in place of a `CLAUDE.md` or alongside
   one). **A *new* skill is not a free destination:** its body defers, but the listing entry it
-  adds, `name` plus the combined `description` and `when_to_use` truncated at 1,536 characters, is
+  adds, `name` plus the combined `description` and `when_to_use` truncated at the per-entry cap
+  (`/playbooks:skill-authoring` `## Descriptions` states it; `/skill-quality:check` enforces it), is
   always in context, so the saving is the body minus that entry rather than the whole body. Moving
   content into a skill that **already exists** adds no listing entry and does not carry this cost.
   The only field that keeps a description out of context is `disable-model-invocation: true`, which
@@ -351,8 +357,8 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Source:** best-practices, "Write an effective CLAUDE.md" (broad applicability, skills for
   sometimes-relevant content); memory, "Import additional files" (imports load at launch);
   context-window, "What survives compaction", for the per-destination cost; skills, "Frontmatter
-  reference" (description loading, the listing truncation this check keeps as its own 1,536
-  setting, and the invocation-control fields) and "Override skill visibility from settings"
+  reference" (description loading, the listing truncation, whose value this check reads from
+  `/playbooks:skill-authoring` `## Descriptions`, and the invocation-control fields) and "Override skill visibility from settings"
   (`skillOverrides` and plugin skills); subagents, the `skills:` field (preloaded skill content).
   Pointer: <https://code.claude.com/docs/en/skills#frontmatter-reference>,
   <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> and
@@ -2371,6 +2377,78 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). As of:
   2026-10-04. Recheck trigger: that guidance gains a same-file limit, or stops calling a
   contradiction a defect.
+
+### I40: Own-repository history reference in an agent definition
+
+Tier `mechanical` · Authority `HOUSE` · Severity `warning` · Surfaces: agent definitions
+(`agents/*.md`, plugin or project). Unscoped. A dispatched agent cannot open the pull request or
+issue it is pointed at, so the reference costs context and carries no rule. The skill-side check
+is `/skill-quality:check`'s; this row covers the agents it does not read.
+
+- **Detect:** a reference into the audited repository's own history: a bare `#1234`, `PR #1234`,
+  "added in #N", "fixed by PR 1234", or an incident narrative ("after the lane stalled in
+  September") that explains why a line exists instead of stating the rule.
+- **Must NOT flag:** a code span; a cross-repository `owner/repo#N`, which names an upstream
+  record; a `TODO(#N)` marker; fenced code; any line inside a pointer-record block, meaning a
+  paragraph or bullet run that carries an as-of date and a recheck trigger anywhere in it. These
+  are the exemptions `/skill-quality:check` applies to skills, so one line gets one verdict on
+  either surface.
+- **Pre-scan:** `instruction-scan.sh` seeds the number forms as `I40` rows on `agents/*.md` paths
+  only, with the exemptions above; incident narratives are lane-only.
+- **Remediate:** state the rule in the present tense and move the history to the CHANGELOG, an ADR,
+  or the commit message. An upstream bug the line works around becomes a pointer record.
+- **Source:** `/playbooks:skill-authoring` `## Agents`, which applies its history rule to agent
+  definitions; skill authoring best practices, "Avoid time-sensitive information". Pointer:
+  [avoid time-sensitive
+  information](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information).
+  As of: 2026-10-07. Recheck trigger: `/playbooks:skill-authoring` `## Agents` changes its history
+  rule or its exemptions, which re-derives this row's Must NOT flag set and the scanner's.
+
+### I41: Unneeded text in an agent definition
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: agent definitions.
+Unscoped.
+
+- **Detect:** a passage that fails the deletion test "could the model already know this?": a role
+  preamble ("You are an expert reviewer"), a restatement of the tools the frontmatter already
+  grants, the dispatching skill's own workflow the agent never acts on, or general engineering
+  advice the model follows unprompted. An agent definition loads in full on every dispatch, so
+  each such line is paid for on every call.
+- **Must NOT flag:** the agent's return contract, scope fence, or stop rules, which the parent
+  depends on; a repo-specific fact the model cannot derive (a path, a command, a convention that
+  differs from the default); a protected class in the instruction exception register, on I4's
+  terms.
+- **Adjacent rows:** on an agent definition, a line I1 or I4 would flag is reported once, under
+  this row. I29 covers body text that restates the description.
+- **Remediate:** cut it. The cut is editorial (Deletion tiers) unless the line governs a situation,
+  in which case it is consequential and needs a closed watch.
+- **Source:** `/playbooks:skill-authoring` `## Agents`; skill authoring best practices, "Concise is
+  key". Correlate: the vendor `prompt-audit` procedure's Step 3 deletion rule, read at the commit
+  [bundled-claude-api.md](bundled-claude-api.md) pins. Pointer: [concise is
+  key](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#concise-is-key).
+  As of: 2026-10-07. Recheck trigger: that section drops the "does Claude really need this" test.
+
+### I42: Rigid step script for judgment work in an agent definition
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: agent definitions.
+Unscoped.
+
+- **Detect:** a numbered or ordered procedure that fixes each move of a task where several
+  approaches are valid and the right one depends on what the agent finds (review, diagnosis,
+  research, design), so the script pins an approach the agent should choose.
+- **Must NOT flag:** a sequence for a fragile or order-dependent operation (a migration, a git
+  history rewrite, a script the agent must run exactly), a step another step consumes the output
+  of, or a fixed output shape the parent parses. Low freedom is right there.
+- **Adjacent rows:** I8's base row covers enumerated behaviors the model performs from a brief
+  instruction on any surface; on an agent definition a line both rows fit is reported once, under
+  this row.
+- **Remediate:** replace the script with the goal, the constraints, and what done looks like; keep
+  exact steps only for the fragile parts. Verify per Deletion tiers.
+- **Source:** `/playbooks:skill-authoring` `## Agents`; skill authoring best practices, "Set
+  appropriate degrees of freedom". Pointer: [set appropriate degrees of
+  freedom](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom).
+  As of: 2026-10-07. Recheck trigger: that section changes which tasks it assigns high or low
+  freedom.
 
 ---
 

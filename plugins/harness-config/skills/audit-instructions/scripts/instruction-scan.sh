@@ -64,6 +64,9 @@
 #         I28-b blanket tool defaults ("default to using", "if in doubt, use")
 #   I25 retired sampling parameters (temperature/top_p/top_k prescriptions; the
 #       affected-model range is a criteria-owned Detect condition)
+#   I40 own-repository history reference (`#1234`, `PR #1234`) on agents/*.md
+#       paths only. Code spans, owner/repo#N, TODO(#N), fenced code, and every
+#       line of a block carrying an as-of date and a recheck trigger are exempt.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep, tr, and awk; exits 2 when one is absent.
@@ -71,7 +74,7 @@
 # Rows are `file:line:check-id` (grep -n convention). An I6 row is a sentence
 # that opens on a prohibition and survives the paired-positive and rationale
 # gates; a line may surface once per matching check
-# id (I6, I10, I23, I27, I38, and one of the I8 families). Nonexistent path
+# id (I6, I10, I23, I27, I38, I40, and one of the I8 families). Nonexistent path
 # arguments are skipped, not errors.
 #
 # --body-only skips YAML frontmatter (a leading `---` block), so no row can point
@@ -95,7 +98,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-instruction-scan.sh: mark I6/I8/I10/I23/I25/I27/I28/I38 instruction candidates in given files.
+instruction-scan.sh: mark I6/I8/I10/I23/I25/I27/I28/I38/I40 instruction candidates in given files.
 
 Usage: instruction-scan.sh [--count | --i6-counts] [--body-only] [--help] FILE...
 
@@ -118,7 +121,9 @@ don't-reason, I8-f think-carefully steer. I23 marks self-estimated context-budge
 effort-for-brevity candidates (effort-lowering directive paired with a brevity
 token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
-parameters. I38: progress-update suppressors.
+parameters. I38: progress-update suppressors. I40: own-repository history
+references (#N, PR #N) in agents/*.md files, outside code spans, owner/repo#N,
+TODO(#N), fenced code, and pointer-record blocks.
 
 Advisory: always exits 0 (candidates never fail the run). Requires grep, tr,
 and awk (exit 2 when one is absent). Seeds the candidate set of the audit-instructions
@@ -228,6 +233,15 @@ I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${
 # I25 retired sampling parameters (model range is a criteria-owned Detect
 # condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
+# I40 this repository's history references, agent definitions only. Matched on
+# the lowercased line after code spans, TODO(#N), and owner/repo#N are removed.
+# A `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
+# entity, or a path, not a reference. A block (a run of non-blank lines) that
+# carries both an as-of date and a recheck trigger is a pointer record and
+# never emits.
+I40_REF_ERE="(^|[^[:alnum:]_&/.#-])#[0-9]+([^[:alnum:]_]|\$)|${WB_L}(pr|pull request)s? #?[0-9]+${WB_R}"
+I40_ASOF_ERE="as[- ]of[^0-9]{0,24}[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+I40_RECHECK_ERE="${WB_L}re-?check"
 
 # --- Scan ---------------------------------------------------------------------
 # Each family runs ONE grep over every file (per argv chunk), so the process
@@ -363,6 +377,52 @@ run_family() {
   printf '\001%s\n' "$idx"
   for ((c = 0; c < ${#chunk_start[@]}; c++)); do
     grep "$flags" --null -e "$ere" -- "${files[@]:chunk_start[c]:chunk_len[c]}" 2>/dev/null
+  done
+}
+
+# run_i40 <index>
+#
+# One awk per chunk over the chunk's agents/*.md files, printing rows in the
+# shape the batched greps produce after tr (path, \003, `line:`), so SCAN_AWK
+# orders, dedupes, counts, and applies --body-only to them like any family.
+# Fenced code is never read, and a fence line ends the block.
+run_i40() {
+  local idx="$1" c f agents
+  printf '\001%s\n' "$idx"
+  for ((c = 0; c < ${#chunk_start[@]}; c++)); do
+    agents=()
+    for f in "${files[@]:chunk_start[c]:chunk_len[c]}"; do
+      [[ "$f" =~ (^|[/\\])agents[/\\][^/\\]*\.md$ ]] && agents+=("$f")
+    done
+    [[ ${#agents[@]} -gt 0 ]] || continue
+    LC_ALL=C awk -v ref="$I40_REF_ERE" -v asof="$I40_ASOF_ERE" \
+      -v recheck="$I40_RECHECK_ERE" '
+      function flush(   k) {
+        if (nb > 0 && !(blk ~ asof && blk ~ recheck))
+          for (k = 1; k <= nb; k++) printf "%s\003%s:\n", cur, hit[k]
+        nb = 0; blk = ""
+      }
+      FNR == 1 { flush(); cur = FILENAME; infence = 0 }
+      {
+        text = $0
+        sub(/\r$/, "", text)
+        if (match(text, /^ ? ? ?(```|~~~)/)) {
+          flush()
+          d = substr(text, RSTART + RLENGTH - 1, 1)
+          if (!infence) { infence = 1; fc = d } else if (d == fc) infence = 0
+          next
+        }
+        if (infence) next
+        if (text ~ /^[ \t]*$/) { flush(); next }
+        low = tolower(text)
+        blk = blk " " low
+        gsub(/`[^`]*`/, "", low)
+        gsub(/todo\(#[0-9]+\)/, "", low)
+        gsub(/[[:alnum:]_.-]+\/[[:alnum:]_.-]+#[0-9]+/, "", low)
+        if (low ~ ref) hit[++nb] = FNR
+      }
+      END { flush() }
+    ' "${agents[@]}" 2>/dev/null
   done
 }
 
@@ -598,9 +658,10 @@ fi
     run_family 9 -nHiE "$I28_B_ERE"
     run_family 10 -nHiE "$I25_ERE"
     run_family 11 -nHiE "$I38_ERE"
+    run_i40 12
   fi
 } | tr '\000' '\003' | awk -v mode="$inner_mode" -v body_only="$body_only" \
-  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25 I38" \
+  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25 I38 I40" \
   -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
 
 if [[ "$mode" == "count" ]]; then

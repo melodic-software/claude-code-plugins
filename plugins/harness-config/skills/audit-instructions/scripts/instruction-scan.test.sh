@@ -599,6 +599,58 @@ for flag in "" --body-only; do
 done
 assert_contains "a spaced file name is scanned" "$OUT" "$SPACED:2:I28-a"
 
+# --- Case 21: I40 this repository's history references in agent definitions ---
+# Expected rows come from the I40 row's Detect and its exemptions in
+# reference/criteria.md: a bare `#N`, `PR #N` or "added in #N" in an agents/*.md
+# file is a candidate; a code span, a cross-repository owner/repo#N, a TODO(#N),
+# fenced code, and any line inside a block carrying both an as-of date and a
+# recheck trigger are not. The same text outside agents/ is not this row's.
+mkdir -p "$TEST_TMPDIR/agents"
+I40F="$TEST_TMPDIR/agents/worker.md"
+cat >"$I40F" <<'EOF'
+---
+name: worker
+description: Implements one scoped brief.
+---
+
+See PR #1234 for why.
+
+This step was added in #5678 after a lane stalled.
+
+The flag is tracked upstream at anthropics/claude-code#8961 for now.
+
+Run `gh pr view #1234` to read the thread.
+
+TODO(#77): drop this once the flag lands.
+
+- **Pointer**: see anthropics/claude-code#8961 and #4321.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that issue closes.
+
+Verified against #2468, as of 2026-10-02.
+
+```text
+fixed in #999
+```
+EOF
+I40S="$TEST_TMPDIR/SKILL.md"
+cat >"$I40S" <<'EOF'
+See PR #1234 for why.
+EOF
+OUT=$(bash "$SCRIPT" "$I40F" "$I40S")
+assert_contains "I40: 'See PR #1234 for why.' in an agent is a candidate" "$OUT" "$I40F:6:I40"
+assert_contains "I40: 'added in #5678' in an agent is a candidate" "$OUT" "$I40F:8:I40"
+assert_not_contains "I40: a cross-repo owner/repo#N stays quiet" "$OUT" "$I40F:10:I40"
+assert_not_contains "I40: a #N inside a code span stays quiet" "$OUT" "$I40F:12:I40"
+assert_not_contains "I40: TODO(#N) stays quiet" "$OUT" "$I40F:14:I40"
+assert_not_contains "I40: a pointer-record block stays quiet" "$OUT" "$I40F:16:I40"
+assert_contains "I40: an as-of date with no recheck trigger is not a pointer record" "$OUT" "$I40F:20:I40"
+assert_not_contains "I40: fenced code stays quiet" "$OUT" "$I40F:23:I40"
+assert_not_contains "I40: the same text outside agents/ is not this row's" "$OUT" "$I40S:1:I40"
+assert_eq "I40: exactly three agent candidates" "3" "$(printf '%s\n' "$OUT" | grep -c ':I40$')"
+OUT=$(bash "$SCRIPT" --body-only "$I40F")
+assert_contains "I40: --body-only keeps body rows" "$OUT" "$I40F:6:I40"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
