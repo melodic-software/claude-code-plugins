@@ -23,7 +23,8 @@ Judged rows are scored 0–3 by the report author from the cited trials; measure
 | Efficiency | median 15 browser calls | median 10 browser calls | `summary.md` totals |
 | Retries | 21 retries, 12 of them on T04 | 6 retries, 5 of them on T02 | `summary.md` per task |
 | Speed (agent) | median 34.6 s per task | median 35.3 s per task | `summary.md`; agent-browser faster on T01, T03, T06, T08, T11; playwright-cli on T02, T04, T05, T10 |
-| Speed (scripted) | see L1 below | see L1 below | `l1.json` |
+| Speed (scripted) | median 1.8 s per fixture (p10 1.5, p90 3.4) | median 6.1 s per fixture (p10 4.6, p90 8.5) | `summary.md` L1 |
+| Repeatability (scripted) | 138/156; every row passed or failed 3 of 3 | 138/156; every row passed or failed 3 of 3 | `l1.json` |
 | Context footprint | median 11.3k tokens added | median 12.0k tokens added | `summary.md`; lower on 11 of 12 tasks (not T07) |
 | Error surfacing | 1 | 3 | Finding 1 |
 | Error recovery | 3 | 3 | Findings 5 and 6: both name the cause and the next call fixes it |
@@ -68,6 +69,25 @@ Judged rows are scored 0–3 by the report author from the cited trials; measure
    [vercel-labs/agent-browser#1922](https://github.com/vercel-labs/agent-browser/issues/1922) and
    [vercel-labs/agent-browser#1892](https://github.com/vercel-labs/agent-browser/issues/1892).
    `@playwright/cli` 0.1.22 shipped 2026-09-28. Recheck both when a pinned version moves.
+
+## Scripted layer (L1)
+
+The same fixtures driven by one fixed command sequence per fixture, no model: 26 fixture variants,
+2 page delays (0 and 1500 ms), 3 repeats, 312 runs. Both tools passed 138 of 156, on different
+fixtures, and no row was flaky: each passed or failed all 3 repeats.
+
+- **Speed.** agent-browser took a median 1.8 s per fixture against playwright-cli's 6.1 s, and
+  returned smaller snapshots (median 225 against 459 bytes). The gap is per-command startup, and it
+  is what makes the 2-second toast (F15) unreachable for a scripted playwright-cli sequence at both
+  delays.
+- **Waiting.** agent-browser does not wait on a click: it refuses a covered target (F07, both
+  delays) and clicks a still-disabled button without effect (F01 variant C at 1500 ms), where
+  playwright-cli waits for the element to be actionable and passes both.
+- **Stale refs.** playwright-cli refuses a ref from before F05's re-render (0 ms); agent-browser
+  re-resolves it.
+- **Both fail by design.** F01 variants A and B (the listener arrives after the page looks ready)
+  and F19 at 1500 ms fail for both tools: the obvious script has no way to know the page is not yet
+  interactive. In the agent layer every T10 trial on both tools waited for readiness and passed.
 
 ## Run notes
 

@@ -177,7 +177,11 @@ if (l1) {
   const l1Fails = Object.entries(l1.rows).filter(([, s]) => s.passes < s.runs);
   if (l1Fails.length) {
     md.push("", "L1 rows that did not pass every run:", "");
-    for (const [k, s] of l1Fails) md.push(`- ${k.replace(/\|/g, " / d")}: ${s.passes}/${s.runs}${s.errors.length ? ` (${s.errors.join("; ")})` : ""}`);
+    for (const [k, s] of l1Fails) {
+      const [fixture, tool, delay] = k.split("|");
+      const why = s.errors.map((e) => e.replace(/\s+/g, " ").replace(/\x1b\[[0-9;]*m/g, "").slice(0, 140));
+      md.push(`- ${fixture} on ${tool} at ${delay} ms: ${s.passes}/${s.runs}${why.length ? ` (${why.join("; ")})` : ""}`);
+    }
   }
 }
 writeFileSync(join(dir, "summary.md"), md.join("\n") + "\n");
