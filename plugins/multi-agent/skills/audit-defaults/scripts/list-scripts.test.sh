@@ -55,7 +55,10 @@ printf 'Use opus.\n' >"$T/outside.md"
 # Plain ln -s copies the file on Windows, so there is no symlink to leave out;
 # Linux CI covers the symlink guard.
 IS_WINDOWS=0
-case "$(uname -s)" in MINGW* | MSYS* | CYGWIN*) IS_WINDOWS=1 ;; esac
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) IS_WINDOWS=1 ;;
+*) ;;
+esac
 if ! ((IS_WINDOWS)); then ln -s "$T/outside.md" "$R/docs/x/link.md"; fi
 git -C "$R" add plugins docs README.md
 out="$("$SCRIPT_DIR/list-targets.sh" --root "$R")"
