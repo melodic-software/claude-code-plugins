@@ -39,6 +39,9 @@ CHANGELOG="$FIXTURES/changelog-sample.md"
 LEDGER="$FIXTURES/ledger-marker.md"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 
 FAILED=0
 CASE_NUM=0
@@ -182,11 +185,13 @@ run_in "$REPO_BODY" --no-fetch
 assert_contains "no-fetch: no marker still recommends the recheck" "$OUT" "recommend: no read marker. Run a docs-conformance recheck"
 
 # --- Case 8b: fetch through the plugin fetcher, fixture-fed ---------------------------
+# Each fixture variant serves the same slug, so each gets its own docs cache: no
+# cached title or quarantine from one variant reaches the next.
 FX="$TMP/fx-present"
 mkdir -p "$FX"
 printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
 cp "$CHANGELOG" "$FX/changelog.md"
-OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
 RC=$?
 assert_eq "fixture fetch: exit 0" 0 "$RC"
 assert_contains "fixture fetch: range computed" "$OUT" "range: 2.1.261"
@@ -194,7 +199,7 @@ assert_not_contains "fixture fetch: not reported as failed" "$OUT" "not computed
 FX="$TMP/fx-missing"
 mkdir -p "$FX"
 printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
-OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
 RC=$?
 assert_eq "fixture missing page: exit 0" 0 "$RC"
 assert_contains "fixture missing page: not computed with the manifest reason" "$OUT" "range: not computed (fetch of the changelog page failed (fixture-missing)"
@@ -202,7 +207,7 @@ FX="$TMP/fx-unlisted"
 mkdir -p "$FX"
 printf -- '- [Other](https://code.claude.com/docs/en/skills.md): x\n' >"$FX/llms.txt"
 cp "$CHANGELOG" "$FX/changelog.md"
-OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+OUT="$(cd "$EMPTY" && DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
 assert_contains "fixture unlisted slug: not computed" "$OUT" "range: not computed (fetch of the changelog page failed"
 
 # --- Case 9: wrong page identity is refused ------------------------------------------

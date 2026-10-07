@@ -120,7 +120,7 @@ work fans out by release cluster with no Workflow script; see "Fan-out shape" th
 For rows needing enrichment (correct rows with behavioral changes, adopt rows with unclear scope):
 
 1. Spawn **parallel research subagents**. One per feature cluster, each receiving the explorers' questions (use a Claude Code documentation-focused agent type when available)
-2. Instruct each subagent to ground every claim by `curl` of the page (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts
+2. Instruct each subagent to ground every claim in the page itself (a docs page through `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <dir> <slug>`, a changelog entry or GitHub issue by `curl`) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts
 
 3. Research targets per item type:
    - New frontmatter field → exact syntax, interaction with existing fields, docs gap

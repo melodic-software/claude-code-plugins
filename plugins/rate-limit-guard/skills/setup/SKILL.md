@@ -124,7 +124,7 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    | `rate_limit_report_mode` | `${user_config.rate_limit_report_mode}` | `automatic` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row above the prompt. |
    | `rate_limit_line_threshold` | `${user_config.rate_limit_line_threshold}` | `95` | Window use at which Claude gets the threshold line. The loop lanes' pause edge stays 95 whatever this is. |
    | `rate_limit_approach_pct` | `${user_config.rate_limit_approach_pct}` | `90` | Window use for the one approach line; at or above the threshold, none is sent. |
-   | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
+   | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,percent,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
    | `rate_limit_guard_band` | `${user_config.rate_limit_guard_band}` | `false` | `true` draws the band row; `/rate-limit-guard band on` or `band off` sets it for one session. |
    | `rate_limit_guard_toast` | `${user_config.rate_limit_guard_toast}` | `true` | `false` drops the toast when a window nears or reaches the threshold or resets; the transcript line stays. |
 
