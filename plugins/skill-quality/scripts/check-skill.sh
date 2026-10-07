@@ -148,6 +148,11 @@
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
 #      carrying operative-chain phrasing (Skill tool, installed, fallback,
 #      otherwise) anywhere in the block is WARN
+#  28. Every metadata key is listed in scripts/metadata-registry.txt with the
+#      consumer that reads it (WARN on a key missing from it)
+#  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
+#      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
+#      blocks carrying an as-of date and a recheck trigger are exempt)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -2261,6 +2266,85 @@ else
   else
     note "'## Next' section present and in the mention-only shape"
   fi
+fi
+
+# --- Check 28: metadata keys come from the registry (WARN) ---------------------
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## Metadata`: a key earns its place when something reads it. The registry
+# beside this script lists each allowed key with its consumer; a key missing
+# from it WARNs and never FAILs, because a consumer repo may read keys this
+# marketplace does not know about.
+META_REGISTRY="$SCRIPT_DIR/metadata-registry.txt"
+META_KEYS="$(awk '
+  /^metadata:[[:space:]]*$/ { inmeta = 1; next }
+  /^[^[:space:]]/ { inmeta = 0 }
+  inmeta && /^[[:space:]]+[A-Za-z0-9_.-]+:/ {
+    match($0, /^[[:space:]]+/)
+    if (indent == "") indent = RLENGTH
+    if (RLENGTH != indent) next
+    key = $0
+    sub(/^[[:space:]]+/, "", key)
+    sub(/:.*/, "", key)
+    print key
+  }' <<<"$FRONTMATTER")"
+if [[ -z "$META_KEYS" ]]; then
+  :
+elif [[ ! -f "$META_REGISTRY" ]]; then
+  note "metadata registry $META_REGISTRY not found — metadata key check (28) skipped"
+else
+  META_KNOWN="$(awk -F '\t' '!/^[[:space:]]*(#|$)/ { print $1 }' "$META_REGISTRY")"
+  META_UNKNOWN=0
+  while IFS= read -r meta_key; do
+    if ! grep -qxF -- "$meta_key" <<<"$META_KNOWN"; then
+      warn "metadata key '$meta_key' is not in the metadata registry (scripts/metadata-registry.txt): name the consumer that reads it there, or drop the key (/playbooks:skill-authoring, Metadata)"
+      META_UNKNOWN=$((META_UNKNOWN + 1))
+    fi
+  done <<<"$META_KEYS"
+  ((META_UNKNOWN == 0)) && note "every metadata key is in the registry"
+fi
+
+# --- Check 29: this repo's history references in the SKILL.md body (WARN) ------
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## History and provenance`: a skill body states the current rule, and the
+# issue or pull request that produced it belongs in the changelog and git
+# history. This flags a bare `#N` (`See PR #1234`, `TODO(#9)`) in the body.
+# The frontmatter is not read, and reference files are not checked.
+# Exempt: code spans and fenced code blocks; a cross-repo `owner/repo#N`
+# (anything glued to the `#` on the left); link anchors and URLs; and every
+# line of a pointer-record block, meaning a run of non-blank lines that carries
+# an as-of date and a recheck trigger somewhere in it, so an upstream bug cited
+# as a recheck condition stays.
+HIST_HITS="$(awk '
+  function flush(   i, s, lower) {
+    if (n == 0) return
+    lower = tolower(blk)
+    if (!(lower ~ /as of[^0-9]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ && lower ~ /recheck/)) {
+      for (i = 1; i <= n; i++) {
+        s = txt[i]
+        gsub(/`[^`]*`/, "", s)
+        gsub(/\]\([^)]*\)/, "]", s)
+        gsub(/<[^>]*>/, "", s)
+        gsub(/https?:\/\/[^[:space:]]*/, "", s)
+        if (s ~ /(^|[^A-Za-z0-9_\/.&#-])#[0-9]+([^A-Za-z0-9_-]|$)/) print num[i]
+      }
+    }
+    n = 0
+    blk = ""
+  }
+  NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
+  infm { if (/^---[[:space:]]*$/) infm = 0; next }
+  /^[[:space:]]*(```|~~~)/ { flush(); fence = !fence; next }
+  fence { next }
+  /^[[:space:]]*$/ { flush(); next }
+  { n++; txt[n] = $0; num[n] = NR; blk = blk " " $0 }
+  END { flush() }' "$SKILL_MD")"
+if [[ -n "$HIST_HITS" ]]; then
+  HIST_COUNT="$(grep -c . <<<"$HIST_HITS")"
+  HIST_LINES="$(head -5 <<<"$HIST_HITS" | paste -sd, - | sed 's/,/, /g')"
+  ((HIST_COUNT > 5)) && HIST_LINES="$HIST_LINES, and $((HIST_COUNT - 5)) more"
+  warn "SKILL.md body cites this repository's history (#N) on line(s) $HIST_LINES: state the current rule and leave the issue or PR to the changelog, or put an upstream citation in a pointer record (/playbooks:skill-authoring, History and provenance)"
+else
+  note "no history references in the SKILL.md body"
 fi
 
 # --- Summary ---------------------------------------------------------------

@@ -4940,6 +4940,145 @@ else
   fail "--help should document CHECK_SKILL_SKIP_MARKDOWNLINT"
 fi
 
+# --- Check 28: metadata keys come from the registry (WARN) --------------------
+# Expected values: the registry the design names holds `summary` and
+# `workflow-stage` (consumer: the cheat-sheet generator); `favorite-color` has
+# no consumer anywhere.
+make_skill meta-registered '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Do a thing
+---
+
+## Purpose
+
+A skill whose metadata keys are all registered.
+
+## Gotchas
+
+None known.
+'
+out="$(run meta-registered 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: every metadata key is in the registry' <<<"$out" &&
+  ! grep -q 'not in the metadata registry' <<<"$out"; then
+  pass "check 28 stays quiet on registered metadata keys"
+else
+  fail "check 28 should report registered keys as INFO only (rc=$rc): $out"
+fi
+make_skill meta-unregistered '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+metadata:
+  summary: Do a thing
+  favorite-color: blue
+---
+
+## Purpose
+
+A skill carrying a metadata key nothing reads.
+
+## Gotchas
+
+None known.
+'
+out="$(run meta-unregistered 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: metadata key 'favorite-color' is not in the metadata registry" <<<"$out" &&
+  ! grep -q "metadata key 'summary' is not in" <<<"$out"; then
+  pass "check 28 WARNs (exit 0) on an unregistered metadata key, naming only that key"
+else
+  fail "check 28 should WARN on favorite-color only, exit 0 (rc=$rc): $out"
+fi
+
+# --- Check 29: this repo's history references in a SKILL.md body (WARN) -------
+# hist_case <name> <expect: warn|quiet> <label>, body text on stdin.
+hist_case() {
+  local body
+  body="$(cat)"
+  make_skill "$1" '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+---
+
+## Purpose
+
+'"$body"'
+
+## Gotchas
+
+None known.
+'
+  out="$(run "$1" 2>&1)"
+  rc=$?
+  if [[ "$2" == warn ]]; then
+    if [[ $rc -eq 0 ]] && grep -q "WARN: SKILL.md body cites this repository's history" <<<"$out"; then
+      pass "$3"
+    else
+      fail "$3 (want WARN at exit 0, rc=$rc): $out"
+    fi
+  elif [[ $rc -eq 0 ]] && grep -q "INFO: no history references in the SKILL.md body" <<<"$out" &&
+    ! grep -q "cites this repository's history" <<<"$out"; then
+    pass "$3"
+  else
+    fail "$3 (want quiet, rc=$rc): $out"
+  fi
+}
+hist_case hist-pr warn "check 29 WARNs on a bare 'See PR #1234' line" <<'EOF'
+See PR #1234 for the background.
+EOF
+hist_case hist-todo warn "check 29 WARNs on a TODO(#9) in the body" <<'EOF'
+TODO(#9): tighten this step.
+EOF
+# Copied verbatim from plugins/harness-ops/skills/observability/SKILL.md
+# (lines 163-167): a pointer record whose As of and Recheck trigger sit on
+# different bullets of one block, plus a cross-repo citation above it.
+hist_case hist-pointer-block quiet "check 29 stays quiet inside a multi-line pointer-record block" <<'EOF'
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
+
+- **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
+- **As of**: 2026-10-01; #98193 open.
+- **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
+EOF
+hist_case hist-code-span quiet "check 29 stays quiet on #N inside a code span" <<'EOF'
+The add-side is `/code-tidying:tidy #14`.
+EOF
+hist_case hist-cross-repo quiet "check 29 stays quiet on a cross-repo owner/repo#N" <<'EOF'
+Upstream bug anthropics/claude-code#8961 leaves the deny rule inert.
+EOF
+hist_case hist-fenced quiet "check 29 stays quiet on #N inside a fenced code block" <<'EOF'
+Run this:
+
+```bash
+gh pr view #1234
+```
+EOF
+hist_case hist-anchor quiet "check 29 stays quiet on a link anchor and a heading" <<'EOF'
+See [the steps](#1-setup) and <https://example.com/page#42>.
+EOF
+make_skill hist-frontmatter '---
+description: "Do a thing (#77). Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+---
+
+## Purpose
+
+No history in the body.
+
+## Gotchas
+
+None known.
+'
+out="$(run hist-frontmatter 2>&1)"
+if grep -q "INFO: no history references in the SKILL.md body" <<<"$out" &&
+  ! grep -q "cites this repository's history" <<<"$out"; then
+  pass "check 29 reads the body only, never the frontmatter"
+else
+  fail "check 29 should not read the frontmatter: $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
