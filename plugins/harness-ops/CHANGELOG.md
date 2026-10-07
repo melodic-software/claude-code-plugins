@@ -3,6 +3,25 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.9.0] - 2026-10-07
+
+### Changed
+
+- **The changelog and upstream-claim reads go through the docs cache** ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)). `changelog-status.sh` and the changelog fetch route call `fetch-docs.sh --cache --max-age 0`, so the range is computed from fresh bytes and a failed fetch is unread, never a stale cached copy. `/harness-ops:inventory` and `/harness-ops:audit-native-overlap` verify an upstream claim with `fetch-docs.sh --cache --max-age 0` in place of a raw `curl`, so the claim rests on fresh bytes, and search the page file locally; the fetcher checks the slug against the docs index.
+- **`curl` and `python3` are declared prerequisites** of the changelog, inventory and audit-native-overlap skills: `curl` required for the docs fetch, `python3` optional for converting a page served only as HTML.
+
+## [3.8.11] - 2026-10-07
+
+### Changed
+
+- Shared `docs-cache.sh`, `fetch-docs.sh` and `html2md.py` synced ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)): the docs cache skips a malformed summary file with a warning instead of hiding the other summaries; a ``` line inside a `<pre>` block no longer closes the converted code fence early; headings drop screen-reader-only and `aria-hidden` text; and prune keeps its grace-window reference file outside the store, so one prune never sweeps another's.
+
+### Fixed
+
+- **The docs cross-check reports a stale page.** A page served from the cache because its fetch failed carries `stale` and the failed fetch's `reason`, and the block is `degraded` with an advisory naming the page; the shared scripts also read a browser-form docs URL, refetch a page found removed, and keep a trailing `#` in headings.
+- **The docs cross-check never runs a `git` or `bash` planted in the working directory.** It resolves both from the absolute `PATH` entries only, where `shutil.which` on Windows searched the current directory first; the shared `fetch-docs.sh` also leaves a body over `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or note shaped like its untrusted-data markers.
+- **`/harness-ops:inventory` reads its docs through the shared fetcher.** The docs cross-check fetches the commands, tools and changelog pages with `fetch-docs.sh` (identity-checked and cached, age reported) instead of its own `urllib` fetcher; a page that cannot be fetched, or a machine with no bash, is reported unread with its reason.
+
 ## [3.8.10] - 2026-10-04
 
 ### Fixed

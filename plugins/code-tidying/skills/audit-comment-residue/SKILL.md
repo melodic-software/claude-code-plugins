@@ -1,5 +1,5 @@
 ---
-description: "Classify code comments for residue: history narration, plan/session references, conversational antecedents, ticket/PR back-references, and origin notes. Read-only. Use when: 'comment residue', 'audit code comments', 'find stale/narrative comments', 'strip conversational comments', 'origin note', or before committing agent-written code. Not for removing ALL comments, restating-the-code redundancy (/code-tidying:tidy), or markdown noise (/docs-hygiene:audit-noise)."
+description: "Read-only classifier that flags residue in code comments: history narration, plan or session references, conversational asides, ticket or PR back-references, and origin notes. Use when asked to 'audit code comments' or report which comments only make sense with the chat, plan, or ticket behind them, before a commit or on review. Edits nothing; deleting or rewriting comments is /code-tidying:dissolve-comments."
 argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,20 +10,6 @@ metadata:
   summary: Classify code comments for history narration and session-reference residue
 ---
 
-## Repository context. Gather first
-
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
-
-- Current branch, `git branch --show-current`
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the `source-control` plugin's
-[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
-
 ## Pre-computed context
 
 Uncommitted code files (empty = none matched or the probe returned nothing): !`${CLAUDE_SKILL_DIR}/scripts/changed-code-files.sh 10 2>/dev/null || echo "(git status unavailable)"`
@@ -31,58 +17,61 @@ Residue findings (sample): !`${CLAUDE_SKILL_DIR}/scripts/detect.sh 2>/dev/null |
 
 ## Purpose
 
-Code comments accumulate RESIDUE. Text that only makes sense outside the code's present state:
-narration of what the code used to be, references to the plan/session/changeset that produced it,
-asides addressed to the requester, back-references to a ticket, PR, or branch no future reader will
-ever open, and origin notes naming where a block came from or when it was added. Version control
-owns history; the comment describes the present. A comment that only makes sense inside the chat
-thread that produced it is dead. This skill is a read-only classifier: it surfaces candidates with
-treatment guidance.
-
-It detects residue on the COMMENT portion of a line only, so a residue-shaped word sitting in an
-identifier or string literal is never flagged. The positive question, *does this comment capture
-something the code cannot (a non-obvious why, a constraint, an interface/design-intent contract)?*, is left to the author; the shapes below are the comments that fail it.
+Residue is comment text that only makes sense outside the code's present state: what the code used
+to be, the plan or session that produced it, asides to the requester, back-references to a ticket,
+PR or branch, and notes on where a block came from or when it was added. Version control owns history; a comment
+describes the present. This skill surfaces candidates with a treatment and changes nothing. Whether
+a comment captures what the code cannot (a non-obvious why, a constraint, a contract) is the
+author's call; the shapes below are the comments that fail it.
 
 ## Residue shapes and treatments
 
-| Shape | What it looks like | Default tier | Treatment |
+Detection reads only the comment portion of a line, so residue-shaped words in identifiers or
+string literals are never flagged. Exact cues and boundaries per shape, for explaining a finding or
+a missing one: [reference/shapes.md](reference/shapes.md).
+
+| Shape | Looks like | Tier | Treatment |
 |---|---|---|---|
-| `history-narration` | The comment narrates the code's past: "used to…", "no longer…", "previously", "renamed from X", "we switched from…", "now returns…" | 1 | Delete. Version control owns history. Keep only if the *reason* for the change is a load-bearing constraint, rewritten as present-tense rationale ("must stay ordered because…") |
-| `plan-reference` | References a work plan, session, or changeset rather than the code: `"Task 2 replaces the old…"`, `"as planned"`, `"in this PR/commit/refactor"` | 1 | Delete, the plan is not part of the code's meaning. Fold any surviving intent into a present-tense why-comment |
-| `conversational-antecedent` | Addresses the requester or the producing conversation: `"per your request"`, `"as you asked"`, `"like you said"`, `"per our discussion"` | 1 | Delete, the conversation is invisible to every future reader |
-| `history-narration-weak` | Weak cues that usually narrate the past: `"exactly as before"`, `"as before"`, `"has always used"`, `"always used"`, `"the old <word>"` (`"the old shared group"`; `"replaces the old"` stays `plan-reference`), and a bare phase number (`"(ci-perf Phase 6b)"`, `"cleanup for Phase 6"`) | 2 | Review. Each cue also opens ordinary prose (`"as before the loop starts"`, `"the old value is compared against the new"`), so a person decides: delete the narration, or keep a rewrite as present-tense rationale. A phase number followed by more words (`"phase 2 of the build"`) is not a finding |
-| `ticket-pr-residue` | Back-reference to a tracker/PR/branch a reader can't follow: `"see PR #45"`, `"dotfiles#647"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review. Delete a bare back-reference; a `TODO(#issue)` tracking real outstanding work is the sanctioned exception and is NOT flagged |
-| `origin-note` | The comment names where the block came from or when it was added: `"ported from the dotfiles profile"`, `"Merged 2026-07-24 from dot_bashrc"`, `"Added 2026-08-10 while wiring telemetry"` | 1 | Delete. Git history owns origin. Boundaries: a dated freshness stamp (`"verified 2026-09-03 against v2.1.259"`, and the same with `checked`, `confirmed` or `as of`) is not this shape and stays, a bare date matches nothing, and the verb-from cue has to open the comment or a clause inside it, so `"bytes copied from the source buffer"` is not a finding (the dated cue takes every anchor but the parenthesis). Two comment classes are exempt whatever verb they open with, because Tier 1 reads "remove": a marker comment (`TODO`, `FIXME`, `HACK`, `XXX`), which is tracked work, and a license or attribution header, whose text the reader may be legally required to keep. The license exemption is BLOCK-scoped: a run of contiguous comment lines in which ANY line carries `SPDX-License-Identifier`, `Licensed under`, `License:`, a `Copyright` next to a year or a `(c)`/`©` sign, or a `(c)` in front of a year is exempt whole, so the attribution line of a NOTICE header is covered even though the cue sits on a different line. The run ends at the first blank line or line of code, and a trailing comment on a code line starts no run, so the same sentence elsewhere in the file is an ordinary finding |
+| `history-narration` | "used to…", "no longer…", "previously", "renamed from X", "we switched from…", "now returns…" | 1 | Delete. Keep only a load-bearing reason, rewritten as present-tense rationale ("must stay ordered because…") |
+| `plan-reference` | `"Task 2 replaces the old…"`, `"as planned"`, `"in this PR/commit/refactor"` | 1 | Delete; fold any surviving intent into a present-tense why |
+| `conversational-antecedent` | `"per your request"`, `"as you asked"`, `"like you said"`, `"per our discussion"` | 1 | Delete; the conversation is invisible to every later reader |
+| `history-narration-weak` | `"as before"`, `"has always used"`, `"the old <word>"`, a bare phase number (`"(ci-perf Phase 6b)"`) | 2 | Review: each cue also opens ordinary prose, so delete the narration or keep a present-tense rewrite |
+| `ticket-pr-residue` | `"see PR #45"`, `"dotfiles#647"`, `"from the feature branch"`, `"JIRA-123"` | 2 | Review: delete a bare back-reference; a `TODO(#issue)` tracking open work is sanctioned and not flagged |
+| `origin-note` | `"ported from the dotfiles profile"`, `"Merged 2026-07-24 from dot_bashrc"`, `"Added 2026-08-10 while wiring telemetry"` | 1 | Delete; git owns origin. A dated freshness stamp (`"verified 2026-09-03 against v2.1.259"`) stays; marker comments and license or attribution header blocks are exempt |
 
-Consumers with their own comment conventions can refine these defaults in their repo's `CLAUDE.md` /
-rules; the classifier's shapes and tiers above are the skill's built-in baseline.
+A consumer's own `CLAUDE.md` or rules may refine these defaults; the table is the built-in baseline.
 
-## Action router
+## Running it
 
-| Action | Args | Behavior |
-|---|---|---|
-| `<target>` (default, no action keyword) | empty → uncommitted code files from git; file path → single-file; dir path → batch | run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on targets; map the emitted facts to the per-file tier table using the treatments above |
-| `audit [target]` | same target rules | explicit form of the default; same behavior |
+| Argument | Behavior |
+|---|---|
+| *(empty)* | Batch audit of the uncommitted code files above; with none, exit 0 with "No uncommitted code files. Pass a file/dir target." |
+| `<file>` | Single-file audit |
+| `<dir>` | Batch audit, filenames sorted lexically |
+| `audit [target]` | Explicit form of the same |
 
-## Auto-detect default
+Run `${CLAUDE_SKILL_DIR}/scripts/detect.sh` on the targets and map its emitted facts to the
+per-file table in the output schema, using the treatments above.
 
-1. Empty arg AND no uncommitted code files → friendly no-op exit 0 ("No uncommitted code files. Pass a file/dir target.")
-2. Empty arg AND uncommitted code files → batch audit over those files
-3. Single file path → single-file audit
-4. Directory path → batch audit (filenames sorted lexically for deterministic output)
-5. First positional == `audit` → audit on rest (explicit form)
+## Rules
 
-## Hard rules
-
-- **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops. The author owns every deletion.
-- **Tier semantics.** Tier 1 = residue to remove; Tier 2 = review needed (a ticket reference may be a legitimate `TODO`, and a weak history cue may be ordinary prose).
-- **Wrapped comments.** A comment line that continues a comment on the line above is also read joined to it, so a phrase wrapped across the break is found. It is reported once, at the first line's number.
-- **Code files only.** Markdown is `/docs-hygiene:audit-noise`'s territory and is skipped; a `.md` target yields no findings here.
-- **Comment-scoped detection.** Only the comment portion of a line is classified. Residue-shaped words in code (identifiers, string literals) are not flagged.
-- **`TODO(#issue)` is sanctioned.** A `TODO` / `FIXME` / `HACK` / `XXX` marker tracking real work is never flagged as ticket residue. The marker must be a whole word opening the comment or a clause and followed by `(` or `:`.
-- **Opt-out markers respected.** `comment-residue-ignore` on a line (or the line before it) skips it.
-- **Synced and generated files.** A finding in a file whose first 10 lines say `sync-managed`, `do not edit` or `@generated` belongs upstream, where the file is produced. The script labels it with a `Note: upstream (sync-managed or generated file) <path>` line before that file's summary, and the finding still counts in the tiers; nothing is silently hidden. To leave files out of a run on purpose, pass `--exclude-from <file>`: one root-relative glob per line, blank lines and `#` lines ignored, a missing file exits 2, and the run reports `Note: excluded N file(s) by --exclude-from`. That list is separate from `.claude/code-tidying/exclusion-overrides.md`, which lifts `/code-tidying:tidy`'s hard exclusions and has the inverse meaning.
-- **Output deterministic.** Filenames sort lexically; findings sort by line number; no timestamps.
+- **Read-only.** No `Edit`, no `Write`, no mutating Bash. The author owns every deletion.
+- **Tiers.** Tier 1 is residue to remove; Tier 2 needs review (a ticket reference may be a
+  legitimate `TODO`, a weak history cue may be ordinary prose).
+- **Code files only.** A `.md` target yields no findings; markdown noise is
+  `/docs-hygiene:audit-noise`'s.
+- **Opt-out.** `comment-residue-ignore` on a line, or on the line before it, skips it.
+- **Synced and generated files.** A finding in a file whose first 10 lines say `sync-managed`,
+  `do not edit` or `@generated` belongs upstream: the script prints
+  `Note: upstream (sync-managed or generated file) <path>` before that file's summary and still
+  counts the finding. To leave files out on purpose, pass `--exclude-from <file>` (one root-relative
+  glob per line, blank and `#` lines ignored, a missing file exits 2; the run reports
+  `Note: excluded N file(s) by --exclude-from`). That list is unrelated to
+  `.claude/code-tidying/exclusion-overrides.md`, which lifts `/code-tidying:tidy`'s hard exclusions
+  and means the inverse.
+- **Wrapped comments** are also read joined to the comment line above, and reported once, at the
+  first line's number.
+- **Deterministic output.** Files sort lexically, findings by line, no timestamps.
 
 ## Output schema
 
@@ -106,22 +95,28 @@ Batch aggregate at end:
 Total: <N> file(s) audited, <T1> Tier 1, <T2> Tier 2 findings.
 ```
 
-`shape` values: `history-narration`, `history-narration-weak`, `plan-reference`, `conversational-antecedent`, `ticket-pr-residue`, `origin-note`.
+## Boundaries
 
-## What this skill is NOT
-
-- **Not "delete all comments."** It targets residue, not comments that carry a non-obvious why or an interface/design-intent contract. Those stay.
-- **Not `/code-tidying:tidy`.** `tidy` APPLIES structural tidyings (including Beck's "Delete Redundant Comment" for comments that restate the code); `audit-comment-residue` is a read-only CLASSIFIER for the out-of-context residue class. Different concern, different mode.
-- **Not `/docs-hygiene:audit-noise`.** `/docs-hygiene:audit-noise` owns markdown noise; this owns code-comment residue. Neither touches the other's surface.
+- Comments carrying a non-obvious why or an interface or design-intent contract are not residue
+  and stay.
+- `/code-tidying:tidy` applies structural tidyings, including Beck's Delete Redundant Comment for
+  comments that restate the code; this skill only classifies the out-of-context residue class.
 
 ## Next
 
 - The findings are agreed and ready to apply: `/code-tidying:dissolve-comments`.
 - The surviving comments restate the code rather than narrate its past: `/code-tidying:tidy`.
 
+## Gotchas
+
+- A weak history cue inside a sentence about runtime order ("as before the loop starts", "the old
+  value is compared against the new") is ordinary prose; that is why the weak shape is Tier 2.
+- A marker exempts its ticket reference only as a whole word opening the comment or a clause and
+  followed by `(` or `:`; `TODO fix, see PR #45` is still a finding.
+
 ## Sources
 
-- [Ousterhout ⇄ Clean Code debate](https://github.com/johnousterhout/aposd-vs-clean-code). Why the positive rule is "capture what code can't," not "comments are rare"
+- [Ousterhout ⇄ Clean Code debate](https://github.com/johnousterhout/aposd-vs-clean-code): why the positive rule is "capture what code can't," not "comments are rare"
 - [Beck, Delete Redundant Comment](https://newsletter.kentbeck.com/p/delete-redundant-comment), the boy-scout deletion tidying
-- [Google eng-practices. Comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
-- [Abel, Comments are not Version Control](https://coding.abel.nu/2012/07/comments-are-not-version-control/), history/changelog residue belongs in VCS, not the code
+- [Google eng-practices: comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html)
+- [Abel, Comments are not Version Control](https://coding.abel.nu/2012/07/comments-are-not-version-control/): history belongs in VCS, not the code

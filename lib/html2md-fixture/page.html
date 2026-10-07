@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Widget configuration - Example Docs</title>
+<script>window.analytics = { page: "widgets" };</script>
+<style>main { max-width: 60rem; }</style>
+</head>
+<body>
+<header><nav><a href="/">Home</a> <a href="/docs">Docs</a></nav></header>
+<div class="page-header"><h1 id="page-title">Widget configuration</h1></div>
+<main>
+<p>Widgets read their settings from a <a href="https://example.com/docs/settings-file">settings file</a>.
+See the <a href="/docs/cli#flags">CLI reference</a> for every flag.</p>
+<h2 id="install"><div class="anchor"><a href="#install" aria-label="Link to Install">&#8203;</a></div>Install</h2>
+<p>Install the package and create a starter file:</p>
+<pre><code class="language-bash">npm install widget
+widget --init --dir ./config</code></pre>
+<h2 id="options">Options</h2>
+<table>
+<thead><tr><th>Name</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>timeout</code></td><td>30</td><td>Seconds before a request is abandoned.</td></tr>
+<tr><td><code>mode</code></td><td>strict</td><td>Either strict | lenient.</td></tr>
+</tbody>
+</table>
+<h3 id="env">Environment variables</h3>
+<ul>
+<li><code>WIDGET_HOME</code> overrides the settings directory.</li>
+<li>Set <code>WIDGET_DEBUG=1</code> to log each request.</li>
+</ul>
+</main>
+<footer><p>Copyright Example Inc.</p></footer>
+</body>
+</html>

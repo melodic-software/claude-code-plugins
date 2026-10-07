@@ -3,12 +3,30 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.6] - 2026-10-04
+## [0.49.9] - 2026-10-07
 
 ### Changed
 
 - The triage board treats `medium: hosted` as `artifact`: the view is never sent to a page host.
 - Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+## [0.49.8] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.49.7] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.49.6] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The work-item-tracker test builds its tool-free PATH from per-file native symlinks of the entries that hold the tool, instead of linking every PATH entry and subdirectory into one dir.
 
 ## [0.49.5] - 2026-10-04
 

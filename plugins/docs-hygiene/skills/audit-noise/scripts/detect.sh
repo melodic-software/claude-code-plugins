@@ -229,6 +229,15 @@ audit_file() {
   [[ "${file##*/}" == "CHANGELOG.md" ]] && return 0
   files_audited=$((files_audited + 1))
 
+  # History notes in a SKILL.md belong to /skill-quality:check and in an
+  # agents/*.md to /harness-config:audit-instructions, so ticket-pr-residue
+  # stands down on both and the owner reports them.
+  local owner_routed=0 file_dir="/."
+  [[ "$file" == */* ]] && file_dir="/${file%/*}"
+  if [[ "${file##*/}" == "SKILL.md" || "$file_dir" == */agents ]]; then
+    owner_routed=1
+  fi
+
   local t1=0 t2=0 t3=0
   local in_exempt=0 line_num=0
   local in_ignored_para=0 skip_next=0
@@ -391,6 +400,7 @@ audit_file() {
       audit_noise_trim_excerpt "$line" excerpt
       for shape in "${shapes[@]}"; do
         [[ -z "$shape" ]] && continue
+        [[ $owner_routed -eq 1 && "$shape" == 'ticket-pr-residue' ]] && continue
         audit_noise_record_finding "$line_num" "$shape" "$excerpt" "" \
           finding_rows t1 t2 t3
       done

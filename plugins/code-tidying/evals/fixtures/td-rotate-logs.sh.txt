@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# List rotated logs older than the retention window. Prints paths; deletes nothing.
+set -euo pipefail
+
+keep_days_old=7
+retention_days="${RETENTION_DAYS:-14}"
+
+list_old_logs() {
+  local dir="$1"
+  # Find old files
+  find "$dir" -name '*.log.*' -mtime +"$retention_days" -print
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  list_old_logs "${1:?usage: rotate-logs.sh DIR}"
+fi

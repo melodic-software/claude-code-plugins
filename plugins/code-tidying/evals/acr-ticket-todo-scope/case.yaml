@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: acr-ticket-todo-scope
+description: ticket-pr-residue flags bare back-references and a TODO that lacks the ( or colon marker form, spares TODO(#123) and FIXME colon markers, and never flags residue-shaped words in a string literal, URL or identifier
+tags: [acr, outcome, explicit]
+expected_outcome: In src/client.ts, ticket-pr-residue at Tier 2 on lines 8 ("see PR #45"), 10 ("TODO see issue 12", not the sanctioned marker form) and 12 ("from the feature/retry branch"). Lines 3 (TODO(#123):) and 4 (FIXME: ... (#77)) are sanctioned markers; line 5 (a PR URL in a string) and line 6 (the previously identifier and a "used to ... now" string) are code, not comments. Counts T1=0, T2=3.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue src/client.ts
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: bare-refs-lines-8-12
+    type: regex
+    pattern: '^(?=[\s\S]*^[^\n]*(ticket-pr-residue[^\n]*\b8\b|\b8\b[^\n]*ticket-pr-residue))(?=[\s\S]*^[^\n]*(ticket-pr-residue[^\n]*\b12\b|\b12\b[^\n]*ticket-pr-residue))'
+    flags: m
+  - name: unmarked-todo-line-10
+    type: regex
+    pattern: '^[^\n]*(ticket-pr-residue[^\n]*\|\s*10\s*\||\|\s*10\s*\|[^\n]*ticket-pr-residue|ticket-pr-residue[^\n]*\bline 10\b|\bline 10\b[^\n]*ticket-pr-residue)'
+    flags: mi
+  - name: ticket-tier-2
+    type: regex
+    pattern: '^\|\s*(Tier\s*|T)?2\s*\|\s*ticket-pr-residue\b|ticket-pr-residue[^\n]*\b(Tier\s*|T)2\b'
+    flags: m
+  - name: counts-t1-0-t2-3
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**0\b[^\n]*T2\s*[=:]\s*\**3\b|\b0\**\s+Tier[ -]1\b[^\n]*\b3\**\s+Tier[ -]2\b'
+  - name: code-lines-not-flagged
+    type: regex
+    pattern: '^\s*\|\s*(Tier\s*|T)?[12]\s*\|\s*[a-z-]+\s*\|\s*[3-6]\s*\|'
+    flags: m
+    match: not_contains
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

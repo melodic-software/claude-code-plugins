@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "remove the pattern .claude/tidy-lanes/scratch-*.md from .gitignore"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "scratch-ui.md is ignored by .gitignore",
+      "why": "pattern not named"
+    }
+  ]
+}

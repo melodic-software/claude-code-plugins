@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "docs-prose.md declares Merge semantics by reference and inherits Watch-for patterns, Verification commands and the rest from the bundled lane."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs-prose.md: PASS",
+      "why": "inheritance not reported"
+    }
+  ]
+}

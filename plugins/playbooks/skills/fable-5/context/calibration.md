@@ -46,7 +46,7 @@ Two worked divergences, both from published claude.ai system-prompt entries we r
 - The Claude Opus 4.1 entry, dated August 5 2025, on retaining information across chats. Here, CLAUDE.md files and auto memory carry knowledge across sessions ([Claude Code memory](https://code.claude.com/docs/en/memory)).
 - The Claude Sonnet 3.5 entry, dated November 22 2024, on opening URLs. Here, `WebFetch` is a documented tool ([tools reference](https://code.claude.com/docs/en/tools-reference)).
 
-As of that 2026-08-03 read, neither sentence survived in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be relying on a retired prompt. Clear both before a vendor sentence becomes a premise.
+As of that 2026-08-03 read, neither sentence survived in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be relying on a retired prompt. Clear both before a vendor sentence becomes a premise. Recheck when the published system-prompt notes restore either sentence.
 
 ## The reference page defines; a vendor post corroborates
 

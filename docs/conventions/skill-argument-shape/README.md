@@ -138,7 +138,7 @@ pages were read through the raw `.md` channel, with the slug checked against
 
 ## Cross-references
 
-- `playbooks:skill-authoring`: the authoring-time pointer here (the guidance spoke's
-  "Argument surface" section and the pre-share checklist row).
+- `playbooks:skill-authoring`: the authoring-time pointer here (its skill criteria
+  `## Frontmatter` section and the pre-share checklist row).
 - [`docs/conventions/upstream-drift/`](../upstream-drift/README.md): the four-part record shape
   and the raw-`.md` fetch route used here.

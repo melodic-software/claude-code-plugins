@@ -387,12 +387,15 @@ Choose one authoritative owner for each value:
 | Tracked repository convention or rich team policy (structured, policy-floor, per-operator-keyed, or state) | A documented file under the consumer project |
 | Team-shared prose convention with no per-operator axis | A natural-language convention doc at the consumer's convention home, bound by the root instruction file's pointer line (config-cascade § Expression doctrine, ADR 0018) |
 | Personal project instruction | A documented, gitignored local overlay where the convention supports one |
-| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}` |
+| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}`; exception: the upstream docs cache several plugins share lives in a user-scope directory ([ADR 0057](adr/0057-share-a-user-scope-docs-cache-across-plugins.md)) |
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
 
 `userConfig` is not repository configuration. Claude Code reads its stored `pluginConfigs` values only
-from user settings, `--settings`, and managed settings. It ignores project and local settings for this
-key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
+from user settings, `--settings`, and managed settings
+([`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
+2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys, or the
+`pluginConfigs` scope changes). It ignores project and local settings for this key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
 
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
@@ -1206,8 +1209,8 @@ per-spawn `model`.
 There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
-[plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-As of: 2026-08-10. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
 runs on).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
@@ -1558,7 +1561,7 @@ reach an agent's `effort` field. We record this as a gap against
 [configuration ownership](#configuration-ownership-and-scope), not as a design choice.
 
 - **Pointer:** for plugin options, see
-  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
   for the agent field, see
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
 - **As of:** 2026-10-01.
@@ -1686,14 +1689,15 @@ and the topics we read each one for. Recheck trigger for both lists: a page move
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):
 
-- [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
+- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference): component schemas,
-  `userConfig`, experimental components, version management, cache isolation, persistent data.
+- [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): component schemas,
+  `userConfig`, experimental components, persistent data.
+- [Plugin loading reference](https://code.claude.com/docs/en/plugins/loading): version management and cache isolation.
 - [Skills](https://code.claude.com/docs/en/skills): frontmatter reference and skill lifecycle.
 - [Hooks reference](https://code.claude.com/docs/en/hooks): exec form vs shell form, event list,
   `Setup` event, skill-scoped hooks.
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): constraints, release
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): constraints, release
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
@@ -1705,7 +1709,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 
 As of 2026-07-17:
 
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): the `dependencies`
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): the `dependencies`
   array, automatic installation, and version constraints.
 - [Skills](https://code.claude.com/docs/en/skills): command-name derivation and the plugin skill
   namespace.
@@ -1713,3 +1717,6 @@ As of 2026-07-17:
   naming-convention guidance this document deviates from deliberately.
 - [Agent Skills specification](https://agentskills.io/specification): `name` field constraints and
   directory matching.
+
+Recheck when the dependencies page changes how constraints resolve, the skills page changes the
+plugin skill namespace, or the specification changes the `name` constraints.

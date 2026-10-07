@@ -164,8 +164,8 @@ files arrive through the Read tool as plain bytes, so a `${…}` token in them w
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 The same table says the Bash tool's environment does not receive `CLAUDE_PLUGIN_DATA`, which the
 registry-location rule relies on. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-10-03; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
 
 ## What This Skill Does NOT Do

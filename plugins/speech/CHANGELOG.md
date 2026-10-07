@@ -3,6 +3,18 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The shared `hook-utils.sh` copy picks up recheck triggers on its upstream records.
+
+## [0.2.9] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** `test_assets.py` removes its temp dir after each test.
+
 ## [0.2.8] - 2026-10-04
 
 ### Changed

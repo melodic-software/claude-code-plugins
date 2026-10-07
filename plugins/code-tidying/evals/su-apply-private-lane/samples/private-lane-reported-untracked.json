@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "| mine.md | untracked | commit it to share with the team |"
+    },
+    {
+      "answer": "mine.md is not committed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| mine.md | PASS | |",
+      "why": "untracked state missed"
+    }
+  ]
+}

@@ -22,7 +22,11 @@ A refactor changes structure, not behavior. If tests passing before still pass a
 | **Extract** (method, class, interface) | Medium | Changed call semantics, parameter passing |
 | **Move** (file to different directory/project) | Medium | Broken imports, namespace changes, access modifiers |
 | **Restructure** (split/merge modules) | High | Dependency changes, circular references, DI registration |
-| **Replace** (swap implementation behind interface) | High | Behavioral differences in the new implementation |
+| **Replace** (swap implementation behind interface) | High | Behavioral differences in the new implementation; needs differential evidence (below), not only passing tests |
+
+**Replace needs differential evidence.** Passing tests prove only the tested behavior, and a Replace swaps all of it. Run the old implementation (or its recorded output) and the new one on the same inputs, a recorded corpus first, and report counts: inputs run, mismatches, mismatches explained by an intentional-differences ledger entry (cite each id), and unexplained mismatches. Each ledger entry names the difference, why it is intended, and who accepted it; widening the comparator to make the run match is not an explanation. A recorded baseline proves sameness with the old behavior, not correctness, so a bug the old code had passes this check. Recorded outputs captured for the comparison are stored and timed like any baseline: see `/verification:measure` "Behavior baselines".
+
+Basis: the differential-testing slice of the agent-self-check research, 2026-10-06 (Scientist ignore blocks and reviewed snapshot re-approval for intentional differences; Feathers and the snapshot tools for sameness, not correctness), prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). No accepted source shows agents validating rewrites this way; the rule extrapolates human-led practice. Recheck trigger: a source on agent-run rewrite validation that changes it.
 
 ### 2. Identify the behavior boundary
 
@@ -78,6 +82,7 @@ Show what changed structurally with `git diff --stat` and `git diff --name-statu
 | No new test failures | PASS/FAIL | <any tests that broke?> |
 | Public API unchanged | PASS/FAIL | <same method signatures?> |
 | Architecture tests pass | PASS/FAIL/N/A | <dependency direction preserved?> |
+| Differential run (Replace only) | PASS/FAIL/NOT RUN/N/A | <inputs run: N; mismatches: N; explained by ledger: N (ids); unexplained: N> |
 
 ### Untested Risk Areas
 | Area | Why untested | Risk |
@@ -92,7 +97,7 @@ Show what changed structurally with `git diff --stat` and `git diff --name-statu
 
 ### 7. Verdict
 
-- **CONFIRMED** if all tests pass and no untested gaps are HIGH risk
+- **CONFIRMED** if all tests pass and no untested gaps are HIGH risk; for a Replace, the differential run also ran with zero unexplained mismatches. A Replace is never CONFIRMED with an unexplained mismatch (that is BEHAVIORAL CHANGE DETECTED) or with no differential run (at best LIKELY PRESERVED, with the missing run named as the gap)
 - **LIKELY PRESERVED** if all tests pass but untested gaps exist (document the gaps)
 - **NOT CONFIRMED** if any test that passed before now fails
 - **BEHAVIORAL CHANGE DETECTED** if new test failures indicate the refactor changed behavior (may be intentional, so flag for user decision)

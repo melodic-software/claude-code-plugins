@@ -1,0 +1,7 @@
+# Guide
+
+Run the greeting script:
+
+    bash src/greet.sh Ada
+
+Inside your own scripts, call `say_hello NAME` to print a greeting.

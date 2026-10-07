@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared helpers for the report scripts.\n\nprint_header() {\n  printf '== %s ==\\n' \"$1\"\n}\n\ntrim_spaces() {\n  local s=\"$1\"\n  s=\"${s#\"${s%%[![:space:]]*}\"}\"\n  printf '%s' \"${s%\"${s##*[![:space:]]}\"}\"\n}\n\nlegacy_banner() {\n  printf '*** %s ***\\n' \"$1\"\n}\n",
+      "why": "file unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared helpers for the report scripts.\n\nprint_header() {\n  printf '== %s ==\\n' \"$1\"\n}\n\ntrim_spaces() {\n  local s=\"$1\"\n  s=\"${s#\"${s%%[![:space:]]*}\"}\"\n  printf '%s' \"${s%\"${s##*[![:space:]]}\"}\"\n}\n\n",
+      "why": "legacy_banner deleted"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared helpers for the report scripts.\n\nprint_header() {\n  printf '== %s ==\\n' \"$1\"\n}\n\nlegacy_banner() {\n  printf '*** %s ***\\n' \"$1\"\n}\n",
+      "why": "trim_spaces deleted"
+    }
+  ]
+}

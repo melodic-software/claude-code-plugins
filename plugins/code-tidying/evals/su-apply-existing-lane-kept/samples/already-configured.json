@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "All checks pass; web is already configured. Nothing changed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote .claude/tidy-lanes/web.md.",
+      "why": "rewrote instead"
+    }
+  ]
+}

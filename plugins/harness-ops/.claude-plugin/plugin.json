@@ -1,6 +1,6 @@
 {
   "name": "harness-ops",
-  "version": "3.8.10",
+  "version": "3.9.0",
   "description": "Claude Code operations: audit-skill-visibility (skills the listing budget hides), inventory (all commands, skills, agents, tools, plugins), audit-install-state (~/.claude), audit-performance (slowness), audit-native-overlap (skills duplicating built-ins), observability (telemetry), known-issues (Claude bugs, status), changelog, prerequisites, check, machine-profile, plugins (update the fleet), morning-brief, lanes (background loop sessions), setup. Plus opt-in hook event logs.",
   "author": {
     "name": "Melodic Software",

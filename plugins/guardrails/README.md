@@ -998,7 +998,8 @@ to early-exit inside each guard. The `Write|Edit` row now carries one handler pe
 extension, each with an `if` predicate (`Edit(*.md)` and so on; the field holds one
 rule, so one row per extension is the documented shape), and Claude Code evaluates
 the predicate before spawning: "The hook command only runs if the tool call matches
-the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05).
+the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05). Recheck when the
+hooks reference changes how the `if` field is evaluated or lets one handler hold several rules.
 `run-guards.test.sh` pins the predicate set to the union of the verifiers' own
 `case "$FILE"` gates, so an extension added to a gate without an `if` row fails the
 suite rather than silently never firing.
@@ -1598,7 +1599,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

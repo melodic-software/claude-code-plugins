@@ -13,6 +13,9 @@ The hierarchy read (gcovr's Cobertura documentation, verified 2026-09-05):
         lines/line[@number,@hits]
         methods/method[@name]/lines/line[@number,@hits]
 
+Recheck when a gcovr release changes the Cobertura element or attribute names
+it writes.
+
 Two DTDs are both named `coverage-04.dtd` and many producers follow neither,
 so nothing here validates: elements are found wherever they sit, a missing
 attribute is absent rather than zero, and an unparsable `number` or `hits`

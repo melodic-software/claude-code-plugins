@@ -51,6 +51,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | Skill | Plugin | What it does |
 | --- | --- | --- |
 | [`/context7:lookup`](../plugins/context7/skills/lookup/SKILL.md) | `context7` | Look up current library docs, API references, and examples via Context7 |
+| [`/discovery:read-docs`](../plugins/discovery/skills/read-docs/SKILL.md) | `discovery` | Read an upstream docs page through the shared lookup and cache |
 | [`/discovery:research`](../plugins/discovery/skills/research/SKILL.md) | `discovery` | Multi-source external research with source tiers and a coverage ledger |
 | [`/discovery:research-deep`](../plugins/discovery/skills/research-deep/SKILL.md) | `discovery` | Dispatch deep multi-topic research to the heaviest isolated tier |
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
@@ -239,6 +240,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discipline:tighten-your-output`](../plugins/discipline/skills/tighten-your-output/SKILL.md) | `discipline` | Tighten prose and code. Fewer words, no semantic loss |
 | [`/discipline:use-your-skills`](../plugins/discipline/skills/use-your-skills/SKILL.md) | `discipline` | Map the task to available skills and invoke them instead of reinventing |
 | [`/discipline:wait-what`](../plugins/discipline/skills/wait-what/SKILL.md) | `discipline` | Re-pitch the message that did not land. Missing context added, plain register, project vocabulary |
+| [`/discovery:check`](../plugins/discovery/skills/check/SKILL.md) | `discovery` | Report whether node resolves and the WebFetch truncation hook is registered. Never installs. |
 | [`/disk-hygiene:audit`](../plugins/disk-hygiene/skills/audit/SKILL.md) | `disk-hygiene` | Scan a directory tree for stale leftovers and report the evidence, read-only |
 | [`/disk-hygiene:check`](../plugins/disk-hygiene/skills/check/SKILL.md) | `disk-hygiene` | Report whether node, bash and a supported Python resolve for the disk-hygiene guard. Never installs. |
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |

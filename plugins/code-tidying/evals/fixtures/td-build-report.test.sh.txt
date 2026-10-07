@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Behavior pin for scripts/build-report.sh: output format, error path, and the
+# two function names other scripts source and call.
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+printf 'a\nb\nc\n' >"$tmp/app.log"
+printf 'x\n' >"$tmp/db.log"
+
+out="$(bash "$here/scripts/build-report.sh" "$tmp")"
+expected=$'REPORT app.log 3\nREPORT db.log 1'
+[[ "$out" == "$expected" ]] || { echo "FAIL: report output: $out"; exit 1; }
+
+if bash "$here/scripts/build-report.sh" "$tmp/missing" 2>/dev/null; then
+  echo "FAIL: a missing directory was accepted"
+  exit 1
+fi
+
+# shellcheck source=../scripts/build-report.sh
+source "$here/scripts/build-report.sh"
+[[ "$(count_lines "$tmp/app.log")" == 3 ]] || { echo "FAIL: count_lines"; exit 1; }
+[[ "$(render_report "$tmp" | head -n 1)" == "REPORT app.log 3" ]] || { echo "FAIL: render_report"; exit 1; }
+echo PASS

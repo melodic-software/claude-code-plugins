@@ -63,8 +63,8 @@ When the request is vague (no subject, or no checkable done criterion) or high-s
 ## Recorded decisions
 
 - **Claim.** An enabled Claude Code plugin contributes its skills to the session; a skill from another plugin is not available unless that plugin is installed. The full skill text loads when the skill is used.
-- **Basis.** [Plugins overview](https://code.claude.com/docs/en/plugins), sections "Decide whether you need a plugin" and "What an enabled plugin adds to your sessions", read 2026-09-28.
-- **As of.** 2026-09-28.
+- **Basis.** [Plugins overview](https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin), sections "Decide whether you need a plugin" and "What an enabled plugin adds to your sessions", read 2026-10-07.
+- **As of.** 2026-10-07.
 - **Recheck.** That page no longer stating that plugins are installed as units, or that a plugin's skills are present only when the plugin is enabled.
 
 `craft-static.md` is in-repo. Re-read it when its silhouette, palette, or grid sections change; those sections are why proportions, style references, and palette are fields and why the rest default.
