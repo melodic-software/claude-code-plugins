@@ -457,12 +457,11 @@ guard, at any settings scope. **Basis:** settings-reference
 **Recheck:** when that key's scope stops including project files, or when a release note says only
 the user can write it.
 
-**A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** The loading
-reference now says Claude Code clones a marketplace that settings declare and
-`known_marketplaces.json` lacks, and re-fetches one whose declared source changed
-([Plugins and marketplaces that aren't on disk at session start](https://code.claude.com/docs/en/plugins/loading#plugins-and-marketplaces-that-arent-on-disk-at-session-start)),
-so a trusted repository's `.claude/settings.json` can put an entry in the file the directory
-channel reads. That gains a repository nothing: the proof also needs the entry's
+**A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** We assume a
+trusted repository's `.claude/settings.json` can put an entry in the file the directory channel
+reads (pointer:
+[Plugins and marketplaces that aren't on disk at session start](https://code.claude.com/docs/en/plugins/loading#plugins-and-marketplaces-that-arent-on-disk-at-session-start)).
+That gains a repository nothing: the proof also needs the entry's
 `installLocation` to contain the running plugin root and that location's own `marketplace.json`
 to list that root as `disk-hygiene`. A repository entry can satisfy both only for a plugin root
 inside a tree it supplies, so the guard proven is code the repository already controls. Authority
