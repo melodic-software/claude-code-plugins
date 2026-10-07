@@ -166,14 +166,15 @@ check "a run cut at its bound writes no verdict" '[[ "$(stub_calls)" == 1 && -z 
 # Entries without either pass through; each one that holds one is replaced in
 # place by a dir of native symlinks to its other files (Git Bash's default
 # `ln -s` copies).
-NOTO=""
+NOTO="" n=0
 IFS=: read -ra dirs <<<"$PATH"
 for d in "${dirs[@]}"; do
   if [[ ! -e "$d/timeout" && ! -e "$d/timeout.exe" && ! -e "$d/gtimeout" ]]; then
     NOTO+="${NOTO:+:}$d"
     continue
   fi
-  m="$(mktemp -d "$TMP/no-timeout-bin.XXXXXX")"
+  m="$TMP/no-timeout-bin.$((n++))"
+  mkdir "$m"
   for x in "$d"/*; do
     b="${x##*/}"
     [[ -f "$x" && "$b" != timeout && "$b" != timeout.exe && "$b" != gtimeout ]] && MSYS=winsymlinks:nativestrict ln -s "$x" "$m/$b"
