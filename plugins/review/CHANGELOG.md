@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.0] - 2026-10-07
+
+### Added
+
+- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts, keeping its id under `stale` until a delete succeeds. A page the gate sent private that `pages-publish` reports on the public host exits 1 and names the URL to take down. A tracked team layer cannot select `hosted`, and an overlay selects it only once gitignored. The contract is in the rendered-views convention, "The `hosted` medium".
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: new credential shapes (an R2 key pair, an Azure client secret, Cloudflare's prefixed tokens, upload tokens) also keep an `artifact` page local.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+- The skill's `allowed-tools` gains `Write`, which the connected-page step already used for `ops.json`.
+
 ## [0.42.5] - 2026-10-07
 
 ### Changed

@@ -3,6 +3,13 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.5] - 2026-10-07
+
+### Changed
+
+- `/education:illustrate` treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
 ## [0.14.4] - 2026-10-07
 
 ### Changed

@@ -420,6 +420,209 @@ describe("publish gate: the default artifact medium publishes only a public, cre
   });
 });
 
+describe("medium: hosted resolves only from a layer the pull request cannot write", () => {
+  const home = join(scratch, "hosted-home");
+  const repo = join(scratch, "hosted-repo");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(repo, ".claude"), { recursive: true });
+  const { git, commit } = gitRepo(repo);
+  const run = runPolicy(home, repo);
+  const facts = { ...quiet, baseRefOid: "MAIN" };
+  test("a tracked team layer cannot select hosted", () => {
+    writeFileSync(join(repo, ".claude/rendered-views.md"), "medium: hosted\n");
+    git("add", ".claude/rendered-views.md");
+    commit();
+    const result = run(facts);
+    assert.deepEqual(result.medium, { value: "artifact", source: "default" });
+    assert.match(result.warnings.join("\n"), /team .*medium hosted is honored only from the user-global layer or the overlay/);
+  });
+  test("the user-global layer selects hosted", () => {
+    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: hosted\n");
+    const result = run(facts);
+    assert.equal(result.medium.value, "hosted");
+    assert.match(result.medium.source, /^user-global /);
+  });
+  test("an overlay selects hosted only once it is gitignored", () => {
+    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: file\n");
+    writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: hosted\n");
+    const unignored = run(facts);
+    assert.equal(unignored.medium.value, "file");
+    assert.match(unignored.warnings.join("\n"), /overlay .*medium hosted is honored from the overlay only once it is gitignored; layer ignored/);
+    writeFileSync(join(repo, ".git/info/exclude"), "*.local.*\n");
+    const ignored = run(facts);
+    assert.equal(ignored.medium.value, "hosted");
+    assert.match(ignored.medium.source, /^overlay /);
+  });
+});
+
+describe("hosted publish: gate the built page, then pages-publish and the sidecar", () => {
+  const PUBLISH = join(SKILL, "scripts/publish-hosted.mjs");
+  const bin = join(scratch, "fake-bin");
+  const log = join(scratch, "pages-publish.log");
+  mkdirSync(bin, { recursive: true });
+  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT.
+  writeFileSync(
+    join(bin, "pages-publish"),
+    `#!/usr/bin/env node
+const { appendFileSync } = require("node:fs");
+appendFileSync(process.env.FAKE_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
+if (process.argv[2] !== "--delete") process.stdout.write((process.env.FAKE_OUT || "") + "\\n");
+process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : process.env.FAKE_EXIT) || 0);
+`,
+  );
+  chmodSync(join(bin, "pages-publish"), 0o755);
+  const idA = "A".repeat(22);
+  const idB = "b".repeat(21) + "-";
+  const answer = (id, visibility) => JSON.stringify({ id, visibility, url: `https://${visibility}.pages.example/${id}/` });
+  const sample = { title: "t", change: "c", why: "w", before: "b", after: "a", risks: [], focus: [], files: [] };
+  let n = 0;
+  /** A fresh page and data dir; `sidecar` seeds the data dir. */
+  const setup = (pageData = sample, sidecar = null) => {
+    n += 1;
+    const dir = mkdtempSync(join(tmpdir(), "explain-hosted-"));
+    const page = join(dir, "page.html");
+    writeFileSync(page, buildDigest(pageData));
+    const data = join(scratch, `data-${n}`);
+    if (sidecar) {
+      mkdirSync(join(data, "hosted"), { recursive: true });
+      writeFileSync(join(data, "hosted/acme__app__7.json"), sidecar);
+    }
+    rmSync(log, { force: true });
+    return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
+  };
+  const publish = ({ page, data }, { visibility = "PUBLIC", out = "", exit = 0, deleteExit = 0 } = {}) =>
+    spawnSync(process.execPath, [PUBLISH, page, "--repo", "acme/app", "--pr", "7", "--repo-visibility", visibility, "--data-dir", data], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        FAKE_LOG: log,
+        FAKE_OUT: out,
+        FAKE_EXIT: String(exit),
+        FAKE_DELETE_EXIT: String(deleteExit),
+      },
+    });
+  const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);
+
+  test("a first public page publishes without --id and writes the sidecar from the JSON", () => {
+    const at = setup();
+    const out = publish(at, { out: answer(idA, "public") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public"]]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idA, "public")));
+    const result = JSON.parse(out.stdout);
+    assert.equal(result.medium, "hosted");
+    assert.equal(result.url, `https://public.pages.example/${idA}/`);
+  });
+  test("a republish at the same visibility passes the sidecar's id and deletes nothing", () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { out: answer(idA, "public") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public", "--id", idA]]);
+  });
+  test("pages-publish forcing private gives a new id: the sidecar takes it and the old public id is deleted", () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "public", "--id", idA],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idB);
+  });
+  test("a private repository sends the page private with no --id, then deletes the old public id", () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "private"],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+  });
+  test("a failed delete keeps the old id in the sidecar as stale, and the next publish retries it", () => {
+    const at = setup(sample, answer(idA, "public"));
+    const first = publish(at, { visibility: "PRIVATE", out: answer(idB, "private"), deleteExit: 6 });
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(JSON.parse(first.stdout).old_copy, /delete failed; https:\/\/public\.pages\.example\/A+\/ still up/);
+    const kept = JSON.parse(readFileSync(at.sidecarPath, "utf8"));
+    assert.equal(kept.id, idB);
+    assert.deepEqual(kept.stale, [JSON.parse(answer(idA, "public"))]);
+    rmSync(log, { force: true });
+    const second = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
+    assert.equal(second.status, 0, second.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "private", "--id", idB],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "private")));
+  });
+  test("a second wrong public landing under a new id still deletes the first", () => {
+    const idC = "C".repeat(22);
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { visibility: "PRIVATE", out: answer(idC, "public") });
+    assert.equal(out.status, 1);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "private"],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idC, "public")));
+  });
+  test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", () => {
+    const at = setup();
+    const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "public") });
+    assert.equal(out.status, 1);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+    assert.match(JSON.parse(out.stdout).reason, new RegExp(`public host; take down https://public\\.pages\\.example/${idB}/$`));
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).visibility, "public");
+  });
+  test("a credential in the page refuses before any upload and keeps the sidecar", () => {
+    const at = setup({ ...sample, why: `t = ${"ghp_"}${"a".repeat(36)}` }, answer(idA, "public"));
+    const out = publish(at, { out: answer(idB, "public") });
+    assert.equal(out.status, 4);
+    assert.deepEqual(calls(), []);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+    assert.match(JSON.parse(out.stdout).reason, /looks like a GitHub token; a hosted page is refused/);
+  });
+  test("a password assignment hidden by the data block's JSON escaping is still caught", () => {
+    const at = setup({ ...sample, why: `password = "${"hunter2hunter2"}"` });
+    assert.equal(publish(at, { out: answer(idB, "public") }).status, 4);
+    assert.deepEqual(calls(), []);
+  });
+  test("a machine path in the page sends it private", () => {
+    const at = setup({ ...sample, why: "built under /home/alice/src" });
+    const out = publish(at, { out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("pages-publish exit 4 is a refusal; any other failure or bad JSON leaves the sidecar alone", () => {
+    let at = setup(sample, answer(idA, "public"));
+    assert.equal(publish(at, { exit: 4 }).status, 4);
+    for (const [exit, out] of [[6, answer(idB, "public")], [0, "not json"], [0, answer("short", "public")], [0, answer(idB, "elsewhere")]]) {
+      at = setup(sample, answer(idA, "public"));
+      const result = publish(at, { exit, out });
+      assert.equal(result.status, 1, `${exit} ${out}`);
+      assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+      assert.equal(JSON.parse(result.stdout).medium, "file");
+    }
+  });
+  test("a page the builder did not make, or bad arguments, exit 2 with no upload", () => {
+    const at = setup();
+    writeFileSync(at.page, "<p>hand-written</p>");
+    assert.equal(publish(at).status, 2);
+    writeFileSync(at.page, buildDigest(sample, "http://127.0.0.1:8765"));
+    assert.equal(publish(at).status, 2, "a connected page works only on this machine");
+    for (const args of [[], [at.page, "--repo", "acme", "--pr", "7", "--repo-visibility", "PUBLIC", "--data-dir", at.data]]) {
+      assert.equal(spawnSync(process.execPath, [PUBLISH, ...args], { encoding: "utf8" }).status, 2);
+    }
+    assert.deepEqual(calls(), []);
+  });
+  test("SKILL.md runs publish-hosted on medium: hosted and names pages-publish", () => {
+    const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
+    assert.match(skill, /scripts\/publish-hosted\.mjs" <page> --repo <owner\/repo> --pr <n> --repo-visibility <VISIBILITY> --data-dir "\$\{CLAUDE_PLUGIN_DATA\}"/);
+    assert.match(/^allowed-tools: (.*)$/m.exec(skill)[1], /publish-hosted\.mjs/);
+  });
+});
+
 describe("builder", () => {
   const hostile = {
     title: `"><script>alert(1)</script>`,
