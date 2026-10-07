@@ -135,6 +135,16 @@ expect_rc 2 "bad --phase exits 2"
 run "$fx" --plugin .. --phase before
 expect_rc 2 "a --plugin of .. is refused"
 
+# --- description length counts codepoints, not bytes, under a C locale -------
+mk_fixture fx
+printf -- '---\nname: alpha\ndescription: '"'"'a → b'"'"'\n---\nbody\n' >"$fx/plugins/pl/skills/alpha/SKILL.md"
+OUT="$(LC_ALL=C FIXTURE_ROOT="$fx" SKILL_REWRITE_MEASURE_ROOT="$fx" \
+  SKILL_REWRITE_MEASURE_CHECK_BIN="$STUB_CHECK" SKILL_REWRITE_MEASURE_SCORE_BIN="$STUB_SCORE" \
+  bash "$SCRIPT" --plugin pl --phase before 2>&1)"
+cp_row="$(awk -F'\t' '$1=="skill" && $2=="alpha" { print $3 }' "$fx/.work/skill-rewrite/pl/before.tsv")"
+# "a → b" is five codepoints (the arrow is three bytes).
+if [[ "$cp_row" == "5" ]]; then ok "a multi-byte description counts 5 codepoints under LC_ALL=C"; else bad "codepoint count" "$cp_row"; fi
+
 # --- untrusted names never reach shell arithmetic -----------------------------
 mk_fixture fx
 mkdir -p "$fx/plugins/pl/skills/"$'evil\trc[$(touch PWNED)]\t1'

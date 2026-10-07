@@ -232,7 +232,7 @@ tsv="$snap_dir/$phase.tsv"
     desc="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")"
     body="$(awk 'NR==1 && !/^---[[:space:]]*$/ { print 0; exit } /^---[[:space:]]*$/ && f<2 { f++; next } f>=2 { n++ } END { if (f>=2) print n+0 }' "$md")"
     lex="$(jq -r --arg f "plugins/$plugin/skills/$s/SKILL.md" '[.[] | select(.listing_file == $f and .n > 0)] | if length == 0 then "n/a" else (.[0].ok / .[0].n * 1000 | round / 1000 | tostring) end' <<<"$score_json")"
-    printf 'skill\t%s\t%s\t%s\t%s\t%s\n' "$s" "${#desc}" "$body" "$lex" "$sha"
+    printf 'skill\t%s\t%s\t%s\t%s\t%s\n' "$s" "$(skill_frontmatter::codepoint_len "$desc")" "$body" "$lex" "$sha"
   done < <(list_skills)
 } >"$tsv"
 
