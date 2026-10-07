@@ -1,0 +1,69 @@
+{
+  "requires": [
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:read-docs"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, /discovery:read-docs cannot fetch a docs page and records it unread with reason curl-missing; a cached entry still within --max-age is served without a request.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:read-docs"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, fetch-docs.sh and docs-cache.sh exit before reading anything, so /discovery:read-docs stops.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:read-docs"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

@@ -1,5 +1,52 @@
 # Changelog: discovery plugin
 
+## [0.29.0] - 2026-10-04
+
+### Added
+
+- **`/discovery:read-docs` reads one upstream docs page through the shared docs lookup and cache
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).** It fetches the
+  page with `scripts/fetch-docs.sh --cache`, then reads it with `scripts/docs-cache.sh read`: a
+  page under the whole-page threshold comes back whole, a larger one as its section map plus the
+  stored section summaries and notes, and the model slices the sections it picks. The answer marks
+  each asked fact the page does not state as `not stated on the page`, keeps inference in a
+  separate labeled part, and ends with the page's URL, format and validated time. After reading,
+  it stores one-line section summaries and a note whose quoted spans the script checks against
+  the cited sections. Verification reads raw bytes only (`--max-age 0`, `read --raw`, `slice`).
+  The procedure lives in `reference/docs-lookup-procedure.md`, a generated copy of
+  `lib/docs-lookup-procedure.md` that other plugins can carry.
+- Shared `fetch-docs.sh`, `docs-cache.sh` and `html2md.py` synced into `scripts/`, and
+  `prerequisites.json` declares curl and jq (required by `/discovery:read-docs`) and Python 3
+  (optional: without it a page served only as HTML is recorded unread).
+- `/discovery:research` names `/discovery:read-docs` in its `## Next` for a claim one docs page
+  settles.
+- The shared scripts hold back hostile pages and notes: `fetch-docs.sh` leaves a body over
+  `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or
+  note with a line shaped like the block's BEGIN or END marker, says in the block's opening line
+  that only the END line with its nonce closes it, and prints a note's writer and session as `(self-reported)`.
+- The read procedure pins every read, slice, summary and note to `<cache_key>-<sha256>` from the
+  manifest, so a concurrent fetch cannot swap the page version under the currency line; a code
+  block holding a ``` line converts inside a wider fence instead of leaking headings into the
+  section map; and the Python 3 prerequisite no longer counts the `py` launcher, which the fetch
+  does not use.
+- A docs URL in browser form (no `.md`, or with a `#fragment`) reads the indexed page instead of
+  quarantining it; a page found removed is fetched again, never served from the cache, fresh or
+  stale; summaries and notes are stored only for pages over the whole-page threshold, where `read`
+  shows them back; headings keep a real trailing `#` (`Using C#`); and prune counts and clears
+  temp items left by an interrupted write, takes over a lock left without a start time, and never
+  leaves a key without its pointer when an entry cannot be moved away.
+- Headings wrapped in an in-page anchor (mdBook, VuePress) keep their text, html2md runs on Python
+  3.8, a browser-form URL with a query string or trailing slash resolves, prune sweeps stale temp
+  leftovers on every run, and a page with no title lifts its removal quarantine when read again.
+- Headings drop screen-reader-only and `aria-hidden` text, and prune keeps its grace-window
+  reference file outside the store, so one prune never sweeps another's.
+
+## [0.28.11] - 2026-10-04
+
+### Fixed
+
+- `/discovery:research` evals: five eval prompts (15, 22, 23, 29, 30) said "both gates" where the acceptance gate now runs three scripted gates; they now say "all three gates".
+
 ## [0.28.10] - 2026-10-04
 
 ### Fixed

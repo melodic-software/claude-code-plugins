@@ -5,6 +5,143 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.11.0] - 2026-10-04
+
+### Added
+
+- **`scripts/fetch-docs.sh --profile generic` reads any https docs page** with no index. It prefers
+  markdown: the URL with `Accept: text/markdown`, then the URL with a `.md` suffix, then a
+  same-origin link for the page in the origin's `llms.txt`. With none, the page's HTML is converted
+  by `html2md.py` beside the script, run by the first of `python3` and `python` whose probe prints
+  `3`; with no such interpreter the page is unread with reason `no-python`. A request that lands off
+  the requested origin or path is unread (`redirected-off-origin`, `redirected-off-path`). The slug
+  is `host/path`, and the manifest's `index` is null
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`--profile platform`** reads platform.claude.com pages through its `llms.txt`.
+- **The docs cache is configurable without flags.** `scripts/docs-cache.sh` resolves nine keys
+  (`cache_dir`, `ttl_seconds`, `whole_page_bytes`, `escalate_section_percent`, `escalate_bytes`,
+  `size_cap_bytes`, `prune_grace_seconds`, `max_page_bytes`, `cache_enabled`) key by key from a flag, then its
+  `DOCS_CACHE_*` variable, then the machine file
+  `${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json`, then the bundled default.
+  `docs-cache.sh config` prints each value with the layer that supplied it. A malformed file or a
+  bad value is skipped with a warning; an unknown key is ignored. `fetch-docs.sh --cache` takes
+  `ttl_seconds` as its `--max-age` when none is passed, and with `cache_enabled` false reads and
+  writes no cache and sets the manifest's new top-level `cache_disabled` to the layer that said so.
+- **Summaries and notes name one checkable section.** `docs-cache.sh summary put` and `note put`
+  refuse a section whose own body is empty or shared with another section, and a summary or note
+  whose section hash two sections share is withheld. A removal quarantine (404, 410, a redirect
+  off the page, a slug gone from the index) lifts when the page is read or confirmed again under
+  the title it had; a retitle quarantine still never lifts. A quoted span split across a line
+  break is checked. Escalation counts a section asked with its parent once, a note file that is
+  not JSON is skipped with a warning, and a prune takes its lock whole and releases only its own.
+- **Revalidation with HTTP validators.** With `--cache`, an entry stored with an `ETag` or
+  `Last-Modified` is revalidated with `If-None-Match` or `If-Modified-Since`; a 304 serves the entry
+  with `status: 304` and moves only `validated`. A `Last-Modified` equal to the response's `Date`
+  is ignored. A host with neither is re-downloaded: the same sha256 moves `validated`, new bytes are
+  a new entry with a new `retrieved`.
+- **Manifest records gain `format` (`markdown` or `html-converted`), `title` and `quarantined`.**
+  The cache key includes the format, so one URL that negotiates to markdown and to HTML is two keys.
+- **`scripts/docs-cache.sh` records each entry's title** (its first heading, else the HTML
+  `<title>`) and **quarantines a key** when a new entry's title differs from the one it replaces;
+  `info` reports `title`, `etag`, `last_modified` and `quarantine`.
+- **`docs-cache.sh read <ref>`** prints a page of at most `--whole-page-bytes` (default 51200)
+  whole; a larger one prints its section map plus the stored section summaries and the notes whose
+  cited sections are unchanged. `slice` on such a page prints the whole page, and says so on stderr,
+  when the ids ask for more than `--escalate-percent` (25) of its sections or `--escalate-bytes`
+  (61440) bytes.
+- **Section summaries and notes.** `summary put|get` stores a one-line summary per section hash;
+  `note put|get|list` stores a note with its provenance (writer model, session, date, question, page
+  sha256) and cited sections. A note is served while every cited section's hash is unchanged, under
+  whatever id or heading the section has now, and is refused when a quoted span is not in a cited
+  section's own body. Summaries and notes print only inside a nonce-delimited untrusted-data block,
+  never with page bytes, never through `slice` or `read --raw`, and never for a quarantined key.
+- **`docs-cache.sh prune`** evicts the least recently used page bytes, then summaries, then notes,
+  down to `--max-bytes` (default 200 MB), under a `mkdir` lock, skipping keys accessed within
+  `--grace` (300) seconds; every write runs it.
+- **`fetch-docs.sh --cache` serves stale bytes when offline.** With `--max-age` above 0, a transport
+  failure or a 5xx serves the cached bytes with `stale: true`, the failure as `reason` and their
+  `age_seconds`; `--max-age 0` still leaves the page unread. A 404, a 410, a redirect off the origin or
+  path, or a slug the index no longer lists quarantines the page's cache keys. Records gain `stale`
+  and `server_date` (the response's `Date`, recorded and never used for age).
+
+### Fixed
+
+- **Cache correctness fixes from review.** A docs URL in browser form (no `.md`, or with a
+  `#fragment`) reads the indexed page instead of quarantining it; a page found removed is fetched
+  again, never served from the cache, fresh or stale; headings keep a real trailing `#`; prune
+  counts and clears temp items older than the grace window, takes over a lock left without a start
+  time, and renames an evicted entry before dropping its pointer; and the effort-pin audit always
+  reads only its section, whatever the machine's escalation thresholds.
+- **Second review round.** html2md keeps heading text wrapped in an in-page anchor (mdBook,
+  VuePress) and drops only permalink-glyph anchors, and runs on Python 3.8 again; fetch-docs reads a
+  browser-form URL with a query string or trailing slash; every prune removes temp leftovers older
+  than the grace window, puts back a lock another prune took over, and keeps the pointer of a page
+  a writer stored again during eviction; and a page with no title lifts its removal quarantine
+  when it is stored or confirmed again.
+- **Third review round.** html2md drops screen-reader-only and `aria-hidden` text inside a heading,
+  so a permalink anchor no longer adds "Permalink to this heading"; prune makes its grace-window
+  reference file outside the store, so one prune never sweeps another's, and ranks nothing when
+  the store is under the cap after the temp sweep.
+- **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
+  `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
+  `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and
+  storing nothing; `docs-cache.sh` refuses a summary or note with a line shaped like its block's
+  BEGIN or END marker, its block's opening line says only the END line with this block's nonce
+  closes it, and a note's writer and session print as `(self-reported)`.
+- **A malformed summary file no longer hides the other summaries.** `scripts/docs-cache.sh` parses
+  each summary file on its own and skips one that is not JSON with a warning on stderr, as it
+  already did for notes.
+- **The curl prerequisite no longer claims the audit runs from cached docs.** Without curl, a fresh
+  cache entry is used with its age when one exists; otherwise the page is reported unread.
+- **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
+  the first 16 hex digits of the key and sha256 (store layout version 2, kept apart from a version-1
+  store), so a meta.json path stays under the 260-character limit. A write whose
+  paths would still pass the limit is refused with a `path too long` reason, and an entry a write
+  placed but cannot read back is removed instead of left behind.
+- **A writer that loses a race no longer renames its temp directory into the winner's entry.**
+- **Section maps follow CommonMark fences and headings:** only a bare fence of the same character
+  and at least the opener's length closes a fence, so a fence line with an info string or a shorter
+  run stays inside it, and a heading may be indented up to three spaces.
+- `fetch-docs.test.sh` no longer writes fixture pages into a caller's `DOCS_CACHE_DIR`.
+- **`--profile platform` reads its index again when fetched:** the index at
+  `https://platform.claude.com/llms.txt` sits outside `/docs/`, and an index request that ends on its
+  own URL is no longer refused as `redirected-off-origin`. Pages still must land under `/docs/`.
+- **A cache directory holding a store of another layout version no longer locks the cache out:** the
+  store moves to `v2/` inside it and the other version is left untouched.
+- **A cache hit keeps the validated time it was chosen with** when another writer switches the key
+  between the lookup and the read, instead of reporting `validated: null` and an age equal to the
+  epoch.
+- **A refused cache write says why:** the warning carries the reason and the record gains
+  `cache_error`.
+- **`html2md.py` widens a code fence past any backtick run inside it**, so a ``` line in a `<pre>`
+  no longer closes the fence and turns later lines into headings; the Python 3 prerequisite's
+  degrade text says the docs fetch needs `python3` or `python` on PATH, not the `py` launcher.
+
+## [1.10.0] - 2026-10-04
+
+### Added
+
+- **`scripts/docs-cache.sh`: a user-scope cache for upstream docs pages** (a synced copy of the
+  shared `lib/docs-cache.sh`). It stores each page's raw bytes in an immutable entry with a
+  section map, where each section's sha256 covers its own body only, and prints the map or the
+  sections a caller names. The cache lives under `${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache`
+  unless `--cache-dir` or `DOCS_CACHE_DIR` names another directory
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`scripts/fetch-docs.sh --cache [--max-age <seconds>] [--cache-dir <dir>]`.** An entry validated
+  within `--max-age` (default 86400) is served with no request and `source: cache`; anything else is
+  fetched and stored. Each manifest record adds `validated`, `age_seconds` and `cache_key`;
+  `retrieved` is when the bytes were first fetched, so a refetch of unchanged bytes moves only
+  `validated`. `--max-age 0` always fetches, and a failed fetch is unread, never served from the
+  cache. A caller that does not pass `--cache` reads the same pages; its records gain the three
+  fields, `cache_key` null.
+
+### Changed
+
+- **`check-effort-pins.sh` reads `model-config` through the cache with `--max-age 0` and hashes the
+  "Adjust effort level" section sliced from the cache entry** instead of scanning the whole page.
+  Its output lines and exit codes are unchanged, and the hash equals the earlier one on the
+  committed fixture and on the live page.
+
 ## [1.9.3] - 2026-10-04
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Answers test design questions from authoritative TDD sources (Beck, Khorikov), producing WHY reasoning to improve test design decisions. Use when: 'should I mock this', 'four pillars of a good test', 'red green refactor', 'classical vs london school', 'test doubles', 'testing anti-patterns', 'resistance to refactoring', 'code coverage', 'observable behavior', 'humble object', 'integration test', 'test pyramid', 'output vs state vs communication test'. Not for HOW to run tests in the project (use the project's own test tooling and workflow for that)."
+description: "Answers test design questions from authoritative TDD sources (Beck, Khorikov), producing WHY reasoning to improve test design decisions. Use when: 'should I mock this', 'four pillars of a good test', 'red green refactor', 'classical vs london school', 'test doubles', 'testing anti-patterns', 'resistance to refactoring', 'code coverage', 'observable behavior', 'humble object', 'integration test', 'test pyramid', 'output vs state vs communication test', 'property-based testing', 'characterization test', 'legacy code'. Not for HOW to run tests in the project (use the project's own test tooling and workflow for that)."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,7 +10,7 @@ metadata:
 
 # TDD Knowledge Base
 
-Distilled from cover-to-cover reading of source books. Reference files in `reference/` have author-attributed sections with synthesis where authors overlap.
+The Beck and Khorikov files are distilled from cover-to-cover reading of those books. Two files are not: [property-based-testing.md](reference/property-based-testing.md) and [characterization-testing.md](reference/characterization-testing.md) are built from web sources, listed separately under [Sources](#sources). Reference files in `reference/` have author-attributed sections with synthesis where authors overlap.
 
 ## Routing Table
 
@@ -30,6 +30,8 @@ Distilled from cover-to-cover reading of source books. Reference files in `refer
 | Anti-patterns: private methods, exposing state, domain knowledge, code pollution, DateTime.Now, time | [anti-patterns-khorikov.md](reference/anti-patterns-khorikov.md) |
 | Beck's Money example, Value Object, Expression metaphor, Factory Method | [money-example-beck.md](reference/money-example-beck.md) |
 | Beck's xUnit example, bootstrap, Template Method, Composite, Collecting Parameter | [xunit-example-beck.md](reference/xunit-example-beck.md) |
+| Property-based testing: properties as specification, shrinking, property patterns, properties beside example tests, agent-written properties | [property-based-testing.md](reference/property-based-testing.md) (web-sourced) |
+| Legacy code, characterization tests, golden master, approval and snapshot tests, sabotage check, pins prove sameness not correctness | [characterization-testing.md](reference/characterization-testing.md) (web-sourced) |
 
 Load the most relevant file first. Load a second only if the first doesn't fully answer.
 
@@ -54,6 +56,20 @@ Load the most relevant file first. Load a second only if the first doesn't fully
 - **Khorikov**: Vladimir Khorikov, *Unit Testing: Principles, Practices, and Patterns* (2020)
 - **Ousterhout** (secondary, cross-referenced only): John Ousterhout, *A Philosophy of Software Design*, cited in one editorial-synthesis section of [test-doubles.md](reference/test-doubles.md)
 - **Mutation-testing literature** (secondary, cross-referenced only): the primary sources on mutation testing, cited in one clearly-labeled editorial note in each of [code-coverage-khorikov.md](reference/code-coverage-khorikov.md) and [four-pillars-khorikov.md](reference/four-pillars-khorikov.md), where a claim of Khorikov's has a measurable partial exception he does not cover. Both notes are marked as outside his text and leave his claim standing. The material itself is owned by `/mutation-testing:principles` when the `mutation-testing` plugin is enabled; without it, each note carries its own one-line fallback.
+
+### Web-sourced references (not book readings)
+
+These two files were built from web pages, papers' abstract and HTML pages, and tool docs read on
+2026-10-06, not from reading a book. Each file lists its sources with read depth and a recheck
+trigger; this list is rechecked when either file's trigger fires.
+
+- [property-based-testing.md](reference/property-based-testing.md): Hypothesis, fast-check and
+  other property tools' docs; Maaz et al. (arXiv 2510.09907, NeurIPS 2025 workshop paper); Vikram
+  et al. (arXiv 2307.04346); PROBE (ACL 2026 Findings). No property-based testing book was read.
+- [characterization-testing.md](reference/characterization-testing.md): Michael Feathers' 2016
+  "Characterization Testing" page (his book *Working Effectively with Legacy Code* was not read);
+  Mark Seemann's 2025 "Empirical characterization testing" post; ApprovalTests, Verify and Jest
+  docs.
 
 ## Naming convention
 

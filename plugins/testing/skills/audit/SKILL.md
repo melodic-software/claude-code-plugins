@@ -1,5 +1,5 @@
 ---
-description: "Audit the test suite for tests that cannot fail or check little. A deterministic script detects assertion-free bodies, self-identical or recomputed expectations, mock-only oracles, assertions that never run or sit only in a branch, weak or snapshot-only oracles, and constant or source-text change detectors across JS/TS, Python, C#, Bash, PowerShell and Go, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists findings for the review fix pass. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a Playwright suite that cannot fail found (retries with no `failOnFlakyTests`, an unguarded `test.only`), a CI gate on can't-fail tests, or findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (also gate mock-only-oracle and the Playwright config findings), `--persist-findings`. Read-only on the suite: findings propose repairs; nothing edits or deletes a test."
+description: "Audit the test suite for tests that cannot fail or check little. A deterministic script detects assertion-free bodies, self-identical or recomputed expectations, mock-only oracles, assertions that never run or sit only in a branch, weak or snapshot-only oracles, and constant or source-text change detectors across JS/TS, Python, C#, Bash, PowerShell and Go, reports with a coverage denominator, gates fail-closed via --check, and opt-in persists findings for the review fix pass. Use when: the user wants tests that cannot fail found (tautological, vacuous, or assertion-free tests, or tests that pass but prove nothing), a runner config that lets a retry pass a failing test (Playwright, pytest, Vitest, Jest) or an unguarded `test.only`, a CI gate on can't-fail tests, or findings persisted for the fix pass. Flags: `--check` (exit-code gate), `--strict` (also gate mock-only-oracle and the runner config findings), `--persist-findings`. Read-only: findings propose repairs; nothing edits or deletes a test."
 argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>]"
 user-invocable: true
 disable-model-invocation: false
@@ -14,9 +14,11 @@ A test that cannot fail is a false coverage claim: it reports green whatever the
 skill runs a **deterministic script detector** over the suite. It does not execute tests or judge membership, but reports every test the rules catch, with a coverage denominator so "no findings"
 is never confused with "scanned nothing".
 
-A second layer reads the **Playwright runner config**: a suite whose runner is configured to swallow
+A second layer reads the **runner config**: a suite whose runner is configured to swallow
 a failure cannot fail whatever its test bodies assert, so the same detector reports that shape under
-the same rule ids, gate, and findings file, with its own denominator of configs enumerated.
+the same rule ids, gate, and findings file, with its own denominator of configs enumerated. It reads
+the Playwright config, and for `rule-flaky-passes-suite` alone, the retry settings of pytest
+(pytest-rerunfailures), Vitest and Jest.
 
 Boundaries, each an incumbent this skill deliberately does not duplicate:
 
@@ -41,13 +43,13 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-zero-assertion` | a runnable test body with no assertion token | IMPORTANT | `high` | yes | yes |
 | `testing/audit/rule-recomputed-expectation` | an equality whose actual and expected sides are the identical expression; a deliberate determinism check `f(x) == f(x)` still fires and is marked `cant-fail-ok: determinism contract` | IMPORTANT | `high` | yes | yes |
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion | IMPORTANT | omitted | no | yes |
-| `testing/audit/rule-flaky-passes-suite` | a Playwright config with retries and `failOnFlakyTests` absent or literal `false`, so a test passing on a retry leaves the run green | IMPORTANT | omitted | no | yes |
+| `testing/audit/rule-flaky-passes-suite` | a runner set to retry a failing test with nothing that fails the run on a retry-earned pass, so a test passing on a retry leaves the run green: a Playwright config with retries and `failOnFlakyTests` absent or literal `false`; a pytest config with `--reruns`, `--force-reruns` or `reruns` and no `--fail-on-flaky` in `addopts`; a Vitest config with `retry` (or `retry.count`) under a `test` key; a Jest `jest.retryTimes(n)` call. A literal `0` never fires | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-only-not-forbidden` | a Playwright config with `forbidOnly` absent or literal `false`, so a committed `test.only` shrinks the suite to one test | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`), a bats `run` nothing checks | IMPORTANT | `high` | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-constant-restatement` | a constant, or a literal the test bound, compared to a literal with no call before it | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-source-text-read` | a tracked non-test source file read by a static path and searched as text | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
-| `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); property-test files and Playwright are exempt | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); a property test (a marker such as `fc.assert(`, `@given(` or `Prop.ForAll` in its body or its decorator or attribute stack) and Playwright are exempt, while an example test in the same file is still judged | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-snapshot-only` | every assertion is a snapshot call ("snapshot is the only oracle: review it as code"); an image comparison never counts | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-weak-oracle` | every assertion is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`) | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-throw-only-oracle` | every assertion checks only that a value the test built with `new` exists or has its own type (`Assert.NotNull(widget)`, `Assert.IsType<Widget>(widget)`), so only a throwing constructor fails the test; C# only | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
@@ -158,9 +160,11 @@ the file suppresses every config finding. Exemptions are counted in the coverage
   yes per item, deletes tests behind a mutation gate.
 - **Execute the suite**. `/toolchain:check` runs tests; `mutation-testing:audit` executes mutants.
 - **Judge skips in bash `*.test.sh`**, the discriminating-skip repo gate owns that shape.
-- **Read any runner config but Playwright's JS/TS one.** Vitest's `retry` and `allowOnly`, Jest, and
-  the other runners' equivalents are out of scope v1, as are Playwright's C# and Python bindings,
-  which configure the runner in their own surfaces rather than in a config object read here.
+- **Read runner config beyond Playwright's JS/TS config and three retry settings.** pytest's
+  reruns, Vitest's `retry` and Jest's `retryTimes` are read for `rule-flaky-passes-suite`; Vitest's
+  `allowOnly`, the other runners' equivalents, and Playwright's C# and Python bindings, which
+  configure the runner in their own surfaces rather than in a config object read here, are out of
+  scope.
 - **Write anything on bare invocation**. Persisting is only ever behind `--persist-findings`.
 
 ## Next
@@ -230,3 +234,31 @@ the file suppresses every config finding. Exemptions are counted in the coverage
   mirrors covers 1.45 and later (basis: the TestConfig page's "Added in: v1.52" and the
   1.52 release notes; as-of v1.63.0, read 2026-09-11; recheck on a release note renaming or
   deprecating it). The detector does not read the installed version, so the Action names the floor.
+- **`retryStrategy` does not change the flaky rule.** Playwright 1.62's TestConfig `retryStrategy`
+  moves when and where a retry runs, not whether a retry-earned pass leaves the run green, so the
+  rule reads `retries` and `failOnFlakyTests` the same under any value and does not read the key
+  (basis: <https://playwright.dev/docs/api/class-testconfig#test-config-retry-strategy>; as-of
+  2026-10-06; recheck when that entry adds a value that fails a run on a flaky test).
+- **The other runners' retry settings have paths no file read here shows.** pytest takes
+  `--reruns` and `--fail-on-flaky` on the CI command line and `@pytest.mark.flaky(reruns=n)` per
+  test, Vitest takes `--retry` and a per-test or per-suite `retry` option, and a Vitest config that
+  merges a `vite.config` keeps that file's `retry` unread (basis: the pytest-rerunfailures README
+  "Priority" section, <https://github.com/pytest-dev/pytest-rerunfailures>, and
+  <https://vitest.dev/config/retry>; as-of 2026-10-06; recheck when either adds a config form).
+  A `--lines` run, the edit hook's, reads none of them. An unflagged suite is not proof of no
+  retries.
+- **Vitest and Jest findings have no guard to set.** Neither runner documents an option that fails
+  a run on a retry-earned pass, so any retry count above zero fires and the Action is the count
+  itself (basis: <https://vitest.dev/config/retry> and
+  <https://jestjs.io/docs/jest-object#jestretrytimesnumretries-options>; as-of 2026-10-06; recheck
+  when either documents such an option). pytest's `--fail-on-flaky` needs pytest-rerunfailures
+  15.0 or later (basis: its CHANGES.rst; as-of 2026-10-06; recheck on a release renaming it or
+  adding an ini form), and the detector does not read the installed version.
+- **A property marker exempts only its own test.** `rule-recomputed-derived` skips a test whose
+  body, or whose decorator or attribute stack, holds a marker from the adapter's
+  `property_markers`; an example test beside it is still judged. A marker on an ordinary line
+  outside a test (a generator in a field, a property built in a helper) exempts nothing, so a
+  test that runs such a property through an unlisted call is judged as an example. The blind spot
+  that stays: a property that restates the implementation (`add(a, b) === a + b` inside
+  `fc.property`) is exempt, since the text cannot tell it from an invariant; the test-judge hook's
+  restated-expectation check is what can read it.

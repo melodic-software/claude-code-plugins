@@ -46,9 +46,10 @@ ignored if the locally registered marketplace came from a different source. That
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
 Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
 
-Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
-external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
-the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
+with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
+harness-maintenance, and external-service plugins carry it, and a few general-purpose ones in
+those categories do not. A plugin another enabled plugin depends on starts enabled
 regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way
@@ -167,7 +168,7 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.36.0 (`fb56986808750d6856c27de78df15e150027b8dc`), the pin in
+- **As of:** `ci-workflows` v0.38.2 (`cf316d12b4a14fbdb96a339b7ad00ce935a8cad4`), the pin in
   `.github/workflows/pr-require-checks.yml`.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
