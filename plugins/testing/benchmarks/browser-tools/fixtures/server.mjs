@@ -142,7 +142,10 @@ async function handle(req, res, origin) {
   const file = normalize(join(pagesDir, rel));
   if (!file.startsWith(pagesDir)) return send(res, 403, "forbidden");
   try {
-    const content = await readFile(file);
+    let content = await readFile(file);
+    // Fixture comments document the trap for maintainers; never serve them, or an agent that reads
+    // the page source is told the answer.
+    if (extname(file) === ".html") content = content.toString("utf8").replace(/<!--[\s\S]*?-->/g, "");
     return send(res, 200, content, { "content-type": types[extname(file)] ?? "application/octet-stream" });
   } catch {
     return send(res, 404, "not found");
