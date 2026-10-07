@@ -11,19 +11,21 @@ function textOf(content) {
   if (Array.isArray(content)) return content.map((c) => (c.type === "text" ? c.text : typeof c.content === "string" ? c.content : "")).join("\n");
   return "";
 }
-// The command each simple command in a Bash string runs, by basename. A quoted single word is
-// unquoted (so "agent-browser" status still counts); other quoted text and comments are dropped
-// (except a double-quoted command substitution), so a mention in an echo or a grep pattern is not
-// a call. Env-var prefixes and the wrappers that run their argument (env, command, exec, npx,
-// which, sudo, time, nohup) are skipped.
+// The command each simple command in a Bash string runs, by basename. Quotes and comments are
+// read in one left-to-right pass, so a quoted `#` never starts a comment. A quoted plain word is
+// unquoted (so "agent-browser" status still counts); any other quoted text becomes a placeholder
+// word (except a double-quoted command substitution, kept as is), so a mention in an echo or a
+// grep pattern is not a call. Env-var prefixes and the wrappers that run their argument (env,
+// command, exec, npx, which, sudo, time, nohup) are skipped.
 const WRAPPERS = new Set(["env", "command", "exec", "npx", "which", "sudo", "time", "nohup", "builtin"]);
 export function commandWords(cmd) {
-  const unquote = (q) => {
-    if (q.startsWith('"') && /\$\(|`/.test(q)) return q;
-    const inner = q.slice(1, -1);
-    return /\s/.test(inner) ? " _ " : inner;
+  const scan = (m, lead) => {
+    if (lead !== undefined) return `${lead} `; // a comment: drop to end of line
+    if (m.startsWith('"') && /\$\(|`/.test(m)) return m;
+    const inner = m.slice(1, -1);
+    return /^[\w./-]+$/.test(inner) ? inner : " _ ";
   };
-  const bare = cmd.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, unquote).replace(/(^|\s)#[^\n]*/g, " ");
+  const bare = cmd.replace(/'[^']*'|"(?:\\.|[^"\\])*"|(^|\s)#[^\n]*/g, scan);
   return bare
     .split(/&&|\|\||[;|&\n()`]|\$\(/)
     .map((seg) => seg.trim().split(/\s+/).filter(Boolean))
