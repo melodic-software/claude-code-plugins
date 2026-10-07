@@ -535,7 +535,7 @@ jobs:
       # It is a hash-pinned wheel from .github/requirements-ci.txt now, at the
       # same 1.27.0 the reusable takes by default at its pinned SHA, run with
       # the reusable's own persona so this is a like-for-like replacement and
-      # no security-lane behaviour changes inside a performance change. The
+      # no security-lane behavior changes inside a performance change. The
       # reusable ran in SARIF mode and gated on `fail-on-severity: low`; the
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
@@ -779,7 +779,9 @@ jobs:
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
           # histories, so a correction would change what the judge is measured on.
-          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
+          # Benchmark results are recorded run output (random run ids, truncated
+          # agent answers), so a correction would falsify the record.
+          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/testing/benchmarks/*/results/**
 
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
@@ -2574,7 +2576,7 @@ jobs:
       # (HEADGREEN would need every entry read), so failing on an earlier
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
-      # dequeue the pull request as well. An unparseable ref or an unreadable
+      # dequeue the pull request as well. An unparsable ref or an unreadable
       # label list fails closed. Pinned by scripts/ci-hold-merge-group.test.sh,
       # which runs this body.
       - name: Fail a queued pull request labeled do-not-merge

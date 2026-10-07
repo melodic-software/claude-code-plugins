@@ -148,8 +148,8 @@ export const tasks = [
   {
     id: "T02", title: "Outcome verification: validated form", fixture: "F16-disabled-until-valid.html",
     prompt: (c) => `Open ${url(c, "F16-disabled-until-valid.html")}. Submit the shipping form with email ship@example.test and postal code 90210, then verify the submission succeeded and report the confirmation code the page shows.`,
-    grade: (s, a) => ({ pass: s.records.submitted?.email === "ship@example.test" && s.records.submitted?.zip === "90210" && has(a, s.codes.sav), detail: s.records.submitted }),
-    reference: async (b, c) => { const p = b.page; await p.goto(url(c, "F16-disabled-until-valid.html")); await p.eval("const e=document.getElementById('email');e.value='ship@example.test';e.dispatchEvent(new Event('input'));const z=document.getElementById('zip');z.value='90210';z.dispatchEvent(new Event('blur'));document.getElementById('submit').click()"); await p.waitFor("document.getElementById('status').textContent.includes('SAV')"); return p.eval("document.getElementById('status').textContent"); },
+    grade: (s, a) => ({ pass: s.records.submitted?.email === "ship@example.test" && s.records.submitted?.zip === "90210" && has(a, s.codes.sav), detail: s.records.submitted }), // spellchecker:disable-line
+    reference: async (b, c) => { const p = b.page; await p.goto(url(c, "F16-disabled-until-valid.html")); await p.eval("const e=document.getElementById('email');e.value='ship@example.test';e.dispatchEvent(new Event('input'));const z=document.getElementById('zip');z.value='90210';z.dispatchEvent(new Event('blur'));document.getElementById('submit').click()"); await p.waitFor("document.getElementById('status').textContent.includes('SAV')"); return p.eval("document.getElementById('status').textContent"); }, // spellchecker:disable-line
   },
   {
     id: "T03", title: "PR evidence: element screenshot and video", fixture: "F15-toast.html",
@@ -168,7 +168,7 @@ export const tasks = [
     grade: (s, a) => {
       const found = {
         removeWrongItem: /remov/i.test(a) && /(wrong|different|another|next|other|below|instead)/i.test(a),
-        totalIgnoresQuantity: /total/i.test(a) && /(quantit|qty)/i.test(a),
+        totalIgnoresQuantity: /total/i.test(a) && /(quantit|qty)/i.test(a), // spellchecker:disable-line
         // The defect is that the discount never applies (the handler throws); either symptom counts.
         couponError: /coupon/i.test(a) && /(error|exception|fail|not appl|doesn|does nothing|no effect|no discount|no change|unchanged|stays)/i.test(a),
       };

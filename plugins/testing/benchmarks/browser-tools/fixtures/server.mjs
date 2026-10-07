@@ -66,7 +66,7 @@ async function handle(req, res, origin) {
       return send(res, 204, "");
     }
     case "/__state":
-      return send(res, 200, { ...r, codes: Object.fromEntries(["nav", "str", "pop", "dlx", "toa", "frm", "acc", "rpt", "dev", "sav", "won"].map((p) => [p, code(id, p)])) });
+      return send(res, 200, { ...r, codes: Object.fromEntries(["nav", "str", "pop", "dlx", "toa", "frm", "acc", "rpt", "dev", "sav", "won"].map((p) => [p, code(id, p)])) }); // spellchecker:disable-line
     case "/__reset":
       runs.delete(id);
       return send(res, 204, "");

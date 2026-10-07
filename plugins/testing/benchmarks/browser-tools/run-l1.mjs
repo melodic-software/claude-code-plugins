@@ -169,5 +169,5 @@ for (let rep = 1; rep <= repeat; rep++)
         }
 
 mkdirSync(dirname(outFile), { recursive: true });
-writeFileSync(outFile, JSON.stringify({ layer: "L1", at: new Date().toISOString(), base, chrome: chrome ?? "tool default", versions, delays, repeat, results }, null, 2));
+writeFileSync(outFile, JSON.stringify({ layer: "L1", at: new Date().toISOString(), base, chrome: chrome ?? "tool default", versions, delays, repeat, results }, null, 2) + "\n");
 console.log(`\nwrote ${outFile}`);

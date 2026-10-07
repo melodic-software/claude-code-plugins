@@ -34,7 +34,7 @@
   document.getElementById("f").addEventListener("submit", async (e) => {
     e.preventDefault();
     fx.record("submitted", { email: email.value, zip: zip.value });
-    document.getElementById("status").textContent = `Submitted. Confirmation ${await fx.code("sav")}`;
+    document.getElementById("status").textContent = `Submitted. Confirmation ${await fx.code("sav")}`; // spellchecker:disable-line
   });
 </script>
 </body>
