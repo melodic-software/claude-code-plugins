@@ -2472,6 +2472,7 @@ jobs:
   # pr-check-managed-files-hosted.yml runs the same guard advisory and
   # paths-filtered; this job is the gate.
   check-managed-files:
+    needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
