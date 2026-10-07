@@ -71,12 +71,13 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 - The spelling check reads grader regexes too: write `behav(?:ior|iour)`, not a truncated stem.
 - A `file_exists` grader with `exists: false` fails on every run in which the skill runs git,
   because the harness counts git's own index files as created. Use must-not-call `Write` and `Edit`
-  graders instead. Pointer: the `file_exists` grader section of
-  <https://code.claude.com/docs/en/plugin-evals>; basis: observed in kept traces at Claude Code
-  2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes how created
-  files are counted.
+  graders instead. Pointer: the `file_exists` row of the grader types table,
+  <https://code.claude.com/docs/en/plugin-evals#grader-types>; basis: observed in kept traces at
+  Claude Code 2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes
+  how created files are counted.
 - The eval sandbox denied a skill's read of its plugin config and its writes under `.claude/`, so
   a setup-style skill could not be measured there. Name such cases as unmeasured in the pull
-  request rather than reading their scores. Pointer: the sandbox and grant-tools sections of
-  <https://code.claude.com/docs/en/plugin-evals>; basis: observed at Claude Code 2.1.289. As of:
-  2026-10-07. Recheck trigger: either section or a release note changes eval sandbox permissions.
+  request rather than reading their scores. Pointer: the OS-level sandbox behavior at
+  <https://code.claude.com/docs/en/plugin-evals#grant-tools> and
+  <https://code.claude.com/docs/en/sandboxing>; basis: observed at Claude Code 2.1.289. As of:
+  2026-10-07. Recheck trigger: either page or a release note changes eval sandbox permissions.
