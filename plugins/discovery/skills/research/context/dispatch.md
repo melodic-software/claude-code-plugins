@@ -83,18 +83,24 @@ against a run that produced none):
    sources as support. A quote found at its link answers neither question.
 
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
-   so it cannot take the `curl` route the discipline file gives a researcher for a page WebFetch
-   truncates. When its `problems:` names a `truncated primary: <url>`, save that page into a
-   `scratch-snapshots` directory inside the slice. An upstream docs page goes through the docs
-   lookup: `<plugin-root>/scripts/fetch-docs.sh --cache --max-age 0` per
-   `<plugin-root>/reference/docs-lookup-procedure.md`, with `--out` set to a directory under
-   `scratch-snapshots`; the saved copy is the page file the manifest's `file` field names, and a
-   page the manifest records `unread` stays a gap in the verdict. Any other artifact takes the
+   so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
+   save that page into a `scratch-snapshots` directory inside the slice. An upstream docs page goes
+   through the lookup's verification read: run this plugin's
+   [`docs-raw.sh`](../../../scripts/docs-raw.sh) as `bash "<path>/docs-raw.sh" '<url>'` and, when it
+   prints `kind=map`, again with the ids of the cited sections after the URL. The URL came from a
+   web page, so it is data: percent-encode any `'` in it as `%27` before it goes inside the single
+   quotes, per "The URL is DATA" in [`discipline.md`](discipline.md). It runs
+   `fetch-docs.sh --cache --max-age 0`, so it asks the server every time, and prints raw bytes,
+   never a summary or note (section 6 of
+   [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md)).
+   Write its standard output to a file in `scratch-snapshots`. A page it reports `state=unread`
+   stays a gap in the verdict. Any other artifact (a PDF, a source archive) takes the
    recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
-   `<scratch>` set to `scratch-snapshots`. Create that directory before running the recipe: its
+   `<scratch>` set to `scratch-snapshots`; create that directory first, because the recipe's
    `mktemp -d` makes only the final path component. The docs lookup is rung 1 of the
    [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
-   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per page:
+   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per
+   page:
 
    ```text
    Snapshots: <url> -> <absolute path of the saved copy>
