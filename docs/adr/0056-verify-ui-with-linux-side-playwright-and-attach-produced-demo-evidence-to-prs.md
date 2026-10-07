@@ -172,6 +172,18 @@ produced video and screenshots on the PR from the user's own gh login.
   unsupported there, and only the user's live test can show the reported bridge works.
 - **Playwright MCP as the default.** Rejected for short self-checks: all four practitioner sources
   favor the CLI for terminal agents. MCP keeps the long-running row.
+- **vercel-labs/agent-browser as the default self-check and logged-in-session tool.** Not adopted
+  after a Linux headless benchmark on 2026-10-07 (agent-browser 0.38.2 against `@playwright/cli`
+  0.1.22, one shared Chrome 155): 12 agent tasks drawn from the rows above, 5 reps per tool, and
+  every one of the 120 trials passed, so the pre-registered reliability rule found no winner. The
+  differences were secondary. agent-browser agents used less context per task but more commands and
+  more failed commands, and its `console` and `errors` commands never surfaced an uncaught page
+  exception that playwright-cli reported in every rep. The suite, rubric and dated results are in
+  [`plugins/testing/benchmarks/browser-tools/`](../../plugins/testing/benchmarks/browser-tools/README.md).
+  The WSL2 rows stay unmeasured: driving the user's Windows Chrome through agent-browser's extension
+  is tracked in
+  [melodic-software/claude-code-plugins#6475](https://github.com/melodic-software/claude-code-plugins/issues/6475).
+  Re-run the suite when either tool's pinned version moves.
 - **Mirrored networking, or an SSH tunnel, to drive Windows Chrome over CDP.** Rejected for now:
   NAT stays for Docker Desktop, mirrored mode has an open WSL issue reaching the Windows host over
   TCP ([microsoft/WSL#40343](https://github.com/microsoft/WSL/issues/40343)), and the tunnel is
