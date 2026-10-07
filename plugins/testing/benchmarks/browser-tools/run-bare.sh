@@ -24,8 +24,9 @@ trial() { # task tool rep [arm]
   prompt="$(node -e 'console.log(JSON.parse(process.argv[1]).promptFile)' "$info")"
   local start end
   start="$(date +%s%3N)"
-  (cd "$dir" && claude -p --bare --output-format stream-json --verbose \
-      --permission-mode acceptEdits --allowedTools "Bash" "${extra[@]}" < "$prompt" > "$dir/transcript.jsonl") || true
+  local args=(-p --bare --output-format stream-json --verbose
+    --permission-mode acceptEdits --allowedTools "Bash" "${extra[@]}")
+  (cd "$dir" && claude "${args[@]}" <"$prompt" >"$dir/transcript.jsonl") || true # prereq-ok: maintainer benchmark harness, not run by the plugin on a user's machine
   end="$(date +%s%3N)"
   node "$here/run-l2.mjs" grade --run "$run" --transcript "$dir/transcript.jsonl" \
     --usage "{\"wallMs\":$((end - start)),\"driver\":\"claude -p --bare\"}"
