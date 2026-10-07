@@ -21,6 +21,14 @@ lib/spawn_noise.py plugins/harness-ops/lib/spawn_noise.py
 lib/spawn_noise.py plugins/performance/lib/spawn_noise.py
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh
+lib/docs-cache.sh plugins/harness-config/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/harness-ops/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/discovery/scripts/docs-cache.sh
+lib/html2md.py plugins/harness-config/scripts/html2md.py
+lib/html2md.py plugins/harness-ops/scripts/html2md.py
+lib/html2md.py plugins/discovery/scripts/html2md.py
+lib/docs-lookup-procedure.md plugins/discovery/reference/docs-lookup-procedure.md
 lib/managed-scope.sh plugins/harness-config/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-memory/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-ops/lib/managed-scope.sh
@@ -115,6 +123,9 @@ lib/prerequisites.ps1 plugins/context7/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/desktop-notification/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/desktop-notification/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/desktop-notification/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/discovery/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/discovery/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/discovery/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/disk-hygiene/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/disk-hygiene/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/disk-hygiene/lib/prerequisites.ps1
