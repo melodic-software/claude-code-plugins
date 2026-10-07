@@ -86,8 +86,8 @@ available in the session at all and which files the instruction-files mode loads
 than from a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
 `claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
 `AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
-though the default mode would call it displaced. That option is a user or managed
-setting (`--settings` is unverified, see the liveness reference), so resolve the **effective** value across those scopes rather than one scope's copy, which
+though the default mode would call it displaced. That option is a user, `--settings` or managed
+setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
 answers the wrong question whichever way the override runs.
 **The mode is the second question, not the only one, and either can rule the file out.** Availability
 comes first and is not a mode question: a session where support is unavailable, for a reason that

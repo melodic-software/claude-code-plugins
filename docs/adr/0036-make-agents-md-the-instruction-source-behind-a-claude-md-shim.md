@@ -54,7 +54,7 @@ Three alternatives were rejected, each with the fact that would flip it:
 | Rejected | Why | What would flip it |
 |---|---|---|
 | Native only: delete `CLAUDE.md` now | Rejected: it held only while direct reading was conditional (see "The remote flag, and how its code default is read" in `sources.md` and "Why the shim stays" in the migrate skill's `SKILL.md`). Any `CLAUDE.md` above the working directory still suppresses the read | All four graded conditions report `[MET]` |
-| The `claude-md-and-agents-md` both-files setting | A user or managed setting (`--settings` is unverified since the entry stopped naming it, as of 2026-10-07), ignored in project and local settings, so no repository can ship it ("Why the shim stays"); never adopted or run as a convention | The setting becomes readable from project or local settings |
+| The `claude-md-and-agents-md` both-files setting | A user, `--settings` or managed setting, ignored in project and local settings, so no repository can ship it ("Why the shim stays"); never adopted or run as a convention | The setting becomes readable from project or local settings |
 | A common-ancestor `AGENTS.md` in the directory that holds every clone | No repository versions it, and it misses every worktree checked out outside that tree | Claude Code reads a versioned org-level tier above the repository |
 
 ## Consequences

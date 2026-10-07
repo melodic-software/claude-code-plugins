@@ -206,7 +206,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies: the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user or managed settings; project/local entries are ignored (`--settings` is unverified since 2026-10-07, hook-config-delivery fact 5). Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
@@ -234,10 +234,8 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
    storage, never `settings.json`.
    Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
-   user settings or managed settings only; project and local entries are ignored since
-   Claude Code 2.1.207. `--settings` is unverified since the entry stopped naming it (as of
-   2026-10-07; recheck when the [pluginConfigs entry](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   names `--settings` again or a probe shows a `--settings` value read or ignored). Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
+   user settings, `--settings`, or managed settings only; project and local entries are ignored since
+   Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
    `file` type is a UI hint, not a validator: a `--config` value is stored verbatim with no existence
    check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
@@ -913,8 +911,8 @@ interpolation, or what a plugin may bundle.
    input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
    `~/.claude/.credentials.json`, and **not** `settings.json`.
    Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable, so
-   never put a secret there. Claude Code reads this key from user settings and managed settings,
-   not project or local settings (`--settings` is unverified since 2026-10-07, hook-config-delivery fact 5). Endpoints and toggles are fine as non-sensitive. Every option is documented.
+   never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
+   not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation: no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.

@@ -126,7 +126,7 @@ switch and data-root authority; and the skill-scoped **belt** inside the `clean`
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only
-from user/managed scope since Claude Code 2.1.207, so a repo cannot forge it), register
+from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
 unconditionally, and fail closed to enabled.
 
 Hook lifetime: the hooks page says Claude Code registers a skill's frontmatter hooks when the skill is
@@ -429,15 +429,16 @@ measurements below carry the conditions they were taken under.
   `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
   PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
-  is active (the always-on gate defers on non-engine commands). The read is honored only from user and managed
-  scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
+  is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
+  `--settings` scope (Claude Code 2.1.207+; [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs),
+  [`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), as of 2026-10-07;
+  recheck when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs`
+  scope changes), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
   can enforce audit-only (the sibling `managed-settings.d/` drop-in directory is merged over it). An absent
-  or unreadable value fails closed to enabled. A value supplied only via a session `--settings` file is not
-  read by a hook, and whether `pluginConfigs` honors that flag is unverified since the entry stopped naming
-  it (as of 2026-10-07; recheck when the [pluginConfigs entry](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-  names `--settings` again or a probe shows a `--settings` value read or ignored). The skill's own kill-switch probe + skill-content value remain a
+  or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
+  via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
   defense-in-depth honoring layer over the guard.
 - **Trust-surface record:** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added

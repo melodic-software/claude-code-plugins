@@ -7,12 +7,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
-## [0.9.10] - 2026-10-07
-
-### Changed
-
-- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The plugin-options README text names user and managed settings as the `pluginConfigs` sources, matching the settings reference as of 2026-10-07; it no longer lists `--settings`. Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
-
 ## [0.9.9] - 2026-10-07
 
 ### Changed

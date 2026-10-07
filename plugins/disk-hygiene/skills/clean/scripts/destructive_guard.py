@@ -1280,16 +1280,16 @@ def resolve_disk_hygiene_enabled() -> bool:
     prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
     out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
     reader it shares with the report-only probe) — never the process environment.
-    Since Claude Code 2.1.207 that key is honored only from user and managed
-    scope, never a project or local ``settings.json``
-    (https://code.claude.com/docs/en/settings-reference#pluginconfigs, as of
-    2026-10-07), so a hostile repo cannot flip the
+    Since Claude Code 2.1.207 that key is honored only from user, managed, and
+    ``--settings`` scope, never a project or local ``settings.json``
+    (https://code.claude.com/docs/en/settings-reference#pluginconfigs and
+    https://code.claude.com/docs/en/settings#change-a-setting-for-one-session,
+    as of 2026-10-07), so a hostile repo cannot flip the
     switch. Managed settings are the highest-precedence, non-overridable scope, so
     a value configured there wins over the user file — that is how an organization
     enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
-    cannot observe, so it is not read here; whether pluginConfigs honors it is
-    unverified since the settings reference stopped naming it (as of 2026-10-07;
-    see ``killswitch_config.managed_settings_path`` for the full residual list). The
+    cannot observe, the one honored source not read here (see
+    ``killswitch_config.managed_settings_path`` for the full residual list). The
     environment is rejected on purpose: a repo ``settings.json`` ``env`` block
     reaches hook subprocesses and carries no provenance a hook could check, so an
     env-borne toggle (or an env-borne user-settings path) would reopen the hole

@@ -200,10 +200,7 @@ bind in this plugin's `userConfig` rather than either governance surface: the ve
 pool, and whether the advisory visual narration lane runs. Neither counts anything, the pool
 contributes to no floor, and the narration lane has no security-binding cell at all, so neither can
 weaken a floor, which is what lets them sit on an operator surface. Plugin options resolve from
-user and managed settings only (`--settings` is unverified since the
-[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry stopped
-naming it, as of 2026-10-07; recheck when the entry names it again or a probe shows a `--settings`
-value read or ignored); a watched repository's own `.claude/settings.json` is
+user, `--settings`, and managed settings only; a watched repository's own `.claude/settings.json` is
 not read for them, so a repo cannot dial its own verification. The slice proposes neither as a
 binding field.
 

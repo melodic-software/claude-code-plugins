@@ -853,9 +853,7 @@ mod's writes, and a machine-wide write floor bounds them: a reading whose whole-
 have not moved is rewritten no sooner than the floor interval after the file's last write, whichever
 session on the machine wrote it, while a whole-point move writes at once, so a lane's own turn that
 moves a window can wake it once.
-A lane may set the guard's report mode with `--settings`; this is optional. `--settings` is
-unverified for plugin option values since the pluginConfigs entry stopped naming it (as of
-2026-10-07; hook-config-delivery fact 5).
+A lane may set the guard's report mode with `--settings`; this is optional.
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that

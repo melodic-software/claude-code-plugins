@@ -348,12 +348,9 @@ This skill reads both surfaces, and they do not agree on which scopes count. Get
 is silent in both directions, so the asymmetry is stated here once and pointed at from everywhere
 else.
 
-**`pluginConfigs`: two sources only.** This skill reads `pluginConfigs` from user settings
-(`~/.claude/settings.json`) and managed settings, with managed over user
-([`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) lists the
-scope as "User or managed"). `--settings` is unverified since that entry stopped naming it (as of
-2026-10-07; recheck when the entry names `--settings` again or a probe shows a `--settings` value
-read or ignored). The skill ignores entries in a project's `.claude/settings.json` or
+**`pluginConfigs`: three sources only.** This skill reads `pluginConfigs` from user settings
+(`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
+managed → `--settings` → user, and ignores entries in a project's `.claude/settings.json` or
 `.claude/settings.local.json` (Claude Code ignores them from v2.1.207, since a cloned repository
 could otherwise supply values). In every one of those sources the value nests under `options`:
 `{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
@@ -362,10 +359,11 @@ under the plugin id is silently ignored and the render shows the literal placeho
 
 - **Pointer**: for where `pluginConfigs` values are read, see
   [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), which [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-  links.
-- **As of**: 2026-09-05
-- **Recheck trigger**: the honored source set changes, or project or local settings become a
-  source again.
+  links; for `--settings` as a source, see
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session).
+- **As of**: 2026-10-07
+- **Recheck trigger**: the settings guide stops letting `--settings` set user-scope keys, the
+  `pluginConfigs` scope changes, or project or local settings become a source again.
 
 **`enabledPlugins`: user, project, and local all count**, merged local > project > user. That is
 why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
@@ -421,12 +419,10 @@ default substitutes into skill content, so the two do not conflict.
 **Probe recipe.** The `pluginConfigs` payload must nest the key under `options`, in the shape
 "`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules" above gives; a key placed directly
 under the plugin id is ignored without warning, and a control set that way renders literal, which
-looks exactly like a substitution failure. With the right shape, `--settings` substituted the same
+looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
 as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings;
-recheck when a release note changes `userConfig` substitution), so either source was a valid
-positive control. `--settings` is unverified since the `pluginConfigs` entry stopped naming it (as
-of 2026-10-07; recheck when the entry names `--settings` again or a probe shows a `--settings`
-value read or ignored), so prefer the user-settings control. `claude plugin install <id> --config <key>=<value>`
+recheck when a release note changes `userConfig` substitution), so either source is a valid
+positive control. `claude plugin install <id> --config <key>=<value>`
 writes the user-settings entry in that shape, which is the cheapest way to set one. The placeholder
 itself is written only in `SKILL.md`, never in a spoke, because substitution happens in what Claude
 Code renders and a spoke read returns plain bytes; see [gotchas.md](gotchas.md) "A spoke file never

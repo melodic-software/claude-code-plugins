@@ -9,8 +9,8 @@ This ruling covers 17 of source-control's `userConfig` keys, used by `/source-co
 and `/source-control:pull-request`: who the operator is, which owners the loop watches, which bots
 it trusts, and how a repository merges and reviews. The plugin's other `userConfig` keys (engine
 thresholds, tiers, caps) are outside it. `userConfig` values live in `pluginConfigs`, which
-Claude Code reads from user settings and managed settings only (the `--settings` flag is unverified
-since the entry stopped naming it, as of 2026-10-07); a project's `.claude/settings.json` is ignored
+Claude Code reads from user settings, the `--settings` flag, and managed settings only; a project's
+`.claude/settings.json` is ignored
 ([hook-config-delivery](../conventions/hook-config-delivery/README.md), fact 5). A sandbox probe on
 Claude Code 2.1.283 (2026-09-27) also showed that `claude plugin install --config` writes the value
 to user settings whatever `-s` says (fact 9). So each of these keys has one value per machine.
@@ -75,11 +75,9 @@ verdict HYBRID, which this record adopts.
 - An operator with several identity domains on one machine (for example a work account and a
   personal account) gets one value per machine for each key in decision 1, and for the ten keys in
   decision 3 while their deprecated `userConfig` fallback is set. Such an operator either leaves
-  those keys unset or launches the lane with a per-domain `--settings` file. `--settings` is
-  unverified as a `pluginConfigs` read source since the entry stopped naming it
-  (hook-config-delivery fact 5; as of 2026-10-07; recheck when the entry names `--settings` again
-  or a probe shows a `--settings` value read or ignored); how its `pluginConfigs` merges with the
-  user settings value is unverified.
+  those keys unset or launches the lane with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
+  (hook-config-delivery fact 5; as of 2026-10-07); how its `pluginConfigs` merges with the user
+  settings value is unverified.
 - Repositories can set `branch_issue_pattern` for themselves today; the `userConfig` twin keeps
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain

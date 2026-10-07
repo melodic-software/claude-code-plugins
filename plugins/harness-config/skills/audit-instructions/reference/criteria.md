@@ -955,9 +955,9 @@ skill bodies.
   the documented reasons, does not load
   the file even with no `CLAUDE.md` in sight, while one under the `claude-md-and-agents-md` setting
   loads it even **with** a `CLAUDE.md` beside it, which makes a read of it redundant where the
-  displacement test alone would have exempted it. That setting is a user or managed
-  one (`--settings` is unverified, see the liveness reference), so the value to resolve is the
-  **effective** one across those scopes, never a single scope's copy.
+  displacement test alone would have exempted it. That setting is a user, `--settings` or managed
+  one, so the value to resolve is the **effective** one across those scopes, never a single
+  scope's copy.
   There, in the first case, an instruction to read it is the only thing that puts it in context,
   and flagging the read as redundant would propose deleting the load. Resolve the availability
   **and mode** conditions from the dated records in

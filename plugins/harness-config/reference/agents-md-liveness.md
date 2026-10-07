@@ -78,21 +78,22 @@ displacement is a condition of the default value alone.
 
 **Where the value lives**, which is what a check reads rather than the `/config` panel: our checks
 read the `instructionFiles` option under the `agents-md@builtin` key of `pluginConfigs`, from user
-settings (`~/.claude/settings.json`) or managed settings, and ignore the key in project and local
-settings files. A `--settings` file is unverified since the
-[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry stopped
-naming the flag (as of 2026-10-07; recheck when the entry names `--settings` again or a probe shows
-a `--settings` value read or ignored).
+settings (`~/.claude/settings.json`), a `--settings` file or managed settings, and ignore the key
+in project and local settings files.
 
 - **Pointer**: for where the setting is honored and its JSON shape, see
-  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
-- **As of**: 2026-09-21
-- **Recheck trigger**: the option key or plugin id changes, the honored scope set changes, or the
-  setting becomes readable from project or local settings.
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>; for the `--settings`
+  and `pluginConfigs` scopes, see
+  <https://code.claude.com/docs/en/settings#change-a-setting-for-one-session> and
+  <https://code.claude.com/docs/en/settings-reference#pluginconfigs>.
+- **As of**: 2026-10-07
+- **Recheck trigger**: the option key or plugin id changes, the settings guide stops letting
+  `--settings` set user-scope keys, the `pluginConfigs` scope changes, or the setting becomes
+  readable from project or local settings.
 
-Because the honored scopes are user and managed, resolve the **effective** value across them.
-Reading one scope answers the wrong question in both directions: a user scope naming the default
-can be overridden by a managed one, and the reverse.
+Because the honored scopes are user, `--settings` and managed, resolve the **effective** value
+across them. Reading one scope answers the wrong question in both directions: a user scope naming
+the default can be overridden by a managed one, and the reverse.
 
 **The legacy key still counts.** Read `projectInstructions` under the same `agents-md@builtin`
 entry as well as `instructionFiles`:

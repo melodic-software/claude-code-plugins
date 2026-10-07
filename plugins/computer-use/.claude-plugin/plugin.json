@@ -1,6 +1,6 @@
 {
   "name": "computer-use",
-  "version": "0.1.10",
+  "version": "0.1.9",
   "description": "Operating knowledge for Claude Code's built-in computer-use MCP server (desktop screen control). /computer-use:diagnose resolves a symptom to a cause instead of retrying: the fixed screenshot pixel budget and why zoom recovers detail, how to read capture and input failures, and per-OS quirks that make synthesized keys or menus behave unlike a human's. /computer-use:setup verifies prerequisites and reports environment settings that end a session mid-run.",
   "author": {
     "name": "Melodic Software",

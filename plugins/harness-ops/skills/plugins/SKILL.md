@@ -306,10 +306,9 @@ no human is present to receive the count.
 
 **Configured value: `${user_config.install_new}`**. We treat this line as rendering the configured
 word into the skill content before the model sees it, but **only when the key is explicitly set**
-in one of the two sources this skill reads `pluginConfigs` from: user settings
-(`~/.claude/settings.json`) or managed settings, with managed over user (`--settings` is
-unverified since the entry stopped naming it, as of 2026-10-07; recheck when the entry names
-`--settings` again or a probe shows a `--settings` value read or ignored). A project's `.claude/settings.json` or `.claude/settings.local.json` entry does
+in one of the three sources this skill reads `pluginConfigs` from: user settings
+(`~/.claude/settings.json`), `--settings`, or managed settings, with precedence managed →
+`--settings` → user. A project's `.claude/settings.json` or `.claude/settings.local.json` entry does
 nothing at all, and declaring the option in `plugin.json` alone does not make its value readable
 here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
 pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and

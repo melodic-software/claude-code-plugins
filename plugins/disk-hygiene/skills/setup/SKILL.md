@@ -167,9 +167,8 @@ fails closed like every other guard-relevant unknown in this plugin.
    and that default `true` is being assumed, an assumption, never the configured value. The
    body token `${user_config.disk_hygiene_enabled}` is at most a cross-check: if it expanded
    to a boolean that contradicts the probe, report the discrepancy instead of silently
-   preferring either channel (the probe sees user settings only; managed settings can carry
-   a value the probe cannot see, and so might a `--settings` flag, which is unverified since
-   the pluginConfigs entry stopped naming it as of 2026-10-07).
+   preferring either channel (the probe sees user settings only; managed settings or a
+   `--settings` flag can carry a value the probe cannot see).
 6. **Plugin registration**. INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 

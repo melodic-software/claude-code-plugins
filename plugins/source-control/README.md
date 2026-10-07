@@ -493,9 +493,8 @@ distinct across concurrent instances; two lanes on one machine each need an expl
 opaque id if a machine name should not be published in a public tracker.
 
 **`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`,
-`promotion_evidence_checker`.** Each is honored from user or managed plugin settings
-only (`--settings` is unverified since the `pluginConfigs` entry stopped naming it, as of
-2026-10-07), never from `.claude/source-control.md` or any repository file. Contract:
+`promotion_evidence_checker`.** Each is honored from user, `--settings`, or managed plugin settings
+only, never from `.claude/source-control.md` or any repository file. Contract:
 [promotion-evidence-bootstrap.md](skills/babysit-loop/reference/promotion-evidence-bootstrap.md).
 The binding is the binding argument of the autonomy plugin's `check-security-binding.mjs`. The
 probe root is the protected evidence surface the seam resolves isolation probe transcripts against.

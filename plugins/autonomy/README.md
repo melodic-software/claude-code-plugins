@@ -166,10 +166,7 @@ merge:
    session across many `/loop` cycles, each of whose stops must stay gated, so it lives for the
    claiming session and is retired by TTL plus the launcher's relaunch sweep. To arm a hand-launched
    session, run the arm helper from the installed plugin the same way, then pass the id via
-   `--settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_arm_id":"<id>"}}}}'`. That `--settings` delivery is unverified
-   since the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-   entry stopped naming the flag (as of 2026-10-07; recheck when the entry names `--settings`
-   again or a probe shows a `--settings` value read or ignored).
+   `--settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_arm_id":"<id>"}}}}'`.
 3. **User `settings.json`**, located from the hook's own install path, a *persistent* enable that
    also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
 

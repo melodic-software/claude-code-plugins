@@ -194,11 +194,8 @@ plugin from a local marketplace): a `userConfig` key set in user settings or thr
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
 on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
 [scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
-placeholder" holds the payload shape and the probe recipe. The `--settings` delivery is
-unverified since the `pluginConfigs` entry stopped naming it (as of 2026-10-07; recheck when the
-entry names `--settings` again or a probe shows a `--settings` value read or ignored); the
-substitution itself is the claim here. Recheck when a release note changes `userConfig`
-substitution in skill bodies.
+placeholder" holds the payload shape and the probe recipe. Recheck when a release note changes
+`userConfig` substitution in skill bodies.
 
 ## `sync` updates the plugin that provides `sync`
 

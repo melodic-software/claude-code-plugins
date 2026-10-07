@@ -30,7 +30,8 @@ Each row carries its own Claude Code version and date in the **As of** column. A
 records what we rely on, in our words, and points at the section that states it; a probed row
 records what our own probe observed. Rows 1-8 date from **Claude Code 2.1.218**: doc-stated rows
 re-read from the live official docs on 2026-07-24, behavioral rows proven by a controlled
-fresh-session probe (isolated `claude -p --plugin-dir` runs with positive controls) on 2026-07-23.
+fresh-session probe (isolated `claude -p --plugin-dir` runs with positive controls) on 2026-07-23;
+fact 5 was re-read on 2026-10-07 against 2.1.292.
 Rows 9-12 were measured on **Claude Code 2.1.283** by a sandbox probe on 2026-09-27 (fixture
 `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE` under a scratch directory, positive control of an
 empty plugin list before any write). Existing state is not evidence of its own correctness:
@@ -43,7 +44,7 @@ a row in new work.
 | 2 | A hook process reads a configured value from `CLAUDE_PLUGIN_OPTION_<KEY>` (key uppercased) | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)); scope narrowed by fact 4 | 2.1.218, 2026-07-24 |
 | 3 | The declared `default` field is in the schema but **implemented for neither argv substitution nor env export**. An unset-but-defaulted `${user_config.*}` argv token **silently drops the entire hook entry**. It is not passed literally and not empty-substituted; the same unset key exports **no** env var | proven (probe T1); upstream [#46477](https://github.com/anthropics/claude-code/issues/46477) closed not-planned, [#39455](https://github.com/anthropics/claude-code/issues/39455) open, [#39827](https://github.com/anthropics/claude-code/issues/39827) closed not-planned; undocumented | 2.1.218, 2026-07-23 |
 | 4 | Tamper split on the env channel: for a **configured** key, harness injection overwrites a repo `.claude/settings.json` `env` block (injection wins); for an **unconfigured** key nothing is injected and the repo's `env` block freely populates `CLAUDE_PLUGIN_OPTION_<KEY>`. Env carries no provenance, so a hook cannot tell the two apart | proven (probe T2/T2b); undocumented | 2.1.218, 2026-07-23 |
-| 5 | We treat `pluginConfigs` as living in **user and managed settings**, and an entry in a project's `.claude/settings.json` / `.claude/settings.local.json` as ignored. A value passed with the `--settings` flag is **unverified**: the entry's scope reads "User or managed" and no longer names `--settings`, so a mechanism that passes a value that way records the route as unverified until a probe settles it. Recheck when the entry names `--settings` or another scope, or a probe shows a `--settings` value read or ignored | doc-stated ([`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)) | 2.1.292, 2026-10-07 |
+| 5 | We treat `pluginConfigs` as living in **user settings, the `--settings` flag, and managed settings only**, and an entry in a project's `.claude/settings.json` / `.claude/settings.local.json` as ignored. The settings guide says `--settings` "can set any key your user settings file can set", and the `pluginConfigs` entry gives the scope "User or managed". Recheck when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs` scope changes | doc-stated ([`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)) | 2.1.292, 2026-10-07 |
 | 6 | Skill- and agent-frontmatter hooks receive **neither** the argv substitution nor `CLAUDE_PLUGIN_OPTION_*` | evidence-strong (probe + field repro); CC docs silent | 2.1.218, 2026-07-23 |
 | 7 | We use skill/agent **body** `${user_config.KEY}` only as model-visible content, and only for non-sensitive values | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)) | 2.1.218, 2026-07-24 |
 | 8 | We never expect a sensitive value in `settings.json`, so no settings reader can see one | doc-stated ([User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)) | 2.1.218, 2026-07-24 |
@@ -77,8 +78,7 @@ this list and the matrix; it does not fork a private convention.
   (see its `[0.9.0]` [CHANGELOG entry](../../../plugins/disk-hygiene/CHANGELOG.md) for the full
   trust analysis and residuals).
 - **G. Operator-side arm record**: for a **per-session** value that would otherwise ride
-  `--settings` (F's residual: invisible to a hook-side read, and whether the harness honors it is
-  unverified, see fact 5). An
+  `--settings` (F's residual: honored by the harness, invisible to a hook-side read). An
   operator-side helper shipped by the plugin writes a per-session record under the plugin's
   install-anchored data directory (`<plugins>/data/<id>`, derived exactly as F derives its anchor);
   the session carries only a **random record id** through a `userConfig` string option, and the hook
@@ -103,9 +103,8 @@ this list and the matrix; it does not fork a private convention.
 | F. Direct settings read | **yes** | in-script default required (declared `default` inert everywhere) | yes (fact 5 + no env-derived paths) | safe, explicit fail direction per plugin | **no: sensitive values are not in `settings.json` (fact 8)** | +settings-file coupling, +managed-path table |
 | G. Operator-side arm record | **yes** (any surface that can derive the anchor) | in-script default required | yes (id carries no authority; store is install-anchored) | safe, explicit fail direction per plugin (exemplar: launcher fails closed, hook fails open) | no (plaintext record in the data dir) | +arm helper, +record lifecycle (claim, TTL, consume), +launcher coupling |
 
-Residual on F (documented, accepted): a value supplied only via a session `--settings` file, if the
-harness honors it at all (unverified since 2026-10-07, fact 5), is
-invisible to a hook-side read, a runtime CLI flag no hook can observe. Channel G
+Residual on F (documented, accepted): a value supplied only via a session `--settings` file is honored
+by the harness but invisible to a hook-side read, a runtime CLI flag no hook can observe. Channel G
 exists to close exactly that residual for per-session values a plugin cannot do without.
 
 ## The decision rule

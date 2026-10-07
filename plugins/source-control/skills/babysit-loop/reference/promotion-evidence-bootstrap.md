@@ -26,10 +26,7 @@ config
 ([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md)
 "Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
 locations through the four plugin options below. Claude Code reads plugin options from user
-settings and managed settings only (the `--settings` flag is unverified since the
-[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry stopped
-naming it, as of 2026-10-07; recheck when the entry names it again or a probe shows a
-`--settings` value read or ignored), and ignores a project's
+settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
 ([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
 fact 5). The lane takes them from the option values substituted into the babysit-loop skill body
@@ -51,8 +48,8 @@ stays unknown. Never put a secret in one of these options.
 
 The options say where a surface is; they do not make it unwritable. A user settings file is
 writable by any agent running as that user, so a location kept there is only as protected as that
-file. Managed settings keep the location out of the agent's reach too (a `--settings` file the
-executor owns would, if the flag carries plugin options; that is unverified, see above). Whether a deployment meets the requirement is the operator's to establish. This
+file. Managed settings, or a `--settings` file the executor owns, keep the location out of the
+agent's reach too. Whether a deployment meets the requirement is the operator's to establish. This
 file states the requirement and does not certify a deployment.
 
 ## The four surfaces
@@ -163,8 +160,8 @@ absent. A set value is compliant only when it is:
 - **Claim:** the checker takes the binding document, `--evidence`, and `--probe-evidence-root` on
   one usage line. With no root, every L2/L3 entry is unproven under a reason beginning
   `no --probe-evidence-root configured`. An evidence file that is unreadable or not a JSON array
-  resolves every cell effective-unpromoted. Plugin options are read only from user settings
-  and managed settings (`--settings` is unverified, see above), a repository's `env` block can populate the
+  resolves every cell effective-unpromoted. Plugin options are read only from user settings,
+  `--settings`, and managed settings, a repository's `env` block can populate the
   `CLAUDE_PLUGIN_OPTION_*` variable of an unset option, and a skill body's option placeholders
   substitute into model-visible content, non-sensitive values only.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
