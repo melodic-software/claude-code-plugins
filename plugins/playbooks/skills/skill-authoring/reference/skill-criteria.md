@@ -192,5 +192,5 @@ Each record: pointer, as-of date, recheck trigger. Re-read the pointer before ac
   (eval modes, description voice). As of 2026-10-06. Recheck: its eval modes or frontmatter
   voice change.
 - **Vendored playbook**, `vendor/upstream-skill.md`, maintained by `/playbooks:update`. Drift check
-  2026-10-07: frontmatter version 1.0.0 matches upstream; content SHA256 differs (7b0923d8… vs
-  05b4e6b7…), sync pending. Recheck: the next `/playbooks:update` run.
+  2026-10-07: frontmatter version 1.0.0 matches upstream; content SHA256 differs (vendored copy
+  7b0923d8…, upstream 05b4e6b7…), sync pending. Recheck: the next `/playbooks:update` run.
