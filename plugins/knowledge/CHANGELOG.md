@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.20.5] - 2026-10-07
+## [0.20.6] - 2026-10-07
 
 ### Fixed
 
@@ -12,6 +12,12 @@ only after that version increases.
   ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
   and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
   which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.20.5] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The docpage-digest gate harness, `test_check_html_rows`, and the map-corpus discovery and inventory tests register temp-dir cleanup right after creating the dir.
 
 ## [0.20.4] - 2026-10-07
 
