@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "cmd/worker.go: 2 finding(s) \u2014 T1=2, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | history-narration | 5 | \"// Run drains the queue; it no longer blocks on an empty queue.\" | Delete \u2014 version control owns history |\n| 1    | plan-reference | 8 | \"// in this refactor the print moved out of the handler\" | Delete |\n\nTotal: 1 file(s) audited, 2 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "T1=2, T2=0"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "Total: 2 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "whole-repo totals"
+    },
+    {
+      "answer": "No uncommitted code files. Pass a file/dir target."
+    }
+  ]
+}

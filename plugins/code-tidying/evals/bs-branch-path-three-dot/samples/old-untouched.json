@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the old status.\nset -euo pipefail\n\nlevel=\"${1:-1}\"\nif [ -n \"$level\" ]; then\n  echo \"old: level is $level\"\nelse\n  echo \"old: level is $level\"\nfi\n",
+      "why": "lib/old.sh untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the old status.\nset -euo pipefail\n\nlevel=\"${1:-1}\"\necho \"old: level is $level\"\n",
+      "why": "lib/old.sh simplified"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

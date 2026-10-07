@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: adc-consent-gate
+description: A bare audit on a shell repo with two unreferenced functions reports the candidate count and cap and asks before adjudicating, with no time or token estimate
+tags: [audit-dead-code, consent-gate, grep-lane]
+expected_outcome: The scan's grep lane emits two tier-1 unreferenced-symbol candidates (trim_spaces and legacy_banner in lib/util.sh). The run reports that count (and the cap, which is none) and asks for a go-ahead before adjudicating; it gives no per-candidate verdict yet and quotes no time or token estimate. No file changes.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-dead-code
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: candidate-count-reported
+    type: regex
+    pattern: '\b(?:2|two)\b[^\n]{0,80}\bcandidates?\b|\bcandidates?\b[^\n]{0,60}\b(?:2|two)\b|total=2\b'
+    flags: i
+    arm: both
+  - name: no-time-or-token-estimate
+    type: regex
+    pattern: '\d[\d,.]*\s*(?:k\s*)?(?:minutes?|mins?|seconds?|secs?|hours?|hrs?|tokens)\b|\b(?:a few|several|a couple of)\s+(?:minutes|seconds)\b'
+    flags: i
+    match: not_contains
+    arm: both
+  - name: asks-before-adjudicating
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "The repository has exactly two dead-code candidates, the shell functions trim_spaces and legacy_banner in lib/util.sh. PASS only if the final message (a) states how many candidates were found, and (b) asks the user for approval before adjudicating them, and (c) does not already deliver a final verdict for either function: no 'dead', 'alive', 'uncertain', 'safe to delete', or 'remove it' judgment on trim_spaces or legacy_banner individually. Naming the two candidates and where they are is allowed, and the phrase 'dead-code candidate' is not a verdict. FAIL if the message adjudicates either candidate, recommends deleting either, or ends without asking for a go-ahead to adjudicate."
+  - name: scan-ran
+    type: tool_used
+    tool: Bash
+    input_match: dead-code-scan
+    arm: both

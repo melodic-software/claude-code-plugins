@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w ls-files --cached --others --exclude-standard"
+          }
+        }
+      ],
+      "why": "repo universe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=\"48 hours ago\" --name-only -- repo"
+          }
+        }
+      ],
+      "why": "48h narrowed to repo/"
+    }
+  ]
+}

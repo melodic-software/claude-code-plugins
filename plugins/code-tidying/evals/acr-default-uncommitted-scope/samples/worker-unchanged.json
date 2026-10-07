@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "package main\n\nimport \"fmt\"\n\n// Run drains the queue; it no longer blocks on an empty queue.\nfunc Run(queue []string) {\n\tfor _, item := range queue {\n\t\t// in this refactor the print moved out of the handler\n\t\tfmt.Println(item)\n\t}\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "package main\n\nimport \"fmt\"\n\n// Run drains the queue; it no longer blocks on an empty queue.\nfunc Run(queue []string) {\n\tfor _, item := range queue {\n\t\tfmt.Println(item)\n\t}\n}\n",
+      "why": "line deleted"
+    },
+    {
+      "answer": "package main\n\nimport \"fmt\"\n\n// Run drains the queue.\nfunc Run(queue []string) {\n\tfor _, item := range queue {\n\t\tfmt.Println(item)\n\t}\n}\n",
+      "why": "reverted to the committed version"
+    }
+  ]
+}

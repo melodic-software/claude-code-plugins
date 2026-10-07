@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# comment-residue-ignore
+# we switched from rsync to scp for the bastion hop
+copy_artifacts() {
+  scp -r dist/ "$1":/srv/app
+}
+
+# Copied from the ops runbook script.
+restart() {
+  systemctl restart app
+}

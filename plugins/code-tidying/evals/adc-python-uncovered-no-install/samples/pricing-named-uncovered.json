@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Note: uncovered app/pricing.py - tool not installed"
+    },
+    {
+      "answer": "vulture is not installed, so app/pricing.py was not covered by this run."
+    },
+    {
+      "answer": "The vulture lane was skipped; app/pricing.py stays unaudited."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "legacy_round_cents in app/pricing.py is dead.",
+      "why": "judged by eye"
+    },
+    {
+      "answer": "app/main.py is uncertain.",
+      "why": "pricing.py not named"
+    }
+  ]
+}

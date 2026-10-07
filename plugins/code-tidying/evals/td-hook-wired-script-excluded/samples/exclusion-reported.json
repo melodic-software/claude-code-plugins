@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Excluded: scripts/hooks/check-bash.sh is wired as a hook command in .claude/settings.json (GLOBAL HARD).",
+      "why": "states it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tidied scripts/build-report.sh: removed legacy_mode.",
+      "why": "does not state it"
+    }
+  ]
+}

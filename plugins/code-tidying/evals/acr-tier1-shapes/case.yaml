@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: acr-tier1-shapes
+description: explicit audit of one Python file reports each residue shape at its line with the skill's tier, and leaves the present-tense why-comment alone
+tags: [acr, outcome, explicit]
+expected_outcome: Four findings in billing.py. Line 7 history-narration (Tier 1), line 13 conversational-antecedent (Tier 1), line 18 plan-reference (Tier 1), line 23 ticket-pr-residue (Tier 2); the half-even rounding comment on line 28 is not a finding, so the counts are T1=3, T2=1. No file is changed.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue billing.py
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: history-narration-line-7
+    type: regex
+    pattern: '^[^\n]*(\bhistory-narration\b(?!-)[^\n]*\b7\b|\b7\b[^\n]*\bhistory-narration\b(?!-))'
+    flags: m
+  - name: conversational-line-13
+    type: regex
+    pattern: '^[^\n]*(\bconversational-antecedent\b[^\n]*\b13\b|\b13\b[^\n]*\bconversational-antecedent\b)'
+    flags: m
+  - name: plan-reference-line-18
+    type: regex
+    pattern: '^[^\n]*(\bplan-reference\b[^\n]*\b18\b|\b18\b[^\n]*\bplan-reference\b)'
+    flags: m
+  - name: ticket-tier-2
+    type: regex
+    pattern: '^\|\s*(Tier\s*|T)?2\s*\|\s*ticket-pr-residue\b|ticket-pr-residue[^\n]*\b(Tier\s*|T)2\b'
+    flags: m
+  - name: counts-t1-3-t2-1
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**3\b[^\n]*T2\s*[=:]\s*\**1\b|\b3\**\s+Tier[ -]1\b[^\n]*\b1\**\s+Tier[ -]2\b'
+  - name: file-unchanged
+    type: regex
+    pattern: '^(?=[\s\S]*# used to round per line; now rounds once at the end\n)(?=[\s\S]*# as you asked, keep the rate lookup outside the loop\n)(?=[\s\S]*# in this PR the discount is capped at the subtotal\n)(?=[\s\S]*# see PR #482 for the currency table design\n)'
+    target: { source: file, path: billing.py }
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

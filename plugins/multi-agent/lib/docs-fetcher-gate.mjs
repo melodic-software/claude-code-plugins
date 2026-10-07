@@ -116,7 +116,7 @@ const UID = process.getuid?.()
 
 // Where the markers live: the plugin's data directory, which Claude Code
 // exports to hook processes and keeps under the user's home
-// (https://code.claude.com/docs/en/plugins-reference#environment-variables, as
+// (https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables, as
 // of 2026-10-07; recheck when CLAUDE_PLUGIN_DATA stops reaching hooks), else a
 // per-uid directory under the temp directory.
 export function markerDir(env = process.env) {

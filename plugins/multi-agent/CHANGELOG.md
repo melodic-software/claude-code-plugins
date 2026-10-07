@@ -3,7 +3,7 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.2] - 2026-10-07
+## [0.6.3] - 2026-10-07
 
 ### Fixed
 
@@ -11,6 +11,14 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
   ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
   and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
   which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.6.2] - 2026-10-07
+
+### Fixed
+
+- The docs-fetcher gate's `CLAUDE_PLUGIN_DATA` citation points at
+  `plugins/manifest-reference#environment-variables` in place of the retired `plugins-reference`
+  page, re-verified 2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
 
 ## [0.6.1] - 2026-10-07
 

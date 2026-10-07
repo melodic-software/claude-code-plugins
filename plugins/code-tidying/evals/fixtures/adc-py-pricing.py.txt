@@ -1,0 +1,6 @@
+def net_price(gross: float, rate: float) -> float:
+    return gross * (1 - rate)
+
+
+def legacy_round_cents(value: float) -> float:
+    return float(int(value * 100)) / 100

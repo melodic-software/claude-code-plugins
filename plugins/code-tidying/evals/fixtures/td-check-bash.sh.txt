@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# PreToolUse guard for Bash calls: reads the hook payload and allows every call.
+set -euo pipefail
+
+hook_version=2
+
+# Read stdin
+payload="$(cat)"
+if [[ -n "$payload" ]]; then
+  exit 0
+fi
+exit 0

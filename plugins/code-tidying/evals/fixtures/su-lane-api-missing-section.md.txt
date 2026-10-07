@@ -1,0 +1,26 @@
+# Lane: api
+
+Domain models under src/core that the web handlers depend on.
+
+## Scope
+
+```text
+src/core/**
+```
+
+## Watch-for patterns
+
+- **Beck #8, Explaining Variables**: dense expressions in model methods
+- **Beck #2, Dead Code**: unused model attributes
+
+## Lane-specific extra exclusions
+
+- **Public model attributes** read by the web handlers are a contract, never rename
+
+## Conventional Commits type
+
+`refactor:`. Example title: `refactor(core): name the order total expression`.
+
+## Preferred research sources
+
+- https://docs.python.org/3/
