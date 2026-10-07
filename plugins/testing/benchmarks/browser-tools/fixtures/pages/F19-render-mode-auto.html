@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F19 Auto render mode</title><script src="/fx.js"></script></head>
+<body>
+<!-- First visit (no localStorage flag) behaves like F01 variant A with three times the delay,
+     standing in for server interactivity while client assets download. Later visits in the same
+     storage become interactive immediately. Results differ by cache state unless storage is reset. -->
+<main>
+  <h1>Notes</h1>
+  <div id="slot"><button type="button" id="pin">Pin note</button></div>
+  <p id="status">Loading…</p>
+  <pre id="result"></pre>
+</main>
+<script>
+  const warm = localStorage.getItem("fx-assets-cached") === "1";
+  fx.record("visit", warm ? "warm" : "cold", "append");
+  const wait = warm ? 0 : fx.delay * 3;
+  fx.after(wait, () => {
+    const b = document.createElement("button");
+    b.type = "button"; b.id = "pin"; b.textContent = "Pin note";
+    b.addEventListener("click", () => fx.record("pinned", 1, "inc"));
+    document.getElementById("slot").replaceChildren(b);
+    document.getElementById("status").textContent = "Ready";
+    localStorage.setItem("fx-assets-cached", "1");
+  });
+</script>
+</body>
+</html>

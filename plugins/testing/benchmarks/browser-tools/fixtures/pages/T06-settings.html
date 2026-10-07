@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>T06 Settings</title><script src="/fx.js"></script>
+<style>#overlay{position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center}
+#consent{position:fixed;inset:auto 0 0 0;background:#333;color:#fff;padding:1rem;z-index:5}</style></head>
+<body>
+<!-- Several hostile behaviours on one page: a loading overlay for `delay` ms, then a cookie banner
+     covering the lower page, a shadow-DOM toggle, a nickname form inside an iframe, and a link that
+     opens a confirmation code in a new tab. -->
+<main>
+  <h1>Account settings</h1>
+  <notify-toggle></notify-toggle>
+  <h2>Nickname</h2>
+  <iframe id="nick" title="Nickname form" width="420" height="120"></iframe>
+  <p><a id="confirm" target="_blank" href="#">Review and confirm changes</a></p>
+  <pre id="result"></pre>
+</main>
+<div id="consent" role="dialog" aria-label="Cookie consent">We use cookies. <button type="button" id="accept-cookies">Accept cookies</button></div>
+<div id="overlay" role="progressbar" aria-label="Loading settings">Loading settings…</div>
+<script>
+  customElements.define("notify-toggle", class extends HTMLElement {
+    connectedCallback() {
+      const root = this.attachShadow({ mode: "open" });
+      root.innerHTML = `<button type="button">Enable email notifications</button>`;
+      root.querySelector("button").addEventListener("click", () => fx.record("notifications", true));
+    }
+  });
+  document.getElementById("nick").src = fx.link("/f/T06-frame.html");
+  document.getElementById("confirm").href = fx.link("/f/T06-confirm.html");
+  document.getElementById("accept-cookies").addEventListener("click", () => { fx.record("cookies", true); document.getElementById("consent").remove(); });
+  fx.after(fx.delay, () => document.getElementById("overlay").remove());
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F09 Embedded form</title><script src="/fx.js"></script></head>
+<body>
+<!-- The newsletter form lives in an iframe. Variant A: same origin. Variant B: cross origin
+     (the second fixture port). The frame reports to its own origin; both share one run record. -->
+<main>
+  <h1>Newsletter</h1>
+  <p>Sign up below.</p>
+  <iframe id="widget" title="Newsletter signup" width="420" height="160"></iframe>
+  <pre id="result"></pre>
+</main>
+<script>
+  const port2 = Number(location.port) + 1;
+  const base = fx.variant === "B" ? `http://127.0.0.1:${port2}` : "";
+  document.getElementById("widget").src = `${base}/f/F09-frame.html?run=${fx.run}&delay=${fx.delay}`;
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F01 Hydration race</title><script src="/fx.js"></script></head>
+<body>
+<!-- Server-rendered markup that looks interactive before the client takes over.
+     Variant A: the button is replaced by an identical-looking one with a listener after `delay`.
+     Variant B: same node, listener attached after `delay`.
+     Variant C: the button is disabled until ready. -->
+<main>
+  <h1>Coffee grinder</h1>
+  <p>Price: $89</p>
+  <div id="slot"><button type="button" id="add">Add to cart</button></div>
+  <p>Cart items: <span id="count">0</span></p>
+  <p id="status">Loading…</p>
+  <pre id="result"></pre>
+</main>
+<script>
+  const v = fx.variant;
+  const btn = document.getElementById("add");
+  if (v === "C") btn.disabled = true;
+  function onAdd() {
+    fx.record("count", 1, "inc");
+    document.getElementById("count").textContent = String(fx.__count = (fx.__count ?? 0) + 1);
+  }
+  fx.after(fx.delay, () => {
+    if (v === "A") {
+      const fresh = document.createElement("button");
+      fresh.type = "button"; fresh.id = "add"; fresh.textContent = "Add to cart";
+      fresh.addEventListener("click", onAdd);
+      document.getElementById("slot").replaceChildren(fresh);
+    } else {
+      btn.disabled = false;
+      btn.addEventListener("click", onAdd);
+    }
+    document.getElementById("status").textContent = "Ready";
+    fx.record("interactive", true);
+  });
+</script>
+</body>
+</html>

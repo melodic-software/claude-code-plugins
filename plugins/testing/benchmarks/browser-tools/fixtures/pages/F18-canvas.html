@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F18 Canvas chart</title><script src="/fx.js"></script></head>
+<body>
+<!-- A bar chart drawn on <canvas>. Bars are hit-tested by coordinates; there is no DOM or ARIA
+     node per bar. Clicking a bar records its month. -->
+<main>
+  <h1>Monthly signups</h1>
+  <canvas id="chart" width="480" height="240" aria-label="Signups by month, bar chart"></canvas>
+  <p id="status"></p>
+  <pre id="result"></pre>
+</main>
+<script>
+  const months = ["January", "February", "March", "April", "May", "June"];
+  const values = [40, 75, 55, 90, 30, 65];
+  const c = document.getElementById("chart"), g = c.getContext("2d");
+  const bars = months.map((m, i) => ({ m, x: 20 + i * 76, w: 56, h: values[i] * 2, y: 210 - values[i] * 2 }));
+  g.font = "12px sans-serif";
+  bars.forEach((b, i) => {
+    g.fillStyle = ["#4c78a8", "#f58518", "#54a24b", "#e45756", "#72b7b2", "#b279a2"][i];
+    g.fillRect(b.x, b.y, b.w, b.h);
+    g.fillStyle = "#000"; g.fillText(b.m.slice(0, 3), b.x + 14, 228);
+  });
+  c.addEventListener("click", (e) => {
+    const r = c.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const hit = bars.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= 210);
+    if (hit) { fx.record("bar", hit.m); document.getElementById("status").textContent = `Selected ${hit.m}`; }
+  });
+</script>
+</body>
+</html>

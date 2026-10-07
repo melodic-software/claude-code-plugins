@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>T01 Product card</title><script src="/fx.js"></script></head>
+<body>
+<!-- Stands in for a just-changed component: the button label was changed and its click handler
+     must still add exactly one item. The label carries a run-specific build tag. -->
+<main>
+  <article aria-label="Product card">
+    <h1>Pour-over kettle</h1>
+    <p>$54</p>
+    <button type="button" id="add">Add to basket</button>
+    <p>Basket: <span id="basket">0</span> item(s)</p>
+  </article>
+  <footer>Build <span id="build">…</span></footer>
+  <pre id="result"></pre>
+</main>
+<script>
+  fx.code("dev").then((c) => (document.getElementById("build").textContent = c));
+  let n = 0;
+  document.getElementById("add").addEventListener("click", () => {
+    n += 1; document.getElementById("basket").textContent = String(n); fx.record("added", 1, "inc");
+  });
+</script>
+</body>
+</html>
