@@ -11,13 +11,19 @@ function textOf(content) {
   if (Array.isArray(content)) return content.map((c) => (c.type === "text" ? c.text : typeof c.content === "string" ? c.content : "")).join("\n");
   return "";
 }
-// The command each simple command in a Bash string runs, by basename: quoted text and comments are
-// dropped (except a double-quoted string that holds a command substitution), so a mention in an echo
-// or a grep pattern is not a call, and env-var prefixes and the
-// wrappers that run their argument (env, command, exec, npx, which, sudo, time, nohup) are skipped.
+// The command each simple command in a Bash string runs, by basename. A quoted single word is
+// unquoted (so "agent-browser" status still counts); other quoted text and comments are dropped
+// (except a double-quoted command substitution), so a mention in an echo or a grep pattern is not
+// a call. Env-var prefixes and the wrappers that run their argument (env, command, exec, npx,
+// which, sudo, time, nohup) are skipped.
 const WRAPPERS = new Set(["env", "command", "exec", "npx", "which", "sudo", "time", "nohup", "builtin"]);
 export function commandWords(cmd) {
-  const bare = cmd.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, (q) => (q.startsWith('"') && /\$\(|`/.test(q) ? q : " ")).replace(/(^|\s)#[^\n]*/g, " ");
+  const unquote = (q) => {
+    if (q.startsWith('"') && /\$\(|`/.test(q)) return q;
+    const inner = q.slice(1, -1);
+    return /\s/.test(inner) ? " _ " : inner;
+  };
+  const bare = cmd.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, unquote).replace(/(^|\s)#[^\n]*/g, " ");
   return bare
     .split(/&&|\|\||[;|&\n()`]|\$\(/)
     .map((seg) => seg.trim().split(/\s+/).filter(Boolean))
