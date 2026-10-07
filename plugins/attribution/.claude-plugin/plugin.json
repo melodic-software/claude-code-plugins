@@ -1,6 +1,6 @@
 {
   "name": "attribution",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Finds prose in tracked markdown that restates content an external source owns (vendor docs, blogs, articles) without attribution, confirms the source, and converts the copy into a pointer, a citation, or a dated stamped record. Documentation attribution, not software supply chain. Scripts do only mechanical work; judgment is LLM work. Read-only audit by default; explicit fix and sweep actions apply changes behind a semantic-diff guard and live pointer checks.",
   "author": {
     "name": "Melodic Software",

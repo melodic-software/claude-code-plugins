@@ -3,6 +3,22 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate passes its one `docs-raw.sh` command once per agent run, so a page cannot
+  steer a second fetch, and denies when its input stream fails or the gate errors instead of
+  failing open. `docs-raw.sh` fetches with `--public-only`: a host, a redirect or a DNS answer
+  that leads to a non-global address is unread `private-address`, and curl (now run with `-q`)
+  connects only to the checked address with no proxy. A generic page is cached in a per-run
+  directory, never the shared docs cache
+  ([#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486),
+  [#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+- `docs-raw.sh` prints `body_sha256` and normalizes CRLF; the workflow marks a slice unread when
+  the body the fetcher returned differs from the header byte count or hash
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+
 ## [0.5.1] - 2026-10-07
 
 ### Changed
