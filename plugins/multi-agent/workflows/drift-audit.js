@@ -3,6 +3,7 @@ export const meta = {
   description: 'Read-only drift audit of model, effort, subagent and workflow guidance: area finders check claims against upstream pages, skeptics try to refute each finding, and confirmed defaults drift comes back as a proposed diff',
   whenToUse: 'Run by /multi-agent:audit-defaults, which resolves args: mode (defaults or repo), pointers (defaults mode, required), targets (repo mode, required), upstream, roles, maxConcurrent, asOf. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /multi-agent:audit-defaults.',
   phases: [
+    { title: 'Fetch', detail: 'one docs-fetcher per source page reads it fresh and raw; checkers judge from those slices' },
     { title: 'Find', detail: 'per area (repo mode) a file reader then a web checker; per default owner (defaults mode) a web checker' },
     { title: 'Verify', detail: 'independent skeptics per batch try to refute each finding; a finding stands on a majority' },
   ],
@@ -194,11 +195,15 @@ if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stage
 // multi-agent:drift-checker (WebFetch only, no search) judges them against
 // upstream; it holds nothing from the repository but those quoted claim
 // lines, and hooks/drift-checker-fetch-gate.mjs denies any fetch off the
-// first-party docs hosts or carrying a query string. Both definitions inherit the
-// model and pin no effort, so the role map governs them. `inherit` omits
-// opts.model; effort is always explicit.
+// first-party docs hosts or carrying a query string. multi-agent:docs-fetcher
+// (Bash only, held by lib/docs-fetcher-gate.mjs to the plugin's docs-raw.sh on
+// those hosts) reads each source page fresh and raw; it gets a URL and section
+// ids, never a claim. All three definitions inherit the model and pin no
+// effort, so the role map governs them. `inherit` omits opts.model; effort is
+// always explicit.
 const READER = 'multi-agent:drift-reader'
 const CHECKER = 'multi-agent:drift-checker'
+const FETCHER = 'multi-agent:docs-fetcher'
 function opts(variant, agentType) {
   return variant.model === 'inherit'
     ? { agentType, effort: variant.effort }
@@ -248,6 +253,122 @@ const POINTER_RULE =
   'instead of restating it, and records the pointer, an as-of date and a recheck trigger. Files under ' +
   'docs/upstream/, changelogs and eval fixtures are deliberate snapshots and out of scope.'
 
+// ---- Fetch stage ----
+// A checker judges from raw slices of its sources, which a docs-fetcher read
+// this run and the script passes inline, inside a data fence. A checker that
+// needs a section of a mapped page, or another page on the source hosts, names
+// it in `requests`; the script fetches it and asks that checker once more.
+const nulls = []
+const FETCH_CAP = 40
+const SLICE_CAP = 150000
+const REQUEST_CAP = 4
+const FETCH_SCHEMA = { type: 'object', properties: { output: { type: 'string' } }, required: ['output'] }
+const REQUESTS = {
+  type: 'array',
+  description: 'pages or sections the slices lack that you need: at most ' + REQUEST_CAP,
+  items: {
+    type: 'object',
+    properties: { url: { type: 'string' }, sections: { type: 'array', items: { type: 'integer', minimum: 1 } } },
+    required: ['url'],
+  },
+}
+const SLICE_RULE =
+  ' The slices block holds fresh raw reads of the source pages, made this run by a separate fetch stage that ' +
+  'never saw what you judge. Judge from the slices: kind page is the whole page, kind sections the sections ' +
+  'asked for, and kind map the page\'s section map (id level start end bytes sha256 heading_path) with no ' +
+  'body. For a section of a mapped page, or another page on the source hosts, name it in requests as ' +
+  '{url, sections: [ids]}, at most ' + REQUEST_CAP + ', and return your result as far as the slices take ' +
+  'you; you are then asked once more with them. Use WebFetch only for a page the slices do not cover ' +
+  '(not listed, unread or omitted), and say so in your reason.'
+const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored.'
+
+const pageOf = u => String(u).split('#')[0]
+const rawable = u => isFetchable(u) && !/['"\\]/.test(u)
+const idsOf = v => [...new Set((Array.isArray(v) ? v : []).filter(n => Number.isInteger(n) && n >= 1 && n <= 999999))]
+  .sort((a, b) => a - b).slice(0, 20)
+const sliceKey = (url, ids) => url + ' ' + ids.join(' ')
+const slices = new Map()
+const inflight = new Map()
+const fetchLabels = []
+const secondRounds = []
+
+// One docs-raw output, keyed to the URL this script asked for: a header naming
+// another URL, or none, makes the page unread.
+function parseRaw(url, ids, out) {
+  const base = { url, sections: ids }
+  const text = typeof out === 'string' ? out.replace(/\r\n/g, '\n') : ''
+  const nl = text.indexOf('\n')
+  const m = /^docs-raw: url=(\S+) state=(read|unread)((?: [a-z0-9_]+=\S*)*)$/.exec(nl < 0 ? text : text.slice(0, nl))
+  if (!m || m[1] !== url) return { ...base, state: 'unread', reason: out == null ? 'no result from the fetch stage' : 'the fetch stage returned no docs-raw header for this URL' }
+  const f = Object.fromEntries([...m[3].matchAll(/ ([a-z0-9_]+)=(\S*)/g)].map(x => [x[1], x[2]]))
+  if (m[2] === 'unread') return { ...base, state: 'unread', reason: f.reason || 'unstated' }
+  const page = { ...base, state: 'read', kind: f.kind || 'unknown', format: f.format || '', validated: f.validated || '', sha256: f.sha256 || '' }
+  return f.kind === 'too-large' ? page : { ...page, body: nl < 0 ? '' : text.slice(nl + 1).replace(/\n+$/, '') }
+}
+
+function fetchOne(req) {
+  const url = pageOf(req.url)
+  const ids = idsOf(req.sections)
+  const key = sliceKey(url, ids)
+  if (!rawable(url)) return Promise.resolve()
+  if (!inflight.has(key)) {
+    if (fetchLabels.length >= FETCH_CAP) {
+      slices.set(key, { url, sections: ids, state: 'unread', reason: 'past the fetch cap of ' + FETCH_CAP })
+      inflight.set(key, Promise.resolve())
+    } else {
+      const label = 'fetch:' + (fetchLabels.length + 1)
+      fetchLabels.push(label)
+      inflight.set(key, agentRetry(
+        'Stage: fetch. Run docs-raw.sh once on the URL below, with the section ids listed after it (none when ' +
+        'the list is empty), and return its standard output verbatim.' + fence('url', url) + fence('sections', ids),
+        { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.worker.fanout, FETCHER) },
+      ).catch(() => null).then(r => {
+        if (r == null) nulls.push(label)
+        slices.set(key, parseRaw(url, ids, r && r.output))
+      }))
+    }
+  }
+  return inflight.get(key)
+}
+
+// Every slice held for the pages of these URLs, until the prompt cap; past it a
+// slice is listed omitted, with no body.
+function slicesFor(urls) {
+  const out = []
+  let used = 0
+  for (const p of [...new Set(urls.map(pageOf))]) {
+    for (const s of slices.values()) {
+      if (s.url !== p) continue
+      const size = s.body ? s.body.length : 0
+      if (used + size > SLICE_CAP) {
+        out.push({ url: s.url, sections: s.sections, state: 'omitted', reason: 'past the prompt cap of ' + SLICE_CAP + ' characters' })
+        continue
+      }
+      used += size
+      out.push(s)
+    }
+  }
+  return out
+}
+
+// A judging agent, given the slices for its URLs; when it requests pages or
+// sections it lacks, the script fetches them and asks it once more.
+async function judged(build, o, urls) {
+  const first = await agentRetry(build(fence('slices', slicesFor(urls)) + SLICE_RULE), o)
+  const asked = (first && Array.isArray(first.requests) ? first.requests : [])
+    .filter(q => q && typeof q.url === 'string' && rawable(pageOf(q.url.trim())) && SOURCE_HOSTS.has(hostOf(q.url.trim())))
+    .slice(0, REQUEST_CAP)
+    .map(q => ({ url: pageOf(q.url.trim()), sections: idsOf(q.sections) }))
+    .filter(q => !slices.has(sliceKey(q.url, q.sections)))
+  if (!asked.length) return first
+  for (const q of asked) await fetchOne(q)
+  const label = o.label + ':r2'
+  secondRounds.push(label)
+  const again = await agentRetry(build(fence('slices', slicesFor([...urls, ...asked.map(q => q.url)])) + SLICE_RULE + FINAL_ROUND), { ...o, label })
+  if (again == null) nulls.push(label)
+  return again == null ? first : again
+}
+
 const CLAIM_CAP = 40
 const KINDS = ['stale', 'copied-current', 'unpointed-judgment', 'hardcoded-model-pin']
 const CLAIMS_SCHEMA = {
@@ -287,6 +408,7 @@ const REPO_FINDINGS = {
       },
     },
     notes: { type: 'string' },
+    requests: REQUESTS,
   },
   required: ['findings'],
 }
@@ -310,6 +432,7 @@ const DEFAULTS_ROWS = {
       },
     },
     notes: { type: 'string' },
+    requests: REQUESTS,
   },
   required: ['rows'],
 }
@@ -329,9 +452,16 @@ const VERDICT_SCHEMA = {
         required: ['id', 'verdict', 'reason'],
       },
     },
+    requests: REQUESTS,
   },
   required: ['verdicts'],
 }
+
+// ---- Fetch ----
+// Every source page, read once, before any checker runs.
+phase('Fetch')
+await inWaves(sources.map(u => () => fetchOne({ url: u, sections: [] })), MAX_CONCURRENT)
+log('Fetch: ' + [...slices.values()].filter(s => s.state === 'read').length + '/' + slices.size + ' source pages read raw')
 
 // ---- Find ----
 phase('Find')
@@ -346,30 +476,31 @@ function readPrompt(u) {
     'claim. Return at most ' + CLAIM_CAP + ', most specific first. Do not judge whether they are true.' +
     READ_ONLY + fence('area', u.area) + fence('files', u.files)
 }
-function checkPrompt(u, claims) {
+function checkPrompt(u, claims, extra) {
   return 'Stage: find. Read-only drift audit of claims a separate reader lifted from one area of a repository; ' +
-    'you cannot read the files and do not need to. Fetch the sources you need and check each claim against ' +
+    'you cannot read the files and do not need to. Check each claim against ' +
     'what they say now; do not rely on memory. Report a claim only when it is one of: stale (contradicts the ' +
     'source now), copied-current (restates a volatile upstream fact correctly but with no pointer, as-of date ' +
     'and recheck trigger), unpointed-judgment (states a model or effort recommendation as fact with no basis), ' +
     'hardcoded-model-pin (pins a model in a way that defeats aliases or current guidance). Skip a claim whose ' +
     'pointer record still matches its source. Key each finding by its claim id.' +
     POINTER_RULE + READ_ONLY + FETCH_RULE +
-    fence('area', u.area) + fence('claims', claims) + fence('sources', sources)
+    fence('area', u.area) + fence('claims', claims) + fence('sources', sources) + extra
 }
-function defaultsPrompt(u) {
+// A defaults finder gets slices for its own URL pointers and the upstream pages.
+const unitUrls = u => u.pointers.filter(p => /^pointer/.test(p.key) && isFetchable(p.value)).map(p => p.value).concat(upstream)
+function defaultsPrompt(u, extra) {
   return 'Stage: find. Read-only recheck of one owner of a bundled role-map default. The values are the ' +
     'defaults as shipped; the pointers record where each default\'s basis lives, its as-of date and its ' +
-    'recheck trigger. Fetch each URL pointer and read its anchored section. For each value key, return one ' +
+    'recheck trigger. Read the page of each URL pointer and its anchored section. For each value key, return one ' +
     'row: current (the source still supports the value), drifted (the source now supports a different value; ' +
     'put it in proposed), trigger-fired (the recheck event happened even if the value still holds; say what ' +
     'happened, proposed is the current value), or unread (no source could be fetched). A page that fails to ' +
     'load makes its rows unread, never current. Cite the URL that decides each row. Never propose turning ' +
     'fanout.frontier_guard off. Return rows only for the value keys listed.' + READ_ONLY + FETCH_RULE +
-    fence('owner', u.owner) + fence('values', u.values) + fence('pointers', u.pointers) + fence('sources', sources)
+    fence('owner', u.owner) + fence('values', u.values) + fence('pointers', u.pointers) + fence('sources', sources) + extra
 }
 
-const nulls = []
 // Repo mode chains reader then checker per area inside one wave slot; a reader
 // claim is kept only for a listed file, and the checker sees it by id.
 const claimsByUnit = units.map(() => [])
@@ -384,12 +515,12 @@ async function repoUnit(u, i) {
     .map((c, j) => ({ id: 'a' + (i + 1) + 'c' + (j + 1), file: c.file, line: c.line, quote: c.quote.slice(0, 400), pointer: String(c.pointer || '').slice(0, 400) }))
   claimsByUnit[i] = claims
   if (!claims.length) return { findings: [] }
-  return agentRetry(checkPrompt(u, claims),
-    { label: u.label, phase: 'Find', schema: REPO_FINDINGS, ...opts(R.verifier.fanout, CHECKER) })
+  return judged(extra => checkPrompt(u, claims, extra),
+    { label: u.label, phase: 'Find', schema: REPO_FINDINGS, ...opts(R.verifier.fanout, CHECKER) }, sources)
 }
 const found = await inWaves(units.map((u, i) => () => (MODE === 'repo'
   ? repoUnit(u, i)
-  : agentRetry(defaultsPrompt(u), { label: u.label, phase: 'Find', schema: DEFAULTS_ROWS, ...opts(R.verifier.fanout, CHECKER) }))
+  : judged(extra => defaultsPrompt(u, extra), { label: u.label, phase: 'Find', schema: DEFAULTS_ROWS, ...opts(R.verifier.fanout, CHECKER) }, unitUrls(u)))
 ), MAX_CONCURRENT)
 
 units.forEach((u, i) => {
@@ -481,6 +612,8 @@ if (verifiable.length > VERIFY_CAP) log('Verify: ' + (verifiable.length - VERIFY
 
 // ---- Verify ----
 phase('Verify')
+// A cited page the Fetch stage did not read is read now, before the panel.
+await inWaves([...new Set(toVerify.map(f => pageOf(f.evidenceUrl)))].map(u => () => fetchOne({ url: u, sections: [] })), MAX_CONCURRENT)
 
 const batches = []
 for (let i = 0; i < toVerify.length; i += BATCH) batches.push(toVerify.slice(i, i + BATCH))
@@ -489,20 +622,21 @@ const skepticView = f => (MODE === 'repo'
   ? { id: f.id, file: f.file, line: f.line, quote: f.quote, pointer: f.pointer, kind: f.kind, disposition: f.disposition, evidenceUrl: f.evidenceUrl, evidence: f.evidence }
   : { id: f.id, owner: f.owner, key: f.key, value: f.value, verdict: f.verdict, proposed: f.proposed, evidenceUrl: f.evidenceUrl, evidence: f.evidence, reason: f.reason })
 
-const votes = await inWaves(panel.map(({ b, n, k }) => () => agentRetry(
+const votes = await inWaves(panel.map(({ b, n, k }) => () => judged(extra =>
   'Stage: skeptic. You are skeptic ' + (k + 1) + ' of ' + SKEPTICS + ' on this batch, working independently. For ' +
   'each finding below, try to REFUTE it: ' +
   (MODE === 'repo'
-    ? 're-fetch the cited page. The quote was read from the file by a separate reader; judge it as given. ' +
+    ? 're-read the cited page. The quote was read from the file by a separate reader; judge it as given. ' +
       'Is the quoted text actually correct now, already pointered, out of scope, or is the proposed fix wrong? '
-    : 're-fetch the cited page and its anchored section. Does the source still support the shipped value, ' +
+    : 're-read the cited page and its anchored section. Does the source still support the shipped value, ' +
       'did the recheck event not happen, or is the proposed value wrong? ') +
   'Return "refuted" when the evidence contradicts the finding, "upheld" when you checked and it holds, and ' +
   '"unverifiable" when you could not check it (a fetch failed, a rate limit, no access). Never return ' +
   '"refuted" only because you could not check. When a finding is real but its fix or value is wrong, give ' +
   'the right one as correction. Return one verdict per id.' + POINTER_RULE + READ_ONLY + FETCH_RULE +
-  fence('findings', b.map(skepticView)) + fence('sources', sources),
-  { label: 'skeptic:' + (n + 1) + ':' + (k + 1), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout, CHECKER) }
+  fence('findings', b.map(skepticView)) + fence('sources', sources) + extra,
+  { label: 'skeptic:' + (n + 1) + ':' + (k + 1), phase: 'Verify', schema: VERDICT_SCHEMA, ...opts(R.verifier.fanout, CHECKER) },
+  b.map(f => f.evidenceUrl),
 )), MAX_CONCURRENT)
 
 panel.forEach((p, i) => { if (votes[i] == null) nulls.push('skeptic:' + (p.n + 1) + ':' + (p.k + 1)) })
@@ -566,6 +700,7 @@ return {
   skippedAreas,
   notes,
   nulls,
-  ran: units.flatMap(u => (MODE === 'repo' ? [u.label.replace('find:', 'read:'), u.label] : [u.label])).concat(panel.map(p => 'skeptic:' + (p.n + 1) + ':' + (p.k + 1))),
+  fetched: [...slices.values()].map(({ body, ...s }) => s),
+  ran: fetchLabels.concat(units.flatMap(u => (MODE === 'repo' ? [u.label.replace('find:', 'read:'), u.label] : [u.label])), panel.map(p => 'skeptic:' + (p.n + 1) + ':' + (p.k + 1)), secondRounds),
   roles: { reader: R.worker.fanout, finder: R.verifier.fanout, skeptic: R.verifier.fanout },
 }

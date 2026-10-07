@@ -28,6 +28,13 @@ lib/docs-cache.sh plugins/discovery/scripts/docs-cache.sh
 lib/html2md.py plugins/harness-config/scripts/html2md.py
 lib/html2md.py plugins/harness-ops/scripts/html2md.py
 lib/html2md.py plugins/discovery/scripts/html2md.py
+lib/fetch-docs.sh plugins/multi-agent/scripts/fetch-docs.sh
+lib/docs-cache.sh plugins/multi-agent/scripts/docs-cache.sh
+lib/html2md.py plugins/multi-agent/scripts/html2md.py
+lib/docs-raw.sh plugins/discovery/scripts/docs-raw.sh
+lib/docs-raw.sh plugins/multi-agent/scripts/docs-raw.sh
+lib/docs-fetcher-gate.mjs plugins/discovery/lib/docs-fetcher-gate.mjs
+lib/docs-fetcher-gate.mjs plugins/multi-agent/lib/docs-fetcher-gate.mjs
 lib/docs-lookup-procedure.md plugins/discovery/reference/docs-lookup-procedure.md
 lib/managed-scope.sh plugins/harness-config/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-memory/lib/managed-scope.sh

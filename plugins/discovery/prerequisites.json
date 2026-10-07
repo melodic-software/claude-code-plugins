@@ -1,6 +1,24 @@
 {
   "requires": [
     {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the docs-fetcher gate cannot launch, so a discovery:docs-fetcher subagent's Bash is held only by the session's own permission rules.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "curl",
       "kind": "cli",
       "need": "required",

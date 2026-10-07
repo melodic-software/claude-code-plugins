@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// GENERATED from lib/docs-fetcher-gate.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
 // PreToolUse gate for a plugin's docs-fetcher agent. The agent holds Bash and
 // reads untrusted page text, so inside it a Bash call may run exactly one
 // command: this plugin's own docs-raw.sh on one public https URL and optional

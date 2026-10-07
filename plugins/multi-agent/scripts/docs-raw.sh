@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/docs-raw.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Fresh raw read of one docs page through fetch-docs.sh and docs-cache.sh
 # beside this script, for an agent whose shell may run this command and
 # nothing else (the docs-fetcher agents, held to it by their plugin's
