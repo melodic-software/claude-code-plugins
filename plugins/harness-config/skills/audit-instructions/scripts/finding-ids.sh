@@ -123,6 +123,9 @@ claim_template() {
   I37) echo "I37.harness-text-after-every-tool-result" ;;
   I38) echo "I38.progress-update-suppressor" ;;
   I39) echo "I39.same-file-contradiction" ;;
+  I40) echo "I40.agent-history-reference" ;;
+  I41) echo "I41.agent-unneeded-text" ;;
+  I42) echo "I42.agent-rigid-step-script" ;;
   *) return 1 ;;
   esac
 }

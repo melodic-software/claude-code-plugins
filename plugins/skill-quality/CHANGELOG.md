@@ -3,6 +3,25 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-10-07
+
+### Added
+
+- **`check`: two advisory checks for the concise skill style.** Check 28 warns on a `metadata:` key
+  that is not in the new `scripts/metadata-registry.txt`, which lists each allowed key with the
+  consumer that reads it. Check 29 warns on a bare `#N` history reference (`See PR #1234`,
+  `TODO(#9)`) in a `SKILL.md` body. Code spans, fenced blocks, a cross-repo `owner/repo#N`, link
+  anchors, and any block that carries an as-of date and a recheck trigger are exempt. Both only
+  warn, so no PASS/FAIL verdict moves.
+- **`check`: check 30 warns on skill size.** A description over 419 characters or a `SKILL.md`
+  body over 160 lines (the largest in mattpocock/skills, measured 2026-10-06) warns, and so does
+  growth of either against the base ref: `CHECK_SKILL_BASE_REF`, else the merge-base with
+  `origin`. His medians print as INFO. It only warns. The gate now runs twenty-nine checks.
+- **`probes/TEMPLATE.md`**: how to write a probe set before a description rewrite (16 to 20
+  queries, both polarities and splits, a fresh author who sees only the before description,
+  same-plugin competitors, frozen before the rewrite). CI now runs `measure-invocation.sh validate`
+  on every `plugins/*/probes` directory instead of this plugin's alone.
+
 ## [0.28.4] - 2026-10-04
 
 ### Fixed

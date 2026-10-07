@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| RELOCATED | SKILL.md:9 \"## Retention\" | after/reference/retention.md, # Retention | moved whole |\n| SEMANTIC LOSS | SKILL.md:7 \"exceeds 50 MB\" | none | threshold gone |\n\nVERDICT: BLOCK",
+      "why": "canonical row naming the retention section"
+    },
+    {
+      "answer": "| RELOCATED | before/SKILL.md:11 \"Keep the last 7 rotated archives and delete older ones.\" | reference/retention.md | same text, new file |",
+      "why": "row quotes the moved sentence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| SEMANTIC LOSS | SKILL.md:9 \"Keep the last 7 rotated archives\" | none | the retention paragraph is gone from SKILL.md |",
+      "why": "the moved paragraph labeled as loss"
+    },
+    {
+      "answer": "The retention section moved to a reference file.\n\nRELOCATED: 1",
+      "why": "a count, not a row naming the paragraph"
+    }
+  ]
+}
