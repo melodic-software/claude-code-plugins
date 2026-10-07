@@ -268,6 +268,26 @@ timed="$(grep -c -- '--connect-timeout .* --max-time ' "$TEST_TMPDIR/curl-11.log
 assert_eq "case 11: every request carries a connect timeout and a max time" "$total" "$timed"
 assert_not_contains "case 11: no plain-http request" "$calls" "http://"
 
+# --- Case 12: a jq that ends each @tsv line with CR (Windows) leaves no CR in the reason ---
+crjq="$TEST_TMPDIR/crjq"
+mkdir -p "$crjq"
+real_jq="$(command -v jq)"
+cat >"$crjq/jq" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+*@tsv*) "$real_jq" "\$@" | sed 's/\$/\r/' ;;
+*) exec "$real_jq" "\$@" ;;
+esac
+EOF
+chmod +x "$crjq/jq"
+man="$TEST_TMPDIR/manifest-crlf.tsv"
+printf '%s\n' 'gamma	anything' >"$man"
+rc=0
+out=$(PATH="$crjq:$PATH" DOCS_CACHE_DIR="$fx.crlf-cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 12: CR-terminated reason still skips" 0 "$rc"
+assert_contains "case 12: SKIP reason closes without a CR" "$out" "SKIP  gamma: page could not be read this run (not-in-index)"
+assert_not_contains "case 12: no CR reaches the output" "$out" $'\r'
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

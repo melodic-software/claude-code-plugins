@@ -147,9 +147,6 @@ four-part records live in [reference/native-deep-research.md](reference/native-d
 /planning:plan
 Plans against the verified `RESEARCH.md` this skill wrote.
 
-A single upstream docs page needs no fan-out: `/discovery:read-docs <url-or-slug> [question]`
-(`scripts/fetch-docs.sh --cache`).
-
 ## Gotchas
 
 - **Feeding a multi-topic ask to an engine.** An engine decomposes ONE question into research
@@ -178,4 +175,5 @@ A single upstream docs page needs no fan-out: `/discovery:read-docs <url-or-slug
 ## See also
 
 - `/discovery:research`, the canonical 3-phase workflow. Invoke it instead when the topic is a single small lookup; Tiers 2 and 3 run it, and a Tier-1 engine supersets it
+- `/discovery:read-docs <url-or-slug> [question]`. Invoke it instead when the input is one upstream docs page: it needs no fan-out (`scripts/fetch-docs.sh --cache`)
 - `${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`, the shared discipline file. Read it when grading a returned payload's source tiers, recency, or falsification, or when Tier 3 runs the research inline here

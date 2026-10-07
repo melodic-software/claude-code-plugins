@@ -166,6 +166,8 @@ between steps must leave content duplicated rather than deleted:
    follow it, with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
    `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
    age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
+   Neither script is in this skill's `allowed-tools`, deliberately: a standing grant would let the
+   fetcher run unattended, so each call takes a permission prompt.
    Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.

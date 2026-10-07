@@ -53,8 +53,9 @@ Run this in place of the sibling's inline audit and correct-forward steps:
    paths in the brief, since a subagent's shell does not expand the plugin
    variable. The subagent runs
    `bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or-url>`
-   as the procedure's step 1 gives it, and reads raw bytes for the read that
-   settles a verdict. A source that is not a docs page keeps its existing
+   as the procedure's step 1 gives it. The read that settles a verdict follows
+   the procedure's step 6: re-fetch with `--max-age 0`, so a cached copy never
+   stands in for the current docs, and read raw bytes. A source that is not a docs page keeps its existing
    route.
 3. **Checkpoint the partial ledger mid-run, if a durable slice exists.** So
    a crash mid-fan-out does not lose completed waves, checkpoint the partial
