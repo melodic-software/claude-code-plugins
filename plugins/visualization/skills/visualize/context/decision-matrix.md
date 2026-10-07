@@ -232,7 +232,8 @@ owned by the plugin README's future-change section.
 ## Sources and verification
 
 Verified 2026-07-22 via a research fan-out over official documentation; re-fetch
-before relying on a time-sensitive detail.
+before relying on a time-sensitive detail, and recheck when the interactive-mode page changes
+what terminal Markdown rendering covers.
 
 - Terminal Markdown rendering (code-block syntax highlighting, hyperlinks):
   `https://code.claude.com/docs/en/interactive-mode.md`.

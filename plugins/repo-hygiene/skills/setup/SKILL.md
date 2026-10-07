@@ -87,8 +87,11 @@ Install nothing, and run no mutating tier.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
      an empty value means the manifest default `true`). The rendered value is injected when this
      skill loads, so a change made now is observed only in a **fresh session**.
-   - The option is **user-scoped**: plugin option values are read from user, `--settings`, and
-     managed settings only, never from a project's `.claude/settings.json`. So there is no
+   - The option is **user-scoped**: plugin option values are read from user and managed
+     settings only, never from a project's `.claude/settings.json`. `--settings` is unverified
+     since the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+     entry stopped naming it (as of 2026-10-07; recheck when the entry names `--settings` again or
+     a probe shows a `--settings` value read or ignored). So there is no
      per-repository value of this toggle. To vary the behavior for one repository, enable or disable
      the plugin in that project's `enabledPlugins` instead.
 

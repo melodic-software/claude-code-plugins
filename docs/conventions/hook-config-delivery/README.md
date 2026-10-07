@@ -77,7 +77,8 @@ this list and the matrix; it does not fork a private convention.
   (see its `[0.9.0]` [CHANGELOG entry](../../../plugins/disk-hygiene/CHANGELOG.md) for the full
   trust analysis and residuals).
 - **G. Operator-side arm record**: for a **per-session** value that would otherwise ride
-  `--settings` (F's residual: honored by the harness, invisible to a hook-side read). An
+  `--settings` (F's residual: invisible to a hook-side read, and whether the harness honors it is
+  unverified, see fact 5). An
   operator-side helper shipped by the plugin writes a per-session record under the plugin's
   install-anchored data directory (`<plugins>/data/<id>`, derived exactly as F derives its anchor);
   the session carries only a **random record id** through a `userConfig` string option, and the hook
@@ -102,8 +103,9 @@ this list and the matrix; it does not fork a private convention.
 | F. Direct settings read | **yes** | in-script default required (declared `default` inert everywhere) | yes (fact 5 + no env-derived paths) | safe, explicit fail direction per plugin | **no: sensitive values are not in `settings.json` (fact 8)** | +settings-file coupling, +managed-path table |
 | G. Operator-side arm record | **yes** (any surface that can derive the anchor) | in-script default required | yes (id carries no authority; store is install-anchored) | safe, explicit fail direction per plugin (exemplar: launcher fails closed, hook fails open) | no (plaintext record in the data dir) | +arm helper, +record lifecycle (claim, TTL, consume), +launcher coupling |
 
-Residual on F (documented, accepted): a value supplied only via a session `--settings` file is honored
-by the harness but invisible to a hook-side read, a runtime CLI flag no hook can observe. Channel G
+Residual on F (documented, accepted): a value supplied only via a session `--settings` file, if the
+harness honors it at all (unverified since 2026-10-07, fact 5), is
+invisible to a hook-side read, a runtime CLI flag no hook can observe. Channel G
 exists to close exactly that residual for per-session values a plugin cannot do without.
 
 ## The decision rule

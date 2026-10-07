@@ -165,7 +165,8 @@ Lanes are defined in a JSON config, resolved first-hit-wins:
 `--config FILE` → `$HARNESS_OPS_LANES_CONFIG` → `<repo>/.work/lanes/lanes.json`. Each lane
 carries a `name`, a `prompt` file path, a required `effort`, and optional `model`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
-`autonomy` plugin's lane-stop gate). The full
+`autonomy` plugin's lane-stop gate; that `--settings` delivery is unverified, see
+[context/config.md](context/config.md)). The full
 schema, resolution rules, and the prompt-storage seam live in
 [context/config.md](context/config.md). Read it before authoring a config.
 

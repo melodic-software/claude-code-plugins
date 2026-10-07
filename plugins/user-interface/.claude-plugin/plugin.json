@@ -1,6 +1,6 @@
 {
   "name": "user-interface",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Front door for interface design: terminal and CLI output, TUIs, prompt themes, Claude Code mods, web and app UI. design detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and supplies its own guidance where nothing covers the concern. Terminal guidance is its own contribution.",
   "author": {
     "name": "Melodic Software",

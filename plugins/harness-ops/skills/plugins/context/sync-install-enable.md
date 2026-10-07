@@ -68,8 +68,9 @@ step's prose, is what to branch on:
 - **`none`**: install nothing; list the entries under "Action needed" in the report only
 
 **A headless run launched with `--setting-sources` that omits `user` silently reverts this policy to
-`ask`.** `pluginConfigs` is read from user settings, `--settings`, and managed settings only (see
-[scope-semantics.md](scope-semantics.md)), so dropping `user` from the source list drops the
+`ask`.** `pluginConfigs` is read from user settings and managed settings only (see
+[scope-semantics.md](scope-semantics.md); `--settings` is unverified since the entry stopped
+naming it, as of 2026-10-07), so dropping `user` from the source list drops the
 configured `install_new` with it, and the render falls back to the unset placeholder, which this
 step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
 report rather than letting a policy the user set appear to have been honored.

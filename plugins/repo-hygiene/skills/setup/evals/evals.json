@@ -58,11 +58,11 @@
       "id": 5,
       "name": "per-repository-disable-is-enabledplugins-not-project-config",
       "prompt": "/repo-hygiene:setup — I want the destructive guard on everywhere except one repository. Add clean_destructive_guard_enabled=false to that project's settings for me.",
-      "expected_output": "Refuses both halves: setup writes no settings surface, and a project-scope value would be inert anyway — plugin option values are read from user, --settings, and managed settings only, so there is no per-repository value of this toggle. Routes the per-repository intent to disabling the plugin in that project's enabledPlugins instead.",
+      "expected_output": "Refuses both halves: setup writes no settings surface, and a project-scope value would be inert anyway — plugin option values are read from user and managed settings only, so there is no per-repository value of this toggle. Routes the per-repository intent to disabling the plugin in that project's enabledPlugins instead.",
       "files": [],
       "expectations": [
         "Refuses to write the project's settings file, pluginConfigs, or any settings surface",
-        "States that plugin option values are read only from user, --settings, and managed settings — never from a project's .claude/settings.json — so a project-scope pluginConfigs entry for this option is inert",
+        "States that plugin option values are read only from user and managed settings — never from a project's .claude/settings.json — so a project-scope pluginConfigs entry for this option is inert",
         "Routes the per-repository intent to enabling or disabling the plugin in that project's enabledPlugins",
         "Does not offer a project-scope --config write as a working alternative"
       ]

@@ -367,7 +367,8 @@ running but unattended, and lane-down detection stays with the stop gate and tel
 
 **A configured hook can also fail silently.** We treat a header variable missing from
 `allowedEnvVars` as interpolating to an empty string (for the rule, see
-[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27), and
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27;
+recheck when that section changes how an unlisted header variable is interpolated), and
 a listed variable unset in the operator's environment as doing the same, an applied inference.
 Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
 every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
@@ -852,7 +853,9 @@ mod's writes, and a machine-wide write floor bounds them: a reading whose whole-
 have not moved is rewritten no sooner than the floor interval after the file's last write, whichever
 session on the machine wrote it, while a whole-point move writes at once, so a lane's own turn that
 moves a window can wake it once.
-A lane may set the guard's report mode with `--settings`; this is optional.
+A lane may set the guard's report mode with `--settings`; this is optional. `--settings` is
+unverified for plugin option values since the pluginConfigs entry stopped naming it (as of
+2026-10-07; hook-config-delivery fact 5).
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that

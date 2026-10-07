@@ -26,7 +26,8 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 - `<plugin-data-dir>` = this plugin's persistent data directory, `${CLAUDE_PLUGIN_DATA}`. That
   placeholder resolves here: the plugin manifest reference has `${...}` resolve
   "Anywhere in the Markdown body" of skill, command, and agent content
-  (<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, fetched 2026-10-07), alongside hook and
+  (<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, fetched 2026-10-07; recheck when that section drops skill,
+  command or agent Markdown bodies from the list), alongside hook and
   monitor commands. Should it
   arrive unexpanded, derive the directory deterministically per the same page:
   `~/.claude/plugins/data/<plugin-id>/`, where `<plugin-id>` is this plugin's install identifier
@@ -155,7 +156,8 @@ output and resume must not be steerable by it.
 This guardrail is **observed harness behavior, not documented**: no official Claude Code page
 describes it (sub-agents reference checked 2026-07-26,
 <https://code.claude.com/docs/en/sub-agents>, which documents write restriction only at
-tool-access granularity via `disallowedTools`). Treat it as environment-dependent. It may not
+tool-access granularity via `disallowedTools`; recheck when that page documents a write
+guardrail). Treat it as environment-dependent. It may not
 fire at all in a given context, which is why the naming rule is the primary defense and the
 rename fallback is the backstop.
 

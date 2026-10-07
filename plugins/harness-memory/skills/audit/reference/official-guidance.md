@@ -299,7 +299,8 @@ and prices a recommended move with that destination's row:
 
 `AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
 page changed its `AGENTS.md` guidance between 2026-06-20 and 2026-09-19, so the row below is
-derived from the page as of 2026-09-29, not from the earlier shim-only guidance.
+derived from the page as of 2026-09-29, not from the earlier shim-only guidance. Recheck when the
+memory page's `AGENTS.md` section changes again.
 
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and

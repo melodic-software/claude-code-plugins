@@ -186,6 +186,7 @@ on *that* line rather than on its own prose. Verified empirically (2026-09-06, C
 `SKILL.md`'s render showed the configured value. Claude Code enforces nothing here, so the rule is
 kept grep-checkable instead: no `context/*.md` file carries the dollar-brace form of the
 placeholder, and a spoke that inlines one fails silently until that grep catches it at review.
+Recheck when a Claude Code release note changes how spoke files under `context/` are read.
 
 **The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
 plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
@@ -193,7 +194,11 @@ plugin from a local marketplace): a `userConfig` key set in user settings or thr
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
 on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
 [scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
-placeholder" holds the payload shape and the probe recipe.
+placeholder" holds the payload shape and the probe recipe. The `--settings` delivery is
+unverified since the `pluginConfigs` entry stopped naming it (as of 2026-10-07; recheck when the
+entry names `--settings` again or a probe shows a `--settings` value read or ignored); the
+substitution itself is the claim here. Recheck when a release note changes `userConfig`
+substitution in skill bodies.
 
 ## `sync` updates the plugin that provides `sync`
 
@@ -203,7 +208,7 @@ remaining step, including every later `fleet-state.sh` call, executes the **pre-
 while the report describes a version the user now has installed but is not running. Per
 `code.claude.com/docs/en/plugins/loading#when-auto-update-runs` (re-fetched 2026-10-07): "When a copied plugin
 updates mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
-version's path." The behavior is **not re-run on 2.1.261**: observing it requires a live
+version's path." (Recheck when that section stops saying so.) The behavior is **not re-run on 2.1.261**: observing it requires a live
 interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
 stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `harness-ops`
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at

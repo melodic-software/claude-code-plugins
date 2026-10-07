@@ -93,13 +93,17 @@ from that turn; its line reaches Claude at the lane's next turn no person starte
 wants the lines at once may start its session with its own options through `--settings`, which can
 set any key user settings can, including the plugin's `pluginConfigs` entry:
 `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
-{"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
+{"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`). The `pluginConfigs` part of that is unverified
+since the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+entry stopped naming `--settings` (as of 2026-10-07).
 
 - **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
   and the `pluginConfigs` row of
   [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: either section changes the scope `pluginConfigs` is read from.
+- **Recheck trigger**: either section changes the scope `pluginConfigs` is read from, the
+  `pluginConfigs` entry names `--settings` again, or a probe shows a `--settings` value read or
+  ignored.
 
 ### The /rate-limit-guard command, band row and status tool
 

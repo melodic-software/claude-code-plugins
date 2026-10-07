@@ -254,7 +254,8 @@ Two checks, both cheap, and a run does them before it trusts a body:
   live pages, so a slug the index does not carry is retired or renamed. That alone flags the
   alias. Verified across ten slugs on 2026-08-11: the nine live ones each appear as
   `docs/en/<slug>.md`; `slash-commands` appears in no such entry (only an unrelated
-  `agent-sdk/slash-commands`), which is exactly the one that aliased.
+  `agent-sdk/slash-commands`), which is exactly the one that aliased. Recheck when `llms.txt`
+  lists `docs/en/slash-commands.md` or drops one of the nine.
 - **Read the body's own first heading before trusting it.** A page says what it is in its first
   heading. A heading for a different page than the one you asked for ends the read; a title that
   merely differs in wording from the slug does not.

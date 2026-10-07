@@ -30,7 +30,8 @@ Read every "under auto mode" clause below as the **default** condition on the pl
 operators use, not as a conditional one. The upstream page no longer dates the rollout. It states a
 version floor. Per
 [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-(fetched 2026-08-17):
+(fetched 2026-08-17; recheck when that section changes the version floors or the default-mode
+prompt):
 
 > The built-in `auto` default requires Claude Code v2.1.228 or later on macOS, Linux, and WSL, and
 > v2.1.233 or later on native Windows. On earlier versions, the built-in default is Manual.
@@ -84,7 +85,8 @@ order:
 >
 > [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
 > ("How the classifier evaluates actions"; re-fetched 2026-08-26. The `Monitor` category was
-> added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode)
+> added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode;
+> recheck when that dropped-rules list changes)
 
 The [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
 restates it and adds that `autoMode.classifyAllShell: true` suspends even the narrow shell allow rules:

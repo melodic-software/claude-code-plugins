@@ -324,10 +324,14 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   subdirectory's `CLAUDE.md` and `.claude/rules/` files, and path-scoped rules, still load when
   Claude reads a file there"). The value is read from `pluginConfigs` in "`~/.claude/settings.json`,
   a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
-  files." The option's first key, `projectInstructions` (`claude`, `agents-fallback`, `both`,
-  `none`), is still honored while `instructionFiles` reads as its default, so an operator's mode
-  can come from either key; like `instructionFiles`, it is a user, `--settings` or managed value a
-  repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
+  files." (The memory page quoted here named `--settings` on 2026-10-01. The
+  [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry read
+  2026-10-07 gives the scope "User or managed" and no longer names the flag, so `--settings` is
+  unverified as of 2026-10-07; recheck when the entry names `--settings` again or a probe shows a
+  `--settings` value read or ignored.) The option's first key, `projectInstructions` (`claude`,
+  `agents-fallback`, `both`, `none`), is still honored while `instructionFiles` reads as its
+  default, so an operator's mode can come from either key; like `instructionFiles`, it is a user
+  or managed value a repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
   `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
   directory above it", the walk to the filesystem root, while "Don't count, and keep loading
   alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and
@@ -430,7 +434,7 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   comes
   to state when a subdirectory's `AGENTS.md` loads under `claude-md-and-agents-md` or whether an
   import expands under `managed-only`; settings-reference documents how a built-in plugin is
-  disabled; settings-reference or the mods overview changes whether built-in mods keep running
+  disabled; the settings-reference `pluginConfigs` entry names `--settings` again; settings-reference or the mods overview changes whether built-in mods keep running
   under `disableAllHooks` or `allowManagedHooksOnly`, or stops listing `cc-plugin-agents-md` as
   one; a changelog entry names `AGENTS.md`, `instructionFiles`, `projectInstructions` or the
   `agents-md` plugin; or the README's "Setting the option" paragraph on the old key changes.

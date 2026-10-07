@@ -49,7 +49,7 @@ Discovery reads identity domains from the `includeIf "gitdir:..."` entries in `g
 
 **Claim:** `gh` takes its configuration directory from `GH_CONFIG_DIR`, then `$XDG_CONFIG_HOME/gh`, then `$AppData/GitHub CLI` on Windows, then `$HOME/.config/gh`, and reports no directory for the working directory. **Basis:** `gh help environment` on gh 2.98.0, run 2026-10-01. **As of:** 2026-10-01. **Recheck:** a gh release changes the `GH_CONFIG_DIR` lookup order in `gh help environment`.
 
-**Claim:** `pluginConfigs` is read from user settings, `--settings` and managed settings only, and `claude plugin install --config` writes user settings whatever scope flag is given, so one slot serves the whole machine. **Basis:** facts 5 and 9 of `docs/conventions/hook-config-delivery` (Claude Code 2.1.283, 2026-09-27). **As of:** 2026-10-01. **Recheck:** the documented `pluginConfigs` read scopes change, or `--config` starts honoring a scope flag.
+**Claim:** `pluginConfigs` is read from user settings and managed settings only (`--settings` is unverified since the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry stopped naming it, as of 2026-10-07; recheck when the entry names `--settings` again or a probe shows a `--settings` value read or ignored), and `claude plugin install --config` writes user settings whatever scope flag is given, so one slot serves the whole machine. **Basis:** facts 5 and 9 of `docs/conventions/hook-config-delivery` (Claude Code 2.1.283, 2026-09-27). **As of:** 2026-10-01. **Recheck:** the documented `pluginConfigs` read scopes change, or `--config` starts honoring a scope flag.
 
 ## Next
 

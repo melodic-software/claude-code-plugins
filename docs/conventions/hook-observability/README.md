@@ -319,6 +319,7 @@ carrying the exact text sent, so the debug log holds what the model read.
 - **Not a UI feature, but "no verbose surface exists" is the wrong reason.** Verbose surfaces do
   exist, and the hooks reference names one that carries background-hook output. Pointer: for that
   surface, see <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>. As of: 2026-08-11.
+  Recheck trigger: that section stops naming a surface that carries background-hook output.
   Alongside it are the `verbose` and `viewMode` settings, the `--verbose` flag,
   `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` for hook matcher counts, and `--include-hook-events` for
   the stream-json event feed.

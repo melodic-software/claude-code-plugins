@@ -18,7 +18,8 @@ Report-only: exit code is always 0 and the single-line JSON on stdout is the
 whole contract. This report is how the ``clean`` skill self-enforces audit-only
 mode when a body token arrives unexpanded.
 
-Scope: managed settings and a ``--settings`` flag can also carry
+Scope: managed settings, and possibly a ``--settings`` flag (unverified since
+the pluginConfigs entry stopped naming it, as of 2026-10-07), can also carry
 ``pluginConfigs`` and are not visible here; the ``detail`` sentence states the
 path actually probed so the reader can judge the claim.
 

@@ -68,7 +68,8 @@ and expect contexts where it does not fire at all.
 **Packet files are write-once evidence.** A sibling plugin's `PostToolUse` hook registered on the
 `Write|Edit` matcher rewrites your packet files in place after your write succeeds. That event is
 documented harness behavior (`PostToolUse` runs after a tool call succeeds and may rewrite content;
-the matcher keys on tool name, per <https://code.claude.com/docs/en/hooks>, fetched 2026-08-10), and
+the matcher keys on tool name, per <https://code.claude.com/docs/en/hooks>, fetched 2026-08-10; recheck when the hooks page stops
+saying a `PostToolUse` hook may rewrite content or matches on something other than tool name), and
 this fleet ships formatter plugins that register exactly such hooks. They damage precisely what you
 are writing down: verbatim quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
 a new file such as `audit-notes-2.md` or `evidence-<n>.md`, since their autocorrect has no memory and reverts a hand-repair on the next edit);

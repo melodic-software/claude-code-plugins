@@ -10,7 +10,8 @@
 # background-session surface.
 #
 # Verified CLI surface (claude 2.1.215 — see the skill's Verification section;
-# --settings re-verified against the CLI reference, 2026-07-25):
+# --settings re-verified against the CLI reference, 2026-07-25; recheck when the CLI reference
+# changes the flag's JSON-object form):
 #   claude --bg -n <name> --permission-mode auto [--permission-prompts none]
 #     [--model M] [--effort E]
 #     [--settings JSON] "<prompt>"                              launch, return now
@@ -113,7 +114,11 @@
 #   settings    optional; a JSON OBJECT passed inline as --settings for that
 #               session only (e.g. a pluginConfigs override opting the lane into
 #               the autonomy plugin's lane-stop gate). Non-object values are
-#               rejected.
+#               rejected. A pluginConfigs value delivered through --settings is
+#               unverified since the settings reference stopped naming the flag
+#               (as of 2026-10-07; recheck when the pluginConfigs entry names
+#               --settings again or a probe shows a --settings value read or
+#               ignored; hook-config-delivery fact 5).
 #
 # Lane-stop gate arming (#1784):
 #   A lane whose settings request the autonomy lane-stop gate

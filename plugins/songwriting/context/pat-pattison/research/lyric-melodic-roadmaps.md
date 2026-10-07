@@ -27,7 +27,9 @@ return **zero**.
 
 It is, however, genuinely Pat's, from outside the books. The article
 "Lyric and Melodic Phrases" was fetched and read on 2026-08-11 at
-<https://www.patpattison.com/lyric-and-melodic-phrases>, and it uses "roadmap"
+<https://www.patpattison.com/lyric-and-melodic-phrases> (recheck this and the quotes below
+attributed to it or to "The Art of Phrasing" when either page's wording or numbered options
+change), and it uses "roadmap"
 throughout as its governing metaphor. The "maximum meaning" quote below is
 **confirmed verbatim** against that page, and the three fixes below are **Pat's
 own numbered options**, not this file's invention. See that section.

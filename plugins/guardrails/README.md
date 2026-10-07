@@ -283,7 +283,10 @@ out of scope until such a signal exists.
   scratch root, and the PowerShell lane consults one only for a single literal
   destination, so their message names none. The operator's levers, narrowest
   first, are `block_hook_bypass_scratch_roots` (Bash redirect targets and a
-  PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`, and the
+  PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`
+  (unverified since the [pluginConfigs entry](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+  stopped naming `--settings`, as of 2026-10-07; recheck when it names `--settings` again or a probe shows a
+  `--settings` value read or ignored), and the
   user-global `block_hook_bypass_enabled` switch, which persists across every
   repository where guardrails is enabled. They arrive once per session as a
   `systemMessage`, which Claude Code reads on exit 2 as on exit 0
@@ -998,7 +1001,8 @@ to early-exit inside each guard. The `Write|Edit` row now carries one handler pe
 extension, each with an `if` predicate (`Edit(*.md)` and so on; the field holds one
 rule, so one row per extension is the documented shape), and Claude Code evaluates
 the predicate before spawning: "The hook command only runs if the tool call matches
-the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05).
+the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05). Recheck when the
+hooks reference changes how the `if` field is evaluated or lets one handler hold several rules.
 `run-guards.test.sh` pins the predicate set to the union of the verifiers' own
 `case "$FILE"` gates, so an extension added to a gate without an `if` row fails the
 suite rather than silently never firing.

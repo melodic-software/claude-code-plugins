@@ -39,7 +39,9 @@ project's `settings.json`, on 2026-06-29, against the discover-plugins "Configur
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate".
+Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate". Recheck a section when a
+Claude Code release note changes the plugin schema, skill-listing, or marketplace-settings behavior
+it states.
 
 ## Organization: one plugin per cohesive concern
 
@@ -73,7 +75,8 @@ procedure before choosing plugin and skill directories:
    cross-skill reference, eval, and auto-invocation phrase from `description` plus `when_to_use`.
    Claude Code uses that listing text to decide whether to load a skill, so trigger phrases are
    behavior, not marketing copy
-   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16).
+   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16; recheck when that page
+   stops saying the listing text decides whether a skill loads).
 2. **Classify the split points by discovery intent.** Facets of one capability stay in one plugin but
    may become focused sibling skills when users reach for them with different vocabulary. Capabilities
    with independent purpose, lifecycle, or trust surface become separate plugins. Subcommands and
@@ -177,7 +180,8 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
 
 **Built-in collisions never force a plugin skill's name.** "Plugin skills use a
 `plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15). A shadow-dodge name is never
+([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
+changes the plugin-namespace sentence). A shadow-dodge name is never
 *required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
 `batch-simplify`, `research-deep`) stand or evolve on their own merits, not out of collision fear.
 The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
@@ -202,7 +206,7 @@ Prefer them in this order; the earlier ones are simplest and least surprising.
 |---|---|---|
 | Consumer `CLAUDE.md` / `.claude/rules` | The skill reads the consuming project's own context and rules | Project-specific conventions, naming, policies: the default extension surface |
 | `${CLAUDE_PROJECT_DIR}` | Path to the consumer's project root, substituted in hook/MCP/monitor commands and exported to subprocesses | Referencing project-local scripts/config |
-| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user, `--settings`, or managed settings; project/local entries are ignored. Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
+| `userConfig` → `${user_config.KEY}` | Values Claude Code prompts for at enable time (typed: string/number/boolean/directory/file, optional sensitive). Substitutes as `${user_config.KEY}` in MCP/LSP configs and exec-form hook commands; non-sensitive values also substitute into skill/agent content. Shell-form hook commands, monitor commands, and MCP `headersHelper` reject this substitution. Hook processes receive every value as `CLAUDE_PLUGIN_OPTION_<KEY>`; a Bash tool call made by a skill does not (see the [smoke-test record](extensibility-contract-smoke-tests.md)). Non-sensitive values are stored under `pluginConfigs[<id>].options` in user settings and read from user or managed settings; project/local entries are ignored (`--settings` is unverified since 2026-10-07, hook-config-delivery fact 5). Sensitive values use the macOS Keychain or `~/.claude/.credentials.json` where no supported keychain exists | Endpoints, toggles, tokens: personal or administrator-supplied config without editing the plugin |
 | `${CLAUDE_PLUGIN_ROOT}` | Path to the plugin's own installed directory | Referencing bundled scripts/assets (mandatory under cache isolation) |
 | `${CLAUDE_SKILL_DIR}` | Path to the current skill's subdirectory within the plugin (not the plugin root); substituted in skill and agent content per the [skills reference](https://code.claude.com/docs/en/skills#available-string-substitutions) | Pre-compute blocks and `allowed-tools` paths that must resolve to skill-local scripts without hardcoding the plugin root |
 | `${CLAUDE_PLUGIN_DATA}` | Persistent per-plugin directory that survives updates (`~/.claude/plugins/data/<id>/`) | Installed deps, caches, generated state |
@@ -230,8 +234,10 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
    `string[]` type); mark a credential `sensitive` so it lands in Claude Code's secure credential
    storage, never `settings.json`.
    Non-sensitive values store under `pluginConfigs[<id>].options` in user settings and are read from
-   user settings, `--settings`, or managed settings only; project and local entries are ignored since
-   Claude Code 2.1.207. Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
+   user settings or managed settings only; project and local entries are ignored since
+   Claude Code 2.1.207. `--settings` is unverified since the entry stopped naming it (as of
+   2026-10-07; recheck when the [pluginConfigs entry](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   names `--settings` again or a probe shows a `--settings` value read or ignored). Use for endpoints, toggles, tokens, and personal path knobs. The `directory` /
    `file` type is a UI hint, not a validator: a `--config` value is stored verbatim with no existence
    check and no normalization to absolute (smoke-test A).
 2. **Tracked rich config under `${CLAUDE_PROJECT_DIR}`. [first-party PRECEDENT; folder form is a
@@ -529,7 +535,7 @@ dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 How a later commit under an unchanged `version` reaches an installed plugin depends on whether
 Claude Code loads the plugin in place or from a copy
 ([Plugin loading reference](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins),
-fetched 2026-10-04):
+fetched 2026-10-04; recheck when that section changes which sources load in place):
 
 - **A marketplace added from a local path** (`claude plugin marketplace add <clone>`, or a
   `directory` source in checked-in settings): every plugin here has a relative-path source
@@ -867,6 +873,8 @@ here, whether new or a version bump that adds a trust surface, passes this revie
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
 plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
+Recheck when a Claude Code release note changes hook command substitution, `userConfig`
+interpolation, or what a plugin may bundle.
 
 1. **Code execution: hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
@@ -905,8 +913,8 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    input and stores the value in the macOS Keychain or, on platforms without a supported keychain,
    `~/.claude/.credentials.json`, and **not** `settings.json`.
    Non-sensitive values land in user `settings.json` under `pluginConfigs[<id>].options` and are readable, so
-   never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
-   not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
+   never put a secret there. Claude Code reads this key from user settings and managed settings,
+   not project or local settings (`--settings` is unverified since 2026-10-07, hook-config-delivery fact 5). Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation: no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
    persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
    **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
@@ -1501,7 +1509,8 @@ For a plugin that already ships here, iterate against your local clone without r
 without changing any consumer's marketplace registration. `--plugin-dir` loads a plugin straight from
 a directory; when its `name` matches an installed marketplace plugin, **the local copy takes
 precedence for that session**, so you exercise working-tree edits against the installed copy without
-uninstalling it (verified 2026-06-24).
+uninstalling it (verified 2026-06-24; recheck when the plugins reference changes how
+`--plugin-dir` resolves a name that matches an installed plugin).
 
 ```shell
 # from this repo root: point at the plugin directory, not the marketplace root

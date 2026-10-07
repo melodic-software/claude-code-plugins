@@ -144,7 +144,10 @@ deliberate and both surfaces coexist: `userConfig` keeps the personal and machin
 babysit-prs mechanic documents (watched owners, self logins, engine thresholds); this surface holds
 the lane policy a team reviews and tracks. Because `pluginConfigs` is read from user settings, each
 `babysit_*` `userConfig` key has one value per machine: an operator with several identity domains
-leaves those keys unset or launches the lane with a per-domain `--settings` file. Which keys stay in
+leaves those keys unset or launches the lane with a per-domain `--settings` file (unverified for
+plugin options since the `pluginConfigs` entry stopped naming the flag, as of 2026-10-07; recheck
+when the entry names `--settings` again or a probe shows a `--settings` value read or ignored).
+Which keys stay in
 `userConfig` and which move to this surface is recorded in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md). Loop keys carry the `babysit_loop_` prefix so the two key
 families sharing one file stay distinguishable.

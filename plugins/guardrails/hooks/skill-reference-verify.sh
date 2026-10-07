@@ -147,6 +147,8 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # contrasting the two shapes). `Output` for Edit is `FileEditOutput`, whose
 # `structuredPatch` is `Array<{oldStart, oldLines, newStart, newLines, lines:
 # string[]}>` (<https://code.claude.com/docs/en/agent-sdk/typescript>, "Edit").
+# Recheck when the hooks page changes what `tool_response` carries for
+# PostToolUse, or the SDK page changes `FileEditOutput.structuredPatch`.
 #
 # OBSERVED, not merely documented: an independent reviewer captured a live
 # PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
@@ -202,7 +204,9 @@ esac
 # against the plugin manifest reference
 # (<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>,
 # fetched 2026-10-07). Collect them per plugin so a skill
-# loaded from a declared location resolves like any other.
+# loaded from a declared location resolves like any other. Recheck when the
+# manifest reference stops saying declared `skills` paths add to the default
+# `skills/` directory.
 #
 # One documented exception is NOT modeled: for a marketplace entry whose `source`
 # resolves to the marketplace root, declared subdirectories REPLACE the default
@@ -368,7 +372,9 @@ skill_frontmatter_name() {
 # subdirectory and no `skills` key auto-loads as a single-skill plugin. That last
 # condition is honored as written rather than widened — a root SKILL.md sitting
 # beside a populated `skills/` is not loaded, and accepting it would suppress the
-# advisory for a command Claude Code does not actually offer.
+# advisory for a command Claude Code does not actually offer. Recheck when the
+# manifest reference changes the single-skill auto-load condition or how
+# declared paths combine with the default location.
 #
 # Call as: skill_roots <plugin-dir> <declared-paths> -> $roots
 # shellcheck disable=SC2154  # roots is the caller's frame, per the call contract

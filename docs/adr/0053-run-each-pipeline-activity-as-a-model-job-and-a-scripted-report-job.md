@@ -53,7 +53,8 @@ lane in two jobs. Its contract is
 5. **Lanes chain by `workflow_dispatch`.** A check run written with `GITHUB_TOKEN` starts no workflow
    run; only `workflow_dispatch` and `repository_dispatch` are exempt
    ([triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow),
-   fetched 2026-10-04). No lane starts on a `check_run` event from another lane.
+   fetched 2026-10-04; recheck when that section stops exempting only `workflow_dispatch` and
+   `repository_dispatch`). No lane starts on a `check_run` event from another lane.
 
 ## Alternatives considered
 

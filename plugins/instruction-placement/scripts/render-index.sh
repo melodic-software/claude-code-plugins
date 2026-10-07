@@ -461,9 +461,10 @@ fi
 # The import stays harmless either way: "Claude Code skips an `AGENTS.md` it has
 # already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
 # twice" (code.claude.com/docs/en/memory, "Choose which instruction files load";
-# fetched 2026-10-01; recheck when that table changes). The setting is a user,
-# `--settings` or managed one, which no repository can ship, so the gate keeps
-# the default's answer.
+# fetched 2026-10-01; recheck when that table changes). The setting is a user
+# or managed one (`--settings` is unverified since the pluginConfigs entry
+# stopped naming it, as of 2026-10-07), which no repository can ship, so the
+# gate keeps the default's answer.
 #
 # NATIVE means no CLAUDE.md, CLAUDE.local.md or root .claude/CLAUDE.md sits on
 # the file's own path, so nothing in this repository stops Claude Code reading

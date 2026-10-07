@@ -549,14 +549,16 @@ and both
 resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
 `settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
-Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207, and a project or
+Claude Code honors that key only from user and managed scope since 2.1.207, and a project or
 local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
 2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
-`https://code.claude.com/docs/en/settings-reference#pluginconfigs`, which states that Claude Code reads all
-`pluginConfigs` values from only user settings, `--settings`, and managed settings, that entries in a
+`https://code.claude.com/docs/en/settings-reference#pluginconfigs`, which (read 2026-10-07, Claude Code
+2.1.292) gives `pluginConfigs` the scope "User or managed", states that entries in a
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
-were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
-when a release note names `pluginConfigs` scope. The **user** file is located
+were read before v2.1.207. `--settings` is unverified since the entry stopped naming it (as of 2026-10-07;
+recheck when the pluginConfigs entry names `--settings` again or a probe shows a `--settings` value read or
+ignored; hook-config-delivery fact 5). Recheck when that page stops carrying the ignored-project-scope
+statement, or when a release note names `pluginConfigs` scope. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
@@ -568,8 +570,8 @@ closed to enabled otherwise. The **managed**
 (enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
 non-overridable scope, an explicitly configured value there **wins over the user file**, so an
 organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
-over it (later files win). The one honored source the guard cannot read is a session's `--settings` file
-(a runtime CLI flag no hook observes); a value supplied only there is not enforced. When the value
+over it (later files win). A session's `--settings` file (a runtime CLI flag no hook observes) is not read
+by the guard, and whether `pluginConfigs` honors it is unverified (see above); a value supplied only there is not enforced. When the value
 resolves `false` (audit-only mode), `false` is guard-enforced as an outright deny with no prompt fallback, but
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
@@ -989,7 +991,8 @@ shipped lane has not run end to end; treat that part as documented intent, not o
 
 ## Primary references
 
-Verified 2026-07-16: [Claude skills](https://code.claude.com/docs/en/skills),
+Verified 2026-07-16 (recheck when the hooks page changes the `PreToolUse` decision output or the
+skills page changes skill-scoped hooks): [Claude skills](https://code.claude.com/docs/en/skills),
 [PreToolUse hooks](https://code.claude.com/docs/en/hooks),
 [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html),
 [Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),

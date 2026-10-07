@@ -7,7 +7,8 @@
 # between managed and user settings — under this plugin's own install-derived
 # data directory: <config>/plugins/data/<id>/lane-arms/<arm-id>. The launcher
 # then passes the same arm id to the session through the `lane_stop_gate_arm_id`
-# userConfig option (`claude --settings ...`), and the gate treats the
+# userConfig option (`claude --settings ...`, unverified since the pluginConfigs
+# docs entry stopped naming the flag, as of 2026-10-07), and the gate treats the
 # env-delivered id purely as a pointer into this store. Because the store is
 # derived from this script's own location — never from an environment value — a
 # watched repository cannot mint, redirect, or forge a record; because the id is

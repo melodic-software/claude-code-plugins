@@ -2,10 +2,12 @@
 
 Claude Code stores merged plugin options under
 ``pluginConfigs[<plugin-id>].options`` in the user ``settings.json`` and, since
-v2.1.207, reads that key back from user settings, the ``--settings`` flag, and
-managed settings only — entries in a project's ``.claude/settings.json`` or
-``.claude/settings.local.json`` are ignored
-(https://code.claude.com/docs/en/settings-reference#pluginconfigs). That
+v2.1.207, reads that key back from user and managed settings only — entries in
+a project's ``.claude/settings.json`` or ``.claude/settings.local.json`` are
+ignored (https://code.claude.com/docs/en/settings-reference#pluginconfigs).
+``--settings`` is unverified since that entry stopped naming it (as of
+2026-10-07; recheck when the pluginConfigs entry names ``--settings`` again or
+a probe shows a ``--settings`` value read or ignored). That
 makes the user settings file the one repo-tamper-resistant channel for a
 safety toggle, so both the report-only ``kill_switch_probe`` and the
 destructive-action guard resolve the switch by reading it here rather than
@@ -62,9 +64,10 @@ def managed_settings_path() -> Path | None:
     the tamper-resistance.
 
     The sibling ``managed-settings.d/`` drop-in directory is also read (see
-    ``_managed_settings_files``). The one honored source a hook cannot read is a
-    session's ``--settings`` file — a runtime CLI flag no hook observes — so a
-    value supplied only there is not enforced by the guard.
+    ``_managed_settings_files``). A session's ``--settings`` file is a runtime
+    CLI flag no hook observes, so a value supplied only there is not enforced by
+    the guard; whether ``pluginConfigs`` honors that flag is unverified (see the
+    module docstring).
     """
     if sys.platform == "darwin":
         return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
@@ -125,8 +128,9 @@ def _report(
 # marks the read itself as degraded.
 _NOT_CONFIGURED_THERE = (
     "the toggle is not configured there and the plugin default (enabled) "
-    "applies. Managed settings or a --settings flag could still carry a value "
-    "this probe cannot see."
+    "applies. Managed settings, or a --settings flag (unverified since "
+    "pluginConfigs stopped naming it), could still carry a value this probe "
+    "cannot see."
 )
 _ASSUMED_DEFAULT = (
     "assuming the default (enabled). This is an assumption, not the configured value."

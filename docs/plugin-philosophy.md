@@ -391,8 +391,11 @@ Choose one authoritative owner for each value:
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
 
 `userConfig` is not repository configuration. Claude Code reads its stored `pluginConfigs` values only
-from user settings, `--settings`, and managed settings. It ignores project and local settings for this
-key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
+from user settings and managed settings
+([`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)). It ignores
+project and local settings for this key. `--settings` is unverified since the entry stopped naming
+it (as of 2026-10-07; recheck when the pluginConfigs entry names `--settings` again or a probe shows
+a `--settings` value read or ignored). Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
 
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
@@ -1714,3 +1717,6 @@ As of 2026-07-17:
   naming-convention guidance this document deviates from deliberately.
 - [Agent Skills specification](https://agentskills.io/specification): `name` field constraints and
   directory matching.
+
+Recheck when the dependencies page changes how constraints resolve, the skills page changes the
+plugin skill namespace, or the specification changes the `name` constraints.
