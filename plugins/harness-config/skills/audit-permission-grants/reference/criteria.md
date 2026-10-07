@@ -167,7 +167,8 @@ The two exceptions on Bash rules:
 2. **Leading env-assignment stripping**, and it is scoped: an assignment of certain known-safe variables
    is stripped, so `Bash(npm test *)` matches `NODE_ENV=test npm test`. An **allow** rule will not match
    past an assignment of any other variable; a **deny** or **ask** rule matches past any leading
-   assignment ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers)).
+   assignment ([permissions](https://code.claude.com/docs/en/permissions#process-wrappers), as of
+   2026-10-07; recheck trigger: that section's env-assignment paragraph changes).
 
 Full doctrine, and the source this row syncs from: the
 [permission-rule-hygiene convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/permission-rule-hygiene/README.md)

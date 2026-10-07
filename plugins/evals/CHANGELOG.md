@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **`plugin-eval` case-authoring checklist points at the upstream grader table for `tool_order` ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** That row restated the pass condition on the plugin-evals page closely enough for the attribution audit's fingerprint check to confirm a copy; its "Passes when" cell now links the page's "Grader types" section instead. The `file_exists` common mistake now says it applies with the default `exists`, since `exists: false` passes when nothing is created.
+- **`plugin-eval` case-authoring checklist points at the upstream grader table for `tool_order` ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** That row restated the pass condition on the plugin-evals page closely enough for the attribution audit's fingerprint check to confirm a copy; its "Passes when" cell now links the page's "Grader types" section instead. The `file_exists` common mistake now says it applies with the default `exists`, since `exists: false` passes when nothing is created. The `file_exists` row and the "Precedence" checks now link the same page, as of 2026-10-07 with a recheck trigger, and keep only the local rules: scaffold output and edited files do not count, and author each field in one file.
 
 ## [0.6.0] - 2026-10-06
 

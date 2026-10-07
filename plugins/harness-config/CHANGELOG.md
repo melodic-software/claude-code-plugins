@@ -5,6 +5,16 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.11.1] - 2026-10-07
+
+### Changed
+
+- **Two upstream restatements now carry an as-of date and a recheck trigger
+  ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** The
+  `audit-permission-grants` env-assignment criterion stamps its permissions link, and the
+  `audit-instructions` inventory links the sub-agents page for the auto-memory dependency instead of
+  restating it, keeping its own rule: enumerate agent memory only when auto memory is on.
+
 ## [1.11.0] - 2026-10-04
 
 ### Added

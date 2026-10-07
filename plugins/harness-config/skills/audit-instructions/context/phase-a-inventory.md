@@ -154,9 +154,11 @@ involving one still carries the no-change representation and its routing recomme
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
   definition enables the field, under the same loaded-portion bound. The gate is the effective state
-  resolved just above: subagent memory is part of auto memory, so with auto memory off the `memory`
-  field has no effect and the subagent launches without the memory instructions or the memory tool
-  access; an agent memory left on disk after the switch flipped is not inventoried.
+  resolved just above: with auto memory off, the `memory` field has no effect
+  ([sub-agents](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory), as of
+  2026-10-07; recheck trigger: that section's auto-memory dependency changes), so enumerate agent
+  memory only when auto memory is on; an agent memory left on disk after the switch flipped is not
+  inventoried.
   Read-only and `harness-memory`-owned exactly as the main entrypoint is.
 - **Org-managed policy**: the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and hook instruction text configured in managed settings, of **both** kinds above. All three are
