@@ -1,6 +1,6 @@
 {
   "name": "code-tidying",
-  "version": "0.28.10",
+  "version": "0.28.11",
   "description": "Code tidying and comment hygiene. tidy hunts a rotated lane for Beck-style tidyings and ships one PR. batch-simplify sweeps a branch, time window, or repo in dependency-ordered waves. dissolve-comments deletes zero-information comments and moves the rest into names (safe, aggressive, strip modes). audit-comment-residue flags history, plan, conversational, and ticket residue. audit-dead-code finds dead code with knip, vulture, gopls, and grep. setup scaffolds tidy lanes.",
   "author": {
     "name": "Melodic Software",

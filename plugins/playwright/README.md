@@ -61,6 +61,27 @@ step, and the script never mutates a globally installed CLI. Run it in a
 working-tree checkout of this plugin (the marketplace clone, or a directory
 loaded via `--plugin-dir`). Consumers receive updates through
 `/plugin marketplace update` once a new plugin version is published.
+The marketplace also runs every vendored skill's check weekly in its
+`maintenance-check-upstream-drift` workflow, which fails when upstream moves.
+
+## Why this wraps the upstream skill
+
+Verdict: keep the wrapper. Microsoft's own skill, `@playwright/cli` 0.1.22
+(checked 2026-10-07), falls short of the skill-authoring guidance this
+marketplace follows:
+
+- Its description is one short sentence with no trigger phrases, so the model
+  has little to route on.
+- Its `SKILL.md` body is 489 lines, close to the 500-line ceiling, and carries
+  the whole command reference inline, so every invocation loads all of it.
+- Seven of its ten reference files run past 100 lines (up to 433) with no
+  contents list.
+
+This wrapper is a 116-line hub with trigger phrases, routes to eleven
+topic files that each carry a contents list when long, and adds gotchas
+observed in the marketplace's browser-tools benchmark. Recheck when the
+upstream version moves: if its skill closes these gaps, plan the switch
+to it as its own change.
 
 ## Install
 

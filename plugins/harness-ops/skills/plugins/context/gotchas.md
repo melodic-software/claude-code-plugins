@@ -201,8 +201,8 @@ Step 3 sweeps every user-scope install, and `harness-ops` is one of them. When t
 mid-run, `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start, so every
 remaining step, including every later `fleet-state.sh` call, executes the **pre-update** script
 while the report describes a version the user now has installed but is not running. Per
-`code.claude.com/docs/en/plugins-reference` (re-fetched 2026-09-05, wording unchanged): "When a plugin updates
-mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
+`code.claude.com/docs/en/plugins/loading#when-auto-update-runs` (re-fetched 2026-10-07): "When a copied plugin
+updates mid-session, hook commands, monitors, MCP servers, and LSP servers keep using the previous
 version's path." The behavior is **not re-run on 2.1.261**: observing it requires a live
 interactive session in which a plugin updates mid-run, which a non-interactive probe pass cannot
 stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved the `harness-ops`
@@ -272,7 +272,7 @@ the record cascade, the data-directory removal, the settings cleanup and the `.o
 none of which the docs state;
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) for "Removing a
 marketplace from its last remaining scope also uninstalls any plugins you installed from it", and
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference) for `uninstall --keep-data`;
+[plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) for `uninstall --keep-data`;
 and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
 2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
 2.1.261, so the behavior is not version-gated. ***Recheck trigger:*** any release note or
@@ -397,7 +397,7 @@ plain uninstall and stayed flat at 73 across six consecutive `--bare` uninstalls
 figures are wall-clock from that same run and are machine- and plugin-count-dependent, so treat
 them as orders of magnitude rather than constants. Neither the spawn behavior nor `--bare` is
 documented on
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference) or
+[plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) or
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), which is why this
 record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
 2.1.263–2.1.272 with no observed change in the behavior. ***Recheck trigger:*** a bulk or

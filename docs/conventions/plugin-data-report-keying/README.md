@@ -10,11 +10,12 @@ only), and this convention sits underneath it.
 
 ## The harness fact this exists for
 
-[Plugins reference](https://code.claude.com/docs/en/plugins-reference), § *Persistent data
-directory*, fetched 2026-08-12:
+[Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), § *Environment
+variables*, `${CLAUDE_PLUGIN_DATA}` row, fetched 2026-10-07:
 
-> The `${CLAUDE_PLUGIN_DATA}` directory resolves to `~/.claude/plugins/data/{id}/`, where `{id}` is
-> the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced by `-`.
+> `~/.claude/plugins/data/<id>/`, created on first reference and kept across plugin updates. `<id>`
+> is the plugin identifier with every character other than a letter, digit, `_`, or `-` replaced by
+> `-`
 
 **The formula is keyed to the plugin identifier and nothing else.** No project, no checkout, no
 worktree, no session. A plugin that writes a fixed filename there has one such file *per machine*,

@@ -5,7 +5,7 @@ Claude Code stores merged plugin options under
 v2.1.207, reads that key back from user settings, the ``--settings`` flag, and
 managed settings only — entries in a project's ``.claude/settings.json`` or
 ``.claude/settings.local.json`` are ignored
-(https://code.claude.com/docs/en/plugins-reference, "User configuration"). That
+(https://code.claude.com/docs/en/settings-reference#pluginconfigs). That
 makes the user settings file the one repo-tamper-resistant channel for a
 safety toggle, so both the report-only ``kill_switch_probe`` and the
 destructive-action guard resolve the switch by reading it here rather than

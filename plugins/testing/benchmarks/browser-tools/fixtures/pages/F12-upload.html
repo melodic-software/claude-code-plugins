@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F12 Upload</title><script src="/fx.js"></script>
+<style>#drop{border:2px dashed #888;padding:1rem;width:300px}#hidden-input{display:none}</style></head>
+<body>
+<!-- Variant A: a plain file input. Variant B: a styled drop zone whose input is display:none and
+     only opened by clicking the zone. The chosen file's name and size are recorded. -->
+<main>
+  <h1>Upload a receipt</h1>
+  <div id="plain"><label>Receipt file <input id="file" type="file"></label></div>
+  <div id="drop" role="button" tabindex="0" aria-label="Choose receipt file">Drop a file here or click to choose</div>
+  <input id="hidden-input" type="file" aria-label="Receipt file (drop zone)">
+  <pre id="result"></pre>
+</main>
+<script>
+  const B = fx.variant === "B";
+  document.getElementById(B ? "plain" : "drop").remove();
+  function take(files) {
+    const f = files[0];
+    if (f) fx.record("uploaded", { name: f.name, size: f.size });
+  }
+  if (B) {
+    const input = document.getElementById("hidden-input");
+    document.getElementById("drop").addEventListener("click", () => input.click());
+    input.addEventListener("change", () => take(input.files));
+    document.getElementById("drop").addEventListener("dragover", (e) => e.preventDefault());
+    document.getElementById("drop").addEventListener("drop", (e) => { e.preventDefault(); take(e.dataTransfer.files); });
+  } else {
+    document.getElementById("hidden-input").remove();
+    document.getElementById("file").addEventListener("change", (e) => take(e.target.files));
+  }
+</script>
+</body>
+</html>

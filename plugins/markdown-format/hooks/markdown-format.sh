@@ -408,9 +408,9 @@ fi
 # Opt-out for the scope escape, read from the CLAUDE_PLUGIN_OPTION_<KEY>
 # environment mirror rather than a `${user_config.*}` placeholder — shell-form
 # hook commands reject that substitution outright, and every option is exported
-# to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference,
-# "User configuration", https://code.claude.com/docs/en/plugins-reference,
-# fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
+# to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (plugin manifest
+# reference, https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value,
+# fetched 2026-10-07). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
 # Shared helper: hook::gitignored_out_of_scope in hook-utils.sh.
 if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
@@ -1096,11 +1096,11 @@ fi
 #
 # Read from the CLAUDE_PLUGIN_OPTION_<KEY> environment mirror, not a
 # `${user_config.*}` placeholder: shell-form hook commands reject
-# `${user_config.*}` substitution outright — "substituting a configured value
-# into a shell command would let the shell run whatever that value contains, so
-# the component fails" — while every option is exported to hook processes as
-# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10). A
+# `${user_config.*}` substitution outright — "because the field's value is
+# passed to a shell that would re-parse the substituted value" — while every
+# option is exported to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway
+# (plugin manifest reference, https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell,
+# fetched 2026-10-07). A
 # value that is not a non-negative integer falls back to the default rather
 # than being interpolated anywhere.
 MAX_FINDINGS=20

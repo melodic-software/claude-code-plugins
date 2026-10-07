@@ -1,6 +1,6 @@
 {
   "name": "biome-format",
-  "version": "0.8.10",
+  "version": "0.8.11",
   "description": "Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo, using the consuming repo's own Biome config.",
   "author": {
     "name": "Melodic Software",
