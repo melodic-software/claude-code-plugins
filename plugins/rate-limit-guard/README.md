@@ -34,19 +34,17 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 
 | When | Line |
 |---|---|
-| The window reaches the approach mark (90%) | once per window, "nearing 95%" |
-| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time and "Keep working." |
+| The window reaches the approach mark (90%) | once per window, "at or above 90%", with the reset time |
+| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time |
 | The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for each window at or above the approach mark, once; nothing when none is |
 | After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
 
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
 re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
-line, for example `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC. Keep
-working.`; when several windows reach the threshold together, only the last line ends "Keep
-working.". No line tells Claude to pause: an interactive session
-[waits out a usage limit](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset)
-and continues on its own. Every line carries its verdict; `rate_limit_line_data` chooses what
+line, for example `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`.
+A line states facts only (the window, the threshold crossed, and the use and reset time the line
+data selects) and never tells Claude what to do; Claude decides. Every line carries its verdict; `rate_limit_line_data` chooses what
 goes with it: the window's name (`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
 rate-limit window". A line never carries the account email or the session name. Subagents get no
 line. Each line sent to Claude is also written as sent to the debug log (`claude --debug`). The
