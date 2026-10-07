@@ -146,6 +146,23 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"prose-only.md"* ]]; then ok "fixture named only in an eval prompt (empty files[]) is an orphan (consumption scoped to files[])"; else fail "prose-mention wrongly consumed: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# --- PLUGIN-EVAL CASE CONSUMPTION: a case's scaffold.sh, or a fixtures seed
+# script it runs, seeds fixtures by name, with or without the .txt suffix the
+# fixtures carry so no linter reads them as source -> consumed. A fixture none
+# of them names is still an orphan.
+mk_repo repo
+mkdir -p "$repo/plugins/p/evals/case-a" "$repo/plugins/p/evals/fixtures"
+printf 'bash ../fixtures/seed.sh direct.sh=src/direct.sh\n' >"$repo/plugins/p/evals/case-a/scaffold.sh"
+printf 'cp fixtures/via-seed.md.txt docs/via-seed.md\n' >"$repo/plugins/p/evals/fixtures/seed.sh"
+printf 'x\n' >"$repo/plugins/p/evals/fixtures/direct.sh.txt"
+printf 'x\n' >"$repo/plugins/p/evals/fixtures/via-seed.md.txt"
+if run_check "$repo" >/dev/null; then ok "fixtures seeded by a case scaffold or seed script pass --check"; else fail "scaffold- or seed-seeded fixture wrongly flagged: $(run_check_out "$repo")"; fi
+printf 'x\n' >"$repo/plugins/p/evals/fixtures/unnamed.md.txt"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"unnamed.md.txt"* ]]; then ok "a fixture no scaffold or seed names is still an orphan"; else fail "unnamed fixture not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
 mk_repo repo
 seed_skill "$repo" "plugins/p/skills/s" ''

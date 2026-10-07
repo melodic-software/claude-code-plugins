@@ -169,6 +169,23 @@ consumed() {
     fi
   fi
 
+  # A `claude plugin eval` case consumes a fixture its scaffold.sh, or a seed
+  # script beside the fixtures, seeds by name. Seeders often name the stem
+  # without the .txt suffix fixtures carry so no linter reads them as source.
+  local seeder esc_stem stem_re
+  local -a seeders=()
+  for seeder in "$evals_dir"/*/scaffold.sh "$fixtures_dir"/*.sh; do
+    [[ -f "$seeder" && "$seeder" != "$fixture" ]] && seeders+=("$seeder")
+  done
+  if ((${#seeders[@]} > 0)); then
+    grep -qE -- "$base_re" "${seeders[@]}" && return 0
+    if [[ "$base" == *.txt ]]; then
+      ere_escape_to esc_stem "${base%.txt}"
+      stem_re="(^|[^A-Za-z0-9._-])${esc_stem}([^A-Za-z0-9._-]|$)"
+      grep -qE -- "$stem_re" "${seeders[@]}" && return 0
+    fi
+  fi
+
   # Test-file consumption is scoped: a bounded-basename match counts only inside
   # the OWNING skill, so same-named fixtures in sibling skills are never
   # conflated. A test elsewhere in the plugin must name the fixture by its
