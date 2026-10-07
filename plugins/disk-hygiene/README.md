@@ -560,14 +560,14 @@ credential, dependency, or MCP surface reopens this review.
 
 Verified 2026-07-16 against current primary documentation:
 
-- [Create plugins](https://code.claude.com/docs/en/plugins) and
+- [Create plugins](https://code.claude.com/docs/en/plugins/create) and
   [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and
   [plugin loading reference](https://code.claude.com/docs/en/plugins/loading). Plugin structure, cache isolation, manifests, versions, and
   local `--plugin-dir` testing.
 - [Skills](https://code.claude.com/docs/en/skills). Side-effecting skills should be manual-only;
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks). Current `PreToolUse` decision output.
-- [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Relative plugin sources.
+- [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference#relative-path-plugin-source). Relative plugin sources.
 - [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
 . Expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
   filename-expansion families rejected by the literal-command guard.
@@ -643,10 +643,10 @@ Three supported routes, in the order most people want them:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   Plugin option values are read from **user** and managed settings only, **not**
+   from a project's `.claude/settings.json`. To vary behavior per repository,
+   enable or disable the plugin in that project's `enabledPlugins` instead of
+   setting an option there.
 
 Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
 hands a configured value to a hook process; the value comes from the routes above.

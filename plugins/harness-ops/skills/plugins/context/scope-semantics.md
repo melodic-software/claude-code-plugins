@@ -25,7 +25,10 @@ probe on a real machine, never on training data, and stores no upstream text. La
 plugins-reference and discover-plugins (both since split: the
 [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference), [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference),
 [plugin loading reference](https://code.claude.com/docs/en/plugins/loading) and [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) now hold their content),
-[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
+plugin-marketplaces (since split into the
+[marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference),
+[Create a marketplace](https://code.claude.com/docs/en/plugins/create-marketplace) and
+[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)), and the published
 plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
 probes in "Where project-scope records come from, and why the skill cannot reap them" were run
 2026-09-06 on **Claude Code 2.1.263** and carry that stamp.

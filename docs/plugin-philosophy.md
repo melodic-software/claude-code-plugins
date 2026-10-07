@@ -1686,7 +1686,7 @@ and the topics we read each one for. Recheck trigger for both lists: a page move
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):
 
-- [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
+- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
 - [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): component schemas,
   `userConfig`, experimental components, persistent data.
@@ -1694,7 +1694,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 - [Skills](https://code.claude.com/docs/en/skills): frontmatter reference and skill lifecycle.
 - [Hooks reference](https://code.claude.com/docs/en/hooks): exec form vs shell form, event list,
   `Setup` event, skill-scoped hooks.
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): constraints, release
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): constraints, release
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
@@ -1706,7 +1706,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 
 As of 2026-07-17:
 
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): the `dependencies`
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): the `dependencies`
   array, automatic installation, and version constraints.
 - [Skills](https://code.claude.com/docs/en/skills): command-name derivation and the plugin skill
   namespace.

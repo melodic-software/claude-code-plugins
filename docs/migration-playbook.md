@@ -784,10 +784,10 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 - **Headless registration.** Distinguish the marketplace **source** from the session shape:
   - **Remote or git-sourced catalogs** (GitHub repo, URL, npm, …) in CI or other non-interactive
     runs: no interactive trust dialog, so run `claude plugin marketplace add` explicitly or pre-seed via
-    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Plugin marketplaces, "Pre-populate plugins for containers"](https://code.claude.com/docs/en/plugin-marketplaces#pre-populate-plugins-for-containers),
-    fetched 2026-08-12).
+    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Manage plugins for your organization, "Seed containers and CI"](https://code.claude.com/docs/en/plugins/org#seed-containers-and-ci),
+    as of 2026-10-07; recheck when that section drops the seed variable).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
-    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths),
+    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
     including cloud sessions that install from the clone at session start, with no separate
     `marketplace add` step. Local collaborators still see the interactive trust prompt once they
     trust the folder. See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
@@ -926,24 +926,23 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons".
    Don't design around that.
    - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
-     `"source": "archive"` with a `url` and an **optional** `sha256`, installing the plugin from a zip
-     downloaded over HTTPS with no git or npm on the consumer's machine
-     ([plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces#zip-archives), fetched
-     2026-08-10; requires Claude Code v2.1.224 or later, and on v2.1.120–v2.1.223 the install fails while
-     on older versions "a marketplace containing an `archive` entry fails to load entirely"). The
-     platform's own floor is **transport-level only**: `url` is "Required. HTTPS URL of the zip archive.
-     Claude Code rejects `http://` URLs, along with loopback, link-local, and cloud-metadata hosts. Every
-     redirect hop must satisfy the same rules". Content identity is not in that floor: the `sha256` field
-     is documented as "Optional", so an unpinned entry lets the same URL serve different bytes on every
-     install with nothing to detect it. That is a mutable-remote-artifact surface, which criterion 6
-     denies by default, so **this review requires the pin**: an `archive` entry without `sha256` is a
-     deny, whether this repository publishes it or accepts a plugin that depends on it. With the pin,
-     "Claude Code verifies every download against it and refuses the install on a mismatch". Two
-     follow-ons to record when accepting one: the digest doubles as the plugin's version when neither
-     `plugin.json` nor the entry declares one, so a repinned archive still needs its `version` bumped or
-     "users keep the cached copy"; and organization distribution through claude.ai admin settings does
-     not accept this source at all: "Plugin sources of type `github`, `url`, and `git-subdir` are
-     supported. `npm` and `archive` sources are not." Enforced by `scripts/validate-plugin-contracts.mjs`
+     `"source": "archive"` with a `url` and a `sha256` pin the platform treats as optional, installing the
+     plugin from a zip downloaded over HTTPS with no git or npm on the consumer's machine. The platform
+     checks only the transport (an `https://` URL that is not a loopback, link-local or cloud-metadata
+     host); content identity rests on the pin alone, so an unpinned entry lets the same URL serve
+     different bytes on every install with nothing to detect it. That is a mutable-remote-artifact
+     surface, which criterion 6 denies by default, so **this review requires the pin**: an `archive`
+     entry without `sha256` is a deny, whether this repository publishes it or accepts a plugin that
+     depends on it. Two follow-ons to record when accepting one: the digest doubles as the plugin's
+     version when neither `plugin.json` nor the entry declares one, so a repinned archive with a fixed
+     `version` still needs that `version` bumped before users leave the cached copy; and organization
+     sync through claude.ai settings accepts only some source types, so check its list before relying
+     on `archive` there. Pointers: [archive plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#archive-plugin-source)
+     (version floor in the [plugin sources](https://code.claude.com/docs/en/plugins/marketplace-reference#plugin-sources)
+     table), [How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version),
+     and [Distribute through organization settings](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings).
+     As of 2026-10-07. Recheck when the archive section makes `sha256` required or changes the URL
+     rules, or when organization sync starts accepting `archive`. Enforced by `scripts/validate-plugin-contracts.mjs`
      over `.claude-plugin/marketplace.json`. This marketplace publishes every plugin as a relative path
      (`"source": "./plugins/<name>"`), so no entry uses `archive` today; the rule governs the first that
      does.
@@ -1513,7 +1512,7 @@ claude --plugin-dir ./plugins/<name>
   hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
 - **Multiple plugins at once.** Repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
   `--plugin-dir` also accepts a `.zip` archive (Claude Code v2.1.128+). See
-  [Create plugins](https://code.claude.com/docs/en/plugins) "Test your plugins locally".
+  [Create plugins](https://code.claude.com/docs/en/plugins/create#from-a-directory-or-zip) "From a directory or `.zip`".
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or

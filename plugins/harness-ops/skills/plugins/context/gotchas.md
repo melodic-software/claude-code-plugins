@@ -270,8 +270,9 @@ preserved.
 this subcommand. *Basis:* the shipped CLI bundle (`~/.local/share/claude/versions/<version>`) for
 the record cascade, the data-directory removal, the settings cleanup and the `.orphaned_at` write,
 none of which the docs state;
-[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) for "Removing a
-marketplace from its last remaining scope also uninstalls any plugins you installed from it", and
+[plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove)
+for the uninstall of every plugin installed from a marketplace removed from its last scope (re-read
+2026-10-07), and
 [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) for `uninstall --keep-data`;
 and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
 2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
@@ -398,7 +399,7 @@ figures are wall-clock from that same run and are machine- and plugin-count-depe
 them as orders of magnitude rather than constants. Neither the spawn behavior nor `--bare` is
 documented on
 [plugin uninstall](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) or
-[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), which is why this
+[plugin marketplace remove](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-remove), which is why this
 record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert itself ran on
 2.1.263–2.1.272 with no observed change in the behavior. ***Recheck trigger:*** a bulk or
 glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
