@@ -45,6 +45,8 @@ Fetch the current official `/goal` documentation and extract, from the page itse
 
 Primary source: `https://code.claude.com/docs/en/goal`. If Step 0 routing is in question, cross-check the scheduling comparison via the pages that doc links (`/en/scheduled-tasks`, routines) and the workflow row against `https://code.claude.com/docs/en/workflows`.
 
+Read each page through the docs lookup: follow `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md` with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` = `${CLAUDE_SESSION_ID}`, fetch with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> goal` (the limit drives the Step 3 counter, so the bytes must be fresh), and take the sections you need with `docs-cache.sh` `slice`. Report the page's `validated` time with the draft. A page the manifest records `unread` was not fetched: read it with WebFetch instead only when the reason is `curl-missing` or the script wrote no manifest, and otherwise apply the failure rule below.
+
 **Doc-fetch failure is not silent and never guessed.** If the page cannot be fetched or its structure has shifted so the limit or shape cannot be located, stop and tell the user exactly that, citing the URL. Do not fall back to a remembered number or shape. A stale limit or condition shape baked in here is precisely the drift this skill exists to avoid. Offer the user two ways forward: paste the current condition shape and character limit from that page. The shape drives the Step 2 draft, the limit drives the Step 3 counter. Or defer until the docs are reachable. Never finalize a draft on a shape or limit that was not sourced live.
 
 ## Step 2. Draft the condition
