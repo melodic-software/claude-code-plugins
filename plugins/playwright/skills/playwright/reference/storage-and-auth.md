@@ -2,6 +2,16 @@
 
 Manage cookies, localStorage, sessionStorage, and complete browser state (for auth carry-through across sessions).
 
+## Contents
+
+- [Storage state (the big knob)](#storage-state-the-big-knob)
+- [Cookies](#cookies)
+- [localStorage](#localstorage)
+- [sessionStorage](#sessionstorage)
+- [IndexedDB](#indexeddb)
+- [Auth reuse pattern (the standard flow)](#auth-reuse-pattern-the-standard-flow)
+- [Security invariants](#security-invariants)
+
 ## Storage state (the big knob)
 
 Save whole browser state to a file, restore later to skip login:

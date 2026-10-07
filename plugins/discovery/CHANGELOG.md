@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.29.1] - 2026-10-07
+## [0.31.1] - 2026-10-07
 
 ### Changed
 
@@ -12,6 +12,42 @@
   (n = 6 per arm), new-core recall rose from .899 (control, n = 16) to .953, with mean bytes read
   of 218159 against a limit of 219084, half the saving over reading the whole page. A lower
   `escalate_bytes` and a "read the whole page" sentence did not pass the same rule.
+
+## [0.31.0] - 2026-10-07
+
+### Added
+
+- A PostToolUse WebFetch hook that, when a result ends in a truncation marker or placeholder line,
+  adds a note naming /discovery:read-docs; it never blocks or changes the result and does not flag
+  a page summarized with neither. /discovery:check reports whether node resolves and the hook is
+  registered, and a node prerequisite with a SessionStart notice
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- The `discovery:docs-fetcher` agent and a `PreToolUse` Bash gate (`hooks/hooks.json`,
+  `lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on a public https host.
+  `research-sweep` now fetches each selected page raw before the Read stage; readers and skeptics
+  judge from those inline slices and can request sections for one more round, then use WebFetch
+  for a section still missing. The research verifier's
+  truncated-primary snapshots now come from `docs-raw.sh`, with the curl recipe kept for non-docs
+  artifacts ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
+## [0.30.0] - 2026-10-07
+
+### Changed
+
+- **`/discovery:research` reads upstream docs pages through the shared docs lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** The
+  discipline file's recency gate, size-failure escalation and lost-tool fallback, and the
+  source-categories Official docs row, send a docs page through `scripts/fetch-docs.sh --cache`
+  and cite its `validated` time and age; a verification or negative-claim read takes
+  `--max-age 0` and raw reads. The `curl` download recipe stays for PDFs, specs and source files,
+  and WebFetch stays for finding which page to read.
+- **The parent saves a truncated docs primary for the research verifier through the lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** handing over
+  the page file the manifest names.
+- **The researcher agent reads a docs page with `scripts/fetch-docs.sh --cache`
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** and its
+  write-boundary wording names the user-scope docs cache. `/discovery:research` and
+  `/discovery:research-deep` point a single docs page at `/discovery:read-docs`.
 
 ## [0.29.0] - 2026-10-04
 

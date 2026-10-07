@@ -1,5 +1,16 @@
 # Changelog: docs-hygiene plugin
 
+## [0.27.0] - 2026-10-07
+
+### Added
+
+- **`compress compare ORIG_DIR NEW_DIR [REASONS]` labels a rewrite of a whole skill directory.** It is read-only: a new read-only agent, `compare-labeler` (Read, Grep, Glob), labels every difference across SKILL.md and its reference files as SEMANTIC LOSS, RELOCATED, INTENDED CUT, AMBIGUITY or FALSE POSITIVE, and ends with `VERDICT: BLOCK` when any loss remains or the compared text carries an instruction aimed at the labeler. Text moved into a reference file counts as relocated, not lost, and the optional REASONS file lists each intended cut with its deletion-test reason. A new eval case covers a relocated paragraph and a dropped threshold.
+
+### Changed
+
+- **`audit-noise` no longer flags `ticket-pr-residue` in a `SKILL.md` or an `agents/*.md`.** `/skill-quality:check` reports those history notes in a SKILL.md and `/harness-config:audit-instructions` reports them in agent files; the same line in any other markdown still flags.
+- **`audit-progressive-disclosure`, `extract-ssot` and `write-for-agents` point to `/playbooks:skill-authoring` for skill size, description and nesting caps** (`## Body`, `## Descriptions`, `## Reference files`) instead of restating the numbers, with `/skill-quality:check` named as the enforcer.
+
 ## [0.26.9] - 2026-10-04
 
 ### Changed

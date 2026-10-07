@@ -5,6 +5,19 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.14.0] - 2026-10-07
+
+### Changed
+
+- **The `auditor` reads docs through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** Step 3's rung-1 route is now `scripts/fetch-docs.sh --cache` in place of a hand-written `curl` and `llms.txt` check. The auditor reads the manifest: only `state: read` grounds a claim, an `unread` page with reason `not-in-index` sends it to the successor slug, any other unread reason falls back to rung-2 `WebFetch`, and `stale: true` bytes are stated and never ground an absence. Citations name the channel as "rung-1 `fetch-docs.sh` read (cached, validated <time>)" in both the agent and the audit skill. The tool-honesty note says the script also writes the page into the shared user-scope docs cache, its own store; step 3 says the auditor writes no summaries or notes there.
+- **Prerequisites:** `python3` is declared optional for pages served only as HTML, and the `curl` and `jq` entries describe the fetcher's fallback ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
 ## [0.13.9] - 2026-10-04
 
 ### Fixed

@@ -2,6 +2,13 @@
 
 Use `run-code` for advanced scenarios not covered by CLI commands. Argument is an `async page => { ... }` function body.
 
+## Contents
+
+- [Syntax](#syntax)
+- [Common recipes](#common-recipes)
+- [When to reach for `run-code`](#when-to-reach-for-run-code)
+- [File input (`--filename`)](#file-input---filename)
+
 ## Syntax
 
 ```bash

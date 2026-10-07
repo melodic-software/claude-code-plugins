@@ -160,8 +160,15 @@ between steps must leave content duplicated rather than deleted:
    relocating. Rewording moved text is a separate, later edit the operator asks for by name.
 2. **Write the pointer targets** into the detected docs home, and the pointer lines into `AGENTS.md`.
 3. **Write the `.claude/rules/` files.** Fetch the current rules frontmatter format at authoring
-   time rather than writing it from memory: `curl -sL https://code.claude.com/docs/en/memory.md`
-   and read its "Path-specific rules" section. Validate every glob with
+   time rather than writing it from memory: read the `memory` page's "Path-specific rules" section
+   through the docs lookup. The procedure is
+   `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`; read it before the first fetch and
+   follow it, with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
+   `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
+   age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
+   Neither script is in this skill's `allowed-tools`, deliberately: a standing grant would let the
+   fetcher run unattended, so each call takes a permission prompt.
+   Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
 4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the
@@ -292,9 +299,9 @@ repository and said yes to it in this conversation: not pre-emptively, not becau
 and never carried over from a yes given about a different repository. Run it without `--confirm`
 first, show the operator what it prints, and wait.
 
-**It is deliberately not in this skill's `allowed-tools`.** Every other script here is; this one
-deletes files, so it takes a permission prompt every time rather than running on the skill's
-standing grant.
+**It is deliberately not in this skill's `allowed-tools`.** Every other script this skill runs
+is, except `fetch-docs.sh` and `docs-cache.sh` (step 3 says why). This one deletes files, so it
+takes a permission prompt every time rather than running on the skill's standing grant.
 
 It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
 what removal costs and stops. With it, it refuses unless the **installed** `harness-memory` and
@@ -446,8 +453,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Pointer: for where each `${…}` variable resolves, see
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. As of:
-2026-09-30. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of:
+2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

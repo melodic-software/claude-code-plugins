@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F05 Live updates</title><script src="/fx.js"></script></head>
+<body>
+<!-- A push loop (standing in for a socket or server circuit) re-renders and reorders the rows every
+     700 ms for the first `delay` + 4 s, so a click aimed at a position can land on the wrong row. -->
+<main>
+  <h1>Pending orders</h1>
+  <table><thead><tr><th>Order</th><th>Status</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  <pre id="result"></pre>
+</main>
+<script>
+  let orders = [1, 2, 3, 4, 5, 6].map((n) => ({ n, status: "pending" }));
+  const tbody = document.getElementById("rows");
+  function render() {
+    tbody.replaceChildren(...orders.map((o) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>Order #${o.n}</td><td>${o.status}</td><td></td>`;
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = `Approve order #${o.n}`;
+      b.addEventListener("click", () => { o.status = "approved"; fx.record("approved", o.n, "append"); render(); });
+      tr.lastChild.append(b);
+      return tr;
+    }));
+  }
+  render();
+  const until = Date.now() + fx.delay + 4000;
+  const tick = setInterval(() => {
+    orders = [...orders.slice(1), orders[0]];
+    render();
+    if (Date.now() > until) clearInterval(tick);
+  }, 700);
+</script>
+</body>
+</html>

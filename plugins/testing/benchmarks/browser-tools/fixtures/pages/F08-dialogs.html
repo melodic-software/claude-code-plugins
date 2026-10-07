@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F08 Dialogs</title><script src="/fx.js"></script>
+<style>#modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center}#modal.open{display:flex}#modal>div{background:#fff;padding:1rem}</style></head>
+<body>
+<!-- Variant A: a native confirm() dialog; the outcome (accepted or dismissed) is recorded.
+     Variant B: a DOM modal with a backdrop covering the page; Cancel and Delete buttons inside. -->
+<main>
+  <h1>Account settings</h1>
+  <button type="button" id="delete">Delete account</button>
+  <p id="status"></p>
+  <pre id="result"></pre>
+</main>
+<div id="modal" role="dialog" aria-modal="true" aria-label="Confirm deletion"><div>
+  <p>Delete your account permanently?</p>
+  <button type="button" id="m-cancel">Cancel</button>
+  <button type="button" id="m-delete">Delete</button>
+</div></div>
+<script>
+  const status = (t) => (document.getElementById("status").textContent = t);
+  document.getElementById("delete").addEventListener("click", () => {
+    if (fx.variant === "B") { document.getElementById("modal").classList.add("open"); return; }
+    const ok = confirm("Delete your account permanently?");
+    fx.record("dialog", ok ? "accepted" : "dismissed");
+    status(ok ? "Account deleted" : "Deletion cancelled");
+  });
+  document.getElementById("m-cancel").addEventListener("click", () => {
+    fx.record("dialog", "dismissed"); document.getElementById("modal").classList.remove("open"); status("Deletion cancelled");
+  });
+  document.getElementById("m-delete").addEventListener("click", () => {
+    fx.record("dialog", "accepted"); document.getElementById("modal").classList.remove("open"); status("Account deleted");
+  });
+</script>
+</body>
+</html>

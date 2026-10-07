@@ -63,7 +63,7 @@ The claim's confidence is `HIGH (single source)` (see "Confidence calibration"),
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
-When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. The windows below bound how stale a cited doc may be before this cross-check is required. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
+When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. When the changelog or release notes are a docs page, read the page itself through the docs lookup, `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`, not a WebFetch summary of it. The windows below bound how stale a cited doc may be before this cross-check is required. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
 
 **Tightening tiers:**
 
@@ -240,7 +240,9 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
-**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or, in the silent variant, truncate it: Claude Code's WebFetch documents truncating large pages to a fixed character limit, and names `curl` via Bash as the unprocessed-page path ([tools-reference](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior), fetched 2026-07-24). Escalate by moving the fetch out of context, in three steps.
+**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or, in the silent variant, truncate it: Claude Code's WebFetch documents truncating large pages to a fixed character limit, and names `curl` via Bash as the unprocessed-page path ([tools-reference](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior), fetched 2026-07-24). Escalate by moving the fetch out of context.
+
+**An upstream docs page goes through the docs lookup**: `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`. It writes the page to a file, checks it is the page asked for, records a page it cannot read whole as `unread` with a reason, and caches the bytes for other sessions. Cite the manifest's `validated` and `age_seconds` with the source. An `unread` page is a block: walk the escalation order above. A negative claim or any other verification read takes `--max-age 0` and the raw reads in the procedure's step 6, because cached bytes are not a fetch this turn. Every other artifact (a PDF, a spec, a source file) takes the three steps below.
 
 1. **Download** to the session's scratch dir with any available downloader, failing loudly on an HTTP error instead of saving the error body as the document:
 
@@ -301,7 +303,7 @@ Prefer: the vendor's own `/docs` subdomain, GitHub source code, RFCs, language s
 
 If a required tool category is unavailable this session (no synthesis MCP server, no web access), don't lower the bar. Substitute and document:
 
-- Lost synthesis tool → substitute WebSearch + WebFetch + `gh api` for equivalent coverage
+- Lost synthesis tool → substitute WebSearch + WebFetch + `gh api` for equivalent coverage. WebFetch only finds which page to read; read the page itself by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs). For a docs page that is `<plugin-root>/scripts/fetch-docs.sh --cache`
 - Lost web access → flag the topic as `verification: incomplete — offline session`; do not edit code based on Tier 3 recall
 - Document the gap in RESEARCH.md's `Gaps` section: which tool was unavailable, what alternative was used, residual risk
 

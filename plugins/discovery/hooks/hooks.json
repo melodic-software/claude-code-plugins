@@ -1,0 +1,44 @@
+{
+  "description": "After a WebFetch whose result ends in a truncation marker or placeholder line, adds one line of context saying the result covers only part of the page and naming /discovery:read-docs; never blocks or changes the result. Inside a discovery:docs-fetcher subagent, denies any Bash command but the plugin's docs-raw.sh on a public https URL; every other agent and the main thread pass through.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /discovery:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /discovery:check",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs", "discovery:docs-fetcher"],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/webfetch-truncation.mjs"],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

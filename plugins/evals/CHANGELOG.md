@@ -1,5 +1,23 @@
 # Changelog: evals
 
+## [0.6.3] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.6.2] - 2026-10-07
+
+### Fixed
+
+- **`plugin-eval` run-validity classifies a driveless rooted denial path on Windows ([#6499](https://github.com/melodic-software/claude-code-plugins/issues/6499)).** On Python 3.13 and later, `os.path.isabs` on Windows calls `/tmp/x` relative, so a with-arm denial outside the plugin counted as inside it and the run came out INVALID. The inside-the-plugin check now treats any rooted path as anchored and skips a plugin root on another drive instead of raising; behavior on Linux and macOS is unchanged.
+
+## [0.6.1] - 2026-10-07
+
+### Changed
+
+- **`plugin-eval` case-authoring checklist points at the upstream grader table for `tool_order` ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** That row restated the pass condition on the plugin-evals page closely enough for the attribution audit's fingerprint check to confirm a copy; its "Passes when" cell now links the page's "Grader types" section instead. The `file_exists` common mistake now says it applies with the default `exists`, since `exists: false` passes when nothing is created. The `file_exists` row and the "Precedence" checks now link the same page, as of 2026-10-07 with a recheck trigger, and keep only the local rules: scaffold output and edited files do not count, and author each field in one file.
+
 ## [0.6.0] - 2026-10-06
 
 ### Added
