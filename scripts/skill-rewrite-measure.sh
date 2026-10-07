@@ -161,7 +161,7 @@ if ((compare)); then
     if [[ "$blex" != "n/a" && "$alex" != "n/a" ]] &&
       awk -v b="$blex" -v a="$alex" -v t="$TRIPWIRE_DROP" 'BEGIN { exit !((b - a) > t + 1e-9) }'; then
       rc=1
-      printf 'TRIPWIRE: %s lexical score fell %s -> %s (more than %s)\n' "$name" "$blex" "$alex" "$TRIPWIRE_DROP" >&2
+      printf 'TRIPWIRE: %s lexical score fell %s -> %s (more than %s)\n' "$name" "$blex" "$alex" "$TRIPWIRE_DROP"
     fi
   done < <(awk -F'\t' '$1=="skill"' "$a")
   while IFS=$'\t' read -r _ name _; do
@@ -208,6 +208,8 @@ score_json="[]"
 if [[ -d "$probes_dir" ]] && command -v jq >/dev/null 2>&1; then
   if out="$(MEASURE_INVOCATION_REPO_ROOT="$ROOT" "${score_cmd[@]}" 2>/dev/null)"; then
     score_json="$(jq -c '[.skills[] | {listing_file, n: (.cases | length), ok: ([.cases[] | select(.correct == true)] | length)}]' <<<"$out")"
+  else
+    echo "warning: lexical scoring failed for plugins/$plugin/probes; every lexical score is n/a" >&2
   fi
 fi
 
