@@ -13,7 +13,7 @@ function textOf(content) {
 }
 const looksFailed = (out) => /(^|\n)(### Error|Error:|✗)/.test(out);
 
-export function parseTranscript(jsonl, { dir = "", nonce = "" } = {}) {
+export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "" } = {}) {
   const events = jsonl.split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const calls = new Map(); // tool_use id -> { name, input }
   const usageById = new Map();
@@ -35,7 +35,7 @@ export function parseTranscript(jsonl, { dir = "", nonce = "" } = {}) {
         if (FORBIDDEN_TOOLS.has(c.name)) contamination.push(`used ${c.name}`);
         const cmd = c.input?.command ?? "";
         if (c.name === "Bash" && /\b(curl|wget)\b[^|;]*127\.0\.0\.1/.test(cmd)) contamination.push(`HTTP client against the fixture: ${cmd.slice(0, 120)}`);
-        if (c.name === "Bash" && /claude-code-plugins/.test(cmd)) contamination.push(`touched the repository: ${cmd.slice(0, 120)}`);
+        if (c.name === "Bash" && repoRoot && cmd.includes(repoRoot)) contamination.push(`touched the repository: ${cmd.slice(0, 120)}`);
         const path = c.input?.file_path ?? "";
         if (["Read", "Write", "Edit"].includes(c.name) && dir && !path.startsWith(dir) && !/node_modules\/(agent-browser|playwright-core|@playwright)/.test(path))
           contamination.push(`${c.name} outside the trial dir: ${path}`);

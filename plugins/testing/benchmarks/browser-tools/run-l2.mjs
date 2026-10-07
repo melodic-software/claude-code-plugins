@@ -101,7 +101,7 @@ async function grade() {
   const task = tasks.find((t) => t.id === meta.task);
   const answerFile = arg("answer-file");
   const transcriptFile = arg("transcript");
-  const t = transcriptFile && existsSync(transcriptFile) ? parseTranscript(readFileSync(transcriptFile, "utf8"), { dir, nonce: meta.nonce }) : null;
+  const t = transcriptFile && existsSync(transcriptFile) ? parseTranscript(readFileSync(transcriptFile, "utf8"), { dir, nonce: meta.nonce, repoRoot: resolve(dirname(new URL(import.meta.url).pathname), "../../../..") }) : null;
   const answerAll = answerFile ? readFileSync(answerFile, "utf8") : t?.finalText ?? "";
   const answer = answerAll.match(/FINAL ANSWER:([\s\S]*)$/i)?.[1]?.trim() ?? answerAll;
   const files = readdirSync(meta.out).map((name) => {
