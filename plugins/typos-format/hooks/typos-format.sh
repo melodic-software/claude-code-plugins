@@ -179,11 +179,11 @@ fi
 # `typos_format_write_changes` userConfig to true. Read from the
 # CLAUDE_PLUGIN_OPTION_<KEY> environment mirror rather than a
 # `${user_config.*}` placeholder: shell-form hook commands REJECT
-# `${user_config.*}` substitution outright — "substituting a configured value
-# into a shell command would let the shell run whatever that value contains, so
-# the component fails" — and every option is exported to hook processes as
-# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
+# `${user_config.*}` substitution outright — "because the field's value is
+# passed to a shell that would re-parse the substituted value" — and every
+# option is exported to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway
+# (plugin manifest reference, https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell,
+# re-fetched 2026-10-07).
 # Same idiom as the hoisted kill switch at the top. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.

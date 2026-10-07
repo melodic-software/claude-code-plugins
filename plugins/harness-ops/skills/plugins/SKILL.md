@@ -279,8 +279,8 @@ Controls new-catalog-plugin install policy during `sync`. Ships as a `string` wh
 picker lists the three values below, default `"ask"`. This skill still validates the value,
 because one set by hand in `settings.json` never passes through the picker ([context/scope-semantics.md](context/scope-semantics.md) holds the option-schema
 record; for option types and fixed options, see
-[User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
-[Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options)):
+[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration) and
+[Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)):
 
 - `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt,
   then install and enable each pick, including one the CLI installs disabled by default
@@ -341,8 +341,8 @@ never put a `${…}` token in those files: we do not rely on one being substitut
 through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_DIR`.
 
 - **Pointer**: for where each `${…}` reference resolves, see
-  [Where each variable resolves](https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves).
-- **As of**: 2026-09-30
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+- **As of**: 2026-10-07
 - **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next

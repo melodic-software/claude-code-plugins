@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F14 Virtualized list</title><script src="/fx.js"></script>
+<style>#viewport{height:300px;overflow-y:auto;border:1px solid #ccc;width:360px}.row{height:30px;box-sizing:border-box;padding:4px}</style></head>
+<body>
+<!-- 10,000 rows; only the visible rows plus a small overscan exist in the DOM, positioned inside
+     a tall spacer. A row off screen is not in the DOM until the list is scrolled to it. -->
+<main>
+  <h1>Ticket queue</h1>
+  <div id="viewport" tabindex="0" aria-label="Tickets"><div id="spacer"></div></div>
+  <pre id="result"></pre>
+</main>
+<script>
+  const N = 10000, H = 30, vp = document.getElementById("viewport"), spacer = document.getElementById("spacer");
+  spacer.style.height = `${N * H}px`; spacer.style.position = "relative";
+  function render() {
+    const first = Math.max(0, Math.floor(vp.scrollTop / H) - 3);
+    const last = Math.min(N, Math.ceil((vp.scrollTop + vp.clientHeight) / H) + 3);
+    const rows = [];
+    for (let i = first; i < last; i++) {
+      const n = i + 1, row = document.createElement("div");
+      row.className = "row"; row.style.position = "absolute"; row.style.top = `${i * H}px`;
+      row.textContent = `Ticket ${n} `;
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = `Select ticket ${n}`;
+      b.addEventListener("click", () => fx.record("selected", n));
+      row.append(b); rows.push(row);
+    }
+    spacer.replaceChildren(...rows);
+  }
+  vp.addEventListener("scroll", render);
+  render();
+</script>
+</body>
+</html>

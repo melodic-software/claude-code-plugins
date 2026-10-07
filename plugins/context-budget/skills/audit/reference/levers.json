@@ -279,7 +279,7 @@
         "https://code.claude.com/docs/en/settings",
         "https://code.claude.com/docs/en/plugins",
         "https://code.claude.com/docs/en/settings-reference#enabledplugins",
-        "https://code.claude.com/docs/en/plugins-reference#defaultenabled",
+        "https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled",
         "https://code.claude.com/docs/en/settings#fix-a-broken-settings-file"
       ],
       "verified": "2026-09-28",

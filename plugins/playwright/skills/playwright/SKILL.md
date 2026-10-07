@@ -24,7 +24,6 @@ Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`). If it is m
 ## Quick start (90% of use)
 
 ```bash
-playwright-cli kill-all                              # start clean (no stale sessions)
 playwright-cli -s=<flow> open <url>                  # named session, headless by default
 playwright-cli -s=<flow> snapshot                    # writes YAML with element refs (e1, e2, ...)
 playwright-cli -s=<flow> click e42                   # interact by ref
@@ -38,9 +37,8 @@ Read the YAML snapshot file directly to locate element refs. Do not dump it into
 
 ## Conventions
 
-- **Always use named sessions** (`-s=<flow>`) for multi-step work. Default (unnamed) sessions are hard to isolate when things go sideways
-- **`kill-all` at the start** of a fresh E2E run guards against stale daemon state from prior sessions
-- **`close` at the end**. Don't leave zombie browsers
+- **Always use named sessions** (`-s=<flow>`) for multi-step work, with a name unique to this run. Default (unnamed) sessions are hard to isolate when things go sideways, and a shared name collides with another agent driving the same machine
+- **`close` your own session at the end**. Don't leave zombie browsers. `close-all` and `kill-all` act on every playwright-cli browser on the machine, including other agents' sessions, so keep them for recovering from a stuck daemon or socket error ([reference/sessions.md](reference/sessions.md))
 - **`--headed` only when the user explicitly wants to observe.** On Windows, headed browsers spawn in the background and don't auto-focus. See [reference/windows-quirks.md](reference/windows-quirks.md)
 - **Artifacts land in `.playwright-cli/` relative to CWD at command time.** Add `.playwright-cli/` to the project's `.gitignore` if it isn't already. For meaningful artifacts (evidence for PRs, regression baselines), pass `--filename=<descriptive>.png`; let timestamp-named snapshots pile up as throwaway intermediate state
 - **Use element refs from snapshots** (`e15`, `e37`), not CSS selectors. Snapshots use accessibility roles, which survive cosmetic UI changes
@@ -66,21 +64,11 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 
 ## Defaults (accept, don't override)
 
-Microsoft's defaults are right for autonomous E2E work. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces. They add maintenance surface without benefit.
+Microsoft's defaults are right for autonomous E2E work: headless, an isolated in-memory profile per session, and artifacts under `.playwright-cli/`. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces; they add maintenance surface without benefit. Override per command instead: `--headed` when the user wants to watch, `--persistent` when auth must carry between sessions.
 
-| Default | Value | Why it's right |
-|---|---|---|
-| Headless | `true` | Faster, no focus theft, CI-uniform. `--headed` per-command when observation needed |
-| Browser profile | In-memory (isolated) | Each session starts clean. No auth bleed between tests. `--persistent` per-session when auth carry-through needed |
-| Artifact dir | `.playwright-cli/` (CWD-relative) | Colocated with the tree being tested; gitignore it |
-| Action timeout | 5000 ms | Long enough for healthy apps, short enough to fail fast on bugs |
-| Navigation timeout | 60000 ms | Accommodates slow cold starts of locally-orchestrated stacks |
-| Console level | `info` | Actionable errors/warnings without debug noise |
-| Viewport | 1280×720 | Standard laptop. Matches most users' view |
+- **Pointer**: for the current default values (timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`. **As of**: 2026-10-07. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
-**One exception: video recording.** The video frame size is derived from the viewport at browser-context creation, then fitted into an 800×800 box, so a bare `video-start` records at 800×450 no matter what you do afterwards; `resize` does not change it. Recording at any other size takes two matched levers: `PLAYWRIGHT_MCP_VIEWPORT_SIZE=<W>x<H>` prefixed on the `open` command *plus* `video-start --size "<W>x<H>"`. That is a per-command prefix, not a project-settings entry, so it does not contradict the guidance above. For a demo a reviewer will watch, add `--fps=60 --cursor` to `video-start`, and pass `--highlight-style` to `video-show-actions` so the target of each action shows. Details, `video-chapter`, and measured outcomes: [reference/tracing-and-video.md](reference/tracing-and-video.md).
-
-The full env var / config file schema lives in Microsoft's upstream README at `$(npm root -g)/@playwright/cli/README.md`. Not duplicated here.
+**One exception: video recording.** A bare `video-start` records at a small fixed size that `resize` does not change. A demo a reviewer will watch needs the viewport set on `open` and a matching `video-start --size`, both per command, so it does not contradict the guidance above. The levers, frame rate, cursor and action highlights, and the measured outcomes are in [reference/tracing-and-video.md](reference/tracing-and-video.md).
 
 ## Actions
 
@@ -105,8 +93,24 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
 would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
 to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+## Next
+
+- Evidence captured for a pull request: /source-control:pull-request.
+- A UI change driven and checked: /verification:confirm.
+
+## Gotchas
+
+Each one was observed in the browser-tools benchmark of 2026-10-07 (`plugins/testing/benchmarks/browser-tools/results/2026-10-07/FINDINGS.md` in the marketplace repository).
+
+- **`fill` does not leave the field.** A form that validates on blur keeps its submit button disabled after `fill`, and the click times out. Press `Tab` (or click the next field) after the last `fill`. Agents hit this on the blur-validated form in most runs.
+- **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
+- **A page can look ready before its handlers attach.** A server-rendered button that is not yet hydrated takes the click and does nothing. Wait for a readiness signal the page gives (a status element, an enabled control, a network request finishing) before the first click; `click` waits for enabled, not for listeners.
+- **Each command costs seconds of startup, so a short-lived toast can vanish before the next `snapshot`.** Start `video-start` before the action and read the message from the recording, or snapshot in the same breath as the action that triggers it.
+- **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.
+- **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
 
 ## Source attribution
 

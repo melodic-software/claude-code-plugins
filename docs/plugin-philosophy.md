@@ -1206,8 +1206,8 @@ per-spawn `model`.
 There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
-[plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-As of: 2026-08-10. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
 runs on).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
@@ -1558,7 +1558,7 @@ reach an agent's `effort` field. We record this as a gap against
 [configuration ownership](#configuration-ownership-and-scope), not as a design choice.
 
 - **Pointer:** for plugin options, see
-  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
   for the agent field, see
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
 - **As of:** 2026-10-01.
@@ -1688,8 +1688,9 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 
 - [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference): component schemas,
-  `userConfig`, experimental components, version management, cache isolation, persistent data.
+- [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): component schemas,
+  `userConfig`, experimental components, persistent data.
+- [Plugin loading reference](https://code.claude.com/docs/en/plugins/loading): version management and cache isolation.
 - [Skills](https://code.claude.com/docs/en/skills): frontmatter reference and skill lifecycle.
 - [Hooks reference](https://code.claude.com/docs/en/hooks): exec form vs shell form, event list,
   `Setup` event, skill-scoped hooks.

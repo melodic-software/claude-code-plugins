@@ -1,5 +1,15 @@
 # Tracing and video recording
 
+## Contents
+
+- [Tracing](#tracing)
+- [Reading a failed `@playwright/test` run](#reading-a-failed-playwrighttest-run)
+- [Video basics](#video-basics)
+- [Frame size (two levers, not one)](#frame-size-two-levers-not-one)
+- [Video hero scripts (via `run-code`)](#video-hero-scripts-via-run-code)
+- [Capturing for a PR or bug report](#capturing-for-a-pr-or-bug-report)
+- [Known costs](#known-costs)
+
 Two complementary capture mechanisms:
 
 | Feature | Trace | Video |

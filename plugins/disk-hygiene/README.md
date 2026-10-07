@@ -561,8 +561,9 @@ credential, dependency, or MCP surface reopens this review.
 Verified 2026-07-16 against current primary documentation:
 
 - [Create plugins](https://code.claude.com/docs/en/plugins) and
-  [plugins reference](https://code.claude.com/docs/en/plugins-reference). Plugin structure, cache
-  isolation, manifests, versions, and local `--plugin-dir` testing.
+  [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and
+  [plugin loading reference](https://code.claude.com/docs/en/plugins/loading). Plugin structure, cache isolation, manifests, versions, and
+  local `--plugin-dir` testing.
 - [Skills](https://code.claude.com/docs/en/skills). Side-effecting skills should be manual-only;
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks). Current `PreToolUse` decision output.
@@ -656,7 +657,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

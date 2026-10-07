@@ -455,8 +455,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Pointer: for where each `${…}` variable resolves, see
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. As of:
-2026-09-30. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of:
+2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 
