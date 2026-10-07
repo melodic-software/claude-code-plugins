@@ -618,9 +618,11 @@ dc_put() {
   dc_prune >/dev/null 2>&1 || true
 }
 
-# dc_slice_rows <map file> <body file> <id>...: print each section, in the order asked.
+# dc_slice_rows <map file> <body file> <id>...: print the lines of the asked
+# sections in page order, each line once however many asked sections hold it
+# (a parent holds its children).
 dc_slice_rows() {
-  local map="$1" body="$2" id range ranges=()
+  local map="$1" body="$2" id range ranges=""
   shift 2
   for id in "$@"; do
     range=""
@@ -629,9 +631,11 @@ dc_slice_rows() {
       echo "ERROR: unknown section id: $id" >&2
       return 1
     }
-    ranges+=("$range")
+    ranges+="$range "
   done
-  for range in "${ranges[@]}"; do sed -n "${range}p" "$body"; done
+  LC_ALL=C awk -v ranges="$ranges" '
+    BEGIN { n = split(ranges, r, " "); for (i = 1; i <= n; i++) { split(r[i], se, ","); for (l = se[1]; l <= se[2]; l++) want[l] = 1 } }
+    FNR in want' "$body"
 }
 
 # dc_escalates <map file> <body file> <id>...: the page is over the whole-page
