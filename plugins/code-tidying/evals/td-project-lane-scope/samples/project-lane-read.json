@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/shell-tooling.md"
+          }
+        }
+      ],
+      "why": "the project lane layer was read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/scripts/build-report.sh"
+          }
+        }
+      ],
+      "why": "call absent"
+    }
+  ]
+}

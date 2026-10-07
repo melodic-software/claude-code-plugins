@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Guide\n\nRun the greeting script:\n\n    bash src/greet.sh Ada\n\nInside your own scripts, call `greet NAME` to print a greeting.\n",
+      "why": "stale reference updated"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Guide\n\nRun the greeting script:\n\n    bash src/greet.sh Ada\n\nInside your own scripts, call `say_hello NAME` to print a greeting.\n",
+      "why": "still stale"
+    }
+  ]
+}

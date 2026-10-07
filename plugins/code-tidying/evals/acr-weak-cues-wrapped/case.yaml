@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: acr-weak-cues-wrapped
+description: weak history cues are Tier 2 review findings, a phrase wrapped across two comment lines is reported once at its first line, "replaces the old" stays plan-reference, and "phase 2 of the build" is not a finding
+tags: [acr, outcome, explicit]
+expected_outcome: In scheduler/scheduler.go, history-narration-weak at Tier 2 on lines 5 ("exactly as before"), 7 (the wrapped "Phase / 6b" pair, once, at line 7) and 19 ("the old shared group"); plan-reference at Tier 1 on line 15 ("replaces the old"); line 13 ("phase 2 of the build") is not a finding. Counts T1=1, T2=3.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue scheduler/scheduler.go
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: weak-lines-5-7-19
+    type: regex
+    pattern: '^(?=[\s\S]*^[^\n]*(history-narration-weak[^\n]*\b5\b|\b5\b[^\n]*history-narration-weak))(?=[\s\S]*^[^\n]*(history-narration-weak[^\n]*\b7\b|\b7\b[^\n]*history-narration-weak))(?=[\s\S]*^[^\n]*(history-narration-weak[^\n]*\b19\b|\b19\b[^\n]*history-narration-weak))'
+    flags: m
+  - name: weak-is-tier-2
+    type: regex
+    pattern: '^\|\s*(Tier\s*|T)?2\s*\|\s*history-narration-weak\b|history-narration-weak[^\n]*\b(Tier\s*|T)2\b'
+    flags: m
+  - name: wrapped-reported-once
+    type: regex
+    pattern: '^[^\n]*(history-narration-weak[^\n]*\|\s*8\s*\||\|\s*8\s*\|[^\n]*history-narration-weak)'
+    flags: m
+    match: not_contains
+  - name: plan-reference-line-15
+    type: regex
+    pattern: '^[^\n]*(\bplan-reference\b[^\n]*\b15\b|\b15\b[^\n]*\bplan-reference\b)'
+    flags: m
+  - name: counts-t1-1-t2-3
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**1\b[^\n]*T2\s*[=:]\s*\**3\b|\b1\**\s+Tier[ -]1\b[^\n]*\b3\**\s+Tier[ -]2\b'
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

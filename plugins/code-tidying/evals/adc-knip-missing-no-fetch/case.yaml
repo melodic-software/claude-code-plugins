@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: adc-knip-missing-no-fetch
+description: A TypeScript package with no node_modules and no knip on PATH is reported as uncovered (lane degraded), never as clean, and no package runner or install is invoked to fill the gap
+tags: [audit-dead-code, coverage-honesty, never-fetch, knip-lane]
+expected_outcome: The knip lane is degraded (node_modules absent, so an unrestored run would manufacture findings), it emits no records, and src/index.ts and src/math.ts are named as uncovered. No lane reached ran, so the run is not a clean bill. The run invokes no npx, npm install, pnpm, yarn, bun, pip, uv or go install; at most it offers research or an install behind consent.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-dead-code
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: ts-files-named-uncovered
+    type: regex
+    pattern: '(?=[\s\S]*src/math\.ts)(?=[\s\S]*\b(?:uncovered|not covered|degraded)\b)'
+    flags: i
+    arm: both
+  - name: no-package-runner
+    type: tool_used
+    tool: Bash
+    input_match: '\bnpx\b|\bnpm (?:i|install|ci|exec)\b|\bpnpm\b|\byarn\b|\bbunx?\b|\bpip3? install\b|\buvx?\b|\bpipx\b|\bgo install\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: scan-ran
+    type: tool_used
+    tool: Bash
+    input_match: dead-code-scan
+    arm: both

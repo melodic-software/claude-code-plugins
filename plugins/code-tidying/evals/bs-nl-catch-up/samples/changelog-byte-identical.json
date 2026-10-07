@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Changelog\n\n## 0.2.0\n- Renamed the greeting function.\n\n## 0.1.0\n- Added `say_hello` greeting script.\n",
+      "why": "byte-identical to the seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Changelog\n\n## 0.2.0\n- Renamed the greeting function.\n\n## 0.1.0\n- Added `greet` greeting script.\n",
+      "why": "historical entry rewritten"
+    },
+    {
+      "answer": "# Changelog\n\n## 0.2.0\n- Renamed the greeting function.\n\n## 0.1.0\n- Added `say_hello` greeting script.\n\n",
+      "why": "trailing byte appended"
+    }
+  ]
+}

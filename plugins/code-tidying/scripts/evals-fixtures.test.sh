@@ -171,10 +171,11 @@ for file in "${other_fixtures[@]}"; do
 done
 ok "the non-source fixtures are present"
 
-# Every fixture ships to feed a case: a scaffold must seed it by name.
+# Every fixture ships to feed a case: a scaffold, or a fixtures seed script a scaffold
+# runs, must seed it by name.
 for src in "$fixtures"/*.txt; do
   base="$(basename "$src" .txt)"
-  grep -rqF -- "$base" "$plugin"/evals/*/scaffold.sh "$fixtures/seed.sh" ||
+  grep -rqF -- "$base" "$plugin"/evals/*/scaffold.sh "$fixtures"/*seed.sh ||
     fail "$base is seeded by no scaffold"
 done
 ok "every fixture is seeded by a scaffold"

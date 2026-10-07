@@ -1,0 +1,70 @@
+schema_version: "1.1"
+name: bs-window-scope-and-exclusions
+description: '72h window with unattended: normalizes the window for git, sweeps only in-window code, leaves out-of-window, generated, agent-config and markdown files alone, and opens the report with the Native step block'
+tags: [window, exclusions, report]
+expected_outcome: 'Only src/greet.sh, repo/tool.sh (and optionally tests/run.sh) are simplified. lib/old.sh, src/helpers.sh, lib/branch-util.sh (committed 10+ days ago), vendor/gen.sh (generated), .github/workflows/ci.yml (HARD agent-config class, reported as a read-only deferred item) and docs/guide.md (markdown without docs) are unchanged. The report opens with ''Native step: simplify'' and ''State: skipped (unattended)''.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify unattended 72h'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: greet-simplified
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:1"
+    target: { source: file, path: src/greet.sh }
+  - name: tool-simplified
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:1"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: helpers-untouched
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:2"
+    target: { source: file, path: src/helpers.sh }
+  - name: branch-util-untouched
+    type: regex
+    pattern: 'branch-util: state is'
+    match: "count:2"
+    target: { source: file, path: lib/branch-util.sh }
+  - name: gen-untouched
+    type: regex
+    pattern: 'gen: target is'
+    match: "count:2"
+    target: { source: file, path: vendor/gen.sh }
+  - name: ci-workflow-untouched
+    type: regex
+    pattern: 'run: bash tests\/run\.sh'
+    match: "count:2"
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: guide-untouched-without-docs
+    type: regex
+    pattern: 'call `say_hello NAME`'
+    target: { source: file, path: docs/guide.md }
+  - name: report-native-step-unattended
+    type: regex
+    pattern: 'Native step: simplify[\s\S]{0,200}State: skipped \(unattended\)'
+    target: last_message
+  - name: report-names-ci-deferral
+    type: regex
+    pattern: '\.github\/workflows\/ci\.yml|workflows\/ci\.yml'
+    target: last_message
+  - name: window-normalized
+    type: tool_used
+    tool: Bash
+    input_match: '72 hours'
+    arm: both
+  - name: tests-run
+    type: tool_used
+    tool: Bash
+    input_match: 'tests\/run\.sh'
+    arm: both
