@@ -299,9 +299,9 @@ repository and said yes to it in this conversation: not pre-emptively, not becau
 and never carried over from a yes given about a different repository. Run it without `--confirm`
 first, show the operator what it prints, and wait.
 
-**It is deliberately not in this skill's `allowed-tools`.** Every other script here is; this one
-deletes files, so it takes a permission prompt every time rather than running on the skill's
-standing grant.
+**It is deliberately not in this skill's `allowed-tools`.** Every other script this skill runs
+is, except `fetch-docs.sh` and `docs-cache.sh` (step 3 says why). This one deletes files, so it
+takes a permission prompt every time rather than running on the skill's standing grant.
 
 It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
 what removal costs and stops. With it, it refuses unless the **installed** `harness-memory` and
