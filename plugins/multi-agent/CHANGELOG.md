@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-07
+
+### Added
+
+- The `multi-agent:docs-fetcher` agent and a `PreToolUse` Bash gate (`lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on the first-party docs hosts. `drift-audit` now runs a Fetch stage first and passes the raw page slices inline to finders and skeptics. A finder or skeptic can request more sections or pages for one more round; it uses WebFetch only for a page no slice covers. Ships generated copies of `fetch-docs.sh`, `docs-cache.sh`, `html2md.py` and `docs-raw.sh` ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
 ## [0.4.6] - 2026-10-04
 
 ### Changed
