@@ -100,7 +100,7 @@ body="${body//$'\r\n'/$'\n'}"
 # $(...) on Linux drops only the LFs at the very end, so a CRLF tail leaves a CR and
 # LFs before it; trim both so the header describes the body the workflow keeps.
 body="${body%$'\r'}"
-while [[ "$body" == *$'\n' ]]; do body="${body%$'\n'}"; done
+[[ "$body" =~ $'\n'+$ ]] && body="${body:0:${#body}-${#BASH_REMATCH}}" # one pass, not one copy per LF
 n="$(printf '%s' "$body" | wc -c | tr -d ' ')"
 [[ "$n" -gt "$MAX_BODY" ]] && kind=too-large
 if command -v sha256sum >/dev/null 2>&1; then hash=(sha256sum); else hash=(shasum -a 256); fi
