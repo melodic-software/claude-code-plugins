@@ -88,7 +88,9 @@ against a run that produced none):
    [`docs-raw.sh`](../../../scripts/docs-raw.sh) as `bash "<path>/docs-raw.sh" '<url>'` and, when it
    prints `kind=map`, again with the ids of the cited sections after the URL. It asks the server every time and prints raw bytes, never a
    summary or note (section 6 of
-   [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md)).
+   [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md));
+   the docs lookup is rung 1 of the
+   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs).
    Write its standard output to a file in a `scratch-snapshots` directory inside the slice. When it
    prints `state=unread`, or the primary is not a docs page (a PDF, a source archive), save it with
    the recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md) instead,
