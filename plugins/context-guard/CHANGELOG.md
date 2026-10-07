@@ -50,7 +50,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. 128K is the last length at which a current Claude model was measured strong on long-context retrieval; the reader contract records the basis. Set `token_bands` in `zones.json` to keep the old edges.
+- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. The edges are judgment: no per-length long-context data is published for the current Claude models, so they are anchored on Claude Opus 5's and Sonnet 5's Context Arena MRCR scores and Google's GraphWalks run of Fable 5.1; the reader contract records the figures. Set `token_bands` in `zones.json` to keep the old edges.
 
 ## [0.12.3] - 2026-10-04
 
