@@ -5079,6 +5079,80 @@ else
   fail "check 29 should not read the frontmatter: $out"
 fi
 
+# --- Check 30: skill size against Pocock's measured max and the base ref -----
+# Expected values come from the plan: max description 419 characters, max body
+# 160 lines (lines after the closing frontmatter fence), medians 130 / 70.
+# size_skill <name> <description chars> <body lines>
+size_skill() {
+  local desc body i
+  desc="Do a thing. Use when: 'a thing' is needed."
+  while ((${#desc} < $2)); do desc+="x"; done
+  body=""
+  for ((i = 1; i <= $3; i++)); do body+="line $i"$'\n'; done
+  mkdir -p "$SKILLS/$1"
+  printf -- '---\ndescription: "%s"\ndisable-model-invocation: false\n---\n%s' "$desc" "$body" >"$SKILLS/$1/SKILL.md"
+}
+size_skill sz-at-max 419 160
+out="$(run sz-at-max 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "Pocock's measured max" <<<"$out" &&
+  grep -q 'INFO: size: description 419 chars, body 160 lines (Pocock medians 130 chars, 70 lines; max 419, 160)' <<<"$out"; then
+  pass "check 30 stays quiet at exactly 419 chars and 160 body lines, printing the medians as INFO"
+else
+  fail "check 30 should be quiet at the max and print the INFO line (rc=$rc): $out"
+fi
+size_skill sz-over-desc 420 10
+out="$(run sz-over-desc 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above Pocock's measured max 419" <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a 420-char description"
+else
+  fail "check 30 should WARN on 420 chars, exit 0 (rc=$rc): $out"
+fi
+size_skill sz-over-body 100 161
+out="$(run sz-over-body 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: SKILL.md body is 161 lines, above Pocock's measured max 160" <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a 161-line body"
+else
+  fail "check 30 should WARN on 161 body lines, exit 0 (rc=$rc): $out"
+fi
+# This fixture repo has no origin remote, so with no CHECK_SKILL_BASE_REF the
+# growth half has no base and says so.
+if grep -q 'INFO: no base ref for the size-growth comparison' <<<"$out"; then
+  pass "check 30 skips growth with an INFO when no base ref resolves"
+else
+  fail "check 30 should name the missing base ref: $out"
+fi
+size_skill sz-grow 100 20
+git -C "$TMP" add -A && git -C "$TMP" commit -qm 'add sz-grow' >/dev/null
+size_skill sz-grow 150 25
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-grow) 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description grew vs HEAD: 100 -> 150 chars' <<<"$out" &&
+  grep -q 'WARN: SKILL.md body grew vs HEAD: 20 -> 25 lines' <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on description and body growth vs the base ref"
+else
+  fail "check 30 should WARN on growth vs HEAD, exit 0 (rc=$rc): $out"
+fi
+size_skill sz-grow 90 18
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-grow) 2>&1)"
+if ! grep -q 'grew vs' <<<"$out" && grep -q 'INFO: size: description 90 chars, body 18 lines' <<<"$out"; then
+  pass "check 30 stays quiet when the skill shrank vs the base ref"
+else
+  fail "check 30 should not WARN on a shrink: $out"
+fi
+size_skill sz-new 100 20
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-new) 2>&1)"
+if grep -q 'INFO: no HEAD version (new skill): size growth skipped' <<<"$out" && ! grep -q 'grew vs' <<<"$out"; then
+  pass "check 30 skips growth with an INFO for a skill new at the base ref"
+else
+  fail "check 30 should skip growth for a new skill: $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

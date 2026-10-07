@@ -153,6 +153,10 @@
 #  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
 #      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
 #      blocks carrying an as-of date and a recheck trigger are exempt)
+#  30. Skill size: description above 419 chars or body above 160 lines
+#      (Pocock's measured max; his medians print as INFO), or either grown vs
+#      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
+#      skipped with an INFO when no base resolves or the skill is new)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -536,6 +540,16 @@ SYNCED_MAX_AGE_DAYS=180
 TOC_LINE_THRESHOLD=300
 TOC_HEAD_LINES=40
 TOC_MIN_ANCHORS=3
+# Check 30: Pocock's measured skill sizes, the concise style the rollout aims
+# at. The max is the largest description (characters) and SKILL.md body (lines
+# after the frontmatter) in his skills repo; the medians are printed as INFO
+# only. Pointer: https://github.com/mattpocock/skills at commit 6fd9479. As of:
+# 2026-10-06. Recheck trigger: a re-measure of that repo moves the max or the
+# medians.
+POCOCK_DESC_MAX=419
+POCOCK_BODY_MAX=160
+POCOCK_DESC_MEDIAN=130
+POCOCK_BODY_MEDIAN=70
 
 FAILED=0
 WARNINGS=0
@@ -2345,6 +2359,56 @@ if [[ -n "$HIST_HITS" ]]; then
   warn "SKILL.md body cites this repository's history (#N) on line(s) $HIST_LINES: state the current rule and leave the issue or PR to the changelog, or put an upstream citation in a pointer record (/playbooks:skill-authoring, History and provenance)"
 else
   note "no history references in the SKILL.md body"
+fi
+
+# --- Check 30: skill size vs Pocock's measured max and the base ref (WARN) -----
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
+# not grow a skill. WARNs on a description or body above Pocock's max (see the
+# constants), and on growth of either against the base ref. The base ref is
+# CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
+# or origin/main; with neither, or for a skill new at that ref, the growth half
+# is skipped with an INFO. Never a FAIL.
+body_lines() { # SKILL.md text on stdin; lines after the closing frontmatter fence
+  awk 'NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
+    fm { if (/^---[[:space:]]*$/) fm = 0; next }
+    { n++ }
+    END { print n + 0 }'
+}
+BODY_LINES="$(body_lines <"$SKILL_MD")"
+note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock medians $POCOCK_DESC_MEDIAN chars, $POCOCK_BODY_MEDIAN lines; max $POCOCK_DESC_MAX, $POCOCK_BODY_MAX)"
+((DESC_CP_LEN > POCOCK_DESC_MAX)) &&
+  warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
+((BODY_LINES > POCOCK_BODY_MAX)) &&
+  warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
+
+SIZE_BASE=""
+SIZE_BASE_LABEL=""
+if [[ "$HAVE_GIT" == 1 ]]; then
+  if [[ -n "${CHECK_SKILL_BASE_REF:-}" ]]; then
+    SIZE_BASE="$CHECK_SKILL_BASE_REF"
+    SIZE_BASE_LABEL="$CHECK_SKILL_BASE_REF"
+  else
+    for size_upstream in origin/HEAD origin/main; do
+      git -C "$REPO_ROOT" rev-parse --verify --quiet "$size_upstream^{commit}" >/dev/null 2>&1 || continue
+      SIZE_BASE="$(git -C "$REPO_ROOT" merge-base HEAD "$size_upstream" 2>/dev/null)" || SIZE_BASE=""
+      [[ -n "$SIZE_BASE" ]] && SIZE_BASE_LABEL="the merge-base with $size_upstream" && break
+    done
+  fi
+fi
+if [[ -z "$SIZE_BASE" ]]; then
+  note "no base ref for the size-growth comparison (set CHECK_SKILL_BASE_REF, or fetch origin): growth check skipped"
+elif ! git -C "$REPO_ROOT" cat-file -e "$SIZE_BASE:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  note "no $SIZE_BASE_LABEL version (new skill): size growth skipped"
+else
+  SIZE_BASE_MD="$(git -C "$REPO_ROOT" show "$SIZE_BASE:$SKILL_REL/SKILL.md" 2>/dev/null)"
+  SIZE_BASE_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::extract <<<"$SIZE_BASE_MD" | skill_frontmatter::field description)")"
+  SIZE_BASE_DESC_LEN="$(skill_frontmatter::codepoint_len "$SIZE_BASE_DESC")"
+  SIZE_BASE_BODY="$(body_lines <<<"$SIZE_BASE_MD")"
+  ((DESC_CP_LEN > SIZE_BASE_DESC_LEN)) &&
+    warn "description grew vs $SIZE_BASE_LABEL: $SIZE_BASE_DESC_LEN -> $DESC_CP_LEN chars (/playbooks:skill-authoring, Descriptions)"
+  ((BODY_LINES > SIZE_BASE_BODY)) &&
+    warn "SKILL.md body grew vs $SIZE_BASE_LABEL: $SIZE_BASE_BODY -> $BODY_LINES lines (/playbooks:skill-authoring, Body)"
 fi
 
 # --- Summary ---------------------------------------------------------------
