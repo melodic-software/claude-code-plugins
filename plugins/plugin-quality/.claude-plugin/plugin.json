@@ -1,6 +1,6 @@
 {
   "name": "plugin-quality",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "description": "Post-use behavioral audit (plugin-quality:audit) of any Claude Code plugin skill, agent, hook, command, or config you have used. Six steps: capture evidence; map behavior in a fresh subagent that records errors, improvements, and quality-of-life items against standards; a blindspot pass; an interactive contract lock; review with a research gate on each finding's claims and fixes; and a confirmed work item for the maintainers. Uses context-guard snapshots when present.",
   "author": {
     "name": "Melodic Software",
