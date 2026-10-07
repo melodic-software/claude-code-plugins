@@ -224,6 +224,17 @@ test('lines: a crossing delivered after the live reading dips below the threshol
   ])
 })
 
+test('lines: a reset delivered after the live reading changes states the percent of the reading that reset it', NO_WRITES, async ($, on) => {
+  const { w, clock } = world(on, { limits: limits(97) })
+  await bash($)
+  await clock.set(Date.parse(FIVE_RESET) + 1000)
+  const newWindow = (percentUsed: number) => [{ kind: 'five_hour', percentUsed, resetsAt: '2026-10-04T02:00:00Z' }]
+  w.limits = newWindow(12)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  w.limits = newWindow(41)
+  expect(ownLines((await prompt($)).context)).toEqual([`rate-limit-guard: 5-hour window reset, now below 95% (12% used).`])
+})
+
 test('lines: a subagent tool call carries no line, and the next main-thread call does', NO_WRITES, async ($, on) => {
   const { w } = world(on)
   await bash($)
@@ -1287,6 +1298,14 @@ test('operator mode: a newer reading than the shown suggestion goes to Claude in
   w.limits = limits(97)
   await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
   expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H_97])
+})
+
+test('operator mode: a handed-off crossing states the percent shown, not the live reading', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w, limits(96))
+  w.limits = limits(92)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
 })
 
 test('operator mode: a handed-off window that left the reading sends no line', OPERATOR, async ($, on) => {
