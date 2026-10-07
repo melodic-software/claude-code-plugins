@@ -592,7 +592,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "f0ae4686409f783787798ecce5ba0ec71d9382c73ed633ad5706b50af239258b"
+  "d43f134f1ac8ba9d15a4f7e67f15ff474272ddbb27c91ac1d1971efffe281224"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
