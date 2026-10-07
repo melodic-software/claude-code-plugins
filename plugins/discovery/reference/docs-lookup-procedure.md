@@ -61,10 +61,6 @@ bash "<scripts>/docs-cache.sh" slice <ref> <id> [<id>...]
 - A slice prints each section's heading, body and child sections.
 - When the ids you ask for pass the escalation limit, the script prints the whole page instead
   and says so on stderr. Read the whole page then; do not re-slice to get under the limit.
-- Before answering, check each part of the question against the sections you read. For a part none
-  of them covers, find its sections in the map's headings and summaries and slice them too; a
-  question that asks the same thing for each of many events, options or keys needs the section of
-  every one.
 - A note or summary only points at where to look. Every claim in your answer rests on page text
   you read in this run.
 

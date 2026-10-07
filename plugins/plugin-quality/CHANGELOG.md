@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.14.5] - 2026-10-07
+## [0.14.6] - 2026-10-07
 
 ### Fixed
 
@@ -13,6 +13,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
   `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
   "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+## [0.14.5] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
 
 ## [0.14.4] - 2026-10-07
 

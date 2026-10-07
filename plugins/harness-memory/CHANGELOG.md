@@ -3,7 +3,7 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.6] - 2026-10-07
+## [1.1.7] - 2026-10-07
 
 ### Fixed
 
@@ -11,6 +11,17 @@ All notable changes to the `harness-memory` plugin are documented here. Format f
   ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
   `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
   "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+## [1.1.6] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
 
 ## [1.1.5] - 2026-10-07
 

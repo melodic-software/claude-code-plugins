@@ -1,6 +1,6 @@
 {
   "name": "knowledge",
-  "version": "0.20.7",
+  "version": "0.20.8",
   "description": "Ingests external knowledge into synthesized artifacts: book-distill (PDF or EPUB into author-attributed reference files), video-digest (one YouTube or X video: transcript, links, repo applicability), course-digest (Dometrain and Teachable courses into recommendations), docpage-digest (one documentation page into a verified knowledge slice), and map-corpus (a multi-resource corpus into a classified link map and an approved docpage-digest queue). setup sets where artifacts land.",
   "author": {
     "name": "Melodic Software",
