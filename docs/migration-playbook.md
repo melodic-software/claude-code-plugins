@@ -55,10 +55,9 @@ plugin per hook.
   warranted when their trigger vocabularies differ, because a user reaching for each says different
   things; a capability's subcommands stay action arguments of one skill. The restraint has a
   context-cost basis: the listing of skill names and descriptions loads into every session, and each
-  entry's combined description text is truncated at 1,536 characters in that listing
-  ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
-  verified 2026-08-31; recheck trigger: that page moving the cap re-derives this bullet). Every
-  extra skill is an always-paid context line. The standing exception is the `setup` lane, always its own skill with
+  entry's combined description text is truncated there at a per-entry cap (the figure and its
+  source record: `/playbooks:skill-authoring` `## Descriptions`). Every extra skill is an
+  always-paid context line. The standing exception is the `setup` lane, always its own skill with
   `disable-model-invocation: true`. See the philosophy's "Setup is explicit and repeatable".
 - **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
   the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard, all
