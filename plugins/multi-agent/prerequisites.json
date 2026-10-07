@@ -37,7 +37,7 @@
         "winget": "cURL.cURL",
         "apt": "curl"
       },
-      "check": "/multi-agent:check"
+      "check": "/harness-ops:prerequisites"
     },
     {
       "id": "jq",
@@ -58,7 +58,7 @@
         "winget": "jqlang.jq",
         "apt": "jq"
       },
-      "check": "/multi-agent:check"
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

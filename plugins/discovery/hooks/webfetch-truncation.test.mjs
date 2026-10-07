@@ -24,8 +24,9 @@ const fired = (decideFn, payload) => decideFn(payload) !== null
 const hooks = fixture('hooks')
 
 // Every case the hook must flag. The captured hooks payload ends in
-// "[... content continues ...]"; the other three phrasings were seen in the
-// visible-text probe of the hooks and env-vars pages.
+// "[... content continues ...]". The visible-text probe recorded
+// "[Content truncated for length...]" and "[The variables table continues ...]";
+// "[Content truncated due to length...]" is a defensive pattern, not an observed one.
 const mustFire = {
   'captured hooks payload ([... content continues ...])': hooks,
   'marker: [Content truncated for length...]': lastLineSwapped(hooks, '[Content truncated for length...]'),
@@ -65,7 +66,7 @@ const stayQuiet = {
   'a markdown link whose text is the marker': withResult(hooks, 'See below.\n[Content truncated](#truncation)'),
   'a bracketed last line with neither phrasing': withResult(hooks, 'Intro.\n[Back to top]'),
   'a non-WebFetch tool whose output ends in the marker':
-    { ...hooks, tool_name: 'Bash', tool_response: { stdout: 'x\n[Content truncated for length...]', stderr: '' } },
+    { ...hooks, tool_name: 'Bash', tool_response: { ...hooks.tool_response, result: 'x\n[Content truncated for length...]' } },
   'a WebFetch payload with no result': { ...hooks, tool_response: { bytes: 10, code: 404 } },
   'no payload': null,
 }
