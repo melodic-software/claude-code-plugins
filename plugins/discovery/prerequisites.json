@@ -1,6 +1,24 @@
 {
   "requires": [
     {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the WebFetch truncation hook cannot launch, so a truncated WebFetch result gets no note pointing at /discovery:read-docs.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/discovery:check"
+    },
+    {
       "id": "curl",
       "kind": "cli",
       "need": "required",

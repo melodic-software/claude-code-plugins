@@ -1,0 +1,35 @@
+{
+  "_capture": {
+    "source": "PostToolUse hook stdin, logged by a temporary command hook in a headless claude -p session",
+    "claude_code": "2.1.289",
+    "date": "2026-10-04",
+    "edits": [
+      "session_id, prompt_id, transcript_path and cwd replaced with placeholders",
+      "tool_response.result cut to its last 2000 characters (captured length 7790)"
+    ]
+  },
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/user/.claude/projects/example/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/user/example",
+  "permission_mode": "dontAsk",
+  "hook_event_name": "PostToolUse",
+  "prompt_id": "00000000-0000-4000-8000-000000000001",
+  "effort": {
+    "level": "medium"
+  },
+  "tool_name": "WebFetch",
+  "tool_input": {
+    "url": "https://code.claude.com/docs/en/env-vars.md",
+    "prompt": "Return the page content verbatim, in full."
+  },
+  "tool_response": {
+    "bytes": 164102,
+    "code": 200,
+    "codeText": "OK",
+    "result": "`, while `CLAUDE_CODE_EFFORT_LEVEL` overrides `--effort` and `/effort`. When a variable interacts with another configuration source, its row in the [Variables](#variables) list states the precedence or links to the page that documents it.\n\nClaude Code reads shell environment variables at startup, so changes to them take effect the next time you launch `claude`. Variables set under the `env` key in settings files are reapplied to a running session when the file changes, with the startup-only exception described in [In settings files](#in-settings-files).\n\n## Variables\n\nNumeric variables such as timeouts, token budgets, and retry counts accept scientific notation and digit-separator spellings in addition to plain digits, except where a variable's row notes it takes plain digits only. For example, Claude Code reads `2e3` as 2000 and `64_000` as 64000. Before v2.1.211, these spellings could silently set a much smaller value, such as `1e6` setting a timeout to 1.\n\n<Note>\n  For variables that turn a behavior on or off, set `1`, `true`, `yes`, or `on` to turn it on and `0`, `false`, `no`, or `off` to turn it off, in any casing.\n\n  Some variables read only whether you set them at all, so any non-empty value including `0` turns the behavior on, and you turn the behavior off by unsetting the variable or setting it to an empty value. These variables work that way:\n\n  * `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`\n  * `DISABLE_TELEMETRY`\n  * `DISABLE_ERROR_REPORTING`\n  * `CLAUDE_CODE_TMUX_TRUECOLOR`\n  * `FALLBACK_FOR_ALL_PRIMARY_MODELS`\n  * `IS_DEMO`\n\n  One other variable has its own rule: `FORCE_HYPERLINK` reads a number, so only `0` turns it off. Each variable's row also states its own rule.\n</Note>\n\nThe comprehensive variables table continues with detailed entries for each environment variable. The document is extensive and covers authentication, API endpoints, model configuration, timeouts, network settings, feature toggles, and many other behavioral controls for Claude Code.",
+    "durationMs": 26698,
+    "url": "https://code.claude.com/docs/en/env-vars.md"
+  },
+  "tool_use_id": "toolu_019KzHCtdRiJeG9GRpPESbFT",
+  "duration_ms": 26698
+}
