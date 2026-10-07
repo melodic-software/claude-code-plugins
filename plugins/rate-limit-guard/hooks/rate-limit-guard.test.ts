@@ -133,9 +133,9 @@ test('lines: one approach line at 90, one at the 95% edge, one at the reset, app
 
   expect(seen).toEqual([
     ['below'],
-    ['below', `rate-limit-guard: 5-hour window at or above 90%, resets at 2026-10-03 21:00 UTC.`],
+    ['below', `rate-limit-guard: 5-hour window at or above 90% (90% used), resets at 2026-10-03 21:00 UTC.`],
     ['below'],
-    ['below', `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`],
+    ['below', `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`],
     ['below'],
     ['below', `rate-limit-guard: 5-hour window reset, now below 95%.`],
     ['below'],
@@ -161,11 +161,11 @@ test('lines: the default line names each window, one line per window when both c
   await bash($)
   w.limits = limits(20, 96)
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 7-day window at or above 95%, resets at 2026-10-08 09:00 UTC.`,
+    `rate-limit-guard: 7-day window at or above 95% (96% used), resets at 2026-10-08 09:00 UTC.`,
   ])
   w.limits = limits(100, 96)
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (100% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 
@@ -174,8 +174,8 @@ test('lines: both windows crossing together get a named line each', NO_WRITES, a
   await bash($)
   w.limits = limits(97, 95)
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
-    `rate-limit-guard: 7-day window at or above 95%, resets at 2026-10-08 09:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC.`,
   ])
 })
 
@@ -187,8 +187,8 @@ test('lines: a dip below the threshold or the approach mark sends nothing and re
     lines.push(...ownLines((await bash($)).context))
   }
   expect(lines).toEqual([
-    `rate-limit-guard: 5-hour window at or above 90%, resets at 2026-10-03 21:00 UTC.`,
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 90% (90% used), resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 
@@ -205,7 +205,7 @@ test('lines: a reading only session.measure carries reaches Claude at the next c
   await bash($)
   await $.session.measure({ context: { window: 200_000 }, rateLimits: limits(95), changed: ['rateLimits'] })
   expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (20% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 
@@ -238,7 +238,7 @@ test('lines: a crossing seen at session.measure reaches Claude at the next promp
   w.limits = limits(95)
   await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
   expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 
@@ -287,7 +287,7 @@ test('debug mirror: each line sent to Claude is written to the debug log as sent
   const atTool = ownLines((await bash($)).context)
   w.limits = limits(96, 97)
   const atPrompt = ownLines((await prompt($)).context)
-  expect([...atTool, ...atPrompt]).toEqual([EDGE_5H, 'rate-limit-guard: 7-day window at or above 95%, resets at 2026-10-08 09:00 UTC.'])
+  expect([...atTool, ...atPrompt]).toEqual([EDGE_5H, EDGE_7D_97])
   expect(w.logs.filter(l => l.to === 'debug' && l.text.includes(' window ')).map(l => l.text)).toEqual([...atTool, ...atPrompt])
 })
 
@@ -310,7 +310,7 @@ test('lines: a load with earlier turns restates a window at the edge once', NO_W
   world(on, { turns: 3, limits: limits(97) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    EDGE_5H_97,
   ])
   expect(ownLines((await prompt($)).context)).toEqual([])
 })
@@ -325,9 +325,7 @@ test('lines: a window that leaves the reading at the approach mark gets no reset
 for (const data of ['', 'bogus']) {
   test(`line data: the fallback for "${data}" names the window`, { options: { rate_limit_guard_enabled: false, rate_limit_line_data: data } }, async ($, on) => {
     world(on, { limits: limits(97) })
-    expect(ownLines((await bash($)).context)).toEqual([
-      `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
-    ])
+    expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
   })
 }
 
@@ -345,7 +343,7 @@ test('lines: /clear, then the first prompt: the verdict when at the threshold', 
   await $.session.end({ reason: 'clear', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   w.sid = 'sess-2'
   expect(ownLines((await prompt($, 'composer')).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (98% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 
@@ -396,7 +394,7 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.limits = limits(96)
   expect(ownLines((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const offered = `FYI, rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`
+  const offered = `FYI, ${EDGE_5H}`
   expect(w.suggested).toEqual([offered])
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
@@ -463,9 +461,10 @@ test('operator mode: a suggestion that cannot show goes to Claude at the next pr
 })
 
 const OPERATOR = { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }
-const EDGE_5H = `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`
-// With the 7-day window also at the threshold, only the last line carries the directive.
-const EDGE_5H_THEN_7D = `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`
+const EDGE_5H = `rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC.`
+const EDGE_5H_97 = `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`
+const EDGE_7D_96 = `rate-limit-guard: 7-day window at or above 95% (96% used), resets at 2026-10-08 09:00 UTC.`
+const EDGE_7D_97 = `rate-limit-guard: 7-day window at or above 95% (97% used), resets at 2026-10-08 09:00 UTC.`
 const shownInTypedTurn = async ($: any, w: World, next = limits(96)) => {
   await prompt($, 'composer')
   w.limits = next
@@ -514,7 +513,7 @@ test('operator mode: a hand-off and a restatement due at the same prompt send ea
   await $.session.end({ reason: 'clear', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   expect(ownLines((await prompt($, 'sdk')).context)).toEqual([
     EDGE_5H,
-    `rate-limit-guard: 7-day window at or above 90%, resets at 2026-10-08 09:00 UTC.`,
+    `rate-limit-guard: 7-day window at or above 90% (91% used), resets at 2026-10-08 09:00 UTC.`,
   ])
 })
 
@@ -686,10 +685,10 @@ test('toast: a restatement after /clear with a window at the edge does not toast
 test('toast: a mid-session load restates the edge without a toast, and a later rise of the other window toasts once', NO_WRITES, async ($, on) => {
   const { w } = world(on, { turns: 3, limits: limits(97, 50) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H])
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H_97])
   expect(w.toasts).toEqual([])
   w.limits = limits(97, 96)
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_7D])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_7D_96])
   expect(w.toasts).toEqual(['7d at the 95% pause edge · resets 2026-10-08 09:00 UTC'])
 })
 
@@ -770,7 +769,7 @@ test('notice: two windows changing together share one row with the plugin prefix
   const { w } = world(on)
   await bash($)
   w.limits = limits(97, 95)
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_THEN_7D, EDGE_7D])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97, EDGE_7D])
   expect(crossingLogs(w).map(l => l.text)).toEqual([LOG_EDGE, 'rate-limit-guard: 7d at the 95% pause edge · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
   const rows = (await drawn($, 'desktop')).filter(t => NOTICE.test(t))
   expect(rows).toEqual(['rate-limit-guard: 5h at the 95% pause edge · resets 21:00 UTC; 7d at the 95% pause edge · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
@@ -784,13 +783,13 @@ test('operator mode: two windows held together are offered in one notice with th
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   const offered =
-    'FYI, rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC. 7-day window at or above 95%, resets at 2026-10-08 09:00 UTC.'
+    'FYI, rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC. 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC.'
   expect(w.suggested).toEqual([offered])
   for (const surface of ['terminal', 'desktop'] as const) {
     expect((await drawn($, surface)).filter(t => NOTICE.test(t))).toEqual([offered])
   }
   expect(prefixes(offered)).toBe(1)
-  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H_THEN_7D, EDGE_7D])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H_97, EDGE_7D])
 })
 
 test('toast: a rise the /rate-limit-guard command or the status tool reads is shown at once', NO_WRITES, async ($, on) => {
@@ -1265,14 +1264,14 @@ test('operator mode: a row a survey hid was never seen, so the line sent to Clau
   expect(w.toasts).toEqual([TOAST_EDGE])
 })
 
-const EDGE_7D = `rate-limit-guard: 7-day window at or above 95%, resets at 2026-10-08 09:00 UTC.`
+const EDGE_7D = `rate-limit-guard: 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC.`
 
 test('operator mode: a newer reading than the shown suggestion goes to Claude instead of the handed-off one', OPERATOR, async ($, on) => {
   const { w } = world(on)
   await shownInTypedTurn($, w, limits(92))
   w.limits = limits(97)
   await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
-  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H_97])
 })
 
 test('operator mode: a handed-off window that left the reading sends no line', OPERATOR, async ($, on) => {
@@ -1290,8 +1289,8 @@ test('operator mode: a second shown suggestion keeps the first one handed off', 
   w.limits = limits(96, 97)
   expect(ownLines((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([`FYI, ${EDGE_5H}`, `FYI, ${EDGE_7D}`])
-  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H_THEN_7D, EDGE_7D])
+  expect(w.suggested).toEqual([`FYI, ${EDGE_5H}`, `FYI, ${EDGE_7D_97}`])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H, EDGE_7D_97])
 })
 
 test(
@@ -1322,14 +1321,13 @@ test(
 
 // A bad option value: the module still loads, the option reads as its default, and one line says so.
 const optionLogs = (w: World) => w.logs.filter(l => l.text.startsWith('rate-limit-guard: option '))
-const EDGE_95 = `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC.`
 
 for (const value of [101, 0, -5, 1e9]) {
   test(`options: line threshold ${value} reads as 95, writes go on, one line names it`, { options: { rate_limit_line_threshold: value } }, async ($, on) => {
     const { w } = world(on, { limits: limits(94) })
     expect(ownLines((await bash($)).context)).toHaveLength(1)
     w.limits = limits(97)
-    expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+    expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
     expect(bodies(w).at(-1)?.rate_limits?.five_hour?.used_percentage).toBe(97)
     expect(optionLogs(w)).toHaveLength(1)
     expect(optionLogs(w)[0].text).toContain('rate_limit_line_threshold')
@@ -1350,24 +1348,24 @@ test('options: approach mark 150 reads as 90, one line names it', { options: { r
 
 test('options: line data naming no known item reads as the default, and the line echoes 40 characters at most', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: `bogus,${'x'.repeat(60)}` } }, async ($, on) => {
   const { w } = world(on, { limits: limits(97) })
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
   expect(optionLogs(w)).toHaveLength(1)
   const text = optionLogs(w)[0].text
   expect(text).toContain('rate_limit_line_data')
-  expect(text).toContain('default, verdict,window,reset')
+  expect(text).toContain('default, verdict,percent,window,reset')
   expect(text).toContain(`bogus,${'x'.repeat(34)}`)
   expect(text).not.toContain('x'.repeat(35))
 })
 
 test('options: line data with one unknown item reads as the default, not a partial list', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: 'percent,precent' } }, async ($, on) => { // spellchecker:disable-line
   const { w } = world(on, { limits: limits(97) })
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
   expect(optionLogs(w).map(l => l.text)).toEqual([expect.stringContaining('rate_limit_line_data')])
 })
 
 test('options: a report mode outside the list loads as automatic and the module adds no line', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'loud' } }, async ($, on) => {
   const { w } = world(on, { limits: limits(97) })
-  expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_95])
+  expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_5H_97])
   expect(optionLogs(w)).toEqual([])
 })
 
@@ -1376,7 +1374,7 @@ test('options: two bad options give two lines, and no more on later events or a 
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect(ownLines((await bash($)).context)[0]).toContain('at or above 90%')
   w.limits = limits(97)
-  expect(ownLines((await prompt($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H_97])
   await bash($)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   await prompt($)
@@ -1393,13 +1391,13 @@ test('options: good values log no option line', { options: { rate_limit_line_thr
 test('options: line threshold 100 and approach mark 1, the ends of the range, are used as given with no option line', { options: { rate_limit_guard_enabled: false, rate_limit_line_threshold: 100, rate_limit_approach_pct: 1 } }, async ($, on) => {
   const { w } = world(on, { limits: limits(1, 0) })
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 1%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 1% (1% used), resets at 2026-10-03 21:00 UTC.`,
   ])
   w.limits = limits(99, 0)
   expect(ownLines((await bash($)).context)).toEqual([])
   w.limits = limits(100, 0)
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 100%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 100% (100% used), resets at 2026-10-03 21:00 UTC.`,
   ])
   expect(optionLogs(w)).toEqual([])
 })
@@ -1409,14 +1407,14 @@ test('options: line threshold 1 and approach mark 100 are used as given with no 
   expect(ownLines((await bash($)).context)).toEqual([])
   w.limits = limits(1, 0)
   expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 1%, resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 1% (1% used), resets at 2026-10-03 21:00 UTC.`,
   ])
   expect(optionLogs(w)).toEqual([])
 })
 
 test('options: an empty line data value reads as the default with no option line, as an unset one does', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: '' } }, async ($, on) => {
   const { w } = world(on, { limits: limits(97) })
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
   expect(optionLogs(w)).toEqual([])
 })
 
@@ -1445,7 +1443,7 @@ test('account: a state file rewritten at the same size with another identity and
 // An empty reading (no window reported, as before a session's first response) is no reading, not a reset.
 test('lines: a carrier with an empty reading sends no reset line and keeps the levels, so the same reading again sends nothing', async ($, on) => {
   const { w } = world(on, { limits: limits(96) })
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
   w.limits = []
   expect(ownLines((await bash($)).context)).toEqual([])
   expect(ownLines((await prompt($)).context)).toEqual([])
@@ -1457,7 +1455,7 @@ test('lines: a carrier with an empty reading sends no reset line and keeps the l
 
 test('lines: a reading whose every window has passed its reset time still sends one reset line', NO_WRITES, async ($, on) => {
   const { clock } = world(on, { limits: [{ kind: 'five_hour', percentUsed: 97, resetsAt: FIVE_RESET }] })
-  expect(ownLines((await bash($)).context)).toEqual([EDGE_95])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97])
   await clock.set(Date.parse(FIVE_RESET) + 1000)
   expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: 5-hour window reset, now below 95%.`])
   expect(ownLines((await bash($)).context)).toEqual([])

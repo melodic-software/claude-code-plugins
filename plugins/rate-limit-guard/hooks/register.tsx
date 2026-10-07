@@ -14,7 +14,7 @@ const WINDOWS = [
 ] as const
 // The verdict is always in a line; these add to it.
 const DATA_ITEMS = ['verdict', 'percent', 'window', 'reset']
-const DEFAULT_DATA = ['verdict', 'window', 'reset']
+const DEFAULT_DATA = ['verdict', 'percent', 'window', 'reset']
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limit-guard'
