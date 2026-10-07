@@ -476,12 +476,12 @@ even if it did the value would be the same repo-injectable channel the belt drop
 **Claim:** whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is
 unmeasured; the recovery hint therefore does not recommend it. **Basis:** decision not to run
 the paid probe in #4669; hooks.md says both hook forms export `CLAUDE_PLUGIN_DATA` on the
-spawned process (the paragraph on exec and shell form); plugins-reference "Where each
+spawned process (the paragraph on exec and shell form); plugin manifest reference "Where each
 variable resolves" lists hook commands as exporting it and skill/command/agent content as
 not applicable, and does not say a launch-shell export survives into a skill-frontmatter
-hook. Fetched 2026-09-28 as `https://code.claude.com/docs/en/hooks.md` and
-`https://code.claude.com/docs/en/plugins-reference.md`. **As of:** 2026-09-28. **Recheck:**
-a live probe with version and platform, or a hooks.md / plugins-reference sentence that
+hook. Fetched 2026-10-07 as `https://code.claude.com/docs/en/hooks.md` and
+`https://code.claude.com/docs/en/plugins/manifest-reference.md`. **As of:** 2026-10-07. **Recheck:**
+a live probe with version and platform, or a hooks.md / manifest-reference sentence that
 states the skill-frontmatter inheritance.
 
 Verification records for the directory channel:
@@ -547,8 +547,8 @@ resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginCo
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
 Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207, and a project or
 local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
-2026-09-06 against Claude Code 2.1.263 and the plugins reference at
-`https://code.claude.com/docs/en/plugins-reference`, which states that Claude Code reads all
+2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
+`https://code.claude.com/docs/en/settings-reference#pluginconfigs`, which states that Claude Code reads all
 `pluginConfigs` values from only user settings, `--settings`, and managed settings, that entries in a
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
 were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or

@@ -24,9 +24,10 @@ the usual way one of these moves. These stamps are page reads with a date, not s
 Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 
 - `<plugin-data-dir>` = this plugin's persistent data directory, `${CLAUDE_PLUGIN_DATA}`. That
-  placeholder resolves here: the plugins reference puts skill and agent content in the
-  "anywhere the placeholder appears" row (<https://code.claude.com/docs/en/plugins-reference>,
-  Environment variables, fetched 2026-07-31), alongside hook and monitor commands. Should it
+  placeholder resolves here: the plugin manifest reference has `${...}` resolve
+  "Anywhere in the Markdown body" of skill, command, and agent content
+  (<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, fetched 2026-10-07), alongside hook and
+  monitor commands. Should it
   arrive unexpanded, derive the directory deterministically per the same page:
   `~/.claude/plugins/data/<plugin-id>/`, where `<plugin-id>` is this plugin's install identifier
   with characters outside `[A-Za-z0-9_-]` replaced by `-` (marketplace install →

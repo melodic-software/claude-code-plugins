@@ -170,7 +170,7 @@ Claude Code constrain installs differently.
 [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle); for
 `${CLAUDE_SKILL_DIR}` and `allowed-tools`, see
 [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference); for plugin
-path rules, see <https://code.claude.com/docs/en/plugins-reference>; for network and install
+path rules, see <https://code.claude.com/docs/en/plugins/manifest-reference#path-rules>; for network and install
 constraints per surface, see
 [Runtime environment constraints](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#runtime-environment-constraints)
 and

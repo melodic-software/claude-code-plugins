@@ -584,7 +584,7 @@ if [[ ! -d "$SKILL_DIR" ]]; then
   # (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills`) is an
   # internal detail: only the cache's existence is documented, the
   # `<mp>/<plugin>/<version>` nesting is not, and the version dir changes on
-  # every update (code.claude.com/docs/en/plugins-reference). Point the root at
+  # every update (code.claude.com/docs/en/plugins/loading#find-plugins-on-disk). Point the root at
   # it explicitly instead. Note the cache is a COPY, not a git checkout, so the
   # git-backed checks (3 trigger-preservation, 8 vendor, 9 stale-metadata)
   # correctly no-op there — a "new skill / skipped" result is expected, not a
@@ -1178,8 +1178,8 @@ done < <(
 # A backslash-separated pointer is a defect in its own right, not a miss: this
 # check treats a plugin component path containing a backslash as one Claude
 # Code rejects at load on macOS and Linux. Pointer: for plugin path rules, see
-# https://code.claude.com/docs/en/plugins-reference#path-rules. As of:
-# 2026-09-10. Recheck trigger: that section dropping or widening the rule. The resolve loop above never sees such a path (its
+# https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory. As of:
+# 2026-10-07. Recheck trigger: that section dropping or widening the rule. The resolve loop above never sees such a path (its
 # char-class has no backslash), so without this limb a Windows-authored
 # `scripts\helper.py` skipped the check silently and shipped. The pattern is
 # deliberately tight: a known internal dir token, one or more backslash-led

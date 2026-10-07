@@ -616,7 +616,7 @@ a declared config surface, not an abstraction layer, is the extension point.
 
 A plugin can ship MCP servers via `.mcp.json` at the plugin root (or an `mcpServers` key in
 `plugin.json`), across all transports: stdio, HTTP, SSE, WS
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). Those servers
+([MCP servers](https://code.claude.com/docs/en/plugins/components#mcp-servers)). Those servers
 **auto-connect when the plugin is enabled** (managed through plugin install, not a second `/mcp`
 approval) and appear as standard tools. The connect cost differs by transport: a **stdio** server
 costs a **local process spawn on every session that enables the plugin**, used or not; an **HTTP/SSE/WS**
@@ -655,7 +655,7 @@ consumers who never opt in.
    - **Committed `node_modules` under `${CLAUDE_PLUGIN_DATA}` (fallback).** For a server that cannot
      be single-file bundled, ship its `node_modules` and set
      `env.NODE_PATH: "${CLAUDE_PLUGIN_DATA}/node_modules"` (the persist-deps example in
-     [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
+     [Install dependencies into the data directory](https://code.claude.com/docs/en/plugins/components#install-dependencies-into-the-data-directory)) or it fails at startup
      with `MODULE_NOT_FOUND`.
 
    A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false`. It
@@ -1468,7 +1468,7 @@ authority.
 |---|---|---|
 | `strict` per entry | adopt default (`true`; omit the field) | No entry in `.claude-plugin/marketplace.json` sets `strict`. Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
 | `renames` | reject | `.claude-plugin/marketplace.json` carries no `renames` map. A rename is a clean break: an old-name install gets `Plugin "<name>" not found in marketplace` and the consumer re-enables the new name. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
-| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
+| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration). |
 | `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
 | Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |

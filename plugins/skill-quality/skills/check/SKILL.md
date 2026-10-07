@@ -46,8 +46,8 @@ not auto-resolved: the checker resolves a bare skill name under one root and doe
 Code's plugin cache to locate an install. The cache keeps each installed version of a copied plugin
 in its own directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, and the previous
 version stays on disk for a grace period after an update
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-09-02; recheck
-when that page's plugin-cache section changes), so more than one candidate can exist and the checker
+([Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions), verified 2026-10-07;
+recheck when that section changes), so more than one candidate can exist and the checker
 will not guess which one you mean. To gate an installed skill, point the root at its installed
 skills dir explicitly:
 

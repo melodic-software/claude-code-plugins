@@ -158,7 +158,7 @@ The two exceptions on Bash rules:
    `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`, and
    **in a plugin skill substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
    places** ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions), fetched
-   2026-09-12). That is the documented way to run a bundled script without a prompt, e.g.
+   2026-10-07; recheck when that section changes which tokens it substitutes in `allowed-tools`). That is the documented way to run a bundled script without a prompt, e.g.
    `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`. Two limits the convention records:
    `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code **v2.1.196 or later** (below that floor the
    rule stays a literal string and never matches), and the plugin-scoped pair is *"Substituted only in
