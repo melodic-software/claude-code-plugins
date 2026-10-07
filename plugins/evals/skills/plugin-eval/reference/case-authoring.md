@@ -35,12 +35,12 @@ a run, because each one costs a paid pass to discover afterwards.
 
 ## Precedence
 
-- [ ] With both files present, `prompt.md` frontmatter **overrides** the matching `case.yaml`
-      fields, the `prompt.md` body is the prompt, and `graders/*.md` are appended after any
-      `case.yaml` graders. Author one or the other per field; two sources for one value is how a
-      suite starts measuring something nobody intended.
-- [ ] `case.yaml` alone requires `schema_version` and `name`. It is also the only place
-      `context.scaffold_script`, `context.history_file`, and `context.add_dirs` exist.
+- [ ] Which file wins when both are present, what `case.yaml` requires, and which fields exist
+      only there: [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields),
+      as of 2026-10-07. Recheck trigger: that section's precedence sentence or its only-in-`case.yaml`
+      table changes.
+- [ ] Author one or the other per field; two sources for one value is how a suite starts
+      measuring something nobody intended.
 
 ## The workspace starts empty
 
@@ -89,8 +89,8 @@ unless the case routes it in explicitly.
 |---|---|---|
 | `regex` | `pattern`, `flags`, `match`, `target` | The JS regex is found in the target; `match: not_contains` requires absence, `match: "count:N"` exactly N |
 | `tool_used` | `tool`, `input_match`, `min`, `max` | Matching calls fall in range; `min` defaults to 1 and `max` to unlimited |
-| `tool_order` | `before`, `after` | Both were called and the first `before` precedes the first `after`; each is a tool name or `{tool, input_match}` |
-| `file_exists` | `path`, `exists` | A file the model **created** during the run matches the glob. Scaffold output and edited files do not count |
+| `tool_order` | `before`, `after` | The `tool_order` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change |
+| `file_exists` | `path`, `exists` | The `file_exists` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change. Scaffold output and files the model only edits do not count |
 | `llm` | `criteria`, `focus` | The judge votes PASS in at least 2 of 3. In the `.md` layout the body is the criteria |
 | `baseline` | `baseline_file`, `criteria` | The judge finds the run at least as good as the reference `.jsonl` in the case dir |
 
@@ -130,7 +130,8 @@ Run the static validator before every paid pass; it checks the bounds above with
 - `target: files` when the contents were meant. `files` is the list of created paths.
 - Assuming `target` defaults to `trace`. It defaults to `last_message`.
 - Inline `(?i)` in a pattern. Case-insensitivity is `flags: i`.
-- `file_exists` in a read-only suite. Nothing is created, so the grader can never pass.
+- `file_exists` with the default `exists` in a read-only suite. Nothing is created, so the grader
+  can never pass.
 - A gated tool in `allowed_tools` with no matching `--allow-tools` grant. The tool is removed from
   the session and reported on stderr as `not granted`, and the case quietly measures a model without
   it.

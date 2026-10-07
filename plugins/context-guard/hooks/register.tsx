@@ -16,8 +16,8 @@ const DATA_ITEMS = ['zone', 'percent', 'tokens', 'window']
 const ACTIONS = ['none', 'save-state', 'handoff', 'block'] as const
 const ACTION_TEXT: Record<Action, string> = {
   none: '',
-  'save-state': 'compaction distance is short, so each expensive conclusion goes to a durable note as it stabilizes',
-  handoff: 'hand off at the next clean stopping point',
+  'save-state': 'save-state',
+  handoff: 'handoff',
   block: 'new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed',
 }
 
@@ -275,16 +275,11 @@ const sentence = (source: string, rule: Rule) => {
   return text === '' || rule.action === 'none' && rule.text === undefined ? '' : ` context-guard (${source}): ${text}.`
 }
 
-// The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone,
-// then the dumb zone's default save-state note.
+// The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone.
 const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule }[] => {
   const set = settings.actions[zone]
   if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set }]
-  if (zone !== 'dumb') return []
-  return [
-    ...(cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' as const } }] : []),
-    { source: 'default for the dumb zone', rule: { action: 'save-state' as const } },
-  ]
+  return zone === 'dumb' && cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' } }] : []
 }
 
 // The zone whose block is in force for this session now, if any: its zone's, or a passed threshold's.
@@ -301,9 +296,8 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     zoneRules(zone, settings, cfg)
       .map(z => sentence(z.source, z.rule))
       .join('')
-  // A line that surfaces a count pairs it with a reassurance (I23's Remediate clause); the verdict alone carries none.
-  const line = (zone: Zone, degraded: boolean, hint: string) =>
-    `context-guard: ${verdictText(zone, degraded)}${data}${hint}.${data === '' ? '' : " Continuing is the user's call."}`
+  // A line states facts only: what to do about them is left to the model and the user.
+  const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
   // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
   const near = (zone: Zone) => {
     const toward = NEXT_ZONE[zone]
@@ -691,7 +685,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb), and the gate's mode (advisory or blocking) with its grace calls and calls counted. Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response. Call it when the user asks how full the context is, or when a decision needs the exact figures. Do not poll it: by default context-guard adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
+        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb), and the gate's mode (advisory or blocking) with its grace calls and calls counted. Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. By default context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
@@ -727,7 +721,7 @@ async function gate($: EngineInterface, st: State, cfg: Config, e: ToolCallInput
   await emitTelemetry($, 'zone-gate', 'blocked', { zone: block, grace: cfg.grace, calls_seen: s.grace }, fire)
   return (
     `${PREFIX}${e.tool} denied: ${block} zone, grace budget of ${cfg.grace} calls spent. ` +
-    'Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.'
+    'Reads, Bash, Skill and handoff-path writes still run.'
   )
 }
 

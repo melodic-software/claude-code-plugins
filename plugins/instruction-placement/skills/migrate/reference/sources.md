@@ -10,8 +10,9 @@ Per-run output (per-condition tables, graded commit SHAs) is posted as a comment
 issue. This file holds only the current grade of each fact: per the convention's "When a trigger
 fires", refreshing a date with no verdict change is no entry and no version bump.
 
-Every page below was fetched by the convention's rung-1 route (`curl` the `.md` to a file, search
-the file locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and read from
+A refresh reads each page with the plugin's `scripts/fetch-docs.sh --cache` (the
+convention's rung 1). Every page below was fetched by that rung-1 route (the `.md` read to a file,
+searched locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and read from
 the bytes. No page text is stored here.
 
 Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) ·
