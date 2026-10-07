@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **`plugin-eval` run-validity classifies a driveless rooted denial path on Windows ([#6499](https://github.com/melodic-software/claude-code-plugins/issues/6499)).** On Python 3.13 and later, `os.path.isabs` on Windows calls `/tmp/x` relative, so a with-arm denial outside the plugin counted as inside it and the run came out INVALID. The inside-the-plugin check now treats any rooted path as anchored; behavior on Linux and macOS is unchanged.
+- **`plugin-eval` run-validity classifies a driveless rooted denial path on Windows ([#6499](https://github.com/melodic-software/claude-code-plugins/issues/6499)).** On Python 3.13 and later, `os.path.isabs` on Windows calls `/tmp/x` relative, so a with-arm denial outside the plugin counted as inside it and the run came out INVALID. The inside-the-plugin check now treats any rooted path as anchored and skips a plugin root on another drive instead of raising; behavior on Linux and macOS is unchanged.
 
 ## [0.6.1] - 2026-10-07
 

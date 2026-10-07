@@ -639,6 +639,10 @@ class WindowsPathTest(unittest.TestCase):
         for path in (self.ROOT + "/skills/x.md", "/tmp", "\\tmp\\eval-r2"):
             self.assertTrue(self.inside(path), path)
 
+    def test_a_path_on_another_drive_than_the_plugin_is_outside(self):
+        self.assertFalse(self.inside("D:\\tmp\\x", "C:\\eval\\plugins\\evals"))
+        self.assertTrue(self.inside("c:\\eval", "C:\\eval\\plugins\\evals"))
+
     def test_a_drive_relative_or_relative_path_is_inside(self):
         for path in ("C:tmp\\x", "tmp/x"):
             self.assertTrue(self.inside(path, "C:\\eval\\plugins\\evals"), path)
