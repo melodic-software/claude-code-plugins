@@ -36,12 +36,18 @@ for r in node registration hook; do
   expect "$(has_row "$r" PASS)" "healthy: $r passes"
 done
 
-# A PATH holding the tools check.sh uses, but no node.
-mkdir -p "$WORK/bin"
-for t in bash cat grep dirname printf; do
-  p="$(command -v "$t")" && [[ "$p" == /* ]] && ln -sf "$p" "$WORK/bin/$t"
-done
-out="$(PATH="$WORK/bin" "$WORK/bin/bash" "$CHECK")"
+# A PATH holding the tools check.sh uses, but no node. Where bash's own
+# directory has no node, that directory is the PATH: Git Bash binaries load
+# their DLLs from it, so a symlinked copy elsewhere does not start.
+bin="$(dirname "$(command -v bash)")"
+if [[ -e "$bin/node" || -e "$bin/node.exe" ]]; then
+  bin="$WORK/bin"
+  mkdir -p "$bin"
+  for t in bash cat grep dirname printf; do
+    p="$(command -v "$t")" && [[ "$p" == /* ]] && ln -sf "$p" "$bin/$t"
+  done
+fi
+out="$(PATH="$bin" "$bin/bash" "$CHECK")"
 code=$?
 expect "$((code != 1))" "no node exits 1"
 expect "$(has_row node FAIL)" "no node: node fails"

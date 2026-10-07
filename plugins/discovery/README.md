@@ -14,6 +14,7 @@ subagent by default**, so the reading stays out of the main conversation;
 | `/discovery:research-deep` | External, tiered | Dispatcher that routes deep research to the heaviest isolated tier available, the `discovery:research-sweep` workflow, a `discovery:researcher` subagent, or inline as last resort, with a multi-topic check that fans one `discovery:researcher` out per separable topic. Runs in main context itself, the only place both the `Workflow` tool (absent from every non-fork subagent) and a dependable `Agent` spawn are guaranteed. |
 | `/discovery:trace-intent` | Historical | Reconstructs why a thing was built the way it was, from evidence outside the code: review discussion, tickets, long-form documents. Grades every claim on an intent-evidence tier (Direct / Supported / Inferred / Speculative / Unknown), cites each one with a source-reliability note, and reports what it could not find in a coverage map. Dispatches `discovery:intent-tracer` by default. |
 | `/discovery:read-docs` | External, one page | Reads one upstream docs page through the shared docs lookup and cache (`scripts/fetch-docs.sh`, `scripts/docs-cache.sh`): the whole page when small, otherwise the section map, stored summaries and notes, and the sections the model picks. Marks what the page does not state, keeps inference in a labeled part, and stores summaries and a quote-checked note for the next reader. Verification reads raw bytes only. The procedure is `reference/docs-lookup-procedure.md`, a generated copy other plugins can carry. |
+| `/discovery:check` | Setup | Reports whether `node` resolves, whether `hooks/hooks.json` registers the WebFetch truncation hook, and whether the hook flags a sample truncated result. Read-only; installs nothing. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
 
 `discovery:report` is the return-contract skill: not user-invocable, and the canonical copy that `implementation` and `plugin-quality` mirror byte-identically. No discovery agent preloads it: each agent's own `Return exactly this` section is its whole return shape.
@@ -43,6 +44,30 @@ is correct. Tight turn-by-turn iteration, cost on a lookup too small to justify
 the dispatch, or an invoking context that is itself a subagent. Running inline
 relaxes no discipline.
 
+## The WebFetch truncation hook
+
+A `PostToolUse` hook on `WebFetch` (`hooks/webfetch-truncation.mjs`) adds one line of context when
+the result's last line is a truncation marker or placeholder, such as `[Content truncated for
+length...]` or `[... content continues ...]`: the result covers only part of the page, and
+`/discovery:read-docs` reads the rest. It never blocks a call or changes the result, and it does not
+echo the fetched line back.
+
+The hook is partial by design. It has no length rule, so a page WebFetch summarized with no marker
+or placeholder gets no note; the captured CHANGELOG fetch is one. The routing rule in the
+[upstream-drift convention](../../docs/conventions/upstream-drift/README.md#the-rungs) covers that
+case: a verification, absence or completeness read goes through `/discovery:read-docs`, whatever
+WebFetch returned.
+
+It is a settings hook, not a mod: it adds context after one tool call, which a settings hook does
+natively, and it then also runs where mods are off
+([ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md)).
+
+Tested against three `PostToolUse` payloads captured from a headless `claude -p` session on Claude
+Code 2.1.289 (`hooks/fixtures/`): `hooks` (fires), `env-vars` and `CHANGELOG.md` (summaries, stay
+quiet). Interactive sessions and WebFetch calls made inside subagents were not captured; the hook
+reads only `tool_name`, `tool_input.url` and `tool_response.result`, and stays quiet on any other
+shape.
+
 ## Works in any repo
 
 - **Self-contained.** The research discipline file (source tiers, recency gates,
@@ -61,6 +86,14 @@ relaxes no discipline.
   synthesis MCP servers, documentation agents. Used when present and substituted when absent;
   no phase blocks on a missing tool, and substitutions are documented as gaps rather than silently
   lowering the bar.
+
+## Requirements
+
+- **Node.js** for the WebFetch truncation hook. Without `node` the hook cannot start, and a
+  truncated WebFetch result gets no note. A `SessionStart` notice names `/discovery:check`, which
+  reports whether `node` resolves and the hook is registered.
+- **curl and jq** for `/discovery:read-docs`; **Python 3**, optional, converts a page served only
+  as HTML. Each is declared in `prerequisites.json` with what degrades without it.
 
 ## Install
 
