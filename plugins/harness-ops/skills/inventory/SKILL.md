@@ -251,10 +251,10 @@ The script opens the binary read-only. It never writes to it and never executes 
 ## Verifying an upstream claim
 
 Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <dir> plugins-reference`, then
-search `<dir>/plugins-reference.md` locally. The fetcher confirms the slug against the docs index
-(`llms.txt`) and may serve a cached copy within the cache's TTL; report the page's `age_seconds`
-from `<dir>/manifest.json` with the claim, and treat a page it reports `unread` as no evidence. A
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> plugins-reference`,
+then search `<dir>/plugins-reference.md` locally. The fetcher confirms the slug against the docs
+index (`llms.txt`), and `--max-age 0` asks the server every time, so the claim rests on fresh bytes;
+treat a page `<dir>/manifest.json` reports `unread` as no evidence. A
 summarizing fetch returns a small model's answer *about* the page, so absence from that answer is
 not evidence of absence.
 
