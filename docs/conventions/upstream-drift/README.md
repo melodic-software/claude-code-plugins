@@ -198,12 +198,16 @@ Three rules bind every read, whichever rung it comes from:
 
 | Rung | Route | What it yields |
 |---|---|---|
-| 1: primary | `curl` the raw-markdown channel: append `.md` to the page URL (`https://code.claude.com/docs/en/<slug>.md`), write to a file, and search the file locally | Verbatim bytes, no summarizer, no truncation |
-| 2: primary, degraded | The `.md` channel fetched through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
+| 1: primary | The publisher's markdown, read whole to a file through the docs lookup and searched locally: the raw `.md` channel on an indexed publisher (`https://code.claude.com/docs/en/<slug>.md`); on any other host, the page with `Accept: text/markdown`, its `.md` suffix, the link the origin's `llms.txt` bundle gives for it, or, when none answers with markdown, its HTML converted to markdown | Complete bytes, no summarizer, no truncation; a converted page says `format: html-converted` and may lack the non-default tabs of a code switcher |
+| 2: primary, degraded | The page fetched through a summarizing tool such as WebFetch, or the rendered HTML read by eye | Truncates or summarizes long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
 | 3: mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
 
-`lib/fetch-docs.sh` is the rung-1 implementation. A plugin carries it as `scripts/fetch-docs.sh`,
-and `scripts/sync-shared-copies.sh` generates every carried copy from `lib/`. It reads a page
+The docs lookup is the rung-1 implementation: `/discovery:read-docs` for a reader, over
+`lib/fetch-docs.sh` and `lib/docs-cache.sh`. A plugin carries those as `scripts/fetch-docs.sh` and
+`scripts/docs-cache.sh`, and `scripts/sync-shared-copies.sh` generates every carried copy from
+`lib/`. A verification, absence or completeness read fetches with `--max-age 0` and reads with
+`read --raw`, so it rests on neither a model-written note nor a cached copy the server was not asked
+about. `fetch-docs.sh` reads a page
 verbatim to a file and writes a manifest, and it applies the identity check
 [below](#a-200-does-not-mean-you-got-the-page-you-asked-for) as the **index-listed identity rule**:
 a slug the publisher's index does not list is unread, never fetched. A **publisher profile**
@@ -216,6 +220,26 @@ Rung 1 is the default. A probe against `env-vars` on 2026-08-10 showed the raw c
 the whole page, including the rows the summarizing fetches had dropped, and two fetches seconds
 apart hashing identically. That same fetch re-confirmed the header finding below: `Last-Modified`
 came back equal to `Date`.
+
+**WebFetch is rung 2.** Use it to find which page to read and for a small question whose answer
+one short page holds. A verification, an absence claim or a completeness claim goes through the
+lookup. The `discovery` plugin adds a note after a WebFetch result that ends in a truncation marker
+or placeholder line, naming `/discovery:read-docs`. A page WebFetch summarized with neither, as the
+CHANGELOG capture below was, gets no note, so this routing rule, not the hook, carries that case.
+
+- **Pointer**: when deciding whether a WebFetch result can stand in for the page, fetch
+  [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+  live; it owns how WebFetch processes a page.
+- **As of**: 2026-10-04
+- **Recheck trigger**: that section changes how WebFetch limits or processes a page.
+
+Probed behavior, measured 2026-10-04 against each page's full `.md` bytes: WebFetch stopped at about
+100,000 characters of converted markdown, so the result covered about 40% of `hooks`, 61% of
+`env-vars` and 11% of `CHANGELOG.md`. `hooks` came back verbatim up to a truncation marker;
+`env-vars` and `CHANGELOG.md` came back as summaries, and the CHANGELOG summary said nothing about
+being cut. The PostToolUse payloads of those three fetches, from Claude Code 2.1.289, are in
+`plugins/discovery/hooks/fixtures/`. **As of**: 2026-10-04. **Recheck trigger**: the tools reference
+changes its WebFetch limits, or a re-probe of the same three pages shows a different visible share.
 
 The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
 `/harness-ops:changelog`'s read-actions context carried it page-scoped ("`curl` the
@@ -328,8 +352,16 @@ recheck trigger: those endpoints start serving an `ETag` or a stable per-page `L
 **Content hashing of a fetched page body is therefore the only viable mechanical drift signal** for
 these pages.
 
-The fleet **defers** storing hashes: no upstream-page hash store exists today, and every recheck is
-a manual re-fetch at trigger time. Recheck trigger for the deferral itself: a stale stamp causes a
+The docs cache (`lib/docs-cache.sh`) now stores, per URL, the sha256 of the bytes it last read and
+of each section's own body, and revalidates with `ETag` or `Last-Modified` where a host sends them.
+That changes one thing: a model-written note about a page is served only while every section it
+cites still hashes the same, so a note expires when its sections change and survives edits elsewhere
+on the page.
+
+What stays **deferred** is a hash store for verification stamps. The cache is per machine, expires
+by age and is pruned by size, and no stamp records the hash of the page it was derived from, so a
+changed hash in the cache says nothing about which stamps rest on that page. Every stamp recheck is
+still a manual re-fetch at trigger time. Recheck trigger for the deferral itself: a stale stamp causes a
 real defect a stored hash would have flagged, or a fleet audit completes without re-fetching every
 stamped claim in its scope, at which point a hash store becomes its own designed issue, not an
 inline addition here.
