@@ -2,6 +2,15 @@
 
 Every CLI command prints the equivalent Playwright TypeScript code. Copy-paste into a `.spec.ts` file to turn exploration into a regression test.
 
+## Contents
+
+- [How it works](#how-it-works)
+- [Turning a session into a test](#turning-a-session-into-a-test)
+- [Workflow](#workflow)
+- [Best practices](#best-practices)
+- [Spec-driven workflow (plan → generate → heal)](#spec-driven-workflow-plan--generate--heal)
+- [Running generated tests](#running-generated-tests)
+
 ## How it works
 
 ```text
@@ -47,7 +56,11 @@ test('login flow', async ({ page }) => {
 
 ### Prefer role-based locators
 
-CLI emits role-based locators by default (`getByRole('button', { name: 'Submit' })`). These survive CSS changes. Avoid converting to CSS selectors.
+CLI emits role-based locators by default (`getByRole('button', { name: 'Submit' })`). These survive CSS changes. Avoid converting to CSS selectors. For an element you did not act on, ask the CLI for its locator rather than writing one by hand:
+
+```bash
+playwright-cli generate-locator e5 --raw   # prints the Playwright locator for ref e5
+```
 
 ### Add assertions manually
 

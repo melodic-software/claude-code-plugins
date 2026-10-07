@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Nickname</title><script src="/fx.js"></script></head>
+<body>
+<form id="f"><label>Nickname <input id="nickname"></label> <button type="submit">Save nickname</button></form>
+<p id="status"></p>
+<script>
+  document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault(); fx.record("nickname", document.getElementById("nickname").value);
+    document.getElementById("status").textContent = "Nickname saved";
+  });
+</script>
+</body>
+</html>

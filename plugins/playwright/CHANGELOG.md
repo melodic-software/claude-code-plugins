@@ -3,11 +3,26 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.1] - 2026-10-07
+## [0.10.1] - 2026-10-07
 
 ### Changed
 
 - **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.10.0] - 2026-10-07
+
+### Changed
+
+- **Sessions are closed by name, not with `kill-all`.** The quick start no longer runs `kill-all` before every flow, and the conventions, `reference/sessions.md` and the orchestrator recipe say why: `close-all` and `kill-all` reach every playwright-cli browser on the machine, so they would end other agents' sessions in parallel work. Both stay as the recovery for a stuck daemon.
+- **`SKILL.md` no longer restates upstream default values.** The defaults section keeps the decision (accept the defaults, override per command) and points at the upstream README and `open --help` with an as-of date and a recheck trigger; the video-size levers stay in `reference/tracing-and-video.md`.
+
+### Added
+
+- `## Gotchas` in `SKILL.md`, each observed in the browser-tools benchmark of 2026-10-07: `fill` not leaving the field on validate-on-blur forms, refs refused after a re-render, clicks landing before hydration, short-lived toasts outrunning per-command startup, reading `console` for uncaught exceptions, and the missing `chrome` channel on Linux containers.
+- `## Next` naming the typical successors, `/source-control:pull-request` and `/verification:confirm`.
+- A contents list on every reference file over 100 lines, per the skill-authoring guidance on long reference files.
+- The README records why the plugin keeps wrapping Microsoft's skill instead of switching to it: the upstream 0.1.22 skill's gaps against the skill-authoring guidance, as of 2026-10-07, with the recheck trigger.
+- `snapshot --boxes` for geometry questions in `reference/snapshots-and-refs.md`, and `generate-locator` in `reference/test-generation.md`, both present upstream in 0.1.22.
 
 ## [0.9.0] - 2026-10-06
 

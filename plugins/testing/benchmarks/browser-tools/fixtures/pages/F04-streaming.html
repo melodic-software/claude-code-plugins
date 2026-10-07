@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F04 Streaming render</title><script src="/fx.js"></script></head>
+<body>
+<!-- Served through /api/stream: the shell below arrives first with a placeholder; after `delay` the
+     server sends a trailing chunk whose script swaps the real value in. Opening this file directly
+     redirects to the streaming route. -->
+<main>
+  <h1>Invoice summary</h1>
+  <p id="placeholder">Loading…</p>
+  <pre id="result"></pre>
+</main>
+<script>
+  if (location.pathname.startsWith("/f/")) location.replace(`/api/stream?run=${fx.run}&delay=${fx.delay}`);
+</script>
