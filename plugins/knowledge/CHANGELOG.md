@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.1] - 2026-10-07
+
+### Changed
+
+- **Test suites only; nothing shipped changes.** The course-digest `cli-entry` and `cli-browser-artifacts` tests remove their temp dirs after each test; `cli-entry` drops its junction into the source `extraction/` dir first.
+
 ## [0.20.0] - 2026-10-07
 
 ### Changed

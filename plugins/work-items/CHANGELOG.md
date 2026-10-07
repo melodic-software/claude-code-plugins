@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.6] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The work-item-tracker test builds its tool-free PATH from per-file native symlinks of the entries that hold the tool, instead of linking every PATH entry and subdirectory into one dir.
+
 ## [0.49.5] - 2026-10-04
 
 ### Changed

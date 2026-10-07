@@ -160,7 +160,8 @@ rationale in two or three sentences or the evidence as a list.
 
 - **Does not author skills.** Deciding a skill should exist, what it triggers on, what its
   frontmatter declares, how its actions are shaped, and how its body is structured is
-  `playbooks:skill-authoring` + `skill-quality:check` territory. Prose inside an already-authored
+  `/playbooks:skill-authoring` territory (description shape and caps: `## Descriptions`; body
+  size: `## Body`), enforced by `/skill-quality:check`. Prose inside an already-authored
   SKILL.md is still this skill's: a SKILL.md is agent-consumed markdown, which is exactly and only
   what this doctrine governs. Read the boundary as authorship against wording, not as a whole file
   this skill may not look at, or the largest agent-facing surface most repos have ends up governed

@@ -1,10 +1,20 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+const tempDirs = [];
+const tempDir = (prefix) => {
+  const d = mkdtempSync(path.join(tmpdir(), prefix));
+  tempDirs.push(d);
+  return d;
+};
+afterEach(() => {
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 const dir = path.dirname(new URL(import.meta.url).pathname);
 const entrypoints = [
@@ -25,7 +35,7 @@ function run(script, args = [], { env, nodeArgs = [] } = {}) {
 }
 
 function courseFixture(extra = {}) {
-  const root = mkdtempSync(path.join(tmpdir(), "cli-course-"));
+  const root = tempDir("cli-course-");
   writeFileSync(
     path.join(root, "course.json"),
     JSON.stringify({
@@ -74,9 +84,9 @@ describe("build-course-json argv", () => {
   });
 
   it("creates the output directory from argv before the browser step", () => {
-    const out = mkdtempSync(path.join(tmpdir(), "cli-out-"));
+    const out = tempDir("cli-out-");
     const dest = path.join(out, "course");
-    const pluginData = mkdtempSync(path.join(tmpdir(), "cli-data-"));
+    const pluginData = tempDir("cli-data-");
     const result = run(
       "build-course-json.js",
       ["--course-url", "https://example.test/courses/enrolled/2518872", "--output-dir", dest],
@@ -107,7 +117,7 @@ describe("course-dir CLIs", () => {
     });
 
     it(`${script} exits 1 when course.json is absent`, () => {
-      const root = mkdtempSync(path.join(tmpdir(), "cli-empty-"));
+      const root = tempDir("cli-empty-");
       const result = run(script, ["--course-dir", root]);
       expect(result.status).toBe(1);
       expect(`${result.stdout}${result.stderr}`).toContain("course.json not found");
@@ -115,12 +125,18 @@ describe("course-dir CLIs", () => {
   }
 
   it("runs main when the entrypoint path goes through a symlink", () => {
-    const link = path.join(mkdtempSync(path.join(tmpdir(), "cli-link-")), "extraction");
+    const link = path.join(tempDir("cli-link-"), "extraction");
     symlinkSync(dir, link, "junction");
-    const result = spawnSync(process.execPath, [path.join(link, "validate-extraction.js")], {
-      encoding: "utf8",
-      timeout: 20000,
-    });
+    let result;
+    try {
+      result = spawnSync(process.execPath, [path.join(link, "validate-extraction.js")], {
+        encoding: "utf8",
+        timeout: 20000,
+      });
+    } finally {
+      // Drop the link before afterEach's recursive rm, so no cleaner can follow it into source.
+      unlinkSync(link);
+    }
     expect(result.status).toBe(1);
     expect(`${result.stdout}${result.stderr}`).toContain("--course-dir is required");
   });

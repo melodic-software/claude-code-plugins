@@ -1,10 +1,20 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+const tempDirs = [];
+const tempDir = (prefix) => {
+  const d = mkdtempSync(path.join(tmpdir(), prefix));
+  tempDirs.push(d);
+  return d;
+};
+afterEach(() => {
+  for (const d of tempDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
 
 const dir = path.dirname(new URL(import.meta.url).pathname);
 const registerStub = pathToFileURL(path.join(dir, "test-support", "register-playwright-stub.mjs")).href;
@@ -28,7 +38,7 @@ const lesson = (position, title, lectureId, duration = "5m 0s") => ({
 
 /** Run a CLI in a child whose `playwright` import is the scripted stub. */
 function runBrowserCli(script, args, evaluateRules) {
-  const scratch = mkdtempSync(path.join(tmpdir(), "cli-browser-"));
+  const scratch = tempDir("cli-browser-");
   const fixture = path.join(scratch, "stub-fixture.json");
   writeFileSync(fixture, JSON.stringify({ evaluate: evaluateRules }));
   const result = spawnSync(
@@ -44,7 +54,7 @@ function runBrowserCli(script, args, evaluateRules) {
 }
 
 function courseDirWith(course) {
-  const root = mkdtempSync(path.join(tmpdir(), "cli-browser-course-"));
+  const root = tempDir("cli-browser-course-");
   writeFileSync(path.join(root, "course.json"), JSON.stringify(course));
   return root;
 }
@@ -53,7 +63,7 @@ const readJson = (file) => JSON.parse(readFileSync(file, "utf8"));
 
 describe("browser-driven CLIs write their artifact through a stubbed playwright", () => {
   it("build-course-json writes course.json from the scraped curriculum", () => {
-    const out = path.join(mkdtempSync(path.join(tmpdir(), "cli-browser-out-")), "course");
+    const out = path.join(tempDir("cli-browser-out-"), "course");
     const curriculum = {
       title: "Stub Curriculum",
       modules: [
