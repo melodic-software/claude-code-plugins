@@ -1,0 +1,128 @@
+{
+  "skill": "code-tidying:batch-simplify",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/batch-simplify",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
+  "competitors": [
+    "code-tidying:audit-comment-residue",
+    "code-tidying:audit-dead-code",
+    "code-tidying:dissolve-comments",
+    "code-tidying:tidy"
+  ],
+  "competitor_dirs": {
+    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
+    "code-tidying:tidy": "plugins/code-tidying/skills/tidy"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I never ran simplify during the last sprint, can you go back over everything I touched?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a simplification pass over every file changed on this feature branch."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Simplify all the code that changed in the past week, Python first and then the TypeScript."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the whole src directory and simplify things file by file in a sensible order."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just finished a multi-day push; simplify all the changes we made across those sessions."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Sweep the entire repo with simplify, grouped by language."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Catch me up on simplification for everything merged since Monday."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Apply the simplify cleanup to all the files on my branch, not just the one I have open."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you simplify the packages/api and packages/web directories in one go?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify this one function in router.ts, it is too nested."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find exports nobody uses in the monorepo."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Strip the comments out of the files I changed."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do a little structural cleanup in one corner of the code and open a small PR for it."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review my branch for correctness bugs before I merge."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Format all the Python files with ruff."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Clean up the diff I am working on right now in this file."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which comments in my changes mention the plan or the session?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Refactor the payment service to use dependency injection."
+    }
+  ]
+}
