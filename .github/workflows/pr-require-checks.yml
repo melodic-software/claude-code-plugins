@@ -779,9 +779,7 @@ jobs:
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
           # histories, so a correction would change what the judge is measured on.
-          # Benchmark results are recorded run output (random run ids, truncated
-          # agent answers), so a correction would falsify the record.
-          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/testing/benchmarks/*/results/**
+          exclude: plugins/*/skills/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
 
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
