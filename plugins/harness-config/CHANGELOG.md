@@ -5,15 +5,6 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.13.5] - 2026-10-07
-
-### Fixed
-
-- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
-  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
-  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
-  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
-
 ## [1.13.4] - 2026-10-07
 
 ### Fixed
