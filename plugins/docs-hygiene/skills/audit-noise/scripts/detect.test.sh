@@ -1635,6 +1635,15 @@ assert_not_contains "agents/*.md history note is left to /harness-config:audit-i
 owned_doc_out="$(bash "$DETECT" "$TEST_TMPDIR/owned/docs/foo.md")"
 assert_contains "the same line in docs/foo.md still flags" "$owned_doc_out" "Finding shape: ticket-pr-residue"
 
+# Only ticket-pr-residue is routed: every other shape still fires on both paths.
+OTHER_LINE='As you asked, this section documents the retry policy.'
+printf '%s\n' "$OTHER_LINE" >"$TEST_TMPDIR/owned/skills/demo/SKILL.md"
+printf '%s\n' "$OTHER_LINE" >"$TEST_TMPDIR/owned/agents/worker.md"
+owned_skill_other="$(bash "$DETECT" "$TEST_TMPDIR/owned/skills/demo/SKILL.md")"
+assert_contains "SKILL.md still flags conversational-antecedent" "$owned_skill_other" "Finding shape: conversational-antecedent"
+owned_agent_other="$(bash "$DETECT" "$TEST_TMPDIR/owned/agents/worker.md")"
+assert_contains "agents/*.md still flags conversational-antecedent" "$owned_agent_other" "Finding shape: conversational-antecedent"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

@@ -4,7 +4,7 @@
 
 ### Added
 
-- **`compress compare ORIG_DIR NEW_DIR [REASONS]` labels a rewrite of a whole skill directory.** It is read-only: a fresh-context subagent labels every difference across SKILL.md and its reference files as SEMANTIC LOSS, RELOCATED, INTENDED CUT, AMBIGUITY or FALSE POSITIVE, and ends with `VERDICT: BLOCK` when any loss remains. Text moved into a reference file counts as relocated, not lost, and the optional REASONS file lists each intended cut with its deletion-test reason. A new eval case covers a relocated paragraph and a dropped threshold.
+- **`compress compare ORIG_DIR NEW_DIR [REASONS]` labels a rewrite of a whole skill directory.** It is read-only: a new read-only agent, `compare-labeller` (Read, Grep, Glob), labels every difference across SKILL.md and its reference files as SEMANTIC LOSS, RELOCATED, INTENDED CUT, AMBIGUITY or FALSE POSITIVE, and ends with `VERDICT: BLOCK` when any loss remains or the compared text carries an instruction aimed at the labeller. Text moved into a reference file counts as relocated, not lost, and the optional REASONS file lists each intended cut with its deletion-test reason. A new eval case covers a relocated paragraph and a dropped threshold.
 
 ### Changed
 
