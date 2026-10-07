@@ -1936,8 +1936,17 @@ jobs:
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       - name: Test the invocation-probe harness
         run: bash plugins/skill-quality/scripts/measure-invocation.test.sh
+      # One validate per plugins/<plugin>/probes directory; any failing
+      # directory fails the step after every directory has reported.
       - name: Validate invocation probes
-        run: bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/skill-quality/probes
+        run: |
+          status=0
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            bash plugins/skill-quality/scripts/measure-invocation.sh validate "$dir" || status=1
+            echo "::endgroup::"
+          done < <(find plugins -mindepth 2 -maxdepth 2 -name probes -type d | sort)
+          exit "$status"
       # Report-only (always exit 0 — see the script's own header): pools every
       # plugin's skills root into ONE shared aggregate, the shape a consumer who
       # installs the whole marketplace actually experiences.

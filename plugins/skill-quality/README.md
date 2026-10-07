@@ -20,7 +20,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Twenty-six checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Twenty-nine checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
@@ -99,6 +99,22 @@ the reviewer to confirm the description still names that intent, or to restore t
   `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` and no `Handoff`,
   `Routing`, `Integration`, or `Skill chaining` heading warns. `contract` is not in that list,
   because those skills route through the slice they write.
+- Registered metadata keys (advisory). Each `metadata:` key must appear in
+  `scripts/metadata-registry.txt`, one `<key><TAB><consumer>` line naming what reads it; a key
+  missing from the registry warns. `/playbooks:skill-authoring` (`## Metadata`) owns the rule.
+- No history references in the `SKILL.md` body (advisory). A bare `#N` such as `See PR #1234` or
+  `TODO(#9)` warns with its line numbers. Code spans, fenced blocks, a cross-repo
+  `owner/repo#N`, link anchors, and any block of lines that carries an as-of date and a recheck
+  trigger (a pointer record) are exempt. Reference files are not checked.
+  `/playbooks:skill-authoring` (`## History and provenance`) owns the rule.
+- Skill size (advisory). A `description` over 419 characters or a `SKILL.md` body (the lines after
+  the frontmatter) over 160 lines warns: those are the largest in
+  [mattpocock/skills](https://github.com/mattpocock/skills) at commit `6fd9479`, measured
+  2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck when a re-measure
+  of that repository moves them. Growth of either against `CHECK_SKILL_BASE_REF`, or the merge-base
+  with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
+  is skipped with an INFO. `/playbooks:skill-authoring` (`## Descriptions`, `## Body`) owns the
+  rule.
 
 `listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
 every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
@@ -172,7 +188,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-five still gate.
+  twenty-eight still run.
 
 ## Description-invocation probes
 
