@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the helper mode.\nset -euo pipefail\n\nmode=\"${1:-plain}\"\necho \"helpers: mode is $mode\"\n",
+      "why": "src/helpers.sh simplified"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the helper mode.\nset -euo pipefail\n\nmode=\"${1:-plain}\"\nif [ \"$mode\" = \"plain\" ]; then\n  echo \"helpers: mode is $mode\"\nelse\n  echo \"helpers: mode is $mode\"\nfi\n",
+      "why": "src/helpers.sh untouched"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

@@ -4,11 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.20.6] - 2026-10-07
+## [0.20.7] - 2026-10-07
 
 ### Changed
 
 - **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.20.6] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
 
 ## [0.20.5] - 2026-10-07
 

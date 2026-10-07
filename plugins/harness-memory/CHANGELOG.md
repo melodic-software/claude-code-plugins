@@ -3,11 +3,20 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.5] - 2026-10-07
+## [1.1.6] - 2026-10-07
 
 ### Changed
 
 - **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [1.1.5] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
 
 ## [1.1.4] - 2026-10-07
 

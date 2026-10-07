@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: adc-glob-loaded-file-uncertain
+description: Two shell files with no literal reference are unreferenced-file candidates; the one a plugins/*.sh glob loads is adjudicated uncertain, the rule for a computed-path or glob loader, not dead and not simply alive
+tags: [audit-dead-code, adjudication, unreferenced-file, dynamic-usage]
+expected_outcome: The grep lane emits two tier-2 unreferenced-file candidates, plugins/greet.sh and tools/old-migrate.sh. plugins/greet.sh is uncertain, citing the plugins/*.sh glob in run.sh. tools/old-migrate.sh is reported with its own verdict (dead or uncertain). No file changes.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/code-tidying:audit-dead-code\n\nAdjudication is approved for every candidate the scan reports; go straight through it without asking me first."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: glob-loaded-file-uncertain
+    type: regex
+    pattern: 'greet\.sh[^\n]{0,200}\buncertain\b|\buncertain\b[^\n]{0,200}greet\.sh'
+    flags: i
+    arm: both
+  - name: orphan-script-reported
+    type: regex
+    pattern: 'old-migrate\.sh'
+    arm: both
+  - name: scan-ran
+    type: tool_used
+    tool: Bash
+    input_match: dead-code-scan
+    arm: both

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the legacy status.\nset -euo pipefail\n\nflag=\"${1:-on}\"\nif [ \"$flag\" = \"on\" ]; then\n  echo \"legacy: flag is $flag\"\nelse\n  echo \"legacy: flag is $flag\"\nfi\n",
+      "why": "src/legacy.sh untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the legacy status.\nset -euo pipefail\n\nflag=\"${1:-on}\"\necho \"legacy: flag is $flag\"\n",
+      "why": "src/legacy.sh simplified"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

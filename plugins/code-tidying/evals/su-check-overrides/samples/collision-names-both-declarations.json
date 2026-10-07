@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "ruff.toml is also declared protected in CLAUDE.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "ruff.toml: FAIL (protected path)",
+      "why": "CLAUDE.md declaration not named"
+    }
+  ]
+}

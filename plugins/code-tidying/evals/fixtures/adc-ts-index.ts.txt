@@ -1,0 +1,3 @@
+import { add } from "./math.ts";
+
+console.log(add(2, 3));

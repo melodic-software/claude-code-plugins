@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "scheduler/scheduler.go: 4 finding(s) \u2014 T1=1, T2=3\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 2    | history-narration-weak | 5 | \"// Order keeps the order exactly as before so callers can diff runs.\" | Review. Keep only a present-tense why |\n| 2    | history-narration-weak | 7 | \"grouped for speed (ci-perf Phase 6b) and nothing else\" | Review |\n| 1    | plan-reference | 15 | \"// This replaces the old shell-based header parser.\" | Delete |\n| 2    | history-narration-weak | 19 | \"// Pool reuses the old shared group for every worker.\" | Review |\n\nTotal: 1 file(s) audited, 1 Tier 1, 3 Tier 2 findings."
+    },
+    {
+      "answer": "Line 15 \u2014 plan-reference (Tier 1)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "scheduler.go has a few history comments:\n- line 5 \"exactly as before\" (narrates the past)\n- line 7-8 mentions ci-perf Phase 6b\n- line 13 phase 2 of the build\n- line 15 replaces the old parser\n- line 19 the old shared group"
+    },
+    {
+      "answer": "| 2 | history-narration-weak | 15 | replaces the old | Review |",
+      "why": "wrong shape for replaces the old"
+    }
+  ]
+}
