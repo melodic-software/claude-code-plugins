@@ -3,6 +3,12 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2] - 2026-10-07
+
+### Fixed
+
+- The `list-scripts` test suite passes on Git for Windows ([#6527](https://github.com/melodic-software/claude-code-plugins/issues/6527)): the symlink fixture is a native symlink rather than the copy a plain `ln -s` makes there, and the quote-in-path case runs only where a path can hold a quote, with the same assertion unchanged on Linux.
+
 ## [0.5.1] - 2026-10-07
 
 ### Changed
