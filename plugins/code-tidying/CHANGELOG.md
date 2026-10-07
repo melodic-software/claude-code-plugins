@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.10] - 2026-10-07
+
+### Added
+
+- Trigger probe sets under `probes/` for the five model-invoked skills, written blind from their current descriptions and frozen as the baseline for a later description rewrite. No skill behavior changes.
+
 ## [0.28.9] - 2026-10-04
 
 ### Changed
