@@ -411,10 +411,13 @@ def denials(run):
 
 
 def inside(path, roots):
-    """True unless path is absolute and neither under nor above any plugin root.
+    """True unless path is rooted and neither under nor above any plugin root.
     An ancestor of a root covers the plugin's files, so it counts as inside; so
-    do no path, a relative path and no known root. Symlinks resolve on both sides."""
-    if not path or not os.path.isabs(path) or not roots:
+    do no path, a relative path and no known root. Rooted, not isabs: on Windows
+    /tmp/x has no drive, so Python 3.13+ isabs calls it relative, yet it names
+    one place on the current drive. Symlinks resolve on both sides."""
+    rooted = os.path.splitdrive(path or "")[1][:1] in (os.sep, os.altsep)
+    if not rooted or not roots:
         return True
     path = os.path.realpath(path)
     return any(
