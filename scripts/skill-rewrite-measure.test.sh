@@ -13,6 +13,7 @@ SCRIPT="$SELF_DIR/skill-rewrite-measure.sh"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+fx="" # set by mk_fixture through a nameref
 
 # Stub checker: exit code and optional WARN lines come from files in the fixture.
 STUB_CHECK="$TMP_ROOT/stub-check.sh"
@@ -84,13 +85,13 @@ tsv="$fx/.work/skill-rewrite/pl/before.tsv"
 # "Hello world." is 12 characters; the folded "Use when a" + "b" joins to "Use when a b" (12).
 alpha_row="$(awk -F'\t' '$1=="skill" && $2=="alpha" { print $3 "|" $4 "|" $5 }' "$tsv")"
 beta_row="$(awk -F'\t' '$1=="skill" && $2=="beta" { print $3 "|" $4 "|" $5 }' "$tsv")"
-[[ "$alpha_row" == "12|3|1" ]] && ok "alpha: quoted description 12 chars, 3 body lines, lexical 1" || bad "alpha row" "$alpha_row"
-[[ "$beta_row" == "12|1|n/a" ]] && ok "beta: folded description 12 chars, 1 body line, no probe n/a" || bad "beta row" "$beta_row"
+if [[ "$alpha_row" == "12|3|1" ]]; then ok "alpha: quoted description 12 chars, 3 body lines, lexical 1"; else bad "alpha row" "$alpha_row"; fi
+if [[ "$beta_row" == "12|1|n/a" ]]; then ok "beta: folded description 12 chars, 1 body line, no probe n/a"; else bad "beta row" "$beta_row"; fi
 
 printf 'WARN: one\nWARN: two\nINFO: x\n' >"$fx/check.warns"
 run "$fx" --phase after
 root_row="$(awk -F'\t' '$1=="root" { print $4 "|" $5 }' "$fx/.work/skill-rewrite/pl/after.tsv")"
-[[ "$root_row" == "0|2" ]] && ok "root row records check exit code and WARN count" || bad "root row" "$root_row"
+if [[ "$root_row" == "0|2" ]]; then ok "root row records check exit code and WARN count"; else bad "root row" "$root_row"; fi
 
 # --- happy path: unchanged tree compares clean --------------------------------
 mk_fixture fx
@@ -161,7 +162,7 @@ expect_rc 0 "--help exits 0"
 expect_has "emit-plugin-eval" "help names emit-plugin-eval"
 expect_has "claude plugin eval" "help names claude plugin eval"
 expect_has "/docs-hygiene:compress compare ORIG_DIR NEW_DIR" "help names the compress compare step"
-if grep -v '^[[:space:]]*#' "$SCRIPT" | grep -Eq '(^|[^A-Za-z_-])claude[[:space:]]'; then
+if grep -Eq '(^|[^A-Za-z_-])claude[[:space:]]' < <(grep -v '^[[:space:]]*#' "$SCRIPT"); then
   bad "script never invokes claude" "executable line mentions claude"
 else
   ok "script never invokes claude"

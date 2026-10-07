@@ -658,6 +658,7 @@ assert_contains "I40: --body-only keeps body rows" "$OUT" "$I40F:6:I40"
 # blank line), stay quiet. An indented line that continues a list item or a
 # paragraph is prose, and a reference after the block is still a candidate.
 I40C="$TEST_TMPDIR/agents/code.md"
+# shellcheck disable=SC2016 # the backticks are literal markdown code spans in the fixture
 printf '%s\n' \
   'Run ``git log --grep #9`` to see.' \
   '' \
