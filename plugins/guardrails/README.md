@@ -1508,6 +1508,17 @@ escape. An entry that is relative, empty, UNC, holds a glob character, a line br
 component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through
 HOME or a directory holding it. The kill switch, not this option, is the whole-guard lever.
 
+A **name-prefix entry** ends in one `*` after a literal name, for example `D:/worktrees/.tmp-*` for
+the throwaway test directories agents create beside their worktrees. It allows only a direct child
+of that directory whose name starts with the text before the `*` and has at least one more
+character (`D:/worktrees/.tmp-6527`), and never one that is itself a symlink. It refuses the
+directory, the bare prefix (`.tmp-`), a sibling (`D:/worktrees/other-worktree`), anything below a
+matching child, a glob such as `rm -rf D:/worktrees/.tmp-*`, and a `..` escape. The `*` marks the
+form because an entry holding a glob character granted nothing before, so no entry that already
+allowed something changes meaning. The directory follows the rules above, and a name with any other
+glob character grants nothing. An alternative that needs no entry: point the user-level `TEMP` or
+`TMPDIR` at a directory on the drive you want, which the guard already treats as a temp root.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -1531,7 +1542,7 @@ reads it from.
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
 | `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details. |
 | `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Blocks a recursive delete (rm, Remove-Item, rd /s) whose target is a filesystem, home, drive or UNC share root, an empty or bare-variable operand, or a path outside the repo not under a temp root, the scratchpad or an allowed root. On by default. Full rules in the README's Option details. |
-| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories block-root-delete-target lets a recursive delete through when the target's real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). Empty by default; adds to the temp roots and scratchpad. Limits are in the README's Option details. |
+| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories block-root-delete-target lets a recursive delete through when the target's real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). An entry ending in one * after a name (e.g. D:/worktrees/.tmp-*) allows only direct children whose name starts with that prefix. Empty by default; adds to the temp roots and scratchpad. Limits are in the README's Option details. |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Blocks git commit -m when the message contains a newline (pipe it via -F - instead); a single-line -m passes. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits -m even when the message contains a newline. Empty, the default, permits none. |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
