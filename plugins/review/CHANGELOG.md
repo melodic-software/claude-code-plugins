@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1] - 2026-10-07
+
+### Fixed
+
+- The `explain-change` test suite loads on Windows: it imports its modules by `file://` URL, which the ESM loader requires there for an absolute path. The hosted-publish cases that run the fake `pages-publish` skip on Windows, since `publish-hosted.mjs` spawns it with no shell and Windows then finds only a `.exe` or `.com` on `PATH`.
+
 ## [0.43.0] - 2026-10-07
 
 ### Added

@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1] - 2026-10-07
+
+### Fixed
+
+- The `present` test suite loads on Windows: it imports `check-deck.mjs` by `file://` URL, which the ESM loader requires there for an absolute path. The case proving the CLI never runs `pages-publish` skips on Windows, where its `sh` fake could not run and the case would prove nothing.
+
 ## [0.12.0] - 2026-10-07
 
 ### Added

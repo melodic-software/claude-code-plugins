@@ -18,9 +18,9 @@ import {
 } from "node:fs";
 import { request } from "node:http";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILL = join(PLUGIN, "skills/explain-change");
@@ -28,9 +28,9 @@ const POLICY = join(SKILL, "scripts/digest-policy.mjs");
 const BUILDER = join(SKILL, "scripts/build-digest.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, configBlock, decide, findSecret, globRegExp, publishGate } = await import(POLICY);
-const { buildDigest, shapeDigest } = await import(BUILDER);
-const { validateView } = await import(join(PLUGIN, "lib/view-builder.mjs"));
+const { DEFAULTS, configBlock, decide, findSecret, globRegExp, publishGate } = await import(pathToFileURL(POLICY).href);
+const { buildDigest, shapeDigest } = await import(pathToFileURL(BUILDER).href);
+const { validateView } = await import(pathToFileURL(join(PLUGIN, "lib/view-builder.mjs")).href);
 
 const scratch = mkdtempSync(join(tmpdir(), "explain-change-test-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
@@ -471,6 +471,8 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
+  // publish-hosted.mjs spawns pages-publish with no shell, so Windows finds only a .exe or .com on PATH.
+  const runsFake = { skip: process.platform === "win32" && "the fake pages-publish is a script, which a shell-less spawn on Windows cannot run" };
   const idA = "A".repeat(22);
   const idB = "b".repeat(21) + "-";
   const answer = (id, visibility) => JSON.stringify({ id, visibility, url: `https://${visibility}.pages.example/${id}/` });
@@ -495,7 +497,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
+        PATH: `${bin}${delimiter}${process.env.PATH}`,
         FAKE_LOG: log,
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
@@ -504,7 +506,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     });
   const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);
 
-  test("a first public page publishes without --id and writes the sidecar from the JSON", () => {
+  test("a first public page publishes without --id and writes the sidecar from the JSON", runsFake, () => {
     const at = setup();
     const out = publish(at, { out: answer(idA, "public") });
     assert.equal(out.status, 0, out.stderr);
@@ -514,13 +516,13 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     assert.equal(result.medium, "hosted");
     assert.equal(result.url, `https://public.pages.example/${idA}/`);
   });
-  test("a republish at the same visibility passes the sidecar's id and deletes nothing", () => {
+  test("a republish at the same visibility passes the sidecar's id and deletes nothing", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
     const out = publish(at, { out: answer(idA, "public") });
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(calls(), [[at.page, "--visibility", "public", "--id", idA]]);
   });
-  test("pages-publish forcing private gives a new id: the sidecar takes it and the old public id is deleted", () => {
+  test("pages-publish forcing private gives a new id: the sidecar takes it and the old public id is deleted", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
     const out = publish(at, { out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
@@ -530,7 +532,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     ]);
     assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idB);
   });
-  test("a private repository sends the page private with no --id, then deletes the old public id", () => {
+  test("a private repository sends the page private with no --id, then deletes the old public id", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
     const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
@@ -539,7 +541,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
       ["--delete", idA, "--visibility", "public"],
     ]);
   });
-  test("a failed delete keeps the old id in the sidecar as stale, and the next publish retries it", () => {
+  test("a failed delete keeps the old id in the sidecar as stale, and the next publish retries it", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
     const first = publish(at, { visibility: "PRIVATE", out: answer(idB, "private"), deleteExit: 6 });
     assert.equal(first.status, 0, first.stderr);
@@ -556,7 +558,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     ]);
     assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "private")));
   });
-  test("a second wrong public landing under a new id still deletes the first", () => {
+  test("a second wrong public landing under a new id still deletes the first", runsFake, () => {
     const idC = "C".repeat(22);
     const at = setup(sample, answer(idA, "public"));
     const out = publish(at, { visibility: "PRIVATE", out: answer(idC, "public") });
@@ -567,7 +569,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     ]);
     assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idC, "public")));
   });
-  test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", () => {
+  test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", runsFake, () => {
     const at = setup();
     const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "public") });
     assert.equal(out.status, 1);
@@ -588,13 +590,13 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     assert.equal(publish(at, { out: answer(idB, "public") }).status, 4);
     assert.deepEqual(calls(), []);
   });
-  test("a machine path in the page sends it private", () => {
+  test("a machine path in the page sends it private", runsFake, () => {
     const at = setup({ ...sample, why: "built under /home/alice/src" });
     const out = publish(at, { out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
   });
-  test("pages-publish exit 4 is a refusal; any other failure or bad JSON leaves the sidecar alone", () => {
+  test("pages-publish exit 4 is a refusal; any other failure or bad JSON leaves the sidecar alone", runsFake, () => {
     let at = setup(sample, answer(idA, "public"));
     assert.equal(publish(at, { exit: 4 }).status, 4);
     for (const [exit, out] of [[6, answer(idB, "public")], [0, "not json"], [0, answer("short", "public")], [0, answer(idB, "elsewhere")]]) {
