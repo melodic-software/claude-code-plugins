@@ -34,19 +34,17 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 
 | When | Line |
 |---|---|
-| The window reaches the approach mark (90%) | once per window, "nearing 95%" |
-| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time and "Keep working." |
+| The window reaches the approach mark (90%) | once per window, "at or above 90%", with the reset time |
+| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time |
 | The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for each window at or above the approach mark, once; nothing when none is |
 | After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
 
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
 re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
-line, for example `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC. Keep
-working.`; when several windows reach the threshold together, only the last line ends "Keep
-working.". No line tells Claude to pause: an interactive session
-[waits out a usage limit](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset)
-and continues on its own. Every line carries its verdict; `rate_limit_line_data` chooses what
+line, for example `rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC`.
+A line states facts only (the window, the threshold crossed, and the use and reset time the line
+data selects) and never tells Claude what to do; Claude decides. Every line carries its verdict; `rate_limit_line_data` chooses what
 goes with it: the window's name (`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
 rate-limit window". A line never carries the account email or the session name. Subagents get no
 line. Each line sent to Claude is also written as sent to the debug log (`claude --debug`). The
@@ -234,7 +232,7 @@ The `userConfig` options:
 | `rate_limit_report_mode` | `automatic` (default) or `operator`; see [Operator mode](#operator-mode). |
 | `rate_limit_line_threshold` | Window use for the threshold line (default `95`). |
 | `rate_limit_approach_pct` | Window use for the one approach line (default `90`). |
-| `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,window,reset`). |
+| `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,percent,window,reset`). |
 | `rate_limit_guard_band` | The band row (default `false`). |
 | `rate_limit_guard_toast` | The toast when a window nears or reaches the threshold or resets (default `true`); the transcript line stays either way. |
 
@@ -282,7 +280,7 @@ reads it from.
 | `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `rate_limit_line_threshold` | number | `95` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the loop lanes' pause edge, which stays 95 whatever this is set to. |
 | `rate_limit_approach_pct` | number | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 90; at or above the threshold, no approach line is sent. |
-| `rate_limit_line_data` | string | `"verdict,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
+| `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
 | `rate_limit_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_BAND` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limit-guard band on. |
 | `rate_limit_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_TOAST` | Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default. |
 
