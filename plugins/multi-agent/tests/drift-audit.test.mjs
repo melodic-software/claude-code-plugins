@@ -2,6 +2,7 @@
 // parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -40,7 +41,8 @@ const TARGETS = [
 
 // One docs-raw output for a URL, as lib/docs-raw.sh prints it: header line, then body.
 const rawPage = (url, body = 'body of ' + url) =>
-  'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + body.length + '\n' + body
+  'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + Buffer.byteLength(body) +
+  ' body_sha256=' + createHash('sha256').update(body).digest('hex') + '\n' + body
 
 // Default stub: fetchers return a raw page for their URL; defaults finders call
 // worker effort drifted and the rest current; repo readers lift one claim per file, and repo finders call every
@@ -474,6 +476,19 @@ test('a fetch whose header names another URL, or that returns nothing, leaves th
   assert.equal(byUrl[SETTINGS].state, 'unread')
   assert.ok(data(by(calls, 'find:')[0].prompt, 'slices').every(s => s.state === 'unread' && !('body' in s)))
   assert.equal(result.nulls.filter(l => l.startsWith('fetch:')).length, 1)
+})
+
+test('a body the fetcher retyped, whose byte count or hash differs from the header, is unread', async () => {
+  const { result } = await run({ ...ONE_AREA, upstream: [WF_PAGE, SETTINGS] }, {
+    reply: (p, o, d) => {
+      if (!o.label.startsWith('fetch:')) return d(p, o)
+      const raw = rawPage(data(p, 'url'), 'the page says ä')
+      return { output: data(p, 'url') === WF_PAGE ? raw + ' extra' : raw.replace(/ä$/, 'ö') }
+    },
+  })
+  const byUrl = Object.fromEntries(result.fetched.map(f => [f.url, f]))
+  assert.deepEqual([byUrl[WF_PAGE].state, byUrl[WF_PAGE].reason], ['unread', 'the body does not match the header byte count'])
+  assert.deepEqual([byUrl[SETTINGS].state, byUrl[SETTINGS].reason], ['unread', 'the body does not match the header body_sha256'])
 })
 
 test('a checker that requests sections is asked once more with them; off-host and repeat requests are dropped', async () => {

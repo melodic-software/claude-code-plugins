@@ -2,6 +2,7 @@
 // parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,7 +23,8 @@ const data = (prompt, name) => JSON.parse(prompt.match(new RegExp('<data name="'
 
 // One docs-raw output for a URL, as lib/docs-raw.sh prints it: header line, then body.
 const rawPage = (url, body = 'body of ' + url) =>
-  'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + body.length + '\n' + body
+  'docs-raw: url=' + url + ' state=read format=markdown validated=yes sha256=' + 'a'.repeat(64) + ' kind=page bytes=' + Buffer.byteLength(body) +
+  ' body_sha256=' + createHash('sha256').update(body).digest('hex') + '\n' + body
 
 // Default stub: fetchers return a raw page for their URL; each searcher finds
 // two sources, each reader extracts one claim, consolidation marks every claim
@@ -303,6 +305,24 @@ test('a fetch that returns nothing or names another URL leaves the page unread f
     assert.deepEqual(data(r.prompt, 'slices').map(s => [s.url, s.state]), [[u, 'unread']])
   }
   assert.equal(result.nulls.filter(l => l.startsWith('fetch:')).length, 1)
+})
+
+test('a body the fetcher retyped, whose byte count or hash differs from the header, is unread', async () => {
+  const reply = (p, o, d) => {
+    if (!o.label.startsWith('fetch:')) return d(p, o)
+    const url = data(p, 'url')
+    const raw = rawPage(url, 'the page says ä')
+    if (url === 'https://docs.example/1') return { output: raw + ' extra' }
+    if (url === 'https://docs.example/2') return { output: raw.replace(/ä$/, 'ö') }
+    if (url === 'https://blog.example/1') return { output: raw.replace(/ body_sha256=\S+/, '') }
+    return { output: raw }
+  }
+  const { calls } = await run({ question: 'q' }, { reply })
+  const sliceOf = u => data(by(calls, 'read:').find(c => sourceUrl(c.prompt) === u).prompt, 'slices')[0]
+  assert.deepEqual(sliceOf('https://docs.example/1'), { url: 'https://docs.example/1', sections: [], state: 'unread', reason: 'the body does not match the header byte count' })
+  assert.match(sliceOf('https://docs.example/2').reason, /body_sha256/, 'same length, one character changed')
+  assert.match(sliceOf('https://blog.example/1').reason, /body_sha256/, 'a header without the hash')
+  assert.deepEqual([sliceOf('https://blog.example/2').state, sliceOf('https://blog.example/2').body], ['read', 'the page says ä'])
 })
 
 test('a reader may request sections of its own page only; a skeptic may request another page', async () => {

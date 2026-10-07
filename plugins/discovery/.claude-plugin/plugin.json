@@ -1,6 +1,6 @@
 {
   "name": "discovery",
-  "version": "0.31.2",
+  "version": "0.32.1",
   "description": "Discovery before changes: explore the local codebase, run multi-source external research, and reconstruct why a past decision was made from evidence outside the code. Each dispatches a subagent by default so the reading stays out of the main thread, with source tiers, falsification, recency gates and a coverage ledger, and persists EXPLORE.md / RESEARCH.md / INTENT.md handoff artifacts. A research sweep workflow (/discovery:research-sweep) backs deep research with adversarial claim verification.",
   "author": {
     "name": "Melodic Software",

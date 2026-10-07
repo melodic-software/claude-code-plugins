@@ -26,6 +26,19 @@ const IDLE_MS = 2000
 
 const MARKER_LINE = /^\[(?:Content truncated\b[^\]\n]*|[^\]\n]*\bcontinues\b[^\]\n]*)\]$/
 
+export const MAX_URL_CHARS = 200
+
+// The requested URL as the context line names it: an http(s) URL's origin and
+// path, percent-encoded by the URL parser and cut at MAX_URL_CHARS, so the
+// query, the fragment and raw text the model chose never reach the context.
+export function pageName(raw) {
+  let u
+  try { u = new URL(String(raw)) } catch { return 'this page' }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return 'this page'
+  const name = u.origin + u.pathname
+  return name.length > MAX_URL_CHARS ? name.slice(0, MAX_URL_CHARS) + '...' : name
+}
+
 export function decide(payload) {
   if (!payload || payload.tool_name !== 'WebFetch') return null
   const response = payload.tool_response
@@ -34,7 +47,7 @@ export function decide(payload) {
   const lines = result.trimEnd().split('\n')
   const last = lines[lines.length - 1].trim()
   if (!MARKER_LINE.test(last)) return null
-  const url = String((payload.tool_input && payload.tool_input.url) || 'this page')
+  const url = pageName(payload.tool_input && payload.tool_input.url)
   // The placeholder line itself is fetched text, so it is never echoed back.
   return `discovery: the WebFetch result for ${url} ends in a truncation placeholder, so it covers only part of the page. /discovery:read-docs reads the whole page, or the sections asked for, from the docs cache.`
 }
