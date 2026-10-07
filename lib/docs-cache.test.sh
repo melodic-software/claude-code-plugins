@@ -141,10 +141,15 @@ assert_eq "map: CommonMark fences (same char, length >= opener, no info string c
 # --- slice ----------------------------------------------------------------------
 assert_eq "slice: a section is its heading, body and child sections" "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 1)"
 assert_eq "slice: a leaf section" "$(sed -n '4,8p' "$PAGE")" "$(dc "$S" slice "$KEY" 2)"
-assert_eq "slice: ids print in the order asked" "$(
-  sed -n '9,10p' "$PAGE"
+assert_eq "slice: ids print in page order, whatever order they are asked in" "$(
   sed -n '4,8p' "$PAGE"
+  sed -n '9,10p' "$PAGE"
 )" "$(dc "$S" slice "$KEY" 3 2)"
+assert_eq "slice: a parent and its child print the child once" "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 2 1 3)"
+assert_eq "slice: an id asked twice prints once" "$(sed -n '4,8p' "$PAGE")" "$(dc "$S" slice "$KEY" 2 2)"
+printf '# Only\nlast line without a newline' >"$TEST_TMPDIR/slice-nonl.md"
+assert_eq "slice: a last line with no newline keeps its bytes" "$(sha <"$TEST_TMPDIR/slice-nonl.md")" \
+  "$(dc "$S" slice --file "$TEST_TMPDIR/slice-nonl.md" 1 | sha)"
 assert_eq "slice --file: same as by key" "$(dc "$S" slice "$KEY" 2)" "$(dc "$S" slice --file "$PAGE" 2)"
 rc=0
 out="$(dc "$S" slice "$KEY" 2 9 2>/dev/null)" || rc=$?

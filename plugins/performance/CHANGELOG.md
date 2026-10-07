@@ -3,6 +3,16 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-10-07
+
+### Fixed
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
 ## [0.8.4] - 2026-10-07
 
 ### Fixed
