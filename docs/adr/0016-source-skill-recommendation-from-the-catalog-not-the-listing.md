@@ -33,7 +33,9 @@ harness, invisibly.
 > is upstream's, not this ADR's, which is why the same sentence keeps re-entering this repo: it is on
 > `main` in the skill's own SKILL.md and in the plugin manifest, and #3524 added a citation pointing
 > at the wrong page for it. Claude Code does not drop descriptions "starting with the skills invoked
-> least". The shipped binary does something else, on two independent axes.
+> least". The shipped binary does something else, on two independent axes. Recheck when the
+> skills page rewrites that sentence or a Claude Code changelog entry names a change to the
+> listing scorer.
 >
 > It ranks by a decay-weighted score, `usageCount * max(0.5 ^ (daysSinceUse / 7), 0.1)`, so a
 > heavily used but stale skill can be shed before a lightly used fresh one: 100 uses 21 days ago

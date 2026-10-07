@@ -77,7 +77,8 @@ Suno documents none of these techniques. They are probabilistic rather than dete
 8. (Optional) Stem export → external DAW for final mix
 9. Export full mix
 
-**Upload limits** (verified 2026-07-18 against <https://suno.com/pricing>):
+**Upload limits** (verified 2026-07-18 against <https://suno.com/pricing>; recheck when that page
+changes a tier's max upload):
 
 | Tier | Max upload |
 |------|-----------|

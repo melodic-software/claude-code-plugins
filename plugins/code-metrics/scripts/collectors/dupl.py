@@ -14,6 +14,8 @@ line per instance, then a `Found total <n> clone groups.` footer. The text
 printer is parsed rather than `-plumbing`, whose
 `<file>:<a>-<b>: duplicate of <file>:<c>-<d>` lines are pairwise and lose a
 group of three or more copies. Any line that matches neither shape is ignored.
+Recheck when a mibk/dupl commit changes the text printer's `found <n> clones:`
+or `<file>:<start>,<end>` line shapes, or when a live run disagrees.
 
 `dupl` reports no token count, so `values.tokens` is null, never zero, and its
 `-t` threshold is a token count with no line equivalent. Tunables arrive as

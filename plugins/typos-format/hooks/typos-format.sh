@@ -183,7 +183,9 @@ fi
 # passed to a shell that would re-parse the substituted value" — and every
 # option is exported to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway
 # (plugin manifest reference, https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell,
-# re-fetched 2026-10-07).
+# re-fetched 2026-10-07). Recheck when the manifest reference changes how
+# `${user_config.*}` is handled in shell-form hook commands, or stops exporting
+# every option as CLAUDE_PLUGIN_OPTION_<KEY>.
 # Same idiom as the hoisted kill switch at the top. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.

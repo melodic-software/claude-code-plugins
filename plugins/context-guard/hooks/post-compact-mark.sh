@@ -18,7 +18,8 @@
 # wins per session: only the most recent compaction matters.
 #
 # SIDE-EFFECT-ONLY by upstream contract: PostCompact has no decision control
-# (verified 2026-08-10 against code.claude.com/docs/en/hooks), so this
+# (verified 2026-08-10 against code.claude.com/docs/en/hooks; recheck when
+# the PostCompact entry documents a decision field), so this
 # hook's one job is the marker. jq-FREE by design, mirroring the
 # rate-limit-guard StopFailure recorder: the fields are regex-extracted so a
 # degraded environment still records.

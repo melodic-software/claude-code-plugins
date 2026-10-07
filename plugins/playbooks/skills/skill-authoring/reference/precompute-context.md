@@ -58,7 +58,8 @@ that invocation. With the default `bash` shell any non-zero exit counts as a fai
 killed at the two-minute timeout and aborts the same way. stderr merges into stdout and lands in the
 injected text
 ([When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
-read 2026-09-02). Every injected command must therefore carry an explicit fallback, so a probe that
+read 2026-09-02; recheck when that section changes what counts as a failed injected command).
+Every injected command must therefore carry an explicit fallback, so a probe that
 cannot run degrades the rendered skill to a known string instead of preventing the skill from loading
 at all:
 
@@ -147,8 +148,8 @@ explicitly, so a bash-only pipeline doesn't silently break on a PowerShell host,
   text and never re-scanned. A command cannot emit a placeholder for a later pass.
 - **Renders on every invocation path**: user `/name`, the Skill tool, and auto-invocation all
   preprocess. When injected output changes between invocations, Claude Code appends the full
-  rendered content again ([Skills](https://code.claude.com/docs/en/skills), read 2026-09-02), so
-  keep injected output stable and small.
+  rendered content again ([Skills](https://code.claude.com/docs/en/skills), read 2026-09-02; recheck when that page
+  changes the re-append behavior), so keep injected output stable and small.
 - **Kill switch.** `disableSkillShellExecution` replaces each command with
   `[shell command execution disabled by policy]`. The skill must still make sense when that
   string appears in place of the output. Never make correctness depend on injection succeeding.

@@ -25,7 +25,10 @@ probe on a real machine, never on training data, and stores no upstream text. La
 plugins-reference and discover-plugins (both since split: the
 [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference), [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference),
 [plugin loading reference](https://code.claude.com/docs/en/plugins/loading) and [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) now hold their content),
-[plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
+plugin-marketplaces (since split into the
+[marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference),
+[Create a marketplace](https://code.claude.com/docs/en/plugins/create-marketplace) and
+[Host and maintain a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace)), and the published
 plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
 probes in "Where project-scope records come from, and why the skill cannot reap them" were run
 2026-09-06 on **Claude Code 2.1.263** and carry that stamp.
@@ -200,7 +203,8 @@ mechanism**, and a plugin enabled only in a user's own settings as absent from a
 the block exists to make a team's plugin set reproducible somewhere the user's `~/.claude` is not.
 Pointer: for what a cloud session carries over, see
 [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup).
-As of: 2026-09-05.
+As of: 2026-09-05. Recheck when that section lists user-scope plugins as carried into cloud
+sessions.
 
 **Locally, session start writes the records.** A plugin that only project settings enable and that
 the user has never installed is a separate case, for which see
@@ -217,7 +221,8 @@ and pointing `installPath` at the user scope's existing cache directory. No new 
 created and the user-scope records were untouched. A field sample on 2.1.261 (64 records for one
 repo path sharing one `installedAt` second) has the same shape: one session-start batch, one record
 per `true` entry per checkout path. The write happens even though nothing new was fetched; the
-record is a pin, not a download.
+record is a pin, not a download. Recheck when the loading page's not-installed section or a
+release note changes what session start records for an already-installed plugin.
 
 **Precedence explains why a user-scope duplicate does not prevent the project record.** We resolve
 `enabledPlugins` managed > `--settings` > local > project > user, so a user-scope `false` never
@@ -234,7 +239,8 @@ same scratch repo: the block reduced to one entry, `"<id>": false` for a plugin 
 scope; one headless session; `installed_plugins.json` byte-identical before and after (no new
 record, no touched timestamp), and the session reported that plugin's skill as unavailable while a
 sibling user-scope plugin's skill stayed available. A `false` entry is enablement state only; it
-never manufactures an install record.
+never manufactures an install record. Recheck when a release note changes how a project-scope
+`false` is handled at session start.
 
 **Removing the records rewrites the committed block.** Observed in the same pass on 2.1.263:
 `claude plugin uninstall -s project <id>` run from inside the checkout removed the project record
@@ -249,8 +255,8 @@ directory and does not touch `~/.claude`, and the section above records that no 
 record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
 product's own retention sweep as not covering them either: as of 2026-09-05 its list named nothing
 under `~/.claude/plugins/` (pointer:
-[Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)).
-We treat the per-project records as a live, maintained mechanism rather than vestigial state,
+[Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically);
+recheck when that list names a path under `~/.claude/plugins/`). We treat the per-project records as a live, maintained mechanism rather than vestigial state,
 because the [2.1.224 changelog entry](https://code.claude.com/docs/en/changelog#2-1-224) fixes a
 defect in them. Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
 
@@ -263,7 +269,8 @@ account is undocumented.
 
 ## `/reload-plugins`: bare by default, `--force` for the MCP-cache-invalidation case
 
-Every decision in this section rests on a docs pointer last re-read 2026-09-05. The *behavior*,
+Every decision in this section rests on a docs pointer last re-read 2026-09-05 (recheck when the plugins reference changes
+`/reload-plugins` or its `--force` flag). The *behavior*,
 what a bare reload actually warns about in a live session, is **not re-run on 2.1.261**: it needs
 an interactive session, which a non-interactive probe pass cannot drive. The `≥ 2.1.163` gate for
 `--force` is likewise **not re-verified on 2.1.261**, because the current docs page states the flag
@@ -352,10 +359,11 @@ under the plugin id is silently ignored and the render shows the literal placeho
 
 - **Pointer**: for where `pluginConfigs` values are read, see
   [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), which [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
-  links.
-- **As of**: 2026-09-05
-- **Recheck trigger**: the honored source set changes, or project or local settings become a
-  source again.
+  links; for `--settings` as a source, see
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session).
+- **As of**: 2026-10-07
+- **Recheck trigger**: the settings guide stops letting `--settings` set user-scope keys, the
+  `pluginConfigs` scope changes, or project or local settings become a source again.
 
 **`enabledPlugins`: user, project, and local all count**, merged local > project > user. That is
 why `fleet-state.sh` reads all three settings maps for enablement, and why doing the same for
@@ -412,8 +420,9 @@ default substitutes into skill content, so the two do not conflict.
 "`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules" above gives; a key placed directly
 under the plugin id is ignored without warning, and a control set that way renders literal, which
 looks exactly like a substitution failure. With the right shape, `--settings` substitutes the same
-as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings), so
-either source is a valid positive control. `claude plugin install <id> --config <key>=<value>`
+as user settings (verified 2026-09-06 on 2.1.263, alongside a sibling key set in user settings;
+recheck when a release note changes `userConfig` substitution), so either source is a valid
+positive control. `claude plugin install <id> --config <key>=<value>`
 writes the user-settings entry in that shape, which is the cheapest way to set one. The placeholder
 itself is written only in `SKILL.md`, never in a spoke, because substitution happens in what Claude
 Code renders and a spoke read returns plain bytes; see [gotchas.md](gotchas.md) "A spoke file never

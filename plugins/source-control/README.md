@@ -341,7 +341,8 @@ fails when a gate feeds its payload to a reader by here-string.
 
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
+  says the native binary ships or uses Node). Without `node` the hooks do
   not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
   whether `node` resolves.
 

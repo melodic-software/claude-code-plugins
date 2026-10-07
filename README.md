@@ -44,7 +44,7 @@ marketplace source AND allowlist its name in the same file:
 The source declaration is required for any non-official marketplace: the allowlisted name is
 ignored if the locally registered marketplace came from a different source. That rule stops an
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
-Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
+Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugins/relevance#enable-suggestions-in-managed-settings).
 
 A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
 with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
@@ -249,7 +249,7 @@ touch.
 
 This repo tracks policy and wiring only; authoritative behavior lives in the official docs, which must
 be read fresh rather than recalled. Start at the
-[Claude Code plugins guide](https://code.claude.com/docs/en/plugins).
+[Claude Code plugins overview](https://code.claude.com/docs/en/plugins/overview).
 
 ## What this marketplace actually publishes
 
