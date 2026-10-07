@@ -172,6 +172,10 @@ in_repo=1
 if [[ -z "$repo_root" ]]; then
   repo_root="$(pwd)"
   in_repo=0
+else
+  # Git for Windows prints D:/x; the shell's own form is /d/x, so every path
+  # this script prints is in one form.
+  canon="$(cd "$repo_root" 2>/dev/null && pwd -P)" && repo_root="$canon"
 fi
 
 # --- Ledger and marker -----------------------------------------------------------
