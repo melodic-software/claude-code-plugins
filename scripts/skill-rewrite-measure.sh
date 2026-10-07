@@ -108,7 +108,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$plugin" ]] || die "--plugin is required"
-[[ "$plugin" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid plugin name: $plugin"
+[[ "$plugin" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid plugin name: $plugin"
 if ((compare)); then
   [[ -z "$phase" ]] || die "--compare and --phase are mutually exclusive"
 else
@@ -120,9 +120,16 @@ probes_dir="$ROOT/plugins/$plugin/probes"
 snap_dir="$ROOT/.work/skill-rewrite/$plugin"
 
 list_skills() {
-  local d
+  local d name
   for d in "$skills_root"/*/; do
-    [[ -f "${d}SKILL.md" ]] && basename "$d"
+    [[ -f "${d}SKILL.md" ]] || continue
+    name="$(basename "$d")"
+    # A name outside this set would break the TSV columns and reach --compare's arithmetic.
+    [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || {
+      printf 'warning: skipping skill dir with an unsafe name: %q\n' "$name" >&2
+      continue
+    }
+    printf '%s\n' "$name"
   done
   return 0
 }
@@ -146,12 +153,14 @@ if ((compare)); then
   printf '| skill | desc chars (before > after) | body lines (before > after) | lexical (before > after) |\n|---|---|---|---|\n'
   tb=0 ta=0 lb=0 la=0
   while IFS=$'\t' read -r _ name adesc abody alex _; do
+    [[ "$adesc" =~ ^[0-9]+$ && "$abody" =~ ^[0-9]+$ ]] || die "malformed after.tsv row for skill: $name"
     brow="$(awk -F'\t' -v n="$name" '$1=="skill" && $2==n' "$b")"
     if [[ -z "$brow" ]]; then
       printf '| %s | new > %s | new > %s | new > %s |\n' "$name" "$adesc" "$abody" "$alex"
       continue
     fi
     IFS=$'\t' read -r _ _ bdesc bbody blex _ <<<"$brow"
+    [[ "$bdesc" =~ ^[0-9]+$ && "$bbody" =~ ^[0-9]+$ ]] || die "malformed before.tsv row for skill: $name"
     printf '| %s | %s > %s (%+d) | %s > %s (%+d) | %s > %s |\n' "$name" \
       "$bdesc" "$adesc" $((adesc - bdesc)) "$bbody" "$abody" $((abody - bbody)) "$blex" "$alex"
     tb=$((tb + bdesc))

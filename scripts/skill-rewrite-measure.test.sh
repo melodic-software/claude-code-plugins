@@ -131,6 +131,29 @@ expect_rc 2 "compare without snapshots exits 2"
 run "$fx" --phase sideways
 expect_rc 2 "bad --phase exits 2"
 
+run "$fx" --plugin .. --phase before
+expect_rc 2 "a --plugin of .. is refused"
+
+# --- untrusted names never reach shell arithmetic -----------------------------
+mk_fixture fx
+mkdir -p "$fx/plugins/pl/skills/"$'evil\trc[$(touch PWNED)]\t1'
+printf -- '---\nname: evil\ndescription: x\n---\nb\n' >"$fx/plugins/pl/skills/"$'evil\trc[$(touch PWNED)]\t1'/SKILL.md
+run "$fx" --phase before --dry-run
+if [[ "$OUT" == *"- evil"* ]]; then bad "a skill dir with an unsafe name is skipped" "$OUT"; else ok "a skill dir with an unsafe name is skipped"; fi
+expect_has "skipping skill dir with an unsafe name" "the skip is reported, not silent"
+run "$fx" --phase before
+run "$fx" --phase after
+(cd "$fx" && FIXTURE_ROOT="$fx" SKILL_REWRITE_MEASURE_ROOT="$fx" SKILL_REWRITE_MEASURE_CHECK_BIN="$STUB_CHECK" \
+  SKILL_REWRITE_MEASURE_SCORE_BIN="$STUB_SCORE" bash "$SCRIPT" --plugin pl --compare >/dev/null 2>&1)
+if [[ -e "$fx/PWNED" ]]; then bad "compare never evaluates a skill name" "payload ran"; else ok "compare never evaluates a skill name"; fi
+
+mk_fixture fx
+run "$fx" --phase before
+run "$fx" --phase after
+printf 'skill\tx\trc[0]\t1\tn/a\tsha\n' >>"$fx/.work/skill-rewrite/pl/after.tsv"
+run "$fx" --compare
+expect_rc 2 "compare refuses a snapshot row with a non-numeric field"
+
 # --- help carries the runbook and the script never calls claude -----------------
 OUT="$(bash "$SCRIPT" --help 2>&1)"
 RC=$?
