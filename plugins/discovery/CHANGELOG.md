@@ -12,7 +12,8 @@
 - The `discovery:docs-fetcher` agent and a `PreToolUse` Bash gate (`hooks/hooks.json`,
   `lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on a public https host.
   `research-sweep` now fetches each selected page raw before the Read stage; readers and skeptics
-  judge from those inline slices and can request sections. The research verifier's
+  judge from those inline slices and can request sections for one more round, then use WebFetch
+  for a section still missing. The research verifier's
   truncated-primary snapshots now come from `docs-raw.sh`, with the curl recipe kept for non-docs
   artifacts ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
 

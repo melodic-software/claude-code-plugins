@@ -199,7 +199,7 @@ const SLICE_RULE =
   'For a section of a mapped page, name it in requests as {url, sections: [ids]}, at most ' + REQUEST_CAP +
   ', and return your result as far as the slices take you; you are then asked once more with them. Use ' +
   'WebFetch only for a page the slices do not cover (not listed, unread or omitted).'
-const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored.'
+const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored. For a section you still need that the slices lack, use WebFetch on that page.'
 
 const pageOf = u => String(u).split('#')[0]
 const rawable = u => isPublicUrl(u) && /^https:/.test(u) && !/['"\\]/.test(u)

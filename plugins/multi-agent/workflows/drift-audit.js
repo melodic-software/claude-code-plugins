@@ -280,7 +280,7 @@ const SLICE_RULE =
   '{url, sections: [ids]}, at most ' + REQUEST_CAP + ', and return your result as far as the slices take ' +
   'you; you are then asked once more with them. Use WebFetch only for a page the slices do not cover ' +
   '(not listed, unread or omitted), and say so in your reason.'
-const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored.'
+const FINAL_ROUND = ' This is your last round: the slices now hold what you requested, and requests are ignored. For a claim whose section the slices still lack, use WebFetch on that page and say so in your reason; name in notes any claim you could not check.'
 
 const pageOf = u => String(u).split('#')[0]
 const rawable = u => isFetchable(u) && !/['"\\]/.test(u)
