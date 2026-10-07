@@ -56,7 +56,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, /instruction-placement:migrate's cutover check cannot confirm a remote reference and reports it as unknown, and its docs read of the rules frontmatter format records the page unread with reason curl-missing unless a cached copy is still fresh.",
+      "degrade": "Without curl, /instruction-placement:migrate's cutover check records the env-vars page unread with reason curl-missing, so condition 1 rests on the bundle probe alone and is UNREACH unless the code default is true, and its docs read of the rules frontmatter format records the page unread with reason curl-missing unless a cached copy is still fresh.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",

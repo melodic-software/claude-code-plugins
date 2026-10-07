@@ -1,0 +1,20 @@
+# Lane: shell-tooling (project layer)
+
+## Merge semantics
+
+Per the bundled `shell-tooling` lane's declaration: `Scope` overrides, watch-for patterns and
+extra exclusions are additive, verification commands override per `###` subsection.
+
+## Scope
+
+```text
+ops/**/*.sh
+```
+
+## Verification commands
+
+### Bash
+
+```bash
+bash -n <changed .sh files>
+```

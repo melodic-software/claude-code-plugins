@@ -255,8 +255,8 @@ environment has no `CLAUDE_SKILL_DIR` to expand it from.
 carry this plugin's `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can put its own data
 directory there under that name, so the script uses an inherited value only when it names this
 plugin. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-10-03; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
 
 ## Integration

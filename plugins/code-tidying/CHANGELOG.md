@@ -3,6 +3,28 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-10-07
+
+### Changed
+
+- **Concise skill text, measured ([#6476](https://github.com/melodic-software/claude-code-plugins/issues/6476)).** `audit-comment-residue`, `audit-dead-code`, `dissolve-comments`, `setup` and `tidy` are rewritten shorter under `/playbooks:skill-authoring`'s skill criteria. Each rewrite was non-inferior to the previous text on before/after evals on Opus and Sonnet, run concurrently. `audit-comment-residue`'s shape definitions move to `reference/shapes.md`. `tidy`'s description keeps its quoted trigger phrases, which held-out probes on Sonnet showed it needs. `batch-simplify` keeps its previous body: the rewrite made an unrecognized scope word sweep files instead of asking. Only its description is updated.
+
+### Added
+
+- **Outcome eval cases for five skills.** 37 cases for `audit-comment-residue`, `audit-dead-code`, `batch-simplify`, `setup` and `tidy`, with their fixtures, join the existing `dissolve-comments` suite under `evals/`. `scripts/evals-fixtures.test.sh` now accepts a fixture seeded by a fixtures seed script a scaffold runs.
+
+## [0.28.12] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The comment-census and rank-comment-targets tests register their temp-dir cleanup right after creating the dir, and the census tests clear git's read-only object files so the removal succeeds on Windows.
+
+## [0.28.11] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
 ## [0.28.10] - 2026-10-07
 
 ### Added

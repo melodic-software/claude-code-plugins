@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "render_table (lib/handlers.sh:12): dead, no reference anywhere."
+    },
+    {
+      "answer": "| lib/handlers.sh | 12 | render_table | dead | no static or dynamic reference |"
+    },
+    {
+      "answer": "Dead: render_table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "render_table: uncertain, could be called by an external script."
+    },
+    {
+      "answer": "cmd_status: dead\nrender_table: alive, used by report.sh",
+      "why": "dead is on another line"
+    }
+  ]
+}

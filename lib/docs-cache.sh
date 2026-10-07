@@ -191,7 +191,7 @@ dc_config() {
       [[ "${kv%%=*}" != "$k" || -z "${kv#*=}" ]] || v="${kv#*=}" layer=flag
     done
     var="${k#cache_}"
-    var="DOCS_CACHE_${var^^}"
+    var="DOCS_CACHE_$(printf '%s' "$var" | tr '[:lower:]' '[:upper:]')"
     if [[ -z "$layer" && -n "${!var:-}" ]]; then
       if dc_config_valid "$k" text "${!var}"; then
         v="${!var}" layer=env
@@ -249,10 +249,48 @@ dc_set_dir() {
   [[ -z "$v" || "$v" == "$DC_STORE_VERSION" ]] || DC_DIR="$root/v$DC_STORE_VERSION"
 }
 
+# These scripts run on Bash 3.2 (stock macOS): no ${x,,}, ${x^^}, declare -A,
+# mapfile, or printf %()T (4.2), and no "${a[@]}" of an array that can be
+# empty under set -u (an error before 4.4). docs-cache.test.sh enforces it.
+
+# dc_lower <var> <text>: set var to the text with A-Z lower-cased, in the shell
+# (no fork: fetch-docs.sh calls it per link of an llms.txt). One whole-string
+# substitution per letter keeps it linear on long server-sent header lines.
+dc_lower() {
+  local LC_ALL=C _dl_s="$2" _dl_i _dl_up=ABCDEFGHIJKLMNOPQRSTUVWXYZ _dl_lo=abcdefghijklmnopqrstuvwxyz
+  for ((_dl_i = 0; _dl_i < 26; _dl_i++)); do
+    _dl_s="${_dl_s//${_dl_up:_dl_i:1}/${_dl_lo:_dl_i:1}}"
+  done
+  printf -v "$1" '%s' "$_dl_s"
+}
+
+# dc_utc <var> <epoch> <iso|touch>: set var to the UTC time of a non-negative
+# epoch, as YYYY-MM-DDTHH:MM:SSZ or touch -t's YYYYMMDDhhmm.SS. Civil date from
+# day count: https://howardhinnant.github.io/date_algorithms.html#civil_from_days
+dc_utc() {
+  local s="$2" z era doe yoe doy mp y m d
+  z=$((s / 86400 + 719468))
+  era=$((z / 146097))
+  doe=$((z - era * 146097))
+  yoe=$(((doe - doe / 1460 + doe / 36524 - doe / 146096) / 365))
+  doy=$((doe - (365 * yoe + yoe / 4 - yoe / 100)))
+  mp=$(((5 * doy + 2) / 153))
+  d=$((doy - (153 * mp + 2) / 5 + 1))
+  m=$((mp < 10 ? mp + 3 : mp - 9))
+  y=$((yoe + era * 400 + (m <= 2)))
+  s=$((s % 86400))
+  if [[ "$3" == iso ]]; then
+    printf -v "$1" '%04d-%02d-%02dT%02d:%02d:%02dZ' "$y" "$m" "$d" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
+  else
+    printf -v "$1" '%04d%02d%02d%02d%02d.%02d' "$y" "$m" "$d" $((s / 3600)) $((s % 3600 / 60)) $((s % 60))
+  fi
+}
+
 # dc_now: set DC_NOW (epoch) and DC_NOW_ISO (UTC ISO) from the clock or DOCS_CACHE_NOW.
 dc_now() {
-  if [[ "${DOCS_CACHE_NOW:-}" =~ ^[0-9]+$ ]]; then DC_NOW="$DOCS_CACHE_NOW"; else printf -v DC_NOW '%(%s)T' -1; fi
-  TZ=UTC0 printf -v DC_NOW_ISO '%(%Y-%m-%dT%H:%M:%SZ)T' "$DC_NOW"
+  if [[ "${DOCS_CACHE_NOW:-}" =~ ^[0-9]+$ ]]; then DC_NOW="$DOCS_CACHE_NOW"; else DC_NOW="$(date +%s)"; fi
+  DC_NOW_ISO=""
+  dc_utc DC_NOW_ISO "$DC_NOW" iso
 }
 
 dc_sha256() {
@@ -261,8 +299,12 @@ dc_sha256() {
 
 # dc_key <url> <format>: print the cache key.
 dc_key() {
-  local url="${1%%#*}"
-  [[ "$url" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*)(.*)$ ]] && url="${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
+  local url="${1%%#*}" origin
+  if [[ "$url" =~ ^([A-Za-z][A-Za-z0-9+.-]*://[^/]*)(.*)$ ]]; then
+    url="${BASH_REMATCH[2]}"
+    dc_lower origin "${BASH_REMATCH[1]}"
+    url="$origin$url"
+  fi
   printf '%s\n%s' "$url" "$2" | dc_sha256
 }
 
@@ -945,7 +987,7 @@ dc_note_put() {
     return 2
   fi
   IFS=, read -ra ids <<<"$sections"
-  for id in "${ids[@]}"; do
+  for id in ${ids[@]+"${ids[@]}"}; do
     rc=0
     dc_section_checkable "$id" || rc=$?
     if [[ $rc -ne 0 ]]; then
@@ -959,7 +1001,7 @@ dc_note_put() {
   while IFS= read -r span; do
     [[ -n "${span// /}" ]] || continue
     found=0
-    for b in "${bodies[@]}"; do [[ "$b" != *"$span"* ]] || found=1; done
+    for b in ${bodies[@]+"${bodies[@]}"}; do [[ "$b" != *"$span"* ]] || found=1; done
     if [[ $found -eq 0 ]]; then
       DC_ERR="the quoted span \"$span\" is not in the own body of a cited section"
       return 2
@@ -1016,7 +1058,7 @@ dc_access() {
 dc_grace_ref() {
   local ref stamp
   ref="$(mktemp 2>/dev/null)" || return 1
-  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
+  dc_utc stamp $((DC_NOW - DC_CFG_prune_grace_seconds)) touch
   if ! TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null; then
     rm -f "$ref"
     return 1

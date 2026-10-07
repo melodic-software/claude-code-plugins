@@ -264,8 +264,8 @@ instead of a `${…}` token because these files arrive through the Read tool, no
 so nothing substitutes a token in them before it reaches the Bash tool.
 
 - **Pointer**: for which plugin surfaces substitute or export a `${…}` reference, see
-  <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>.
-- **As of**: 2026-10-01
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
+- **As of**: 2026-10-07
 - **Recheck trigger**: that table adds supporting files read through the Read tool to where a
   `${…}` reference resolves.
 

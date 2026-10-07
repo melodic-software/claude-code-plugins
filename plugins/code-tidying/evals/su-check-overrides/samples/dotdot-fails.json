@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL line 12: ../shared/lint.toml contains .."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lifted: ../shared/lint.toml",
+      "why": "dot-dot accepted"
+    }
+  ]
+}

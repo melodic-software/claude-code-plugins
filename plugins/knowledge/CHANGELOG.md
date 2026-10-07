@@ -4,15 +4,57 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.20.2] - 2026-10-07
+## [0.20.7] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.20.6] - 2026-10-07
 
 ### Fixed
 
-- **`scripts/docs-cache.sh slice` prints each line once, in page order
-  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
-  named a parent section and its child printed the child twice, because the parent's range already
-  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
-  now print their lines once, in the order they appear on the page.
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.20.5] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The docpage-digest gate harness, `test_check_html_rows`, and the map-corpus discovery and inventory tests register temp-dir cleanup right after creating the dir.
+
+## [0.20.4] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.20.3] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md`, synced from the shared copy, now has the reader
+  slice the sections for any part of the question none of its slices covers, and the section of
+  every item when the question asks the same thing for each of many events, options or keys.
+
+## [0.20.2] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
 
 ## [0.20.1] - 2026-10-07
 

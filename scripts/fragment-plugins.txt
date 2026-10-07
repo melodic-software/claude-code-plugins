@@ -4,13 +4,21 @@
 # plugin.json and CHANGELOG.md, and scripts/release-plugins.sh releases it.
 # Read by scripts/lib/changelog-fragments.sh.
 context-guard
+discipline
+discovery
 disk-hygiene
 domain-driven-design
+evals
 guardrails
+harness-config
+harness-memory
 harness-ops
 instruction-placement
+knowledge
+multi-agent
 planning
 playbooks
+plugin-quality
 session-flow
 source-control
 testing
