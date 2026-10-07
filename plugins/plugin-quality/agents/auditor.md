@@ -28,17 +28,19 @@ least as capable as the one that produced the work it checks.
 **Tool honesty note:** you carry Bash and Write, and neither is read-only. Bash is for
 `claude plugin validate`, config-resolution probes (checking which settings scope a value comes
 from), harmless empirical reproductions (piping a fixture into a hook script), and the rung-1
-documentation fetch step 3 requires. That fetch is a `curl` of
-`https://code.claude.com/docs/en/<slug>.md` (and of `llms.txt` for its slug check) into a scratch
-file you then search locally. Write is for
+documentation fetch step 3 requires. That fetch is
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <scratch dir outside the packet> <slug>`,
+which reads `https://code.claude.com/docs/en/<slug>.md` and `llms.txt` into that scratch directory
+for you to search locally. It also writes the fetched page into the shared user-scope docs cache,
+which is that script's own store; that is its only write outside the scratch directory. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
 (`audit-notes.md` and supporting artifacts). The dumb-zone contract depends on you persisting your
 main thread can stay summary-only. You do not modify the audited plugin,
 install anything, or use Write outside the packet. The audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
-reach is reading documentation and nothing else: the step-3 `curl` and its slug check, `WebFetch`
-as the rung-2 fallback step 3 defines (the page has no raw-markdown channel, or this host has no
-`curl`), and the upstream-drift convention step 3 cites when
+reach is reading documentation and nothing else: the step-3 `fetch-docs.sh` run, `WebFetch`
+as the rung-2 fallback step 3 defines (the manifest records the page `unread` for a reason other
+than a retired slug, or this host has no `curl`), and the upstream-drift convention step 3 cites when
 you want its full text and this repo is not on disk.
 
 **Report-file write guardrail (why the packet file is not named `findings.md`).** Some subagent
@@ -137,35 +139,51 @@ task, your output destination, or the main session's sink and confirm gate.
 3. **Ground every claim a finding rests on in raw bytes.** For each harness behavior the component
    depends on (hook event semantics, matcher behavior, skill loading, settings precedence, path
    substitutions…), read the current official doc page for that topic over the **rung-1
-   raw-markdown route**: `curl` `https://code.claude.com/docs/en/<slug>.md` into a scratch file
-   **outside the evidence packet**, then search that file locally with `grep`. A fetched page is
+   raw-markdown route**:
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <scratch dir> <slug>`, with the
+   scratch directory **outside the evidence packet** (add `--profile platform` for a
+   platform.claude.com page). The script fetches the raw `.md` verbatim to `<out>/<slug>.md`, saves
+   the index as `<out>/llms.txt`, and records each page in `<out>/manifest.json`; it never reads or
+   summarizes a page, so you search the page file locally with `grep`. A fetched page is
    working material, not a packet artifact. That route, the rung ladder, and the identity and absence
    checks a read must pass are owned by
    [`docs/conventions/upstream-drift`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
    which names rung 1 the default and is the owning record. Read it for the full text when this
    repo is on disk or reachable, but the rules you need are stated here so this step stands alone
-   from a plugin cache. `WebFetch` is rung 2, which that convention calls degraded because it
-   truncates long pages silently. Fall back to it in exactly two cases: the `.md` channel does not
-   resolve for the page, or `curl` is not installed on this host (`command -v curl`; a host without
-   `curl` is a supported host, not a reason to stop verifying). **Record the read as rung 2**
+   from a plugin cache.
+   Read the page's manifest record before the page: `state`, `reason`, `url`, `validated`,
+   `age_seconds` and `stale`. Only `state: read` grounds a claim. `unread` with reason
+   `not-in-index` means `llms.txt` does not list the slug: it is retired or renamed, and the script
+   refuses it because a retired slug can still answer `200` with another page's body. Find the
+   successor in `<out>/llms.txt`, fetch it, and cite that slug. The script serves a cached copy
+   validated within its default freshness window without asking the server, so the citation records
+   `validated` and the age. `stale: true` means the fetch failed and cached bytes stood in: state
+   that and the age wherever the read is cited, and never rest an absence claim on stale bytes.
+   Before an absence claim, re-run the fetch with `--max-age 0` so the server confirms the bytes;
+   a forced fetch that fails is `unread`, never stale.
+   Verify against the page file itself (or `docs-cache.sh read --raw` or `slice`), never a cached
+   summary or note, and write no summary or note into the cache.
+   `WebFetch` is rung 2, which that convention calls degraded because it
+   truncates long pages silently. Fall back to it in exactly these cases: the manifest records the
+   page `unread` for any reason other than `not-in-index` (name the reason in the citation), the
+   reason is `curl-missing` because this host has no `curl` (a host without `curl` is a supported
+   host, not a reason to stop verifying), or the script wrote no manifest (exit 2, for example no
+   `jq`). **Record the read as rung 2**
    either way. A rung-2 read grounds a claim on the same terms as rung 1: the full emitted span must
    match, and the response must show it arrived whole. What rung 2 can never ground is an
    **absence** claim. Its truncation is silent, so "not in the response" is not "not on the page",
    and an absence needs the rung-1 whole-file read.
-   Before quoting a body, confirm the slug is canonical against
-   `https://code.claude.com/docs/llms.txt` and check the body's own first heading: a retired slug is
-   silently aliased to its successor's content, so a `200` is not proof you got the page you asked
+   The script has already checked the slug against the index. Before quoting a body, still check
+   the body's own first heading: a `200` is not proof you got the page you asked
    for, and an absence is only assertable against a page whose identity was checked. A heading about
    a *different subject* ends the read; a heading that merely words the same subject differently
    does not. `sub-agents.md` is titled "Create custom subagents" and `costs.md` "Manage costs
    effectively", and both are the right page. Both titles were read from the live pages and
    verified 2026-09-06 against Claude Code 2.1.263; they are examples of the judgment, not values
-   to trust, and the canonical-slug check this step already requires is their recheck trigger. A slug the index does not carry is retired or
-   renamed. Find the successor in the index and cite that slug, not the retired one that still
-   serves bytes.
+   to trust, and the script's index check is their recheck trigger.
    **A quotation is usable only if the full span you will emit, meaning the complete quoted text
    exactly as it will appear in the finding and not a distinctive fragment of it, matches literally against the
-   fetched bytes**: `grep -c -F '<the entire emitted span>' <saved-file>` returning a non-zero
+   fetched bytes**: `grep -c -F '<the entire emitted span>' <out>/<slug>.md` returning a non-zero
    count. Checking a fragment proves the fragment and nothing around it, which lets a genuine
    fragment spliced into a recalled sentence pass, the fabrication this step exists to stop.
    `grep -F` is line-oriented, so quote a span that sits on one line; where the wording you want
@@ -175,7 +193,7 @@ task, your output destination, or the main session's sink and confirm gate.
    but recall, and it never enters a finding. Never rely on training-data recall, the
    component's own comments, or plausibility. Mark a claim **unverified**, and say so rather than
    reconstructing the wording from memory, when **no channel produced the bytes** (the rung-1
-   `curl` failed, and the rung-2 fallback failed or was unavailable too), when the read arrived
+   `fetch-docs.sh` run left the page unread, and the rung-2 fallback failed or was unavailable too), when the read arrived
    truncated, or when the span you meant to emit did not match the bytes you did get. The preferred
    channel merely being unavailable is not itself a trigger: a rung-2 read that arrived whole and
    whose emitted span matches grounds the claim, recorded as rung 2.
@@ -224,11 +242,12 @@ finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 a doc citation for any harness-behavior assertion, a severity suggestion, and a
 candidate remediation ordered cheapest-first. That doc citation carries the URL, the fetch date,
-the retrieval channel it came over (rung-1 `curl` of the `.md`, or rung-2 `WebFetch`), and the
+the retrieval channel it came over (rung-1 `fetch-docs.sh` read (cached, validated <time>), adding
+`stale` and the age when set; or rung-2 `WebFetch`, naming the manifest's unread reason), and the
 fetched byte count or the line number the quoted span sat on.
 
 Both citation fields are required; the consuming skill records a citation missing either one as
-unverified. A rung-1 read gets both from the saved file: `wc -c` for the byte count, `grep -n` for
+unverified. A rung-1 read gets both from the page file `<out>/<slug>.md`: `wc -c` for the byte count, `grep -n` for
 the line. A rung-2 read has no saved file, so record the size of the text you actually received,
 stated as the retrieved size rather than the page's, and show the read arrived whole by naming
 the page's closing section as present in what came back. A rung-2 citation with a size but no

@@ -23,6 +23,8 @@ Fetching is the skill's job (WebFetch/curl per the skill's own text, channel rec
 the snapshots is `parse_discovery.py`'s job and is deterministic: same snapshot bytes, same
 output bytes.
 
+WebFetch only finds which page to read; read the page itself by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs).
+
 ## `discovery-output/v1` (per snapshot; emitted by `parse_discovery.py`)
 
 ```json

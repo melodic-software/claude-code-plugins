@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.17.0] - 2026-10-07
+
+### Changed
+
+- **Upstream docs pages are read through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** `/discipline:recheck-against-upstream`, `/discipline:recheck-against-upstream-deep` (each subagent), `/discipline:do-your-research` and the `sweep-all` live read of the subagent-limit page follow `reference/docs-lookup-procedure.md` instead of a WebFetch summary, so the page is read fresh, complete and cached, with its age reported and raw bytes for a verification read. A source that is not a docs page keeps its existing route.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py`, `reference/docs-lookup-procedure.md` and `lib/prerequisites.*`.
+- New `prerequisites.json`: `curl` and `jq` required, `python3` optional (only an HTML-only page needs it).
+
 ## [0.16.5] - 2026-10-04
 
 ### Changed

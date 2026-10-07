@@ -14,8 +14,14 @@ This workflow re-researches and updates the data files.
 Research current official Claude Code CLAUDE.md best practices, memory management, rules files, and
 auto-memory guidance. The primary sources are
 [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory) and
-[code.claude.com/docs/en/best-practices](https://code.claude.com/docs/en/best-practices) (use the
-consuming environment's research skill if it has one; otherwise WebFetch those pages directly).
+[code.claude.com/docs/en/best-practices](https://code.claude.com/docs/en/best-practices). Read both
+pages through the docs lookup procedure, `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`:
+read it before the first fetch and follow it, with `<scripts>` =
+`${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` = `${CLAUDE_SESSION_ID}`. Fetch with
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache`, use the default TTL, and report each page's
+age. Step 2 compares decisions against these pages, so read them raw (the procedure's
+verification read). A research skill, if the environment has one, may still be used for anything
+beyond those two pages.
 
 Research must cover:
 

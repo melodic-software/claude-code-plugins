@@ -373,12 +373,14 @@ whatever gate they run, or runs it by hand.
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself ships must come from the raw markdown endpoint. `curl -sSL`
-`https://code.claude.com/docs/en/skills.md` to a file, then read the file. A summarizing fetch
-returns a small model's answer *about* the page, so absence from that answer is not evidence of
-absence. A `200` is also not proof you got the page you asked for: retired slugs are silently
-aliased, so confirm the slug against `https://code.claude.com/docs/llms.txt` and read the body's
-own first heading before citing it.
+Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --out <dir> skills`, then search
+`<dir>/skills.md` locally. The fetcher may serve a cached copy within the cache's TTL; report the
+page's `age_seconds` from `<dir>/manifest.json` with the claim, and treat a page it reports `unread`
+as no evidence. A summarizing fetch returns a small model's answer *about* the page, so absence from
+that answer is not evidence of absence. A `200` is also not proof you got the page you asked for:
+retired slugs are silently aliased, so the fetcher confirms the slug against the docs index
+(`llms.txt`); still read the body's own first heading before citing it.
 
 Two upstream dependencies of this skill, each with the trigger that obliges re-deriving it:
 

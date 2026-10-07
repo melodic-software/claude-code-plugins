@@ -62,7 +62,10 @@ unchanged and bind every member.
    running. For its default, what counts against it, and which sessions are
    exempt, read
    [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
-   live rather than from this file (as of 2026-10-02; recheck when that section
+   live, through the shared docs lookup
+   (`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache`, following
+   `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`), rather than
+   from this file (as of 2026-10-02; recheck when that section
    changes the default, what takes a slot, or the exemptions). No per-session total applies:
    `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` is a documented no-op, so the
    concurrency and depth limits are the only ones to plan around.

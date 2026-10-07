@@ -1,5 +1,24 @@
 # Changelog: discovery plugin
 
+## [0.30.0] - 2026-10-07
+
+### Changed
+
+- **`/discovery:research` reads upstream docs pages through the shared docs lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** The
+  discipline file's recency gate, size-failure escalation and lost-tool fallback, and the
+  source-categories Official docs row, send a docs page through `scripts/fetch-docs.sh --cache`
+  and cite its `validated` time and age; a verification or negative-claim read takes
+  `--max-age 0` and raw reads. The `curl` download recipe stays for PDFs, specs and source files,
+  and WebFetch stays for finding which page to read.
+- **The parent saves a truncated docs primary for the research verifier through the lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** handing over
+  the page file the manifest names.
+- **The researcher agent reads a docs page with `scripts/fetch-docs.sh --cache`
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** and its
+  write-boundary wording names the user-scope docs cache. `/discovery:research` and
+  `/discovery:research-deep` point a single docs page at `/discovery:read-docs`.
+
 ## [0.29.0] - 2026-10-04
 
 ### Added

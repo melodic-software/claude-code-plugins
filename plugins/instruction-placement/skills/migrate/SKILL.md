@@ -160,8 +160,13 @@ between steps must leave content duplicated rather than deleted:
    relocating. Rewording moved text is a separate, later edit the operator asks for by name.
 2. **Write the pointer targets** into the detected docs home, and the pointer lines into `AGENTS.md`.
 3. **Write the `.claude/rules/` files.** Fetch the current rules frontmatter format at authoring
-   time rather than writing it from memory: `curl -sL https://code.claude.com/docs/en/memory.md`
-   and read its "Path-specific rules" section. Validate every glob with
+   time rather than writing it from memory: read the `memory` page's "Path-specific rules" section
+   through the docs lookup. The procedure is
+   `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`; read it before the first fetch and
+   follow it, with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
+   `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
+   age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
+   Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
 4. **Write the shim**: `CLAUDE.md` containing exactly `@AGENTS.md`, one line. Create it where the

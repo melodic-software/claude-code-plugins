@@ -147,6 +147,9 @@ four-part records live in [reference/native-deep-research.md](reference/native-d
 /planning:plan
 Plans against the verified `RESEARCH.md` this skill wrote.
 
+A single upstream docs page needs no fan-out: `/discovery:read-docs <url-or-slug> [question]`
+(`scripts/fetch-docs.sh --cache`).
+
 ## Gotchas
 
 - **Feeding a multi-topic ask to an engine.** An engine decomposes ONE question into research

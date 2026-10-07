@@ -46,7 +46,16 @@ Run this in place of the sibling's inline audit and correct-forward steps:
    [`${CLAUDE_PLUGIN_ROOT}/context/fan-out.md`](../../context/fan-out.md):
    blind fresh-context subagents, bounded waves, failed-subset retry. Each
    subagent fetches the CURRENT official upstream docs for its surface and
-   classifies the divergence per the sibling's three categories.
+   classifies the divergence per the sibling's three categories. Each
+   subagent reads every docs page through the shared docs lookup, following
+   `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md` with
+   `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts`; resolve both to absolute
+   paths in the brief, since a subagent's shell does not expand the plugin
+   variable. The subagent runs
+   `bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or-url>`
+   as the procedure's step 1 gives it, and reads raw bytes for the read that
+   settles a verdict. A source that is not a docs page keeps its existing
+   route.
 3. **Checkpoint the partial ledger mid-run, if a durable slice exists.** So
    a crash mid-fan-out does not lose completed waves, checkpoint the partial
    ledger to the session's durable topic-memory slice when one is available;
