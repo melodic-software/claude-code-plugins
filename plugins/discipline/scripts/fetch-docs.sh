@@ -304,14 +304,15 @@ http_get() {
   H_RC=$?
   if [[ -f "$2" && $(wc -c <"$2") -gt $MAX_PAGE ]]; then H_RC=63; fi
   [[ $H_RC -ne 63 ]] || rm -f "$2"
-  H_STATUS="" H_EFF="" H_CTYPE="" H_ETAG="" H_LM=""
+  H_STATUS="" H_EFF="" H_CTYPE="" H_CTYPE_LC="" H_ETAG="" H_LM=""
   read -r H_STATUS H_EFF H_CTYPE <<<"$meta"
   [[ "$H_STATUS" =~ ^[0-9]+$ ]] || H_STATUS=""
+  dc_lower H_CTYPE_LC "$H_CTYPE"
   if [[ -f "$hdr" ]]; then
     # A redirect writes one header block per response; the last one counts.
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
-      low="${line,,}"
+      dc_lower low "$line"
       case "$low" in
       http/*) H_ETAG="" H_LM="" date="" ;;
       etag:*) H_ETAG="$(trim "${line#*:}")" ;;
@@ -339,7 +340,7 @@ trim() {
 # C_ETAG C_LM.
 cache_candidate() {
   local url="$1" f
-  C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
+  C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_CTYPE_LC="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
   [[ $CACHE -eq 1 ]] || return 0
   shift
   for f in "$@"; do
@@ -347,6 +348,7 @@ cache_candidate() {
     [[ -n "$DC_VALIDATED_EPOCH" ]] || continue
     [[ -z "$C_REF" || $DC_VALIDATED_EPOCH -gt $C_EPOCH ]] || continue
     C_REF="$DC_REF" C_EPOCH="$DC_VALIDATED_EPOCH" C_ISO="$DC_VALIDATED" C_DATE="$DC_SERVER_DATE" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
+    dc_lower C_CTYPE_LC "$C_CTYPE"
     C_ACCEPT="$DC_ACCEPT" C_REQ_URL="$DC_REQ_URL" C_ETAG="$DC_ETAG" C_LM="$DC_LM"
   done
 }
@@ -405,7 +407,7 @@ serve_fresh() {
   [[ $age -ge 0 && $age -le $MAX_AGE ]] || return 1
   re="$MD_OR_TEXT_CTYPE"
   [[ "$C_FORMAT" != html-converted ]] || re="$HTML_CTYPE"
-  [[ $FIXTURE_SET -eq 1 || "${C_CTYPE,,}" =~ $re ]] || return 1
+  [[ $FIXTURE_SET -eq 1 || "$C_CTYPE_LC" =~ $re ]] || return 1
   serve_cached "$dest" ""
 }
 
@@ -456,7 +458,7 @@ get_doc() {
   rm -f "$dest" "$dest.part"
   mkdir -p "$(dirname "$dest")"
   cache_candidate "$url" "$P_FORMAT"
-  if [[ -n "$C_REF" && $FIXTURE_SET -eq 0 && ! "${C_CTYPE,,}" =~ $ctype_re ]]; then C_REF=""; fi
+  if [[ -n "$C_REF" && $FIXTURE_SET -eq 0 && ! "$C_CTYPE_LC" =~ $ctype_re ]]; then C_REF=""; fi
   serve_fresh "$dest" && return 0
   if [[ $FIXTURE_SET -eq 1 ]]; then
     fixture_read "$dest" "$3" "$P_FORMAT"
@@ -478,7 +480,7 @@ get_doc() {
       G_REASON="redirected-off-origin"
     elif [[ ! "$H_STATUS" =~ ^2[0-9][0-9]$ ]]; then
       G_REASON="http-${H_STATUS:-unknown}"
-    elif [[ ! "${H_CTYPE,,}" =~ $ctype_re ]]; then
+    elif [[ ! "$H_CTYPE_LC" =~ $ctype_re ]]; then
       G_REASON="unexpected-content-type"
     elif [[ ! -s "$dest.part" ]]; then
       G_REASON="empty-body"
@@ -506,7 +508,8 @@ dc_validators_or_none() {
 url_parts() {
   local u="${1%%#*}"
   [[ "$u" =~ ^([Hh][Tt][Tt][Pp][Ss]://[^/?]+)(.*)$ ]] || return 1
-  U_ORIGIN="${BASH_REMATCH[1],,}" U_PATH="${BASH_REMATCH[2]}"
+  U_PATH="${BASH_REMATCH[2]}" U_ORIGIN=""
+  dc_lower U_ORIGIN "${BASH_REMATCH[1]}"
   [[ "$U_PATH" == "/" || "$U_PATH" != */ ]] || U_PATH="${U_PATH%/}"
   [[ -n "$U_PATH" ]] || U_PATH="/"
 }
@@ -537,7 +540,7 @@ generic_slug() {
   s="${U_ORIGIN#https://}$U_PATH"
   s="${s%/}"
   s="${s%.md}"
-  s="${s,,}"
+  dc_lower s "$s"
   s="${s//[^a-z0-9_\/-]/-}"
   printf '%s' "$s"
 }
@@ -579,17 +582,19 @@ html_title() {
 # llms.txt link for the page (empty when none); the llms.txt is fetched once per
 # origin and run.
 bundle_link() {
-  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES[@]}.txt" u p
+  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES_K[@]}.txt" u p
   B_LINK=""
-  if [[ -z "${BUNDLES[$origin]:-}" ]]; then
-    BUNDLES[$origin]=none
+  if ! map_get BUNDLES "$origin"; then
+    MAP_V=none
     http_get "$origin/llms.txt" "$idx" "" "" ""
-    if [[ $H_RC -eq 0 && "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $MD_OR_TEXT_CTYPE && -s "$idx" &&
+    if [[ $H_RC -eq 0 && "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_OR_TEXT_CTYPE && -s "$idx" &&
       "$(landed "$origin/llms.txt" "$H_EFF")" == same ]]; then
-      BUNDLES[$origin]="$idx"
+      MAP_V="$idx"
     fi
+    map_put BUNDLES "$origin" "$MAP_V"
   fi
-  [[ "${BUNDLES[$origin]}" != none ]] || return 0
+  [[ "$MAP_V" != none ]] || return 0
+  idx="$MAP_V"
   while IFS= read -r u; do
     [[ "$u" != /* || "$u" == //* ]] || u="$origin$u"
     url_parts "$u" && [[ "$U_ORIGIN" == "$origin" ]] || continue
@@ -600,7 +605,7 @@ bundle_link() {
       B_LINK="$u"
       return 0
     fi
-  done < <(link_urls "${BUNDLES[$origin]}")
+  done < <(link_urls "$idx")
 }
 
 # markdown_channel <accept> <url> <dest> <ctype regex>: one markdown channel of
@@ -608,7 +613,7 @@ bundle_link() {
 markdown_channel() {
   request "$1" "$2" "$3.part" "$3" && return 0
   if [[ $H_RC -eq 0 && "$(landed "$2" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
-  "${H_CTYPE,,}" =~ $4 && -s "$3.part" ]] && mv "$3.part" "$3"; then
+  "$H_CTYPE_LC" =~ $4 && -s "$3.part" ]] && mv "$3.part" "$3"; then
     G_STATE=read G_FORMAT=markdown G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE" G_DATE="$H_DATE"
     G_VALIDATORS="$(dc_validators_or_none "$1" "$2")"
     return 0
@@ -675,9 +680,9 @@ get_generic() {
     settle_unread "$url" "$dest" markdown html-converted
     return 0
   fi
-  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
+  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
     G_STATE=read G_FORMAT=markdown G_VALIDATORS="$(dc_validators_or_none text/markdown "$url")" G_DATE="$H_DATE"
-  elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
+  elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
     mv "$dest.part" "$html"
     html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none text/markdown "$url")" html_date="$H_DATE"
   else
@@ -701,7 +706,7 @@ get_generic() {
     request "" "$url" "$html" "$dest" && return 0
     [[ $H_RC -ne 63 ]] || G_REASON="too-large"
     if [[ $H_RC -eq 0 && "$(landed "$url" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
-    "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$html" ]]; then
+    "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$html" ]]; then
       html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none "" "$url")" html_date="$H_DATE"
     fi
   fi
@@ -780,12 +785,29 @@ slug_ok() {
   [[ "$1" =~ $re ]]
 }
 
-declare -A SEEN=()
-declare -A BUNDLES=()
+# Bash 3.2 has no associative arrays: a map is two indexed arrays, <name>_K and
+# <name>_V, searched in order. map_get <name> <key>: set MAP_V, 1 when absent.
+# map_put <name> <key> <value>: add a key the map does not hold.
+map_get() {
+  local i n k
+  eval "n=\${#$1_K[@]}"
+  for ((i = 0; i < n; i++)); do
+    k="$1_K[$i]"
+    [[ "${!k}" == "$2" ]] || continue
+    k="$1_V[$i]"
+    MAP_V="${!k}"
+    return 0
+  done
+  return 1
+}
+map_put() { eval "$1_K+=(\"\$2\") $1_V+=(\"\$3\")"; }
+
+# shellcheck disable=SC2034 # read and written by name in map_get and map_put
+SEEN_K=() SEEN_V=() BUNDLES_K=() BUNDLES_V=()
 
 if [[ "$P_KIND" == url ]]; then
   printf 'null\n' >"$INDEX_REC"
-  for i in "${!TARGETS[@]}"; do
+  for ((i = 0; i < ${#TARGETS[@]}; i++)); do
     t="${TARGETS[$i]}"
     m="${TARGET_MODES[$i]}"
     reset_g
@@ -799,13 +821,13 @@ if [[ "$P_KIND" == url ]]; then
       emit "$t" "$t" "$m" "" >>"$PAGE_RECS"
       continue
     fi
-    if [[ -n "${SEEN[$slug]:-}" ]]; then
-      [[ "${SEEN[$slug]}" != "${t%%#*}" ]] || continue
+    if map_get SEEN "$slug"; then
+      [[ "$MAP_V" != "${t%%#*}" ]] || continue
       G_REASON="slug-collision"
       emit "$slug" "$t" "$m" "" >>"$PAGE_RECS"
       continue
     fi
-    SEEN[$slug]="${t%%#*}"
+    map_put SEEN "$slug" "${t%%#*}"
     get_generic "$t" "$OUT/$slug.md" "$slug.md"
     emit "$slug" "$t" "$m" "$OUT/$slug.md" >>"$PAGE_RECS"
   done
@@ -823,7 +845,7 @@ else
     done < <(link_urls "$OUT/llms.txt")
   fi
 
-  for i in "${!TARGETS[@]}"; do
+  for ((i = 0; i < ${#TARGETS[@]}; i++)); do
     t="${TARGETS[$i]}"
     m="${TARGET_MODES[$i]}"
     want=""
@@ -837,8 +859,8 @@ else
       [[ "$want" == *"$P_SUFFIX" ]] || want="$want$P_SUFFIX"
       slug="$(slug_of "$want")"
     fi
-    [[ -z "${SEEN[$slug]:-}" ]] || continue
-    SEEN[$slug]=1
+    ! map_get SEEN "$slug" || continue
+    map_put SEEN "$slug" 1
     reset_g
     url=""
     if ! slug_ok "$slug"; then

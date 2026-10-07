@@ -1104,6 +1104,29 @@ rc=0
 bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/u" info not-a-key >/dev/null 2>&1 || rc=$?
 assert_eq "usage: a malformed key is a miss" 1 "$rc"
 
+# --- Bash 3.2 (stock macOS) ---------------------------------------------------------
+# The helpers that replace Bash 4+ expansions, then a lint of both scripts for
+# the constructs Bash 3.2 rejects: case conversion, associative arrays and
+# namerefs, mapfile, |& and &>>, ${x@Q}, negative indices, wait -n, coproc
+# and printf %()T.
+got="$(
+  # shellcheck source=docs-cache.sh
+  . "$SCRIPT"
+  for e in 0 951782400 1709251199 4107542399; do
+    dc_utc v "$e" iso
+    printf '%s ' "$v"
+  done
+  dc_utc v 1000000000 touch
+  l=""
+  dc_lower l 'HTTPS://Docs.Test/A-Z_09/é'
+  printf '%s %s' "$v" "$l"
+)"
+assert_eq "bash32: dc_utc and dc_lower match the Bash 4 forms they replace" \
+  '1970-01-01T00:00:00Z 2000-02-29T00:00:00Z 2024-02-29T23:59:59Z 2100-02-28T23:59:59Z 200109090146.40 https://docs.test/a-z_09/é' "$got"
+bash4_re='\$\{[!#]?[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?(,,?|\^\^?)\}|(declare|local|typeset)( -[a-zA-Z]+)* -[a-zA-Z]*[An]|mapfile|readarray|\|&|&>>|@[QEPAaKkUuL]\}|\[-[0-9]+\]|wait -n|coproc|%\([^)]*\)T'
+hits="$(grep -nE "$bash4_re" "$SCRIPT" "$SCRIPT_DIR/fetch-docs.sh" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"
+assert_eq "bash32: docs-cache.sh and fetch-docs.sh use no Bash 4+ construct" "" "$hits"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"
