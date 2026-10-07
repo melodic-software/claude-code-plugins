@@ -1,5 +1,35 @@
 # Changelog: discovery plugin
 
+## [0.31.1] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md` now has the reader slice the sections for any part
+  of the question none of its slices covers, and the section of every item when the question asks
+  the same thing for each of many events, options or keys. In a blind-graded run on the hooks page
+  (n = 6 per arm), new-core recall rose from .899 (control, n = 16) to .953, with mean bytes read
+  of 218159 against a limit of 219084, half the saving over reading the whole page. A lower
+  `escalate_bytes` and a "read the whole page" sentence did not pass the same rule.
+
+## [0.31.0] - 2026-10-07
+
+### Added
+
+- A PostToolUse WebFetch hook that, when a result ends in a truncation marker or placeholder line,
+  adds a note naming /discovery:read-docs; it never blocks or changes the result and does not flag
+  a page summarized with neither. /discovery:check reports whether node resolves and the hook is
+  registered, and a node prerequisite with a SessionStart notice
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- The `discovery:docs-fetcher` agent and a `PreToolUse` Bash gate (`hooks/hooks.json`,
+  `lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on a public https host.
+  `research-sweep` now fetches each selected page raw before the Read stage; readers and skeptics
+  judge from those inline slices and can request sections for one more round, then use WebFetch
+  for a section still missing. The research verifier's
+  truncated-primary snapshots now come from `docs-raw.sh`, with the curl recipe kept for non-docs
+  artifacts ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
 ## [0.30.0] - 2026-10-07
 
 ### Changed

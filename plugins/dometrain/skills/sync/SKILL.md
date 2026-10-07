@@ -47,8 +47,8 @@ The `context/` files write this skill's directory as `<skill-dir>`, which is `${
 Put that path in place of the placeholder before running a command. Those files arrive through the
 Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the
 Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Boundaries
 

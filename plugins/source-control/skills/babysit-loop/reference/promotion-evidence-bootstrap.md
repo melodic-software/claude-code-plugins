@@ -167,9 +167,9 @@ absent. A set value is compliant only when it is:
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
   `verifyProbeTranscript`, `resolveEffectivePromotion`, evaluation-mode header comment);
   `docs/conventions/hook-config-delivery/README.md` facts 4, 5, and 7; the
-  [plugins reference](https://code.claude.com/docs/en/plugins-reference#user-configuration)
+  [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   `${user_config.KEY}` entry ("In skill and agent content, only non-sensitive values are
-  substituted"), fetched 2026-09-29.
+  substituted"), fetched 2026-10-07.
 - **As of:** 2026-09-29.
 - **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
   plugin-option read scopes.

@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.13.1] - 2026-10-07
+## [1.13.2] - 2026-10-07
 
 ### Fixed
 
@@ -14,6 +14,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   directory without the quote characters a Windows path cannot hold, the audit-engine temp root is
   in the shell's form so a `D:/` `TMPDIR` no longer hides its curl and jq shims, and the hook-coverage
   fixtures use the native path form Claude Code writes into its registry and settings there.
+
+## [1.13.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
 
 ## [1.13.0] - 2026-10-07
 

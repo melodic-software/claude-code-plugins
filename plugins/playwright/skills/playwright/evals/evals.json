@@ -5,11 +5,11 @@
       "id": 1,
       "name": "e2e-flow-uses-named-session-lifecycle",
       "prompt": "Drive an E2E check of the login flow at http://localhost:3000 — sign in and confirm the dashboard loads.",
-      "expected_output": "Runs a named-session lifecycle: kill-all to start clean, open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close — reading the YAML snapshot file rather than dumping it into context.",
+      "expected_output": "Runs a named-session lifecycle: open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close that session by name — reading the YAML snapshot file rather than dumping it into context, and never running the machine-wide kill-all or close-all as routine setup or teardown.",
       "files": [],
       "expectations": [
         "Uses a named session (`-s=<flow>`) for the multi-step flow rather than the default unnamed session",
-        "Runs `kill-all` at the start and `close` at the end of the run",
+        "Closes its own session by name at the end and does not run `kill-all` or `close-all` as routine setup or teardown",
         "Reads the snapshot YAML file from disk to locate element refs instead of dumping the snapshot into context"
       ]
     },

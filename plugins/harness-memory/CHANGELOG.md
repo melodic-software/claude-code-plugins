@@ -3,7 +3,7 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.1] - 2026-10-07
+## [1.1.3] - 2026-10-07
 
 ### Fixed
 
@@ -11,6 +11,22 @@ All notable changes to the `harness-memory` plugin are documented here. Format f
   `TMPDIR` in either `/d/x` or `D:/x` form: the symlinked-`CLAUDE.md` fixture is a native symlink
   rather than the copy a plain `ln -s` makes there, and the user-config fixture is named in the
   physical form the script reports.
+
+## [1.1.2] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md`, synced from the shared copy, now has the reader
+  slice the sections for any part of the question none of its slices covers, and the section of
+  every item when the question asks the same thing for each of many events, options or keys.
+
+## [1.1.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
 
 ## [1.1.0] - 2026-10-07
 

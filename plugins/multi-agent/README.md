@@ -42,8 +42,14 @@ way.
 ## The drift-audit workflow
 
 `multi-agent:drift-audit` is the evidence pass behind `/multi-agent:audit-defaults`.
-Finders (one per default owner, or one per area of the repository) fetch the
-upstream sources and judge each claim; plain code dedups what they find; then
+First a `multi-agent:docs-fetcher` agent per source page runs `scripts/docs-raw.sh`
+on it: a fresh, raw read of the page or its section map, through the shared docs
+lookup. A fetcher gets a URL and section ids, never a claim. The workflow passes
+those slices inline, inside a data fence, to the judging agents.
+Finders (one per default owner, or one per area of the repository) judge each
+claim against the slices, ask for sections or pages the slices lack (the
+workflow fetches them and asks once more), and fetch a page themselves only
+when no slice covers it; plain code dedups what they find; then
 three skeptics per batch try to refute each finding, and a majority decides it.
 In repo mode a `multi-agent:drift-reader` agent (Read, Grep, Glob) first quotes
 each area's claims, and the finders see only those quotes. Finders and skeptics
@@ -59,6 +65,15 @@ the host rule a gate: inside a `drift-checker` subagent it denies any fetch
 that is not an https URL on a first-party docs host with no query string. Every
 other agent and the main thread pass through. The workflow drops any source
 outside those hosts before a stage runs.
+
+A `PreToolUse` hook on `Bash` (`lib/docs-fetcher-gate.mjs`) holds the
+`docs-fetcher`: inside that subagent it denies every tool call except one shape,
+`bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`, with the
+URL on the same first-party hosts and no query string. For that command it
+returns no decision, so the session's permission rules still apply. Every other
+agent and the main thread pass through. The row is always-on: it fires on every
+`Bash` call, at a budget of one process (`node`) per call, ratcheted in
+`.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
 
 An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
 mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
@@ -93,7 +108,11 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 - **Node.js** for the `drift-checker` fetch gate hook. Without `node` the gate fails open: the hook
   cannot start, Claude Code shows a non-blocking hook error notice, and the drift checker's fetches
   are held to first-party docs hosts only by the workflow's source filter and the agent's prompt.
-  `/multi-agent:check` reports whether `node` resolves and the gate is registered.
+  `/multi-agent:check` reports whether `node` resolves and the gate is registered. The
+  `docs-fetcher` gate fails open the same way, leaving that agent's `Bash` to the session's
+  permission rules.
+- **curl and jq** for the drift-audit fetch stage (`scripts/docs-raw.sh`). Without them every page
+  is recorded unread, and the checkers read their sources with WebFetch alone.
 
 ## Install
 
