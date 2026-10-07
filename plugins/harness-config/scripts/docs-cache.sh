@@ -256,16 +256,14 @@ dc_set_dir() {
 # empty under set -u (an error before 4.4). docs-cache.test.sh enforces it.
 
 # dc_lower <var> <text>: set var to the text with A-Z lower-cased, in the shell
-# (no fork: fetch-docs.sh calls it per link of an llms.txt).
+# (no fork: fetch-docs.sh calls it per link of an llms.txt). One whole-string
+# substitution per letter keeps it linear on long server-sent header lines.
 dc_lower() {
-  local LC_ALL=C _dl_s="$2" _dl_out="" _dl_pre _dl_up=ABCDEFGHIJKLMNOPQRSTUVWXYZ _dl_lo=abcdefghijklmnopqrstuvwxyz
-  while [[ "$_dl_s" == *[A-Z]* ]]; do
-    _dl_pre="${_dl_s%%[A-Z]*}"
-    _dl_up="${_dl_up%%"${_dl_s:${#_dl_pre}:1}"*}"
-    _dl_out+="$_dl_pre${_dl_lo:${#_dl_up}:1}"
-    _dl_s="${_dl_s:${#_dl_pre}+1}" _dl_up=ABCDEFGHIJKLMNOPQRSTUVWXYZ
+  local LC_ALL=C _dl_s="$2" _dl_i _dl_up=ABCDEFGHIJKLMNOPQRSTUVWXYZ _dl_lo=abcdefghijklmnopqrstuvwxyz
+  for ((_dl_i = 0; _dl_i < 26; _dl_i++)); do
+    _dl_s="${_dl_s//${_dl_up:_dl_i:1}/${_dl_lo:_dl_i:1}}"
   done
-  printf -v "$1" '%s' "$_dl_out$_dl_s"
+  printf -v "$1" '%s' "$_dl_s"
 }
 
 # dc_utc <var> <epoch> <iso|touch>: set var to the UTC time of a non-negative
