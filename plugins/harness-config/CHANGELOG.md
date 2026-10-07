@@ -78,6 +78,10 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   than the grace window, puts back a lock another prune took over, and keeps the pointer of a page
   a writer stored again during eviction; and a page with no title lifts its removal quarantine
   when it is stored or confirmed again.
+- **Third review round.** html2md drops screen-reader-only and `aria-hidden` text inside a heading,
+  so a permalink anchor no longer adds "Permalink to this heading"; prune makes its grace-window
+  reference file outside the store, so one prune never sweeps another's, and ranks nothing when
+  the store is under the cap after the temp sweep.
 - **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
   `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
   `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and

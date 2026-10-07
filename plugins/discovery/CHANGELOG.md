@@ -38,6 +38,8 @@
 - Headings wrapped in an in-page anchor (mdBook, VuePress) keep their text, html2md runs on Python
   3.8, a browser-form URL with a query string or trailing slash resolves, prune sweeps stale temp
   leftovers on every run, and a page with no title lifts its removal quarantine when read again.
+- Headings drop screen-reader-only and `aria-hidden` text, and prune keeps its grace-window
+  reference file outside the store, so one prune never sweeps another's.
 
 ## [0.28.10] - 2026-10-04
 

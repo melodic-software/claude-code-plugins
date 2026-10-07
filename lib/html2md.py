@@ -30,6 +30,9 @@ BLOCK = {"p", "div", "section", "li", "tr", "dt", "dd", "blockquote", "figure", 
 ZW = re.compile(r"[​‌‍﻿]")
 LANG = re.compile(r"(?:language|lang)-([\w+-]+)")
 GLYPHS = re.compile("[\\s#¶§\U0001f517​-‍﻿]*")
+HIDDEN = re.compile(r"sr-only|visually-hidden|screen-reader-text")
+# no end tag follows these, so a hidden one has no text to drop
+VOID = {"area", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
 
 def squash(parts):
@@ -42,6 +45,7 @@ class Conv(HTMLParser):
         self.out, self.skip, self.pre = [], 0, 0
         self.head = None  # (level, parts) while inside a heading
         self.perma = None  # text parts of a heading's in-page anchor, while inside one
+        self.hide = None  # [tag, open count] of a heading's hidden element, inside one
         self.link = None  # (href, parts) while inside a link
         # index in out of the open fence line, until its language is known
         self.fence = None
@@ -66,9 +70,14 @@ class Conv(HTMLParser):
         if re.fullmatch(r"h[1-6]", tag):
             self.head = (int(tag[1]), [])
         elif self.head is not None:
-            # a heading is one line of text: wrappers are dropped; an in-page anchor's text is
-            # held to its end tag and dropped only when it is a permalink glyph
-            if (
+            # a heading is one line of text: wrappers are dropped; text hidden from sight or
+            # from screen readers is dropped to its element's end tag; an in-page anchor's
+            # text is held to its end tag and dropped only when it is a permalink glyph
+            if self.hide is not None:
+                self.hide[1] += tag == self.hide[0]
+            elif tag not in VOID and (a.get("aria-hidden") == "true" or HIDDEN.search(a.get("class") or "")):
+                self.hide = [tag, 1]
+            elif (
                 self.perma is None
                 and tag == "a"
                 and (a.get("href") or "").startswith("#")
@@ -116,7 +125,7 @@ class Conv(HTMLParser):
             return
         if re.fullmatch(r"h[1-6]", tag) and self.head is not None:
             lvl, parts = self.head
-            self.head, self.perma = None, None
+            self.head, self.perma, self.hide = None, None, None
             text = squash(parts)
             text = (text[:-1] if text.endswith("¶") else text).strip()
             if text and not self.skip:
@@ -124,7 +133,11 @@ class Conv(HTMLParser):
                     self.h1.append(text)
                 self.emit("\n\n" + "#" * lvl + " " + text + "\n\n")
         elif self.head is not None:
-            if tag == "a" and self.perma is not None:
+            if self.hide is not None:
+                self.hide[1] -= tag == self.hide[0]
+                if not self.hide[1]:
+                    self.hide = None
+            elif tag == "a" and self.perma is not None:
                 text, self.perma = "".join(self.perma), None
                 if not GLYPHS.fullmatch(text):
                     self.head[1].append(text)
@@ -165,6 +178,8 @@ class Conv(HTMLParser):
             self.emit("\n\n")
 
     def handle_data(self, data):
+        if self.hide is not None:
+            return
         if self.perma is not None:
             if not self.skip:
                 self.perma.append(data)

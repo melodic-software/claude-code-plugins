@@ -126,6 +126,15 @@ assert_contains "heading: an anchor wrapping the H2 text keeps it" $'\n## Setup\
 assert_contains "heading: an anchor wrapping a span keeps its text" $'\n## Usage\n' "$wrap_md"
 assert_contains "heading: an in-page link inside the heading keeps its text" $'\n## See Install now\n' "$wrap_md"
 
+# --- Case: text hidden from sight or from screen readers inside a heading is dropped ---
+hid_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2 id="x">Install<a class="anchor" href="#x"><span class="sr-only">Permalink to this heading</span></a></h2><h2>Deploy<span aria-hidden="true">#</span></h2><h2 id="y"><a href="#y">Build<span class="visually-hidden"><span>(</span>anchor)</span></a> steps</h2><h2>Run<span class="screen-reader-text"> section</span></h2><p>End.</p></main></body></html>' | conv)"
+assert_contains "heading: screen-reader-only text in a permalink anchor is dropped" $'\n## Install\n' "$hid_md"
+assert_contains "heading: an aria-hidden glyph span is dropped" $'\n## Deploy\n' "$hid_md"
+assert_contains "heading: visually-hidden text is dropped to its own end tag, nested spans included" $'\n## Build steps\n' "$hid_md"
+assert_contains "heading: screen-reader-text is dropped" $'\n## Run\n' "$hid_md"
+void_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2><img aria-hidden="true" src="i.svg">Quick start</h2><p>End.</p></main></body></html>' | conv)"
+assert_contains "heading: an aria-hidden void element hides none of the text after it" $'\n## Quick start\n' "$void_md"
+
 # --- Case: a ``` line inside <pre> does not close the fence early ---
 nested_file="$TEST_TMPDIR/nested.md"
 printf '%s' '<html><body><main><h1>Doc</h1><pre><code class="language-markdown">```

@@ -894,6 +894,27 @@ for f in "${stale[@]}"; do [[ ! -e "$f" ]] || n_stale=$((n_stale + 1)); done
 for f in "${young[@]}"; do [[ ! -e "$f" ]] || n_young=$((n_young + 1)); done
 assert_eq "prune: under the cap, stale temp items go everywhere in the store and younger ones stay" "0 2 0 0" \
   "$n_stale $n_young $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
+# A prune's grace-window reference file stays out of the store, so a concurrent
+# prune never sweeps it as a stale temp item.
+mk_prune_store "$TEST_TMPDIR/s-ref"
+mkdir "$S/prune.lock" && touch -d "@$T1" "$S/prune.lock"
+printf 'x\n' >"$S/.tmp-1-2" && touch -d "@$T1" "$S/.tmp-1-2"
+: >"$TEST_TMPDIR/refs.log"
+lib_run "$S" $T3 'find() { command find "$DC_DIR" -name ".tmp-ref-*" >>"'"$TEST_TMPDIR/refs.log"'"; command find "$@"; }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=300
+  dc_prune >/dev/null'
+assert_eq "edge: prune never makes a reference file inside the store" "0 0" \
+  "$(wc -l <"$TEST_TMPDIR/refs.log" | tr -d ' ') $([[ -e "$S/.tmp-1-2" ]] && echo 1 || echo 0)"
+# Under the cap, a prune that only sweeps temp items ranks nothing.
+mk_prune_store "$TEST_TMPDIR/s-temp-only"
+printf 'x\n' >"$S/.tmp-1-2" && touch -d "@$T1" "$S/.tmp-1-2"
+: >"$TEST_TMPDIR/ranked.log"
+out="$(lib_run "$S" $T3 'dc_access() { echo "$1" >>"'"$TEST_TMPDIR/ranked.log"'"; printf 0; }
+  DC_CFG_size_cap_bytes=1000000000 DC_CFG_prune_grace_seconds=300
+  dc_prune')"
+assert_eq "prune: under the cap with only a stale temp item, prune removes it and ranks and evicts nothing" \
+  "$(printf 'evicted\ttemp\t.tmp-1-2\t2') 0 0 0" \
+  "$(grep '^evicted' <<<"$out") $(wc -l <"$TEST_TMPDIR/ranked.log" | tr -d ' ') $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
 
 # Every write prunes.
 S="$TEST_TMPDIR/s-autoprune"

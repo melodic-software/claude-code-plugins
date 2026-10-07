@@ -1003,11 +1003,23 @@ dc_access() {
   printf '%s' "$a"
 }
 
+# dc_grace_ref: print the path of a new file outside the store, last modified the
+# grace window before DC_NOW, so a concurrent prune never sweeps it as a temp item.
+dc_grace_ref() {
+  local ref stamp
+  ref="$(mktemp 2>/dev/null)" || return 1
+  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
+  if ! TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null; then
+    rm -f "$ref"
+    return 1
+  fi
+  printf '%s' "$ref"
+}
+
 # dc_stale <path>: the path was last modified at least the grace window before DC_NOW.
 dc_stale() {
-  local ref="$DC_DIR/.tmp-ref-$$-$RANDOM" stamp r
-  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
-  TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null || return 1
+  local ref r
+  ref="$(dc_grace_ref)" || return 1
   r="$(find "$1" -prune ! -newer "$ref" 2>/dev/null)"
   rm -f "$ref"
   [[ -n "$r" ]]
@@ -1064,10 +1076,9 @@ dc_prune_unlock() {
 # (.tmp-*) in the store root, entries/, keys/ and each key's summaries/ and
 # notes/ directory last modified at least the grace window before DC_NOW.
 dc_prune_temps() {
-  local ref="$DC_DIR/.tmp-ref-$$-$RANDOM" stamp
-  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
-  TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null || return 0
-  find "$DC_DIR" -mindepth 1 -maxdepth 3 -name '.tmp-*' -prune ! -newer "$ref" ! -path "$ref" -print 2>/dev/null |
+  local ref
+  ref="$(dc_grace_ref)" || return 0
+  find "$DC_DIR" -mindepth 1 -maxdepth 3 -name '.tmp-*' -prune ! -newer "$ref" -print 2>/dev/null |
     DC_PFX="$DC_DIR/" LC_ALL=C awk '
       index($0, ENVIRON["DC_PFX"]) == 1 {
         r = substr($0, length(ENVIRON["DC_PFX"]) + 1)
@@ -1102,10 +1113,11 @@ dc_prune() {
     done < <(dc_prune_temps)
     items="$(dc_prune_items)"
     total=0
+    while IFS=$'\t' read -r n rel; do [[ -z "$n" ]] || total=$((total + n)); done <<<"$items"
     ranked=""
-    while IFS=$'\t' read -r n rel; do
+    # Under the cap, a prune that only swept temp items ranks nothing.
+    [[ $total -le $DC_CFG_size_cap_bytes ]] || while IFS=$'\t' read -r n rel; do
       [[ -n "$n" ]] || continue
-      total=$((total + n))
       cur=0 snap=""
       case "$rel" in
       */.tmp-*) continue ;;
