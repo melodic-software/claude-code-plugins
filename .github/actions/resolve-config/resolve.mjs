@@ -174,6 +174,13 @@ export function loadConfig(files, { configPath }) {
         }
       }
       const activity = doc.activities[slot.activity];
+      // The lane rule compares strictly, so it must not depend on the schema enum.
+      if (typeof activity.effect !== "string") {
+        throw new Rejection(
+          "invalid-config",
+          `activity \`${slot.activity}\` has an effect that is not a string`,
+        );
+      }
       if (
         rule["forbidden-effects"].includes(activity.effect) ||
         (rule["forbidden-gating"] ?? []).includes(activity.gating)
@@ -246,14 +253,30 @@ export function neededFacts(files, { lane, activity, configPath }) {
   return [...needed];
 }
 
+const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
+const GRANT_LEVELS = new Set(["read", "write"]);
+
+// An empty or partial grant would mint a token with every App permission, so a
+// row must name exactly the three scopes, each read or write.
 function grantFor(effectGrants, effect) {
-  if (!Object.hasOwn(effectGrants, effect)) {
+  if (typeof effect !== "string" || !Object.hasOwn(effectGrants, effect)) {
     throw new Rejection(
       "effect-grant",
       `effect-grants.json has no row for \`${effect}\``,
     );
   }
-  return { ...effectGrants[effect] };
+  const row = effectGrants[effect];
+  if (
+    !isObject(row) ||
+    Object.keys(row).sort().join() !== GRANT_SCOPES.join() ||
+    !GRANT_SCOPES.every((scope) => GRANT_LEVELS.has(row[scope]))
+  ) {
+    throw new Rejection(
+      "effect-grant",
+      `effect-grants.json row \`${effect}\` must set exactly ${GRANT_SCOPES.join(", ")}, each read or write`,
+    );
+  }
+  return Object.freeze({ ...row });
 }
 
 function resolveSlot(
@@ -303,8 +326,13 @@ export function resolveGrant(files, { lane, activity, configPath }) {
     );
   }
   const entry = entries[selectedIndex(entries, lane, activity)];
+  if (!entry.enabled) {
+    throw new Rejection(
+      "slot-disabled",
+      `lane \`${lane}\` disables activity \`${activity}\`; a disabled slot gets no grant`,
+    );
+  }
   return {
-    enabled: entry.enabled,
     effect: entry.activity.effect,
     grant: grantFor(files.effectGrants, entry.activity.effect),
   };
