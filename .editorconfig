@@ -41,9 +41,18 @@ indent_size = 2
 indent_style = unset
 indent_size = unset
 
-# Shell
+# Shell: shfmt reads this section, and its switch_case_indent default (false)
+# would move every indented `case` branch one level left on any edit.
 [*.{sh,bash}]
 indent_size = 2
+switch_case_indent = true
+
+# Extensionless shebang scripts (e.g. vault-exec): `[[shell]]` is a shfmt
+# extension, outside the EditorConfig spec, that matches any file shfmt detects
+# as shell (bash included). Editors that do not know it match nothing here.
+[[shell]]
+indent_size = 2
+switch_case_indent = true
 
 # Windows batch: cmd.exe requires CRLF.
 [*.{cmd,bat}]
