@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>T08 Items</title><script src="/fx.js"></script></head>
+<body>
+<!-- "Load items" fetches /api/items and renders the names. The rendered names are recorded, so the
+     grader can tell whether a mocked response reached the UI. -->
+<main>
+  <h1>Items</h1>
+  <button type="button" id="load">Load items</button>
+  <ul id="items"></ul>
+  <pre id="result"></pre>
+</main>
+<script>
+  document.getElementById("load").addEventListener("click", async () => {
+    const items = await (await fetch(`/api/items?run=${fx.run}&delay=${fx.delay}`)).json();
+    document.getElementById("items").replaceChildren(...items.map((it) => Object.assign(document.createElement("li"), { textContent: it.name })));
+    fx.record("rendered", items.map((it) => it.name));
+  });
+</script>
+</body>
+</html>

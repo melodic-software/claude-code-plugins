@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F06 Reconnect modal</title><script src="/fx.js"></script>
+<style>#components-reconnect-modal::backdrop{background:rgba(0,0,0,.5)}</style></head>
+<body>
+<!-- After `delay` the connection "drops": a modal <dialog> with the same id and state classes a
+     server-rendered component framework uses cycles show -> retrying -> failed, and needs Retry.
+     Saving while disconnected does nothing; the backdrop blocks clicks. -->
+<main>
+  <h1>Profile</h1>
+  <label>Display name <input id="name" value="Ada"></label>
+  <button type="button" id="save">Save profile</button>
+  <p id="status">Connected</p>
+  <pre id="result"></pre>
+</main>
+<dialog id="components-reconnect-modal">
+  <p id="reconnect-text">Connection lost. Reconnecting…</p>
+  <button type="button" id="retry" hidden>Retry</button>
+</dialog>
+<script>
+  let connected = true;
+  const dlg = document.getElementById("components-reconnect-modal");
+  function setState(s) {
+    dlg.className = `components-reconnect-${s}`;
+    document.dispatchEvent(new CustomEvent("components-reconnect-state-changed", { detail: { state: s } }));
+  }
+  document.getElementById("save").addEventListener("click", () => {
+    if (!connected) { fx.record("saveWhileDisconnected", 1, "inc"); return; }
+    fx.record("saved", document.getElementById("name").value);
+    document.getElementById("status").textContent = "Saved";
+  });
+  document.getElementById("retry").addEventListener("click", () => {
+    setState("retrying");
+    setTimeout(() => {
+      connected = true; dlg.close(); setState("hide");
+      document.getElementById("status").textContent = "Connected";
+      fx.record("reconnected", true);
+    }, 300);
+  });
+  fx.after(fx.delay, () => {
+    connected = false;
+    document.getElementById("status").textContent = "Disconnected";
+    dlg.showModal(); setState("show");
+    setTimeout(() => {
+      setState("failed");
+      document.getElementById("reconnect-text").textContent = "Reconnection failed.";
+      document.getElementById("retry").hidden = false;
+    }, 600);
+  });
+</script>
+</body>
+</html>

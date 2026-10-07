@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Signup widget</title><script src="/fx.js"></script></head>
+<body>
+<form id="f">
+  <label>Email <input id="email" name="email" type="email"></label>
+  <button type="submit">Subscribe</button>
+</form>
+<p id="status"></p>
+<script>
+  document.getElementById("f").addEventListener("submit", (e) => {
+    e.preventDefault();
+    fx.record("subscribed", document.getElementById("email").value);
+    document.getElementById("status").textContent = "Subscribed";
+  });
+</script>
+</body>
+</html>
