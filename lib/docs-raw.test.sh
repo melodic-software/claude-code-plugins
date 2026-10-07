@@ -101,6 +101,10 @@ assert_eq "case 8: bytes is the UTF-8 byte count of the printed body" "bytes=$(p
   "$(head -1 <<<"$out" | grep -oE 'bytes=[0-9]+')"
 assert_eq "case 8: body_sha256 is the hash of the printed body" "body_sha256=$(printf '%s' "$body" | sha256sum | cut -d' ' -f1)" \
   "$(head -1 <<<"$out" | grep -oE 'body_sha256=[0-9a-f]+')"
+printf 'Tail.\r\n\r\n\r\n' >"$FETCH_DOCS_FIXTURE_DIR/tail.md"
+printf '%s\n' '- [Tail](https://code.claude.com/docs/en/tail.md): t' >>"$FETCH_DOCS_FIXTURE_DIR/llms.txt"
+assert_eq "case 8: trailing blank CRLF lines are not counted" "bytes=5" \
+  "$(bash "$SCRIPT" https://code.claude.com/docs/en/tail | head -1 | grep -oE 'bytes=[0-9]+')"
 
 # The network cases: no fixture seam, a curl stand-in first on PATH that logs
 # its arguments and serves one markdown page, and DNS answers from the seam.

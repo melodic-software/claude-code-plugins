@@ -97,7 +97,10 @@ else
 fi
 
 body="${body//$'\r\n'/$'\n'}"
-body="${body%$'\r'}" # $(...) dropped the last LF of a final CRLF on Linux, leaving its CR
+# $(...) on Linux drops only the LFs at the very end, so a CRLF tail leaves a CR and
+# LFs before it; trim both so the header describes the body the workflow keeps.
+body="${body%$'\r'}"
+while [[ "$body" == *$'\n' ]]; do body="${body%$'\n'}"; done
 n="$(printf '%s' "$body" | wc -c | tr -d ' ')"
 [[ "$n" -gt "$MAX_BODY" ]] && kind=too-large
 if command -v sha256sum >/dev/null 2>&1; then hash=(sha256sum); else hash=(shasum -a 256); fi
