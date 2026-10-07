@@ -4,11 +4,19 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.19.10] - 2026-10-07
+## [0.20.1] - 2026-10-07
 
 ### Changed
 
 - **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.20.0] - 2026-10-07
+
+### Changed
+
+- **`docpage-digest` fetches absence-establishing pages through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** The Anthropic profile's complete-fetch rule now runs `scripts/fetch-docs.sh --cache --max-age 0` instead of `curl`: fresh bytes are required, the page's `bytes` come from the manifest, and an `unread` or `stale` record is unread for the claim, never evidence of absence.
+- **`map-corpus` link-map format points page reads at the fetch-route rungs.** WebFetch stays the discovery channel for `llms.txt` and sitemaps; the page itself is read by the upstream-drift convention's rungs.
+- **`prerequisites.json` declares `curl` and `jq`** as required for `docpage-digest`'s docs fetch.
 
 ## [0.19.9] - 2026-10-06
 

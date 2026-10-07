@@ -250,10 +250,13 @@ The script opens the binary read-only. It never writes to it and never executes 
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself ships must come from the raw markdown endpoint. `curl -sSL`
-`https://code.claude.com/docs/en/plugins/manifest-reference.md` to a file, then read the file. A summarizing
-fetch returns a small model's answer *about* the page, so absence from that answer is not evidence
-of absence.
+Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> plugins/manifest-reference`,
+then search `<dir>/plugins/manifest-reference.md` locally. The fetcher confirms the slug against the docs
+index (`llms.txt`), and `--max-age 0` asks the server every time, so the claim rests on fresh bytes;
+treat a page `<dir>/manifest.json` reports `unread` as no evidence. A
+summarizing fetch returns a small model's answer *about* the page, so absence from that answer is
+not evidence of absence.
 
 Upstream facts this skill depends on, each with the trigger that obliges re-deriving it:
 

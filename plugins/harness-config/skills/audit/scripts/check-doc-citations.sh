@@ -6,7 +6,8 @@
 # reworded, and the row that cited it then points at text that is not there.
 # This script reads the manifest of citations (reference/doc-citations.tsv,
 # one <page slug><TAB><literal span> per row), has the plugin's shared fetcher
-# (scripts/fetch-docs.sh) read each page verbatim, and greps the span in the
+# (scripts/fetch-docs.sh) read each page verbatim through the docs cache with
+# --max-age 0, so every page is asked of the server, and greps the span in the
 # fetched file. A page that lost a span is a failure naming the row; a page the
 # fetcher reports unread (including a slug the docs index does not list) is a
 # visible SKIP with the reason, never a pass and never a failure, because a
@@ -23,8 +24,10 @@
 #      segments, the shared fetcher missing or failing, bad arguments)
 #
 # Env overrides (the test seam):
-#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and <slug>.md files; when set no fetch happens
-#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh
+#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and <slug>.md files; when set no fetch happens,
+#                                    and DOCS_CACHE_DIR must name a cache directory
+#   DOCS_CACHE_DIR                   docs cache directory (default: the docs cache's own)
+#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh and scripts/docs-cache.sh
 
 set -uo pipefail
 
@@ -107,11 +110,14 @@ fetch_pages() {
   # The manifest's claude_version is unused here, so the fetcher runs no claude.
   local fetch_env=(-u FETCH_DOCS_FIXTURE_DIR FETCH_DOCS_CLAUDE_BIN='')
   [[ -z "$FIXTURE_DIR" ]] || fetch_env=(FETCH_DOCS_FIXTURE_DIR="$FIXTURE_DIR" FETCH_DOCS_CLAUDE_BIN='')
-  env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$FETCH_DIR" --manifest "$FETCH_DIR/manifest.json" --mode search "$@" >/dev/null || {
+  # --max-age 0: a citation check compares fresh bytes, never a cached copy.
+  env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$FETCH_DIR" --manifest "$FETCH_DIR/manifest.json" --cache --max-age 0 --mode search "$@" >/dev/null || {
     echo "ERROR: the shared fetcher failed" >&2
     exit 2
   }
   while IFS=$'\t' read -r slug state reason; do
+    # A Windows jq ends its line with CR, which the last field keeps.
+    reason="${reason%$'\r'}"
     if [[ "$state" == read ]]; then
       PAGE_FILE[$slug]="$FETCH_DIR/$slug.md"
     else

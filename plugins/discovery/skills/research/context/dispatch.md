@@ -84,11 +84,16 @@ against a run that produced none):
 
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
    so it cannot take the `curl` route the discipline file gives a researcher for a page WebFetch
-   truncates. When its `problems:` names a `truncated primary: <url>`, save that page with the
+   truncates. When its `problems:` names a `truncated primary: <url>`, save that page into a
+   `scratch-snapshots` directory inside the slice. An upstream docs page goes through the docs
+   lookup: `<plugin-root>/scripts/fetch-docs.sh --cache --max-age 0` per
+   `<plugin-root>/reference/docs-lookup-procedure.md`, with `--out` set to a directory under
+   `scratch-snapshots`; the saved copy is the page file the manifest's `file` field names, and a
+   page the manifest records `unread` stays a gap in the verdict. Any other artifact takes the
    recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
-   `<scratch>` set to a `scratch-snapshots` directory inside the slice. Create that directory before running
-   the recipe: its `mktemp -d` makes only the final path component. Fetch through rung 1
-   of the [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   `<scratch>` set to `scratch-snapshots`. Create that directory before running the recipe: its
+   `mktemp -d` makes only the final path component. The docs lookup is rung 1 of the
+   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
    which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per page:
 
    ```text
