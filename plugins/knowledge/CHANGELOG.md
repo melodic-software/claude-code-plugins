@@ -4,11 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.20.4] - 2026-10-07
+## [0.20.5] - 2026-10-07
 
 ### Changed
 
 - **Test suite only; nothing shipped changes.** The docpage-digest gate harness, `test_check_html_rows`, and the map-corpus discovery and inventory tests register temp-dir cleanup right after creating the dir.
+
+## [0.20.4] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
 
 ## [0.20.3] - 2026-10-07
 
