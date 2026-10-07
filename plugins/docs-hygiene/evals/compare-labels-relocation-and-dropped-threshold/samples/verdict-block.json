@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| SEMANTIC LOSS | SKILL.md:7 \"exceeds 50 MB\" | none | threshold gone |\n\nVERDICT: BLOCK",
+      "why": "canonical final line"
+    },
+    {
+      "answer": "VERDICT:  BLOCK (one semantic loss)",
+      "why": "extra space and a note after"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| RELOCATED | SKILL.md:9 \"## Retention\" | reference/retention.md | moved |\n\nVERDICT: PASS",
+      "why": "passes despite the loss"
+    },
+    {
+      "answer": "I would block this PR because the 50 MB threshold is gone.",
+      "why": "prose, no verdict line"
+    }
+  ]
+}
