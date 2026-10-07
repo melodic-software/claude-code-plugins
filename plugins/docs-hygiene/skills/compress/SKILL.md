@@ -90,7 +90,8 @@ action's per-file diff would call every moved line and every intended cut a loss
 
 1. Check both paths are directories; stop on a missing one. Write nothing to either.
 2. Dispatch one fresh-context subagent with `context/compare-prompt.md`. The calling session never
-   labels a difference: it may have written the rewrite, and a self-audit excuses its own cuts.
+   labels a difference, because it may have written the rewrite and would excuse its own cuts.
+   The step is done when the return carries labelled rows and a `VERDICT:` line.
 3. Print the returned rows and the `VERDICT:` line unchanged. `VERDICT: BLOCK` (any SEMANTIC LOSS)
    is the gate a rollout PR blocks on.
 
