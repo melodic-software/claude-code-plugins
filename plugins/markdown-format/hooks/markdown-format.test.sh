@@ -1934,7 +1934,7 @@ if command -v node >/dev/null 2>&1; then
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != markdownlint-cli2 && ! -e "$PROBE_BIN/$base" ]] || continue
-      ln -s "$exe" "$PROBE_BIN/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PROBE_BIN/$base"
     done
   done
   ln -sf "$(command -v node)" "$PROBE_BIN/node"

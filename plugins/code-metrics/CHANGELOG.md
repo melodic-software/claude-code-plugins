@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7] - 2026-10-07
+
+### Changed
+
+- **Test helper only; nothing shipped changes.** `tool-free-path.sh` forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
 ## [0.5.6] - 2026-10-04
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.10] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The hook test's PATH probe forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
 ## [0.9.9] - 2026-10-04
 
 ### Changed
