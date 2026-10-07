@@ -905,6 +905,19 @@ printf '%s' 'https://intranet.corp/guide/page' >"$src/page.effective"
 pub_run "$src" pub6 'docs.test=93.184.216.34 intranet.corp=10.0.0.5'
 assert_eq "public-only: a redirect to an internal host is unread" "unread redirected-off-origin" "$(gpage pub6 '"\(.state) \(.reason)"')"
 assert_eq "public-only: the redirected request was pinned to the checked address" 1 "$(grep -c -- '--connect-to ::93\.184\.216\.34: ' "$src.log")"
+# An origin with no llms.txt has no bundle channel, even though the address
+# check runs inside that fetch: a file named for the checked address in the
+# working directory is never read as the bundle.
+src="$TEST_TMPDIR/gs-pub-nobundle"
+mkdir -p "$src" "$TEST_TMPDIR/pub-cwd"
+printf '%s' '{}' >"$src/page"
+printf '%s' 'application/json' >"$src/page.ctype"
+printf '%s\n' '# Page' 'from a stray file' >"$src/page.txt"
+printf '%s' 'text/plain' >"$src/page.txt.ctype"
+printf '%s\n' '- [Page](/guide/page.txt)' >"$TEST_TMPDIR/pub-cwd/93.184.216.34"
+(cd "$TEST_TMPDIR/pub-cwd" && pub_run "$src" pub7 'docs.test=93.184.216.34')
+assert_eq "public-only: an origin with no llms.txt has no bundle channel" "unread 0" \
+  "$(gpage pub7 .state) $(grep -c 'page\.txt' "$src.log")"
 
 # An indexed profile revalidates with its stored ETag too.
 src="$(new_served served-idx-etag)"
