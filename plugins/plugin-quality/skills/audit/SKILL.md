@@ -231,9 +231,11 @@ pass one below `opus`.
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
 the audit framing missed), candidate remediations ordered cheapest → most ambitious, and doc-worthy
 gotchas (usage-evidence lessons graded general vs situational; general = candidate doc additions). Every doc
-citation states the retrieval channel it came over plus a byte count or line number; a finding whose
+citation states the retrieval channel it came over (rung-1 `fetch-docs.sh` read (cached, validated
+<time>), or rung-2 `WebFetch`) plus a byte count or line number; a finding whose
 citation omits **either** field is recorded as **unverified**, however confidently worded. "rung-1
-`curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.
+`fetch-docs.sh` read (cached, validated `<time>`), `<url>`" with no count and no line is a
+half-citation, not a grounded one.
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet. One silently empty packet among several is exactly the loss
