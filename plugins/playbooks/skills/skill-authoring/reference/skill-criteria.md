@@ -4,9 +4,10 @@ The house standard for writing a skill or a plugin agent in this marketplace. Ci
 `/playbooks:skill-authoring` plus a heading below; the headings are stable.
 
 Precedence: official Anthropic guidance wins. Where it is silent, follow the concise style of
-Pocock's skills. Every figure below is a record of what a source said on a date ("per X, as of
-D"), never our own rule; [Sources](#sources) holds each pointer and recheck trigger. Where a cap
-is enforced, `/skill-quality:check` enforces it and its script holds the constant.
+Pocock's skills. Every upstream figure below is a record of what a source said on a date ("per X,
+as of D"), never our own rule; [Sources](#sources) holds each pointer and recheck trigger. Where a
+cap is enforced, `/skill-quality:check` enforces it and its script holds the constant. A house
+setting is named as one: a `/skill-quality:check` setting, or a choice of this page's protocol.
 
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
@@ -90,7 +91,8 @@ never justify a deletion by character count alone, and never keep a line because
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
   `<skill-dir>/scripts/<name>`. `scripts/check-spoke-plugin-root.sh` gates the plugin-root
   variable in this marketplace.
-- A spoke over 300 lines opens with a `## Contents` block (`/skill-quality:check` WARNs).
+- A long spoke opens with a `## Contents` block; `/skill-quality:check` warns when a spoke over
+  its own line setting lacks one.
 - A spoke is free until read and then costs like the body: the deletion test applies in full.
 
 ## Metadata
@@ -135,7 +137,8 @@ never copy a case's text and never use held-back cases.
 **Rewriting an existing skill.**
 
 1. Snapshot the before state: description, body, eval results.
-2. Freeze a probe set of 16 to 20 queries, written by a fresh agent from the before description,
+2. Freeze a probe set of 16 to 20 queries (this protocol's house setting), written by a fresh
+   agent from the before description,
    including near-misses aimed at same-plugin competitors.
 3. Measure before and after: the model-graded trigger rate on the probes
    (`/skill-quality:check measure-invocation`) and the plugin's eval cases.
@@ -162,7 +165,8 @@ judgment (a reviewer reads) or attestation (the author states it).
   and 20); output names what the script did, including on failure (judgment).
 - Evals and testing: `evals/evals.json` present (mechanical, check 14) and valid
   (`validate-evals`); fresh-session baseline captured (attestation); models exercised, from
-  `haiku`, `sonnet`, `opus`, `fable` (attestation).
+  `haiku`, `sonnet`, `opus`, `fable` (attestation); a skill run under a `model` override or
+  inside a subagent names every target model, or says which are untested (attestation).
 
 Close with `/skill-quality:check <skill>`: it answers the mechanical rows, and its WARN lines are
 the reviewer's reading list for the rest.
@@ -171,19 +175,37 @@ the reviewer's reading list for the rest.
 
 Each record: pointer, as-of date, recheck trigger. Re-read the pointer before acting on a figure.
 
-- **Claude Code skills docs**, <https://code.claude.com/docs/en/skills> (frontmatter reference,
-  skill descriptions are cut short, skill content lifecycle, evaluate and iterate). As of
-  2026-10-06. Recheck: the listing cap, the listing budget, an invocation default, or the
+- **Claude Code skills docs**: listing cap and budget at
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short);
+  invocation defaults at
+  [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference); the
+  user-invoked context rule at
+  [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill);
+  compaction at
+  [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle); the
+  fresh-session loop at
+  [Evaluate and iterate on a skill](https://code.claude.com/docs/en/skills#evaluate-and-iterate-on-a-skill).
+  As of 2026-10-06. Recheck: the listing cap, the listing budget, an invocation default, or the
   user-invoked context rule changes.
-- **Platform best practices**,
-  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices> (writing
-  effective descriptions, degrees of freedom, progressive disclosure, evaluation and iteration,
-  checklist for effective Skills). As of 2026-10-06. Recheck: the description cap, the voice rule,
-  the line limit, the nesting rule, or a checklist item changes.
+- **Platform best practices**: description cap at
+  [YAML frontmatter requirements](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#yaml-frontmatter-requirements);
+  voice at
+  [Writing effective descriptions](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#writing-effective-descriptions);
+  [Set appropriate degrees of freedom](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#set-appropriate-degrees-of-freedom);
+  line limit at
+  [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns);
+  [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references);
+  [Evaluation and iteration](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration);
+  [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills).
+  As of 2026-10-06. Recheck: the description cap, the voice rule, the line limit, the nesting
+  rule, or a checklist item changes.
+- **Agent Skills specification**: the portable `description` limit at
+  [description field](https://agentskills.io/specification#description-field). As of 2026-10-06.
+  Recheck: that field's limit changes.
 - **Prompt audit**, `shared/prompt-audit.md` in the `claude-api` skill bundled with Claude Code
   (read at 2.1.292). As of 2026-10-06. Recheck: a Claude Code release changes that file.
-- **Subagent docs**, <https://code.claude.com/docs/en/sub-agents> (choose a model, available
-  tools). As of 2026-10-06. Recheck: the model resolution order or the omitted-field fallback
+- **Subagent docs**: [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
+  and [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools). As of 2026-10-06. Recheck: the model resolution order or the omitted-field fallback
   changes.
 - **Pocock's skills**, <https://github.com/mattpocock/skills> at commit `6fd9479`, measured by us
   over 38 skills. As of 2026-10-06. Recheck: a re-measure at a newer commit moves a median or a
