@@ -15,6 +15,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 - `## Gotchas` in `SKILL.md`, each observed in the browser-tools benchmark of 2026-10-07: `fill` not leaving the field on validate-on-blur forms, refs refused after a re-render, clicks landing before hydration, short-lived toasts outrunning per-command startup, reading `console` for uncaught exceptions, and the missing `chrome` channel on Linux containers.
 - `## Next` naming the typical successors, `/source-control:pull-request` and `/verification:confirm`.
 - A contents list on every reference file over 100 lines, per the skill-authoring guidance on long reference files.
+- The README records why the plugin keeps wrapping Microsoft's skill instead of switching to it: the upstream 0.1.22 skill's gaps against the skill-authoring guidance, as of 2026-10-07, with the recheck trigger.
 - `snapshot --boxes` for geometry questions in `reference/snapshots-and-refs.md`, and `generate-locator` in `reference/test-generation.md`, both present upstream in 0.1.22.
 
 ## [0.9.0] - 2026-10-06
