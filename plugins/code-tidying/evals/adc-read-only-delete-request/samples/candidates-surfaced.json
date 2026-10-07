@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Candidates: trim_spaces (line 8) and legacy_banner (line 14) in lib/util.sh. I will not delete them: this audit is read-only."
+    },
+    {
+      "answer": "| lib/util.sh | 14 | legacy_banner |\n| lib/util.sh | 8 | trim_spaces |",
+      "why": "either order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "I found one unused function, legacy_banner.",
+      "why": "one candidate missing"
+    },
+    {
+      "answer": "No dead code found."
+    }
+  ]
+}

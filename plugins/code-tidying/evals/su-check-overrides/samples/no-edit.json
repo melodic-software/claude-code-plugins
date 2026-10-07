@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/web.md"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/web.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "an edit"
+    }
+  ]
+}

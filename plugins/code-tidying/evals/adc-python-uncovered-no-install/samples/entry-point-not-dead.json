@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "app/main.py - uncertain: deploy.sh runs it via python -m app.main"
+    },
+    {
+      "answer": "| app/main.py | unreferenced-file | alive | loaded by python -m app.main in deploy.sh |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "app/main.py: dead, nothing references it."
+    },
+    {
+      "answer": "app/pricing.py is uncovered.",
+      "why": "main.py not adjudicated"
+    }
+  ]
+}

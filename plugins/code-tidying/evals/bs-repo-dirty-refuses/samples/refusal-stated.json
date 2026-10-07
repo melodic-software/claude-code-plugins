@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Refusing to start: src/greet.sh has uncommitted tracked modifications.",
+      "why": "refused"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Simplified 6 files.",
+      "why": "proceeded"
+    }
+  ]
+}

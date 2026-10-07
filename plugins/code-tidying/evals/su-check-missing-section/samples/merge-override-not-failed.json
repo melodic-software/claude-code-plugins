@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| docs-prose.md | PASS | Merge semantics by reference; inherits Watch-for patterns |\n| api.md | FAIL | missing Verification commands |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| docs-prose.md | FAIL | missing ## Watch-for patterns |",
+      "why": "exemption ignored"
+    },
+    {
+      "answer": "FAIL: docs-prose is missing five sections",
+      "why": "exemption ignored"
+    }
+  ]
+}

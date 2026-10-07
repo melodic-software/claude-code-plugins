@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: bs-docs-protects-history
+description: 'docs flag sweeps in-window markdown for factual staleness but never touches the changelog, an accepted ADR, or a file declaring itself append-only, even though all three mention the renamed function'
+tags: [docs, append-only, exclusions]
+expected_outcome: 'docs/guide.md no longer tells readers to call say_hello. CHANGELOG.md, docs/adr/0001-greeting-function.md and docs/history-log.md are byte-identical to the seed, still naming say_hello. src/greet.sh is still simplified; the CI workflow is unchanged.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify unattended 72h docs'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: guide-stale-ref-fixed
+    type: regex
+    pattern: 'say_hello'
+    match: not_contains
+    target: { source: file, path: docs/guide.md }
+  - name: guide-points-at-greet
+    type: regex
+    pattern: '^(?![ \t]*bash src/greet\.sh Ada[ \t]*$)[^\n]*\bgreet\b'
+    flags: m
+    target: { source: file, path: docs/guide.md }
+  - name: changelog-byte-identical
+    type: regex
+    pattern: '^# Changelog\n\n## 0\.2\.0\n- Renamed the greeting function\.\n\n## 0\.1\.0\n- Added `say_hello` greeting script\.\n(?![\s\S])'
+    target: { source: file, path: CHANGELOG.md }
+  - name: adr-byte-identical
+    type: regex
+    pattern: '^# 1\. Greeting function name\n\nStatus: Accepted\n\nWe name the greeting function `say_hello`\.\n(?![\s\S])'
+    target: { source: file, path: docs/adr/0001-greeting-function.md }
+  - name: append-only-log-byte-identical
+    type: regex
+    pattern: '^# Release history\n\nThis log is append-only\. Do not edit historical entries; add a new one instead\.\n\n- 0\.1\.0: introduced `say_hello`\.\n- 0\.2\.0: greeting function reworked\.\n(?![\s\S])'
+    target: { source: file, path: docs/history-log.md }
+  - name: greet-simplified
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:1"
+    target: { source: file, path: src/greet.sh }
+  - name: ci-workflow-untouched
+    type: regex
+    pattern: 'run: bash tests\/run\.sh'
+    match: "count:2"
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: window-normalized
+    type: tool_used
+    tool: Bash
+    input_match: '72 hours'
+    arm: both

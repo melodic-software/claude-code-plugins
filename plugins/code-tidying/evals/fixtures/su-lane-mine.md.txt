@@ -1,0 +1,32 @@
+# Lane: mine
+
+Order models I tidy on my own rotation.
+
+## Scope
+
+```text
+src/core/**
+```
+
+## Watch-for patterns
+
+- **Beck #8, Explaining Variables**: dense expressions in model methods
+- **Mine-only sentinel**: dict literals built inline in return statements
+
+## Lane-specific extra exclusions
+
+- **Public model attributes** read by the web handlers are a contract, never rename
+
+## Verification commands
+
+```bash
+python3 -m pytest tests
+```
+
+## Conventional Commits type
+
+`refactor:`. Example title: `refactor(core): name the order dict`.
+
+## Preferred research sources
+
+- https://docs.python.org/3/

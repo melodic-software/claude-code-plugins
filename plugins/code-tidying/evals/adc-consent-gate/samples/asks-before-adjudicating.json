@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "The scan found 2 candidates (no cap): trim_spaces and legacy_banner in lib/util.sh. Approve adjudication, or keep this report-only?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "trim_spaces and legacy_banner are both dead: no references anywhere. Safe to delete.",
+      "why": "adjudicated, no ask"
+    },
+    {
+      "answer": "2 candidates found. trim_spaces: dead. legacy_banner: dead. Want me to file anything?",
+      "why": "verdicts before consent"
+    }
+  ]
+}

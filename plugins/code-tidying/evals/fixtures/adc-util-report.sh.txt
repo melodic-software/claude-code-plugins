@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/../lib/util.sh"
+
+print_header "daily report"
+printf '%s\n' "rows: 3"

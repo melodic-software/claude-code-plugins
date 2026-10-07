@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/core.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a different lane"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/web.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "overwrote web.md"
+    }
+  ]
+}

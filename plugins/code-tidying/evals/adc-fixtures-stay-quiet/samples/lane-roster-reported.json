@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Lane roster: knip no-manifest (no package.json), vulture scanned-zero-files, gopls no-manifest, grep ran over 2 files."
+    },
+    {
+      "answer": "| knip | no-manifest | 0 files |",
+      "why": "table row"
+    },
+    {
+      "answer": "The vulture lane scanned zero files and the gopls lane was skipped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "render_table is dead; cmd_status and cmd_restart are alive via dynamic dispatch.",
+      "why": "no roster"
+    },
+    {
+      "answer": "I searched with grep and found no unused functions.",
+      "why": "no roster"
+    },
+    {
+      "answer": "Knip is a great tool for TypeScript projects.",
+      "why": "lane named with no state"
+    }
+  ]
+}
