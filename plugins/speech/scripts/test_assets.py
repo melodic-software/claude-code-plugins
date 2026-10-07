@@ -5,8 +5,8 @@ Fetch tests serve a fixture manifest from a file:// source, so nothing reaches t
 import hashlib
 import io
 import json
-import sys
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
