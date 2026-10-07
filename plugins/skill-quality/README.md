@@ -262,10 +262,10 @@ Three supported routes, in the order most people want them:
    }
    ```
 
-   Plugin option values are read from **user** and managed settings only, **not**
-   from a project's `.claude/settings.json`. To vary behavior per repository,
-   enable or disable the plugin in that project's `enabledPlugins` instead of
-   setting an option there.
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
 
 Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
 hands a configured value to a hook process; the value comes from the routes above.
