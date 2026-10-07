@@ -4,9 +4,10 @@ The house standard for writing a skill or a plugin agent in this marketplace. Ci
 `/playbooks:skill-authoring` plus a heading below; the headings are stable.
 
 Precedence: official Anthropic guidance wins. Where it is silent, follow the concise style of
-Pocock's skills. Every upstream figure below is a record of what a source said on a date ("per X,
-as of D"), never our own rule; [Sources](#sources) holds each pointer and recheck trigger. Where a
-cap is enforced, `/skill-quality:check` enforces it and its script holds the constant. A house
+Pocock's skills. Upstream-owned specifics (caps, defaults, listing behavior) are never restated
+here: read them live from the pointers [Sources](#sources) holds, each with its as-of date and
+recheck trigger. Where a cap is enforced, `/skill-quality:check` enforces it and its script holds
+the constant. Figures this page does state are our own measurements, dated. A house
 setting is named as one: a `/skill-quality:check` setting, or a choice of this page's protocol.
 
 The deletion test governs every line, in the description, the body, a reference file or an agent:
@@ -19,8 +20,7 @@ never justify a deletion by character count alone, and never keep a line because
 - Write `disable-model-invocation` explicitly on every skill (`/skill-quality:check` enforces the
   key) and decide it against the
   [invocation-mode rubric](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
-  Per the Claude Code skills docs, as of 2026-10-06, `user-invocable` defaults to true and
-  `disable-model-invocation` to false.
+  Read the keys' current defaults from the Claude Code skills docs in [Sources](#sources).
 - Shape arguments and `argument-hint` per the
   [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)
   and the [argument-hint house style](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/argument-hint/README.md);
@@ -41,18 +41,16 @@ never justify a deletion by character count alone, and never keep a line because
   does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06). Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
   nouns a user would type, and lead with the main use case: the listing truncates from the end.
-- **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Per
-  the Claude Code skills docs, as of 2026-10-06, its description is not in the model's context.
+- **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
+  trigger text does nothing there: the invocation-control section of the Claude Code skills docs
+  in [Sources](#sources).
 - Third person. No first or second person in the prose; a quoted user utterance keeps the user's
   voice. Trigger text may keep calibrated urgency.
 - Name a sibling skill only when probes show the two are confused (see [Measurement](#measurement)).
-- Length records: per the platform best practices, `description` alone is at most 1,024
-  characters (an Agent Skills specification and upload limit; Claude Code does not validate it);
-  per the Claude Code skills docs, `description` plus `when_to_use` is truncated at 1,536 characters
-  in the listing, `when_to_use` extends the one description, and an overflowing listing (about 1%
-  of the context window) drops the least-invoked skills' descriptions first. Per our measure of
-  Pocock's skills, descriptions run median 130 and max 419 characters. All as of 2026-10-06.
-  `/skill-quality:check` enforces both caps and estimates the shared budget (`listing-budget`).
+- Length: the upstream description caps, the listing truncation and the shared listing budget
+  live in the pages [Sources](#sources) names; `/skill-quality:check` holds the current values,
+  enforces the caps and estimates the budget (`listing-budget`). Our own measure of Pocock's
+  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06).
 
 ## Body
 
@@ -78,14 +76,15 @@ never justify a deletion by character count alone, and never keep a line because
   plugin-bundled server.
 - Keep a gotchas surface (`## Gotchas` or a gotchas spoke) and a `## Next` section per
   `.claude/rules/skill-bodies-state-current-rules.md`.
-- Length records: per the platform best practices, SKILL.md stays under 500 lines; per our measure
-  of Pocock's skills, bodies run median 70 and max 160 lines (as of 2026-10-06).
-  `/skill-quality:check` enforces the hard cap. Length is the symptom; the deletion test is the
+- Length: the upstream line guidance for SKILL.md lives in the platform best practices
+  ([Sources](#sources)); `/skill-quality:check` holds the current value and enforces it. Our own
+  measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06). Length is the symptom; the deletion test is the
   remedy.
 
 ## Reference files
 
-- One level deep: every reference file links from SKILL.md (per the platform best practices, as of 2026-10-06).
+- One level deep: every reference file links from SKILL.md (our rule, following the platform best
+  practices in [Sources](#sources)).
 - Each pointer says what the file holds and when to read it; a bare "see X" is a missed
   connection.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
