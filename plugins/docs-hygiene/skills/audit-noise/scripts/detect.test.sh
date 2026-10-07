@@ -1618,6 +1618,23 @@ printf '%s\n' 'Renamed from foo to bar, per [the ADR](https://example.com/adr).'
 renamed_linked_out="$(bash "$DETECT" "$RENAMED_LINKED")"
 assert_contains "the link stand-down does not reach the existing cues" "$renamed_linked_out" "Finding shape: citation"
 
+# --- ticket-pr-residue stands down where another skill owns history notes -------------
+# SKILL.md history notes belong to /skill-quality:check and agents/*.md to
+# /harness-config:audit-instructions, so the shape stays quiet on both paths and
+# still fires on any other markdown.
+
+mkdir -p "$TEST_TMPDIR/owned/skills/demo" "$TEST_TMPDIR/owned/agents" "$TEST_TMPDIR/owned/docs"
+OWNED_LINE='See PR #1234 for why.'
+printf '%s\n' "$OWNED_LINE" >"$TEST_TMPDIR/owned/skills/demo/SKILL.md"
+printf '%s\n' "$OWNED_LINE" >"$TEST_TMPDIR/owned/agents/worker.md"
+printf '%s\n' "$OWNED_LINE" >"$TEST_TMPDIR/owned/docs/foo.md"
+owned_skill_out="$(bash "$DETECT" "$TEST_TMPDIR/owned/skills/demo/SKILL.md")"
+assert_not_contains "SKILL.md history note is left to /skill-quality:check" "$owned_skill_out" "Finding shape: ticket-pr-residue"
+owned_agent_out="$(bash "$DETECT" "$TEST_TMPDIR/owned/agents/worker.md")"
+assert_not_contains "agents/*.md history note is left to /harness-config:audit-instructions" "$owned_agent_out" "Finding shape: ticket-pr-residue"
+owned_doc_out="$(bash "$DETECT" "$TEST_TMPDIR/owned/docs/foo.md")"
+assert_contains "the same line in docs/foo.md still flags" "$owned_doc_out" "Finding shape: ticket-pr-residue"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
