@@ -34,7 +34,17 @@ mkdir -p "$R/plugins/p/skills/s" "$R/docs/upstream" "$R/docs/x" "$R/plugins/p/sk
 git -C "$R" init -q
 printf 'Run workers on opus at medium effort.\n' >"$R/plugins/p/skills/s/SKILL.md"
 printf -- '---\nmodel: sonnet\n---\n' >"$R/plugins/q/agent.md"
-printf 'The Workflow tool caps concurrency.\n' >"$R/docs/x/a \"q\".md"
+# A path with a quote tests the JSON escape; Windows paths cannot hold one, so the
+# fixture and its assertion run only where the file system accepts the name.
+QUOTE_PATH=0
+# Git Bash maps the quote to another character instead of failing, so test the platform.
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) printf 'The Workflow tool caps concurrency.\n' >"$R/docs/x/a_q.md" ;;
+*)
+  QUOTE_PATH=1
+  printf 'The Workflow tool caps concurrency.\n' >"$R/docs/x/a \"q\".md"
+  ;;
+esac
 printf 'Use opus.\n' >"$R/README.md"
 printf 'Nothing relevant here.\n' >"$R/docs/x/plain.md"
 printf 'Use opus.\n' >"$R/docs/upstream/snapshot.md"
@@ -42,14 +52,29 @@ printf 'Use opus.\n' >"$R/plugins/p/CHANGELOG.md"
 printf 'Use opus.\n' >"$R/plugins/p/skills/s/evals/case.md"
 printf 'Use opus.\n' >"$R/untracked.md"
 printf 'Use opus.\n' >"$T/outside.md"
-ln -s "$T/outside.md" "$R/docs/x/link.md"
+# Plain ln -s copies the file on Windows, so there is no symlink to leave out;
+# Linux CI covers the symlink guard.
+IS_WINDOWS=0
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) IS_WINDOWS=1 ;;
+*) ;;
+esac
+if ! ((IS_WINDOWS)); then ln -s "$T/outside.md" "$R/docs/x/link.md"; fi
 git -C "$R" add plugins docs README.md
 out="$("$SCRIPT_DIR/list-targets.sh" --root "$R")"
 assert_contains 'groups a plugin by plugins/<name>' "$out" '{"area":"plugins/p","files":["plugins/p/skills/s/SKILL.md"]}'
 assert_contains 'a model: frontmatter line is a claim' "$out" '"plugins/q/agent.md"'
-assert_contains 'escapes a quote in a path' "$out" '"docs/x/a \"q\".md"'
+if ((QUOTE_PATH)); then
+  assert_contains 'escapes a quote in a path' "$out" '"docs/x/a \"q\".md"'
+else
+  printf 'SKIP: escapes a quote in a path (a Windows path cannot hold a quote)\n'
+fi
 assert_contains 'top-level files are the (root) area' "$out" '{"area":"(root)","files":["README.md"]}'
 for skip in plain.md upstream/snapshot.md CHANGELOG.md evals/case.md untracked.md link.md; do
+  if [[ "$skip" == link.md ]] && ((IS_WINDOWS)); then
+    printf 'SKIP: leaves out link.md (no symlink is created on Windows)\n'
+    continue
+  fi
   assert_lacks "leaves out $skip" "$out" "$skip"
 done
 for i in $(seq 1 12); do printf 'Use haiku.\n' >"$R/docs/x/f$i.md"; done
