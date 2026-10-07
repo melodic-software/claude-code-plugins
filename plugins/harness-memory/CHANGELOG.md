@@ -3,7 +3,7 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.3] - 2026-10-07
+## [1.1.4] - 2026-10-07
 
 ### Security
 
@@ -12,6 +12,15 @@ All notable changes to the `harness-memory` plugin are documented here. Format f
   resolves to a non-global address and pins the request to the checked one
   ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
   [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [1.1.3] - 2026-10-07
+
+### Fixed
+
+- The `nested-agents-check` and `instruction-load-stats` test suites pass on Git for Windows with
+  `TMPDIR` in either `/d/x` or `D:/x` form: the symlinked-`CLAUDE.md` fixture is a native symlink
+  rather than the copy a plain `ln -s` makes there, and the user-config fixture is named in the
+  physical form the script reports.
 
 ## [1.1.2] - 2026-10-07
 

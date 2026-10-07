@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.13.2] - 2026-10-07
+## [1.13.3] - 2026-10-07
 
 ### Security
 
@@ -14,6 +14,16 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   resolves to a non-global address and pins the request to the checked one
   ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
   [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [1.13.2] - 2026-10-07
+
+### Fixed
+
+- The `audit-engine` and `check-hook-coverage` test suites pass on Git for Windows with `TMPDIR`
+  in either `/d/x` or `D:/x` form: the strictPluginOnlyCustomization cases name their fixture
+  directory without the quote characters a Windows path cannot hold, the audit-engine temp root is
+  in the shell's form so a `D:/` `TMPDIR` no longer hides its curl and jq shims, and the hook-coverage
+  fixtures use the native path form Claude Code writes into its registry and settings there.
 
 ## [1.13.1] - 2026-10-07
 
