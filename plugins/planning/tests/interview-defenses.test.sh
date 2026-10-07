@@ -587,11 +587,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
+# The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "7ff2e6d7f618fe5a4c8569761db3c4c6243b730e7648a95c611251054c328de5"
+  "1f04c1bb1d91858533c0b33ff3e53113f4230e78cb4c19cb16ffa1e906ddfdb0"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
