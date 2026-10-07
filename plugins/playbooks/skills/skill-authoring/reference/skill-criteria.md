@@ -68,9 +68,9 @@ never justify a deletion by character count alone, and never keep a line because
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
-  machine-read output, a default with a release line otherwise. Where style matters, give two or
-  three labeled input/output pairs and one line naming the rule. Name one default tool and at most
-  one escape hatch with its trigger.
+  machine-read output, a default with a release line otherwise. Where style matters, give a few
+  labeled input/output pairs and a line naming the rule. Name a default tool, and an escape hatch
+  only with its trigger.
 - Deterministic work goes in a bundled script. SKILL.md cites it as
   `${CLAUDE_SKILL_DIR}/scripts/<name>` with the verb ("Run" to execute, "See" to read), forward
   slashes only. State each dependency's install command, kept local to the project.
@@ -85,7 +85,7 @@ never justify a deletion by character count alone, and never keep a line because
 
 ## Reference files
 
-- One level deep: every reference file links from SKILL.md (per the platform best practices).
+- One level deep: every reference file links from SKILL.md (per the platform best practices, as of 2026-10-06).
 - Each pointer says what the file holds and when to read it; a bare "see X" is a missed
   connection.
 - A spoke is read, not rendered, so no substitution variable resolves in it: cite
@@ -129,7 +129,7 @@ reads it. A key nothing reads is cut.
 **Authoring a new skill.** Write the evals before the body: note what Claude gets wrong without
 the skill, build cases for those gaps, measure a baseline, write the minimum that passes. Test in
 a fresh session (the authoring session knows what the text leaves out), once without the skill and
-once with it. Score triggering and output separately. Read the test transcript for four signals:
+once with it. Score triggering and output separately. Read the test transcript for these signals:
 files read out of order, a reference never followed, one file read repeatedly (promote it), a
 bundled file never read (cut it). Carry a failure back as its general cause in your own words;
 never copy a case's text and never use held-back cases.
