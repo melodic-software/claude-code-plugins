@@ -15,9 +15,12 @@ function textOf(content) {
 // read in one left-to-right pass, so a quoted `#` never starts a comment. A quoted plain word is
 // unquoted (so "agent-browser" status still counts); any other quoted text becomes a placeholder
 // word (except a double-quoted command substitution, kept as is), so a mention in an echo or a
-// grep pattern is not a call. Env-var prefixes and the wrappers that run their argument (env,
-// command, exec, npx, which, sudo, time, nohup) are skipped.
+// grep pattern is not a call. Env-var prefixes are skipped. After a wrapper that runs its argument
+// (env, command, exec, npx, which, sudo, time, nohup), the command is the first later word naming
+// a compared CLI, else the first non-flag word, so a flag's value (env -C /tmp, sudo -u root)
+// cannot stand in for it.
 const WRAPPERS = new Set(["env", "command", "exec", "npx", "which", "sudo", "time", "nohup", "builtin"]);
+const base = (w) => w.split("/").pop();
 export function commandWords(cmd) {
   const scan = (m, lead) => {
     if (lead !== undefined) return `${lead} `; // a comment: drop to end of line
@@ -31,8 +34,11 @@ export function commandWords(cmd) {
     .map((seg) => seg.trim().split(/\s+/).filter(Boolean))
     .map((words) => {
       let i = 0;
-      while (i < words.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i]) || WRAPPERS.has(words[i]) || (i > 0 && words[i].startsWith("-")))) i += 1;
-      return words[i]?.split("/").pop() ?? "";
+      while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
+      if (!WRAPPERS.has(words[i])) return base(words[i] ?? "");
+      const rest = words.slice(i + 1).filter((w) => !WRAPPERS.has(w));
+      const cli = rest.find((w) => TOOLS.includes(base(w)));
+      return base(cli ?? rest.find((w) => !w.startsWith("-") && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) ?? "");
     })
     .filter(Boolean);
 }
