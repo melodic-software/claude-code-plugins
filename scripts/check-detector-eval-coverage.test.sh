@@ -243,27 +243,40 @@ else
 fi
 rm -rf "$root"
 
+# path_without <tool> — sets NO_TOOL_PATH to PATH with <tool> gone. Entries
+# without it pass through; each entry that holds it is replaced in place by a
+# dir of native symlinks to its other files (Git Bash's default `ln -s` copies).
+NO_TOOL_PATH=""
+path_without() {
+  local tool="$1" d exe mirror
+  local -a kept=()
+  while IFS= read -r d; do
+    if [[ ! -e "$d/$tool" && ! -e "$d/$tool.exe" ]]; then
+      kept+=("$d")
+      continue
+    fi
+    mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+    for exe in "$d"/*; do
+      [[ -f "$exe" && "${exe##*/}" != "$tool" && "${exe##*/}" != "$tool.exe" ]] || continue
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$mirror/"
+    done
+    kept+=("$mirror")
+  done < <(printf '%s\n' "${PATH//:/$'\n'}")
+  NO_TOOL_PATH="$(IFS=':' && printf '%s' "${kept[*]}")"
+}
+
 # PREREQUISITE REMOVED: jq gone is an environment answer, before any stdout.
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
-while IFS= read -r d; do
-  [[ -d "$d" ]] || continue
-  for exe in "$d"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    [[ "$(basename "$exe")" == "jq" ]] && continue
-    [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
-  done
-done < <(printf '%s\n' "${PATH//:/$'\n'}")
+path_without jq
 outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
-(cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
+(cd "$root" && PATH="$NO_TOOL_PATH" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
 ERR="$(cat "$errf")"
 rm -f "$outf" "$errf"
-rm -rf "$mirror"
 if [[ $RC -eq 2 && "$ERR" == *"jq not found"* && -z "$OUT" ]]; then
   ok "a missing jq exits 2 with a diagnostic on stderr and nothing on stdout"
 else
@@ -276,23 +289,14 @@ rm -rf "$root"
 mk_tree
 mk_detector det.sh 'emit warning P1 SRC "message"'
 mk_evals evals.json "$(evals_json 'names P1')"
-mirror="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
-while IFS= read -r d; do
-  [[ -d "$d" ]] || continue
-  for exe in "$d"/*; do
-    [[ -f "$exe" && -x "$exe" ]] || continue
-    [[ "$(basename "$exe")" == "shfmt" ]] && continue
-    [[ -e "$mirror/$(basename "$exe")" ]] || ln -s "$exe" "$mirror/$(basename "$exe")"
-  done
-done < <(printf '%s\n' "${PATH//:/$'\n'}")
+path_without shfmt
 outf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 errf="$(mktemp "$TMP_ROOT/f.XXXXXX")"
-(cd "$root" && PATH="$mirror" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
+(cd "$root" && PATH="$NO_TOOL_PATH" DETECTOR_EVAL_COVERAGE_PAIRS="$(pair det.sh evals.json)" bash scripts/check-detector-eval-coverage.sh --check) >"$outf" 2>"$errf"
 RC=$?
 OUT="$(cat "$outf")"
 ERR="$(cat "$errf")"
 rm -f "$outf" "$errf"
-rm -rf "$mirror"
 if [[ $RC -eq 2 && "$ERR" == *"shfmt not found"* && -z "$OUT" ]]; then
   ok "a missing shfmt exits 2 with a diagnostic on stderr and nothing on stdout"
 else

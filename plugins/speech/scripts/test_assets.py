@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -78,8 +79,9 @@ class PinnedManifest(unittest.TestCase):
 
 class Check(unittest.TestCase):
     def prerequisites(self, entries):
-        path = Path(tempfile.mkdtemp()) / 'prerequisites.json'
-        self.addCleanup(lambda: path.unlink())
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        path = d / 'prerequisites.json'
         path.write_text(json.dumps({'requires': entries}), encoding='utf-8')
         return path
 
