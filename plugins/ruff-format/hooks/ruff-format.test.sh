@@ -140,7 +140,7 @@ fi
 
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
-cleanup() { rm -rf "$WORK" "$UNRELATED"; }
+cleanup() { rm -rf "$WORK" "$UNRELATED"; rm -f "${TELD:-}"; }
 trap cleanup EXIT
 
 # shellcheck source=hook-test-sink.sh

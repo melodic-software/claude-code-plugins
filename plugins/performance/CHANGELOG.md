@@ -3,6 +3,62 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-10-07
+
+### Fixed
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.8.4] - 2026-10-07
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+## [0.8.3] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.8.2] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.8.1] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.8.0] - 2026-10-07
+
+### Changed
+
+- **`go-faster` fetches a catalog row's pointer through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** `reference/areas.md` runs `scripts/fetch-docs.sh --cache --max-age 0 --profile generic` instead of WebFetch, so the citation rests on fresh, whole bytes; WebFetch stays the fallback when the manifest records the page unread for `curl-missing` or `no-python`, or no manifest was written. The sweeper's write rule names the fetcher's own output.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` declares `curl`, `jq` and `python3` as optional.
+
 ## [0.7.0] - 2026-10-06
 
 ### Added

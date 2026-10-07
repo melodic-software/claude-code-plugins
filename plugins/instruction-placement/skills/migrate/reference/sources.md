@@ -324,10 +324,15 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   subdirectory's `CLAUDE.md` and `.claude/rules/` files, and path-scoped rules, still load when
   Claude reads a file there"). The value is read from `pluginConfigs` in "`~/.claude/settings.json`,
   a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
-  files." The option's first key, `projectInstructions` (`claude`, `agents-fallback`, `both`,
-  `none`), is still honored while `instructionFiles` reads as its default, so an operator's mode
-  can come from either key; like `instructionFiles`, it is a user, `--settings` or managed value a
-  repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
+  files." (The settings guide says `--settings` "can set any key your user settings file can set",
+  and the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry
+  gives the scope "User or managed"; see
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+  as of 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys,
+  or the `pluginConfigs` scope changes.) The option's first key, `projectInstructions` (`claude`,
+  `agents-fallback`, `both`, `none`), is still honored while `instructionFiles` reads as its
+  default, so an operator's mode can come from either key; like `instructionFiles`, it is a user,
+  `--settings` or managed value a repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
   `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
   directory above it", the walk to the filesystem root, while "Don't count, and keep loading
   alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and

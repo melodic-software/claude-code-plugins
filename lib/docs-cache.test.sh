@@ -141,10 +141,15 @@ assert_eq "map: CommonMark fences (same char, length >= opener, no info string c
 # --- slice ----------------------------------------------------------------------
 assert_eq "slice: a section is its heading, body and child sections" "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 1)"
 assert_eq "slice: a leaf section" "$(sed -n '4,8p' "$PAGE")" "$(dc "$S" slice "$KEY" 2)"
-assert_eq "slice: ids print in the order asked" "$(
-  sed -n '9,10p' "$PAGE"
+assert_eq "slice: ids print in page order, whatever order they are asked in" "$(
   sed -n '4,8p' "$PAGE"
+  sed -n '9,10p' "$PAGE"
 )" "$(dc "$S" slice "$KEY" 3 2)"
+assert_eq "slice: a parent and its child print the child once" "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 2 1 3)"
+assert_eq "slice: an id asked twice prints once" "$(sed -n '4,8p' "$PAGE")" "$(dc "$S" slice "$KEY" 2 2)"
+printf '# Only\nlast line without a newline' >"$TEST_TMPDIR/slice-nonl.md"
+assert_eq "slice: a last line with no newline keeps its bytes" "$(sha <"$TEST_TMPDIR/slice-nonl.md")" \
+  "$(dc "$S" slice --file "$TEST_TMPDIR/slice-nonl.md" 1 | sha)"
 assert_eq "slice --file: same as by key" "$(dc "$S" slice "$KEY" 2)" "$(dc "$S" slice --file "$PAGE" 2)"
 rc=0
 out="$(dc "$S" slice "$KEY" 2 9 2>/dev/null)" || rc=$?
@@ -1103,6 +1108,41 @@ assert_eq "usage: put of a missing file exits 2" 2 "$rc"
 rc=0
 bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/u" info not-a-key >/dev/null 2>&1 || rc=$?
 assert_eq "usage: a malformed key is a miss" 1 "$rc"
+
+# --- Bash 3.2 (stock macOS) ---------------------------------------------------------
+# The helpers that replace Bash 4+ expansions, then a lint of both scripts for
+# the constructs Bash 3.2 rejects: case conversion, associative arrays and
+# namerefs, mapfile, |& and &>>, ${x@Q}, negative indices, wait -n, coproc
+# and printf %()T.
+got="$(
+  # shellcheck source=docs-cache.sh
+  . "$SCRIPT"
+  for e in 0 951782400 1709251199 4107542399; do
+    dc_utc v "$e" iso
+    printf '%s ' "$v"
+  done
+  dc_utc v 1000000000 touch
+  l=""
+  dc_lower l 'HTTPS://Docs.Test/A-Z_09/é'
+  printf '%s %s' "$v" "$l"
+)"
+assert_eq "bash32: dc_utc and dc_lower match the Bash 4 forms they replace" \
+  '1970-01-01T00:00:00Z 2000-02-29T00:00:00Z 2024-02-29T23:59:59Z 2100-02-28T23:59:59Z 200109090146.40 https://docs.test/a-z_09/é' "$got"
+# A server-sent header line is unbounded: 100 KB of upper case takes well under
+# a second when dc_lower is linear, and close to a minute when it is quadratic.
+got="$(
+  # shellcheck source=docs-cache.sh
+  . "$SCRIPT"
+  big=""
+  for ((i = 0; i < 4000; i++)); do big+=ABCDEFGHIJKLMNOPQRSTUVWXYZ; done
+  SECONDS=0
+  dc_lower l "$big"
+  printf '%s %s' "$((SECONDS < 10))" "${l:0:27}"
+)"
+assert_eq "bash32: dc_lower is linear on a 100 KB upper-case line" '1 abcdefghijklmnopqrstuvwxyza' "$got"
+bash4_re='\$\{[!#]?[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?(,,?|\^\^?)\}|(declare|local|typeset)( -[a-zA-Z]+)* -[a-zA-Z]*[An]|mapfile|readarray|\|&|&>>|@[QEPAaKkUuL]\}|\[-[0-9]+\]|wait -n|coproc|%\([^)]*\)T'
+hits="$(grep -nE "$bash4_re" "$SCRIPT" "$SCRIPT_DIR/fetch-docs.sh" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"
+assert_eq "bash32: docs-cache.sh and fetch-docs.sh use no Bash 4+ construct" "" "$hits"
 
 echo
 if [[ $FAILED -eq 0 ]]; then

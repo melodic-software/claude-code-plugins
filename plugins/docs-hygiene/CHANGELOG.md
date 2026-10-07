@@ -1,5 +1,17 @@
 # Changelog: docs-hygiene plugin
 
+## [0.27.2] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.27.1] - 2026-10-07
+
+### Changed
+
+- **`audit-derivability`'s sub-agents recheck reads the page by the fetch-route rungs ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** The Recheck triggers row now says to re-read the page at rung 1 with fresh bytes instead of a bare "re-fetch".
+
 ## [0.27.0] - 2026-10-07
 
 ### Added

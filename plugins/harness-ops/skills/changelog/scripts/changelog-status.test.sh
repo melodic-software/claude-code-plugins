@@ -37,7 +37,9 @@ SCRIPT="$SCRIPT_DIR/changelog-status.sh"
 FIXTURES="$SCRIPT_DIR/../evals/fixtures"
 CHANGELOG="$FIXTURES/changelog-sample.md"
 LEDGER="$FIXTURES/ledger-marker.md"
-TMP="$(mktemp -d)"
+# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
+# colon and hide the claude stub below.
+TMP="$(mktemp -d)" && TMP="$(cd "$TMP" && pwd -P)" || exit 2
 trap 'rm -rf "$TMP"' EXIT
 # No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)

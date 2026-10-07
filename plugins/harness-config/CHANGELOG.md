@@ -5,6 +5,41 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.13.4] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [1.13.3] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [1.13.2] - 2026-10-07
+
+### Fixed
+
+- The `audit-engine` and `check-hook-coverage` test suites pass on Git for Windows with `TMPDIR`
+  in either `/d/x` or `D:/x` form: the strictPluginOnlyCustomization cases name their fixture
+  directory without the quote characters a Windows path cannot hold, the audit-engine temp root is
+  in the shell's form so a `D:/` `TMPDIR` no longer hides its curl and jq shims, and the hook-coverage
+  fixtures use the native path form Claude Code writes into its registry and settings there.
+
+## [1.13.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
 ## [1.13.0] - 2026-10-07
 
 ### Added

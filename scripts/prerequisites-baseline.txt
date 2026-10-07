@@ -20,7 +20,6 @@ playwright npm
 playwright npx
 session-flow claude
 session-flow gh
-session-flow python3
 source-control claude
 source-control gh
 source-control py

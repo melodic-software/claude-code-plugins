@@ -93,8 +93,8 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
 would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
 to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 
@@ -103,7 +103,7 @@ to expand it from. Basis: the plugins reference,
 
 ## Gotchas
 
-Each one was observed in the browser-tools benchmark of 2026-10-07 (`plugins/testing/benchmarks/browser-tools/results/2026-10-07/FINDINGS.md` in the marketplace repository).
+Each one was observed in agent trials of the 2026-10-07 browser-CLI benchmark, recorded under Alternatives considered in the marketplace's ADR 0056.
 
 - **`fill` does not leave the field.** A form that validates on blur keeps its submit button disabled after `fill`, and the click times out. Press `Tab` (or click the next field) after the last `fill`. Agents hit this on the blur-validated form in most runs.
 - **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.

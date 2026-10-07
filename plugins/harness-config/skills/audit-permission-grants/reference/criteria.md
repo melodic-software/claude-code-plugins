@@ -64,7 +64,8 @@ with its audited and blocked counts. Neither may be relayed as clean.
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
 live grants under nested `.claude/skills/` paths, which Claude Code loads the moment it touches a
-file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12). The
+file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12; recheck
+when the skills page changes how nested `.claude/skills/` directories are discovered). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
 audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
@@ -137,7 +138,8 @@ absolute path. The single leading slash anchors at the settings source, not the 
 `//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
 carries the username. It is the canonical *spelling* of the defect P2 exists to catch, not an
 exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
-shows the home segment being supplied per user, which is what makes it portable.
+shows the home segment being supplied per user, which is what makes it portable. Recheck when the
+permissions page's Read and Edit pattern table changes the `//path` or `~/path` row.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username, and it
 breaks after a skill migrates into a plugin, since the install path changes. It also leaks a username into
@@ -154,16 +156,15 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 
 The two exceptions on Bash rules:
 
-1. **Token substitution in `allowed-tools`.** Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
-   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`, and
-   **in a plugin skill substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
-   places** ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions), fetched
-   2026-09-12). That is the documented way to run a bundled script without a prompt, e.g.
-   `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`. Two limits the convention records:
-   `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code **v2.1.196 or later** (below that floor the
-   rule stays a literal string and never matches), and the plugin-scoped pair is *"Substituted only in
-   plugin skills"* per the same page's variable table, so both stay literal in a personal or project
-   skill, in an agent or command, and in any settings file.
+1. **Token substitution in `allowed-tools`.** Some `${CLAUDE_*}` tokens are substituted in Bash rules
+   in `allowed-tools`, some only in a plugin skill, and one only from a minimum Claude Code version.
+   Read which tokens, where, and from which version live from
+   [skills](https://code.claude.com/docs/en/skills#available-string-substitutions), as of 2026-10-07;
+   recheck trigger: that section changes which tokens it substitutes in `allowed-tools`. A grant whose
+   token that section substitutes in the grant's own context is the documented way to run a bundled
+   script without a prompt, e.g. `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`; a
+   token it does not substitute there, or below its version floor, stays a literal string, and the
+   grant never matches.
 2. **Leading env-assignment stripping**, which is scoped, and scoped differently for allow rules than
    for deny or ask rules. Read which variables are stripped and how each rule kind matches live from
    [permissions](https://code.claude.com/docs/en/permissions#process-wrappers), as of 2026-10-07;

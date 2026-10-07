@@ -9,7 +9,9 @@
 # Claude Code can't determine which commands the Bash input runs, it runs your
 # hook regardless of the pattern", https://code.claude.com/docs/en/hooks,
 # fetched 2026-09-27) and names no file-tool equivalent, so the check guards an
-# undocumented miss and a direct invocation rather than a known one.
+# undocumented miss and a direct invocation rather than a known one. Recheck
+# when the permissions page documents a matching `Write(path)` rule form, or the
+# hooks reference documents a file-tool fail-open for `if`.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -141,7 +143,8 @@ markdownlint_config_discoverable() {
 # A `.git` entry, accepted as a directory (ordinary clone) or as a FILE, which
 # is what a linked worktree and a submodule write instead — the two shapes git's
 # own discovery accepts (https://git-scm.com/docs/gitrepository-layout,
-# "$GIT_DIR", fetched 2026-08-09).
+# "$GIT_DIR", fetched 2026-08-09). Recheck when that page changes the forms a
+# `.git` entry may take.
 # shellcheck disable=SC2329  # invoked by name, as hook::walk_up_to's predicate
 git_dir_entry_here() {
   [[ -e "$1/.git" ]]
@@ -391,7 +394,8 @@ fi
 #     file and the repository root applies, and a pattern excluding an ANCESTOR
 #     directory (`.work/`) is honored for a file nested arbitrarily below it.
 #     Verified 2026-08-08 against git's check-ignore behavior for a child, a
-#     grandchild, and both path spellings.
+#     grandchild, and both path spellings. Recheck when a git release changes
+#     how check-ignore treats a child of an ignored ancestor directory.
 #
 # FAILS TOWARD LINTING, deliberately. Any inability to decide — git absent, the
 # directory gone, check-ignore erroring (128) — leaves the run alone rather than
@@ -408,10 +412,12 @@ fi
 # Opt-out for the scope escape, read from the CLAUDE_PLUGIN_OPTION_<KEY>
 # environment mirror rather than a `${user_config.*}` placeholder — shell-form
 # hook commands reject that substitution outright, and every option is exported
-# to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference,
-# "User configuration", https://code.claude.com/docs/en/plugins-reference,
-# fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
+# to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway (plugin manifest
+# reference, https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value,
+# fetched 2026-10-07). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
+# Recheck when that section stops exporting every option as
+# CLAUDE_PLUGIN_OPTION_<KEY> or changes how booleans are encoded.
 # Shared helper: hook::gitignored_out_of_scope in hook-utils.sh.
 if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
   # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
@@ -1096,13 +1102,14 @@ fi
 #
 # Read from the CLAUDE_PLUGIN_OPTION_<KEY> environment mirror, not a
 # `${user_config.*}` placeholder: shell-form hook commands reject
-# `${user_config.*}` substitution outright — "substituting a configured value
-# into a shell command would let the shell run whatever that value contains, so
-# the component fails" — while every option is exported to hook processes as
-# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, fetched 2026-08-10). A
+# `${user_config.*}` substitution outright — "because the field's value is
+# passed to a shell that would re-parse the substituted value" — while every
+# option is exported to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway
+# (plugin manifest reference, https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell,
+# fetched 2026-10-07). A
 # value that is not a non-negative integer falls back to the default rather
-# than being interpolated anywhere.
+# than being interpolated anywhere. Recheck when the manifest reference changes
+# how `${user_config.*}` is handled in shell-form hook commands.
 MAX_FINDINGS=20
 case "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS:-}" in
 "") ;;

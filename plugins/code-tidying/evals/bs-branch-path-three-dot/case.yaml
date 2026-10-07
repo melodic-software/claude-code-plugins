@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: bs-branch-path-three-dot
+description: 'branch src/ sweeps what this branch changed under src/ against the merge base, regardless of age: the 10-day-old branch file is in, a file changed only on main after the branch point is out, and branch files outside src/ are out'
+tags: [branch, path, argument-parsing]
+expected_outcome: 'src/greet.sh and src/helpers.sh (committed on the branch 20h and 10d ago) are simplified. src/legacy.sh, which differs from main only because main changed it after the branch point, is unchanged, as are lib/branch-util.sh and repo/tool.sh (branch changes outside src/) and lib/old.sh.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify unattended branch src/'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: greet-simplified
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:1"
+    target: { source: file, path: src/greet.sh }
+  - name: helpers-simplified
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:1"
+    target: { source: file, path: src/helpers.sh }
+  - name: legacy-untouched
+    type: regex
+    pattern: 'legacy: flag is'
+    match: "count:2"
+    target: { source: file, path: src/legacy.sh }
+  - name: branch-util-untouched
+    type: regex
+    pattern: 'branch-util: state is'
+    match: "count:2"
+    target: { source: file, path: lib/branch-util.sh }
+  - name: tool-untouched
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:2"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: merge-base-diff
+    type: tool_used
+    tool: Bash
+    input_match: '\.\.\.HEAD|merge-base'
+    arm: both

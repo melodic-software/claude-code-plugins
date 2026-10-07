@@ -7,7 +7,7 @@ and why the handoff is an operator instruction rather than a dispatch.
 ## It is never dispatched
 
 `/doctor` "reports what it finds … then proposes fixes it applies only after you confirm"
-([debug your configuration](https://code.claude.com/docs/en/debug-your-config), verified 2026-08-10).
+([debug your configuration](https://code.claude.com/docs/en/debug-your-config), verified 2026-08-10; recheck when the page says `/doctor` applies fixes without confirmation).
 An unattended run cannot answer that prompt, so driving it from this pass would either hang the run
 or push it toward answering a confirmation on the operator's behalf.
 
@@ -37,7 +37,8 @@ Checking a version number alone is not a presence check. The pass reports **whic
 failed rather than a bare "unavailable", and it distinguishes what official documentation confirms
 from what it does not.
 
-**Verified against official docs: items 1–2 on 2026-07-24, item 3 on 2026-08-10.**
+**Verified against official docs: items 1–2 on 2026-07-24, item 3 on 2026-08-10.** Recheck items
+1–2 when the debug-your-config page changes the v2.1.206 floor or the v2.1.205 statement.
 
 1. **Version floor: Claude Code v2.1.206 or later.** "The `CLAUDE.md` trim check requires Claude
    Code v2.1.206 or later" ([debug your configuration](https://code.claude.com/docs/en/debug-your-config);

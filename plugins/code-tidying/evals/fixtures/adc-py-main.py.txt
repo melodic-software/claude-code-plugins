@@ -1,0 +1,9 @@
+from app.pricing import net_price
+
+
+def run() -> None:
+    print(net_price(100.0, 0.2))
+
+
+if __name__ == "__main__":
+    run()

@@ -4,6 +4,16 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.0] - 2026-10-07
+
+### Added
+
+- `/playbooks:skill-authoring` gains `reference/skill-criteria.md`, the house standard for skills and plugin agents under stable headings (Frontmatter, Descriptions, Body, Reference files, Metadata, History and provenance, Agents, Measurement, Sources) that other skills cite by heading. It sets official Anthropic guidance above Pocock's concise style, applies the deletion test, records every upstream figure as a dated pointer, and defines the rewrite measurement loop.
+
+### Removed
+
+- `reference/authoring-guidance.md` and `reference/authoring-checklist.md`: their still-current content, including the pre-share checklist, is folded into `reference/skill-criteria.md`.
+
 ## [0.19.5] - 2026-10-04
 
 ### Changed

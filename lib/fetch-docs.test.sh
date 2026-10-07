@@ -286,6 +286,8 @@ total="$(wc -l <"$src.log" | tr -d ' ')"
 assert_eq "case 11: three requests, the index and two pages" 3 "$total"
 assert_eq "case 11: every request is HTTPS only, redirects included and capped" "$total" "$(grep -c -- '--proto =https --proto-redir =https --max-redirs 5 ' "$src.log")"
 assert_eq "case 11: every request carries a connect timeout and a max time" "$total" "$(grep -c -- '--connect-timeout [0-9]* --max-time [0-9]' "$src.log")"
+assert_eq "case 11: every request opens with -q, so no curlrc is read" "$total" "$(grep -c '^-q ' "$src.log")"
+assert_eq "case 11: without --public-only no request is pinned" 0 "$(grep -c -- '--connect-to' "$src.log")"
 assert_eq "case 11: a fetched page records its status and content type" "200 text/markdown; charset=utf-8" "$(page "$TEST_TMPDIR/out11/manifest.json" skills '"\(.status) \(.content_type)"')"
 
 # --- Case 12: the hash is over raw bytes, control characters included ----------
@@ -868,6 +870,54 @@ assert_eq "generic: a slug or a non-https URL is unread invalid-url" "invalid-ur
 rc=0
 gen_run "$src" go-y "$PYOK" $G1 --discover >/dev/null 2>&1 || rc=$?
 assert_eq "generic: --discover is fatal" 2 "$rc"
+
+# --public-only: the address check runs the real Python 3 on PATH against the
+# DNS answers in FETCH_DOCS_ADDRESSES; the curl stand-in logs what it was given.
+# pub_run <served dir> <out> <answers> [<path prefix>]: one generic read of PAGE_URL.
+pub_run() {
+  : >"$1.log"
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="${4:+$4:}$SHIM:$PATH" CURL_SHIM_LOG="$1.log" CURL_SHIM_SRC="$1" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" FETCH_DOCS_ADDRESSES="$3" \
+    bash "$SCRIPT" --profile generic --public-only --out "$TEST_TMPDIR/$2" "$PAGE_URL"
+}
+src="$TEST_TMPDIR/gs-pub"
+mkdir -p "$src"
+printf '%s\n' '# Page' >"$src/page"
+pub_run "$src" pub1 'docs.test=93.184.216.34'
+assert_eq "public-only: a host with only global addresses is read" "read" "$(gpage pub1 .state)"
+assert_eq "public-only: every request connects only to the checked address, with no proxy" \
+  "$(wc -l <"$src.log" | tr -d ' ')" "$(grep -c -- '^-q .*--noproxy \* --connect-to ::93\.184\.216\.34: ' "$src.log")"
+pub_run "$src" pub2 'docs.test=2606:4700::1111'
+assert_eq "public-only: a global IPv6 address is pinned in brackets" 1 "$(grep -c -- '--connect-to ::\[2606:4700::1111\]: ' "$src.log")"
+for answer in 10.0.0.5 127.0.0.1 169.254.169.254 100.64.0.1 '93.184.216.34,192.168.1.1' ::1 fd00::1 fe80::1 ::ffff:127.0.0.1; do
+  pub_run "$src" pub3 "docs.test=$answer"
+  assert_eq "public-only: a DNS answer of $answer is unread private-address with no request" \
+    "unread private-address 0" "$(gpage pub3 '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ')"
+done
+pub_run "$src" pub4 'other.test=93.184.216.34'
+assert_eq "public-only: a host that does not resolve is unread fetch-failed" "unread fetch-failed" "$(gpage pub4 '"\(.state) \(.reason)"')"
+pub_run "$src" pub5 'docs.test=93.184.216.34' "$PYNONE"
+assert_eq "public-only: no Python 3 to check with is unread address-unchecked" "unread address-unchecked 0" \
+  "$(gpage pub5 '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ')"
+# A redirect toward an internal host: curl follows it under the pin, so the hop
+# reaches the checked address, and the landing off origin is unread.
+printf '%s' 'https://intranet.corp/guide/page' >"$src/page.effective"
+pub_run "$src" pub6 'docs.test=93.184.216.34 intranet.corp=10.0.0.5'
+assert_eq "public-only: a redirect to an internal host is unread" "unread redirected-off-origin" "$(gpage pub6 '"\(.state) \(.reason)"')"
+assert_eq "public-only: the redirected request was pinned to the checked address" 1 "$(grep -c -- '--connect-to ::93\.184\.216\.34: ' "$src.log")"
+# An origin with no llms.txt has no bundle channel, even though the address
+# check runs inside that fetch: a file named for the checked address in the
+# working directory is never read as the bundle.
+src="$TEST_TMPDIR/gs-pub-nobundle"
+mkdir -p "$src" "$TEST_TMPDIR/pub-cwd"
+printf '%s' '{}' >"$src/page"
+printf '%s' 'application/json' >"$src/page.ctype"
+printf '%s\n' '# Page' 'from a stray file' >"$src/page.txt"
+printf '%s' 'text/plain' >"$src/page.txt.ctype"
+printf '%s\n' '- [Page](/guide/page.txt)' >"$TEST_TMPDIR/pub-cwd/93.184.216.34"
+(cd "$TEST_TMPDIR/pub-cwd" && pub_run "$src" pub7 'docs.test=93.184.216.34')
+assert_eq "public-only: an origin with no llms.txt has no bundle channel" "unread 0" \
+  "$(gpage pub7 .state) $(grep -c 'page\.txt' "$src.log")"
 
 # An indexed profile revalidates with its stored ETag too.
 src="$(new_served served-idx-etag)"

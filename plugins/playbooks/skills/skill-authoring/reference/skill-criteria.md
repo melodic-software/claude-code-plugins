@@ -13,7 +13,13 @@ setting is named as one: a `/skill-quality:check` setting, or a choice of this p
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
 never justify a deletion by character count alone, and never keep a line because it is short
-(per the `claude-api` skill's prompt audit, as of 2026-10-06).
+(per the `claude-api` skill's prompt audit, as of 2026-10-06; recheck when that audit's
+cruft criterion changes).
+
+The deletion test proposes; the evals decide. Whether a model needs a line cannot be read off the
+text: a rule's stated reason can carry behavior, and a plausible explanation for a regression can
+be wrong. A cut to an existing skill ships only when its evals show no loss
+([Measurement](#measurement)).
 
 ## Frontmatter
 
@@ -38,9 +44,15 @@ never justify a deletion by character count alone, and never keep a line because
 ## Descriptions
 
 - **Model-invoked:** what it is, then "Use when" with one trigger per branch of what the skill
-  does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06). Enumerating
+  does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06; recheck when his repository's descriptions change shape).
+  Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
   nouns a user would type, and lead with the main use case: the listing truncates from the end.
+- **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
+  guessed. Keep a quoted user idiom that shares no word with the rest of the description (a
+  jargon or slang name for the job) when probes show it moves triggering; cut a paraphrase of
+  words already present. Weaker models lean on these terms more, so measure on each model the
+  skill targets.
 - **User-invoked** (`disable-model-invocation: true`): a one-line summary, no trigger list. Why
   trigger text does nothing there: the invocation-control section of the Claude Code skills docs
   in [Sources](#sources).
@@ -50,7 +62,7 @@ never justify a deletion by character count alone, and never keep a line because
 - Length: the upstream description caps, the listing truncation and the shared listing budget
   live in the pages [Sources](#sources) names; `/skill-quality:check` holds the current values,
   enforces the caps and estimates the budget (`listing-budget`). Our own measure of Pocock's
-  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06).
+  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06; recheck when a re-measure at a newer commit moves it).
 
 ## Body
 
@@ -63,6 +75,15 @@ never justify a deletion by character count alone, and never keep a line because
   script) and an instruction not to alter it; only such a sequence earns a copyable checklist.
   Decide per section. When a skipped gate is costly, a hook is the escalation, charged to the
   hook budget (`docs/conventions/hook-budget/README.md`).
+- **Contract sections stay explicit.** A section that defines a contract (an argument grammar,
+  mode selection, when to ask instead of proceed, a stop or destructive-action gate) keeps each
+  rule and its reason. Tighten its prose only with an eval case behind every edge the cut
+  touches. Judgment sections take the concise style in full.
+- **Scope is a vertical slice.** A skill holds what changes together. Grow a well-encapsulated
+  skill by progressive disclosure (reference files, scripts, a spoke per use case) instead of
+  splitting it: every extra model-invoked skill adds a description to the always-loaded listing
+  (a user-invoked one stays out of it). Split only when the parts change independently or answer
+  different requests.
 - Standing rules go in the body; bulk goes in reference files. Put a workflow or checklist first
   after the frontmatter: compaction re-attaches only the start of an invoked skill.
 - For structured output, the framing sentence sets strictness: an exact template for
@@ -78,8 +99,11 @@ never justify a deletion by character count alone, and never keep a line because
   `.claude/rules/skill-bodies-state-current-rules.md`.
 - Length: the upstream line guidance for SKILL.md lives in the platform best practices
   ([Sources](#sources)); `/skill-quality:check` holds the current value and enforces it. Our own
-  measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06). Length is the symptom; the deletion test is the
-  remedy.
+  measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06; recheck
+  when a re-measure at a newer commit moves it). Length is the symptom; the deletion test is the
+  remedy. Aim for a short hub, not a short skill: SKILL.md carries the standing rules and routes
+  each task to the file it needs, so a large skill is sound when the agent loads only what the
+  work in front of it calls for. Never cut to reach a line count.
 
 ## Reference files
 
@@ -133,17 +157,36 @@ files read out of order, a reference never followed, one file read repeatedly (p
 bundled file never read (cut it). Carry a failure back as its general cause in your own words;
 never copy a case's text and never use held-back cases.
 
-**Rewriting an existing skill.**
+**Rewriting an existing skill.** To run these steps across a whole plugin, follow
+[rewrite-a-plugin.md](rewrite-a-plugin.md).
 
 1. Snapshot the before state: description, body, eval results.
-2. Freeze a probe set of 16 to 20 queries (this protocol's house setting), written by a fresh
+2. Cases first. Give every contract edge the rewrite will touch an outcome case, written from the
+   before contract by a fresh agent. Check each `llm` grader against labeled samples before its
+   verdict counts, and prefer deterministic graders on long output. Freeze the cases before any
+   after-version run; a grader fixed later must accept every reply that meets the case's stated
+   outcome, never the before version's wording.
+3. Freeze a probe set of 16 to 20 queries (this protocol's house setting), written by a fresh
    agent from the before description,
-   including near-misses aimed at same-plugin competitors.
-3. Measure before and after: the model-graded trigger rate on the probes
-   (`/skill-quality:check measure-invocation`) and the plugin's eval cases.
-4. Diff meaning with `/docs-hygiene:compress compare`, labeled by a fresh agent.
-5. Ship on non-inferiority: no lost trigger, case or directive. A deterministic lexical score is a
-   tripwire only, never the verdict.
+   including near-misses aimed at same-plugin competitors. Add a held-out set written blind from a
+   neutral statement of the skill's purpose, kept from the rewriter, and decide on it. A held-out
+   set is spent once it is committed or read query by query: each rewrite round writes a fresh one.
+4. Measure before and after: the model-graded trigger rate on the probes
+   (`/skill-quality:check measure-invocation`, or `claude plugin eval` on the cases it emits) and
+   the plugin's eval cases, per model the skill targets. Run the versions concurrently with the
+   same flags: run conditions drift, so before and after runs made hours apart are not
+   comparable. Read a number only from a run `/evals:plugin-eval` judges valid, and compare the
+   versions with its two-version noise report.
+5. Diff meaning with `/docs-hygiene:compress compare`, labeled by a fresh agent.
+6. Ship on non-inferiority: no lost trigger, case or directive, with a margin of 5 points on
+   mean case score and trigger rate (this protocol's house setting), and no single case dropping
+   by a third or more without a measured cause. Decide the description and the body separately,
+   and ship only parts that were measured. A named cause for a regression is a hypothesis until
+   restoring the text moves the number; when no restore closes the gap, keep the before text. A
+   deterministic lexical score is a tripwire only, never the verdict.
+7. Commit the skill's own artifacts: its outcome cases and its frozen probe file. Never commit
+   what a run regenerates: cases emitted from probes, judge-calibration suites, run results, or
+   copies of the plugin made for the run.
 
 Re-run on any change: a description change re-measures triggering, a body change re-measures
 output (`/evals:plugin-eval` for a plugin suite). `evals/evals.json` follows the runner's shape;

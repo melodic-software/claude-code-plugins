@@ -13,6 +13,9 @@ if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "FATAL: mktemp -d gave no directory" >&2
   exit 2
 fi
+# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
+# colon and hide the curl and jq shims the fetch and process-count cases add.
+TEST_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)" || exit 2
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # Nothing the caller exported reaches a case: every settings-path variable is
 # cleared or pinned to a fixture under the suite temp dir. Each run sets the
@@ -353,9 +356,11 @@ assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowMod
 
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
+# write_surface_lock <name> <lock JSON>: the name is the directory, since the JSON
+# holds quote characters a Windows path cannot.
 write_surface_lock() {
-  local value="$1"
-  m="$(make_machine "surface-$value")"
+  local value="$2"
+  m="$(make_machine "surface-$1")"
   mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
   jq -n --argjson lock "$value" '{
     "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -369,14 +374,14 @@ write_surface_lock() {
   printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
 }
-write_surface_lock '["mcp"]'
+write_surface_lock mcp '["mcp"]'
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 # Other baseline denies are still absent, so the run exits 1. The force-push
 # row is the signal that the mcp-only lock did not switch hooks off.
 assert_eq "case 4b: force push stays info" "info" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
 assert_contains "case 4b: the lever row says hooks are not locked" "$(jq -r '.rows[] | select(.claim=="lever-set:strictPluginOnlyCustomization") | .detail' <<<"$out")" "hooks are not locked"
-write_surface_lock '["hooks"]'
+write_surface_lock hooks '["hooks"]'
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 4c: hooks lock keeps the error" 1 "$rc"

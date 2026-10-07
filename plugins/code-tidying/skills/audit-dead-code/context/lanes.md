@@ -31,7 +31,10 @@ even when some other root ran, unless another lane took it. The grep lane takes 
 
 Source files with no lane are the extensions in `DC_NOLANE_EXTS` (Rust, .NET, JVM, Ruby, C and
 C++, and the others listed there) and extensionless files whose shebang names a non-shell
-interpreter. The grep lane covers them when it runs. Docs, JSON, YAML, and other
+interpreter. Add a lowercase extension to `DC_NOLANE_EXTS` (`scripts/lib/dead-code-shapes.sh`) to
+classify it. An extensionless file with a line-1 shell shebang (`sh`, `bash`, `dash`, `zsh`, `ksh`,
+including `env` forms) joins the shell lane, and one with no shebang is not source. The grep lane
+covers the no-lane files when it runs. Docs, JSON, YAML, and other
 non-source paths are not in the coverage total.
 
 ### knip: TS/JS

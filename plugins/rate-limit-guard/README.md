@@ -95,11 +95,13 @@ set any key user settings can, including the plugin's `pluginConfigs` entry:
 `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
 {"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
 
-- **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
-  and the `pluginConfigs` row of
+- **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+  the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry, and
+  the `pluginConfigs` row of
   [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
-- **As of**: 2026-10-03, Claude Code 2.1.288.
-- **Recheck trigger**: either section changes the scope `pluginConfigs` is read from.
+- **As of**: 2026-10-07, Claude Code 2.1.292.
+- **Recheck trigger**: the settings guide stops letting `--settings` set user-scope keys, or the
+  `pluginConfigs` scope changes.
 
 ### The /rate-limit-guard command, band row and status tool
 
@@ -339,7 +341,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

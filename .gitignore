@@ -40,3 +40,6 @@ plugins/code-metrics/coverage.json
 
 # Local working directory, never committed
 .work/
+
+# test_hygiene.py builds same-volume hard-link fixtures beside the engine; a killed run leaves them
+plugins/disk-hygiene/skills/clean/scripts/tmp*/

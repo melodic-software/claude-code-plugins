@@ -341,7 +341,8 @@ fails when a gate feeds its payload to a reader by here-string.
 
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
+  says the native binary ships or uses Node). Without `node` the hooks do
   not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
   whether `node` resolves.
 
@@ -612,7 +613,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

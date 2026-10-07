@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints a greeting for the given name.\nset -euo pipefail\n\ngreet() {\n  local name=\"${1:-world}\"\n  if [ -n \"$name\" ]; then\n    printf 'Hello, %s!\\n' \"$name\"\n  else\n    printf 'Hello, %s!\\n' \"$name\"\n  fi\n}\n\ngreet \"$@\"\n# WIP-KEEP: half-written retry flag, not committed yet\n",
+      "why": "WIP preserved at end of file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints a greeting for the given name.\nset -euo pipefail\n\ngreet() {\n  local name=\"${1:-world}\"\n  if [ -n \"$name\" ]; then\n    printf 'Hello, %s!\\n' \"$name\"\n  else\n    printf 'Hello, %s!\\n' \"$name\"\n  fi\n}\n\ngreet \"$@\"\n",
+      "why": "WIP line lost"
+    }
+  ]
+}

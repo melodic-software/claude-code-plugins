@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| Overrides | INFO | .claude/code-tidying/exclusion-overrides.md absent (normal) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything else looks fine.",
+      "why": "file never mentioned"
+    }
+  ]
+}

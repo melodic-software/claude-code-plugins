@@ -34,6 +34,17 @@
 # first heading, else the HTML <title>) is stored, and an entry whose title
 # differs from the one it replaces quarantines the cache key (docs-cache.sh).
 #
+# curl runs with -q, so no ~/.curlrc option reaches a request. With
+# --public-only, for a caller whose URLs come from untrusted text, every
+# address a host resolves to must be global (Python's ipaddress is_global), or
+# the page is unread private-address; the request then connects to the first
+# checked address through --connect-to with no proxy, so a redirect hop to any
+# host and a second DNS answer reach that address and no other. Without a
+# Python 3 the page is unread address-unchecked. OWASP's SSRF prevention cheat
+# sheet, case 2, prescribes this check over an allowlist when the destination
+# is open: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+# (as of 2026-10-07; recheck when its case 2 guidance changes).
+#
 # The page file is the raw bytes as fetched, or the converter's output. The
 # manifest hash is taken over those bytes, so a caller that strips control
 # characters from a working copy does not change it.
@@ -87,6 +98,9 @@
 #   FETCH_DOCS_INDEX_URL    index URL when --index-url is absent (default: the profile's)
 #   FETCH_DOCS_CLAUDE_BIN   claude binary for claude_version
 #   FETCH_DOCS_HTML2MD      HTML converter (default: html2md.py beside this script)
+#   FETCH_DOCS_ADDRESSES    with --public-only, the DNS answers to use instead of
+#       a lookup: host=addr[,addr] entries separated by spaces; a host it does not
+#       name does not resolve
 #   DOCS_CACHE_DIR          cache directory when --cache-dir is absent; in
 #       fixture mode --cache needs one of the two, so fixture bytes never reach
 #       the default or the machine file's cache. The other DOCS_CACHE_*
@@ -103,7 +117,7 @@ fetch-docs.sh: fetch a publisher's docs pages verbatim and write a manifest.
 
 Usage:
   fetch-docs.sh --out <dir> [--manifest <file>] [--profile <name>] [--index-url <url>] [--follow <depth>]
-                [--max-page-bytes <n>] [--cache [--max-age <seconds>] [--cache-dir <dir>]]
+                [--max-page-bytes <n>] [--cache [--max-age <seconds>] [--cache-dir <dir>]] [--public-only]
                 (--discover | [--mode full|search] <slug|url>...)
 
   --out <dir>        directory for the page files (<slug>.md) and the index (llms.txt)
@@ -121,6 +135,7 @@ Usage:
   --cache-dir <dir>  cache directory (default: the docs cache's cache_dir)
                      These defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
                      file; docs-cache.sh config prints them with their layer.
+  --public-only      connect only to a global address the host was checked to resolve to
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists
                      (its raw suffix optional, a #fragment ignored);
                      for --profile generic, any https URL (its slug is host/path)
@@ -144,6 +159,7 @@ CACHE=0
 MAX_AGE=""
 MAX_PAGE=""
 CACHE_DIR=""
+PUBLIC_ONLY=0
 TARGETS=()
 TARGET_MODES=()
 while [[ $# -gt 0 ]]; do
@@ -186,6 +202,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --cache)
     CACHE=1
+    shift
+    ;;
+  --public-only)
+    PUBLIC_ONLY=1
     shift
     ;;
   -*) die "unknown argument: $1" ;;
@@ -283,6 +303,61 @@ reset_g() {
   G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT="" G_STALE="" G_DATE="" G_CACHE_ERR=""
 }
 
+# Prints the host's addresses, IPv6 in brackets, comma-separated; exit 3 when
+# any is not global (an IPv4-mapped IPv6 address is judged as its IPv4), 4
+# when the host does not resolve.
+# shellcheck disable=SC2016 # Python source, not shell
+PIN_PY='
+import ipaddress, os, socket, sys
+host = sys.argv[1]
+stub = os.environ.get("FETCH_DOCS_ADDRESSES")
+try:
+    if stub is not None:
+        found = [a for e in stub.split() if e.partition("=")[0] == host for a in e.partition("=")[2].split(",")]
+    else:
+        found = [i[4][0] for i in socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)]
+    ips = [ipaddress.ip_address(a.split("%")[0]) for a in found]
+except (OSError, ValueError, UnicodeError):
+    sys.exit(4)
+if not ips:
+    sys.exit(4)
+out = []
+for ip in ips:
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    if not ip.is_global or ip.is_multicast:
+        sys.exit(3)
+    a = str(ip) if ip.version == 4 else "[" + str(ip) + "]"
+    if a not in out:
+        out.append(a)
+print(",".join(out))
+'
+# shellcheck disable=SC2034 # read and written by name in map_get and map_put
+PINS_K=() PINS_V=()
+
+# pin <host>: set PIN to the first global address the host resolves to, checked
+# once per run. Returns 97 when an address is not global, 96 when no Python 3
+# can check, 6 (curl's code for a name that does not resolve) otherwise.
+pin() {
+  local rc=0 v
+  [[ -n "$1" ]] || return 6
+  if ! map_get PINS "$1" v; then
+    v=96
+    if resolve_python; then
+      v="$(with_timeout 30 "$PY" -c "$PIN_PY" "$1" 2>/dev/null </dev/null)" || rc=$?
+      case "$rc" in
+      0) v="${v%%,*}" v="${v%$'\r'}" ;;
+      3) v=97 ;;
+      *) v=6 ;;
+      esac
+    fi
+    map_put PINS "$1" "$v"
+  fi
+  PIN="$v"
+  [[ "$PIN" =~ ^[0-9]+$ ]] || return 0
+  return "$PIN"
+}
+
 # http_get <url> <dest> <accept> <if-none-match> <if-modified-since>: one GET
 # with the body at <dest>. Sets H_RC H_STATUS H_EFF H_CTYPE and the final
 # response's H_DATE, H_ETAG and H_LM (empty when absent, or Last-Modified equal
@@ -295,21 +370,35 @@ http_get() {
   [[ -z "$4" ]] || args+=(-H "If-None-Match: $4")
   [[ -z "$5" ]] || args+=(-H "If-Modified-Since: $5")
   rm -f "$2" "$hdr"
+  H_STATUS="" H_EFF="" H_CTYPE="" H_ETAG="" H_LM="" H_DATE=""
+  if [[ $PUBLIC_ONLY -eq 1 ]]; then
+    url_parts "$1" || {
+      H_RC=1
+      return
+    }
+    [[ "${U_ORIGIN#https://}" =~ ^([^:]+)(:[0-9]+)?$ ]]
+    pin "${BASH_REMATCH[1]:-}" || {
+      H_RC=$?
+      return
+    }
+    args+=(--noproxy '*' --connect-to "::$PIN:")
+  fi
   # No -f: an HTTP error still prints its status and content type through -w.
-  meta="$(curl -sSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
+  meta="$(curl -q -sSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
     --max-filesize "$MAX_PAGE" ${args[@]+"${args[@]}"} -D "$hdr" -w '%{http_code} %{url_effective} %{content_type}' \
     -o "$2" "$1" 2>/dev/null)"
   H_RC=$?
   if [[ -f "$2" && $(wc -c <"$2") -gt $MAX_PAGE ]]; then H_RC=63; fi
   [[ $H_RC -ne 63 ]] || rm -f "$2"
-  H_STATUS="" H_EFF="" H_CTYPE="" H_ETAG="" H_LM=""
+  H_STATUS="" H_EFF="" H_CTYPE="" H_CTYPE_LC="" H_ETAG="" H_LM=""
   read -r H_STATUS H_EFF H_CTYPE <<<"$meta"
   [[ "$H_STATUS" =~ ^[0-9]+$ ]] || H_STATUS=""
+  dc_lower H_CTYPE_LC "$H_CTYPE"
   if [[ -f "$hdr" ]]; then
     # A redirect writes one header block per response; the last one counts.
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
-      low="${line,,}"
+      dc_lower low "$line"
       case "$low" in
       http/*) H_ETAG="" H_LM="" date="" ;;
       etag:*) H_ETAG="$(trim "${line#*:}")" ;;
@@ -322,6 +411,16 @@ http_get() {
   fi
   [[ "$H_LM" != "$date" ]] || H_LM=""
   H_DATE="$date"
+}
+
+# failure_reason: the unread reason for a nonzero H_RC.
+failure_reason() {
+  case "$H_RC" in
+  63) printf too-large ;;
+  97) printf private-address ;;
+  96) printf address-unchecked ;;
+  *) printf fetch-failed ;;
+  esac
 }
 
 trim() {
@@ -337,7 +436,7 @@ trim() {
 # C_ETAG C_LM.
 cache_candidate() {
   local url="$1" f
-  C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
+  C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_CTYPE_LC="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
   [[ $CACHE -eq 1 ]] || return 0
   shift
   for f in "$@"; do
@@ -345,6 +444,7 @@ cache_candidate() {
     [[ -n "$DC_VALIDATED_EPOCH" ]] || continue
     [[ -z "$C_REF" || $DC_VALIDATED_EPOCH -gt $C_EPOCH ]] || continue
     C_REF="$DC_REF" C_EPOCH="$DC_VALIDATED_EPOCH" C_ISO="$DC_VALIDATED" C_DATE="$DC_SERVER_DATE" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
+    dc_lower C_CTYPE_LC "$C_CTYPE"
     C_ACCEPT="$DC_ACCEPT" C_REQ_URL="$DC_REQ_URL" C_ETAG="$DC_ETAG" C_LM="$DC_LM"
   done
 }
@@ -403,7 +503,7 @@ serve_fresh() {
   [[ $age -ge 0 && $age -le $MAX_AGE ]] || return 1
   re="$MD_OR_TEXT_CTYPE"
   [[ "$C_FORMAT" != html-converted ]] || re="$HTML_CTYPE"
-  [[ $FIXTURE_SET -eq 1 || "${C_CTYPE,,}" =~ $re ]] || return 1
+  [[ $FIXTURE_SET -eq 1 || "$C_CTYPE_LC" =~ $re ]] || return 1
   serve_cached "$dest" ""
 }
 
@@ -454,7 +554,7 @@ get_doc() {
   rm -f "$dest" "$dest.part"
   mkdir -p "$(dirname "$dest")"
   cache_candidate "$url" "$P_FORMAT"
-  if [[ -n "$C_REF" && $FIXTURE_SET -eq 0 && ! "${C_CTYPE,,}" =~ $ctype_re ]]; then C_REF=""; fi
+  if [[ -n "$C_REF" && $FIXTURE_SET -eq 0 && ! "$C_CTYPE_LC" =~ $ctype_re ]]; then C_REF=""; fi
   serve_fresh "$dest" && return 0
   if [[ $FIXTURE_SET -eq 1 ]]; then
     fixture_read "$dest" "$3" "$P_FORMAT"
@@ -467,16 +567,14 @@ get_doc() {
     G_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     request "" "$url" "$dest.part" "$dest" && return 0
     G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
-    if [[ $H_RC -eq 63 ]]; then
-      G_REASON="too-large"
-    elif [[ $H_RC -ne 0 ]]; then
-      G_REASON="fetch-failed"
+    if [[ $H_RC -ne 0 ]]; then
+      G_REASON="$(failure_reason)"
     elif [[ "$H_EFF" != "$ORIGIN$P_DOCS_PATH"* && ("$url" != "$INDEX_URL" || "$H_EFF" != "$INDEX_URL") ]]; then
       # A page lands under the docs path; the index, at its own URL.
       G_REASON="redirected-off-origin"
     elif [[ ! "$H_STATUS" =~ ^2[0-9][0-9]$ ]]; then
       G_REASON="http-${H_STATUS:-unknown}"
-    elif [[ ! "${H_CTYPE,,}" =~ $ctype_re ]]; then
+    elif [[ ! "$H_CTYPE_LC" =~ $ctype_re ]]; then
       G_REASON="unexpected-content-type"
     elif [[ ! -s "$dest.part" ]]; then
       G_REASON="empty-body"
@@ -504,7 +602,8 @@ dc_validators_or_none() {
 url_parts() {
   local u="${1%%#*}"
   [[ "$u" =~ ^([Hh][Tt][Tt][Pp][Ss]://[^/?]+)(.*)$ ]] || return 1
-  U_ORIGIN="${BASH_REMATCH[1],,}" U_PATH="${BASH_REMATCH[2]}"
+  U_PATH="${BASH_REMATCH[2]}" U_ORIGIN=""
+  dc_lower U_ORIGIN "${BASH_REMATCH[1]}"
   [[ "$U_PATH" == "/" || "$U_PATH" != */ ]] || U_PATH="${U_PATH%/}"
   [[ -n "$U_PATH" ]] || U_PATH="/"
 }
@@ -535,7 +634,7 @@ generic_slug() {
   s="${U_ORIGIN#https://}$U_PATH"
   s="${s%/}"
   s="${s%.md}"
-  s="${s,,}"
+  dc_lower s "$s"
   s="${s//[^a-z0-9_\/-]/-}"
   printf '%s' "$s"
 }
@@ -577,17 +676,19 @@ html_title() {
 # llms.txt link for the page (empty when none); the llms.txt is fetched once per
 # origin and run.
 bundle_link() {
-  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES[@]}.txt" u p
+  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES_K[@]}.txt" u p v
   B_LINK=""
-  if [[ -z "${BUNDLES[$origin]:-}" ]]; then
-    BUNDLES[$origin]=none
+  if ! map_get BUNDLES "$origin" v; then
+    v=none
     http_get "$origin/llms.txt" "$idx" "" "" ""
-    if [[ $H_RC -eq 0 && "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $MD_OR_TEXT_CTYPE && -s "$idx" &&
+    if [[ $H_RC -eq 0 && "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_OR_TEXT_CTYPE && -s "$idx" &&
       "$(landed "$origin/llms.txt" "$H_EFF")" == same ]]; then
-      BUNDLES[$origin]="$idx"
+      v="$idx"
     fi
+    map_put BUNDLES "$origin" "$v"
   fi
-  [[ "${BUNDLES[$origin]}" != none ]] || return 0
+  [[ "$v" != none ]] || return 0
+  idx="$v"
   while IFS= read -r u; do
     [[ "$u" != /* || "$u" == //* ]] || u="$origin$u"
     url_parts "$u" && [[ "$U_ORIGIN" == "$origin" ]] || continue
@@ -598,7 +699,7 @@ bundle_link() {
       B_LINK="$u"
       return 0
     fi
-  done < <(link_urls "${BUNDLES[$origin]}")
+  done < <(link_urls "$idx")
 }
 
 # markdown_channel <accept> <url> <dest> <ctype regex>: one markdown channel of
@@ -606,7 +707,7 @@ bundle_link() {
 markdown_channel() {
   request "$1" "$2" "$3.part" "$3" && return 0
   if [[ $H_RC -eq 0 && "$(landed "$2" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
-  "${H_CTYPE,,}" =~ $4 && -s "$3.part" ]] && mv "$3.part" "$3"; then
+  "$H_CTYPE_LC" =~ $4 && -s "$3.part" ]] && mv "$3.part" "$3"; then
     G_STATE=read G_FORMAT=markdown G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE" G_DATE="$H_DATE"
     G_VALIDATORS="$(dc_validators_or_none "$1" "$2")"
     return 0
@@ -657,10 +758,8 @@ get_generic() {
   # The page's own request decides identity: a failure or a landing elsewhere ends the read.
   request text/markdown "$url" "$dest.part" "$dest" && return 0
   G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
-  if [[ $H_RC -eq 63 ]]; then
-    G_REASON="too-large"
-  elif [[ $H_RC -ne 0 ]]; then
-    G_REASON="fetch-failed"
+  if [[ $H_RC -ne 0 ]]; then
+    G_REASON="$(failure_reason)"
   else
     case "$(landed "$url" "$H_EFF")" in
     off-origin) G_REASON="redirected-off-origin" ;;
@@ -673,9 +772,9 @@ get_generic() {
     settle_unread "$url" "$dest" markdown html-converted
     return 0
   fi
-  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
+  if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
     G_STATE=read G_FORMAT=markdown G_VALIDATORS="$(dc_validators_or_none text/markdown "$url")" G_DATE="$H_DATE"
-  elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
+  elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
     mv "$dest.part" "$html"
     html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none text/markdown "$url")" html_date="$H_DATE"
   else
@@ -699,7 +798,7 @@ get_generic() {
     request "" "$url" "$html" "$dest" && return 0
     [[ $H_RC -ne 63 ]] || G_REASON="too-large"
     if [[ $H_RC -eq 0 && "$(landed "$url" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
-    "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$html" ]]; then
+    "$H_CTYPE_LC" =~ $HTML_CTYPE && -s "$html" ]]; then
       html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none "" "$url")" html_date="$H_DATE"
     fi
   fi
@@ -778,12 +877,30 @@ slug_ok() {
   [[ "$1" =~ $re ]]
 }
 
-declare -A SEEN=()
-declare -A BUNDLES=()
+# Bash 3.2 has no associative arrays: a map is two indexed arrays, <name>_K and
+# <name>_V, searched in order. map_get <name> <key> [<var>]: set var to the
+# value, 1 when absent; the caller names a local, so no call in between can
+# overwrite it. map_put <name> <key> <value>: add a key the map does not hold.
+map_get() {
+  local _mg_i _mg_n _mg_k
+  eval "_mg_n=\${#$1_K[@]}"
+  for ((_mg_i = 0; _mg_i < _mg_n; _mg_i++)); do
+    _mg_k="$1_K[$_mg_i]"
+    [[ "${!_mg_k}" == "$2" ]] || continue
+    _mg_k="$1_V[$_mg_i]"
+    [[ -z "${3:-}" ]] || printf -v "$3" '%s' "${!_mg_k}"
+    return 0
+  done
+  return 1
+}
+map_put() { eval "$1_K+=(\"\$2\") $1_V+=(\"\$3\")"; }
+
+# shellcheck disable=SC2034 # read and written by name in map_get and map_put
+SEEN_K=() SEEN_V=() BUNDLES_K=() BUNDLES_V=()
 
 if [[ "$P_KIND" == url ]]; then
   printf 'null\n' >"$INDEX_REC"
-  for i in "${!TARGETS[@]}"; do
+  for ((i = 0; i < ${#TARGETS[@]}; i++)); do
     t="${TARGETS[$i]}"
     m="${TARGET_MODES[$i]}"
     reset_g
@@ -797,13 +914,13 @@ if [[ "$P_KIND" == url ]]; then
       emit "$t" "$t" "$m" "" >>"$PAGE_RECS"
       continue
     fi
-    if [[ -n "${SEEN[$slug]:-}" ]]; then
-      [[ "${SEEN[$slug]}" != "${t%%#*}" ]] || continue
+    if map_get SEEN "$slug" seen; then
+      [[ "$seen" != "${t%%#*}" ]] || continue
       G_REASON="slug-collision"
       emit "$slug" "$t" "$m" "" >>"$PAGE_RECS"
       continue
     fi
-    SEEN[$slug]="${t%%#*}"
+    map_put SEEN "$slug" "${t%%#*}"
     get_generic "$t" "$OUT/$slug.md" "$slug.md"
     emit "$slug" "$t" "$m" "$OUT/$slug.md" >>"$PAGE_RECS"
   done
@@ -821,7 +938,7 @@ else
     done < <(link_urls "$OUT/llms.txt")
   fi
 
-  for i in "${!TARGETS[@]}"; do
+  for ((i = 0; i < ${#TARGETS[@]}; i++)); do
     t="${TARGETS[$i]}"
     m="${TARGET_MODES[$i]}"
     want=""
@@ -835,8 +952,8 @@ else
       [[ "$want" == *"$P_SUFFIX" ]] || want="$want$P_SUFFIX"
       slug="$(slug_of "$want")"
     fi
-    [[ -z "${SEEN[$slug]:-}" ]] || continue
-    SEEN[$slug]=1
+    ! map_get SEEN "$slug" || continue
+    map_put SEEN "$slug" 1
     reset_g
     url=""
     if ! slug_ok "$slug"; then

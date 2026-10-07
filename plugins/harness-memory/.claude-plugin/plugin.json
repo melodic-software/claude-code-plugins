@@ -1,6 +1,6 @@
 {
   "name": "harness-memory",
-  "version": "1.1.0",
+  "version": "1.1.6",
   "description": "Keeps a repo's Claude Code memory layer healthy, against criteria from official Claude Code docs. audit checks CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory for structure, size, placement, and index integrity, with scripted and judgment checks. stateless inspects, disables, and (after confirmation) purges Claude-written auto memory across settings scopes. Whether instruction text fits the current model belongs to harness-config.",
   "author": {
     "name": "Melodic Software",

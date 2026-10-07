@@ -3,7 +3,8 @@
 # record when a turn ends on a rate-limit API error.
 #
 # SIDE-EFFECT-ONLY: the harness ignores StopFailure output and exit codes
-# entirely (hooks reference, verified 2026-08-10), so this hook's one job is
+# entirely (hooks reference, verified 2026-08-10; recheck when the StopFailure
+# entry documents a decision field), so this hook's one job is
 # the record it appends — the reactive-fallback signal consumers read when the
 # module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota

@@ -1,6 +1,6 @@
 {
   "name": "overengineering",
-  "version": "0.4.24",
+  "version": "0.4.25",
   "description": "Evidence-earned-keep audit of agent hooks and instructions, git hooks, CI lanes and gate scripts, branch protections, forge apps, and integrations. audit treats each as a retirement candidate until evidence earns its keep, argues in cost of carry, caps security-class retirements at FLAG-FOR-HUMAN, and writes a diffable findings file. realign simplifies behind a per-item human gate. delta reports changes since the last run. justify asks whether one artifact's reason still holds.",
   "author": {
     "name": "Melodic Software",

@@ -20,8 +20,8 @@ visible and the condition is not yours to evaluate.
 ## Why the key matters in this skill specifically
 
 `${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to the plugin identifier
-and nothing else ([plugins reference](https://code.claude.com/docs/en/plugins-reference),
-§ Persistent data directory). Under a fixed filename every run from every project on the machine
+and nothing else ([plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
+§ Environment variables). Under a fixed filename every run from every project on the machine
 overwrites the last, and Phase D's cost line would then compute its **per-surface token delta
 against a prior report belonging to a different project's surface set**, printing a number rather
 than declining.

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+greet_user() {
+  printf 'hello, %s\n' "$1"
+}

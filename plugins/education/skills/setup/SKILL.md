@@ -18,7 +18,7 @@ and reports, and reconfiguration routes through Claude Code's native flow, an `a
 would have nothing to write except the `pluginConfigs` setup must never touch. Non-interactive:
 report and recommend; never block on a question.
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## `check` (read-only, the only action)
 
