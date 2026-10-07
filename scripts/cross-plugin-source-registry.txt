@@ -289,13 +289,38 @@ lib/prerequisites.ps1
 lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/fetch-docs.sh. The harness-config and harness-ops plugins each carry a copy
-# because a plugin cache cannot see the repo-root canonical.
+# lib/fetch-docs.sh. The discovery, harness-config and harness-ops plugins each
+# carry a copy because a plugin cache cannot see the repo-root canonical.
 scripts/fetch-docs.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-cache.sh, carried beside each copy of fetch-docs.sh, which sources it
+# for --cache.
+scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to
+# convert a page no markdown channel serves.
+scripts/html2md.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html2md.py -> plugins/*/scripts/html2md.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: lib/docs-lookup-procedure.md, the reading procedure for the
+# docs lookup, carried by discovery (/discovery:read-docs) and by each plugin
+# that adopts the lookup. Register reference/docs-lookup-procedure.md here once a
+# second plugin carries it; with one copy it is no cluster yet.
+lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
