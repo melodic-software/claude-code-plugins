@@ -22,7 +22,7 @@ cache several plugins share:
   uninstall passes `--keep-data`. Removing any one plugin would remove the entries the others rely
   on.
 
-Basis: [Plugin manifest reference: Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+Basis: [Plugin manifest reference: Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
 as of 2026-10-04.
 
 ## Decision
@@ -71,6 +71,6 @@ as of 2026-10-04.
 
 Move the default location to that directory if Claude Code ships a documented data directory
 that plugins share and that survives the uninstall of any one plugin. Recheck when the
-[Environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+[Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
 section of the plugin manifest reference adds such a directory or changes when
 `${CLAUDE_PLUGIN_DATA}` is deleted.

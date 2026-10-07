@@ -1711,7 +1711,7 @@ for d in "${latch_path_dirs[@]}"; do
       base="${f##*/}"
       [[ "$base" == jq || "$base" == jq.exe ]] && continue
       [[ -x "$f" ]] || continue
-      ln -s "$f" "$shim/$base" 2>/dev/null || true
+      MSYS=winsymlinks:nativestrict ln -s "$f" "$shim/$base" 2>/dev/null || true
     done
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$shim"
   else

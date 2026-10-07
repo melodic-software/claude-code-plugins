@@ -1,0 +1,15 @@
+# Allowed SKILL.md `metadata:` keys, read by check-skill.sh check 28.
+#
+# One key per line: <key><TAB><consumer>. The consumer is what reads the key;
+# a key nothing reads is context the listing pays for and no tool uses, so it
+# stays off this list and check 28 WARNs on it. Add a row in the same change
+# that adds the consumer. `#` starts a comment; blank lines are ignored.
+workflow-stage	scripts/generate-cheatsheet.mjs (cheat-sheet stage column); check-skill.sh check 27
+summary	scripts/generate-cheatsheet.mjs (cheat-sheet row text); check-skill.sh check 22
+cadence	scripts/generate-cheatsheet.mjs (cheat-sheet cadence column)
+upstream-version	vendored skills' scripts/update.sh (/playbooks:boris, /playbooks:skill-authoring, /playwright:playwright); check-skill.sh checks 8 and 9
+upstream-sha	/playwright:playwright scripts/update.sh; check-skill.sh check 9
+synced	vendored skills' scripts/update.sh (/context7:lookup, /dometrain:sync, /playbooks:boris, /playbooks:skill-authoring, /playwright:playwright); check-skill.sh checks 9 and 17
+discipline-batch	/discipline:sweep-all (agent-read batch tier)
+discipline-batch-rank	/discipline:sweep-all (agent-read batch order)
+category	check-skill.sh check 16

@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.12.1] - 2026-10-07
+## [1.13.2] - 2026-10-07
 
 ### Security
 
@@ -14,6 +14,32 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   resolves to a non-global address and pins the request to the checked one
   ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
   [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [1.13.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [1.13.0] - 2026-10-07
+
+### Added
+
+- **`/harness-config:audit-instructions` audits agent definitions for three more defects**, each
+  citing `/playbooks:skill-authoring` `## Agents`: I40, a reference into the audited repository's
+  own history (`#1234`, `PR #1234`, "added in #N", an incident narrative); I41, text that fails the
+  deletion test "could the model already know this?"; and I42, a rigid step script for judgment
+  work, where the task needs high degrees of freedom. `instruction-scan.sh` seeds I40 on
+  `agents/*.md` paths and stays quiet on code spans, a cross-repository `owner/repo#N`, `TODO(#N)`,
+  fenced or indented code, and any line in a block that carries an as-of date and a recheck
+  trigger. I41 and I42 are lane-only.
+
+### Changed
+
+- The I3 row of the instruction-audit catalog, the `/harness-config:audit` per-entry listing cap
+  row, and the Category G guidance point to `/playbooks:skill-authoring` `## Descriptions` for the
+  per-entry description cap and name `/skill-quality:check` as its enforcer, in place of restating
+  the number.
 
 ## [1.12.0] - 2026-10-07
 

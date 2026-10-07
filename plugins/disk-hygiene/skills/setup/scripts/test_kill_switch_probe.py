@@ -329,7 +329,7 @@ class LaunchDisclosureParityTests(unittest.TestCase):
             shutil.copytree(
                 PLUGIN_ROOT,
                 plugin_root,
-                ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+                ignore=shutil.ignore_patterns("__pycache__", ".*_cache", ".venv", "node_modules", ".work"),
             )
             reported = self.assert_parity(plugin_root)
             self.assertEqual(

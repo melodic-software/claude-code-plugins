@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F11 New tab</title><script src="/fx.js"></script></head>
+<body>
+<!-- The confirmation code is only on the page the link opens in a new tab. -->
+<main>
+  <h1>Order placed</h1>
+  <p><a id="receipt" target="_blank" href="#">View receipt</a> (opens in a new tab)</p>
+  <pre id="result"></pre>
+</main>
+<script>
+  document.getElementById("receipt").href = fx.link("/f/F11-receipt.html");
+</script>
+</body>
+</html>

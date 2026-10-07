@@ -34,7 +34,7 @@ while excluding its `findings.json`, which is the same unfalsifiable-idempotence
   and `runs/<state-key>/<run-id>/report.md`, which
   survives plugin updates. **State its location precisely, because a whole target class turns on it:**
   that directory resolves to `~/.claude/plugins/data/{id}/`
-  ([plugins reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-08-12), and no
+  ([plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), verified 2026-10-07), and no
   documented setting relocates it.
 
   **`{id}` is derived, and deriving it wrong loses the report.** Same page, verbatim: `{id}` is *"the

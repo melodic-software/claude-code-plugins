@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F13 Download</title><script src="/fx.js"></script></head>
+<body>
+<!-- Variant A: an anchor to a server file with Content-Disposition: attachment.
+     Variant B: a button that builds a Blob in script and clicks a temporary object-URL anchor.
+     Either way the code is only inside the downloaded file. -->
+<main>
+  <h1>Reports</h1>
+  <a id="dl-link" href="#">Download quarterly report</a>
+  <button type="button" id="dl-blob">Export quarterly report</button>
+  <pre id="result"></pre>
+</main>
+<script>
+  const B = fx.variant === "B";
+  document.getElementById(B ? "dl-link" : "dl-blob").remove();
+  if (!B) document.getElementById("dl-link").href = `/download/report.txt?run=${fx.run}`;
+  else document.getElementById("dl-blob").addEventListener("click", async () => {
+    const res = await fetch(`/download/report.txt?run=${fx.run}`);
+    const blob = new Blob([await res.text()], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "report.txt";
+    document.body.append(a); a.click(); a.remove();
+    fx.record("exported", true);
+  });
+</script>
+</body>
+</html>

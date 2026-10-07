@@ -174,6 +174,13 @@ export function loadConfig(files, { configPath }) {
         }
       }
       const activity = doc.activities[slot.activity];
+      // The lane rule compares strictly, so it must not depend on the schema enum.
+      if (typeof activity.effect !== "string") {
+        throw new Rejection(
+          "invalid-config",
+          `activity \`${slot.activity}\` has an effect that is not a string`,
+        );
+      }
       if (
         rule["forbidden-effects"].includes(activity.effect) ||
         (rule["forbidden-gating"] ?? []).includes(activity.gating)
@@ -246,18 +253,39 @@ export function neededFacts(files, { lane, activity, configPath }) {
   return [...needed];
 }
 
+const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
+const GRANT_LEVELS = new Set(["read", "write"]);
+
+// An empty or partial grant would mint a token with every App permission, so a
+// row must name exactly the three scopes, each read or write.
+function grantFor(effectGrants, effect) {
+  if (typeof effect !== "string" || !Object.hasOwn(effectGrants, effect)) {
+    throw new Rejection(
+      "effect-grant",
+      `effect-grants.json has no row for \`${effect}\``,
+    );
+  }
+  const row = effectGrants[effect];
+  if (
+    !isObject(row) ||
+    Object.keys(row).sort().join() !== GRANT_SCOPES.join() ||
+    !GRANT_SCOPES.every((scope) => GRANT_LEVELS.has(row[scope]))
+  ) {
+    throw new Rejection(
+      "effect-grant",
+      `effect-grants.json row \`${effect}\` must set exactly ${GRANT_SCOPES.join(", ")}, each read or write`,
+    );
+  }
+  return Object.freeze({ ...row });
+}
+
 function resolveSlot(
   { slot, activity, predicate, enabled },
   effectGrants,
   facts,
   decided,
 ) {
-  if (!Object.hasOwn(effectGrants, activity.effect)) {
-    throw new Rejection(
-      "effect-grant",
-      `effect-grants.json has no row for \`${activity.effect}\``,
-    );
-  }
+  const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
   if (!enabled) {
     outcome = { applies: false, skipReason: "disabled-by-config" };
@@ -280,9 +308,33 @@ function resolveSlot(
     enabled,
     model: activity.model ?? null,
     "max-turns": activity["max-turns"] ?? null,
-    grant: { ...effectGrants[activity.effect] },
+    grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
+  };
+}
+
+// The token broker's entry point: the same file and lane checks as resolve(),
+// for one required activity, deciding no predicate, so it needs no facts.
+export function resolveGrant(files, { lane, activity, configPath }) {
+  const doc = loadConfig(files, { configPath });
+  const entries = laneSlots(doc, lane);
+  if (activity === undefined || activity === "") {
+    throw new Rejection(
+      "undefined-activity",
+      `a grant needs an activity of lane \`${lane}\``,
+    );
+  }
+  const entry = entries[selectedIndex(entries, lane, activity)];
+  if (!entry.enabled) {
+    throw new Rejection(
+      "slot-disabled",
+      `lane \`${lane}\` disables activity \`${activity}\`; a disabled slot gets no grant`,
+    );
+  }
+  return {
+    effect: entry.activity.effect,
+    grant: grantFor(files.effectGrants, entry.activity.effect),
   };
 }
 
