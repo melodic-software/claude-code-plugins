@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the WebFetch truncation hook cannot launch, so a truncated WebFetch result gets no note pointing at /discovery:read-docs.",
+      "degrade": "Without node, the WebFetch truncation hook cannot launch, so a truncated WebFetch result gets no note pointing at /discovery:read-docs, and the docs-fetcher gate cannot launch, so a discovery:docs-fetcher subagent's Bash is held only by the session's own permission rules.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       },
