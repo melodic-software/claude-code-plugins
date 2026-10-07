@@ -20,6 +20,71 @@
         "apt": "gh"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh records a catalog row's pointer unread with reason curl-missing, so /performance:go-faster falls back to WebFetch for it.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, fetch-docs.sh exits before reading anything, so /performance:go-faster falls back to WebFetch for a catalog row's pointer.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a pointer page that serves only HTML cannot be converted and is recorded unread with reason no-python, so /performance:go-faster falls back to WebFetch for it; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

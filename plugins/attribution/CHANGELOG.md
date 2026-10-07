@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0] - 2026-10-07
+
+### Changed
+
+- **`audit` reads a candidate source's rung 1 through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** `reference/source-fetch.md` now runs `scripts/fetch-docs.sh --cache --max-age 0` (profile `anthropic`, `platform` or `generic`), so every source read is fresh, whole and slug-checked against the index, and a repeat read in the run uses `docs-cache.sh read --raw <ref>` without spending a fetch. Neither script joins `allowed-tools`; each call still prompts.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` declares `curl` and `python3` as optional and extends `jq`'s degrade.
+
 ## [0.10.5] - 2026-10-04
 
 ### Changed

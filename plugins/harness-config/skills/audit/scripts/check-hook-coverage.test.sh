@@ -5,6 +5,11 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/check-hook-coverage.sh"
 TEST_TMPDIR="$(mktemp -d)"
+# Fixture paths in the native form Claude Code writes into its registry and
+# settings on Windows (D:/x). A /d/x path would reach those files as D:/x anyway,
+# since MSYS rewrites it on the way into native jq, and no longer match the
+# path the assertions name.
+if command -v cygpath >/dev/null 2>&1; then TEST_TMPDIR="$(cygpath -m "$TEST_TMPDIR")"; fi
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 FAILED=0
