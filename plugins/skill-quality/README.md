@@ -188,7 +188,7 @@ stands alone.
   identity, stale metadata, committed artifacts) skip with a note outside a repo so
   marketplace plugin-cache installs (plain trees) still run the rest of the gate.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  twenty-five still gate.
+  twenty-eight still run.
 
 ## Description-invocation probes
 
