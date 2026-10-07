@@ -23,6 +23,18 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   documented form
   ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
 
+## [1.11.1] - 2026-10-07
+
+### Changed
+
+- **Two upstream restatements are now pointer records with an as-of date and a recheck trigger
+  ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** The
+  `audit-permission-grants` env-assignment criterion links the permissions page for which variables
+  are stripped and how allow and deny rules match, keeping its own rule: never assume an allow rule
+  matches past an assignment the page does not cover. The `audit-instructions` inventory links the
+  sub-agents page for the auto-memory dependency, keeping its own rule: enumerate agent memory only
+  when auto memory is on.
+
 ## [1.11.0] - 2026-10-04
 
 ### Added
