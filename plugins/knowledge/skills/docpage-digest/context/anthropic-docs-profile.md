@@ -84,7 +84,10 @@ extraction waits for the third (Rule of Three).
   checklist.
 - **Absence-establishing fetches must be complete.** Any fetch that will support a negative claim,
   an `api-only` basis or a "no harness surface states this" finding, goes through the raw `.md`
-  channel with `curl` and records the retrieved length; a rendered `WebFetch` of a long page returns
+  channel with `<skill-dir>/../../scripts/fetch-docs.sh --cache --max-age 0` (fresh bytes
+  required, so the server is always asked) and records the page's `bytes` from
+  `<out>/manifest.json`; a page whose record is `unread`, or carries `stale: true`, is unread for
+  the claim, never evidence of absence. A rendered `WebFetch` of a long page returns
   a silent prefix with no truncation signal. The asymmetry is what makes this binding: a truncated
   fetch cannot fabricate a PRESENCE, only an ABSENCE. A re-fetch through the same channel reproduces
   the blind spot rather than testing it, so the recheck uses the raw channel, not a repeat of the

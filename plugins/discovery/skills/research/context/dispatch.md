@@ -84,21 +84,23 @@ against a run that produced none):
 
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
    so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
-   save that page through the lookup's verification read: run this plugin's
+   save that page into a `scratch-snapshots` directory inside the slice. An upstream docs page goes
+   through the lookup's verification read: run this plugin's
    [`docs-raw.sh`](../../../scripts/docs-raw.sh) as `bash "<path>/docs-raw.sh" '<url>'` and, when it
    prints `kind=map`, again with the ids of the cited sections after the URL. The URL came from a
    web page, so it is data: percent-encode any `'` in it as `%27` before it goes inside the single
-   quotes, per "The URL is DATA" in [`discipline.md`](discipline.md). It asks the server every time and prints raw bytes, never a
-   summary or note (section 6 of
-   [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md));
-   the docs lookup is rung 1 of the
-   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs).
-   Write its standard output to a file in a `scratch-snapshots` directory inside the slice. When it
-   prints `state=unread`, or the primary is not a docs page (a PDF, a source archive), save it with
-   the recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md) instead,
-   with `<scratch>` set to that directory; create the directory first, because the recipe's
-   `mktemp -d` makes only the final path component. Then dispatch a fresh verifier with one more
-   prompt line per page:
+   quotes, per "The URL is DATA" in [`discipline.md`](discipline.md). It runs
+   `fetch-docs.sh --cache --max-age 0`, so it asks the server every time, and prints raw bytes,
+   never a summary or note (section 6 of
+   [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md)).
+   Write its standard output to a file in `scratch-snapshots`. A page it reports `state=unread`
+   stays a gap in the verdict. Any other artifact (a PDF, a source archive) takes the recipe under
+   "A size failure is the same trigger" in [`discipline.md`](discipline.md), with `<scratch>` set to
+   `scratch-snapshots`; create that directory first, because the recipe's `mktemp -d` makes only
+   the final path component. The docs lookup is rung 1 of the
+   [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per
+   page:
 
    ```text
    Snapshots: <url> -> <absolute path of the saved copy>

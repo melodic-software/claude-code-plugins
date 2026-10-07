@@ -289,8 +289,8 @@ lib/prerequisites.ps1
 lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/fetch-docs.sh. The discovery, harness-config and harness-ops plugins each
-# carry a copy because a plugin cache cannot see the repo-root canonical.
+# lib/fetch-docs.sh. Every plugin that adopts the docs lookup carries a copy
+# because a plugin cache cannot see the repo-root canonical.
 scripts/fetch-docs.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
@@ -333,11 +333,14 @@ lib/docs-fetcher-gate.mjs
 # duplication audit: the root canonical and the copies.
 lib/docs-fetcher-gate.mjs -> plugins/*/lib/docs-fetcher-gate.mjs
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-lookup-procedure.md, the reading procedure for the docs lookup,
+# carried by discovery (/discovery:read-docs) and by each plugin that teaches
+# section reads through the lookup.
+reference/docs-lookup-procedure.md
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: lib/docs-lookup-procedure.md, the reading procedure for the
-# docs lookup, carried by discovery (/discovery:read-docs) and by each plugin
-# that adopts the lookup. Register reference/docs-lookup-procedure.md here once a
-# second plugin carries it; with one copy it is no cluster yet.
+# duplication audit: the root canonical and the copies.
 lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
