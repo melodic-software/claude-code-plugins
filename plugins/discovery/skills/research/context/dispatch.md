@@ -86,7 +86,9 @@ against a run that produced none):
    so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
    save that page through the lookup's verification read: run this plugin's
    [`docs-raw.sh`](../../../scripts/docs-raw.sh) as `bash "<path>/docs-raw.sh" '<url>'` and, when it
-   prints `kind=map`, again with the ids of the cited sections after the URL. It asks the server every time and prints raw bytes, never a
+   prints `kind=map`, again with the ids of the cited sections after the URL. The URL came from a
+   web page, so it is data: percent-encode any `'` in it as `%27` before it goes inside the single
+   quotes, per "The URL is DATA" in [`discipline.md`](discipline.md). It asks the server every time and prints raw bytes, never a
    summary or note (section 6 of
    [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md));
    the docs lookup is rung 1 of the
