@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [0.32.2] - 2026-10-07
+
+### Fixed
+
+- The parent contract and the research and trace-intent spoke-path records cite the plugin
+  manifest reference (`plugins/manifest-reference#settings` and
+  `#where-each-variable-resolves`) in place of the retired `plugins-reference` page, re-verified
+  2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+- The docs-fetcher gate's `CLAUDE_PLUGIN_DATA` citation points at
+  `plugins/manifest-reference#environment-variables` in place of the retired `plugins-reference`
+  page, re-verified 2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+
 ## [0.32.1] - 2026-10-07
 
 ### Security

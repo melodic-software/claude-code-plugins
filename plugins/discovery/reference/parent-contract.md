@@ -320,8 +320,8 @@ operator's sandbox configuration, detailed and dated in the `harness-config` aud
 environment variable sits outside any file boundary and stays held by instruction. The plugin
 cannot ship any of this, because a plugin's settings cannot carry permission rules (Pointer: for
 the keys a plugin's settings may set, see
-[plugins reference: `settings`](https://code.claude.com/docs/en/plugins-reference#settings).
-As of: 2026-10-01. Recheck trigger: that field accepts another key).
+[plugin manifest reference: `settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings).
+As of: 2026-10-07. Recheck trigger: that field accepts another key).
 
 ## Read each file once, stated once
 
