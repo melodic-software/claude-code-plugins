@@ -244,7 +244,8 @@ change to any of them is a change to every lane's powers:
 - `docs/conventions/pr-pipeline.yaml` and `docs/conventions/pr-pipeline/**` (config and schema);
 - `.github/actions/**`, which holds `resolve-config/effect-grants.json`,
   `resolve-config/lane-rules.json` and every action a lane job runs from its base checkout;
-- `.github/standards/**`, which holds the trusted-actor list and the vocabulary;
+- `.github/standards/**`, which holds the trusted-actor list and the runner-policy script; the
+  standards-synced data files there, the vocabulary among them, have no code owner;
 - `.github/workflows/**`;
 - `.github/CODEOWNERS`.
 
