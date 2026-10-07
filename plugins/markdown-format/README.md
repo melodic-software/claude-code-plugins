@@ -23,7 +23,8 @@ config has chosen no Markdown style, so the hook does not run there at all
   calls the `if` filter best-effort. Its one documented fail-open is for Bash
   input it cannot parse, and it documents no file-tool equivalent
   ([hooks reference](https://code.claude.com/docs/en/hooks), common fields,
-  checked 2026-09-27).
+  checked 2026-09-27). Recheck when the hooks reference documents a file-tool
+  fail-open for `if`, or drops the Bash one.
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
   `.markdownlint.json`, …, any of the ten documented names) exists between the

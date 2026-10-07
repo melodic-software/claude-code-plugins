@@ -41,6 +41,8 @@
 # to the debug log only, never the transcript, and Claude never sees it" — so
 # it reaches neither the user nor the agent on any path this gate inspects.
 # A `>&2`-only notice on such a path is invisible regardless of intent.
+# Recheck when the hooks reference says exit-0 stderr reaches the transcript or
+# the model.
 #
 # This is a grep-level tripwire, not a semantic proof: it does not chase
 # helper-function bodies and does not flag a positive-form

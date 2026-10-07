@@ -13,7 +13,8 @@ setting is named as one: a `/skill-quality:check` setting, or a choice of this p
 The deletion test governs every line, in the description, the body, a reference file or an agent:
 could the model already know this, or do the job without it? If so, cut it. Cruft is not length:
 never justify a deletion by character count alone, and never keep a line because it is short
-(per the `claude-api` skill's prompt audit, as of 2026-10-06).
+(per the `claude-api` skill's prompt audit, as of 2026-10-06; recheck when that audit's
+cruft criterion changes).
 
 The deletion test proposes; the evals decide. Whether a model needs a line cannot be read off the
 text: a rule's stated reason can carry behavior, and a plausible explanation for a regression can
@@ -43,7 +44,8 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
 ## Descriptions
 
 - **Model-invoked:** what it is, then "Use when" with one trigger per branch of what the skill
-  does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06). Enumerating
+  does: `Noun phrase. Use when <branch>, <branch>.` (Pocock's shape, as of 2026-10-06; recheck when his repository's descriptions change shape).
+  Enumerating
   every phrasing a user might type is the trigger-case defect the prompt audit flags. Use the
   nouns a user would type, and lead with the main use case: the listing truncates from the end.
 - **Hook terms.** Models latch onto particular words, and which ones is found by trial, not
@@ -60,7 +62,7 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
 - Length: the upstream description caps, the listing truncation and the shared listing budget
   live in the pages [Sources](#sources) names; `/skill-quality:check` holds the current values,
   enforces the caps and estimates the budget (`listing-budget`). Our own measure of Pocock's
-  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06).
+  skills: descriptions run median 130 and max 419 characters (as of 2026-10-06; recheck when a re-measure at a newer commit moves it).
 
 ## Body
 
@@ -97,7 +99,8 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   `.claude/rules/skill-bodies-state-current-rules.md`.
 - Length: the upstream line guidance for SKILL.md lives in the platform best practices
   ([Sources](#sources)); `/skill-quality:check` holds the current value and enforces it. Our own
-  measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06). Length is the symptom; the deletion test is the
+  measure of Pocock's skills: bodies run median 70 and max 160 lines (as of 2026-10-06; recheck
+  when a re-measure at a newer commit moves it). Length is the symptom; the deletion test is the
   remedy. Aim for a short hub, not a short skill: SKILL.md carries the standing rules and routes
   each task to the file it needs, so a large skill is sound when the agent loads only what the
   work in front of it calls for. Never cut to reach a line count.

@@ -77,7 +77,8 @@ directory outside the project.
   Claude Code can run it under Git Bash.
 - **Node.js** on `PATH`. Every handler in `hooks/hooks.json` runs through
   `node hooks/exec-bash.mjs`, which starts the Bash script. Claude Code's native binary neither
-  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29),
+  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29;
+  recheck when the setup docs say the native binary ships or uses Node),
   so without `node` the hooks do not launch and nothing is formatted, with no notice.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a

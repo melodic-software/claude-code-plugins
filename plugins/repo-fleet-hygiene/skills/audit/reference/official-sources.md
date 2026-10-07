@@ -8,7 +8,7 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 
 ## Claude Code
 
-- [Create plugins](https://code.claude.com/docs/en/plugins): plugin root/layout, namespaced skills,
+- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin root/layout, namespaced skills,
   local `--plugin-dir` testing, and reusable plugin boundary.
 - [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): manifest fields and
   `${CLAUDE_PLUGIN_ROOT}`.
@@ -16,7 +16,7 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 - [Skills](https://code.claude.com/docs/en/skills): skill frontmatter, arguments, and `allowed-tools`
   semantics. `allowed-tools` grants permission but does not remove other tools, so the skill also states
   its report-only behavioral boundary explicitly.
-- [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces): local marketplace
+- [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference): local marketplace
   catalog structure and validation.
 
 ## Git

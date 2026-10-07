@@ -163,9 +163,9 @@ module runs, it writes inside that container, where only sessions in the same co
 the file; no run of the module in a cloud session has been made, so this contract does not count on
 it.
 
-- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods#where-mods-run),
+- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run),
   the cloud session row.
-- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **As of**: 2026-10-07, Claude Code 2.1.292.
 - **Recheck trigger**: that section changes whether mods run in cloud sessions, or a cloud run of
   this module is made.
 

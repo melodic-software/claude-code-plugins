@@ -341,21 +341,21 @@ PINS_K=() PINS_V=()
 # once per run. Returns 97 when an address is not global, 96 when no Python 3
 # can check, 6 (curl's code for a name that does not resolve) otherwise.
 pin() {
-  local rc=0
+  local rc=0 v
   [[ -n "$1" ]] || return 6
-  if ! map_get PINS "$1"; then
-    MAP_V=96
+  if ! map_get PINS "$1" v; then
+    v=96
     if resolve_python; then
-      MAP_V="$(with_timeout 30 "$PY" -c "$PIN_PY" "$1" 2>/dev/null </dev/null)" || rc=$?
+      v="$(with_timeout 30 "$PY" -c "$PIN_PY" "$1" 2>/dev/null </dev/null)" || rc=$?
       case "$rc" in
-      0) MAP_V="${MAP_V%%,*}" MAP_V="${MAP_V%$'\r'}" ;;
-      3) MAP_V=97 ;;
-      *) MAP_V=6 ;;
+      0) v="${v%%,*}" v="${v%$'\r'}" ;;
+      3) v=97 ;;
+      *) v=6 ;;
       esac
     fi
-    map_put PINS "$1" "$MAP_V"
+    map_put PINS "$1" "$v"
   fi
-  PIN="$MAP_V"
+  PIN="$v"
   [[ "$PIN" =~ ^[0-9]+$ ]] || return 0
   return "$PIN"
 }
@@ -678,19 +678,19 @@ html_title() {
 # llms.txt link for the page (empty when none); the llms.txt is fetched once per
 # origin and run.
 bundle_link() {
-  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES_K[@]}.txt" u p
+  local origin="$1" path="$2" idx="$WORK/bundle-${#BUNDLES_K[@]}.txt" u p v
   B_LINK=""
-  if ! map_get BUNDLES "$origin"; then
-    MAP_V=none
+  if ! map_get BUNDLES "$origin" v; then
+    v=none
     http_get "$origin/llms.txt" "$idx" "" "" ""
     if [[ $H_RC -eq 0 && "$H_STATUS" =~ ^2[0-9][0-9]$ && "$H_CTYPE_LC" =~ $MD_OR_TEXT_CTYPE && -s "$idx" &&
       "$(landed "$origin/llms.txt" "$H_EFF")" == same ]]; then
-      MAP_V="$idx"
+      v="$idx"
     fi
-    map_put BUNDLES "$origin" "$MAP_V"
+    map_put BUNDLES "$origin" "$v"
   fi
-  [[ "$MAP_V" != none ]] || return 0
-  idx="$MAP_V"
+  [[ "$v" != none ]] || return 0
+  idx="$v"
   while IFS= read -r u; do
     [[ "$u" != /* || "$u" == //* ]] || u="$origin$u"
     url_parts "$u" && [[ "$U_ORIGIN" == "$origin" ]] || continue
@@ -880,16 +880,17 @@ slug_ok() {
 }
 
 # Bash 3.2 has no associative arrays: a map is two indexed arrays, <name>_K and
-# <name>_V, searched in order. map_get <name> <key>: set MAP_V, 1 when absent.
-# map_put <name> <key> <value>: add a key the map does not hold.
+# <name>_V, searched in order. map_get <name> <key> [<var>]: set var to the
+# value, 1 when absent; the caller names a local, so no call in between can
+# overwrite it. map_put <name> <key> <value>: add a key the map does not hold.
 map_get() {
-  local i n k
-  eval "n=\${#$1_K[@]}"
-  for ((i = 0; i < n; i++)); do
-    k="$1_K[$i]"
-    [[ "${!k}" == "$2" ]] || continue
-    k="$1_V[$i]"
-    MAP_V="${!k}"
+  local _mg_i _mg_n _mg_k
+  eval "_mg_n=\${#$1_K[@]}"
+  for ((_mg_i = 0; _mg_i < _mg_n; _mg_i++)); do
+    _mg_k="$1_K[$_mg_i]"
+    [[ "${!_mg_k}" == "$2" ]] || continue
+    _mg_k="$1_V[$_mg_i]"
+    [[ -z "${3:-}" ]] || printf -v "$3" '%s' "${!_mg_k}"
     return 0
   done
   return 1
@@ -915,8 +916,8 @@ if [[ "$P_KIND" == url ]]; then
       emit "$t" "$t" "$m" "" >>"$PAGE_RECS"
       continue
     fi
-    if map_get SEEN "$slug"; then
-      [[ "$MAP_V" != "${t%%#*}" ]] || continue
+    if map_get SEEN "$slug" seen; then
+      [[ "$seen" != "${t%%#*}" ]] || continue
       G_REASON="slug-collision"
       emit "$slug" "$t" "$m" "" >>"$PAGE_RECS"
       continue

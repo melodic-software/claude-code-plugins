@@ -138,8 +138,8 @@ Invoke via `@review:<agent>` or let Claude delegate.
   `code-review` marketplace plugin despite the shared name. **`/review` is one of them, not this
   plugin**: per [code-review](https://code.claude.com/docs/en/code-review#review-a-diff-locally)
   (fetched 2026-08-10), "`/review` is an alias of `/code-review`; before v2.1.223, it was a separate
-  command that ran a single-pass, read-only review of a GitHub pull request." A bare `/review` is
-  that bundled reviewer, so name this plugin's skills by their namespaced commands
+  command that ran a single-pass, read-only review of a GitHub pull request." Recheck when that
+  page changes the `/review` alias note. A bare `/review` is that bundled reviewer, so name this plugin's skills by their namespaced commands
   (`/review:quality-gate`, `/review:fanout`) rather than abbreviating to the plugin name. The
   0.18.0 removal of the bare `/<skill>` alias already made the namespaced form the only one this
   plugin registers. See the Boundary sections of
