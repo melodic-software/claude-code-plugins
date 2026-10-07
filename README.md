@@ -13,11 +13,11 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
-When you consume this repo from a local `directory` source, the install cache keys on semver
-`version`, not commit, so several commits under one version leave early installs on a stale
-snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
-[#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+An install from GitHub is a copy keyed on the plugin's semver `version`, not the commit, so a change
+reaches it only when a release raises that version; until then `plugin update` reports "already at
+the latest version". A marketplace added from a local clone loads each plugin in place, so edits
+apply at the next session or `/reload-plugins`. See
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift").
 
 ### Enable plugin suggestions for an organization
 
@@ -46,9 +46,10 @@ ignored if the locally registered marketplace came from a different source. That
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
 Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
 
-Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
-external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
-the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
+with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
+harness-maintenance, and external-service plugins carry it, and a few general-purpose ones in
+those categories do not. A plugin another enabled plugin depends on starts enabled
 regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way

@@ -57,6 +57,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 | Snapshot mechanics, element refs, inspecting DOM attributes | [reference/snapshots-and-refs.md](reference/snapshots-and-refs.md) |
 | Cookies, localStorage, sessionStorage, auth state save/restore | [reference/storage-and-auth.md](reference/storage-and-auth.md) |
 | Trace recording for debugging, video recording with overlays/chapters | [reference/tracing-and-video.md](reference/tracing-and-video.md) |
+| A `@playwright/test` run failed, read why (terminal trace CLI, failure-retention modes) | [reference/tracing-and-video.md](reference/tracing-and-video.md#reading-a-failed-playwrighttest-run) |
 | Network mocking, route patterns, response modification | [reference/network-mocking.md](reference/network-mocking.md) |
 | `run-code` for geolocation, permissions, media emulation, waits, frames | [reference/running-code.md](reference/running-code.md) |
 | Generating Playwright test files from CLI sessions | [reference/test-generation.md](reference/test-generation.md) |

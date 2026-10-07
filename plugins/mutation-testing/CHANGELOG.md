@@ -3,6 +3,13 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-06
+
+### Changed
+
+- `/mutation-testing:audit` names a property (a generator) as one way to close an `input-gap` survivor, and says to pin the seed or derandomize during mutation runs and check in the killing counterexample so a property's kill replays. The replay risk is a design inference.
+- `/mutation-testing:principles` adds a tentative note that mutants and counter-implementations are how recent work grades LLM-written properties.
+
 ## [0.6.4] - 2026-10-02
 
 ### Fixed

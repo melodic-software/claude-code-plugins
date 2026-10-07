@@ -41,6 +41,12 @@
 - Headings drop screen-reader-only and `aria-hidden` text, and prune keeps its grace-window
   reference file outside the store, so one prune never sweeps another's.
 
+## [0.28.11] - 2026-10-04
+
+### Fixed
+
+- `/discovery:research` evals: five eval prompts (15, 22, 23, 29, 30) said "both gates" where the acceptance gate now runs three scripted gates; they now say "all three gates".
+
 ## [0.28.10] - 2026-10-04
 
 ### Fixed

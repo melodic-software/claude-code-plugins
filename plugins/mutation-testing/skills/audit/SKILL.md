@@ -419,7 +419,16 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 - **Write the killing tests**. `/testing:write` when the `testing` plugin is installed, handed the
   survivor list. Otherwise report the survivors and let the user author tests with their project's
-  own conventions; do not author them here.
+  own conventions; do not author them here. An `input-gap` survivor can be closed by a property (a
+  generator over the input class the mutant hides in) as well as by one more example; name both
+  options in the hand-off and let the authoring lane choose.
+- **Make a property's kill replay.** A randomized property can kill a mutant in one run and miss it
+  in the next (a design inference, not a sourced finding: the flaky-test gotcha from the generator
+  side). During mutation runs pin the seed or derandomize the tool, and pin the killing
+  counterexample as an explicit example so the kill replays whatever the generator draws.
+  Pointer: Hypothesis `derandomize` in <https://hypothesis.readthedocs.io/en/latest/reference/api.html>;
+  fast-check seed and `examples` in <https://fast-check.dev/docs/configuration/user-definable-values/>.
+  As of 2026-10-06; recheck when either tool's major release redefines those settings.
 - **Verify the new test actually kills the mutant**. Re-run this skill scoped to that file. This is
   the property that makes the loop trustworthy: the agent that wrote the test cannot grade itself
   into a pass, because the harness re-runs the mutant. A test that does not turn the mutant red has

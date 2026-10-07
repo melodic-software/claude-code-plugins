@@ -1,6 +1,6 @@
 ---
-description: "Execute approved plans, fix bugs, and make code changes inline with incremental validation. TDD by default, build+test after each logical block, commit at green checkpoints, and divergence detection that routes back to planning instead of pushing through a broken approach. Use when: 'implement this', 'execute the plan', 'fix this bug', 'refactor', 'build this', 'write the code', 'make this change', 'apply the plan', or whenever code is about to be written; modes: feature, fix, refactor, config."
-argument-hint: "[feature|fix|refactor|config] [task]"
+description: "Execute approved plans, fix bugs, and make code changes inline with incremental validation. TDD by default, build+test after each logical block, commit at green checkpoints, and divergence detection that routes back to planning instead of pushing through a broken approach. Use when: 'implement this', 'execute the plan', 'fix this bug', 'refactor', 'build this', 'write the code', 'make this change', 'apply the plan', or whenever code is about to be written; modes: feature, fix, refactor, replace (rewrite, migrate, port), config."
+argument-hint: "[feature|fix|refactor|replace|config] [task]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Execute approved plans with TDD, incremental validation, and green commits
 ---
 
-**Arguments.** `[feature|fix|refactor|config] [task]`. e.g., /implementation:implement, /implementation:implement feature, /implementation:implement fix login-bug, /implementation:implement refactor
+**Arguments.** `[feature|fix|refactor|replace|config] [task]`. e.g., /implementation:implement, /implementation:implement feature, /implementation:implement fix login-bug, /implementation:implement refactor, /implementation:implement replace legacy-parser
 
 ## Repository context. Gather first
 
@@ -56,9 +56,10 @@ Parse conversation context to determine execution mode. Mode shapes which contex
 | Approved plan from a planning pass exists | **Feature** | [context/feature.md](context/feature.md) |
 | Bug report, error diagnosis, or "fix" in conversation | **Bugfix** | [context/bugfix.md](context/bugfix.md) |
 | Structural change, "refactor", "rename", "reorganize" | **Refactor** | [context/refactor.md](context/refactor.md) |
+| A new implementation takes over from an old one that must behave the same: "rewrite", "migrate", "port", "replace X with Y" | **Replace** | [context/replace.md](context/replace.md) |
 | Non-code changes (docs, config, YAML, markdown) | **Config** | Lighter workflow, no context file needed. Verification is not lighter: even non-code changes break builds (`.editorconfig` changes, project-file modifications, markdown lint), so invoke `/verification:confirm` via the Skill tool for these too |
 
-If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use that. Otherwise infer from context. If ambiguous, ask.
+If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `replace`, `config`), use that. Otherwise infer from context. If ambiguous, ask.
 
 **Detect orchestration mode** (distinct from implement execution mode above). Signals for orchestrated execution: the session runs autonomously (a goal/loop harness with no human in the turn cycle), or the approved plan routes phases to worker subagents. When either holds, after Step 1's prerequisite check passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its dispatch cadence for those phases instead of the Step 2 inline cadence. Interactive sessions with no worker routing use the classic inline cadence below. Step 1 runs in every mode; orchestrated dispatch does not skip the branch / plan / dirty-tree preflight.
 

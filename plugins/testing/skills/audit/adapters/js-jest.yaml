@@ -103,6 +103,8 @@ mock:
 snapshot:
   - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toMatchSnapshot|toMatchInlineSnapshot|toMatchFileSnapshot|toThrowErrorMatchingSnapshot|toThrowErrorMatchingInlineSnapshot)[[:space:]]*\('
 # fast-check: the expected value is derived from generated inputs on purpose.
+# js-vitest, js-node-test and js-playwright inherit this list. A marker exempts
+# only the test whose body holds it.
 property_markers:
   - 'fc[[:space:]]*\.[[:space:]]*(assert|property|asyncProperty)[[:space:]]*\('
 equality:
