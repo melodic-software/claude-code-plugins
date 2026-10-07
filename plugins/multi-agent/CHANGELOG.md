@@ -19,6 +19,12 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
   the body the fetcher returned differs from the header byte count or hash
   ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
 
+## [0.5.1] - 2026-10-07
+
+### Changed
+
+- **`audit-defaults`'s main-thread fallback reads each pointer by the fetch-route rungs ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** Step 2 no longer says WebFetch: rung 1 with fresh bytes is the route, and WebFetch is the degraded rung 2. The workflow's `drift-checker` agent is unchanged.
+
 ## [0.5.0] - 2026-10-07
 
 ### Added

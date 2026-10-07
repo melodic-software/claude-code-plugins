@@ -27,6 +27,11 @@ lib/fetch-docs.sh plugins/harness-memory/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/instruction-placement/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/knowledge/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/plugin-quality/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/attribution/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/performance/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/planning/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/playbooks/scripts/fetch-docs.sh
+lib/fetch-docs.sh plugins/session-flow/scripts/fetch-docs.sh
 lib/docs-cache.sh plugins/harness-config/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/harness-ops/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/discovery/scripts/docs-cache.sh
@@ -35,6 +40,11 @@ lib/docs-cache.sh plugins/harness-memory/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/instruction-placement/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/knowledge/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/plugin-quality/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/attribution/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/performance/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/planning/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/playbooks/scripts/docs-cache.sh
+lib/docs-cache.sh plugins/session-flow/scripts/docs-cache.sh
 lib/html2md.py plugins/harness-config/scripts/html2md.py
 lib/html2md.py plugins/harness-ops/scripts/html2md.py
 lib/html2md.py plugins/discovery/scripts/html2md.py
@@ -43,6 +53,11 @@ lib/html2md.py plugins/harness-memory/scripts/html2md.py
 lib/html2md.py plugins/instruction-placement/scripts/html2md.py
 lib/html2md.py plugins/knowledge/scripts/html2md.py
 lib/html2md.py plugins/plugin-quality/scripts/html2md.py
+lib/html2md.py plugins/attribution/scripts/html2md.py
+lib/html2md.py plugins/performance/scripts/html2md.py
+lib/html2md.py plugins/planning/scripts/html2md.py
+lib/html2md.py plugins/playbooks/scripts/html2md.py
+lib/html2md.py plugins/session-flow/scripts/html2md.py
 lib/fetch-docs.sh plugins/multi-agent/scripts/fetch-docs.sh
 lib/docs-cache.sh plugins/multi-agent/scripts/docs-cache.sh
 lib/html2md.py plugins/multi-agent/scripts/html2md.py
@@ -56,6 +71,11 @@ lib/docs-lookup-procedure.md plugins/harness-memory/reference/docs-lookup-proced
 lib/docs-lookup-procedure.md plugins/instruction-placement/reference/docs-lookup-procedure.md
 lib/docs-lookup-procedure.md plugins/knowledge/reference/docs-lookup-procedure.md
 lib/docs-lookup-procedure.md plugins/plugin-quality/reference/docs-lookup-procedure.md
+lib/docs-lookup-procedure.md plugins/attribution/reference/docs-lookup-procedure.md
+lib/docs-lookup-procedure.md plugins/performance/reference/docs-lookup-procedure.md
+lib/docs-lookup-procedure.md plugins/planning/reference/docs-lookup-procedure.md
+lib/docs-lookup-procedure.md plugins/playbooks/reference/docs-lookup-procedure.md
+lib/docs-lookup-procedure.md plugins/session-flow/reference/docs-lookup-procedure.md
 lib/managed-scope.sh plugins/harness-config/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-memory/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-ops/lib/managed-scope.sh
