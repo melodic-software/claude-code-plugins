@@ -19,7 +19,8 @@ handles built-in commands.
    marketplace source does nothing to a live session until the local install is
    updated; Claude Code's post-start auto-update runs once (random delay ≤ 10 min)
    and "The running session keeps the versions it loaded"
-   ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs), read 2026-10-07).
+   ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs), read 2026-10-07; recheck when that section says a running session picks
+   up an updated plugin).
 
 2. **`/loop` does not re-read the skill each cycle.** A rendered `SKILL.md` enters
    the conversation once and "stays there for the rest of the session … Claude Code

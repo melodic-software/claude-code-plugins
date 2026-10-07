@@ -1,6 +1,6 @@
 {
   "name": "pixel-art",
-  "version": "0.6.7",
+  "version": "0.6.8",
   "description": "Creates pixel art with no external tools: sprites (sprite), animation sprite sheets for RPG Maker MZ, Godot, PICO-8, or plain strips with Aseprite-style frame data and GIF previews (animate), tilesets and parallax (tileset), UI skins and bitmap fonts (ui), effect sheets (vfx), and animated scenes as one HTML file (scene). Specs are palette-locked; a humanoid kit and a Python stdlib renderer write PNG, GIF, and frame data with a render-review loop. Optional Aseprite adapter.",
   "author": {
     "name": "Melodic Software",

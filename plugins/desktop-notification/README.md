@@ -21,7 +21,9 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 Platform facts verified 2026-07-18: hook `terminalSequence` output landed in Claude Code
 v2.1.141 per the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md);
-channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks).
+channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks). Recheck when
+the hooks reference changes how `terminalSequence` output is written or documents a Windows toast
+path.
 
 ### Per-OS `os_toast` behavior
 

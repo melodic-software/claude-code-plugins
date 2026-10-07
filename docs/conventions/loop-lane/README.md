@@ -367,7 +367,8 @@ running but unattended, and lane-down detection stays with the stop gate and tel
 
 **A configured hook can also fail silently.** We treat a header variable missing from
 `allowedEnvVars` as interpolating to an empty string (for the rule, see
-[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27), and
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27;
+recheck when that section changes how an unlisted header variable is interpolated), and
 a listed variable unset in the operator's environment as doing the same, an applied inference.
 Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
 every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg

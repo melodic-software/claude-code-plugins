@@ -423,7 +423,8 @@ plus that id, never from a path read out of either file. The same proof supplies
 `<config>/settings.json`, so the kill switch is read on a directory install too. That read passes no
 exact `pluginConfigs` key: the user and managed reads match any `disk-hygiene` key, as broad as the
 managed read was before, so the channel can only add a deny. This couples to the
-undocumented contents of `known_marketplaces.json`, and is acceptable on the same terms as the cache
+contents of `known_marketplaces.json`, whose entry fields the docs list but whose stored `source`
+object they do not specify (record below), and is acceptable on the same terms as the cache
 coupling: its only failure mode is fail-closed, since any unproven step yields no authority.
 
 `<config>` is `<account home>/.claude`, with the home read from the OS account record (the password
@@ -514,15 +515,18 @@ Verification records for the directory channel:
   "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
   by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
   changes, or a release note names the plugin data directory.
-- **Claim:** the docs name `~/.claude/plugins/known_marketplaces.json` only as where marketplace state
-  is stored, and `installLocation` only as a field of `claude plugin marketplace list --json` output;
-  the file's contents are undocumented. **Basis:** raw-markdown fetches of the plugins reference (no
-  mention) and
-  [plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) ("Marketplace state is
-  stored once per user in `~/.claude/plugins/known_marketplaces.json`, not per project"; "an
-  `installLocation` field with the local cache path where the marketplace is stored"). The absence
-  covers those two pages only. **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when either
-  page documents the file's contents, or a release note names `known_marketplaces.json`.
+- **Claim:** the docs now list the top-level fields of each `known_marketplaces.json` entry
+  (`source`, `installLocation`, among others) and say one file serves every project, and that a local
+  `file` or `directory` marketplace's `installLocation` is the path the user gave; they do not specify
+  the nested `source` object as it is stored in this file, or promise the format stays stable. The
+  guard's coupling is to those documented fields plus the `directory` source shape the marketplace
+  reference defines for settings. **Basis:**
+  [Check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached),
+  [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk), and
+  [Marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
+  **As of:** 2026-10-07, Claude Code 2.1.292. **Recheck:** when those sections rename or drop the
+  `source` or `installLocation` field, document the stored `source` object, or a release note changes
+  `known_marketplaces.json`.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -563,11 +567,14 @@ skill's `kill_switch_probe.py` reports). Neither surface takes the value from th
 Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207, and a project or
 local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
 2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
-`https://code.claude.com/docs/en/settings-reference#pluginconfigs`, which states that Claude Code reads all
-`pluginConfigs` values from only user settings, `--settings`, and managed settings, that entries in a
+`https://code.claude.com/docs/en/settings-reference#pluginconfigs` (read 2026-10-07, Claude Code
+2.1.292), which gives `pluginConfigs` the scope "User or managed", states that entries in a
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
-were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
-when a release note names `pluginConfigs` scope. The **user** file is located
+were read before v2.1.207. The settings guide
+(`https://code.claude.com/docs/en/settings#change-a-setting-for-one-session`) says `--settings` "can set
+any key your user settings file can set", so `--settings` is a read source too (as of 2026-10-07). Recheck
+when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs` scope
+changes, or when that page stops carrying the ignored-project-scope statement. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
@@ -1000,7 +1007,8 @@ shipped lane has not run end to end; treat that part as documented intent, not o
 
 ## Primary references
 
-Verified 2026-07-16: [Claude skills](https://code.claude.com/docs/en/skills),
+Verified 2026-07-16 (recheck when the hooks page changes the `PreToolUse` decision output or the
+skills page changes skill-scoped hooks): [Claude skills](https://code.claude.com/docs/en/skills),
 [PreToolUse hooks](https://code.claude.com/docs/en/hooks),
 [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html),
 [Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),

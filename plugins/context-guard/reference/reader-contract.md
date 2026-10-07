@@ -461,7 +461,8 @@ is not this plugin's guidance: unattended cloud and autonomous sessions have no 
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
 is instrumentation, not prohibition: observable zones, then advisory injection, then an opt-in
 blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
-all of it (as-of 2026-08-17).
+all of it (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
+what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
 widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its

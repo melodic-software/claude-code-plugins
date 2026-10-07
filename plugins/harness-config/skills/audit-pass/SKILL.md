@@ -191,7 +191,8 @@ a custom one drops the built-in software-engineering instructions unless
 `keep-coding-instructions: true`, and a
 plugin's `force-for-plugin` "overrides the user's `outputStyle` setting", so a walk plus settings
 reports a selection as live when it is not ([output styles](https://code.claude.com/docs/en/output-styles),
-verified 2026-08-04). Report the resolved live style and what resolved it.
+verified 2026-08-04; recheck when the page stops saying a custom style drops the built-in
+instructions or `force-for-plugin` overrides `outputStyle`). Report the resolved live style and what resolved it.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
 servers override *by name*: where two share a name across scopes, exactly one is live. That is name
@@ -480,7 +481,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   delegated check passes through model refinement first; the gate belongs to the derived tier.
 - **Never propose an `@path` import as a context saving.** Splitting into imports "helps organization
   but doesn't reduce context, since imported files load at launch"
-  ([memory](https://code.claude.com/docs/en/memory), verified 2026-08-10). A split remediation must
+  ([memory](https://code.claude.com/docs/en/memory), verified 2026-08-10; recheck when the memory page says imported files load lazily). A split
+  remediation must
   name a load-deferring destination and price what it costs.
 
 ## What this skill does NOT do

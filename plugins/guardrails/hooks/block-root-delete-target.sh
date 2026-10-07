@@ -943,7 +943,8 @@ rdt_short_cluster_arg() {
 # table here carries (see the operand-taking-option gap in the header). So
 # `env0-from` and `quoting-style` exist only in newer GNU env, and are kept: a
 # name an env lacks only adds a refusal, and removing one would loosen the
-# guard. The sudo names above carry no source here.
+# guard. The sudo names above carry no source here. Recheck when a GNU
+# coreutils or uutils release adds an `env` option that takes an argument.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
   local name="$2" ops fls o nop=0
@@ -2233,6 +2234,8 @@ rdt_check_segment() {
     # that source `-` and `-l` set initflag, whose chdir to the home directory
     # comes AFTER that execl, so a command runs from the current directory. The
     # guard still treats the directory as unknown, which only adds refusals.
+    # Recheck when shadow's newgrp.c changes how `sg` builds its `sh -c`
+    # command, or moves the home-directory chdir ahead of the execl.
     sg)
       j=$((i + 1))
       if ((j < n)) && [[ "${words[j]}" == - || "${words[j]}" == -l ]]; then

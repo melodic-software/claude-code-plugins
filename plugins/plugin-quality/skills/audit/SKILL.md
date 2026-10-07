@@ -198,7 +198,8 @@ context. Run this once **per resolved target**, into that target's own packet. W
 - Anything anomalous you noticed while using the component (the reason this audit started).
 - When the target plugin ships a mod (its hook config names `"modules"`): load the built-in
   `plugin-authoring` skill and record the declaration-file path that skill names, whatever its
-  basename or directory. As of 2026-10-03 that path ends in `types/claude-code.d.ts`. The
+  basename or directory. As of 2026-10-03 that path ends in `types/claude-code.d.ts` (recheck when the
+  `plugin-authoring` skill names a different file). The
   auditor cannot load skills, so the packet is its only way to that file. Why the file matters is
   in `reference/component-types/hook.md` "A mod (hooks module)".
 
