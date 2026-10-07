@@ -47,10 +47,8 @@ class GateTestCase(unittest.TestCase):
 
     def setUp(self):
         self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
         self.source = write(self.dir, "source.md", self.source_text)
-
-    def tearDown(self):
-        shutil.rmtree(self.dir, ignore_errors=True)
 
     def invoke_argv(self, *args: str):
         return subprocess.run(

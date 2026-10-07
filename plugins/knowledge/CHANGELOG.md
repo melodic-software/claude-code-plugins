@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.4] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The docpage-digest gate harness, `test_check_html_rows`, and the map-corpus discovery and inventory tests register temp-dir cleanup right after creating the dir.
+
 ## [0.20.3] - 2026-10-07
 
 ### Changed
