@@ -148,6 +148,15 @@
 #      the one-invocation nor the two-to-four-outcome-bullet shape, or
 #      carrying operative-chain phrasing (Skill tool, installed, fallback,
 #      otherwise) anywhere in the block is WARN
+#  28. Every metadata key is listed in scripts/metadata-registry.txt with the
+#      consumer that reads it (WARN on a key missing from it)
+#  29. No bare `#N` history reference in the SKILL.md body (WARN; code spans,
+#      fenced blocks, cross-repo owner/repo#N, link anchors, and pointer-record
+#      blocks carrying an as-of date and a recheck trigger are exempt)
+#  30. Skill size: description above 419 chars or body above 160 lines
+#      (Pocock's measured max; his medians print as INFO), or either grown vs
+#      CHECK_SKILL_BASE_REF, else the merge-base with origin (WARN; growth is
+#      skipped with an INFO when no base resolves or the skill is new)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -531,6 +540,16 @@ SYNCED_MAX_AGE_DAYS=180
 TOC_LINE_THRESHOLD=300
 TOC_HEAD_LINES=40
 TOC_MIN_ANCHORS=3
+# Check 30: Pocock's measured skill sizes, the concise style the rollout aims
+# at. The max is the largest description (characters) and SKILL.md body (lines
+# after the frontmatter) in his skills repo; the medians are printed as INFO
+# only. Pointer: https://github.com/mattpocock/skills at commit 6fd9479. As of:
+# 2026-10-06. Recheck trigger: a re-measure of that repo moves the max or the
+# medians.
+POCOCK_DESC_MAX=419
+POCOCK_BODY_MAX=160
+POCOCK_DESC_MEDIAN=130
+POCOCK_BODY_MEDIAN=70
 
 FAILED=0
 WARNINGS=0
@@ -2261,6 +2280,135 @@ else
   else
     note "'## Next' section present and in the mention-only shape"
   fi
+fi
+
+# --- Check 28: metadata keys come from the registry (WARN) ---------------------
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## Metadata`: a key earns its place when something reads it. The registry
+# beside this script lists each allowed key with its consumer; a key missing
+# from it WARNs and never FAILs, because a consumer repo may read keys this
+# marketplace does not know about.
+META_REGISTRY="$SCRIPT_DIR/metadata-registry.txt"
+META_KEYS="$(awk '
+  /^metadata:[[:space:]]*$/ { inmeta = 1; next }
+  /^[^[:space:]]/ { inmeta = 0 }
+  inmeta && /^[[:space:]]+[A-Za-z0-9_.-]+:/ {
+    match($0, /^[[:space:]]+/)
+    if (indent == "") indent = RLENGTH
+    if (RLENGTH != indent) next
+    key = $0
+    sub(/^[[:space:]]+/, "", key)
+    sub(/:.*/, "", key)
+    print key
+  }' <<<"$FRONTMATTER")"
+if [[ -z "$META_KEYS" ]]; then
+  :
+elif [[ ! -f "$META_REGISTRY" ]]; then
+  note "metadata registry $META_REGISTRY not found — metadata key check (28) skipped"
+else
+  META_KNOWN="$(awk -F '\t' '!/^[[:space:]]*(#|$)/ { print $1 }' "$META_REGISTRY")"
+  META_UNKNOWN=0
+  while IFS= read -r meta_key; do
+    if ! grep -qxF -- "$meta_key" <<<"$META_KNOWN"; then
+      warn "metadata key '$meta_key' is not in the metadata registry (scripts/metadata-registry.txt): name the consumer that reads it there, or drop the key (/playbooks:skill-authoring, Metadata)"
+      META_UNKNOWN=$((META_UNKNOWN + 1))
+    fi
+  done <<<"$META_KEYS"
+  ((META_UNKNOWN == 0)) && note "every metadata key is in the registry"
+fi
+
+# --- Check 29: this repo's history references in the SKILL.md body (WARN) ------
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## History and provenance`: a skill body states the current rule, and the
+# issue or pull request that produced it belongs in the changelog and git
+# history. This flags a bare `#N` (`See PR #1234`, `TODO(#9)`) in the body.
+# The frontmatter is not read, and reference files are not checked.
+# Exempt: code spans and fenced code blocks; a cross-repo `owner/repo#N`
+# (anything glued to the `#` on the left); link anchors and URLs; and every
+# line of a pointer-record block, meaning a run of non-blank lines that carries
+# an as-of date and a recheck trigger somewhere in it, so an upstream bug cited
+# as a recheck condition stays.
+HIST_HITS="$(awk '
+  function flush(   i, s, lower) {
+    if (n == 0) return
+    lower = tolower(blk)
+    if (!(lower ~ /as of[^0-9]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ && lower ~ /recheck/)) {
+      for (i = 1; i <= n; i++) {
+        s = txt[i]
+        gsub(/`[^`]*`/, "", s)
+        gsub(/\]\([^)]*\)/, "]", s)
+        gsub(/<[^>]*>/, "", s)
+        gsub(/https?:\/\/[^[:space:]]*/, "", s)
+        if (s ~ /(^|[^A-Za-z0-9_\/.&#-])#[0-9]+([^A-Za-z0-9_-]|$)/) print num[i]
+      }
+    }
+    n = 0
+    blk = ""
+  }
+  NR == 1 && /^---[[:space:]]*$/ { infm = 1; next }
+  infm { if (/^---[[:space:]]*$/) infm = 0; next }
+  /^[[:space:]]*(```|~~~)/ { flush(); fence = !fence; next }
+  fence { next }
+  /^[[:space:]]*$/ { flush(); next }
+  { n++; txt[n] = $0; num[n] = NR; blk = blk " " $0 }
+  END { flush() }' "$SKILL_MD")"
+if [[ -n "$HIST_HITS" ]]; then
+  HIST_COUNT="$(grep -c . <<<"$HIST_HITS")"
+  HIST_LINES="$(head -5 <<<"$HIST_HITS" | paste -sd, - | sed 's/,/, /g')"
+  ((HIST_COUNT > 5)) && HIST_LINES="$HIST_LINES, and $((HIST_COUNT - 5)) more"
+  warn "SKILL.md body cites this repository's history (#N) on line(s) $HIST_LINES: state the current rule and leave the issue or PR to the changelog, or put an upstream citation in a pointer record (/playbooks:skill-authoring, History and provenance)"
+else
+  note "no history references in the SKILL.md body"
+fi
+
+# --- Check 30: skill size vs Pocock's measured max and the base ref (WARN) -----
+# The standard is `/playbooks:skill-authoring` reference/skill-criteria.md,
+# `## Descriptions` and `## Body`: shorter is the default, and a rewrite should
+# not grow a skill. WARNs on a description or body above Pocock's max (see the
+# constants), and on growth of either against the base ref. The base ref is
+# CHECK_SKILL_BASE_REF when set, else the merge-base of HEAD with origin/HEAD
+# or origin/main; with neither, or for a skill new at that ref, the growth half
+# is skipped with an INFO. Never a FAIL.
+body_lines() { # SKILL.md text on stdin; lines after the closing frontmatter fence
+  awk 'NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
+    fm { if (/^---[[:space:]]*$/) fm = 0; next }
+    { n++ }
+    END { print n + 0 }'
+}
+BODY_LINES="$(body_lines <"$SKILL_MD")"
+note "size: description $DESC_CP_LEN chars, body $BODY_LINES lines (Pocock medians $POCOCK_DESC_MEDIAN chars, $POCOCK_BODY_MEDIAN lines; max $POCOCK_DESC_MAX, $POCOCK_BODY_MAX)"
+((DESC_CP_LEN > POCOCK_DESC_MAX)) &&
+  warn "description is $DESC_CP_LEN chars, above Pocock's measured max $POCOCK_DESC_MAX (/playbooks:skill-authoring, Descriptions)"
+((BODY_LINES > POCOCK_BODY_MAX)) &&
+  warn "SKILL.md body is $BODY_LINES lines, above Pocock's measured max $POCOCK_BODY_MAX (/playbooks:skill-authoring, Body)"
+
+SIZE_BASE=""
+SIZE_BASE_LABEL=""
+if [[ "$HAVE_GIT" == 1 ]]; then
+  if [[ -n "${CHECK_SKILL_BASE_REF:-}" ]]; then
+    SIZE_BASE="$CHECK_SKILL_BASE_REF"
+    SIZE_BASE_LABEL="$CHECK_SKILL_BASE_REF"
+  else
+    for size_upstream in origin/HEAD origin/main; do
+      git -C "$REPO_ROOT" rev-parse --verify --quiet "$size_upstream^{commit}" >/dev/null 2>&1 || continue
+      SIZE_BASE="$(git -C "$REPO_ROOT" merge-base HEAD "$size_upstream" 2>/dev/null)" || SIZE_BASE=""
+      [[ -n "$SIZE_BASE" ]] && SIZE_BASE_LABEL="the merge-base with $size_upstream" && break
+    done
+  fi
+fi
+if [[ -z "$SIZE_BASE" ]]; then
+  note "no base ref for the size-growth comparison (set CHECK_SKILL_BASE_REF, or fetch origin): growth check skipped"
+elif ! git -C "$REPO_ROOT" cat-file -e "$SIZE_BASE:$SKILL_REL/SKILL.md" 2>/dev/null; then
+  note "no $SIZE_BASE_LABEL version (new skill): size growth skipped"
+else
+  SIZE_BASE_MD="$(git -C "$REPO_ROOT" show "$SIZE_BASE:$SKILL_REL/SKILL.md" 2>/dev/null)"
+  SIZE_BASE_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::extract <<<"$SIZE_BASE_MD" | skill_frontmatter::field description)")"
+  SIZE_BASE_DESC_LEN="$(skill_frontmatter::codepoint_len "$SIZE_BASE_DESC")"
+  SIZE_BASE_BODY="$(body_lines <<<"$SIZE_BASE_MD")"
+  ((DESC_CP_LEN > SIZE_BASE_DESC_LEN)) &&
+    warn "description grew vs $SIZE_BASE_LABEL: $SIZE_BASE_DESC_LEN -> $DESC_CP_LEN chars (/playbooks:skill-authoring, Descriptions)"
+  ((BODY_LINES > SIZE_BASE_BODY)) &&
+    warn "SKILL.md body grew vs $SIZE_BASE_LABEL: $SIZE_BASE_BODY -> $BODY_LINES lines (/playbooks:skill-authoring, Body)"
 fi
 
 # --- Summary ---------------------------------------------------------------
