@@ -5,6 +5,24 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.12.0] - 2026-10-07
+
+### Changed
+
+- **The audit reads upstream docs through the docs cache with `--max-age 0`.** `audit-engine.sh`
+  and `check-doc-citations.sh` call `fetch-docs.sh --cache --max-age 0`, so every run asks the
+  server for fresh bytes and a failed fetch is unread, never a stale cached copy. The audit skill's
+  Phase 1 and Phase 3 and the env-vars row of `audit-checklist.md` name the same call in place of
+  a raw `curl`
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
+### Fixed
+
+- **`check-doc-citations.sh` names an unread page's reason without a trailing carriage return.**
+  A Windows `jq` ends its line with CR, which the reason kept, so a skip line no longer matched its
+  documented form
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
 ## [1.11.1] - 2026-10-07
 
 ### Changed

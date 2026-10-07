@@ -100,5 +100,6 @@ under time pressure.
 
 A summarizing web fetch returns a small model's answer *about* a page, not the page. **Absence from a
 paraphrase is not evidence of absence.** Any claim about upstream behavior must come from the raw
-`.md` endpoint (`curl` the page to a file, then read the file), and a destructive conclusion may
+`.md` endpoint (read the page to a file with `<plugin-root>/scripts/fetch-docs.sh --cache --max-age 0`,
+then read the file), and a destructive conclusion may
 never rest on a summarized read. The sanctioned channel is `code.claude.com`.
