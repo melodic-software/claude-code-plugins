@@ -70,7 +70,11 @@ A `PreToolUse` hook on `Bash` (`lib/docs-fetcher-gate.mjs`) holds the
 `docs-fetcher`: inside that subagent it denies every tool call except one shape,
 `bash "<plugin root>/scripts/docs-raw.sh" '<url>' [<section id>...]`, with the
 URL on the same first-party hosts and no query string. For that command it
-returns no decision, so the session's permission rules still apply. Every other
+returns no decision, so the session's permission rules still apply, and it
+passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
+host must resolve only to global addresses and curl connects to the checked
+one alone. The gate fails open when `node` is missing or the hook times out
+(see Node.js below); a stdin error or a crash inside it denies. Every other
 agent and the main thread pass through. The row is always-on: it fires on every
 `Bash` call, at a budget of one process (`node`) per call, ratcheted in
 `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.

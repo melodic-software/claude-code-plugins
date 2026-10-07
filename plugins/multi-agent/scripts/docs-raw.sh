@@ -13,17 +13,23 @@
 # time and cached bytes never stand in for a failed fetch. The profile follows
 # the host: code.claude.com is anthropic, platform.claude.com is platform, and
 # any other https host is generic. A #fragment is dropped before the fetch; the
-# caller picks sections from the map itself.
+# caller picks sections from the map itself. The fetch runs with --public-only,
+# so a host, a redirect or a DNS answer that leads to a non-global address is
+# unread private-address. A generic page is cached in the temporary directory,
+# never the shared docs cache, so pages an untrusted URL names cannot push the
+# user's own entries out of it.
 #
 # Output: one header line, then the body.
 #   docs-raw: url=<url> state=unread reason=<reason>
-#   docs-raw: url=<url> state=read format=<f> validated=<iso> sha256=<page sha> kind=<k> bytes=<n>
+#   docs-raw: url=<url> state=read format=<f> validated=<iso> sha256=<page sha> kind=<k> bytes=<n> body_sha256=<sha>
 # With no ids, kind is page (the whole page, at or under the cache's
 # whole-page threshold) or map (its section map: id level start end bytes
 # sha256 heading_path). With ids, kind is sections: each section's heading,
 # body and child sections. kind too-large has no body: the ids asked for more
-# than MAX_BODY bytes, or the body would pass it. bytes counts the body without
-# its trailing newlines. Summaries and notes are never printed: this is a
+# than MAX_BODY bytes, or the body would pass it. The body's CRLF line ends
+# become LF; bytes and body_sha256 are the byte count and hash of the body
+# without its trailing newlines, so a reader can tell a retyped body from the
+# printed one. Summaries and notes are never printed: this is a
 # verification read.
 #
 # Exit: 0 header printed (the page may be unread); 2 bad arguments, or the
@@ -57,13 +63,15 @@ esac
 
 tmp="$(mktemp -d)" || die "cannot make a temporary directory"
 trap 'rm -rf "$tmp"' EXIT
+store=()
+[[ "$profile" != generic ]] || store=(--cache-dir "$tmp/cache")
 
-bash "$HERE/fetch-docs.sh" --cache --max-age 0 --profile "$profile" --out "$tmp" "$url" >/dev/null ||
+bash "$HERE/fetch-docs.sh" --cache --max-age 0 --public-only ${store[@]+"${store[@]}"} --profile "$profile" --out "$tmp/out" "$url" >/dev/null ||
   die "fetch-docs.sh failed"
 # Unit separators, not tabs: IFS whitespace would merge an empty field into the next.
 IFS=$'\x1f' read -r state reason key sha format validated bytes file < <(
   jq -r '.pages[0] | [.state, (.reason // "-"), (.cache_key // ""), (.sha256 // ""), (.format // ""),
-    (.validated // ""), (.bytes // 0 | tostring), (.file // "")] | join("\u001f")' "$tmp/manifest.json"
+    (.validated // ""), (.bytes // 0 | tostring), (.file // "")] | join("\u001f")' "$tmp/out/manifest.json"
 ) || die "cannot read the manifest"
 file="${file%$'\r'}" # a Windows jq ends its line with CRLF
 
@@ -72,7 +80,7 @@ if [[ "$state" != read ]]; then
   exit 0
 fi
 
-cache=(bash "$HERE/docs-cache.sh" --escalate-percent 100 --escalate-bytes "$MAX_BODY")
+cache=(bash "$HERE/docs-cache.sh" ${store[@]+"${store[@]}"} --escalate-percent 100 --escalate-bytes "$MAX_BODY")
 whole="$("${cache[@]}" config | sed -n 's/^whole_page_bytes=\([0-9]*\) .*/\1/p')"
 [[ "$whole" =~ ^[0-9]+$ ]] || die "cannot read whole_page_bytes from docs-cache.sh config"
 # The pinned entry when the cache stored one; the fetched file when it did not.
@@ -90,8 +98,15 @@ else
   body="$("${cache[@]}" map "${src[@]}")" || die "map failed"
 fi
 
+body="${body//$'\r\n'/$'\n'}"
+# $(...) on Linux drops only the LFs at the very end, so a CRLF tail leaves a CR and
+# LFs before it; trim both so the header describes the body the workflow keeps.
+body="${body%$'\r'}"
+[[ "$body" =~ $'\n'+$ ]] && body="${body:0:${#body}-${#BASH_REMATCH}}" # one pass, not one copy per LF
 n="$(printf '%s' "$body" | wc -c | tr -d ' ')"
 [[ "$n" -gt "$MAX_BODY" ]] && kind=too-large
-printf 'docs-raw: url=%s state=read format=%s validated=%s sha256=%s kind=%s bytes=%s\n' \
-  "$url" "$format" "$validated" "$sha" "$kind" "$n"
+if command -v sha256sum >/dev/null 2>&1; then hash=(sha256sum); else hash=(shasum -a 256); fi
+body_sha="$(printf '%s' "$body" | "${hash[@]}" | cut -d' ' -f1)"
+printf 'docs-raw: url=%s state=read format=%s validated=%s sha256=%s kind=%s bytes=%s body_sha256=%s\n' \
+  "$url" "$format" "$validated" "$sha" "$kind" "$n" "$body_sha"
 [[ "$kind" == too-large ]] || printf '%s\n' "$body"
