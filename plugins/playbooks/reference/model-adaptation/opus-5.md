@@ -197,3 +197,6 @@ Our reads, recorded so a re-read can tell whether a source moved:
   194 pages. Section citations are to that PDF.
 - <https://code.claude.com/docs/en/model-config>, read 2026-09-23 (MD5
   `459c915e18892813e484986ada64efd7`) and re-read 2026-10-01 for the fallback section.
+
+Recheck trigger for the whole chapter: a revised card, or a re-read of any pointed section no
+longer supporting the decision beside it.

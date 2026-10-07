@@ -13,8 +13,8 @@ skills produced a commit); see
 
 Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's native
 binary neither ships nor uses Node
-([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the hooks
-do not launch and the lane-stop gate is not enforced. The setup `check` reports whether `node`
+([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
+says the native binary ships or uses Node), so without `node` the hooks do not launch and the lane-stop gate is not enforced. The setup `check` reports whether `node`
 resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without `jq` they fail open.
 `/autonomy:check` reports whether `node` and `jq` resolve.
 
@@ -90,7 +90,8 @@ resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without
   recover-instead-of-stopping sentence carry the two behaviors the Claude Fable 5.1 prompting guide
   adds in its section "Finish the whole task"
   (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>,
-  fetched 2026-09-06). Both are authored locally rather than reproduced, per this repository's rule
+  fetched 2026-09-06). Recheck a clause when its guide section is renamed or stops carrying the
+  behavior. Both are authored locally rather than reproduced, per this repository's rule
   against hand-copying upstream content. The citation lives here rather than in the contract file
   because `reference/` docs are written in surface classes and may not name vendors.
   **Recheck trigger:** either section changing its clause set, a later model guide restating this

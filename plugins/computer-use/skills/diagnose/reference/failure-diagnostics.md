@@ -44,7 +44,7 @@ Walk it in order; stop at the first hit.
 2. **Is the workstation locked?** The secure desktop blocks capture and input wholesale.
 3. **Is the display asleep / powered off?** Upstream is explicit that the machine must be awake
    ([Cowork computer use](https://support.claude.com/en/articles/14128542-let-claude-use-your-computer-in-cowork),
-   verified 2026-08-10).
+   verified 2026-08-10; recheck when that article stops requiring an awake machine).
 4. **Are you pinned to a monitor that is off?** An explicit `switch_display` persists until
    reset. Return to `auto` and retry before concluding anything.
 

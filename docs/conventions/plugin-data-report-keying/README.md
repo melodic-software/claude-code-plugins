@@ -11,7 +11,8 @@ only), and this convention sits underneath it.
 ## The harness fact this exists for
 
 [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables), § *Environment
-variables*, `${CLAUDE_PLUGIN_DATA}` row, fetched 2026-10-07:
+variables*, `${CLAUDE_PLUGIN_DATA}` row, fetched 2026-10-07 (recheck when that row changes the
+identifier formula or the uninstall deletion rule):
 
 > `~/.claude/plugins/data/<id>/`, created on first reference and kept across plugin updates. `<id>`
 > is the plugin identifier with every character other than a letter, digit, `_`, or `-` replaced by

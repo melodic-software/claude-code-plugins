@@ -78,6 +78,8 @@ DEFAULT_MAX_SIZE = "1mb"
 # file reaches, so jscpd's own gate can never skip a file this adapter did not
 # name; both are accepted by both majors (`0` is not), verified 2026-09-11
 # against 4.3.0 and 5.2.0 with the line bound at the signed 32-bit maximum.
+# Recheck when a jscpd release newer than 5.2.0 changes how its size or line
+# bounds are parsed or accepted.
 NO_LINE_CAP = 2_147_483_647
 NO_SIZE_CAP = 1 << 40
 _SIZE_UNITS = {"": 1, "b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}

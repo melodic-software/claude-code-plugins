@@ -64,7 +64,8 @@ with its audited and blocked counts. Neither may be relayed as clean.
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
 live grants under nested `.claude/skills/` paths, which Claude Code loads the moment it touches a
-file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12). The
+file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 2026-08-12; recheck
+when the skills page changes how nested `.claude/skills/` directories are discovered). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
 audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
 the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
@@ -137,7 +138,8 @@ absolute path. The single leading slash anchors at the settings source, not the 
 `//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
 carries the username. It is the canonical *spelling* of the defect P2 exists to catch, not an
 exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
-shows the home segment being supplied per user, which is what makes it portable.
+shows the home segment being supplied per user, which is what makes it portable. Recheck when the
+permissions page's Read and Edit pattern table changes the `//path` or `~/path` row.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username, and it
 breaks after a skill migrates into a plugin, since the install path changes. It also leaks a username into
