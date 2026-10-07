@@ -172,10 +172,19 @@ done
 ok "the non-source fixtures are present"
 
 # Every fixture ships to feed a case: a scaffold, or a fixtures seed script a scaffold
-# runs, must seed it by name.
+# runs, must seed it by name. A seed script counts only when some scaffold names it.
+seeders=("$plugin"/evals/*/scaffold.sh)
+for seed in "$fixtures"/*seed.sh; do
+  [[ -f "$seed" ]] || continue
+  if grep -qF -- "$(basename "$seed")" "$plugin"/evals/*/scaffold.sh; then
+    seeders+=("$seed")
+  else
+    fail "$(basename "$seed") is run by no scaffold"
+  fi
+done
 for src in "$fixtures"/*.txt; do
   base="$(basename "$src" .txt)"
-  grep -rqF -- "$base" "$plugin"/evals/*/scaffold.sh "$fixtures"/*seed.sh ||
+  grep -qF -- "$base" "${seeders[@]}" ||
     fail "$base is seeded by no scaffold"
 done
 ok "every fixture is seeded by a scaffold"

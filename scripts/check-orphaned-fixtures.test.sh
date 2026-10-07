@@ -161,6 +161,13 @@ printf 'x\n' >"$repo/plugins/p/evals/fixtures/unnamed.md.txt"
 out="$(run_check_out "$repo")"
 rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"unnamed.md.txt"* ]]; then ok "a fixture no scaffold or seed names is still an orphan"; else fail "unnamed fixture not caught: rc=$rc out='$out'"; fi
+rm -f "$repo/plugins/p/evals/fixtures/unnamed.md.txt"
+# A seed script no scaffold runs consumes nothing.
+printf 'cp fixtures/stray.md.txt docs/stray.md\n' >"$repo/plugins/p/evals/fixtures/unused-seed.sh"
+printf 'x\n' >"$repo/plugins/p/evals/fixtures/stray.md.txt"
+out="$(run_check_out "$repo")"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"stray.md.txt"* ]]; then ok "a fixture named only by a seed no scaffold runs is an orphan"; else fail "unused-seed fixture not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------

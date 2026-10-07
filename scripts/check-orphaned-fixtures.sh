@@ -170,13 +170,21 @@ consumed() {
   fi
 
   # A `claude plugin eval` case consumes a fixture its scaffold.sh, or a seed
-  # script beside the fixtures, seeds by name. Seeders often name the stem
-  # without the .txt suffix fixtures carry so no linter reads them as source.
+  # script beside the fixtures that some scaffold runs, seeds by name. Seeders
+  # often name the stem without the .txt suffix fixtures carry so no linter
+  # reads them as source.
   local seeder esc_stem stem_re
-  local -a seeders=()
-  for seeder in "$evals_dir"/*/scaffold.sh "$fixtures_dir"/*.sh; do
-    [[ -f "$seeder" && "$seeder" != "$fixture" ]] && seeders+=("$seeder")
+  local -a seeders=() scaffolds=()
+  for seeder in "$evals_dir"/*/scaffold.sh; do
+    [[ -f "$seeder" ]] && scaffolds+=("$seeder")
   done
+  if ((${#scaffolds[@]} > 0)); then
+    seeders=("${scaffolds[@]}")
+    for seeder in "$fixtures_dir"/*.sh; do
+      [[ -f "$seeder" && "$seeder" != "$fixture" ]] || continue
+      grep -qF -- "${seeder##*/}" "${scaffolds[@]}" && seeders+=("$seeder")
+    done
+  fi
   if ((${#seeders[@]} > 0)); then
     grep -qE -- "$base_re" "${seeders[@]}" && return 0
     if [[ "$base" == *.txt ]]; then
