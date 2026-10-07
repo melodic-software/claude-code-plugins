@@ -205,7 +205,22 @@ test('lines: a reading only session.measure carries reaches Claude at the next c
   await bash($)
   await $.session.measure({ context: { window: 200_000 }, rateLimits: limits(95), changed: ['rateLimits'] })
   expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at or above 95% (20% used), resets at 2026-10-03 21:00 UTC.`,
+    `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`,
+  ])
+})
+
+test('lines: a crossing delivered after the live reading dips below the threshold states the crossing percent', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(97)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  w.limits = limits(93)
+  expect(ownLines((await prompt($)).context)).toEqual([
+    `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
+  ])
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  expect(ownLines((await prompt($)).context)).toEqual([
+    `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
   ])
 })
 

@@ -8,7 +8,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 ### Changed
 
 - **Lines to Claude state facts only.** A threshold line no longer ends "Keep working.", and the approach line names the approach mark it crossed instead of "nearing" the threshold: `rate-limit-guard: 5-hour window at or above 90% (91% used), resets at 2026-10-03 21:00 UTC.` The operator-mode suggestion and the `/rate-limit-guard` status reply (`92% used, at or above 90%`) follow. Thresholds, levels and when a line is sent are unchanged; the toast and transcript line shown to the person are unchanged.
-- **`rate_limit_line_data` now defaults to `verdict,percent,window,reset`.** Lines to Claude carry the percent used, the window and the reset time by default; set the option to `verdict,window,reset` for the earlier lines.
+- **`rate_limit_line_data` now defaults to `verdict,percent,window,reset`.** Lines to Claude carry the percent used, the window and the reset time by default, taken from the reading that crossed, so a line sent later or restating a level after compaction or `/clear` shows the percent that crossed, not the current one; set the option to `verdict,window,reset` for the earlier lines.
 - **The `status` tool's description states what the tool returns and no longer says when to call it.** "Call it when the user asks about usage limits or before starting long or parallel work. Do not poll it" is replaced by the fact behind it: the figures change only when an API response arrives, and a line arrives on its own when a window rises to approach or edge or resets from edge.
 
 ## [0.16.1] - 2026-10-04
