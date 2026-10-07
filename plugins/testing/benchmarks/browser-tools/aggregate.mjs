@@ -181,4 +181,4 @@ if (l1) {
   }
 }
 writeFileSync(join(dir, "summary.md"), md.join("\n") + "\n");
-console.log(`wrote ${join(dir, "summary.json")} and summary.md — ${verdict}`);
+console.log(`wrote ${join(dir, "summary.json")} and summary.md: ${verdict}`);
