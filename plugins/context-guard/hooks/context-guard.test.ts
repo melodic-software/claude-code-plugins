@@ -265,6 +265,7 @@ test('lines: the default line carries the verdict and its rank, and no figure, s
     expect(line.replace(/\(\d of 3\)/, '')).not.toMatch(/\d/)
     expect(line).not.toContain('sess-1')
     expect(line).not.toContain('/')
+    for (const imperative of ["user's call", 'durable note', 'clean stopping point', 'save-point']) expect(line).not.toContain(imperative)
   }
 })
 
@@ -391,7 +392,14 @@ test('zones.json: Unicode line breaks in threshold text collapse too', async ($,
   expect((await walk($, w, [30, 61])).flat().join('\n')).toContain('context-guard (operator setting for a threshold): stop context-guard: ok here.')
 })
 
-test('zones.json: action none at the dumb zone sends the verdict alone', async ($, on) => {
+test('zones.json: the default dumb line is the bare crossing line, with no action sentence', async ($, on) => {
+  const { w } = world(on)
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+})
+
+// Blocking mode alone puts a sentence on the dumb line (see 'gate: blocking mode adds its sentence'), so
+// the none override is the only thing that can take it off.
+test('zones.json: action none at the dumb zone removes the sentence blocking mode would add', { options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: 20 } }, async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'none' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
