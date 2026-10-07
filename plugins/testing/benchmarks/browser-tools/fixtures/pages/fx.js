@@ -8,9 +8,15 @@
   const state = {};
   window.__fixture = state;
 
+  // #result mirrors the recorded state for people debugging a fixture. It is hidden from view and
+  // from the accessibility tree so it gives an agent no readiness or success signal a real app
+  // would not; graders read the server's record instead.
   function show() {
     const el = document.getElementById("result");
-    if (el) el.textContent = JSON.stringify(state);
+    if (!el) return;
+    el.hidden = true;
+    el.setAttribute("aria-hidden", "true");
+    el.textContent = JSON.stringify(state);
   }
   function post(key, value, mode) {
     const body = JSON.stringify({ key, value, mode });

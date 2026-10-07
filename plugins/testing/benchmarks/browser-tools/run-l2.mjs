@@ -54,10 +54,13 @@ function prepare() {
   mkdirSync(join(dir, ".playwright"), { recursive: true });
   writeFileSync(join(dir, ".playwright", "cli.config.json"), JSON.stringify({ browser: { browserName: "chromium", launchOptions: { headless: true, ...(chrome ? { executablePath: chrome } : {}) } } }, null, 2));
   writeFileSync(join(dir, "receipt.txt"), "receipt for benchmark upload\n");
-  // Per-run wrappers isolate sessions and daemons so parallel trials never share a browser.
+  // Per-run wrappers isolate sessions and daemons so parallel trials never share a browser. The
+  // session id is short because agent-browser builds a Unix socket path from it, which has a
+  // length limit.
+  const sid = `bt${run.slice(-8)}`;
   const env = tool === "playwright-cli"
-    ? { PLAYWRIGHT_CLI_SESSION: run, XDG_CACHE_HOME: join(dir, ".cache") }
-    : { AGENT_BROWSER_SESSION: run, AGENT_BROWSER_NAMESPACE: run, ...(chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: chrome } : {}), ...(arm === "boundaries" ? { AGENT_BROWSER_CONTENT_BOUNDARIES: "1" } : {}) };
+    ? { PLAYWRIGHT_CLI_SESSION: sid, XDG_CACHE_HOME: join(dir, ".cache") }
+    : { AGENT_BROWSER_SESSION: sid, AGENT_BROWSER_NAMESPACE: sid, ...(chrome ? { AGENT_BROWSER_EXECUTABLE_PATH: chrome } : {}), ...(arm === "boundaries" ? { AGENT_BROWSER_CONTENT_BOUNDARIES: "1" } : {}) };
   const wrapper = join(bin, tool);
   writeFileSync(wrapper, `#!/bin/sh\n${Object.entries(env).map(([k, v]) => `export ${k}='${v}'`).join("\n")}\nexec '${bins[tool]}' "$@"\n`);
   chmodSync(wrapper, 0o755);

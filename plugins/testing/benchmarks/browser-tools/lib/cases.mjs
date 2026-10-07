@@ -123,7 +123,7 @@ export const fixtures = [
   {
     id: "F19", path: "F19-render-mode-auto.html",
     grade: (s) => s.records.pinned === 1,
-    steps: [{ op: "open" }, { op: "clickName", name: "Pin note" }, { op: "waitText", text: "Ready" }],
+    steps: [{ op: "open" }, { op: "clickName", name: "Pin note" }, { op: "waitMs", ms: 300 }],
     reference: async (p, c) => { await p.goto(c.url); await p.waitFor("document.getElementById('status').textContent==='Ready'"); await p.eval("document.getElementById('pin').click()"); },
   },
   {
@@ -169,7 +169,8 @@ export const tasks = [
       const found = {
         removeWrongItem: /remov/i.test(a) && /(wrong|different|another|next|other|below|instead)/i.test(a),
         totalIgnoresQuantity: /total/i.test(a) && /(quantit|qty)/i.test(a),
-        couponError: /coupon/i.test(a) && /(error|typeerror|exception|console|fail|not appl|doesn)/i.test(a),
+        // The defect is that the discount never applies (the handler throws); either symptom counts.
+        couponError: /coupon/i.test(a) && /(error|exception|fail|not appl|doesn|does nothing|no effect|no discount|no change|unchanged|stays)/i.test(a),
       };
       return { pass: Object.values(found).filter(Boolean).length >= 2, detail: found };
     },
