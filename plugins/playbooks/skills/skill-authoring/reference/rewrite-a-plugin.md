@@ -78,6 +78,6 @@ ships; this page says how to run it across a plugin. "Step N" below is the proto
 - The eval sandbox denied a skill's read of its plugin config and its writes under `.claude/`, so
   a setup-style skill could not be measured there. Name such cases as unmeasured in the pull
   request rather than reading their scores. Pointer: the OS-level sandbox behavior at
-  <https://code.claude.com/docs/en/plugin-evals#grant-tools> and
-  <https://code.claude.com/docs/en/sandboxing>; basis: observed at Claude Code 2.1.289. As of:
-  2026-10-07. Recheck trigger: either page or a release note changes eval sandbox permissions.
+  <https://code.claude.com/docs/en/plugin-evals#grant-tools>; basis: observed at Claude Code
+  2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes eval sandbox
+  permissions.
