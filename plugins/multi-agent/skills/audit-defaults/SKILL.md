@@ -91,9 +91,11 @@ return saved results is in
    block is `owner<TAB>key<TAB>value` for every `pointer*`, `as_of` and
    `recheck`; the second is the current value of every default. Done when you
    hold the list of distinct sources to read.
-2. Fetch each URL pointer with WebFetch and read the anchored section. Read
-   the `/workflow-authoring` pointer as in step 5 above. Done when every
-   source is marked read or unread.
+2. Read each URL pointer's anchored section by the
+   [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs)
+   (rung 1, fresh bytes; WebFetch is rung 2, degraded because it truncates
+   long pages silently). Read the `/workflow-authoring`
+   pointer as in step 5 above. Done when every source is marked read or unread.
 3. Judge each default `current`, `drifted` (name the value the source now
    supports), `trigger fired` (say what happened) or `unread`. Done when every
    owner has a verdict.

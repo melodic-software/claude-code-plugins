@@ -3,6 +3,22 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.8.0] - 2026-10-07
+
+### Changed
+
+- **`go-faster` fetches a catalog row's pointer through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** `reference/areas.md` runs `scripts/fetch-docs.sh --cache --max-age 0 --profile generic` instead of WebFetch, so the citation rests on fresh, whole bytes; WebFetch stays the fallback when the manifest records the page unread for `curl-missing` or `no-python`, or no manifest was written. The sweeper's write rule names the fetcher's own output.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` declares `curl`, `jq` and `python3` as optional.
+
 ## [0.7.0] - 2026-10-06
 
 ### Added
