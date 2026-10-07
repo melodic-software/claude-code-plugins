@@ -65,9 +65,9 @@ where the doc says none occurs, or an identity check the doc's two tests do not 
 | 2, primary degraded | The `.md` channel through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only when the read shows the page arrived whole |
 | 3, mirror | A verbatim third-party mirror, with the freshness step below | Verbatim text, one rung below a primary read, and the finding says so |
 
-Rung 1 runs `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --profile
-<profile> --out <dir> <slug-or-url>`, following `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`
-step 6 with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts`: `anthropic` for a code.claude.com page,
+Rung 1 runs `bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --profile
+<profile> --out <dir> <slug-or-url>`, following `<skill-dir>/../../reference/docs-lookup-procedure.md`
+step 6 with `<scripts>` = `<skill-dir>/../../scripts`: `anthropic` for a code.claude.com page,
 `platform` for a platform.claude.com page, `generic` for any other https URL. Every read here is a
 verification read, so `--max-age 0` asks the server each time and never serves stale bytes, and
 the fingerprint module gets the page file, never a cache summary or note. Only a manifest record
@@ -154,7 +154,7 @@ loops rather than to save money. All are config keys (`.claude/attribution.json`
   re-fetching it per candidate spends the corpus ceiling on work already done. The cache lives
   in the run's memory slice and is never tracked. For a rung-1 read, the entry is its `ref`,
   `<cache_key>-<sha256>` from the manifest record, and a later read in the run is
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/docs-cache.sh" read --raw <ref>`, which spends no fetch.
+  `bash "<skill-dir>/../../scripts/docs-cache.sh" read --raw <ref>`, which spends no fetch.
 
 **Under `sweep`, both are scoped to the sweep rather than to one invocation.** The ceiling is
 spent across the whole sweep, so a resumed sweep restores its spend from the sweep ledger instead

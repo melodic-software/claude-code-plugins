@@ -47,12 +47,12 @@ Each entry gives:
 - **A candidate rests on a catalog row.** It needs a row in a named catalog file whose `area`
   cell holds the area slug (or `all`), and an expected size from a count this entry names. Fetch
   the row's `pointer` in this run with
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --profile generic --out <dir> <pointer>`
+  `bash "$ROOT/scripts/fetch-docs.sh" --cache --max-age 0 --profile generic --out <dir> <pointer>`
   (`--max-age 0`: the citation is a verification, so the server is asked every time), read the page
   file the manifest names, and cite it as `{url, as_of: <the run's date>, recheck:
   <the row's recheck_trigger>}`, with `confidence` the row's label. Use WebFetch instead only when
   the manifest records the page `unread` with reason `curl-missing` or `no-python`, or the script
-  wrote no manifest. `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md` covers the manifest
+  wrote no manifest. `$ROOT/reference/docs-lookup-procedure.md` covers the manifest
   fields. A row you cannot fetch is not cited, and a candidate that needed it is not reported. No
   row, no candidate.
 - **Fix owner.** A measured finding names the owner its entry gives. Where none is given, use the
