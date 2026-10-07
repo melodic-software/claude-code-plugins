@@ -15,11 +15,19 @@ function textOf(content) {
 // read in one left-to-right pass, so a quoted `#` never starts a comment. A quoted plain word is
 // unquoted (so "agent-browser" status still counts); any other quoted text becomes a placeholder
 // word (except a double-quoted command substitution, kept as is), so a mention in an echo or a
-// grep pattern is not a call. Env-var prefixes are skipped. After a wrapper that runs its argument
-// (env, command, exec, npx, which, sudo, time, nohup), the command is the first later word naming
-// a compared CLI, else the first non-flag word, so a flag's value (env -C /tmp, sudo -u root)
-// cannot stand in for it.
+// grep pattern is not a call. Env-var prefixes are skipped, and so are wrappers that run their
+// argument (env, command, exec, npx, which, sudo, time, nohup) with their flags; a flag listed in
+// VALUE_FLAGS also consumes the next word, so env -C /tmp or sudo -u root cannot stand in for the
+// command, while time grep -l agent-browser still resolves to grep.
 const WRAPPERS = new Set(["env", "command", "exec", "npx", "which", "sudo", "time", "nohup", "builtin"]);
+const VALUE_FLAGS = {
+  env: ["-u", "-C", "-S", "--unset", "--chdir", "--split-string"],
+  sudo: ["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T", "-R"],
+  time: ["-f", "-o", "--format", "--output"],
+  exec: ["-a"],
+  npx: ["-p", "-c", "--package", "--call"],
+};
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const base = (w) => w.split("/").pop();
 export function commandWords(cmd) {
   const scan = (m, lead) => {
@@ -34,11 +42,15 @@ export function commandWords(cmd) {
     .map((seg) => seg.trim().split(/\s+/).filter(Boolean))
     .map((words) => {
       let i = 0;
-      while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i += 1;
-      if (!WRAPPERS.has(words[i])) return base(words[i] ?? "");
-      const rest = words.slice(i + 1).filter((w) => !WRAPPERS.has(w));
-      const cli = rest.find((w) => TOOLS.includes(base(w)));
-      return base(cli ?? rest.find((w) => !w.startsWith("-") && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w)) ?? "");
+      while (i < words.length && ASSIGNMENT.test(words[i])) i += 1;
+      while (WRAPPERS.has(words[i])) {
+        const takesValue = VALUE_FLAGS[words[i]] ?? [];
+        i += 1;
+        while (i < words.length && (words[i].startsWith("-") || ASSIGNMENT.test(words[i]))) {
+          i += takesValue.includes(words[i]) ? 2 : 1;
+        }
+      }
+      return base(words[i] ?? "");
     })
     .filter(Boolean);
 }
