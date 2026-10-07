@@ -39,12 +39,11 @@ learned. "Step N" below is the protocol's step N.
      first after-version run.
 3. **Probes (step 3).** Keep the frozen set in `probes/<skill>.json`, checked with
    `/skill-quality:check measure-invocation`. Write the held-out set outside the repository. The
-   rewriter's brief forbids reading any probe file: the first run's rewriter tuned against probes it
-   could read, and only the held-out set showed it.
+   rewriter's brief forbids reading any probe file, because a rewriter that can read probes tunes
+   to them.
 4. **Rewrite.** Apply the skill criteria. Keep each description's quoted trigger phrases until a
-   held-out run shows they are not needed: on Sonnet, idiom requests stopped triggering without
-   them. A rule's stated reason can carry behavior, so cut a rationale only when a case covers the
-   behavior it explains.
+   held-out run on every target model shows they are not needed. A rule's stated reason can carry
+   behavior, so cut a rationale only when a case covers the behavior it explains.
 5. **Measure (step 4).** Copy the before and after plugins outside the repository and launch every
    pass together: each version on each target model, with and without the plugin, the same
    `--runs`, judge and threshold, and `--keep-temp`. For triggering, emit cases from the held-out
@@ -54,11 +53,9 @@ learned. "Step N" below is the protocol's step N.
    - `/evals:plugin-eval` must judge each result VALID.
    - Read its two-version noise report, after against before, at the protocol's margin.
    - For a `case drop`, restore the cut text and re-run that case against a fresh before control,
-     launched together. When no restore closes the gap, the before text ships: in the first run,
-     two named causes each failed to close one, and the original body stayed.
+     launched together. When no restore closes the gap, the before text ships.
 6. **Meaning diff (step 5).** Run `/docs-hygiene:compress compare` with two independent labelers
-   and take the union of their losses: in the first run, one labeler missed a loss the other
-   caught on the same text.
+   and take the union of their losses, since one labeler can miss a loss the other catches.
 7. **Decide (step 6).** Decide each skill's description and body separately, and put the per-skill
    decision table, with the numbers behind each row, in the pull request body.
 8. **Ship (step 7).** Commit the skills, cases, fixtures and probe files, plus the plugin's version
@@ -75,9 +72,12 @@ learned. "Step N" below is the protocol's step N.
 - The spelling check reads grader regexes too: write `behav(?:ior|iour)`, not a truncated stem.
 - A `file_exists` grader with `exists: false` fails on every run in which the skill runs git,
   because the harness counts git's own index files as created. Use must-not-call `Write` and `Edit`
-  graders instead. Observed at Claude Code 2.1.289 on 2026-10-07; recheck when a release note
-  touches `plugin eval` file tracking.
+  graders instead. Pointer: the `file_exists` grader section of
+  <https://code.claude.com/docs/en/plugin-evals>; basis: observed in kept traces at Claude Code
+  2.1.289. As of: 2026-10-07. Recheck trigger: that section or a release note changes how created
+  files are counted.
 - The eval sandbox denied a skill's read of its plugin config and its writes under `.claude/`, so
   a setup-style skill could not be measured there. Name such cases as unmeasured in the pull
-  request rather than reading their scores. Observed at Claude Code 2.1.289 on 2026-10-07; recheck
-  when a release note touches eval sandbox permissions.
+  request rather than reading their scores. Pointer: the sandbox and grant-tools sections of
+  <https://code.claude.com/docs/en/plugin-evals>; basis: observed at Claude Code 2.1.289. As of:
+  2026-10-07. Recheck trigger: either section or a release note changes eval sandbox permissions.
