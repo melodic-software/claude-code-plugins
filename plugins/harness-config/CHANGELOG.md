@@ -11,7 +11,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - The `audit-engine` and `check-hook-coverage` test suites pass on Git for Windows with `TMPDIR`
   in either `/d/x` or `D:/x` form: the strictPluginOnlyCustomization cases name their fixture
-  directory without the quote characters a Windows path cannot hold, and the hook-coverage
+  directory without the quote characters a Windows path cannot hold, the audit-engine temp root is
+  in the shell's form so a `D:/` `TMPDIR` no longer hides its curl and jq shims, and the hook-coverage
   fixtures use the native path form Claude Code writes into its registry and settings there.
 
 ## [1.13.0] - 2026-10-07

@@ -13,6 +13,9 @@ if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "FATAL: mktemp -d gave no directory" >&2
   exit 2
 fi
+# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
+# colon and hide the curl and jq shims the fetch and process-count cases add.
+TEST_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)" || exit 2
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # Nothing the caller exported reaches a case: every settings-path variable is
 # cleared or pinned to a fixture under the suite temp dir. Each run sets the
