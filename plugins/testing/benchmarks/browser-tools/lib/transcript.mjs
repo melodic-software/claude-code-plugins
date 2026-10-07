@@ -11,6 +11,23 @@ function textOf(content) {
   if (Array.isArray(content)) return content.map((c) => (c.type === "text" ? c.text : typeof c.content === "string" ? c.content : "")).join("\n");
   return "";
 }
+// The command each simple command in a Bash string runs, by basename: quoted text and comments are
+// dropped (except a double-quoted string that holds a command substitution), so a mention in an echo
+// or a grep pattern is not a call, and env-var prefixes and the
+// wrappers that run their argument (env, command, exec, npx, which, sudo, time, nohup) are skipped.
+const WRAPPERS = new Set(["env", "command", "exec", "npx", "which", "sudo", "time", "nohup", "builtin"]);
+export function commandWords(cmd) {
+  const bare = cmd.replace(/'[^']*'|"(?:\\.|[^"\\])*"/g, (q) => (q.startsWith('"') && /\$\(|`/.test(q) ? q : " ")).replace(/(^|\s)#[^\n]*/g, " ");
+  return bare
+    .split(/&&|\|\||[;|&\n()`]|\$\(/)
+    .map((seg) => seg.trim().split(/\s+/).filter(Boolean))
+    .map((words) => {
+      let i = 0;
+      while (i < words.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i]) || WRAPPERS.has(words[i]) || (i > 0 && words[i].startsWith("-")))) i += 1;
+      return words[i]?.split("/").pop() ?? "";
+    })
+    .filter(Boolean);
+}
 const looksFailed = (out) => /(^|\n)(### Error|Error:|✗)/.test(out);
 
 export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "", tool = "" } = {}) {
@@ -37,10 +54,8 @@ export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "", to
         if (FORBIDDEN_TOOLS.has(c.name)) contamination.push(`used ${c.name}`);
         const cmd = c.input?.command ?? "";
         if (c.name === "Bash" && /\b(curl|wget)\b[^|;]*127\.0\.0\.1/.test(cmd)) contamination.push(`HTTP client against the fixture: ${cmd.slice(0, 120)}`);
-        // Any whole-word mention of the other CLI as a command or path tail counts, so env prefixes,
-        // wrappers (env, command, exec, npx), subshells and absolute paths cannot slip past.
         for (const o of others)
-          if (c.name === "Bash" && new RegExp(`(^|[\\s;&|(\`$/])${o}(?=$|[\\s;&|)\`])`).test(cmd)) contamination.push(`invoked the unassigned ${o}: ${cmd.slice(0, 120)}`);
+          if (c.name === "Bash" && commandWords(cmd).includes(o)) contamination.push(`invoked the unassigned ${o}: ${cmd.slice(0, 120)}`);
         if (c.name === "Bash" && repoRoot && cmd.includes(repoRoot)) contamination.push(`touched the repository: ${cmd.slice(0, 120)}`);
         const path = c.input?.file_path ?? "";
         if (["Read", "Write", "Edit"].includes(c.name) && dir && !path.startsWith(dir) && !/node_modules\/(agent-browser|playwright-core|@playwright)/.test(path))
