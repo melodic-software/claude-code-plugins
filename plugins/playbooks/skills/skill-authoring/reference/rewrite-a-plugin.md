@@ -2,8 +2,7 @@
 
 The order of work for bringing one plugin's skills to the [skill criteria](skill-criteria.md),
 one plugin per pull request. The [rewrite protocol](skill-criteria.md#measurement) decides what
-ships; this page says how to run it across a plugin and what the first run (`code-tidying`)
-learned. "Step N" below is the protocol's step N.
+ships; this page says how to run it across a plugin. "Step N" below is the protocol's step N.
 
 ## Contents
 
