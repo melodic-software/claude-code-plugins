@@ -12,7 +12,9 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -2129,6 +2131,20 @@ class ChurnPassthroughTest(unittest.TestCase):
         self.assertEqual(row["churn"]["authored_at"], "2026-08-12T10:00:00+00:00")
 
 
+def _clear_readonly(func, path, _error):
+    """Retry a removal that failed because Windows marked the file read-only (git's object store)."""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def rmtree_force(path):
+    # `onerror` is deprecated from 3.12 and `onexc` does not exist before it.
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=_clear_readonly)
+
+
 class ChurnGitReaderTest(unittest.TestCase):
     """Proves the two git mechanics against a real repo, not by assertion.
 
@@ -2142,6 +2158,7 @@ class ChurnGitReaderTest(unittest.TestCase):
         if not shutil.which("git"):
             self.skipTest("git not available")
         self.tmp = tempfile.mkdtemp()
+        self.addCleanup(rmtree_force, self.tmp)
         self.run = lambda *a: subprocess.run(
             a, cwd=self.tmp, check=True, capture_output=True, text=True
         )
@@ -2149,9 +2166,6 @@ class ChurnGitReaderTest(unittest.TestCase):
         self.run("git", "config", "user.email", "t@example.com")
         self.run("git", "config", "user.name", "t")
         self.run("git", "config", "commit.gpgsign", "false")
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _write(self, name, text):
         pathlib.Path(self.tmp, name).write_text(text, encoding="utf-8")

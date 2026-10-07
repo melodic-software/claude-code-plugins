@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| hard_exclusions posture | PASS | enforce (default) |"
+    },
+    {
+      "answer": "hard_exclusions: not set, so the default enforce applies"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "hard_exclusions: advisory",
+      "why": "wrong value"
+    },
+    {
+      "answer": "Exclusions are enforced.",
+      "why": "option not named"
+    }
+  ]
+}

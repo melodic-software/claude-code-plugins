@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "telemetry.sh: 3 finding(s) \u2014 T1=3, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | origin-note | 8 | \"# Ported from the legacy billing service.\" | Delete. Git history owns origin |\n| 1    | origin-note | 12 | \"# Added 2026-08-10 while wiring the exporter\" | Delete. Git history owns origin |\n| 1    | origin-note | 24 | \"# Adapted from the libspan project.\" | Delete. Git history owns origin |\n\nNot flagged: line 3 sits in the Copyright/SPDX header block (license exemption); the verified and As of lines are dated freshness stamps; TODO(#88) is a marker.\n\nTotal: 1 file(s) audited, 3 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "Three origin notes, all Tier 1, delete: line 8 (Ported from the legacy billing service), line 12 (Added 2026-08-10 while wiring the exporter), line 24 (Adapted from the libspan project). The same Adapted from sentence on line 3 is part of the license header and stays; the verified and As of stamps, the bare date, the copied-from description and the TODO(#88) marker are not findings.",
+      "why": "prose paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "telemetry.sh: 3 finding(s) \u2014 T1=3, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | origin-note | 3 | \"# Adapted from the libspan project.\" | Delete |\n| 1    | origin-note | 8 | \"# Ported from the legacy billing service.\" | Delete. Git history owns origin |\n| 1    | origin-note | 12 | \"# Added 2026-08-10 while wiring the exporter\" | Delete. Git history owns origin |\n| 1    | origin-note | 24 | \"# Adapted from the libspan project.\" | Delete. Git history owns origin |\n\nNot flagged: line 3 sits in the Copyright/SPDX header block (license exemption); the verified and As of lines are dated freshness stamps; TODO(#88) is a marker.\n\nTotal: 1 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "license-header line flagged"
+    },
+    {
+      "answer": "Origin comments in telemetry.sh:\n- line 3 and line 24: \"Adapted from the libspan project\"\n- line 8: Ported from the legacy billing service\n- line 10: verified 2026-09-03 stamp is stale\n- line 12: Added 2026-08-10",
+      "why": "stamp flagged, line 3 flagged"
+    },
+    {
+      "answer": "telemetry.sh: 3 finding(s) \u2014 T1=3, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | origin-note | 8 | \"# Ported from the legacy billing service.\" | Delete. Git history owns origin |\n| 1    | origin-note | 12 | \"# Added 2026-08-10 while wiring the exporter\" | Delete. Git history owns origin |\n\nNot flagged: line 3 sits in the Copyright/SPDX header block (license exemption); the verified and As of lines are dated freshness stamps; TODO(#88) is a marker.\n\nTotal: 1 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "line 24 missing"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Keep mine.md uncommitted if it is private; tidy loads no *.local.* overlay."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rename it to mine.local.md to keep it private.",
+      "why": "points at a local variant"
+    }
+  ]
+}

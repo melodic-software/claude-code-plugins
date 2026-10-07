@@ -1,5 +1,35 @@
 # Changelog: discovery plugin
 
+## [0.32.3] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.32.2] - 2026-10-07
+
+### Fixed
+
+- The parent contract and the research and trace-intent spoke-path records cite the plugin
+  manifest reference (`plugins/manifest-reference#settings` and
+  `#where-each-variable-resolves`) in place of the retired `plugins-reference` page, re-verified
+  2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+- The docs-fetcher gate's `CLAUDE_PLUGIN_DATA` citation points at
+  `plugins/manifest-reference#environment-variables` in place of the retired `plugins-reference`
+  page, re-verified 2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+
+## [0.32.1] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate keeps its once-per-run markers in the plugin data directory instead of a
+  shared temp directory, created with mode 0700, and denies the call when that directory is a
+  link, is owned by another user, or others can reach it
+  ([#6526](https://github.com/melodic-software/claude-code-plugins/issues/6526)).
+
 ## [0.32.0] - 2026-10-07
 
 ### Security

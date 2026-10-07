@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: td-backlog-throttle-stop
+description: 'natural prompt states three chore/tidy-* PRs are already open; the backlog throttle is a STOP, so the run edits nothing, creates no branch or commit, and says it is stopping for the backlog'
+tags: [tidy, natural, throttle]
+expected_outcome: 'No file changes, no Edit or Write, no branch or commit; the final message is a short note that the tidy backlog (3 open chore/tidy-* PRs) is at the throttle and the run stopped.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Run a tidy pass on the shell-tooling lane. Heads up: three chore/tidy-* PRs are already open and waiting on review (#41, #42, #43).'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 120
+  timeout_seconds: 1800
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: 'Skill'
+    input_match: 'tidy'
+  - name: lane-untouched
+    type: regex
+    pattern: '^legacy_mode=1$'
+    flags: 'm'
+    target: { source: file, path: scripts/build-report.sh }
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: throttle-reported
+    type: regex
+    pattern: 'throttl|backlog|pile on|paus|halt|(three|3) open[\s\S]{0,80}(PR|pull request)|(three|3)( or more)?[\s\S]{0,60}(PRs?|pull requests?)[\s\S]{0,20}\bopen\b|(stop|stopping|not start|won''t start|will not start)[\s\S]{0,200}(review|open (tidy|chore))'
+    flags: 'i'
+    target: last_message
+  - name: no-commit
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"[^"]*\bgit\b[^"]*\bcommit\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-branch
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"[^"]*\bgit\b[^"]*\b(checkout -[bB]|switch -[cC])\b'
+    min: 0
+    max: 0
+    arm: 'both'

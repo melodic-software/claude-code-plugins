@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: acr-default-uncommitted-scope
+description: with no target the skill audits only the uncommitted code files; residue in a committed, unmodified file is out of scope
+tags: [acr, outcome, explicit, auto-detect]
+expected_outcome: Only cmd/worker.go (modified, uncommitted) is audited. It has history-narration at line 5 ("no longer blocks") and plan-reference at line 8 ("in this refactor"), T1=2, T2=0. The committed lib/legacy.py, whose comment mentions Dana, is not audited, and the file on disk is unchanged.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: worker-history-line-5
+    type: regex
+    pattern: '^[^\n]*(\bhistory-narration\b(?!-)[^\n]*\b5\b|\b5\b[^\n]*\bhistory-narration\b(?!-))'
+    flags: m
+  - name: worker-plan-line-8
+    type: regex
+    pattern: '^[^\n]*(\bplan-reference\b[^\n]*\b8\b|\b8\b[^\n]*\bplan-reference\b)'
+    flags: m
+  - name: committed-file-out-of-scope
+    type: regex
+    pattern: 'Dana'
+    match: not_contains
+  - name: counts-t1-2-t2-0
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**2\b[^\n]*T2\s*[=:]\s*\**0\b|\b2\**\s+Tier[ -]1\b[^\n]*\b0\**\s+Tier[ -]2\b'
+  - name: worker-unchanged
+    type: regex
+    pattern: '^(?=[\s\S]*// Run drains the queue; it no longer blocks on an empty queue\.\n)(?=[\s\S]*// in this refactor the print moved out of the handler\n)'
+    target: { source: file, path: cmd/worker.go }
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

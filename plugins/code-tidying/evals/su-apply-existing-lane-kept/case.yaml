@@ -1,0 +1,58 @@
+schema_version: "1.1"
+name: su-apply-existing-lane-kept
+description: apply on a lane that already exists and passes check reads and summarizes it as the baseline, never overwrites it without confirmation, writes no local variant or overrides file, and reports already configured
+tags: [setup, apply, idempotent]
+expected_outcome: apply runs the check probes first, reads .claude/tidy-lanes/web.md, summarizes it (scope src/web/** and tests/test_app.py), and leaves it byte-for-byte as it was because no confirmation was given in the conversation. It writes no *.local.* file and no exclusion-overrides file, and reports the lane as already configured.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:setup apply web
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: lane-sections-unchanged
+    type: regex
+    pattern: '^## '
+    flags: m
+    match: "count:6"
+    target: { source: file, path: .claude/tidy-lanes/web.md }
+  - name: lane-content-unchanged
+    type: regex
+    pattern: '^src/web/\*\*\ntests/test_app\.py\n```[\s\S]*^- \*\*Beck #2, Dead Code\*\*: unused helpers beside the handlers\n\n## Lane-specific[\s\S]*^python3 -m pytest tests\n```'
+    flags: m
+    target: { source: file, path: .claude/tidy-lanes/web.md }
+  - name: baseline-summarized
+    type: regex
+    pattern: 'src/web/\*\*'
+  - name: already-configured
+    type: regex
+    pattern: '\balready\b[^\n]{0,80}\b(?:configured|set ?up|in place|complete|correct|up to date|passes|satisf)'
+    flags: i
+  - name: no-local-variant
+    type: file_exists
+    path: '**/*.local.*'
+    exists: false
+  - name: no-overrides-file
+    type: file_exists
+    path: '.claude/code-tidying/**'
+    exists: false
+  - name: lane-read
+    type: regex
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{[^\n]{0,200}?tidy-lanes/web\.md|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,400}?\b(?:cat|head|tail|sed|awk|less|more|nl|bat|grep|rg)\b(?:[^"\\]|\\.){0,400}?tidy-lanes/web\.md'
+    target: trace
+    arm: both
+  - name: lane-not-rewritten
+    type: tool_used
+    tool: Write
+    input_match: 'tidy-lanes/web\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: lane-not-edited
+    type: tool_used
+    tool: Edit
+    input_match: 'tidy-lanes/web\.md'
+    min: 0
+    max: 0
+    arm: both

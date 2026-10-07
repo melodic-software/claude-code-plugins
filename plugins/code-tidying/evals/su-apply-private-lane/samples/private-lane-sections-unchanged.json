@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Lane: mine\n\nOrder models I tidy on my own rotation.\n\n## Scope\n\n```text\nsrc/core/**\n```\n\n## Watch-for patterns\n\n- **Beck #8, Explaining Variables**: dense expressions in model methods\n- **Mine-only sentinel**: dict literals built inline in return statements\n\n## Lane-specific extra exclusions\n\n- **Public model attributes** read by the web handlers are a contract, never rename\n\n## Verification commands\n\n```bash\npython3 -m pytest tests\n```\n\n## Conventional Commits type\n\n`refactor:`. Example title: `refactor(core): name the order dict`.\n\n## Preferred research sources\n\n- https://docs.python.org/3/\n",
+      "why": "fixture as seeded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Lane: mine\n\n## Scope\n",
+      "why": "rewritten"
+    }
+  ]
+}
