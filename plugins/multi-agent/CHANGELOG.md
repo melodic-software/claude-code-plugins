@@ -7,7 +7,7 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 
 ### Fixed
 
-- The `list-scripts` test suite passes on Git for Windows ([#6527](https://github.com/melodic-software/claude-code-plugins/issues/6527)): the symlink fixture is a native symlink rather than the copy a plain `ln -s` makes there, and the quote-in-path case runs only where a path can hold a quote, with the same assertion unchanged on Linux.
+- The `list-scripts` test suite passes on Git for Windows ([#6527](https://github.com/melodic-software/claude-code-plugins/issues/6527)): the quote-in-path case and the symlink case (`leaves out link.md`) are skipped there, since a Windows path cannot hold a quote and a plain `ln -s` copies the file. Both assertions are unchanged on Linux.
 
 ## [0.5.1] - 2026-10-07
 
