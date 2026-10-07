@@ -30,7 +30,9 @@ const bins = { "playwright-cli": process.env.PLAYWRIGHT_CLI_BIN ?? "playwright-c
 // `skills get core` from the CLI, which the agent does itself, as in real use.
 function skillText(tool) {
   const bin = bins[tool];
-  const real = (() => { try { return execFileSync("readlink", ["-f", bin]).toString().trim(); } catch { return bin; } })();
+  // A bare name is looked up on PATH first; readlink alone would resolve it against the cwd.
+  const onPath = bin.includes("/") ? bin : (process.env.PATH ?? "").split(":").map((d) => join(d, bin)).find((p) => existsSync(p)) ?? bin;
+  const real = (() => { try { return execFileSync("readlink", ["-f", onPath]).toString().trim(); } catch { return onPath; } })();
   const candidates = tool === "playwright-cli"
     ? ["../playwright-core/lib/tools/skills/playwright-cli/SKILL.md", "../../playwright-core/lib/tools/skills/playwright-cli/SKILL.md", "../../node_modules/playwright-core/lib/tools/skills/playwright-cli/SKILL.md"]
     : ["../skills/agent-browser/SKILL.md", "../../skills/agent-browser/SKILL.md"];
@@ -104,7 +106,7 @@ async function grade() {
   const task = tasks.find((t) => t.id === meta.task);
   const answerFile = arg("answer-file");
   const transcriptFile = arg("transcript");
-  const t = transcriptFile && existsSync(transcriptFile) ? parseTranscript(readFileSync(transcriptFile, "utf8"), { dir, nonce: meta.nonce, repoRoot: resolve(dirname(new URL(import.meta.url).pathname), "../../../..") }) : null;
+  const t = transcriptFile && existsSync(transcriptFile) ? parseTranscript(readFileSync(transcriptFile, "utf8"), { dir, nonce: meta.nonce, tool: meta.tool, repoRoot: resolve(dirname(new URL(import.meta.url).pathname), "../../../..") }) : null;
   const answerAll = answerFile ? readFileSync(answerFile, "utf8") : t?.finalText ?? "";
   const answer = answerAll.match(/FINAL ANSWER:([\s\S]*)$/i)?.[1]?.trim() ?? answerAll;
   const files = readdirSync(meta.out).map((name) => {

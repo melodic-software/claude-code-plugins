@@ -1,7 +1,7 @@
 # Browser-tools benchmark
 
 A re-runnable comparison of the browser CLIs an agent can drive for the jobs in
-[ADR 0056](../../../../docs/adr/0056-route-browser-work-by-job-to-claude-in-chrome-chrome-devtools-mcp-and-playwright.md):
+[ADR 0056](../../../../docs/adr/0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md):
 the default UI self-check, outcome verification, PR evidence, exploratory testing, and the
 logged-in session. It was built to answer one question: is
 [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser) a better default than

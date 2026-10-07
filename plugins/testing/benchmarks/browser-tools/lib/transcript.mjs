@@ -13,7 +13,9 @@ function textOf(content) {
 }
 const looksFailed = (out) => /(^|\n)(### Error|Error:|✗)/.test(out);
 
-export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "" } = {}) {
+export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "", tool = "" } = {}) {
+  // A trial is assigned one CLI; a call to any other compared CLI voids it.
+  const others = tool ? TOOLS.filter((x) => x !== tool) : [];
   const events = jsonl.split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   const calls = new Map(); // tool_use id -> { name, input }
   const usageById = new Map();
@@ -35,6 +37,10 @@ export function parseTranscript(jsonl, { dir = "", nonce = "", repoRoot = "" } =
         if (FORBIDDEN_TOOLS.has(c.name)) contamination.push(`used ${c.name}`);
         const cmd = c.input?.command ?? "";
         if (c.name === "Bash" && /\b(curl|wget)\b[^|;]*127\.0\.0\.1/.test(cmd)) contamination.push(`HTTP client against the fixture: ${cmd.slice(0, 120)}`);
+        for (const o of others) {
+          const segs = cmd.split(/&&|;|\n|\|\||\|/).map((s) => s.trim());
+          if (c.name === "Bash" && segs.some((s) => s.startsWith(o) || s.includes(`/${o} `) || s.startsWith(`npx ${o}`))) contamination.push(`invoked the unassigned ${o}: ${cmd.slice(0, 120)}`);
+        }
         if (c.name === "Bash" && repoRoot && cmd.includes(repoRoot)) contamination.push(`touched the repository: ${cmd.slice(0, 120)}`);
         const path = c.input?.file_path ?? "";
         if (["Read", "Write", "Edit"].includes(c.name) && dir && !path.startsWith(dir) && !/node_modules\/(agent-browser|playwright-core|@playwright)/.test(path))
