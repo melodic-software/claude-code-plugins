@@ -3,11 +3,21 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [1.1.4] - 2026-10-07
+## [1.1.5] - 2026-10-07
 
 ### Changed
 
 - **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [1.1.4] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
 
 ## [1.1.3] - 2026-10-07
 

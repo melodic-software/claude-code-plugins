@@ -3,11 +3,17 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.12] - 2026-10-07
+## [0.28.13] - 2026-10-07
 
 ### Changed
 
 - **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.28.12] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The comment-census and rank-comment-targets tests register their temp-dir cleanup right after creating the dir, and the census tests clear git's read-only object files so the removal succeeds on Windows.
 
 ## [0.28.11] - 2026-10-07
 

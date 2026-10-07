@@ -292,9 +292,21 @@ const inflight = new Map()
 const fetchLabels = []
 const secondRounds = []
 
+const utf8Bytes = s => {
+  let n = 0
+  for (const ch of s) {
+    const c = ch.codePointAt(0)
+    n += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4
+  }
+  return n
+}
+
 // One docs-raw output, keyed to the URL this script asked for: a header naming
-// another URL, or none, makes the page unread.
-function parseRaw(url, ids, out) {
+// another URL, or none, makes the page unread. The fetcher model retypes the
+// body, so a body whose UTF-8 length differs from the header's bytes, or whose
+// hash differs from body_sha256 (checked when the runtime has Web Crypto), is
+// unread too.
+async function parseRaw(url, ids, out) {
   const base = { url, sections: ids }
   const text = typeof out === 'string' ? out.replace(/\r\n/g, '\n') : ''
   const nl = text.indexOf('\n')
@@ -303,7 +315,15 @@ function parseRaw(url, ids, out) {
   const f = Object.fromEntries([...m[3].matchAll(/ ([a-z0-9_]+)=(\S*)/g)].map(x => [x[1], x[2]]))
   if (m[2] === 'unread') return { ...base, state: 'unread', reason: f.reason || 'unstated' }
   const page = { ...base, state: 'read', kind: f.kind || 'unknown', format: f.format || '', validated: f.validated || '', sha256: f.sha256 || '' }
-  return f.kind === 'too-large' ? page : { ...page, body: nl < 0 ? '' : text.slice(nl + 1).replace(/\n+$/, '') }
+  if (f.kind === 'too-large') return page
+  const body = nl < 0 ? '' : text.slice(nl + 1).replace(/\n+$/, '')
+  if (String(utf8Bytes(body)) !== f.bytes) return { ...base, state: 'unread', reason: 'the body does not match the header byte count' }
+  const subtle = globalThis.crypto && globalThis.crypto.subtle
+  if (subtle && typeof TextEncoder === 'function') {
+    const hex = [...new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(body)))].map(b => b.toString(16).padStart(2, '0')).join('')
+    if (hex !== f.body_sha256) return { ...base, state: 'unread', reason: 'the body does not match the header body_sha256' }
+  }
+  return { ...page, body }
 }
 
 function fetchOne(req) {
@@ -322,9 +342,9 @@ function fetchOne(req) {
         'Stage: fetch. Run docs-raw.sh once on the URL below, with the section ids listed after it (none when ' +
         'the list is empty), and return its standard output verbatim.' + fence('url', url) + fence('sections', ids),
         { label, phase: 'Fetch', schema: FETCH_SCHEMA, ...opts(R.worker.fanout, FETCHER) },
-      ).catch(() => null).then(r => {
+      ).catch(() => null).then(async r => {
         if (r == null) nulls.push(label)
-        slices.set(key, parseRaw(url, ids, r && r.output))
+        slices.set(key, await parseRaw(url, ids, r && r.output))
       }))
     }
   }
