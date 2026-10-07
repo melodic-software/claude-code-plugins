@@ -282,7 +282,7 @@ for the uninstall of every plugin installed from a marketplace removed from its 
 and `claude plugin marketplace remove --help`, which lists `--scope` and nothing else. *As of*
 2026-09-07 on **Claude Code 2.1.263** (win32), with the same bundle strings present in 2.1.260 and
 2.1.261, so the behavior is not version-gated. ***Recheck trigger:*** any release note or
-`plugin-marketplaces` / `plugins-reference` change touching marketplace removal, `--keep-data`, the
+`plugins/cli-reference` / `plugins/marketplace-reference` / `plugins/manifest-reference` change touching marketplace removal, `--keep-data`, the
 persistent data directory, or the settings cleanup cascade; or a keep-data flag appearing on
 `claude plugin marketplace remove --help`.
 
