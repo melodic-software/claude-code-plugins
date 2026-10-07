@@ -59,13 +59,14 @@ options and `zones.json`:
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
-`unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
+`unknown` reading sends nothing and changes nothing. Lines state facts only and never tell Claude
+what to do; that is Claude's and the user's call. Every line carries only the verdict: the zone
 word and its rank of three. A crossing or restatement inside the
 approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
-it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
+it is not sent. Lines due at
 one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
 crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
-window) and then "Continuing is the user's call."; by default a line carries neither, and it never carries a session id. A configured action's sentence
+window); by default a line carries none, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
 appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
 gate denial, is also written as sent to the debug log (`claude --debug`).
