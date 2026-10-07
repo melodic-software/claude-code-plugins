@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [0.31.1] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md` now has the reader slice the sections for any part
+  of the question none of its slices covers, and the section of every item when the question asks
+  the same thing for each of many events, options or keys. In a blind-graded run on the hooks page
+  (n = 6 per arm), new-core recall rose from .899 (control, n = 16) to .953, with mean bytes read
+  of 218159 against a limit of 219084, half the saving over reading the whole page. A lower
+  `escalate_bytes` and a "read the whole page" sentence did not pass the same rule.
+
 ## [0.31.0] - 2026-10-07
 
 ### Added
