@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 3, document the rate limit\n\nWorktree: /srv/dev/wt/orders-rate-limit (branch feat/orders-rate-limit); anchor every command with `git -C /srv/dev/wt/orders-rate-limit`.\n\nWhy: clients need to know the ceiling and how to back off.\n\nALLOWED: docs/api.md. FORBIDDEN: every other path; opening a PR.\n\nAcceptance: a section in docs/api.md covering the 100-per-minute limit, the 429 status, and the Retry-After header; `make docs-lint` passes.\n\nCommit authority: worker; commit and push early. If an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nReturn: commit SHA and the `make docs-lint` output.",
+      "why": "docs brief with lint as the only check, no red-run demand"
+    },
+    {
+      "answer": "Brief, phase 3 (worker)\n\nEdit docs/api.md only: add the per-client limit (100 requests a minute), the 429 response, and the Retry-After header. Acceptance: section present, `make docs-lint` green. This phase changes no behavior, so no failing-test evidence applies; return the commit SHA and the lint output. STOP and report if anything outside docs/api.md needs to change. Do not improvise.",
+      "why": "explicitly notes red-run evidence does not apply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Brief: phase 3\n\nALLOWED: docs/api.md. FORBIDDEN: everything else.\n\nAcceptance: section present; `make docs-lint` passes.\n\nReturn: commit SHA, plus red-run evidence: the docs-lint run failing against the tree before your edit, then passing after it.",
+      "why": "demands proof something fails without the change for a docs-only phase"
+    },
+    {
+      "answer": "## Brief: phase 3\n\nDocument the limit in docs/api.md. Write a test first in tests/docs/test_api_docs.py that asserts the section exists, run it and show it failing, then add the section and show it passing.\n\nAcceptance: `make docs-lint` passes.",
+      "why": "adds a failing-test-first step and a test file to a docs-only phase"
+    }
+  ]
+}

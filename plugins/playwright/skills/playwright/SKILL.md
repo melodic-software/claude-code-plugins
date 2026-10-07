@@ -8,9 +8,9 @@ allowed-tools: Bash(playwright-cli:*)
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
-  upstream-version: 0.1.19
-  upstream-sha: 8de691a19c25f49a19525e9676bafe8f21e0e604
-  synced: 2026-09-02
+  upstream-version: 0.1.22
+  upstream-sha: 8f4bb69e84084f1fabcb4ba08f491f7e16894a06
+  synced: 2026-10-04
   workflow-stage: test
   summary: Live E2E browser automation with disk-written artifacts
 ---
@@ -57,6 +57,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 | Snapshot mechanics, element refs, inspecting DOM attributes | [reference/snapshots-and-refs.md](reference/snapshots-and-refs.md) |
 | Cookies, localStorage, sessionStorage, auth state save/restore | [reference/storage-and-auth.md](reference/storage-and-auth.md) |
 | Trace recording for debugging, video recording with overlays/chapters | [reference/tracing-and-video.md](reference/tracing-and-video.md) |
+| A `@playwright/test` run failed, read why (terminal trace CLI, failure-retention modes) | [reference/tracing-and-video.md](reference/tracing-and-video.md#reading-a-failed-playwrighttest-run) |
 | Network mocking, route patterns, response modification | [reference/network-mocking.md](reference/network-mocking.md) |
 | `run-code` for geolocation, permissions, media emulation, waits, frames | [reference/running-code.md](reference/running-code.md) |
 | Generating Playwright test files from CLI sessions | [reference/test-generation.md](reference/test-generation.md) |
@@ -77,7 +78,7 @@ Microsoft's defaults are right for autonomous E2E work. Don't add `PLAYWRIGHT_MC
 | Console level | `info` | Actionable errors/warnings without debug noise |
 | Viewport | 1280×720 | Standard laptop. Matches most users' view |
 
-**One exception: video recording.** The video frame size is derived from the viewport at browser-context creation, then fitted into an 800×800 box, so a bare `video-start` records at 800×450 no matter what you do afterwards; `resize` does not change it. Recording at any other size takes two matched levers: `PLAYWRIGHT_MCP_VIEWPORT_SIZE=<W>x<H>` prefixed on the `open` command *plus* `video-start --size "<W>x<H>"`. That is a per-command prefix, not a project-settings entry, so it does not contradict the guidance above. Details and measured outcomes: [reference/tracing-and-video.md](reference/tracing-and-video.md).
+**One exception: video recording.** The video frame size is derived from the viewport at browser-context creation, then fitted into an 800×800 box, so a bare `video-start` records at 800×450 no matter what you do afterwards; `resize` does not change it. Recording at any other size takes two matched levers: `PLAYWRIGHT_MCP_VIEWPORT_SIZE=<W>x<H>` prefixed on the `open` command *plus* `video-start --size "<W>x<H>"`. That is a per-command prefix, not a project-settings entry, so it does not contradict the guidance above. For a demo a reviewer will watch, add `--fps=60 --cursor` to `video-start`, and pass `--highlight-style` to `video-show-actions` so the target of each action shows. Details, `video-chapter`, and measured outcomes: [reference/tracing-and-video.md](reference/tracing-and-video.md).
 
 The full env var / config file schema lives in Microsoft's upstream README at `$(npm root -g)/@playwright/cli/README.md`. Not duplicated here.
 

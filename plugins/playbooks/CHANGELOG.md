@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.5] - 2026-10-04
+
+### Changed
+
+- `update` names the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
 ## [0.19.4] - 2026-10-04
 
 ### Changed

@@ -1,0 +1,17 @@
+# Trust-root paths: lane config, grants and rules, the workflows and actions lanes run
+# from the default branch, and the plugins lanes load. The trust-root ruleset requires
+# an approving review from a code owner listed here before a change to these paths merges.
+# Paths not listed have no owner and need no code-owner review.
+
+/docs/conventions/pr-pipeline.yaml @kyle-sexton
+/docs/conventions/pr-pipeline/** @kyle-sexton
+/.github/actions/** @kyle-sexton
+/.github/standards/** @kyle-sexton
+/.github/workflows/** @kyle-sexton
+/.github/scripts/** @kyle-sexton
+/.github/CODEOWNERS @kyle-sexton
+/.claude-plugin/marketplace.json @kyle-sexton
+/plugins/code-tidying/** @kyle-sexton
+/plugins/ai-slop/** @kyle-sexton
+/plugins/review/** @kyle-sexton
+/plugins/source-control/** @kyle-sexton

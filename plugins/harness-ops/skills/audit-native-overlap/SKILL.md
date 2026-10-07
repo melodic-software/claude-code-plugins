@@ -347,7 +347,8 @@ as one fleet-wide edit.
 
 1. **Apply**. Bake the description phrases and Boundary sections for that plugin's rows only.
 2. **Verify**, the overlap self-check passes; `/skill-quality:check` passes for every touched
-   skill; the plugin version takes its bump; the plugin's CHANGELOG carries the entry.
+   skill; the plugin carries the repo's release record: a version bump plus CHANGELOG entry, or a
+   changelog fragment where the repo uses them (see the repo's AGENTS.md).
 3. **PR**. Open one PR for that unit, with the affected store rows quoted in the body so a
    reviewer gates the routing change on the same evidence the verdict rested on.
 4. **Close**, the unit is closed **only when its PR merges green**. A merged-but-red or an open PR

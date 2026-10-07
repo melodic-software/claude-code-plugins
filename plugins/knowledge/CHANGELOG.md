@@ -4,6 +4,13 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.9] - 2026-10-06
+
+### Changed
+
+- **`video-digest` prerequisites say what to try when the usual install falls short, and to run the newest safe release.** The Prerequisites section points at the project's own release builds and conda-forge when a distro package sits below the ffmpeg or ImageMagick floor, and at the `default` and `curl-cffi` extras when yt-dlp comes from pip. The floors are minimums: a run upgrades a tool to its latest stable release when it comes from an official channel and no security advisory is open against it. `prerequisites.json` carries the yt-dlp 2026.6 floor as a version check, so `/harness-ops:prerequisites` reports an outdated yt-dlp, and adds the pip and conda install hints.
+- **`video-digest` states that a watch with no video stops.** When the media download fails, `run-watch.js` already exits non-zero before writing a slice. The skill now says to stop there and report, never to continue without frames or switch to the `transcript` action unasked, and `context/gotchas.md` gains the HTTP 403 media-stream case with its fix paths.
+
 ## [0.19.8] - 2026-10-04
 
 ### Changed

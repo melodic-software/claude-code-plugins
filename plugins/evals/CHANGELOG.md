@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.6.0] - 2026-10-06
+
+### Added
+
+- `/evals:methodology` adds an "Agent evals: grader hygiene" section pointing at Anthropic's agent-evals post: grade the outcome rather than the transcript's claim, keep graders out of the agent's reach, and sample transcripts to catch gaming.
+
 ## [0.5.7] - 2026-10-04
 
 ### Changed

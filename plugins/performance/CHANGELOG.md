@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-06
+
+### Added
+
+- The `/performance:go-faster` catalog adds `agent-loop-test-wall-time` (test wall time per iteration inside an agent turn) and `stop-hook-test-gate` (a Stop hook that runs tests, measured against the hooks reference's default command-hook timeout, with its block and flaky-block counts). Both build on the existing CI-level and hook rows, and any target is labeled as the repository's own.
+
 ## [0.6.2] - 2026-10-04
 
 ### Changed

@@ -3,6 +3,35 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-06
+
+### Changed
+
+- `reference/tracing-and-video.md` covers reading a failed `@playwright/test` run from the terminal: the `npx playwright trace` loop (1.59+), the error context (1.60+), and when to use each trace, screenshot and video retention mode. A routing row in `SKILL.md` points there.
+- Test generation treats the spec as the oracle and the app as the subject: every `expect` traces to a requirement, and an outcome only observed on the page is marked unconfirmed. The heal step reads the retained trace first, and when the feature is broken it marks the test `test.fail()` or `test.fixme()` with the reason instead of patching the expectation.
+
+## [0.8.11] - 2026-10-04
+
+### Changed
+
+- The `update` action's finishing steps name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
+## [0.8.10] - 2026-10-04
+
+### Changed
+
+- **Synced `@playwright/cli` vendor baseline to 0.1.22.** `reference/tracing-and-video.md` now
+  documents `video-start --size/--fps/--cursor`, `video-chapter`, and `video-show-actions` with its
+  opt-in `--highlight-style`/`--point-style`/`--title-style` (the target highlight no longer shows
+  unless styled), and says to always pass `--size` because the default fits 800×800. Also added the
+  emulation (`set-color-scheme` and siblings), WebMCP, and `find --filename` commands, the headless
+  idle shutdown, and the `run-code` sandbox limits. Upstream:
+  [playwright-cli v0.1.20 to v0.1.22](https://github.com/microsoft/playwright-cli/releases).
+- **Declared `gh` as an optional prerequisite.** The vendored skill now shows attaching
+  screenshots and videos to a pull request with `gh pr comment --attach`.
+- **Upstream records in the new reference text state our decision plus a live pointer.** The
+  `run-code` login example passes the password from the shell instead of `process.env`.
+
 ## [0.8.9] - 2026-10-04
 
 ### Changed
