@@ -1123,6 +1123,18 @@ got="$(
 )"
 assert_eq "bash32: dc_utc and dc_lower match the Bash 4 forms they replace" \
   '1970-01-01T00:00:00Z 2000-02-29T00:00:00Z 2024-02-29T23:59:59Z 2100-02-28T23:59:59Z 200109090146.40 https://docs.test/a-z_09/é' "$got"
+# A server-sent header line is unbounded: 100 KB of upper case takes well under
+# a second when dc_lower is linear, and close to a minute when it is quadratic.
+got="$(
+  # shellcheck source=docs-cache.sh
+  . "$SCRIPT"
+  big=""
+  for ((i = 0; i < 4000; i++)); do big+=ABCDEFGHIJKLMNOPQRSTUVWXYZ; done
+  SECONDS=0
+  dc_lower l "$big"
+  printf '%s %s' "$((SECONDS < 10))" "${l:0:27}"
+)"
+assert_eq "bash32: dc_lower is linear on a 100 KB upper-case line" '1 abcdefghijklmnopqrstuvwxyza' "$got"
 bash4_re='\$\{[!#]?[A-Za-z_][A-Za-z0-9_]*(\[[^]]*\])?(,,?|\^\^?)\}|(declare|local|typeset)( -[a-zA-Z]+)* -[a-zA-Z]*[An]|mapfile|readarray|\|&|&>>|@[QEPAaKkUuL]\}|\[-[0-9]+\]|wait -n|coproc|%\([^)]*\)T'
 hits="$(grep -nE "$bash4_re" "$SCRIPT" "$SCRIPT_DIR/fetch-docs.sh" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"
 assert_eq "bash32: docs-cache.sh and fetch-docs.sh use no Bash 4+ construct" "" "$hits"
