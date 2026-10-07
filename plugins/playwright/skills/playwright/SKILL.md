@@ -109,7 +109,8 @@ Each one was observed in the browser-tools benchmark of 2026-10-07 (`plugins/tes
 - **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
 - **A page can look ready before its handlers attach.** A server-rendered button that is not yet hydrated takes the click and does nothing. Wait for a readiness signal the page gives (a status element, an enabled control, a network request finishing) before the first click; `click` waits for enabled, not for listeners.
 - **Each command costs seconds of startup, so a short-lived toast can vanish before the next `snapshot`.** Start `video-start` before the action and read the message from the recording, or snapshot in the same breath as the action that triggers it.
-- **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.- **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
+- **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.
+- **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
 
 ## Source attribution
 
