@@ -91,6 +91,57 @@ rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "case 7: refused: no URL" "2" "$rc"
 
+# 8. bytes and body_sha256 describe the body as printed; CRLF line ends print as LF.
+printf '# Crlf\r\n\r\nNa\xc3\xafve line.\r\n' >"$FETCH_DOCS_FIXTURE_DIR/crlf.md"
+printf '%s\n' '- [Crlf](https://code.claude.com/docs/en/crlf.md): c' >>"$FETCH_DOCS_FIXTURE_DIR/llms.txt"
+out="$(bash "$SCRIPT" https://code.claude.com/docs/en/crlf)"
+body="$(tail -n +2 <<<"$out")"
+assert_eq "case 8: CRLF prints as LF" $'# Crlf\n\nNa\xc3\xafve line.' "$body"
+assert_eq "case 8: bytes is the UTF-8 byte count of the printed body" "bytes=$(printf '%s' "$body" | wc -c | tr -d ' ')" \
+  "$(head -1 <<<"$out" | grep -oE 'bytes=[0-9]+')"
+assert_eq "case 8: body_sha256 is the hash of the printed body" "body_sha256=$(printf '%s' "$body" | sha256sum | cut -d' ' -f1)" \
+  "$(head -1 <<<"$out" | grep -oE 'body_sha256=[0-9a-f]+')"
+
+# The network cases: no fixture seam, a curl stand-in first on PATH that logs
+# its arguments and serves one markdown page, and DNS answers from the seam.
+SHIM="$TEST_TMPDIR/shim"
+mkdir -p "$SHIM"
+cat >"$SHIM/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
+out="" wfmt="" url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -o | -w) [[ "$1" == -o ]] && out="$2" || wfmt="$2"; shift 2 ;;
+  -D | -H | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs | --max-filesize | --noproxy | --connect-to) shift 2 ;;
+  -*) shift ;;
+  *) url="$1"; shift ;;
+  esac
+done
+printf '# Remote\n\nremote body\n' >"$out"
+wfmt="${wfmt//%\{http_code\}/200}"
+wfmt="${wfmt//%\{url_effective\}/$url}"
+printf '%s' "${wfmt//%\{content_type\}/text/markdown}"
+EOF
+chmod +x "$SHIM/curl"
+net() { env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$TEST_TMPDIR/curl.log" FETCH_DOCS_ADDRESSES="$1" bash "$SCRIPT" "$2"; }
+
+# 9. A public name whose DNS answer is a private address is unread, and nothing is requested.
+: >"$TEST_TMPDIR/curl.log"
+assert_eq "case 9: a DNS answer of a private address is refused" \
+  "docs-raw: url=https://docs.example.com/page state=unread reason=private-address" \
+  "$(net 'docs.example.com=10.0.0.7' https://docs.example.com/page)"
+assert_eq "case 9: no request was made" 0 "$(wc -l <"$TEST_TMPDIR/curl.log" | tr -d ' ')"
+
+# 10. A public answer is read through a request pinned to it, and a generic page
+# never reaches the shared docs cache.
+rm -rf "$DOCS_CACHE_DIR"
+out="$(net 'docs.example.com=93.184.216.34' https://docs.example.com/page)"
+assert_eq "case 10: the page is read" $'# Remote\n\nremote body' "$(tail -n +2 <<<"$out")"
+assert_eq "case 10: the request was pinned to the checked address with no proxy" 1 \
+  "$(grep -c -- '^-q .*--noproxy \* --connect-to ::93\.184\.216\.34: ' "$TEST_TMPDIR/curl.log")"
+assert_eq "case 10: the shared docs cache holds nothing" 0 "$(find "$DOCS_CACHE_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')"
+
 if [[ $FAILED -gt 0 ]]; then
   printf '\n%d failure(s)\n' "$FAILED" >&2
   exit 1

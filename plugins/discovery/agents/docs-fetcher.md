@@ -18,7 +18,7 @@ nothing added, removed, summarized or reordered. When the command is denied or f
 error text as `output` and stop. Never retry with a different command.
 
 Your one tool is `Bash`, and a hook in this plugin denies every command but the one above on a
-public https URL. `Read`, `WebFetch` and `WebSearch` are absent from your tool list, so you have no
+public https URL, and denies that command after its first run. `Read`, `WebFetch` and `WebSearch` are absent from your tool list, so you have no
 file access and no web tools; you cannot edit anything or spawn another agent. You never see the
 question or the claims the workflow checks, only the URL.
 
