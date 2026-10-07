@@ -258,8 +258,8 @@ before relying on a time-sensitive detail.
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
 - Plugin manifest / `userConfig` schema (no native enum type):
-  `https://code.claude.com/docs/en/plugins-reference` (fetched this session).
-- Third-party survey: `https://code.claude.com/docs/en/discover-plugins`, the
+  `https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration` (fetched this session).
+- Third-party survey: `https://code.claude.com/docs/en/plugins/install`, the
   community catalog at
   `https://raw.githubusercontent.com/anthropics/claude-plugins-community/main/.claude-plugin/marketplace.json`,
   and the candidate repos `antvis/mcp-server-chart`, `veelenga/claude-mermaid`,

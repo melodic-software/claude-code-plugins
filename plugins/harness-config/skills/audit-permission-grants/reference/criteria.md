@@ -154,16 +154,15 @@ blanket form is false for the file tools. Match the mechanism to the rule class:
 
 The two exceptions on Bash rules:
 
-1. **Token substitution in `allowed-tools`.** Claude Code substitutes `${CLAUDE_SKILL_DIR}` and
-   `${CLAUDE_PROJECT_DIR}` in both a skill's markdown content and Bash rules in `allowed-tools`, and
-   **in a plugin skill substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
-   places** ([skills](https://code.claude.com/docs/en/skills#available-string-substitutions), fetched
-   2026-09-12). That is the documented way to run a bundled script without a prompt, e.g.
-   `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`. Two limits the convention records:
-   `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code **v2.1.196 or later** (below that floor the
-   rule stays a literal string and never matches), and the plugin-scoped pair is *"Substituted only in
-   plugin skills"* per the same page's variable table, so both stay literal in a personal or project
-   skill, in an agent or command, and in any settings file.
+1. **Token substitution in `allowed-tools`.** Some `${CLAUDE_*}` tokens are substituted in Bash rules
+   in `allowed-tools`, some only in a plugin skill, and one only from a minimum Claude Code version.
+   Read which tokens, where, and from which version live from
+   [skills](https://code.claude.com/docs/en/skills#available-string-substitutions), as of 2026-10-07;
+   recheck trigger: that section changes which tokens it substitutes in `allowed-tools`. A grant whose
+   token that section substitutes in the grant's own context is the documented way to run a bundled
+   script without a prompt, e.g. `allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/render.sh *)`; a
+   token it does not substitute there, or below its version floor, stays a literal string, and the
+   grant never matches.
 2. **Leading env-assignment stripping**, which is scoped, and scoped differently for allow rules than
    for deny or ask rules. Read which variables are stripped and how each rule kind matches live from
    [permissions](https://code.claude.com/docs/en/permissions#process-wrappers), as of 2026-10-07;

@@ -25,9 +25,9 @@ Both are verified 2026-09-06 against Claude Code 2.1.263. The permission-modes p
 path, states that protected-path writes are never auto-approved outside `bypassPermissions`, routes
 them to the classifier in auto mode, and states that `permissions.allow` rules in settings files do
 not pre-approve them. The same page states that the classifier reviews actions before they run, which
-is why a denial can land on the Bash tool call itself and produce no exit code. The plugins reference
-at `https://code.claude.com/docs/en/plugins-reference` states that a plugin's own `settings.json`
-supports only the `agent` and `subagentStatusLine` keys. Recheck when either page stops carrying
+is why a denial can land on the Bash tool call itself and produce no exit code. The plugin manifest
+reference at `https://code.claude.com/docs/en/plugins/manifest-reference#settings` (re-read 2026-10-07) states that only the `agent` and
+`subagentStatusLine` keys of a plugin's settings take effect. Recheck when either page stops carrying
 those statements, or when a release note names protected paths, the auto-mode classifier, or plugin
 `settings.json` keys.
 

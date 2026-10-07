@@ -199,8 +199,9 @@ esac
 # The manifest also decides WHERE that plugin's skills live. Its `skills` key
 # holds a path or an array of paths, each relative to the plugin root, and those
 # ADD to the conventional `skills/` directory rather than replacing it — verified
-# against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
-# "Path behavior rules", fetched 2026-08-10). Collect them per plugin so a skill
+# against the plugin manifest reference
+# (<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>,
+# fetched 2026-10-07). Collect them per plugin so a skill
 # loaded from a declared location resolves like any other.
 #
 # One documented exception is NOT modeled: for a marketplace entry whose `source`
@@ -358,8 +359,9 @@ skill_frontmatter_name() {
 # plus every path its manifest declares, plus the plugin root when the manifest
 # declares nothing and the root itself is the skill.
 #
-# All three shapes come from the Plugins reference
-# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-10):
+# All three shapes come from the plugin manifest reference
+# (<https://code.claude.com/docs/en/plugins/manifest-reference>, "Path rules", "How each key combines with its default
+# location" and "Standard layout", fetched 2026-10-07):
 # declared paths are relative to the plugin root and start with `./` (the `skills`
 # key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
 # default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`

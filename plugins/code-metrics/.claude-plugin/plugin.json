@@ -1,6 +1,6 @@
 {
   "name": "code-metrics",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Read-only code measures for a change, with cited references and no verdict: lines per file (audit-size), cyclomatic, cognitive, and Halstead complexity (audit-complexity), duplication (audit-duplication), per-function coverage and CRAP from existing lcov, Cobertura, coverage.py, or Go artifacts (audit-coverage), TypeScript and Python type debt (audit-type-debt), metric literacy (principles), and setup. Uses only collectors already installed; never installs or runs tests.",
   "author": {
     "name": "Melodic Software",

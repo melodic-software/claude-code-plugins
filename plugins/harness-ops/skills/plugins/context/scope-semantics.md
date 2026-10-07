@@ -22,8 +22,9 @@
 Every record below is our decision, resting on a pointer to an official-docs section or on our own
 probe on a real machine, never on training data, and stores no upstream text. Last re-verified
 2026-09-05 against
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference),
-[discover-plugins](https://code.claude.com/docs/en/discover-plugins),
+plugins-reference and discover-plugins (both since split: the
+[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference), [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference),
+[plugin loading reference](https://code.claude.com/docs/en/plugins/loading) and [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) now hold their content),
 [plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces), and the published
 plugin-manifest JSON Schema, all re-fetched that day and all unchanged on the claims below. The
 probes in "Where project-scope records come from, and why the skill cannot reap them" were run
@@ -286,7 +287,8 @@ can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
 and LSP servers in-process, but not monitors. Recommend bare `/reload-plugins` by default; call out
 a session restart only when an updated plugin ships a monitor. Pointer:
 [`/reload-plugins`](https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins) and
-[`monitors`](https://code.claude.com/docs/en/plugins-reference#monitors). As of: 2026-09-05.
+[Monitors](https://code.claude.com/docs/en/plugins/components#monitors). As of: 2026-10-07. Recheck trigger: the reload summary stops listing
+monitors as needing a restart.
 
 **An install can now activate itself, but not the installs this skill issues.** From Claude Code
 2.1.221, an install started from the in-session `/plugin` interface reports its activation state,
@@ -304,9 +306,9 @@ again; and when the summary named the prompt-cache case, that is the same condit
 for below.
 
 - **Pointer**: for the install summary, see
-  [Install a plugin](https://code.claude.com/docs/en/discover-plugins#install-a-plugin); for shell
+  [Install a plugin](https://code.claude.com/docs/en/plugins/install#install-a-plugin); for shell
   installs, see
-  [Install from your shell](https://code.claude.com/docs/en/discover-plugins#install-from-your-shell).
+  [Install from your shell](https://code.claude.com/docs/en/plugins/install#install-from-your-shell).
 - **As of**: 2026-09-05
 - **Recheck trigger**: either summary line changes, or a shell install starts activating in an open
   session.
@@ -349,7 +351,8 @@ under the plugin id is silently ignored and the render shows the literal placeho
 2026-09-06 on **Claude Code 2.1.263**). The restriction is specific to `pluginConfigs`.
 
 - **Pointer**: for where `pluginConfigs` values are read, see
-  [Where values are stored](https://code.claude.com/docs/en/plugins-reference#where-values-are-stored).
+  [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), which [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+  links.
 - **As of**: 2026-09-05
 - **Recheck trigger**: the honored source set changes, or project or local settings become a
   source again.
@@ -380,8 +383,8 @@ prose, because a value set by hand in `settings.json` never passes through the p
 
 - **Pointer**: for the option schema, see the published plugin-manifest JSON Schema
   (<https://json.schemastore.org/claude-code-plugin-manifest.json>),
-  [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
-  [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options).
+  [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration) and
+  [Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options).
 - **As of**: 2026-10-02
 - **Recheck trigger**: the schema's `type` list or `required` array changes, the schema gains the
   fixed-options key, or that section changes the fixed-options field or the release it needs.
@@ -399,7 +402,7 @@ default substitutes into skill content, so the two do not conflict.
 - **Pointer**: our probe on a throwaway plugin from a local marketplace, first run 2026-07-23 on
   Claude Code 2.1.218 and re-run 2026-09-06 on **Claude Code 2.1.263** with the same result; for
   the `default` field and the substitution surfaces, see
-  [Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)
+  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   (read 2026-09-11).
 - **As of**: 2026-09-06, Claude Code 2.1.263
 - **Recheck trigger**: any Claude Code minor-version bump that touches plugin `userConfig`
@@ -521,7 +524,7 @@ install, `enabledPlugins` completeness, divergence detection/convergence, determ
 execution).
 
 - **Pointer**: for the per-marketplace defaults and when auto-update runs, see
-  [Keep plugins updated](https://code.claude.com/docs/en/discover-plugins#keep-plugins-updated) and
+  [Keep plugins updated](https://code.claude.com/docs/en/plugins/install#keep-plugins-updated) and
   [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs).
 - **As of**: 2026-09-05
 - **Recheck trigger**: a marketplace kind's default changes, or auto-update starts installing new

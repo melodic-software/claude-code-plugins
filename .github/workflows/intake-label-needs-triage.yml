@@ -17,7 +17,7 @@ jobs:
   intake-label-needs-triage:
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
-    uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@cf316d12b4a14fbdb96a339b7ad00ce935a8cad4 # v0.38.2
+    uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@6ba73b97b058602c4dd2bb6e2cce234d11011787 # v0.39.0
     with:
       runner: ubuntu-24.04
       label: needs-triage
