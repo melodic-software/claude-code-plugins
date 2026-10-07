@@ -99,6 +99,7 @@ else
 fi
 
 body="${body//$'\r\n'/$'\n'}"
+body="${body%$'\r'}" # $(...) dropped the last LF of a final CRLF on Linux, leaving its CR
 n="$(printf '%s' "$body" | wc -c | tr -d ' ')"
 [[ "$n" -gt "$MAX_BODY" ]] && kind=too-large
 if command -v sha256sum >/dev/null 2>&1; then hash=(sha256sum); else hash=(shasum -a 256); fi
