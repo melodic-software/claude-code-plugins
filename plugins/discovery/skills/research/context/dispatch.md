@@ -94,10 +94,10 @@ against a run that produced none):
    never a summary or note (section 6 of
    [`../../../reference/docs-lookup-procedure.md`](../../../reference/docs-lookup-procedure.md)).
    Write its standard output to a file in `scratch-snapshots`. A page it reports `state=unread`
-   stays a gap in the verdict. Any other artifact (a PDF, a source archive) takes the recipe under
-   "A size failure is the same trigger" in [`discipline.md`](discipline.md), with `<scratch>` set to
-   `scratch-snapshots`; create that directory first, because the recipe's `mktemp -d` makes only
-   the final path component. The docs lookup is rung 1 of the
+   stays a gap in the verdict. Any other artifact (a PDF, a source archive) takes the
+   recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
+   `<scratch>` set to `scratch-snapshots`; create that directory first, because the recipe's
+   `mktemp -d` makes only the final path component. The docs lookup is rung 1 of the
    [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
    which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per
    page:
