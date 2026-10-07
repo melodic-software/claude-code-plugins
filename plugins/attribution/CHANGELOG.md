@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.11.4] - 2026-10-07
+## [0.11.5] - 2026-10-07
 
 ### Fixed
 
@@ -9,6 +9,15 @@
   named a parent section and its child printed the child twice, because the parent's range already
   holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
   now print their lines once, in the order they appear on the page.
+
+## [0.11.4] - 2026-10-07
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
 
 ## [0.11.3] - 2026-10-07
 
