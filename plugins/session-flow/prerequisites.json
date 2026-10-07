@@ -23,18 +23,63 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:observer-arm.sh"
+        "hook:observer-arm.sh",
+        "skill:retro"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the session-flow hooks skip their work.",
+      "degrade": "Without jq, the session-flow hooks skip their work, and fetch-docs.sh exits before reading anything, so /session-flow:retro reads a docs page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
       "check": "/session-flow:check"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:retro"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh records a docs page unread with reason curl-missing, so /session-flow:retro reads it with WebFetch instead.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:retro"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a docs page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

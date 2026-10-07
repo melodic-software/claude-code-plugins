@@ -60,10 +60,21 @@ where the doc says none occurs, or an identity check the doc's two tests do not 
 
 | Rung | Route | What it yields |
 |---|---|---|
-| 1, primary | Fetch the raw-markdown channel: append `.md` to the page URL, save to a file, search the file locally | Verbatim bytes, no summarizer, no truncation |
+| 1, primary | Fetch the page through the docs lookup (below), which reads the raw-markdown channel to a file; search the file locally | Verbatim bytes, no summarizer, no truncation |
 | 1b, publisher source | When rung 1's `.md` channel 404s, read the file from the **publisher's own source repository** on the branch or tag the published site deploys from (for example `raw.githubusercontent.com/<org>/<repo>/<deploy-ref>/…`) | Verbatim bytes from first-party source control; no summarizer |
 | 2, primary degraded | The `.md` channel through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only when the read shows the page arrived whole |
 | 3, mirror | A verbatim third-party mirror, with the freshness step below | Verbatim text, one rung below a primary read, and the finding says so |
+
+Rung 1 runs `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --profile
+<profile> --out <dir> <slug-or-url>`, following `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`
+step 6 with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts`: `anthropic` for a code.claude.com page,
+`platform` for a platform.claude.com page, `generic` for any other https URL. Every read here is a
+verification read, so `--max-age 0` asks the server each time and never serves stale bytes, and
+the fingerprint module gets the page file, never a cache summary or note. Only a manifest record
+with `state: read` is a rung-1 read; an `unread` record names its `reason`, and you drop a rung.
+The script checks an indexed profile's slug against its `llms.txt`, which settles the first
+identity check below. Neither script is in this skill's `allowed-tools`, deliberately: each call
+takes a permission prompt rather than a standing grant to fetch.
 
 Rung 1 is the default. The raw-markdown channel is per-page, not universal: a channel that
 resolves for one page can 404 for another, so verify it for the page you are reading and drop a
@@ -141,7 +152,9 @@ loops rather than to save money. All are config keys (`.claude/attribution.json`
   stop resolving that candidate. Two identical answers are one answer.
 - **Cache every response for the run.** The same upstream page is cited by many local files, and
   re-fetching it per candidate spends the corpus ceiling on work already done. The cache lives
-  in the run's memory slice and is never tracked.
+  in the run's memory slice and is never tracked. For a rung-1 read, the entry is its `ref`,
+  `<cache_key>-<sha256>` from the manifest record, and a later read in the run is
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/docs-cache.sh" read --raw <ref>`, which spends no fetch.
 
 **Under `sweep`, both are scoped to the sweep rather than to one invocation.** The ceiling is
 spent across the whole sweep, so a resumed sweep restores its spend from the sweep ledger instead

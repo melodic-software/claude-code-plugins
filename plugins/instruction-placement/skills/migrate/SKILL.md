@@ -167,7 +167,9 @@ between steps must leave content duplicated rather than deleted:
    `${CLAUDE_SESSION_ID}`. Fetch with `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` (default
    age), take the section with `docs-cache.sh` `slice`, and report the page's age with the rules.
    Neither script is in this skill's `allowed-tools`, deliberately: a standing grant would let the
-   fetcher run unattended, so each call takes a permission prompt.
+   fetcher run unattended, so each call takes a permission prompt. The one exception is
+   `cutover-check.sh`, which runs the fetcher itself for the single fixed page it has always read
+   (`env-vars`, with `--max-age 0`), so its grant reaches no other page.
    Validate every glob with
    `${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh` before the file is written; a glob matching
    nothing is a rule that never fires, and nothing goes red.
