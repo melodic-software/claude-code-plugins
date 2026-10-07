@@ -23,14 +23,14 @@ training-data recall.
 
 ## Plugin components → doc page
 
-One row per plugin component type, per the current [Plugins reference](https://code.claude.com/docs/en/plugins-reference).
+One row per plugin component type, per the current [Add components to a plugin](https://code.claude.com/docs/en/plugins/components) page.
 We cite the [Skills](https://code.claude.com/docs/en/skills) page for both skills and legacy
 `commands/`. Statusline gets no row: we treat it as a settings key a plugin's `settings.json` may
 set, not a component. Channels get a row for the `channels` manifest field, not a file location.
 For workflows we cite the [Workflows](https://code.claude.com/docs/en/workflows) page. The manifest
 (`.claude-plugin/plugin.json`) is the container these components are declared in, not a component,
 so it has no row. For which slots and settings keys a plugin carries, see
-[Standard layout](https://code.claude.com/docs/en/plugins-reference#standard-layout).
+[Standard layout](https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout).
 
 | Component | Official doc page | As of |
 |---|---|---|
@@ -43,7 +43,7 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins/components#lsp-servers> | 2026-10-01 |
 | Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
 | Themes (`themes/`) | <https://code.claude.com/docs/en/plugins/components#themes-and-output-styles> | 2026-10-01 |
-| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-08-06 |
+| Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins/components#monitors> | 2026-10-07 |
 | Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
 | Executables (`bin/`) | <https://code.claude.com/docs/en/plugins/components#executables> | 2026-10-01 |
 | Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
@@ -54,7 +54,8 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | Page | Official doc page | As of |
 |---|---|---|
 | Create plugins | <https://code.claude.com/docs/en/plugins> | 2026-08-06 |
-| Plugins reference (schemas, variables, CLI) | <https://code.claude.com/docs/en/plugins-reference> | 2026-08-06 |
+| Plugin manifest reference (schemas, variables) | <https://code.claude.com/docs/en/plugins/manifest-reference> | 2026-10-07 |
+| Plugin commands reference (CLI) | <https://code.claude.com/docs/en/plugins/cli-reference> | 2026-10-07 |
 | Skills | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
 | Skill authoring best practices (platform, cross-product) | <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices> | 2026-09-10 |
 | Claude Code best practices (CLAUDE.md and workflow) | <https://code.claude.com/docs/en/best-practices> | 2026-09-10 |
@@ -93,7 +94,7 @@ and sessions, and they are distinct documents, so cite the one you mean by its f
 |---|---|---|
 | Create & distribute a marketplace | <https://code.claude.com/docs/en/plugin-marketplaces> | 2026-08-06 |
 | GitHub Enterprise Server: marketplaces on a self-hosted instance, and how `owner/repo` resolves | <https://code.claude.com/docs/en/github-enterprise-server> | 2026-08-10 |
-| Discover & install plugins | <https://code.claude.com/docs/en/discover-plugins> | 2026-08-06 |
+| Install and manage plugins | <https://code.claude.com/docs/en/plugins/install> | 2026-10-07 |
 | Plugin dependencies (version constraints) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
 | Recommend plugins for your org (plugin relevance) | <https://code.claude.com/docs/en/plugin-relevance> | 2026-08-06 |
 | Recommend your plugin from your CLI (plugin hints) | <https://code.claude.com/docs/en/plugin-hints> | 2026-08-06 |

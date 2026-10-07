@@ -22,7 +22,7 @@ never from an in-flow question.
 
 Official contracts:
 
-- <https://code.claude.com/docs/en/plugins-reference#user-configuration>
+- <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>
 - <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
 
 ## Task

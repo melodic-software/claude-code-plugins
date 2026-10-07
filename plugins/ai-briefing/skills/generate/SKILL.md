@@ -79,8 +79,8 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" AI_BRIEFING_PROFILE="$PROFILE" node "
 Set `CLAUDE_PLUGIN_DATA` on the launch the same way. The Bash tool's environment does not carry
 this plugin's value, and another plugin's SessionStart hook can export its own data directory
 under that name, so the build uses an inherited value only when it names ai-briefing. Basis: the
-plugins reference, <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>,
-verified 2026-10-03; recheck when that table lists the Bash tool among the processes that receive
+plugins reference, <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>,
+verified 2026-10-07; recheck when that table lists the Bash tool among the processes that receive
 the variables.
 
 Keep the selection per-invocation: set it on each launched process as above, never as a global
