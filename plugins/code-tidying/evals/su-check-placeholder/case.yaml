@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: su-check-placeholder
+description: check FAILs a tracked lane that still carries a template placeholder, naming the file and the leftover token, and leaves the lane unrepaired
+tags: [setup, check, read-only]
+expected_outcome: web.md has every required section and is tracked, but its Verification commands block still reads <build-command>. The report is FAIL for that lane naming web.md and the token <build-command>, with a remediation line. The lane file still contains <build-command> afterwards and no file is created.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:setup check
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: placeholder-fails
+    type: regex
+    pattern: 'FAIL[^\n]{0,300}<build-command>|<build-command>[^\n]{0,300}FAIL'
+  - name: placeholder-file-named
+    type: regex
+    pattern: 'web\.md[^\n]{0,300}<build-command>|<build-command>[^\n]{0,300}web\.md'
+  - name: lane-not-repaired
+    type: regex
+    pattern: '^<build-command>$'
+    flags: m
+    target: { source: file, path: .claude/tidy-lanes/web.md }
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: tracked-probe-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'check-ignore|ls-files'
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

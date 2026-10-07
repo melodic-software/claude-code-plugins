@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Prints a greeting for the given name.
+set -euo pipefail
+
+greet() {
+  local name="${1:-world}"
+  if [ -n "$name" ]; then
+    printf 'Hello, %s!\n' "$name"
+  else
+    printf 'Hello, %s!\n' "$name"
+  fi
+}
+
+greet "$@"

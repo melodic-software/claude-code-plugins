@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| web.md | PASS | tracked |\n| scratch-ui.md | FAIL | ignored |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| web.md | FAIL | missing section |",
+      "why": "tracked lane failed"
+    },
+    {
+      "answer": "FAIL: web.md",
+      "why": "tracked lane failed"
+    }
+  ]
+}

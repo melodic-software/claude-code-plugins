@@ -1,0 +1,32 @@
+# Lane: jobs
+
+Background jobs that reconcile order totals.
+
+## Scope
+
+```text
+src/jobs/**
+```
+
+## Watch-for patterns
+
+- **Beck #1, Guard Clauses**: early returns in job entry points
+- **Beck #2, Dead Code**: unused retry helpers
+
+## Lane-specific extra exclusions
+
+- **Job schedules** are behavioral, never tidy
+
+## Verification commands
+
+```bash
+python3 -m pytest tests
+```
+
+## Conventional Commits type
+
+`refactor:`. Example title: `refactor(jobs): extract total reconciliation helper`.
+
+## Preferred research sources
+
+- https://docs.python.org/3/

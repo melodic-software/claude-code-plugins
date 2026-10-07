@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Behavior tests: every script's observable output for a fixed input.
+set -euo pipefail
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+check() {
+  local expected="$1"
+  shift
+  local actual
+  actual="$(bash "$@")"
+  if [ "$actual" != "$expected" ]; then
+    echo "FAIL: $* printed '$actual', expected '$expected'" >&2
+    exit 1
+  fi
+}
+
+check "Hello, Ada!" "$root/src/greet.sh" Ada
+check "Hello, world!" "$root/src/greet.sh"
+check "tool: processed 3 items" "$root/repo/tool.sh" 3
+check "helpers: mode is plain" "$root/src/helpers.sh"
+check "legacy: flag is off" "$root/src/legacy.sh" off
+check "old: level is 2" "$root/lib/old.sh" 2
+check "branch-util: state is ok" "$root/lib/branch-util.sh"
+check "gen: target is all" "$root/vendor/gen.sh"
+echo "all tests passed"

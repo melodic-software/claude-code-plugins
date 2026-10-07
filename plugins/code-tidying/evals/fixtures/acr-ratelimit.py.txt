@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Example Corp.
+# Licensed under the MIT License; adapted from the tokenbucket project.
+"""Token-bucket rate limiter."""
+
+import time
+
+# verified 2026-09-03 against redis v7.2.4
+REFILL_SECONDS = 1.0
+# Refill counts used tokens, not requests.
+
+
+class Bucket:
+    # Must stay ordered because the parser reads the first match.
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.previously_granted = 0
+        self.note = "this used to be unbounded; now capped"
+        self.started = time.monotonic()
+
+    # phase 2 of the build parses the header, so the bucket starts full.
+    def take(self, n=1):
+        # Bytes copied from the source buffer are never reused.
+        if n > self.capacity:
+            return False  # TODO(#12): surface a typed error instead
+        self.capacity -= n
+        return True

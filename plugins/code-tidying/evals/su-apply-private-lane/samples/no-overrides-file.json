@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/tidy-lanes/core.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/code-tidying/exclusion-overrides.md"
+      ],
+      "why": "unrequested overrides file"
+    }
+  ]
+}

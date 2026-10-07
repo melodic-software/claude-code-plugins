@@ -8,7 +8,11 @@
 // redirect, a second command or an internal address, is denied, so a page that
 // tells the agent to run something cannot reach a shell. The one allowed
 // command gets no decision, so the session's own permission rules still apply
-// to it. Every other agent and the main thread pass through untouched.
+// to it, and passes once per agent run: a page that asks for a second fetch,
+// to another URL that could carry what the agent read, is denied. A marker
+// per agent_id, in a directory only this user can reach, records the call; when
+// no such directory can be had, the call is denied. Every other agent and the
+// main thread pass through untouched.
 //
 //   node docs-fetcher-gate.mjs <agent-type> [<host>...]
 //
@@ -21,9 +25,17 @@
 // https://code.claude.com/docs/en/hooks#subagentstart (as of 2026-10-04;
 // recheck when that section changes the agent_type a plugin subagent reports).
 //
-// Fail-closed inside the named agent (a command it cannot parse is denied);
-// fail-open everywhere else.
+// Fail-closed inside the named agent (a command it cannot parse, an input
+// stream that fails, or an error in the gate is denied); fail-open everywhere
+// else. When node itself is missing or the hook times out, Claude Code treats
+// the hook error as non-blocking and the session's permission rules alone hold
+// the agent's Bash: https://code.claude.com/docs/en/hooks (exit codes and
+// timeouts; as of 2026-10-07, recheck when a hook error starts to block).
 
+import { createHash } from 'node:crypto'
+import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 // A public DNS name or a public dotted-quad IPv4: the same check the workflows
@@ -96,15 +108,73 @@ function agentTypeIn(text) {
   try { return JSON.parse('"' + m[1] + '"') } catch { return '' }
 }
 
-// The hook input as read: overflow marks a read cut off at MAX_STDIN.
-export function judge(raw, { agentType, root, hosts = [], overflow = false } = {}) {
+// Undefined on Windows, which has no uid and keeps no group or other mode bits
+// (https://nodejs.org/api/fs.html#fschmodpath-mode-callback, as of 2026-10-07;
+// recheck when Node implements those modes on Windows); there the temp
+// directory is already per-user.
+const UID = process.getuid?.()
+
+// Where the markers live: the plugin's data directory, which Claude Code
+// exports to hook processes and keeps under the user's home
+// (https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables, as
+// of 2026-10-07; recheck when CLAUDE_PLUGIN_DATA stops reaching hooks), else a
+// per-uid directory under the temp directory.
+export function markerDir(env = process.env) {
+  if (env.CLAUDE_PLUGIN_DATA) return join(env.CLAUDE_PLUGIN_DATA, 'docs-fetcher-gate')
+  return join(tmpdir(), 'claude-docs-fetcher-gate' + (UID === undefined ? '' : '-' + UID))
+}
+
+// Creates dir with mode 0700 and throws unless it is a real directory this user
+// owns and no one else can reach: on a shared /tmp another user could have made
+// it first, to delete markers or plant them.
+export function privateDir(dir, uid = UID) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  const s = lstatSync(dir)
+  if (!s.isDirectory()) throw new Error(dir + ' is not a directory')
+  if (uid !== undefined && (s.uid !== uid || s.mode & 0o077)) throw new Error(dir + ' is not private to this user')
+  return dir
+}
+
+// Records the first allowed call of one agent run: true the first time an id is
+// claimed, false after. Markers older than a day are pruned on each claim.
+export function claimOnce(id, dir = markerDir(), uid = UID) {
+  privateDir(dir, uid)
+  for (const f of readdirSync(dir)) {
+    try {
+      if (Date.now() - statSync(join(dir, f)).mtimeMs > 86400000) rmSync(join(dir, f), { force: true })
+    } catch { /* another gate pruned it */ }
+  }
+  try {
+    closeSync(openSync(join(dir, createHash('sha256').update(String(id)).digest('hex')), 'wx'))
+    return true
+  } catch (e) {
+    if (e.code === 'EEXIST') return false
+    throw e
+  }
+}
+
+// The hook input as read: cut is 'overflow' for a read stopped at MAX_STDIN and
+// 'error' for a stream that failed. The agent's one allowed command passes once
+// per agent run (agent_id); claim records it, and a repeat, which only a page
+// steering the agent would ask for, is denied.
+export function judge(raw, { agentType, root, hosts = [], cut = '', claim = claimOnce } = {}) {
   let payload = null
-  if (!overflow) {
+  if (!cut) {
     try { payload = JSON.parse(raw) } catch { payload = null }
   }
-  if (payload) return decide(payload, { agentType, root, hosts })
-  if (!agentType || agentTypeIn(raw) !== agentType) return null
-  return overflow ? 'docs-fetcher denied: the hook input passed ' + MAX_STDIN + ' bytes' : 'docs-fetcher denied: the hook input is not JSON'
+  if (!payload) {
+    if (!agentType || agentTypeIn(raw) !== agentType) return null
+    if (cut === 'overflow') return 'docs-fetcher denied: the hook input passed ' + MAX_STDIN + ' bytes'
+    return cut ? 'docs-fetcher denied: the hook input could not be read' : 'docs-fetcher denied: the hook input is not JSON'
+  }
+  const reason = decide(payload, { agentType, root, hosts })
+  if (reason || String(payload.agent_type || '') !== agentType) return reason
+  try {
+    if (claim(payload.agent_id || payload.session_id || '')) return null
+  } catch {
+    return 'docs-fetcher denied: the gate could not record this call'
+  }
+  return 'docs-fetcher denied: this agent has already run docs-raw.sh once'
 }
 
 function main() {
@@ -112,12 +182,16 @@ function main() {
   const chunks = []
   let size = 0
   let done = false
-  const finish = overflow => {
+  const finish = cut => {
     if (done) return
     done = true
-    const reason = judge(Buffer.concat(chunks).toString('utf8'), {
-      agentType, root: process.env.CLAUDE_PLUGIN_ROOT, hosts: hosts.map(h => h.toLowerCase()), overflow,
-    })
+    const raw = Buffer.concat(chunks).toString('utf8')
+    let reason
+    try {
+      reason = judge(raw, { agentType, root: process.env.CLAUDE_PLUGIN_ROOT, hosts: hosts.map(h => h.toLowerCase()), cut })
+    } catch {
+      reason = agentType && agentTypeIn(raw) === agentType ? 'docs-fetcher denied: the gate failed' : null
+    }
     if (reason) {
       process.stdout.write(JSON.stringify({
         hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason },
@@ -129,9 +203,10 @@ function main() {
     if (done) return
     chunks.push(d)
     size += d.length
-    if (size > MAX_STDIN) finish(true)
+    if (size > MAX_STDIN) finish('overflow')
   })
-  process.stdin.on('end', () => finish(false))
+  process.stdin.on('error', () => finish('error'))
+  process.stdin.on('end', () => finish(''))
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()

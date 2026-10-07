@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/w/.claude/tidy-lanes/web.md\"}}]}}",
+      "why": "Read tool on the lane"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n '1,80p' \\\".claude/tidy-lanes/web.md\\\"\",\"description\":\"Show lane\"}}]}}",
+      "why": "shell read of the lane"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/w/README.md\"}}]}}",
+      "why": "lane never read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Bash\",\"input\":{\"command\":\"git ls-files --error-unmatch .claude/tidy-lanes/web.md\",\"description\":\"Probe tracking\"}}]}}",
+      "why": "tracking probe only, contents never read"
+    }
+  ]
+}

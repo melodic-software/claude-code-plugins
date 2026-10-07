@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Tidy exclusion overrides\n\nThe team hand-reviews lint-config diffs, so tidying may reach these.\n\n## Overrides\n\n```text\n# lint configuration\n.editorconfig\nruff.toml\n# tidy machinery\n.claude/code-tidying/*\n# shared config one level up\n../shared/lint.toml\n```\n",
+      "why": "fixture as seeded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Tidy exclusion overrides\n\nThe team hand-reviews lint-config diffs, so tidying may reach these.\n\n## Overrides\n\n```text\n# lint configuration\n.editorconfig\n# tidy machinery\n.claude/code-tidying/*\n# shared config one level up\n../shared/lint.toml\n```\n",
+      "why": "a glob removed by the run"
+    }
+  ]
+}

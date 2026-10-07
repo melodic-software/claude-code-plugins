@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Stopping: 3 open chore/tidy-* PRs already, which is the backlog throttle. Re-run once they merge.",
+      "why": "states it"
+    },
+    {
+      "answer": "There are three open chore/tidy PRs awaiting review, so I'm stopping rather than piling on.",
+      "why": "states it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tidied scripts/build-report.sh and staged the change.",
+      "why": "does not state it"
+    },
+    {
+      "answer": "Done. Removed legacy_mode.",
+      "why": "does not state it"
+    }
+  ]
+}
