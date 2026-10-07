@@ -65,8 +65,9 @@
 #   I25 retired sampling parameters (temperature/top_p/top_k prescriptions; the
 #       affected-model range is a criteria-owned Detect condition)
 #   I40 own-repository history reference (`#1234`, `PR #1234`) on agents/*.md
-#       paths only. Code spans, owner/repo#N, TODO(#N), fenced code, and every
-#       line of a block carrying an as-of date and a recheck trigger are exempt.
+#       paths only. Code spans, owner/repo#N, TODO(#N), fenced and indented code,
+#       and every line of a block carrying an as-of date and a recheck trigger
+#       are exempt.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
 # Requires grep, tr, and awk; exits 2 when one is absent.
@@ -123,7 +124,7 @@ token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
 parameters. I38: progress-update suppressors. I40: own-repository history
 references (#N, PR #N) in agents/*.md files, outside code spans, owner/repo#N,
-TODO(#N), fenced code, and pointer-record blocks.
+TODO(#N), fenced or indented code, and pointer-record blocks.
 
 Advisory: always exits 0 (candidates never fail the run). Requires grep, tr,
 and awk (exit 2 when one is absent). Seeds the candidate set of the audit-instructions
@@ -234,8 +235,9 @@ I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${
 # condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
 # I40 this repository's history references, agent definitions only. Matched on
-# the lowercased line after code spans, TODO(#N), and owner/repo#N are removed.
-# A `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
+# the lowercased line after code spans and TODO(#N) are removed, outside fenced
+# and indented code blocks. The ERE itself rejects owner/repo#N:
+# a `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
 # entity, or a path, not a reference. A block (a run of non-blank lines) that
 # carries both an as-of date and a recheck trigger is a pointer record and
 # never emits.
@@ -402,23 +404,48 @@ run_i40() {
           for (k = 1; k <= nb; k++) printf "%s\003%s:\n", cur, hit[k]
         nb = 0; blk = ""
       }
-      FNR == 1 { flush(); cur = FILENAME; infence = 0 }
+      # Drop each code span: a backtick run up to the next run of the same
+      # length. An unmatched run is literal text.
+      function strip_spans(s,   out, run, rest, k) {
+        out = ""
+        while (match(s, /`+/)) {
+          run = substr(s, RSTART, RLENGTH)
+          out = out substr(s, 1, RSTART - 1)
+          rest = substr(s, RSTART + RLENGTH)
+          k = index(rest, run)
+          if (k == 0) { out = out run; s = rest; continue }
+          s = substr(rest, k + length(run))
+        }
+        return out s
+      }
+      FNR == 1 { flush(); cur = FILENAME; infence = 0; incode = 0; inlist = 0; prevblank = 1 }
       {
         text = $0
         sub(/\r$/, "", text)
         if (match(text, /^ ? ? ?(```|~~~)/)) {
           flush()
+          incode = 0; prevblank = 0
           d = substr(text, RSTART + RLENGTH - 1, 1)
           if (!infence) { infence = 1; fc = d } else if (d == fc) infence = 0
           next
         }
         if (infence) next
-        if (text ~ /^[ \t]*$/) { flush(); next }
+        if (text ~ /^[ \t]*$/) { flush(); prevblank = 1; next }
+        # An indented code block opens after a blank line outside a list and
+        # runs until a less-indented line; an indented line that continues a
+        # paragraph or a list item is prose.
+        if (text ~ /^(    |\t)/) {
+          if (incode || (prevblank && !inlist)) { incode = 1; prevblank = 0; next }
+        } else {
+          incode = 0
+          if (text ~ /^ ? ? ?([-*+]|[0-9]+[.)])[ \t]/) inlist = 1
+          else if (prevblank) inlist = 0
+        }
+        prevblank = 0
         low = tolower(text)
         blk = blk " " low
-        gsub(/`[^`]*`/, "", low)
+        low = strip_spans(low)
         gsub(/todo\(#[0-9]+\)/, "", low)
-        gsub(/[[:alnum:]_.-]+\/[[:alnum:]_.-]+#[0-9]+/, "", low)
         if (low ~ ref) hit[++nb] = FNR
       }
       END { flush() }

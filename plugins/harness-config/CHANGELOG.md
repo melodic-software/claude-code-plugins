@@ -15,8 +15,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   deletion test "could the model already know this?"; and I42, a rigid step script for judgment
   work, where the task needs high degrees of freedom. `instruction-scan.sh` seeds I40 on
   `agents/*.md` paths and stays quiet on code spans, a cross-repository `owner/repo#N`, `TODO(#N)`,
-  fenced code, and any line in a block that carries an as-of date and a recheck trigger. I41 and
-  I42 are lane-only.
+  fenced or indented code, and any line in a block that carries an as-of date and a recheck
+  trigger. I41 and I42 are lane-only.
 
 ### Changed
 

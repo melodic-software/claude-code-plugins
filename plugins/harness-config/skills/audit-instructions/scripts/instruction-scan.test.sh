@@ -651,6 +651,37 @@ assert_eq "I40: exactly three agent candidates" "3" "$(printf '%s\n' "$OUT" | gr
 OUT=$(bash "$SCRIPT" --body-only "$I40F")
 assert_contains "I40: --body-only keeps body rows" "$OUT" "$I40F:6:I40"
 
+# --- Case 22: I40 multi-backtick code spans and indented code blocks ---------
+# The I40 row's Must NOT flag covers code spans and code: a span opened by two
+# backticks, and a CommonMark indented code block (four spaces or a tab after a
+# blank line), stay quiet. An indented line that continues a list item or a
+# paragraph is prose, and a reference after the block is still a candidate.
+I40C="$TEST_TMPDIR/agents/code.md"
+printf '%s\n' \
+  'Run ``git log --grep #9`` to see.' \
+  '' \
+  '    gh pr view #1234' \
+  '    fixed in #77' \
+  '' \
+  '- Item one' \
+  '' \
+  '    See PR #4444 for why.' \
+  '' \
+  'Plain paragraph text' \
+  '    PR #5555 continues it.' \
+  '' \
+  $'\ttab code #66' \
+  '' \
+  'Back to prose, see #8888.' >"$I40C"
+OUT=$(bash "$SCRIPT" "$I40C")
+assert_not_contains "I40: a double-backtick code span stays quiet" "$OUT" "$I40C:1:I40"
+assert_not_contains "I40: an indented code block stays quiet" "$OUT" "$I40C:3:I40"
+assert_not_contains "I40: every line of an indented code block stays quiet" "$OUT" "$I40C:4:I40"
+assert_contains "I40: an indented list continuation is prose" "$OUT" "$I40C:8:I40"
+assert_contains "I40: an indented paragraph continuation is prose" "$OUT" "$I40C:11:I40"
+assert_not_contains "I40: a tab-indented code block stays quiet" "$OUT" "$I40C:13:I40"
+assert_contains "I40: prose after an indented code block is a candidate" "$OUT" "$I40C:15:I40"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
