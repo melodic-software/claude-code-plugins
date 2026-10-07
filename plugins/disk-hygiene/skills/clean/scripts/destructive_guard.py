@@ -1282,7 +1282,8 @@ def resolve_disk_hygiene_enabled() -> bool:
     reader it shares with the report-only probe) — never the process environment.
     Since Claude Code 2.1.207 that key is honored only from user and managed
     scope, never a project or local ``settings.json``
-    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    (https://code.claude.com/docs/en/settings-reference#pluginconfigs, as of
+    2026-10-07), so a hostile repo cannot flip the
     switch. Managed settings are the highest-precedence, non-overridable scope, so
     a value configured there wins over the user file — that is how an organization
     enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
