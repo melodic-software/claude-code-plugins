@@ -2,6 +2,16 @@
 
 Named sessions isolate cookies, storage, cache, history, and tabs. Use `-s=<name>` on every command in a flow.
 
+## Contents
+
+- [Named session flow](#named-session-flow)
+- [Session lifecycle](#session-lifecycle)
+- [Implicit session via env](#implicit-session-via-env)
+- [Persistent profiles](#persistent-profiles)
+- [Attach to a running browser (CDP)](#attach-to-a-running-browser-cdp)
+- [Patterns](#patterns)
+- [Naming discipline](#naming-discipline)
+
 ## Named session flow
 
 ```bash
@@ -22,6 +32,8 @@ playwright-cli close-all              # stop every session cleanly
 playwright-cli kill-all               # force-kill zombie daemons; also the recovery for socket errors
 playwright-cli -s=<name> delete-data  # remove persistent profile data
 ```
+
+`close-all` and `kill-all` act on every playwright-cli browser on the machine, not just yours. When other agents may be driving browsers at the same time, close your own session by name and keep `kill-all` for recovering from a stuck daemon.
 
 **Always `close` when done.** Zombie browsers consume RAM and hold file locks on persistent profile directory.
 

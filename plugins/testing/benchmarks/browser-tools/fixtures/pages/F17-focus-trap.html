@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>F17 Focus trap</title><script src="/fx.js"></script>
+<style>#modal{position:fixed;inset:10%;background:#fff;border:2px solid #333;padding:1rem}</style></head>
+<body>
+<!-- A terms modal opens on load and traps Tab inside itself; the background is inert. The modal
+     closes only after the box is checked and Continue is pressed (Escape also closes it but leaves
+     terms unaccepted). Then Finish setup in the background works. -->
+<main id="bg" inert>
+  <h1>Workspace setup</h1>
+  <button type="button" id="finish">Finish setup</button>
+  <p id="status"></p>
+  <pre id="result"></pre>
+</main>
+<div id="modal" role="dialog" aria-modal="true" aria-label="Terms of service">
+  <p>Please accept the terms to continue.</p>
+  <label><input type="checkbox" id="terms"> I accept the terms</label>
+  <button type="button" id="continue">Continue</button>
+</div>
+<script>
+  const modal = document.getElementById("modal"), bg = document.getElementById("bg");
+  function close(accepted) { if (accepted) fx.record("accepted", true); modal.remove(); bg.inert = false; }
+  document.getElementById("continue").addEventListener("click", () => { if (document.getElementById("terms").checked) close(true); });
+  modal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close(false);
+    if (e.key === "Tab") {
+      const f = [...modal.querySelectorAll("input,button")];
+      const i = f.indexOf(document.activeElement);
+      e.preventDefault();
+      f[(i + (e.shiftKey ? -1 : 1) + f.length) % f.length].focus();
+    }
+  });
+  document.getElementById("terms").focus();
+  document.getElementById("finish").addEventListener("click", () => {
+    fx.record("finished", true);
+    document.getElementById("status").textContent = "Setup finished";
+  });
+</script>
+</body>
+</html>

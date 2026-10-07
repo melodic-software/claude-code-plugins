@@ -2,6 +2,21 @@
 
 Distilled from upstream `@playwright/cli@0.1.22` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
 
+## Contents
+
+- [Core interaction](#core-interaction)
+- [Snapshots & eval](#snapshots--eval)
+- [Navigation + keyboard/mouse](#navigation--keyboardmouse)
+- [Save-as](#save-as)
+- [Tabs](#tabs)
+- [Dialogs](#dialogs)
+- [Emulation](#emulation)
+- [Page-provided tools (WebMCP)](#page-provided-tools-webmcp)
+- [Raw mode: pipe into jq, diff, and similar](#raw-mode-pipe-into-jq-diff-and-similar)
+- [Open parameters](#open-parameters)
+- [Examples](#examples)
+- [Help](#help)
+
 ## Core interaction
 
 ```bash
