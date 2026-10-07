@@ -257,7 +257,12 @@ proven.
    to fragments for listed plugins, because `harness-ops` takes Dependabot updates. Convert
    open pull requests that hand-bump a newly listed plugin with
    `plugins/source-control/scripts/convert-bump-to-fragment.sh`. Legacy plugins keep the per-PR
-   bump and the resolver. Rollback: as in phase 2, per plugin.
+   bump and the resolver. Rollback: as in phase 2, per plugin. On 2026-10-07 eight more joined,
+   because their `plugin.json` and `CHANGELOG.md` caused every merge conflict among that night's
+   parallel pull requests while no listed plugin conflicted. Their `plugin.json` changes in the 7
+   days to 2026-10-07: `discovery` (37), `harness-config` (35), `knowledge` (32),
+   `plugin-quality` (23), `evals` (19), `multi-agent` (19), `discipline` (13) and
+   `harness-memory` (11).
 4. **Fleet.** Add every remaining plugin, let `new-changelog-fragment.sh` write one fragment for
    every plugin that carries an edited shared library, update `docs/migration-playbook.md` and
    ADR 0019, and update the contributor instructions listed under Consequences. Rollback: empty
