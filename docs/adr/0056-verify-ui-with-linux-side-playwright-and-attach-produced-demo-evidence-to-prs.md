@@ -14,8 +14,10 @@ what it sees, or how it puts proof on a pull request. The skills disagree and le
   `/playwright:playwright` asks for a targeted screenshot read. Nothing runs an accessibility check,
   and nothing publishes binary media to a PR: `git grep -e '--attach'` over `plugins`, `docs` and
   `.github` finds only an unrelated docker flag list (2026-10-04).
-- `/playwright:playwright` vendors `@playwright/cli` 0.1.19; the latest release is 0.1.22
-  (2026-09-28), and agent hosts run whatever is installed (this host: 0.1.21).
+- `/playwright:playwright` vendored `@playwright/cli` 0.1.19 when this record was written; the
+  latest release was 0.1.22 (2026-09-28), and agent hosts run whatever is installed (this host:
+  0.1.21). The vendor baseline has since moved to 0.1.22 (playwright plugin CHANGELOG, as of
+  2026-10-07).
 
 The main development host runs Claude Code in WSL2 with NAT networking. Its `.wslconfig` keeps NAT
 on purpose because mirrored networking still has Docker Desktop friction.
