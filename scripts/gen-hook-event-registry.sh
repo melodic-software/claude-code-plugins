@@ -196,7 +196,8 @@ regen_rows() {
       args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "SESSION_EVENT_LOG_ENABLED", $prod],
       timeout: 5,
       statusMessage: ("Logging the " + $event + " event...")
-    };
+    }
+    | if $event == "SessionEnd" then . else . + {async: true} end;
     def ret_row: {
       type: "command",
       command: "node",
