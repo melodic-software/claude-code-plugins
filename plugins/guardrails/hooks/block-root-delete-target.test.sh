@@ -1576,6 +1576,12 @@ rdt_ar 'prefix: a path below a matching child blocks' 2 "rm -rf '$RDT_PP/.tmp-65
 rdt_ar 'prefix: a matching child .. blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/..'" "$RDT_PX"
 rdt_ar 'prefix: a nested .tmp-x/../.. blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/../..'" "$RDT_PX"
 rdt_ar 'prefix: a .. escape to a sibling blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/../other-worktree'" "$RDT_PX"
+rdt_ar 'prefix: a trailing dot after the bare prefix blocks' 2 "rm -rf '$RDT_PP/.tmp-.'" "$RDT_PX"
+rdt_ar 'prefix: a matching name with a trailing dot blocks' 2 "rm -rf '$RDT_PP/.tmp-6527.'" "$RDT_PX"
+rdt_ar 'prefix: a matching name with a trailing space blocks' 2 "rm -rf '$RDT_PP/.tmp-6527 '" "$RDT_PX"
+rdt_ar 'prefix: a nonexistent child/ blocks' 2 "rm -rf '$RDT_PP/.tmp-new/'" "$RDT_PX"
+rdt_ar 'prefix: a nonexistent child/. blocks' 2 "rm -rf '$RDT_PP/.tmp-new/.'" "$RDT_PX"
+rdt_ar 'prefix: a link made in the same command, then link/, blocks' 2 "ln -s '$RDT_AO' '$RDT_PP/.tmp-made' && rm -rf '$RDT_PP/.tmp-made/'" "$RDT_PX"
 rdt_ar 'prefix: the glob of the prefix blocks' 2 "rm -rf '$RDT_PP'/.tmp-*" "$RDT_PX"
 rdt_ar 'prefix: the glob of the directory blocks' 2 "rm -rf '$RDT_PP'/*" "$RDT_PX"
 rdt_ar 'prefix: a glob below a matching child blocks' 2 "rm -rf '$RDT_PP/.tmp-6527'/*" "$RDT_PX"
@@ -1594,12 +1600,14 @@ rdt_arp_pfx() { # <label> <want> <command>
 }
 rdt_arp_pfx 'Remove-Item on a matching child allowed' 0 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527'"
 rdt_arp_pfx 'Remove-Item on a sibling worktree blocks' 2 "Remove-Item -Recurse -Force '$RDT_PP/other-worktree'"
+rdt_arp_pfx 'Remove-Item on a trailing-dot name blocks' 2 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527.'"
 if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_PP/.tmp-link" 2>/dev/null && [[ -L "$RDT_PP/.tmp-link" ]]; then
   rdt_ar 'prefix: a matching symlink out of the tree blocks' 2 "rm -rf '$RDT_PP/.tmp-link'" "$RDT_PX"
   rdt_ar 'prefix: a matching symlink/ out of the tree blocks' 2 "rm -rf '$RDT_PP/.tmp-link/'" "$RDT_PX"
   rdt_ar 'prefix: a path through a matching symlink blocks' 2 "rm -rf '$RDT_PP/.tmp-link/x'" "$RDT_PX"
+  rdt_ar 'prefix: a matching symlink with a trailing dot blocks' 2 "rm -rf '$RDT_PP/.tmp-link.'" "$RDT_PX"
 else
-  rdt_skip "ln -s makes no real symlink on this host (3 cases)"
+  rdt_skip "ln -s makes no real symlink on this host (4 cases)"
 fi
 # The user's own spelling on Windows: a drive-form entry, an MSYS-form operand.
 if command -v cygpath >/dev/null 2>&1; then

@@ -1513,7 +1513,9 @@ the throwaway test directories agents create beside their worktrees. It allows o
 of that directory whose name starts with the text before the `*` and has at least one more
 character (`D:/worktrees/.tmp-6527`), and never one that is itself a symlink. It refuses the
 directory, the bare prefix (`.tmp-`), a sibling (`D:/worktrees/other-worktree`), anything below a
-matching child, a glob such as `rm -rf D:/worktrees/.tmp-*`, and a `..` escape. The `*` marks the
+matching child, a glob such as `rm -rf D:/worktrees/.tmp-*`, and a `..` escape. It also refuses a
+name ending in a dot or a space, which Windows trims (`.tmp-.` names `.tmp-`), and a trailing-slash
+operand whose child does not exist yet, because a link the same command creates would be followed. The `*` marks the
 form because an entry holding a glob character granted nothing before, so no entry that already
 allowed something changes meaning. The directory follows the rules above, and a name with any other
 glob character grants nothing. An alternative that needs no entry: point the user-level `TEMP` or

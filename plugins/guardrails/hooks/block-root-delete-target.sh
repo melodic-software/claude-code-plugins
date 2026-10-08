@@ -76,7 +76,9 @@
 #     itself and its glob stay refused. An entry ending in one `*` after a
 #     literal name (`D:/worktrees/.tmp-*`) is a NAME PREFIX instead: only a
 #     direct child of its directory whose name extends the prefix by at least
-#     one character passes, and never one that is itself a symlink. An entry
+#     one character passes, and never one that is itself a symlink, ends in
+#     a dot or a space (Win32 trims them), or is named with a trailing slash
+#     before it exists (a link the same command creates). An entry
 #     that is relative, empty, UNC, holds any other glob character, a line
 #     break or a `..` component, or resolves
 #     to a filesystem root or HOME grants nothing, and no listed root lets
@@ -1802,7 +1804,9 @@ rdt_allowed() {
     c="${RDT_PDIRC[i]}"
     [[ "$t" == "$c"/* ]] || continue
     rest="${t#"$c"/}"
-    [[ "$rest" != */* && "$rest" == "${RDT_PNAME[i]}"?* ]] && return 0
+    # Win32 trims a trailing dot or space, so `.tmp-.` names `.tmp-` and
+    # `.tmp-n.` names `.tmp-n` past the symlink test: such a name is refused.
+    [[ "$rest" != */* && "$rest" != *[.\ ] && "$rest" == "${RDT_PNAME[i]}"?* ]] && return 0
   done
   return 1
 }
@@ -2131,8 +2135,12 @@ rdt_judge_pending() {
     rdt_deadline
     p="${RDT_WMAP[${targets[k]}]}"
     rdt_canon_to c "$p"
+    # A symlink, or a leaf rm would follow through a trailing slash that does
+    # not exist yet (a link the same command may create), never passes a
+    # name-prefix entry.
     l=0
     [[ -L "${targets[k]}" ]] && l=1
+    [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
     rdt_allowed "$c" "${td[k]}" "$l" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
   done
   return 0
