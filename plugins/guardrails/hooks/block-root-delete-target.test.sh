@@ -1547,7 +1547,7 @@ rdt_ar 'a leading line break grants nothing' 2 "rm -rf '$RDT_AR/child'" $'\n'"$R
 rdt_ar 'a line break entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AR"$'\n'",$RDT_AR2"
 rdt_ar 'a .. root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AR/../root"
 rdt_ar 'a .. root above the fixture grants nothing' 2 "rm -rf '$RDT_AO/x'" "$RDT_AR/.."
-rdt_ar 'a * root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/ro*"
+rdt_ar 'a * prefix entry does not reach below a matching child' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/ro*"
 rdt_ar 'a bare * root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/*"
 rdt_ar 'a ? root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/roo?"
 rdt_ar 'a [ root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$RDT_AB/roo[t]"
@@ -1556,6 +1556,66 @@ rdt_ar 'a relative entry beside a good one is skipped' 0 "rm -rf '$RDT_AR/child'
 rdt_ar 'a .. entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AR/../root,$RDT_AR2"
 rdt_ar 'a * entry beside a good one is skipped' 0 "rm -rf '$RDT_AR2/child'" "$RDT_AB/*,$RDT_AR2"
 rdt_ar 'a root entry does not allow its sibling by prefix' 2 "rm -rf '$RDT_AB/root2/child'" "$RDT_AB/roo"
+
+# A name-prefix entry (one trailing `*` after a literal name) allows a direct
+# child of its directory whose name extends the prefix, and nothing else: the
+# directory, the bare prefix, a sibling, a deeper path, a glob, a `..` and a
+# symlink named like a child all stay refused (#6542).
+RDT_PP="$RDT_AB/wt"
+RDT_PX="$RDT_PP/.tmp-*"
+mkdir -p "$RDT_PP/.tmp-6527/sub" "$RDT_PP/other-worktree" "$RDT_PP/.tmp-"
+rdt_ar 'prefix: unset key, a matching child blocks' 2 "rm -rf '$RDT_PP/.tmp-6527'"
+rdt_ar 'prefix: a matching child allowed' 0 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PX"
+rdt_ar 'prefix: a matching child with a trailing slash allowed' 0 "rm -rf '$RDT_PP/.tmp-6527/'" "$RDT_PX"
+rdt_ar 'prefix: a nonexistent matching child allowed' 0 "rm -rf '$RDT_PP/.tmp-new'" "$RDT_PX"
+rdt_ar 'prefix: beside a directory entry allowed' 0 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_AR,$RDT_PX"
+rdt_ar 'prefix: the directory itself blocks' 2 "rm -rf '$RDT_PP'" "$RDT_PX"
+rdt_ar 'prefix: a sibling worktree blocks' 2 "rm -rf '$RDT_PP/other-worktree'" "$RDT_PX"
+rdt_ar 'prefix: the bare prefix blocks' 2 "rm -rf '$RDT_PP/.tmp-'" "$RDT_PX"
+rdt_ar 'prefix: a path below a matching child blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/sub'" "$RDT_PX"
+rdt_ar 'prefix: a matching child .. blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/..'" "$RDT_PX"
+rdt_ar 'prefix: a nested .tmp-x/../.. blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/../..'" "$RDT_PX"
+rdt_ar 'prefix: a .. escape to a sibling blocks' 2 "rm -rf '$RDT_PP/.tmp-6527/../other-worktree'" "$RDT_PX"
+rdt_ar 'prefix: a trailing dot after the bare prefix blocks' 2 "rm -rf '$RDT_PP/.tmp-.'" "$RDT_PX"
+rdt_ar 'prefix: a matching name with a trailing dot blocks' 2 "rm -rf '$RDT_PP/.tmp-6527.'" "$RDT_PX"
+rdt_ar 'prefix: a matching name with a trailing space blocks' 2 "rm -rf '$RDT_PP/.tmp-6527 '" "$RDT_PX"
+rdt_ar 'prefix: a nonexistent child/ blocks' 2 "rm -rf '$RDT_PP/.tmp-new/'" "$RDT_PX"
+rdt_ar 'prefix: a nonexistent child/. blocks' 2 "rm -rf '$RDT_PP/.tmp-new/.'" "$RDT_PX"
+rdt_ar 'prefix: a link made in the same command, then link/, blocks' 2 "ln -s '$RDT_AO' '$RDT_PP/.tmp-made' && rm -rf '$RDT_PP/.tmp-made/'" "$RDT_PX"
+rdt_ar 'prefix: the glob of the prefix blocks' 2 "rm -rf '$RDT_PP'/.tmp-*" "$RDT_PX"
+rdt_ar 'prefix: the glob of the directory blocks' 2 "rm -rf '$RDT_PP'/*" "$RDT_PX"
+rdt_ar 'prefix: a glob below a matching child blocks' 2 "rm -rf '$RDT_PP/.tmp-6527'/*" "$RDT_PX"
+rdt_ar 'prefix: a path outside blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_PX"
+rdt_ar 'prefix: rm -rf / blocks' 2 'rm -rf /' "$RDT_PX"
+rdt_ar 'prefix: a prefix under HOME grants nothing' 2 "rm -rf '$RDT_AH/.tmp-x'" "$RDT_AH/.tmp-*"
+rdt_ar 'prefix: a root-level prefix grants nothing' 2 'rm -rf /.tmp-rdt-x' '/.tmp-*'
+rdt_ar 'prefix: an empty name grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/*"
+rdt_ar 'prefix: a second glob character grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-?*"
+rdt_ar 'prefix: a glob in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_AB/w*/.tmp-*"
+rdt_ar 'prefix: a .. in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/../wt/.tmp-*"
+rdt_ar 'prefix: a plain entry is not a prefix' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-"
+rdt_ar 'prefix: a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_PX' rm -rf '$RDT_PP/.tmp-6527'"
+rdt_arp_pfx() { # <label> <want> <command>
+  expect_both "allowed roots: PS prefix: $1" "$2" --tool PowerShell --cwd / --command "$3" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_PX"
+}
+rdt_arp_pfx 'Remove-Item on a matching child allowed' 0 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527'"
+rdt_arp_pfx 'Remove-Item on a sibling worktree blocks' 2 "Remove-Item -Recurse -Force '$RDT_PP/other-worktree'"
+rdt_arp_pfx 'Remove-Item on a trailing-dot name blocks' 2 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527.'"
+if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_PP/.tmp-link" 2>/dev/null && [[ -L "$RDT_PP/.tmp-link" ]]; then
+  rdt_ar 'prefix: a matching symlink out of the tree blocks' 2 "rm -rf '$RDT_PP/.tmp-link'" "$RDT_PX"
+  rdt_ar 'prefix: a matching symlink/ out of the tree blocks' 2 "rm -rf '$RDT_PP/.tmp-link/'" "$RDT_PX"
+  rdt_ar 'prefix: a path through a matching symlink blocks' 2 "rm -rf '$RDT_PP/.tmp-link/x'" "$RDT_PX"
+  rdt_ar 'prefix: a matching symlink with a trailing dot blocks' 2 "rm -rf '$RDT_PP/.tmp-link.'" "$RDT_PX"
+else
+  rdt_skip "ln -s makes no real symlink on this host (4 cases)"
+fi
+# The user's own spelling on Windows: a drive-form entry, an MSYS-form operand.
+if command -v cygpath >/dev/null 2>&1; then
+  rdt_ar 'prefix: a drive-form entry allows an MSYS-form child' 0 "rm -rf '$RDT_PP/.tmp-6527'" "$(cygpath -m "$RDT_PP")/.tmp-*"
+  rdt_ar 'prefix: a drive-form entry still blocks its directory' 2 "rm -rf '$RDT_PP'" "$(cygpath -m "$RDT_PP")/.tmp-*"
+else
+  rdt_skip "no cygpath on this host (2 cases)"
+fi
 
 # The key is read from the hook's own environment only. Naming it in the
 # command text, as a prefix, an env launcher or an export, grants nothing.
