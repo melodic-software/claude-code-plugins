@@ -3,6 +3,51 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.9.1] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Test suite only; nothing shipped changes.** The audit-skill-visibility churn tests clear git's read-only object files when removing their fixture repo, so the temp dir is no longer left behind on Windows.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+- `/harness-ops:morning-brief` treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+- **The per-session event log runs in the background.** Every `session-event-log.sh` row except SessionEnd's now sets `async: true`, so the log write no longer holds up prompt submission or the other events; the `UserPromptSubmit` row had timed out at 5 seconds on a slow machine. Per the hooks reference ("Run hooks in the background") an async command hook is not awaited and its exit code and output are not read, which suits a row that only records. The SessionEnd row stays synchronous: its hooks share a 1.5-second teardown budget. The audit and telemetry rows are unchanged.
+
+### Fixed
+
+- `/harness-ops:changelog` `status` prints the default ledger path in the shell's own form on Git
+  for Windows (`/d/repo/...`), the same form it prints outside a repository, instead of the `D:/`
+  form `git rev-parse --show-toplevel` returns there.
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
 ## [3.9.0] - 2026-10-07
 
 ### Changed

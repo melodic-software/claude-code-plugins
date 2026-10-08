@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-10-08
+
+### Added
+
+- **block-root-delete-target name-prefix entries ([#6542](https://github.com/melodic-software/claude-code-plugins/issues/6542)).** A `block_root_delete_target_allowed_roots` entry that ends in one `*` after a literal name, such as `D:/worktrees/.tmp-*`, now allows a recursive delete of a direct child of that directory whose name extends the prefix by at least one character, compared by real path. The directory, the bare prefix, a sibling, anything below a matching child, a glob, a `..` escape, a matching symlink, a name ending in a dot or a space (Windows trims them), and a trailing-slash operand whose child does not exist yet all stay refused. An entry holding a glob character granted nothing before, so no entry that already allowed something changes meaning.
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Test suite only; nothing shipped changes.** The no-jq cases of `run-guards.test.sh` and `block-hook-bypass.test.sh` no longer hide a failed `ln -s` behind `2>/dev/null || true`: the first failed native link prints its error and the group reports a visible SKIP instead of running against an empty shim. No copy fallback.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
 ## [0.48.1] - 2026-10-04
 
 ### Changed

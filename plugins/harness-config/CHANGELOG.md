@@ -5,6 +5,25 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.13.5] - 2026-10-08
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
 ## [1.13.4] - 2026-10-07
 
 ### Fixed

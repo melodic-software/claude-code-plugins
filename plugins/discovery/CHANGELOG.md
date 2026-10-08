@@ -1,5 +1,25 @@
 # Changelog: discovery plugin
 
+## [0.32.5] - 2026-10-08
+
+### Changed
+
+- The rendered-view reference treats `medium: hosted` as `artifact`: the blindspot view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
 ## [0.32.4] - 2026-10-07
 
 ### Changed
