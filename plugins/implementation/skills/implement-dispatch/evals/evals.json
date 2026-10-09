@@ -186,6 +186,70 @@
         "It does NOT clear by default just because the heavy-window signal fired",
         "It does NOT state its own rule for when to compact, clear or hand off"
       ]
+    },
+    {
+      "id": 15,
+      "name": "worker-edits-existing-test-fails-verification",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run, phase 2 of .work/rates/PLAN.md adds currency rounding to src/rates/convert.ts. The plan names no test changes for this phase. The worker returned green; its diff changes src/rates/convert.ts and also edits an expected value in the existing test tests/rates/convert.test.ts.",
+      "expected_output": "Existing test files were FORBIDDEN for this non-test-authoring phase (brief item 1.12), so the return fails verification: the orchestrator does not accept the diff or build on it, reverts or re-briefs the worker, and treats the worker's green claim as no signal. Because the run is unattended, it recommends the testing plugin's `test_guards_enabled` option when it is off.",
+      "files": [],
+      "expectations": [
+        "It rejects the return because the diff edits an existing test file the phase did not authorize",
+        "It reverts or re-briefs rather than accepting the edit to tests/rates/convert.test.ts",
+        "It does NOT treat the worker's green report as the build signal",
+        "It recommends enabling the testing plugin's `test_guards_enabled` option for the unattended run"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "holdout-tests-stay-off-unless-opted-in",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run of .work/auth/PLAN.md, phase 1 of 3. The plan's execution shape says nothing about holdout tests and the user did not ask for them. Compose the phase 1 brief.",
+      "expected_output": "Holdout acceptance tests are opt-in, so the orchestrator composes the normal brief (fence with existing tests FORBIDDEN, acceptance criteria, reason, commit authority, design excerpt) and writes no holdout tests. It does not turn the option on itself.",
+      "files": [],
+      "expectations": [
+        "It composes the phase 1 brief without writing holdout tests",
+        "It does NOT enable holdout tests on its own initiative",
+        "The brief's fence lists existing test files as FORBIDDEN"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "wide-wave-pilots-one-row-first",
+      "prompt": "/implementation:implement-dispatch phase-2 --wave-cap 5 — autonomous run, commit authority orchestrator in one assigned worktree. Phase 2 has five worker rows with disjoint fences. You dispatch the first row and it returns with a usage-limit error.",
+      "expected_output": "Because the wave is wider than about 4 rows, the orchestrator dispatches one row alone first rather than all five at once, waits for its return, and checks that plan usage remains before sending the other four. The pilot returned a usage-limit error, so it withholds the remaining four rows and reports the limit instead of dispatching them.",
+      "files": [],
+      "expectations": [
+        "Dispatches exactly one row first, not all five at once",
+        "Waits for the pilot's return and checks remaining plan usage before dispatching the other rows",
+        "Withholds the remaining four rows after the pilot returns a usage-limit error and reports it"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "worktree-brief-runs-cwd-sensitive-command-by-directory-flag",
+      "prompt": "/implementation:implement-dispatch phase-1 — the worker edits in the dedicated worktree /srv/worktrees/app-phase1, outside the session's working directories. The phase's acceptance check is the repository's Makefile `test` target and its `npm run lint` script, both of which read their configuration from the working directory. Compose the brief.",
+      "expected_output": "The brief gives the worktree's absolute path written literally and anchors every command on it: `git -C <path>` for git, absolute paths elsewhere, one plain command per call, and no `cd`, including a `cd` into the worktree itself. The working-directory-sensitive commands run through their own directory flags, `make -C /srv/worktrees/app-phase1 test` and `npm --prefix /srv/worktrees/app-phase1 run lint`, never as `cd /srv/worktrees/app-phase1 && make test`.",
+      "files": [],
+      "expectations": [
+        "Writes the worktree path /srv/worktrees/app-phase1 literally in the brief",
+        "Directs the Makefile target through `make -C` with the literal worktree path",
+        "Directs the lint script through `npm --prefix` with the literal worktree path",
+        "Does NOT tell the worker to run any command as `cd <worktree> && <command>`, and states that `cd` is banned even into the worktree"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "worktree-command-without-directory-flag-goes-to-main-side-gate",
+      "prompt": "/implementation:implement-dispatch phase-2 — the worker edits in the dedicated worktree /srv/worktrees/svc-phase2, outside the session's working directories. The phase's only check is `./check`, a repository wrapper that reads its configuration from the current working directory, takes no directory flag, and does not locate the repository from its own path. Compose the brief and say who runs the check.",
+      "expected_output": "Because the wrapper has neither a directory flag nor a self-locating path, the brief does not have the worker run it, and in particular never as `cd /srv/worktrees/svc-phase2 && ./check`. The check is left to the orchestrator's main-side gate, which runs it after the worker returns. The brief still anchors the worker's own commands on the literal worktree path with `git -C` and absolute paths and bans `cd`.",
+      "files": [],
+      "expectations": [
+        "Does NOT instruct the worker to run `./check` via `cd <worktree> && ./check` or any other `cd`",
+        "Assigns running `./check` to the orchestrator's main-side gate after the worker returns",
+        "Anchors the worker's commands on the literal path /srv/worktrees/svc-phase2 with `git -C` and absolute paths"
+      ]
     }
   ]
 }

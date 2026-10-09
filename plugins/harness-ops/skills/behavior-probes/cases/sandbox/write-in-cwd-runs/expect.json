@@ -1,0 +1,14 @@
+{
+  "claim": "Control: on Linux with sandbox.enabled, a Bash write inside the working directory runs with no prompt.",
+  "tags": ["sandbox"],
+  "permission_mode": "auto",
+  "platforms": ["linux"],
+  "requires": ["bwrap", "socat"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "sbx-probe",
+    "example": { "command": "touch sbx-probe.txt && echo sandbox-write-ok" }
+  },
+  "outcome": "ran",
+  "match": "sandbox-write-ok"
+}

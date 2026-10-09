@@ -235,8 +235,9 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      body text the host's policy cannot be asked to police. The page's policy is defense
      in depth that holds from `file://`. The host also blocks any download the page starts
      itself and gives the page no sign that it did, so the runtime removes every
-     `data-rv-download` button except on `file://` and the session bridge on `127.0.0.1`,
-     never says a file was saved, and shows every payload as selectable text when the
+     `data-rv-download` button except on `file://`, the session bridge on `127.0.0.1`, and a
+     page served top-level over `https:` (a page host that allows downloads; see The `hosted`
+     medium), never says a file was saved, and shows every payload as selectable text when the
      reader copies or saves.
    - **Basis:** the builder's sample page, published 2026-10-02 and read back: the
      stored page sits inside the host's `<body>`. In headless Chromium, the same page
@@ -377,7 +378,9 @@ Artifact made from the account's Slides type, so it publishes behind the same ga
 Artifact types), and anything the gate keeps local stays the markdown outline.
 
 Rendered views are untracked by default; publishing anywhere else is optional and
-configured, never the default, except for the digest's and the deck's `artifact` default.
+configured, never the default, except for the digest's and the deck's `artifact` default. A
+shared page host is one such configured place: `medium: hosted`, honored only by the digest lane
+(see The `hosted` medium).
 
 A plan that depends on sharing or editing a rendered view across accounts or subscriptions
 does not assume it works: it checks the live Share dialog first.
@@ -421,6 +424,73 @@ Rules for a producer on a type:
   attaches the account's default.
 
 Producers on a type: `/visualization:present` (Slides).
+
+## The `hosted` medium
+
+`medium: hosted` sends a built page to a shared page host the operator runs, through the
+`pages-publish` command, so a page can be opened from any account or machine. The operator installs
+`pages-publish` and its configuration; the plugins hold no host name, token, or vendor detail.
+
+- **One lane publishes hosted.** `/review:explain-change` is the only lane that calls the gate and
+  `pages-publish` for `hosted`. Every other reader of the `medium` key, `/visualization:present` and
+  every lane that does not call the gate included, treats `hosted` as `artifact`, so one personal
+  value serves every lane.
+- **Only layers a checked-out branch cannot write select it**: the argument, the plugin's option,
+  `~/.claude/rendered-views.md`, or an untracked, gitignored overlay. A team `.claude/rendered-views.md` that says
+  `hosted` is reported and ignored.
+- **The destination never depends on the preference.** Which host a page reaches is the gate's
+  decision alone, whichever layer chose `hosted`; no layer can skip a check or force the public
+  host. The gate starts from `public` and only lowers it:
+  - a credential-shaped line refuses the upload, and the page stays a local file;
+  - a repository that is not `PUBLIC` (`UNKNOWN` included), or a machine path or hostname in the
+    page, sends it to the private host, which asks the reader to sign in.
+- **The gate reads the bytes that leave.** It scans the built page, with the strings in its data
+  block decoded so escaping cannot split a credential, not the diff the page was made from.
+- **Only the listed shapes are caught.** The credential and machine-path patterns live in
+  `lib/publish-gate.mjs` (`SECRET_PATTERNS`, `MACHINE_PATTERNS`). A miss proves nothing: a
+  credential or path in a shape the list does not name passes.
+- **Three layers check a hosted page.** The plugin gate checks repository visibility, credentials,
+  and machine paths and hostnames. `pages-publish` checks the builder stamp, the temp-directory
+  rule, credentials, and machine paths and hostnames before any network call. The host's upload
+  route checks credentials, and machine paths and hostnames on the public host, on every upload and
+  is the layer that binds, because its upload token can be used without `pages-publish`.
+- **Repository visibility is checked only by the plugin gate.** The page bytes carry no
+  repository identity, so `pages-publish` and the host cannot refuse a public upload of a page made
+  from a private repository when a caller skips the gate.
+- **The page id lives in the plugin's data directory**, in
+  `hosted/<owner>__<repo>__<pr>.json` holding `pages-publish`'s JSON line, so a rebuild of the same
+  pull request's page replaces it. When the returned id differs from the sidecar's, the
+  lane writes the new sidecar with the old id listed under `stale`, then deletes it from the old
+  host; an id whose delete fails stays under `stale` and is retried on the next publish.
+- **The save button stays on a top-level https page**, because the host's policy allows downloads.
+  A framed page, such as an Artifact, still loses it (Security baseline, rule 7).
+
+### The `pages-publish` command
+
+The contract every `pages-publish` implementation meets. The lane runs it with an argument vector,
+never through a shell string.
+
+```text
+pages-publish <file> --visibility public|private [--id <id>]
+pages-publish --delete <id> --visibility public|private
+```
+
+- `<file>` must be a regular file under the OS temp directory and carry a builder stamp,
+  `<!-- rv-gen:<name> sha256:<64 hex> -->`; otherwise exit 3.
+- It scans the bytes it will send: a credential-shaped line exits 4 with no network call and
+  names the pattern label and line on stderr, never the match; a machine path or hostname forces
+  `private`.
+- It reads its endpoints and secret names from a configuration file at a fixed path under the
+  account's passwd home directory, never from the run-time environment. It sends credentials to
+  the host only through standard input, never the argument vector.
+- `--id` replaces that page. When the visibility it sends differs from the one the id was
+  published under (forced private, or the public host answering that the page must be private),
+  it drops `--id` and creates a new page; the caller deletes the old id.
+- The upload is `Content-Type: text/html; charset=utf-8`.
+- On success it prints one JSON line on stdout, `{"id": "<22 characters>", "visibility":
+  "public"|"private", "url": "https://..."}`, and exits 0. `--delete` exits 0 when the page is gone.
+- Exit codes: 0 done, 2 usage, 3 not a stamped page under the temp directory, 4 credential-shaped
+  content, 5 configuration missing or unsafe, 6 upload or HTTP failure.
 
 ## Genre rubric and stopping rule
 
@@ -622,13 +692,19 @@ owner declaration.
   `~/.claude/rendered-views.md`, team `.claude/rendered-views.md`, overlay
   `.claude/rendered-views.local.md`).
 - **Keys** (per-key override, declared here per the contract): `medium`, one of `auto`,
-  `terminal`, `file`, `artifact`; the preferred rung for rendered views, applied within
-  reachability. Future keys are added here first. A lane's shipped default for `medium`
+  `terminal`, `file`, `artifact`, `hosted`; the preferred rung for rendered views, applied within
+  reachability. `hosted` sends a page to a shared page host in `/review:explain-change` and
+  is read as `artifact` by every other lane (see The `hosted` medium). Future keys are added here first. A lane's shipped default for `medium`
   is the last tier of the ladder below; the digest's `artifact` default (see
   Default ladder and its reconciliation) is one such default, and any layer that sets
   `medium` overrides it.
-- **No policy-floor class**: every key is a taste dial over deliverable presentation; a
-  personal value weakens nothing another surface depends on (the `ai-slop` precedent).
+- **No policy-floor class, and `medium` is not a pure taste dial**: `medium` chooses whether
+  a view leaves the machine, and `artifact` and `hosted` publish it, so a personal value can
+  send content elsewhere. What keeps that safe is not the preference but the gate: a
+  publishing value counts only from a layer a checked-out branch cannot write, and for
+  `hosted` the gate alone decides the private host or a refusal, whatever the value says (see
+  The `hosted` medium). A future key that only shapes presentation is a taste dial that
+  weakens nothing another surface depends on (the `ai-slop` precedent).
   The default direction holds: the team layer refines user-global, the overlay is the
   operator's per-repo trump, and the user's global preference governs wherever no repo
   layer speaks.

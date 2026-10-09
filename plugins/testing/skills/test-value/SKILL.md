@@ -29,6 +29,62 @@ has one (a property, a round trip against a specified format, an end-to-end outc
 code untested and say so. Never copy the code's actual output into the expected value: it turns the
 test into a recording of whatever the code did.
 
+### A test you wrote from code you just wrote
+
+Its expected value has no independent source unless it comes from the list above. Reading your
+own code to pick the value copies its output by another route.
+
+Verification record. Claim: LLM-generated test oracles mainly capture the code's actual behavior
+rather than its expected behavior, and can validate bugs (the first paper also finds them better at
+detecting faults than EvoSuite's). Basis: https://arxiv.org/abs/2410.21136,
+https://arxiv.org/abs/2412.14137, https://arxiv.org/abs/2607.22883 (abstracts read). Measured on
+LLM test generators run on benchmark repositories; the transfer to an agent writing tests mid-task
+is inferred. As of 2026-10-06. Recheck when a study measures an interactive coding agent's own
+tests, or one of the three papers is revised.
+
+### A property is stated before it runs
+
+A property is a source only when it comes from the spec, requirement, docstring or issue and is
+written down before it runs against the code. A property found by watching what the code does is a
+recording, and one that re-implements the code (`add(a, b) === a + b`) is the restated expectation
+this section rules out. A new property needs evidence that it can fail: a mutant it kills
+(`/mutation-testing:audit --exercised`, when that plugin is enabled) or a known-bad input marked
+expected-fail, such as Hypothesis `@example(...).xfail()`.
+
+Verification record. Claim: a material share of LLM-written property tests are unsound or
+superficial (a wrong implementation also satisfies them), and Hypothesis documents expected-failing
+examples as a check that a test does fail on some inputs. Basis:
+https://aclanthology.org/2026.findings-acl.683/, https://arxiv.org/abs/2307.04346,
+https://hypothesis.readthedocs.io/en/latest/reference/api.html. Measured on Python libraries and
+benchmark functions. As of 2026-10-06. Recheck when Hypothesis renames or drops `example.xfail`.
+
+### In a rewrite, the old code is the source and the test is a pin
+
+When code is replaced, migrated or ported, or pinned before a refactor, the old implementation or
+output recorded from it is the independent source for the new code, so copying that output is
+allowed here. Such a test is a pin: it proves sameness, not correctness, and keeps any bug the old
+code had. Name it as a pin, and before trusting it break the code under test on purpose and watch
+the pin fail. The record is in §4.
+
+### A canned response names its source
+
+A stub, fake or recording standing in for an unmanaged dependency (§2) feeds values the code acts
+on, so each canned response names where it came from: a recorded real response replayed read-only
+in CI, the provider's published schema or sandbox, or a contract test both sides run. A response
+written from the same guess about the API as the code passes on the shared mistake. Recordings are
+editable files, so one is independent only while the implementer cannot rewrite it; a re-recorded
+or hand-edited one is a new claim to review. Consumer-driven contract tools such as Pact need the
+provider to run them too, which rules them out for public third-party APIs.
+
+Verification record. Claim: a contract test checks that calls to a test double return what the
+real service would; Pact's docs say it does not fit APIs whose provider will not also use Pact or
+whose consumers cannot be identified, such as public APIs; vcrpy records real responses once and
+its `none` record mode errors on any unrecorded request. Basis:
+https://martinfowler.com/bliki/ContractTest.html,
+https://docs.pact.io/getting_started/what_is_pact_good_for,
+https://vcrpy.readthedocs.io/en/latest/usage.html. As of 2026-10-06. Recheck when Pact's
+suitability page or vcrpy's record modes change.
+
 ## 2. Call counts are legitimate at unmanaged, state-changing boundaries
 
 Asserting that a call happened, and how often, is correct when the dependency is **unmanaged**
@@ -75,6 +131,17 @@ checking". Basis: https://newsletter.kentbeck.com/p/canon-tdd (redirected from
 tidyfirst.substack.com; published 2023-12-11). As of 2026-09-29. Recheck when Beck publishes a
 revision of Canon TDD or a successor post that changes step 4.
 
+A rewrite pin (§1) is not the copying Beck rules out: its values come from a second
+implementation, the old one, so the check is double, but on sameness only.
+
+Verification record. Claim: a characterization test documents a system's actual behavior rather
+than its desired behavior; temporarily sabotaging the code under test confirms each
+characterization assertion can fail; Jest says to fix a bug before regenerating snapshots so the
+snapshot does not record it. Basis: https://michaelfeathers.silvrback.com/characterization-testing,
+https://blog.ploeh.dk/2025/11/03/empirical-characterization-testing/,
+https://jestjs.io/docs/snapshot-testing. As of 2026-10-06. Recheck when Feathers or Seemann
+revises the post, or Jest's snapshot page changes its regeneration advice.
+
 ## Next
 
 - The suite needs checking for the shapes in the taxonomy below: /testing:audit.
@@ -100,7 +167,7 @@ revision of Canon TDD or a successor post that changes step 4.
 | `rule-recomputed-derived` | expected rebuilt the way the code computes it: `expect(add(a, b)).toBe(a + b)`, `items.reduce(...)`; passes when test and code share a mistake, and proves no specified value | a hand-computed literal (§1) |
 | `rule-weak-oracle` | `toBeDefined`, `is not None`, `toThrow()` alone | assert the value or the exception type |
 | `rule-throw-only-oracle` | `var w = new Widget(); Assert.NotNull(w);`: only a throwing constructor fails it | assert what the constructor sets; `cant-fail-ok: <why>` for a smoke test kept to prove wiring |
-| `rule-snapshot-only` | a snapshot is the only oracle | review it as code; it is fine once reviewed |
+| `rule-snapshot-only` | a snapshot is the only oracle | review it as code; scrub volatile values (times, ids, seeds) with the tool's matcher or scrubber; when your own change breaks it, fix the bug or confirm the diff is intended before regenerating, never re-approve blind (§4) |
 
 **Change detectors** (fail on any edit, prove no behavior):
 

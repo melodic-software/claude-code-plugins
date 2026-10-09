@@ -310,6 +310,7 @@ Read the noise report's lines this way:
   verdict is trusted. The line saying the file holds no judge votes means agreement is unknown,
   not perfect.
 - `cost`: report it beside the scores, in the same answer as the delta.
+- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each `case drop`.
 - `pass count`: the interval method (the `interval_method` setting, the `--interval-method` flag)
   changes only this line, the count of cases at or above the threshold. Every score interval, the
   delta line included, uses the normal method paired over cases whatever the setting, because a

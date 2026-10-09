@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Read-only deferred: .github/workflows/ci.yml (agent & enforcement configuration)",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No items deferred.",
+      "why": "not named"
+    }
+  ]
+}

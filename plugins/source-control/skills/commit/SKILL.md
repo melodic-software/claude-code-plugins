@@ -101,8 +101,10 @@ commands, not remembered facts. Steps 3–5 are the ones a long session silently
 3. **Format**, run the discoverable formatter scoped to this commit's paths, re-stage its fixes.
 4. **Exec-bit**, run `exec-bit-check.sh --fix -- <this commit's paths>`, AFTER step 3.
 5. **Pre-check** the drafted subject against the resolved pattern before invoking git.
-6. **Commit** via the Bash tool: `git commit -F -` heredoc-piped, `--trailer` per `trailer_policy`.
-7. **Report** the resulting SHA + subject to the user.
+6. **Fragments**, in a repository with a `fragment-plugins.txt` list under `scripts/`, pipe the drafted message to
+   `write-changelog-fragments.sh` and stage the paths it prints (Task step 7).
+7. **Commit** via the Bash tool: `git commit -F -` heredoc-piped, `--trailer` per `trailer_policy`.
+8. **Report** the resulting SHA + subject to the user.
 
 ## Purpose
 
@@ -193,9 +195,31 @@ convention instead of re-inferring one every commit.
 5. Draft a subject + optional body, scoped to the staged diff, shaped to satisfy the active subject
    convention (default: the Conventional Commits pattern above).
 6. Pre-check the subject against the pattern (fast-fail before invoking git).
-7. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` per the trailer
+7. Write changelog fragments when the repository releases plugins from them, which it does when
+   a `fragment-plugins.txt` list exists in its `scripts/` directory. Pipe the drafted message (subject, blank
+   line, body) to the script from the repository root and `git add` each path it prints, so the
+   fragments land in this commit:
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/write-changelog-fragments.sh" <<'EOF'
+   <the drafted message>
+   EOF
+   ```
+
+   For each listed plugin the staged change touches, it writes the fragment in place of the hand
+   version bump and CHANGELOG entry, through the repository's own `new-changelog-fragment.sh`.
+   The bump comes from the Conventional Commits type: `feat` minor; `fix` and `perf` patch;
+   `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or a `BREAKING CHANGE`
+   footer major. The subject and body go under `### Added` (`feat`), `### Fixed` (`fix`) or
+   `### Changed` (anything else), and a `none` fragment gets one line saying why no release is
+   needed. A later commit on the branch with a releasing type adds its entry to the branch's fragment and raises the
+   bump only upward. On exit 2 for a subject it cannot map, rerun with
+   `--level major|minor|patch|none`. In a repository without the list, and for a plugin the list
+   does not name, it writes nothing, and the repository's own release record (a version bump plus
+   CHANGELOG entry) still applies.
+8. Invoke `git commit -F -` via the Bash tool, heredoc-piped, adding `--trailer` per the trailer
    template below only when the resolved `trailer_policy` calls for one.
-8. Surface the resulting commit SHA + subject to the user.
+9. Surface the resulting commit SHA + subject to the user.
 
 ## Canonical bash form
 
@@ -412,8 +436,8 @@ The `reference/` files write this skill's directory as `<skill-dir>`, which is
 it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
 would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
 to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

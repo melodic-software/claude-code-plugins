@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".claude/tidy-lanes/core.md"
+      ],
+      "why": "a tracked-name lane is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".claude/tidy-lanes/web.local.md"
+      ],
+      "why": "local variant"
+    },
+    {
+      "answer": [
+        "CLAUDE.local.md"
+      ],
+      "why": "local variant"
+    }
+  ]
+}

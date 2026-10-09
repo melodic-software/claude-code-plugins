@@ -49,6 +49,8 @@ function isDottedQuad(octets) {
 // complete against the registry as fetched 2026-07-26 — a point-in-time claim,
 // since IANA can add a row; the only rows omitted are those the registry
 // marks globally reachable (the AS112, AMT, PCP and TURN anycast assignments).
+// Recheck when IANA adds an IPv4 Special-Purpose registry row whose Globally
+// Reachable column is not True.
 function isPrivateIPv4(host) {
 	const octets = host.split(".").map(Number);
 	if (!isDottedQuad(octets)) return false;

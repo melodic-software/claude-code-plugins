@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/x/skills/audit-comment-residue/scripts/detect.sh billing.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "a.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"$SKILL/scripts/detect.sh\" src/client.ts"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n '#' billing.py"
+          }
+        }
+      ],
+      "why": "read by grep only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "scripts/detect.sh"
+          }
+        }
+      ],
+      "why": "read the script, never ran it"
+    }
+  ]
+}

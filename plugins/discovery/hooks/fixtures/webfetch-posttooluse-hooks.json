@@ -1,0 +1,35 @@
+{
+  "_capture": {
+    "source": "PostToolUse hook stdin, logged by a temporary command hook in a headless claude -p session",
+    "claude_code": "2.1.289",
+    "date": "2026-10-04",
+    "edits": [
+      "session_id, prompt_id, transcript_path and cwd replaced with placeholders",
+      "tool_response.result cut to its last 2000 characters (captured length 99794)"
+    ]
+  },
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "<home>/.claude/projects/example/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "<repo-root>",
+  "permission_mode": "dontAsk",
+  "hook_event_name": "PostToolUse",
+  "prompt_id": "00000000-0000-4000-8000-000000000001",
+  "effort": {
+    "level": "medium"
+  },
+  "tool_name": "WebFetch",
+  "tool_input": {
+    "url": "https://code.claude.com/docs/en/hooks.md",
+    "prompt": "Return the page content verbatim, in full."
+  },
+  "tool_response": {
+    "bytes": 250017,
+    "code": 200,
+    "codeText": "OK",
+    "result": "ds `AGENTS.md` directly](/docs/en/memory#agents-md) through the **Project instructions** setting. It does fire when a `CLAUDE.md` imports your `AGENTS.md`, with `load_reason` set to `include` as for any other imported file, and when `CLAUDE.md` is a symlink to it, as a normal `CLAUDE.md` load.\n\nThe matcher runs against `load_reason`. For example, use `\"matcher\": \"session_start\"` to fire only for files loaded at session start, or `\"matcher\": \"path_glob_match|nested_traversal\"` to fire only for lazy loads.\n\n#### InstructionsLoaded input\n\nIn addition to the [common input fields](#common-input-fields), InstructionsLoaded hooks receive these fields:\n\n| Field | Description |\n| :- | :- |\n| `file_path` | Absolute path to the instruction file that was loaded |\n| `memory_type` | Scope of the file: `\"User\"`, `\"Project\"`, `\"Local\"`, or `\"Managed\"` |\n| `load_reason` | Why the file was loaded: `\"session_start\"`, `\"nested_traversal\"`, `\"path_glob_match\"`, `\"include\"`, or `\"compact\"`. The `\"compact\"` value fires when instruction files are re-loaded after a compaction event |\n| `globs` | Path glob patterns from the file's `paths:` frontmatter, if any. Present only for `path_glob_match` loads |\n| `trigger_file_path` | Path to the file whose access triggered this load, for lazy loads |\n| `parent_file_path` | Path to the parent instruction file that included this one, for `include` loads |\n\n```json theme={null}\n{\n  \"session_id\": \"abc123\",\n  \"transcript_path\": \"<home>/.../.claude/projects/.../transcript.jsonl\",\n  \"cwd\": \"<home>/my-project\",\n  \"hook_event_name\": \"InstructionsLoaded\",\n  \"file_path\": \"<home>/my-project/CLAUDE.md\",\n  \"memory_type\": \"Project\",\n  \"load_reason\": \"session_start\"\n}\n```\n\n#### InstructionsLoaded decision control\n\nInstructionsLoaded hooks can't block or change behavior; execution continues on any exit code. Claude Code discards the hook's [JSON output fields](#json-output) and stderr. The hook is used for observability and logging only.\n\n[... content continues ...]",
+    "durationMs": 326933,
+    "url": "https://code.claude.com/docs/en/hooks.md"
+  },
+  "tool_use_id": "toolu_01FpVNoyzZWnpS3AqmT2bV1K",
+  "duration_ms": 326934
+}

@@ -76,7 +76,8 @@ verdict HYBRID, which this record adopts.
   personal account) gets one value per machine for each key in decision 1, and for the ten keys in
   decision 3 while their deprecated `userConfig` fallback is set. Such an operator either leaves
   those keys unset or launches the lane with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
-  (fact 5); how its `pluginConfigs` merges with the user settings value is unverified.
+  (hook-config-delivery fact 5; as of 2026-10-07); how its `pluginConfigs` merges with the user
+  settings value is unverified.
 - Repositories can set `branch_issue_pattern` for themselves today; the `userConfig` twin keeps
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain

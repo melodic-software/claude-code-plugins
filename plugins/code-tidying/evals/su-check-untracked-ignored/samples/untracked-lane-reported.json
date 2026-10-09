@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "| jobs.md | untracked | commit it to share with the team |"
+    },
+    {
+      "answer": "jobs.md is not tracked by git"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| jobs.md | PASS | |",
+      "why": "untracked state missed"
+    }
+  ]
+}

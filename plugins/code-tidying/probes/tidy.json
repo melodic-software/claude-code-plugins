@@ -1,0 +1,128 @@
+{
+  "skill": "code-tidying:tidy",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/tidy",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
+  "competitors": [
+    "code-tidying:audit-comment-residue",
+    "code-tidying:audit-dead-code",
+    "code-tidying:batch-simplify",
+    "code-tidying:dissolve-comments"
+  ],
+  "competitor_dirs": {
+    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "code-tidying:batch-simplify": "plugins/code-tidying/skills/batch-simplify",
+    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Spend a little time making small structural improvements somewhere in the codebase and open a PR."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Leave the code a bit better than you found it: pick an area and clean it up without changing behavior."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do some guard-clause and extract-helper style cleanups in one area, with no behavior changes."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a small refactoring-only pull request today, you choose where."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run the next tidying lane and ship whatever safe cleanups you find."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a few low-risk readability refactors in the server code, kept to one PR."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go hunting for easy structural cleanups we can land as a single safe PR."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "It is a quiet afternoon, do some incremental code hygiene on the repo."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Normalize the symmetry and reading order in the config module, structure changes only."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify the changes I just made in this file."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run simplify across every file changed since last Friday."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Report what is dead in the repo, but do not touch anything."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the comments from this module and make the names self-explanatory."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix the failing integration test in tests/api."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a new endpoint for exporting invoices as CSV."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Classify the narrative comments in my branch without editing."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Work the next issue in the tracker backlog."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Redesign the module boundaries between orders and billing."
+    }
+  ]
+}

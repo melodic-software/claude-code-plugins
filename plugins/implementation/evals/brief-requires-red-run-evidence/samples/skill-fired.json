@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "implementation:implement-dispatch"}}],
+      "why": "qualified name"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "implement-dispatch", "args": "phase-2"}}],
+      "why": "bare name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "implementation:implement"}}],
+      "why": "the inline sibling skill"
+    }
+  ]
+}

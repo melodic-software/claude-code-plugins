@@ -2,6 +2,16 @@
 
 Named sessions isolate cookies, storage, cache, history, and tabs. Use `-s=<name>` on every command in a flow.
 
+## Contents
+
+- [Named session flow](#named-session-flow)
+- [Session lifecycle](#session-lifecycle)
+- [Implicit session via env](#implicit-session-via-env)
+- [Persistent profiles](#persistent-profiles)
+- [Attach to a running browser (CDP)](#attach-to-a-running-browser-cdp)
+- [Patterns](#patterns)
+- [Naming discipline](#naming-discipline)
+
 ## Named session flow
 
 ```bash
@@ -23,7 +33,13 @@ playwright-cli kill-all               # force-kill zombie daemons; also the reco
 playwright-cli -s=<name> delete-data  # remove persistent profile data
 ```
 
+`close-all` and `kill-all` act on every playwright-cli browser on the machine, not just yours. When other agents may be driving browsers at the same time, close your own session by name and keep `kill-all` for recovering from a stuck daemon.
+
 **Always `close` when done.** Zombie browsers consume RAM and hold file locks on persistent profile directory.
+
+If a headless session reports the browser is not open after a pause, run `open` again and redo any in-memory setup. Before a long pause mid-flow, raise the idle limit with `open --idle-timeout=<ms>`.
+
+- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Implicit session via env
 
@@ -50,6 +66,8 @@ For explicit profile location:
 ```bash
 playwright-cli -s=auth open <url> --profile=/path/to/profile
 ```
+
+A profile directory admits one running browser at a time, so a second session on it fails. For a login several agents need at once, use the [shared login state](storage-and-auth.md#shared-login-state) instead.
 
 ## Attach to a running browser (CDP)
 

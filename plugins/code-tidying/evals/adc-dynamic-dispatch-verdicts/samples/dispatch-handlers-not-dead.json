@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "render_table: dead (no reference). cmd_status, cmd_restart: uncertain. cli.sh builds fn=\"cmd_${cmd}\" and calls \"$fn\", a string-name dispatch a literal search cannot see."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All three (cmd_status, cmd_restart, render_table) are dead and can be deleted."
+    },
+    {
+      "answer": "render_table is dead. cmd_status and cmd_restart are alive.",
+      "why": "no evidence cited"
+    }
+  ]
+}

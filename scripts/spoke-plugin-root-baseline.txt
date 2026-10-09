@@ -13,7 +13,7 @@
 # Stale-guarded: an entry whose file is gone, no longer contains the token, or
 # holds a different count fails the gate. Never add an entry for a new spoke:
 # use <skill-dir> instead.
-plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
+plugins/harness-config/skills/audit-permission-grants/reference/criteria.md 4 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
 plugins/harness-config/skills/audit/context/validation-categories.md 1 # justified: the sentence names the two placeholders the hook rules look for in a plugin-provided hook; the literal text is the rule's subject
 plugins/harness-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
 plugins/harness-ops/skills/lanes/context/restart-consumer.md 1 # justified: the sentence says the skill resolves the variable freshly at run time; it names the token and runs nothing
@@ -25,8 +25,6 @@ plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1 # justified: 
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
 plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
 plugins/event-storming/skills/simulation/reference/agentic-simulation.md 1 # justified: the sentence names the token as the read-only install directory a session archive is never written into; it runs nothing
-plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1 # justified: the row tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
-plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
 plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
 plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 1 # justified: the line names the token as a topic of the upstream plugins reference it cites; it runs nothing
 plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 1 # justified: the convention text names the token it says a context file must not use; it runs nothing

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "\"\"\"Invoice helpers.\"\"\"\n\nimport decimal\n\n\ndef total(lines):\n    # used to round per line; now rounds once at the end\n    subtotal = sum(line.amount for line in lines)\n    return subtotal.quantize(decimal.Decimal(\"0.01\"))\n\n\ndef tax(amount, rate):\n    # as you asked, keep the rate lookup outside the loop\n    return amount * rate\n\n\ndef apply_discount(amount, pct):\n    # in this PR the discount is capped at the subtotal\n    return max(amount - amount * pct, 0)\n\n\ndef currency(code):\n    # see PR #482 for the currency table design\n    return code.upper()\n\n\ndef round_half_even(value):\n    # Banks require half-even rounding; half-up drifts on large batches.\n    return value.quantize(decimal.Decimal(\"0.01\"), rounding=decimal.ROUND_HALF_EVEN)\n",
+      "why": "fixture as seeded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "\"\"\"Invoice helpers.\"\"\"\n\nimport decimal\n\n\ndef total(lines):\n    # used to round per line; now rounds once at the end\n    subtotal = sum(line.amount for line in lines)\n    return subtotal.quantize(decimal.Decimal(\"0.01\"))\n\n\ndef tax(amount, rate):\n    return amount * rate\n\n\ndef apply_discount(amount, pct):\n    # in this PR the discount is capped at the subtotal\n    return max(amount - amount * pct, 0)\n\n\ndef currency(code):\n    # see PR #482 for the currency table design\n    return code.upper()\n\n\ndef round_half_even(value):\n    # Banks require half-even rounding; half-up drifts on large batches.\n    return value.quantize(decimal.Decimal(\"0.01\"), rounding=decimal.ROUND_HALF_EVEN)\n",
+      "why": "one residue line deleted"
+    },
+    {
+      "answer": "\"\"\"Invoice helpers.\"\"\"\n\nimport decimal\n\n\ndef total(lines):\n    # used to round per line; now rounds once at the end\n    subtotal = sum(line.amount for line in lines)\n    return subtotal.quantize(decimal.Decimal(\"0.01\"))\n\n\ndef tax(amount, rate):\n    # as you asked, keep the rate lookup outside the loop\n    return amount * rate\n\n\ndef apply_discount(amount, pct):\n    # in this PR the discount is capped at the subtotal\n    return max(amount - amount * pct, 0)\n\n\ndef currency(code):\n    # Currency codes are ISO 4217.\n    return code.upper()\n\n\ndef round_half_even(value):\n    # Banks require half-even rounding; half-up drifts on large batches.\n    return value.quantize(decimal.Decimal(\"0.01\"), rounding=decimal.ROUND_HALF_EVEN)\n",
+      "why": "rewritten"
+    }
+  ]
+}

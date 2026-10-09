@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "src/client.ts: 3 finding(s) \u2014 T1=0, T2=3\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 2    | ticket-pr-residue | 8 | \"// see PR #45 for why pagination is cursor-based\" | Review. Delete a bare back-reference |\n| 2    | ticket-pr-residue | 10 | \"// TODO see issue 12 before raising the page size\" | Review. Keep TODO(#issue) |\n| 2    | ticket-pr-residue | 12 | \"// carried over from the feature/retry branch\" | Review |\n\nTotal: 1 file(s) audited, 0 Tier 1, 3 Tier 2 findings."
+    },
+    {
+      "answer": "ticket-pr-residue on line 10: the TODO has no ( or : so it is not the sanctioned form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "Ticket references in src/client.ts:\n- line 3 TODO(#123) is tracked work, fine\n- line 8 see PR #45: remove\n- line 12 feature/retry branch: remove\nLine 10's TODO is fine."
+    },
+    {
+      "answer": "src/client.ts: 3 finding(s) \u2014 T1=0, T2=3\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 2    | ticket-pr-residue | 8 | \"// see PR #45 for why pagination is cursor-based\" | Review. Delete a bare back-reference |\n| 2    | ticket-pr-residue | 12 | \"// carried over from the feature/retry branch\" | Review |\n\nTotal: 1 file(s) audited, 0 Tier 1, 3 Tier 2 findings.",
+      "why": "line 10 omitted"
+    }
+  ]
+}

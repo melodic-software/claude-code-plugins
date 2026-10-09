@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:batch-simplify",
+            "args": "72h"
+          }
+        }
+      ],
+      "why": "routed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "simplify"
+          }
+        }
+      ],
+      "why": "single-target bundled skill"
+    },
+    {
+      "answer": [],
+      "why": "no skill"
+    }
+  ]
+}

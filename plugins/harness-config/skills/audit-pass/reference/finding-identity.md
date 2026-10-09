@@ -43,7 +43,7 @@ sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise
 
 **A cross-surface conflict is ONE finding with two sites, never two linked findings.** SARIF reserves
 separate results for "distinct occurrences … which could be corrected independently"
-([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release rewrites that section).
 A contradiction between two instruction surfaces is retired by fixing *either* side, so the two sides
 are not independently correctable and are not two results.
 
@@ -58,7 +58,7 @@ assert two independently correctable defects where there is one contradiction.
 
 The rule has the same source as the two-site exemption, read the other way. SARIF reserves separate
 results for "distinct occurrences … which could be corrected independently"
-([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24),
+([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release rewrites that section),
 and twenty-one sites of one over-prescriptive instruction are twenty-one independently correctable
 occurrences. GitHub's consumer settles the practical half: it keys on `locations[0]` and ignores
 every location past it, so a multi-site finding is already carried as its first site by the
@@ -123,7 +123,7 @@ content and the same defect.
 churning the whole report on an unrelated edit. The anchor field name carries its algorithm version:
 findings emit **`anchor/v1`**, and two sides compare on the **greatest anchor version both carry**
 (the versioned-fingerprint discipline of SARIF
-[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release changes fingerprint versioning).
 That is the escape hatch: a later algorithm ships as `anchor/v2` alongside `v1`, and a record written
 under `v1` keeps matching until both sides have moved.
 
@@ -176,7 +176,7 @@ the ambiguity actually lives.
 file *as a whole*, that it should not exist, is unreachable, or duplicates another, must not be
 retired by editing a line inside it. SARIF grounds the same decomposition: "If the region property is
 absent, the `physicalLocation` object refers to the entire artifact"
-([§3.29.4](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+([§3.29.4](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24; recheck when a SARIF release rewrites the absent-region rule).
 The consequence must be stated where an operator will meet it: **an `s:` suppression survives every
 edit to the file and does not survive a rename.** A rename is a new surface, so the suppression goes
 stale and is re-reported. That is correct, because a renamed file is a decision worth re-judging.

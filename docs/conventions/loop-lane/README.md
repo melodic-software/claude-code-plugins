@@ -169,7 +169,11 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 - **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
-  SHA-bound required check with no bypass actors. A PR **comment is never a hold**: comments are
+  SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
+  same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
+  the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
+  queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is never a hold**: comments are
   advisory by construction; no gate reads them, and an escalation comment on the PR obliges
   nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
@@ -363,7 +367,8 @@ running but unattended, and lane-down detection stays with the stop gate and tel
 
 **A configured hook can also fail silently.** We treat a header variable missing from
 `allowedEnvVars` as interpolating to an empty string (for the rule, see
-[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27), and
+[HTTP hook fields](https://code.claude.com/docs/en/hooks#http-hook-fields), as of 2026-07-27;
+recheck when that section changes how an unlisted header variable is interpolated), and
 a listed variable unset in the operator's environment as doing the same, an applied inference.
 Either way a failed POST is non-blocking, so a misconfigured hook can 401 on
 every escalation while the lane runs on with nothing surfaced outside debug logs. Verify the leg
@@ -997,6 +1002,9 @@ requires (freshness read, hold, then explanation):
 ```bash
 gh pr view <n> -R "$R" --json state,mergedAt
 gh pr edit <n> -R "$R" --add-label do-not-merge
+# Only when the PR is in the merge queue:
+gh api graphql -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' \
+  -f id="$(gh pr view <n> -R "$R" --json id -q .id)"
 gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
 ```
 

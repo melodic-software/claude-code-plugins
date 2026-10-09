@@ -2,6 +2,13 @@
 
 Use `run-code` for advanced scenarios not covered by CLI commands. Argument is an `async page => { ... }` function body.
 
+## Contents
+
+- [Syntax](#syntax)
+- [Common recipes](#common-recipes)
+- [When to reach for `run-code`](#when-to-reach-for-run-code)
+- [File input (`--filename`)](#file-input---filename)
+
 ## Syntax
 
 ```bash
@@ -15,6 +22,10 @@ playwright-cli run-code --filename=script.js
 ```
 
 Return values from the function are printed as command result.
+
+Treat the `run-code` body as a sandbox, not full Node.js: pass values such as secrets in from the shell as JSON-encoded literals (see the login example below), never through `process.env` or a Node module inside the body.
+
+- **Pointer**: when you need to know which globals the `run-code` sandbox provides, fetch the [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22) live. **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
 ## Common recipes
 
@@ -149,13 +160,15 @@ playwright-cli run-code "async page => {
 playwright-cli run-code "async page => {
   await page.goto('https://example.com/login');
   await page.getByRole('textbox', { name: 'Email' }).fill('user@example.com');
-  await page.getByRole('textbox', { name: 'Password' }).fill(process.env.E2E_TEST_PASSWORD!);
+  await page.getByRole('textbox', { name: 'Password' }).fill($(node -p 'JSON.stringify(process.env.E2E_TEST_PASSWORD ?? "")'));
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL('**/dashboard');
   await page.context().storageState({ path: 'auth.json' });
   return 'Login successful';
 }"
 ```
+
+The shell runs the `node -p` substitution before `run-code` sees the code, and `JSON.stringify` turns the value into one quoted JavaScript string, so no character in it can end the string and run as code. Never splice a raw `$VAR` between quotes in a `run-code` body. Set `E2E_TEST_PASSWORD` in your own environment first.
 
 ## When to reach for `run-code`
 

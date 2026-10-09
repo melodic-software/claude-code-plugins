@@ -10,7 +10,7 @@ holds the current specifics. Beta features name their beta explicitly; a beta he
 the request contract, not decoration. Current prices, model lists, and TTL values resolve through
 the pricing page or the bundled `claude-api` skill at the moment of use; this chapter carries
 practices, not numbers. The pages behind the pointers were read 2026-09-28, two identical fetches
-of each.
+of each; each section below carries its own recheck trigger.
 
 ## Prefix stability
 

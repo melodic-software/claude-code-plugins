@@ -13,11 +13,11 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
-When you consume this repo from a local `directory` source, the install cache keys on semver
-`version`, not commit, so several commits under one version leave early installs on a stale
-snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
-[#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+An install from GitHub is a copy keyed on the plugin's semver `version`, not the commit, so a change
+reaches it only when a release raises that version; until then `plugin update` reports "already at
+the latest version". A marketplace added from a local clone loads each plugin in place, so edits
+apply at the next session or `/reload-plugins`. See
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift").
 
 ### Enable plugin suggestions for an organization
 
@@ -44,11 +44,12 @@ marketplace source AND allowlist its name in the same file:
 The source declaration is required for any non-official marketplace: the allowlisted name is
 ignored if the locally registered marketplace came from a different source. That rule stops an
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
-Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
+Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugins/relevance#enable-suggestions-in-managed-settings).
 
-Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
-external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
-the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
+with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
+harness-maintenance, and external-service plugins carry it, and a few general-purpose ones in
+those categories do not. A plugin another enabled plugin depends on starts enabled
 regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way
@@ -167,7 +168,7 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.36.0 (`fb56986808750d6856c27de78df15e150027b8dc`), the pin in
+- **As of:** `ci-workflows` v0.39.3 (`ab83b01273026ab5c23c6f3b40e946d97a863fa2`), the pin in
   `.github/workflows/pr-require-checks.yml`.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
@@ -248,7 +249,7 @@ touch.
 
 This repo tracks policy and wiring only; authoritative behavior lives in the official docs, which must
 be read fresh rather than recalled. Start at the
-[Claude Code plugins guide](https://code.claude.com/docs/en/plugins).
+[Claude Code plugins overview](https://code.claude.com/docs/en/plugins/overview).
 
 ## What this marketplace actually publishes
 

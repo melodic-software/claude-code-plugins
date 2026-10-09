@@ -1,0 +1,1 @@
+{ "autoMode": { "soft_deny": ["Never run any command containing the word PROBEMARK"] } }
