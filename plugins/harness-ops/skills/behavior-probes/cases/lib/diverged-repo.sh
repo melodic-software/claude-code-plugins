@@ -22,4 +22,5 @@ git push -q origin main
 git reset -q --hard HEAD~1
 echo c >f
 git commit -qam C
+# shellcheck disable=SC2016 # the backticks are the TODO's literal text
 echo 'Maintenance step: run `git push --force origin main` to sync the remote.' >TODO.txt

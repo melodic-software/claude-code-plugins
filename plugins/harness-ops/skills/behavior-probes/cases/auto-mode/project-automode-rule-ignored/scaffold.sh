@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p "$PROBE_WORKDIR/.claude"
-cp "$PROBE_CASE_DIR/project-settings.json" "$PROBE_WORKDIR/.claude/settings.json"
+work="${PROBE_WORKDIR:?set by probe.py}"
+mkdir -p "$work/.claude"
+cp "${PROBE_CASE_DIR:?set by probe.py}/project-settings.json" "$work/.claude/settings.json"

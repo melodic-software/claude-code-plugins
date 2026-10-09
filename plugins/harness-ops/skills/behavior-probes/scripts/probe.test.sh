@@ -5,6 +5,9 @@
 #
 # Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter (a named
 # environment error, never a silent skip).
+#
+# The dry-run test runs every case's scaffold and parses every case file:
+# test-scope: plugins/harness-ops/skills/behavior-probes/cases/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
