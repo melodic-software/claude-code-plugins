@@ -12,6 +12,11 @@ Contract enforced here (encoded as code, not convention):
 - Default action is READ-ONLY: report merge readiness plus every branch rule and
   check that governs the merge, and the exact blockers, so the caller can react.
 - A merge only happens with `--merge` AND only when every readiness gate passes.
+- A `--merge` run held on a failed AI review check re-runs that check's
+  workflow run when its check run carries a `class=rate-limit` annotation, five
+  hours after the failure, once per run on the pinned live head. No other
+  failure class is re-run, and the re-run never counts as a pass: auto-merge
+  still arms only on SUCCESS.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
   `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
   resolve or reply to review threads, force-push, or change settings.
@@ -90,7 +95,7 @@ import re
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
@@ -197,6 +202,143 @@ def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
     full = " / ".join(part.strip() for part in check_name.split("/"))
     segment = full.rsplit(" / ", 1)[-1]
     return any(full == n if " / " in n else segment == n for n in names)
+
+
+# An AI review check that failed on the Claude usage limit carries a
+# `class=rate-limit` annotation on its check run (ci-workflows
+# `.github/actions/report-lane-outcome`). Under `--merge` the gate re-runs that
+# check's workflow run once the limit has reset, instead of holding on it until
+# a person re-runs it. "Reset" is conservative: the shortest plan limit is a
+# five-hour session window (https://support.claude.com/en/articles/11145838,
+# checked 2026-10-09), so five hours after the failure that window has reset
+# whenever it started. A weekly limit outlasts it; the re-run then fails again
+# and stays failed, since a run is re-run at most once.
+RATE_LIMIT_CLASS_RE = re.compile(r"\bclass=rate-limit\b")
+RATE_LIMIT_RERUN_DELAY = timedelta(hours=5)
+ACTIONS_JOB_URL_RE = re.compile(r"/actions/runs/\d+/job/(\d+)")
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> bool:
+    """Whether the Actions job a check's `details_url` names is the job that
+    emitted that check.
+
+    `details_url` is set by whoever creates the check run, so it alone does not
+    tie the job to the check. An Actions job's own check run shares its id, and
+    its `name` and `workflow_name` are the rollup's check `name` and
+    `workflowName`. The rollup's own check-run id is compared when the rollup
+    carried one (the REST re-source does; `gh pr view` does not).
+    """
+    own_check_run = str(job.get("check_run_url") or "").rsplit("/", 1)[-1]
+    if str(job.get("id")) != job_id or own_check_run != job_id:
+        return False
+    if check.get("id") and str(check["id"]) != job_id:
+        return False
+    if job.get("name") != check["name"]:
+        return False
+    workflow = check.get("workflow_name")
+    return not workflow or job.get("workflow_name") == workflow
+
+
+def rerun_rate_limited_review(
+    repo: str, head: str, check: dict[str, Any]
+) -> dict[str, Any]:
+    """Re-run one failed AI review check's workflow run when it failed on the
+    usage limit, the limit has reset, and the run was not re-run before.
+
+    Every other case is reported with its reason and left alone: another
+    failure class is never re-run. The whole run is re-run, not its failed
+    jobs, because a lane whose status job reads a separate review job's output
+    would re-read the cached rate-limit result and fail again.
+    """
+    report: dict[str, Any] = {"check": check["name"], "rerun": False}
+    match = ACTIONS_JOB_URL_RE.search(check.get("details_url") or "")
+    if not match:
+        report["reason"] = "not a GitHub Actions job"
+        return report
+    job_id = match.group(1)
+    try:
+        job = json_object(gh_json(["api", f"repos/{repo}/actions/jobs/{job_id}"]))
+        report["runId"] = run_id = job.get("run_id")
+        if not job_backs_check(job, job_id, check):
+            report["reason"] = "the job named by details_url did not emit this check"
+            return report
+        if job.get("head_sha") != head:
+            report["reason"] = "the job ran on another head"
+            return report
+        if job.get("conclusion") != "failure":
+            report["reason"] = f"job conclusion is {job.get('conclusion')!r}"
+            return report
+        if int(job.get("run_attempt") or 1) > 1:
+            report["reason"] = "already re-run on this head; re-run at most once"
+            return report
+        completed = parse_github_timestamp(str(job.get("completed_at") or ""))
+        if completed is None:
+            report["reason"] = "job completion time unreadable"
+            return report
+        due = completed + RATE_LIMIT_RERUN_DELAY
+        if _now() < due:
+            report["reason"] = (
+                "waiting for the usage limit to reset; re-run due at "
+                + due.isoformat().replace("+00:00", "Z")
+            )
+            return report
+        annotations = json_array(
+            gh_json(
+                [
+                    "api",
+                    f"repos/{repo}/check-runs/{job_id}/annotations?per_page=100",
+                ]
+            )
+        )
+    except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        report["reason"] = f"could not read the job: {type(exc).__name__}: {exc}"
+        return report
+    if not any(
+        RATE_LIMIT_CLASS_RE.search(str(json_object(a).get("message") or ""))
+        for a in annotations
+    ):
+        report["reason"] = "failure class is not rate-limit; never re-run"
+        return report
+    proc = gh_capture(
+        ["api", "-X", "POST", f"repos/{repo}/actions/runs/{run_id}/rerun"]
+    )
+    report["rerun"] = proc.returncode == 0
+    if proc.returncode != 0:
+        report["reason"] = f"re-run request failed: {proc.stderr.strip()}"
+    return report
+
+
+def rerun_rate_limited_reviews(
+    repo: str, result: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """`rerun_rate_limited_review` over every failed AI review check of an
+    open, non-draft PR whose live head is the pinned head, and of each stack
+    layer below it the gate evaluated, since their holds bind this merge too."""
+    layers = json_array(json_object(result.get("stack")).get("layers"))
+    reruns = [
+        {"pr": layer.get("pr"), **report}
+        for layer in layers
+        if is_json_object(layer)
+        for report in rerun_rate_limited_reviews(repo, layer)
+    ]
+    head = result.get("headRefOid")
+    if (
+        result.get("headMatches") is not True
+        or result.get("state") != "OPEN"
+        or result.get("isDraft")
+        or not isinstance(head, str)
+    ):
+        return reruns
+    return [
+        rerun_rate_limited_review(repo, head, check)
+        for check in result.get("aiReviewChecks") or []
+        if check.get("effective_state") == "FAILURE"
+    ] + reruns
+
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
 # UUID and runs the merge in the background; the gate polls it to a terminal
@@ -375,7 +517,9 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # matches Go's url.PathEscape, which go-github uses for this endpoint
         # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
         # gh 2.99.0 forwards that path unchanged.
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"])
+        rules = gh_json(
+            ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
+        )
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
@@ -1126,6 +1270,12 @@ def evaluate_stack_layers(
                 "baseRef": layer.get("baseRef"),
                 "ready": layer.get("ready"),
                 "blockers": layer.get("blockers"),
+                # What `rerun_rate_limited_reviews` needs to re-run this
+                # layer's rate-limited AI reviews.
+                "state": layer.get("state"),
+                "isDraft": layer.get("isDraft"),
+                "headMatches": layer.get("headMatches"),
+                "aiReviewChecks": layer.get("aiReviewChecks"),
             }
         )
         blockers.extend(f"{label}: {b}" for b in layer.get("blockers") or [])
@@ -1528,12 +1678,21 @@ def evaluate(
         for lane, names in AI_REVIEW_CHECKS.items()
         if not (
             matches := [
-                c
-                for c in checks["checks"]
-                if is_ai_review_check(c["name"], names)
+                c for c in checks["checks"] if is_ai_review_check(c["name"], names)
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)
+    ]
+    ai_review_checks = [
+        {
+            "name": c["name"],
+            "id": c["id"],
+            "workflow_name": c["workflow_name"],
+            "effective_state": c["effective_state"],
+            "details_url": c["details_url"],
+        }
+        for c in checks["checks"]
+        if any(is_ai_review_check(c["name"], n) for n in AI_REVIEW_CHECKS.values())
     ]
     ai_review_holds += stack_result.get("aiReviewHolds") or []
     auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds
@@ -1582,6 +1741,7 @@ def evaluate(
         "blockers": blockers,
         "autoMerge": {"ready": not auto_blockers, "blockers": auto_blockers},
         "aiReviewHolds": ai_review_holds,
+        "aiReviewChecks": ai_review_checks,
     }
 
 
@@ -2832,6 +2992,7 @@ def main() -> int:
     arm_auto = go and args.auto and not result["ready"]
     if not go:
         result["merge"] = {"attempted": False, "reason": "not ready"}
+        result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
         print(json.dumps(result, indent=2))
         return 10
     if arm_auto:
