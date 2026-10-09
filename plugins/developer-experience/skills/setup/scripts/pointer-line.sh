@@ -168,9 +168,12 @@ AGENTS="$ROOT/AGENTS.md"
 CLAUDE="$ROOT/CLAUDE.md"
 DOT_CLAUDE="$ROOT/.claude/CLAUDE.md"
 
+# BINMODE=3 stops gawk on Windows from stripping and re-adding carriage returns,
+# so a CRLF file stays CRLF; a POSIX awk reads it as an ordinary variable.
+
 # analyze <file> : prints "<state> <dx-line-no> <end-line-no> <crlf>".
 analyze() {
-  awk -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v D="$DRAFT_MARKER" \
+  awk -v BINMODE=3 -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v D="$DRAFT_MARKER" \
     -v P="$DX_PREFIX" -v W="$DX_LINE" '
     {
       line = $0
@@ -200,7 +203,7 @@ analyze() {
 # render <file> <state> <dx-line-no> <end-line-no> <crlf> <final-newline> :
 # the new file on stdout. Every line not replaced or added is printed as read.
 render() {
-  awk -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v W="$DX_LINE" -v s="$2" \
+  awk -v BINMODE=3 -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v W="$DX_LINE" -v s="$2" \
     -v dxno="$3" -v endno="$4" -v crlf="$5" -v finalnl="$6" '
     { line[NR] = $0 }
     END {
