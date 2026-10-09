@@ -3,6 +3,53 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.0] - 2026-10-09
+
+### Added
+
+- `worktree-create.sh` runs `npm ci` in a new worktree that has a `package-lock.json`, so the first commit's pre-commit hooks find `node_modules/.bin`. A missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`, which stops npm and its child processes) warns on stderr and leaves the exit code unchanged. `prerequisites.json` declares npm as optional.
+
+### Changed
+
+- `pull-request` merges or enqueues a PR without asking only when it reads `CLEAN` and the AI review checks, matched by exact name, have passed on the head commit pinned with `--match-head-commit`, in a melodic-software repository whose live base-branch ruleset requires `ci-status`. Behind a merge queue it passes no strategy flag and waits until the PR merges or leaves the queue. It never arms auto-merge and never passes `--admin`, `--merge` or `--rebase`. A PR that changes CI workflows, permission or agent-instruction configuration still merges only when the user names it. The merge-queue case no longer routes to the async merge API.
+
+## [0.82.0] - 2026-10-09
+
+### Added
+
+- **The babysit merge gate re-runs an AI review that hit the usage limit.** A `--merge`
+  run held on a failed `claude-review-status` or security-review check re-runs that
+  check's workflow run when its check run carries a `class=rate-limit` annotation, five
+  hours after the failure, on the pinned live head, and only on the run's first attempt,
+  and only when the job its `details_url` names emitted that check.
+  Every other failure class is left alone, a check-only run never re-runs, and auto-merge
+  still arms only on SUCCESS. The JSON reports each decision under `aiReviewReruns`.
+
+### Changed
+
+- **The Bash gates spawn only for the commands they judge.** `pr-body-linkage-gate` now
+  runs from three entries, `Bash(*pr *create*)`, `Bash(*pr *new*)` and `Bash(*pr *edit*)`, in
+  place of `Bash(*gh *)`, so it still sees `gh -R o/r pr create` and the `gh pr new` alias
+  but no longer starts for every other `gh` call. `worktree-add-containment-gate` and
+  `worktree-add-claim-gate` now run under `Bash(*worktree *add*)` in place of
+  `Bash(*worktree*)`, so `git worktree list` and paths that merely contain `worktree` no
+  longer start them.
+- **`/source-control:worktree create` skips `EnterWorktree` with no user present.** Outside
+  `.claude/worktrees/`, the call asks for approval, which a headless run cannot give; the
+  run works by explicit path with `git -C <literal path>` instead.
+- **`/source-control:pull-request create` writes the PR body to a file.** The body is
+  written with the Write tool, the pre-create gates read that file, and `gh pr create`
+  gets `--body-file` (the REST fallback sends `-F body=@<file>`), so a long body no longer
+  hits the Bash command length cap.
+- **`/source-control:pull-request monitor` waits in the background.** The cloud baseline
+  poll and the per-push CI wait run through the Monitor watch or a `run_in_background`
+  poll, never a foreground `sleep` or `until` loop.
+
+- **`/source-control:pull-request ready` adds a fresh-context code review.** Before the flip,
+  `/code-review` (or the review plugin's reviewer agents) runs over the pull request's diff
+  in a subagent that gets the diff and the acceptance criteria, not the author's reasoning,
+  beside the security review, which now runs the same way. Findings are fixed or recorded.
+
 ## [0.81.2] - 2026-10-08
 
 ### Changed

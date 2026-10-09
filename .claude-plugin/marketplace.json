@@ -753,6 +753,13 @@
       "source": "./plugins/user-experience",
       "category": "design",
       "tags": ["user-experience", "ux", "user-research", "personas", "jobs-to-be-done", "skill"]
+    },
+    {
+      "name": "developer-experience",
+      "source": "./plugins/developer-experience",
+      "category": "development",
+      "defaultEnabled": false,
+      "tags": ["developer-experience", "dx", "tooling", "cli", "scripts", "audit", "skill"]
     }
   ]
 }

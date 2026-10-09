@@ -111,6 +111,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/animation:produce`](../plugins/animation/skills/produce/SKILL.md) | `animation` | Brief, boards, approval gate, shots, render, and pack review |
 | [`/animation:rotoscope`](../plugins/animation/skills/rotoscope/SKILL.md) | `animation` | Trace, render, measure and fit a 1:1 replica of a reference animation |
 | [`/debugging:debug`](../plugins/debugging/skills/debug/SKILL.md) | `debugging` | Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test |
+| [`/developer-experience:build-cli`](../plugins/developer-experience/skills/build-cli/SKILL.md) | `developer-experience` | Build, extend, port or review a team's command-line tools against the CLI contract |
 | [`/explainer-video:produce`](../plugins/explainer-video/skills/produce/SKILL.md) | `explainer-video` | Script, narrate, render and self-check a ManimCE explainer video |
 | [`/implementation:implement`](../plugins/implementation/skills/implement/SKILL.md) | `implementation` | Execute approved plans with TDD, incremental validation, and green commits |
 | [`/implementation:implement-dispatch`](../plugins/implementation/skills/implement-dispatch/SKILL.md) | `implementation` | Orchestrate worker subagents to execute an approved plan |
@@ -223,6 +224,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
+| [`/developer-experience:audit-tools`](../plugins/developer-experience/skills/audit-tools/SKILL.md) | `developer-experience` | Inventory a repository's developer tooling and report findings, read-only by default |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
 | [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |

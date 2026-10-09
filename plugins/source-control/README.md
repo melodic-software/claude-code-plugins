@@ -65,7 +65,9 @@ research-gated:
   truncates); every reviewer comment gets explore → research → classify →
   react → reply → fix → verify-on-GitHub treatment.
 - **merge**. 6-Gate readiness re-verification, squash merge, worktree
-  reuse/cleanup, post-merge CI health check. Never auto-merges.
+  reuse/cleanup, post-merge CI health check. Merges or enqueues without
+  asking only once the AI review checks pass on the pinned head commit; otherwise
+  merges on approval. Never arms auto-merge.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
 
@@ -181,19 +183,23 @@ invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the workflow scan and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
-The registration carries an `if` filter, `Bash(*gh *)`, the same shape as the
-`Bash(*worktree*)` filter on the worktree gates, so the hook process is spawned only
-for a command line that carries `gh` followed by a space somewhere in its text (Claude Code checks each
+The registration is three entries, each with an `if` filter: `Bash(*pr *create*)`,
+`Bash(*pr *new*)` and `Bash(*pr *edit*)`. The hook process is spawned only for a command
+line whose text carries `pr` and a space, followed later by one of those words (Claude Code checks each
 subcommand of a compound command, and runs the hook regardless when it cannot tell what
 a command expands to). The leading wildcard is deliberate: the `if` field matches the
-command name, so the narrower `Bash(gh *)` never launched the gate for a wrapped call
+command name, so a narrower `Bash(gh pr create*)` never launched the gate for a wrapped call
 such as `env GH_TOKEN=x gh pr create`, `sudo gh pr create` or
-`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The wider filter is a
-superset of the hook's own first check (a `gh` word anywhere on the line), so nothing
-it would have judged is skipped; a plain `git status` still does not pay for it, and a
-non-`gh` line that happens to contain `gh` followed by a space (`echo high tide`) pays one bash start
-before the hook's own jq-free regex pre-filter dismisses it. What the filter still
-cannot see is a `gh` that only appears after a `$()`, a backtick or a `$VAR` expands;
+`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The phrase form also
+reaches `gh -R o/r pr create` and the `gh pr new` alias. The space-then-wildcard between
+the words is deliberate too: `gh pr  create` (two spaces) still reaches the gate, and the
+space after `pr` keeps a bare `*` from matching `pr` and `create` inside unrelated words
+such as `cp report.txt prod_create/`; the `if` glob has no word boundaries. A tab or a
+line continuation right after `pr` does not match, so that spelling skips the hook, though
+the gate's tokenizer would accept it. Every other `gh` call
+(`gh pr view`, `gh run list`) no longer starts the gate, and a plain `git status` still
+does not pay for it. What the filter cannot see is a `pr create`, `pr new` or `pr edit`
+that only appears after a `$()`, a backtick or a `$VAR` expands;
 Claude Code spawns the hook regardless for such a command, so the gate still judges
 it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
 `$()` sample.
@@ -278,11 +284,13 @@ with a merged or landed branch before offering to remove a locked worktree. Set 
 off; the script remains the documented gate.
 
 This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
-with the `if` filter `Bash(*worktree*)`: the hook process is spawned only for a command
-whose text carries `worktree`, which is also each hook's own first check, so every
-`git worktree add` spelling they judged before (including `git -C <dir> worktree add`
-and wrapped forms) still reaches them, and every other Bash call no longer pays for
-two hook processes. The same best-effort caveat applies: a command containing `$()`, a
+with the `if` filter `Bash(*worktree *add*)`: the hook process is spawned only for a command
+whose text carries `worktree` and a space, followed later by `add`, so every `git worktree add`
+spelling they judged before (including `git -C <dir> worktree add`, wrapped forms, and extra
+spaces between the words) still reaches them, except a tab or a line continuation right after
+`worktree`, which skips the hook. Every other Bash call, including
+`git worktree list` and a path that merely contains `worktree`, no longer pays for two hook
+processes. The same best-effort caveat applies: a command containing `$()`, a
 backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
 what the substitution expands to.
 

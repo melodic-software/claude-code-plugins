@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "```bash\nplaywright-cli -s=cart-check open http://localhost:3000\n```", "why": "-s= form"},
+    {"answer": "playwright-cli --session cart_1 open http://localhost:3000", "why": "long form with space"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "playwright-cli open http://localhost:3000", "why": "default unnamed session"},
+    {"answer": "npx playwright test cart.spec.ts", "why": "a test runner, not a live session"}
+  ]
+}

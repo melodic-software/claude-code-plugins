@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.14] - 2026-10-09
+
+### Fixed
+
+- **No reformat of pre-existing drift.** shfmt now runs only when the file was already shfmt-clean under the repo's `.editorconfig` before the edit, judged from the Write/Edit `tool_response.originalFile`. A file that drifted from the repo's style (for example, flush-left `case` arms after `switch_case_indent = true` was added) is left as written, so a small edit no longer lands as a whole-file reformat. A new file is formatted as before.
+
 ## [0.10.13] - 2026-10-07
 
 ### Changed

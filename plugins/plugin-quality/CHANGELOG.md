@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.7] - 2026-10-09
+
+### Changed
+
+- **The bundled zone resolver's 1M-window token band reads `dumb` past 500000 tokens, not 250000 ([#6644](https://github.com/melodic-software/claude-code-plugins/issues/6644)),** synced from context-guard's reader contract.
+
 ## [0.14.6] - 2026-10-08
 
 ### Changed
