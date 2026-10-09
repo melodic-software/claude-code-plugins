@@ -136,6 +136,14 @@ concurrency:
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
 # not given a longer one.
+#
+# CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
+# actions/cache/restore, and its save step runs only on refs/heads/main (the
+# scheduled and dispatch runs) after a miss. A pull-request or merge-group ref
+# can restore main's caches but no other ref's, so an entry such a ref saves
+# serves that ref alone: on 2026-10-09, 169 of 190 entries were, with the
+# repository at 10.67 GB against the 10 GB cap. The setup-node and setup-python
+# `cache:` input always saves, so neither step sets it.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -524,12 +532,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # Actions security lint, previously the `zizmor` reusable-workflow job.
       # It is a hash-pinned wheel from .github/requirements-ci.txt now, at the
@@ -752,7 +770,8 @@ jobs:
       # the package on every run; the npx cache keeps it. Keyed on the
       # composite pin, which fixes the version.
       - name: Restore the markdownlint download
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: npx_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.npm/_npx
@@ -765,6 +784,14 @@ jobs:
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
+      - name: Save the markdownlint download
+        if: github.ref == 'refs/heads/main' && steps.npx_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm/_npx
+            ~/.npm/_cacache
+          key: ${{ steps.npx_cache.outputs.cache-primary-key }}
 
       - name: Spell-check
         id: typos
@@ -967,11 +994,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: .github/standards/runner-policy/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json') }}
       - name: Install pinned runner-policy dependencies
         if: needs.select-tests.outputs.run_workflows == 'true'
         run: npm ci --prefix .github/standards/runner-policy
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
       - name: Enforce runner policy
         id: runner_policy
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1080,12 +1118,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
@@ -1335,12 +1383,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
@@ -1589,13 +1647,24 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
       - name: Install the locked root toolchain
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           npm ci
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
 
       # The html-assets gate needs the root npm ci above (its linter is the
       # exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
@@ -1756,12 +1825,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       - name: Check every crosswalk row argues its disposition from a stated test
         id: detector_findings_crosswalk
@@ -1776,7 +1855,8 @@ jobs:
       # A missing or older binary is exit 2, so this job cannot skip the tool.
       # The download is cached by version, as in `test-bash`.
       - name: Restore the pinned tool downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tools_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
@@ -1796,6 +1876,12 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
+      - name: Save the pinned tool downloads
+        if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools
+          key: ${{ steps.tools_cache.outputs.cache-primary-key }}
 
       # Both directions of the detector/eval check-id crosswalk: every id a
       # detector emits must be named by an eval case, and every id an eval case
@@ -2099,19 +2185,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            .github/standards/runner-policy/package-lock.json
-            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            .github/requirements-ci.txt
-            .github/requirements-ci-animation.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
@@ -2129,7 +2218,8 @@ jobs:
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
       # too.
       - name: Restore the pinned tool downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tools_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5
@@ -2181,6 +2271,18 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
@@ -2202,6 +2304,12 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      - name: Save the pinned tool downloads
+        if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools
+          key: ${{ steps.tools_cache.outputs.cache-primary-key }}
       # A leg with no suites is a broken plan, never "nothing to do": the plan
       # makes no more legs than it has suites.
       - name: Run this leg's shell suites
@@ -2257,18 +2365,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            .github/requirements-ci.txt
-            .github/requirements-ci-animation.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
       - name: Install locked plugin test toolchains
         run: |
           # The same pin-equality check test-bash makes: a Python pin change runs this lane.
@@ -2290,6 +2402,18 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
       - name: Run this leg's Python suites
         env:
           ANIMATION_REQUIRE_DEPS: '1'
@@ -2334,13 +2458,12 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            plugins/miro/server/package-lock.json
-            plugins/ai-briefing/skills/generate/output/build/package-lock.json
-            plugins/knowledge/skills/video-digest/extraction/package-lock.json
-            plugins/knowledge/skills/course-digest/extraction/package-lock.json
-            .github/actions/resolve-config/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'plugins/miro/server/package-lock.json', 'plugins/ai-briefing/skills/generate/output/build/package-lock.json', 'plugins/knowledge/skills/video-digest/extraction/package-lock.json', 'plugins/knowledge/skills/course-digest/extraction/package-lock.json', '.github/actions/resolve-config/package-lock.json') }}
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -2459,6 +2582,12 @@ jobs:
             exit 0
           fi
           scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
 
   # A pull request that hand-edits a file the standards sync-manifest manages
   # fails. A standards-sync pull request (melodic-standards-sync[bot], head
