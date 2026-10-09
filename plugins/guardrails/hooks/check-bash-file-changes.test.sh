@@ -174,6 +174,36 @@ g add config.txt && g commit -qm write && g reset -q --soft HEAD
 assert_contains "commit then no-op reset: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
   'changed "config.txt"'
 
+# 5d3. Nor does a checkout round trip back to the commit.
+new_repo
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+g add config.txt && g commit -qm write && g checkout -q HEAD^ && g checkout -q -
+assert_contains "commit then checkout round trip: checked" \
+  "$(jq -r .reason <<<"$(post "$REPO")")" 'changed "config.txt"'
+
+# 5d4. The first commit on an unborn branch: judged whole.
+N=$((N + 1))
+REPO="$TEST_TMPDIR/repo$N"
+mkdir -p "$REPO" && git -C "$REPO" init -q
+export CLAUDE_PROJECT_DIR="$REPO"
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+g add config.txt && g commit -qm first
+assert_contains "initial commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
+  'changed "config.txt"'
+
+# 5d5. A commit in a linked worktree, whose .git is a file.
+new_repo
+g worktree add -q "$TEST_TMPDIR/linked$N" -b linked
+REPO="$TEST_TMPDIR/linked$N"
+export CLAUDE_PROJECT_DIR="$REPO"
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+g add config.txt && g commit -qm write
+assert_contains "linked worktree commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
+  'changed "config.txt"'
+
 # ========================== MUST STAY QUIET =================================
 
 # 5e. A checkout that brings in a branch with a flagged file is not this

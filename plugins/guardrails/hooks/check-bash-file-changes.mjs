@@ -9,8 +9,8 @@
 // Write/Edit guard sees (#6674). This gates the outcome instead: `snapshot`
 // records `git status`, the HEAD commit, and the size and mtime of every dirty
 // path before the command, and `check` lists the paths that are new to
-// `git status` or whose size or mtime moved, plus, when the command only made
-// commits, the paths those commits added or modified. Each one goes through
+// `git status` or whose size or mtime moved, plus the paths that commits the
+// command made added or modified. Each one goes through
 // the guards of the PreToolUse Write|Edit row of hooks.json, read from that row
 // so the two cannot drift, as the Write or Edit Claude would have made: a new
 // file as a Write of its whole content, a tracked file as an Edit whose new
@@ -38,7 +38,8 @@
 // after the call returns are not checked. A file dirty before the command is
 // judged on every line it adds against that HEAD, not only this command's. A
 // HEAD moved by a checkout, pull, merge or reset brings in others' content and
-// adds no paths; the first commit on an unborn branch is not seen.
+// adds no paths, and with the HEAD reflog off (core.logAllRefUpdates=false)
+// a commit is not seen.
 //
 // Kill switch: the bash_file_change_check_enabled userConfig option set to
 // false.
@@ -143,45 +144,67 @@ export function gitStatus(root) {
   return { head, entries };
 }
 
-// The commit-only HEAD moves since `from`, read from the HEAD reflog: true
-// when every entry between them that moved HEAD is a commit (`commit:`,
-// `commit (amend):`, ...), so a checkout, pull, merge or reset, which bring in
-// others' content, is not judged as this command's writing. An entry that left
-// HEAD where it was (`git reset --soft HEAD`) moved nothing and is skipped. A
-// command can still write its own reflog subject (`git update-ref -m`); like
-// block-hook-bypass, this is friction for an agent, not a sandbox.
-export function committedSince(root, from) {
-  const out = git(root, ["reflog", "show", "-n", "50", "--format=%H %gs", "HEAD", "--"]);
-  if (out === null) return false;
-  const entries = out
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const at = line.indexOf(" ");
-      return { sha: line.slice(0, at), subject: line.slice(at + 1) };
-    });
-  for (let i = 0; i < entries.length; i++) {
-    const { sha, subject } = entries[i];
-    if (sha === from) return true;
-    const noop = i + 1 < entries.length && entries[i + 1].sha === sha;
-    if (!noop && !subject.startsWith("commit")) return false;
+// The HEAD reflog file of the repository at root (per worktree), or null.
+export function headLog(root) {
+  const dotGit = path.join(root, ".git");
+  try {
+    if (lstatSync(dotGit).isDirectory()) return path.join(dotGit, "logs", "HEAD");
+    const match = /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, "utf8"));
+    return match ? path.join(path.resolve(root, match[1]), "logs", "HEAD") : null;
+  } catch {
+    return null;
   }
-  return false;
 }
 
-// Paths added or modified between two commits.
-export function committedFiles(root, from, to) {
+export function fileSize(file) {
+  try {
+    return file ? statSync(file).size : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// The commits the command made: the `commit` entries (`commit:`,
+// `commit (amend):`, ...) appended to the HEAD reflog since its size at the
+// snapshot. Reading only the appended bytes needs no process and cannot be
+// confused by HEAD revisiting an earlier commit. A checkout, pull, merge or
+// reset entry brings in others' content and names no commit here. A command
+// can still write its own reflog subject (`git update-ref -m`); like
+// block-hook-bypass, this is friction for an agent, not a sandbox.
+export function commitsMade(log, offset) {
+  let text;
+  try {
+    const buffer = readFileSync(log);
+    if (buffer.length < offset) return [];
+    text = buffer.subarray(offset).toString("utf8");
+  } catch {
+    return [];
+  }
+  const commits = [];
+  for (const line of text.split("\n")) {
+    const tab = line.indexOf("\t");
+    if (tab < 0 || !line.slice(tab + 1).startsWith("commit")) continue;
+    const sha = line.split(" ")[1];
+    if (/^[0-9a-f]{40,64}$/.test(sha ?? "")) commits.push(sha);
+  }
+  return commits;
+}
+
+// Paths the given commits added or modified, from one git process.
+export function committedFiles(root, commits) {
+  if (commits.length === 0) return [];
   const out = git(root, [
-    "diff",
+    "log",
+    "--no-walk=unsorted",
+    "--format=",
     "--name-only",
     "-z",
     "--no-renames",
     "--diff-filter=AM",
-    from,
-    to,
+    ...commits.slice(-MAX_FILES),
     "--",
   ]);
-  return out === null ? [] : out.split("\0").filter(Boolean);
+  return out === null ? [] : [...new Set(out.split("\0").map((p) => p.trim()).filter(Boolean))];
 }
 
 function stamp(file) {
@@ -229,7 +252,13 @@ export function snapshot(payload, env) {
   pruneStale(dir, Date.now());
   writeFileSync(
     snapshotFile(env, payload),
-    JSON.stringify({ root, head: status.head, status: status.entries, stamps }),
+    JSON.stringify({
+      root,
+      head: status.head,
+      log: fileSize(headLog(root)),
+      status: status.entries,
+      stamps,
+    }),
   );
 }
 
@@ -343,10 +372,10 @@ export function check(payload, env) {
   } catch {}
   const status = gitStatus(before.root);
   if (!status) return [];
-  const moved = before.head && status.head && status.head !== before.head;
+  const log = headLog(before.root);
   const committed =
-    moved && committedSince(before.root, before.head)
-      ? committedFiles(before.root, before.head, status.head)
+    log && fileSize(log) > before.log
+      ? committedFiles(before.root, commitsMade(log, before.log))
       : [];
   const changed = changedFiles(before, { status: status.entries }, committed).slice(0, MAX_FILES);
   if (changed.length === 0) return [];
