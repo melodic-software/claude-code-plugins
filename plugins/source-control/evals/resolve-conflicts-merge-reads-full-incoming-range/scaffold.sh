@@ -34,7 +34,7 @@ git add config/retry.yaml
 git commit -q -m "ops: allow five retry attempts" -m "The payments gateway drops about 1 in 40 calls during its nightly failover; three attempts were not enough to ride it out. Refs OPS-311."
 printf '# ops\n\nRetries ride out the nightly failover.\n' > docs/ops.md
 git add docs/ops.md
-git commit -q -m "docs: note retry behaviour"
+git commit -q -m "docs: note retry behavior"
 printf 'lint:\n\t@echo lint --strict\n' > Makefile
 git add Makefile
 git commit -q -m "chore: strict lint target"
