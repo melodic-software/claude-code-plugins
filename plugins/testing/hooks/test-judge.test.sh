@@ -82,12 +82,15 @@ too_deep() { find "$1" -mindepth "$(($2 + 1))" -maxdepth "$(($2 + 1))" -type d -
 HOOK="$HOOK_DIR/test-judge.sh"
 BG="$HOOK_DIR/test-judge-bg.sh"
 export CLAUDE_CODE_SESSION_ATTENDED=1
-# stop <sid> [stop_hook_active]: run the Stop hook; sets out and rc.
+# stop <sid> [stop_hook_active]: run the Stop hook; sets out, rc and $ERR.
 stop() {
-  out="$(payload "$1" stop "" "{\"hook_event_name\": \"Stop\", \"stop_hook_active\": ${2:-false}}" | bash "$HOOK" 2>/dev/null)"
+  out="$(payload "$1" stop "" "{\"hook_event_name\": \"Stop\", \"stop_hook_active\": ${2:-false}}" | bash "$HOOK" 2>"$ERR")"
   rc=$?
 }
 field() { jq -r "$1 // empty" <<<"$out" 2>/dev/null; }
+# relay: the reason a relaying run (exit 2) wrote to stderr, its first line.
+ERR="$TMP/hook.err"
+relay() { ((rc == 2)) && head -1 "$ERR"; }
 # stop_jobs <sid>: end the background jobs a Stop handed keys to (each runs in
 # its own process group), and their judges, so they call no stub later.
 stop_jobs() {
@@ -128,20 +131,20 @@ stop s0
 assert_empty "nothing in doubt: no output" "$out"
 check "nothing in doubt: no judge run" '[[ "$(stub_calls)" == 0 ]]'
 
-# Verdicts ready (the background job ran) give one templated block; the user
-# sees the block reason, so no systemMessage repeats it. The Stop hook judges
-# nothing itself.
+# Verdicts ready (the background job ran) give one relay: exit 2 with the
+# fixed template on stderr, which asyncRewake shows Claude, and nothing on
+# stdout. The Stop hook judges nothing itself.
 transcript s1 claude-sonnet-5
 record s1 w1 "$F" null
 bg s1 w1 "$F"
 stub_reset
 stop s1
 check "ready verdicts: the Stop hook runs no judge" '[[ "$(stub_calls)" == 0 ]]'
-check "ready verdicts: one block" '[[ "$(field .decision)" == block ]]'
-findings="$(reported "$(field .reason)")"
+check "ready verdicts: one block" '[[ $rc == 2 ]]'
+findings="$(reported "$(relay)")"
 check "the reason is the fixed template, with the path relative to the project" \
-  '[[ "$(field .reason)" == "test judge: 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN) in ${findings#"$REPO"/}. $TEMPLATE_END" && "${findings#"$REPO"/}" == .work/* ]]'
-check "a blocking Stop carries no systemMessage" '[[ "$out" != *systemMessage* ]]'
+  '[[ "$(relay)" == "test judge: 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN) in ${findings#"$REPO"/}. $TEMPLATE_END" && "${findings#"$REPO"/}" == .work/* ]]'
+check "a relaying Stop writes nothing to stdout" '[[ -z "$out" ]]'
 check "the findings file sits in the branch's review directory" '[[ "$findings" == "$REPO/.work/reviews/feat-judge-test/"*-test-judge.md && -f "$findings" ]]'
 check "the memory root self-ignores" '[[ "$(cat "$REPO/.work/.gitignore")" == "*" ]]'
 check "the findings file is a review-findings file for this branch" \
@@ -174,7 +177,7 @@ record s1p w1 "$FP" null
 bg s1p w1 "$FP"
 stub_reset
 stop s1p
-check "all PASS: no block" '[[ "$(field .decision)" != block ]]'
+check "all PASS: no block" '[[ $rc == 0 ]]'
 check "all PASS: one line with the count" '[[ "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 check "all PASS: the findings file is still written" \
   '[[ -n "$(find "$REPO/.work/reviews" -name "*-test-judge*.md" -newer "$TDIR/s1p.jsonl")" ]]'
@@ -188,10 +191,10 @@ record s2 w1 "$G" null
 bg s2 w1 "$G"
 stub_reset
 stop s2 true
-check "stop_hook_active: no block" '[[ "$(field .decision)" != block ]]'
+check "stop_hook_active: no block" '[[ $rc == 0 ]]'
 check "stop_hook_active: no judge run" '[[ "$(stub_calls)" == 0 ]]'
 stop s2
-check "the unrelayed verdict is relayed at the next task end" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "the unrelayed verdict is relayed at the next task end" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # A key with no job is judged at Stop, under the lock.
 transcript s3 claude-sonnet-5
@@ -200,7 +203,7 @@ js_file "$H" nojob
 record s3 w1 "$H" null
 stub_reset
 stop s3
-check "a key with no job is judged at Stop" '[[ "$(stub_calls)" == 1 && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a key with no job is judged at Stop" '[[ "$(stub_calls)" == 1 && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 check "and its lock is released" '[[ -z "$(find "$DATA/locks" -type f)" ]]'
 
 # A live pending/ job is waited on, not judged twice.
@@ -213,7 +216,7 @@ payload s4 w1 "$P" | TEST_JUDGE_DEBOUNCE=2 bash "$BG" &
 sleep 0.5
 stop s4
 wait
-check "a live pending/ job is waited on" '[[ "$(stub_calls)" == 1 && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a live pending/ job is waited on" '[[ "$(stub_calls)" == 1 && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # A live lock is waited on too: its holder writes the verdict.
 transcript s5 claude-sonnet-5
@@ -237,7 +240,7 @@ printf '%s %s %s\n' "$holder" "${HOSTNAME:-localhost}" "$(date +%s)" >"$DATA/loc
 stub_reset
 stop s5
 wait
-check "a live lock is waited on" '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a live lock is waited on" '[[ "$(stub_calls)" == 0 && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # The 11th key: counted, never named, and handed to a background job with a
 # pending/ marker; the following stop_hook_active Stop does not block and
@@ -252,22 +255,22 @@ record s6 w1 "$E" null
 stub_reset
 STUB_SLEEP=1 stop s6
 check "ten keys are judged at Stop, the 11th counted in the same one line" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 10 tests PASS; 1 more test is judged in the background, verdicts at the next task end." ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 10 tests PASS; 1 more test is judged in the background, verdicts at the next task end." ]]'
 assert_not_contains "no test is named" "$(field .systemMessage)" "eleven.test.ts"
 check "the 11th key is handed to a background job with a pending/ marker" '[[ -n "$(find "$DATA/pending/$PKEY/s6" -type f)" ]]'
 stop s6 true
-check "the following stop_hook_active Stop does not block" '[[ "$(field .decision)" != block ]]'
+check "the following stop_hook_active Stop does not block" '[[ $rc == 0 ]]'
 assert_empty "and says nothing while the job judges" "$out"
 for _ in $(seq 1 40); do
   [[ -z "$(find "$DATA/pending/$PKEY/s6" -type f)" ]] && break
   sleep 0.25
 done
 stop s6
-check "the 11th verdict is relayed at the next task end" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "the 11th verdict is relayed at the next task end" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 check "the 11th was judged once, by the background job" '[[ "$(stub_calls)" == 2 ]]'
 
-# A blocking Stop with a key past the cap: the reason carries the verdicts,
-# and the count line, which the reason does not hold, stays a systemMessage.
+# A relaying Stop with a key past the cap: the reason carries the verdicts,
+# and the count line, which the reason does not hold, follows it on stderr.
 transcript s6b claude-sonnet-5
 EB="$REPO/src/elevenflag.test.ts"
 js_file "$EB" "a flag" t1 t2 t3 t4 t5 t6 t7 t8 t9 t10
@@ -275,9 +278,9 @@ record s6b w1 "$EB" null
 stub_reset
 stop s6b
 check "blocking Stop past the cap: blocks on the 10 judged" \
-  '[[ "$(field .decision)" == block && "$(field .reason)" == "test judge: 10 tests (1 FLAG, 9 PASS, 0 UNKNOWN) in "* ]]'
-check "and keeps the count line as its only systemMessage" \
-  '[[ "$(field .systemMessage)" == "test judge: 1 more test is judged in the background, verdicts at the next task end." ]]'
+  '[[ $rc == 2 && "$(relay)" == "test judge: 10 tests (1 FLAG, 9 PASS, 0 UNKNOWN) in "* ]]'
+check "and puts the count line after the reason, with nothing on stdout" \
+  '[[ -z "$out" && "$(sed -n 2,\$p "$ERR")" == "test judge: 1 more test is judged in the background, verdicts at the next task end." ]]'
 stop_jobs s6b
 
 # An 11th key whose job died is judged at the next task end.
@@ -294,7 +297,7 @@ sleep 0.3
 stub_reset
 stop s7
 check "an 11th key whose job died is judged at the next task end" \
-  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 33-35 t11"* && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 33-35 t11"* && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # Time budget exhaustion: a systemMessage counting the test not judged, and
 # no block.
@@ -304,7 +307,7 @@ js_file "$T" slow
 record s8 w1 "$T" null
 stub_reset
 STUB_MODE=hang TEST_JUDGE_TIMEOUT=1 stop s8
-check "budget exhaustion: no block" '[[ "$(field .decision)" != block ]]'
+check "budget exhaustion: no block" '[[ $rc == 0 ]]'
 check "budget exhaustion: counts the test, names none" \
   '[[ "$(field .systemMessage)" == "test judge: 1 more test is judged in the background, verdicts at the next task end." ]]'
 check "budget exhaustion: the key goes to a background job, as the overflow does" '[[ -n "$(find "$DATA/pending/$PKEY/s8" -type f)" ]]'
@@ -391,10 +394,10 @@ for mode in badquote otherfile; do
   js_file "$V" "$mode flag"
   record "v$mode" w1 "$V" null
   STUB_MODE=$mode stop "v$mode"
-  check "$mode: relayed as UNKNOWN" '[[ "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
-  check "$mode: an UNKNOWN that started as a FLAG still blocks" '[[ "$(field .decision)" == block ]]'
+  check "$mode: relayed as UNKNOWN" '[[ "$(relay)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+  check "$mode: an UNKNOWN that started as a FLAG still blocks" '[[ $rc == 2 ]]'
 done
-f="$(reported "$(field .reason)")"
+f="$(reported "$(relay)")"
 assert_contains "the reason for a diff touching another file is recorded" "$(cat "$f")" "the proposed diff touches another file"
 assert_contains "and the verdict it started as" "$(cat "$f")" "The judge said FLAG; validation made it UNKNOWN."
 check "a FLAG that fails validation reaches no findings row" '[[ -z "$(rows "$f")" ]]'
@@ -408,7 +411,7 @@ js_file "$VQ" badquotepass
 record vqp w1 "$VQ" null
 STUB_MODE=badquote stop vqp
 check "a PASS with a made-up quote: counted as UNKNOWN, no block" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
 f="$(reported "$(field .systemMessage)")"
 assert_contains "its findings record the reason and that it started as a PASS" "$(cat "$f")" \
   "a quoted line is in no file of the repository"$'\n\n'"The judge said PASS; validation made it UNKNOWN."
@@ -429,7 +432,7 @@ stub_reset
 stop stl
 check "an edit since the judge read the file: no new judge run (the block is unchanged)" '[[ "$(stub_calls)" == 0 ]]'
 check "a stale quote: counted as UNKNOWN, no block" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
 f="$(reported "$(field .systemMessage)")"
 assert_contains "its reason says the file changed, not that the quote was made up" "$(cat "$f")" \
   "the test file changed after the judge read it: a quoted line is no longer in it"
@@ -443,12 +446,12 @@ for mode in commentdiff realdiff; do
   js_file "$CD" "$mode flag"
   record "c$mode" w1 "$CD" null
   STUB_MODE=$mode stop "c$mode"
-  f="$(reported "$(field .reason)")"
+  f="$(reported "$(relay)")"
   if [[ "$mode" == commentdiff ]]; then
-    check "a comment-only repair is UNKNOWN" '[[ "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+    check "a comment-only repair is UNKNOWN" '[[ "$(relay)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
     assert_contains "with the comment-only reason" "$(cat "$f")" "the proposed diff changes only comments or blank lines"
   else
-    check "a repair that changes the expected value stays a FLAG" '[[ "$(field .decision)" == block && "$(field .reason)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]'
+    check "a repair that changes the expected value stays a FLAG" '[[ $rc == 2 && "$(relay)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]'
     assert_contains "and its diff is in the findings" "$(cat "$f")" "+  expect(add(1, 2)).toBe(1 + 2);"
   fi
 done
@@ -472,7 +475,7 @@ check "an identical body judged PASS is reused: no judge run" '[[ "$(stub_calls)
 check "the reused verdict is a PASS that records reused_from" \
   '[[ "$(verdict_of ru reusetwo | jq -c "[.verdict, .reused_from.name, .start, .file == \"$R2\"]")" == "[\"PASS\",\"reuseone\",3,true]" ]]'
 TEST_JUDGE_REUSE=1 stop ru
-check "both are relayed as PASS" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
+check "both are relayed as PASS" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
 transcript ruf claude-sonnet-5
 RF1="$REPO/src/reuseflag-one.test.ts"
 RF2="$REPO/src/reuseflag-two.test.ts"
@@ -511,8 +514,8 @@ for kind in pass flag; do
     '[[ "$(verdict_of "dd$kind" "$nb" | jq -c "[.verdict, .reused_from.name, .file == \"$DB\"]")" == "[\"${kind^^}\",\"$na\",true]" ]]'
 done
 check "a FLAG given in the run: both relayed as FLAG, the Stop blocked" \
-  '[[ "$(field .decision)" == block && "$(field .reason)" == "test judge: 2 tests (2 FLAG, 0 PASS, 0 UNKNOWN) in "* ]]'
-f="$(reported "$(field .reason)")"
+  '[[ $rc == 2 && "$(relay)" == "test judge: 2 tests (2 FLAG, 0 PASS, 0 UNKNOWN) in "* ]]'
+f="$(reported "$(relay)")"
 assert_contains "the second FLAG points at the first's diff" "$(cat "$f")" \
   "This test has the same body as src/dedupe-flag-a.test.ts dedupe flag one, judged in the same run"
 # The second takes the first's verdict as validation leaves it: a FLAG whose
@@ -528,10 +531,10 @@ record ddc w2 "$DCB" null
 stub_reset
 STUB_MODE=commentdiff TEST_JUDGE_REUSE=1 stop ddc
 check "a shared FLAG that fails validation: one judge call, both relayed as UNKNOWN" \
-  '[[ "$(stub_calls)" == 1 && "$(field .decision)" == block && "$(field .reason)" == *"2 tests (0 FLAG, 0 PASS, 2 UNKNOWN)"* ]]'
+  '[[ "$(stub_calls)" == 1 && $rc == 2 && "$(relay)" == *"2 tests (0 FLAG, 0 PASS, 2 UNKNOWN)"* ]]'
 check "the second records the first's reason kind and origin, and reused_from" \
   '[[ "$(verdict_of ddc "dedupe cmt flag two" | jq -c "[.verdict, .reason_kind, .origin, .reused_from.name]")" == "[\"UNKNOWN\",\"comment-only\",\"FLAG\",\"dedupe cmt flag one\"]" ]]'
-f="$(reported "$(field .reason)")"
+f="$(reported "$(relay)")"
 assert_not_contains "and no entry points at a stripped diff" "$(cat "$f")" "This test has the same body as"
 # When the first's run fails, the second fails with it: both are counted as
 # not judged, and neither is sent past the cap to a background job.
@@ -562,7 +565,7 @@ transcript wtq claude-sonnet-5
 record wtq w1 "$WTQ/src/wtquote.test.ts" null
 STUB_MODE=implquote STUB_IMPL_QUOTE="export const worktreeOnly = 7;" stop wtq
 check "a quote only the linked worktree's branch holds is grounded there" \
-  '[[ ! -e "$REPO/src/wtonly.ts" && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+  '[[ ! -e "$REPO/src/wtonly.ts" && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # A provenance FLAG's best evidence is often the implementation line the
 # expected value restates: a quote found in another repository file the judge
@@ -580,9 +583,9 @@ for q in "return a + b;" "export const mul = (a, b) => a * b;" "return a - b;"; 
   record "$sid" w1 "$IQ" null
   STUB_MODE=implquote STUB_IMPL_QUOTE="$q" stop "$sid"
   case "$q" in
-  "return a + b;") check "a quote of a tracked implementation line keeps the FLAG" '[[ "$(field .reason)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
-  *mul*) check "a quote of an untracked repository file keeps the FLAG" '[[ "$(field .reason)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
-  *) check "a quote found in no repository file makes it UNKNOWN" '[[ "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]' ;;
+  "return a + b;") check "a quote of a tracked implementation line keeps the FLAG" '[[ "$(relay)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
+  *mul*) check "a quote of an untracked repository file keeps the FLAG" '[[ "$(relay)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]' ;;
+  *) check "a quote found in no repository file makes it UNKNOWN" '[[ "$(relay)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]' ;;
   esac
 done
 assert_contains "the reason for a quote found nowhere is recorded" "$(cat "$REPO"/.work/reviews/feat-judge-test/*)" "a quoted line is in no file of the repository"
@@ -623,7 +626,8 @@ model_for() { # model_for <sid> <env...>: the --model the Stop hook's judge run 
   js_file "$Y" "m$sid"
   record "$sid" w1 "$Y" null "${AGENT:-}"
   stub_reset
-  out="$(payload "$sid" stop "" '{"hook_event_name": "Stop"}' | env "$@" bash "$HOOK" 2>/dev/null)"
+  out="$(payload "$sid" stop "" '{"hook_event_name": "Stop"}' | env "$@" bash "$HOOK" 2>"$ERR")"
+  rc=$?
   stub_args 1 | sed -n '/^--model$/{n;p;}'
 }
 transcript ma claude-haiku-4-5-20251001
@@ -659,7 +663,7 @@ record mg w0 "$REPO/src/model-mg.test.ts" null a5
 AGENT=a3 model_for mg X=1 >"$TMP/model-mg.out"
 check "opus, sonnet and haiku all among the writers: no judge, never fable" '[[ -z "$(cat "$TMP/model-mg.out")" ]]'
 assert_contains "and the key is UNKNOWN with the reason" "$(cat "$DATA/verdicts/$PKEY/mg/"*.json)" "no judge class differs from the writers"
-check "no judge class: no block" '[[ "$(field .decision)" != block ]]'
+check "no judge class: no block" '[[ $rc == 0 ]]'
 assert_contains "no judge class: the systemMessage carries the counts" "$(field .systemMessage)" "(0 FLAG, 0 PASS, 1 UNKNOWN)"
 
 # Unattended (CLAUDE_CODE_SESSION_ATTENDED not exactly 1): no block, the
@@ -668,63 +672,25 @@ transcript u1 claude-sonnet-5
 U="$REPO/src/unattended.test.ts"
 js_file "$U" "unattended flag"
 record u1 w1 "$U" null
-out="$(payload u1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_CODE_SESSION_ATTENDED=0 bash "$HOOK" 2>/dev/null)"
-check "unattended: no block" '[[ "$(field .decision)" != block ]]'
+out="$(payload u1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_CODE_SESSION_ATTENDED=0 bash "$HOOK" 2>"$ERR")"
+rc=$?
+check "unattended: no block" '[[ $rc == 0 ]]'
 check "unattended: the systemMessage carries the counts and the relative path" \
   '[[ "$(field .systemMessage)" == "test judge: 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) in .work/reviews/feat-judge-test/"*-test-judge*.md ]]'
 
-# A subagent's tests are relayed to that subagent. A subagent shares its
-# parent's session id; test-scan records its agent_id. substop <sid> <agent>
-# [stop_hook_active] runs the hook on a SubagentStop; bgstop <sid> <running
-# agent>... runs a parent Stop whose background_tasks list those subagents as
-# running.
-substop() {
-  out="$(payload "$1" stop "" "{\"hook_event_name\": \"SubagentStop\", \"agent_id\": \"$2\", \"agent_type\": \"general-purpose\", \"stop_hook_active\": ${3:-false}}" |
-    bash "$HOOK" 2>/dev/null)"
-}
+# A subagent shares its parent's session id; test-scan records its agent_id.
+# bgstop <sid> <running agent>... runs a parent Stop whose background_tasks
+# list those subagents as running. The parent's Stop leaves a running
+# subagent's writes to a later Stop; once that agent has finished, its keys
+# (a killed subagent's too) are relayed at the parent.
 bgstop() {
   local sid="$1" tasks
   shift
   tasks="$(jq -cn '[$ARGS.positional[] | {id: ., type: "subagent", status: "running", agent_type: "general-purpose"}]' --args "$@")"
   out="$(payload "$sid" stop "" "{\"hook_event_name\": \"Stop\", \"stop_hook_active\": false, \"background_tasks\": $tasks}" |
-    bash "$HOOK" 2>/dev/null)"
+    bash "$HOOK" 2>"$ERR")"
+  rc=$?
 }
-SUB_REASON="Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source"
-# A FLAG on a test a subagent wrote blocks that subagent's SubagentStop with
-# the subagent's relay reason, and the parent's Stop does not relay it again;
-# the main thread's own write in the same session waits for the parent.
-transcript sa1 claude-sonnet-5
-SA="$REPO/src/subagent-flag.test.ts"
-SM="$REPO/src/main-write.test.ts"
-js_file "$SA" "subagent flag"
-js_file "$SM" mainwrite
-record sa1 w1 "$SA" null ag1
-record sa1 w2 "$SM" null
-stub_reset
-substop sa1 ag1
-check "SubagentStop: a FLAG blocks the subagent with its own relay reason" \
-  '[[ "$(field .decision)" == block && "$(field .reason)" == "test judge: subagent ag1: 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) in "* && "$(field .reason)" == *"$SUB_REASON"* ]]'
-check "SubagentStop: only that subagent's write is judged" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 subagent flag"* ]]'
-assert_contains "SubagentStop: the systemMessage names the subagent" "$(field .systemMessage)" "test judge: subagent ag1: 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) in "
-substop sa1 ag1 true
-assert_empty "SubagentStop with stop_hook_active: nothing, judged or relayed" "$out"
-stub_reset
-stop sa1
-check "the parent's Stop relays the main thread's write exactly as before, and not the subagent's" \
-  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 mainwrite"* && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
-# A subagent whose tests all PASS: its SubagentStop does not block, and the
-# parent's Stop has nothing more to relay.
-transcript sa2 claude-sonnet-5
-SP="$REPO/src/subagent-pass.test.ts"
-js_file "$SP" subagentpass
-record sa2 w1 "$SP" null ag2
-substop sa2 ag2
-check "SubagentStop: an all-PASS subagent is not blocked" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: subagent ag2: 1 test PASS." ]]'
-stop sa2
-assert_empty "and the parent's Stop has nothing more to relay for it" "$out"
-# The parent's Stop leaves a subagent still running (background_tasks) to its
-# own SubagentStop; once that agent has finished, keys no SubagentStop
-# relayed (a killed subagent) are relayed at the parent.
 transcript sa3 claude-sonnet-5
 SK="$REPO/src/subagent-killed.test.ts"
 SN="$REPO/src/main-other.test.ts"
@@ -735,14 +701,14 @@ record sa3 w2 "$SN" null
 stub_reset
 bgstop sa3 ag3 ag9
 check "a parent Stop skips a running subagent's write: not judged, not relayed" \
-  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" != *killed* && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" != *killed* && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 stub_reset
 bgstop sa3 ag9
 check "once that subagent has finished, its unrelayed FLAG is relayed at the parent" \
-  '[[ "$(stub_calls)" == 1 && "$(field .decision)" == block && "$(field .reason)" == "test judge: 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) in "*". $TEMPLATE_END" ]]'
+  '[[ "$(stub_calls)" == 1 && $rc == 2 && "$(relay)" == "test judge: 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) in "*". $TEMPLATE_END" ]]'
 # A file the parent and a still-running subagent both wrote waits for that
 # subagent: the parent's Stop does not judge the subagent's latest version
-# and mark it relayed, so the subagent's own SubagentStop still gets it.
+# and mark it relayed, so a later Stop still gets it.
 transcript sa4 claude-sonnet-5
 SS="$REPO/src/subagent-shared.test.ts"
 js_file "$SS" sharedpass
@@ -752,9 +718,10 @@ stub_reset
 bgstop sa4 ag5
 check "a parent Stop leaves a file a running subagent also wrote: not judged, not relayed" \
   '[[ "$(stub_calls)" == 0 && "$(field .systemMessage)" != *"test judge"* ]]'
-substop sa4 ag5
-check "that subagent's SubagentStop judges and relays it" \
-  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == "test judge: subagent ag5: 1 test PASS." ]]'
+stub_reset
+stop sa4
+check "once that subagent has finished, a later Stop judges and relays it" \
+  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # A malformed state file is skipped; scanner exit 2 and a crash end in exit 0.
 transcript z1 claude-sonnet-5
@@ -763,11 +730,11 @@ js_file "$Z" sturdy
 record z1 w1 "$Z" null
 printf '{not json' >"$DATA/sessions/$PKEY/z1/broken.json"
 stop z1
-check "a malformed state file is skipped" '((rc == 0)) && [[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a malformed state file is skipped" '((rc == 0)) && [[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 transcript z2 claude-sonnet-5
 record z2 w1 "$Z" null
 printf '#!/usr/bin/env bash\nexit 2\n' >"$TMP/scanner-2.sh"
-out="$(payload z2 stop "" '{"hook_event_name": "Stop"}' | TEST_SCAN_SCANNER="$TMP/scanner-2.sh" bash "$HOOK" 2>/dev/null)"
+out="$(payload z2 stop "" '{"hook_event_name": "Stop"}' | TEST_SCAN_SCANNER="$TMP/scanner-2.sh" bash "$HOOK" 2>"$ERR")"
 rc=$?
 check "scanner exit 2: exit 0" '((rc == 0))'
 # mapfile first runs in judge::load, in the main shell, after the state was
@@ -775,7 +742,7 @@ check "scanner exit 2: exit 0" '((rc == 0))'
 printf 'mapfile() { : "$__unset_on_purpose"; }\n' >"$TMP/crash.sh"
 transcript z3 claude-sonnet-5
 record z3 w1 "$Z" null
-out="$(payload z3 stop "" '{"hook_event_name": "Stop"}' | BASH_ENV="$TMP/crash.sh" bash "$HOOK" 2>/dev/null)"
+out="$(payload z3 stop "" '{"hook_event_name": "Stop"}' | BASH_ENV="$TMP/crash.sh" bash "$HOOK" 2>"$ERR")"
 rc=$?
 check "a crash in the script: exit 0 and no partial output" '((rc == 0)) && [[ -z "$out" ]]'
 check "the crash happened mid-run (the unbound variable is in the log)" 'grep -q "__unset_on_purpose: unbound variable" "$DATA/test-judge.log"'
@@ -798,7 +765,7 @@ MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg t "$TDIR/sbash.jsonl" --
   bash "$HOOK_DIR/test-scan-bash.sh" >/dev/null 2>&1
 stub_reset
 stop sbash
-check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # The Stop reserves each run as the background jobs do: with a session limit
 # of 1 and three files to judge, one run starts and the rest are named.
@@ -808,7 +775,8 @@ for i in 1 2 3; do
   record cap1 "w$i" "$REPO/src/stopcap$i.test.ts" null
 done
 stub_reset
-out="$(payload cap1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS=1 bash "$HOOK" 2>/dev/null)"
+out="$(payload cap1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS=1 bash "$HOOK" 2>"$ERR")"
+rc=$?
 check "a session limit of 1 at the Stop: one run, the rest named as over the limit" \
   '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == *"judge-run limit is reached"* && "$(find "$DATA/runs/$PKEY/cap1" -type f | wc -l)" == 1 ]]'
 
@@ -830,7 +798,7 @@ jq -cn --arg r '{"verdicts": [{"name": "orphan", "ordinal": 1, "verdict": "PASS"
   '{type: "result", subtype: "success", is_error: false, result: $r}' >"$d/.run-1-1"
 stub_reset
 stop h1
-check "an orphaned raw run is harvested, not judged again" '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "an orphaned raw run is harvested, not judged again" '[[ "$(stub_calls)" == 0 && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 check "and the raw file is removed" '[[ -z "$(find "$d" -name ".run-*")" ]]'
 
 # Successors: a /clear or fork successor adopts the sessions whose last write
@@ -855,7 +823,7 @@ start ca clear >/dev/null
 stub_reset
 stop ca
 check "after a clear marker, the predecessor's in-doubt block is judged" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 6-8 unjudged"* ]]'
-check "and its unrelayed verdict relayed with it" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
+check "and its unrelayed verdict relayed with it" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
 transcript cb claude-sonnet-5
 start cb clear >/dev/null
 stub_reset
@@ -886,7 +854,7 @@ record sib w1 "$S1" null "" null 0 "$(iso $((now + 120)))"
 bg sib w1 "$S1"
 stop cc
 check "a sibling whose last write postdates the marker is not adopted" '[[ "$out" != *sibling* ]]'
-check "while the marker adopts pb, within the hour" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "while the marker adopts pb, within the hour" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 # A session whose last write is over an hour before the marker is not adopted;
 # the SessionStart catch-up names its verdicts instead.
 transcript po claude-sonnet-5
@@ -910,7 +878,7 @@ transcript st claude-sonnet-5
 record st w1 "$A1" "$(blocks judged:1:3:5)"
 bg st w1 "$A1"
 stop st
-check "a startup session relays its own verdict for block text another session relayed" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+check "a startup session relays its own verdict for block text another session relayed" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # The re-derive is cached by the file's content: a Stop over an unchanged
 # file with ready verdicts runs no scanner; a changed file, a changed config
@@ -928,13 +896,13 @@ record cache w1 "$CF" null
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" bg cache w1 "$CF"
 rm -f "$TMP/scans"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
-check "an unchanged file with ready verdicts: the Stop runs no scanner" '[[ "$(scans)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
+check "an unchanged file with ready verdicts: the Stop runs no scanner" '[[ "$(scans)" == 0 && $rc == 0 && "$(field .systemMessage)" == "test judge: 2 tests PASS." ]]'
 js_file "$CF" one two three
 record cache w2 "$CF" "$(blocks three:1:9:11)"
 stub_reset
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "a changed file is scanned again and its new block judged" \
-  '[[ "$(scans)" == 1 && "$(stub_args 1)" == *"block 1 9-11 three"* && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+  '[[ "$(scans)" == 1 && "$(stub_args 1)" == *"block 1 9-11 three"* && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 rm -f "$TMP/scans"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "and is not scanned a third time while unchanged" '[[ "$(scans)" == 0 ]]'
@@ -989,11 +957,13 @@ wpay ww1 "$W1" | win bash "$BG"
 wpay ww2 "$W2" | win bash "$BG"
 check "the background job finds the same records and keeps the backslash path" \
   '[[ "$(stub_calls)" == 2 && "$(jq -r .file "$DATA/verdicts/$WPK/wsid/"*.json | sort | head -1)" == "$W1" ]]'
-out="$(wpay st1 "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | win bash "$HOOK" 2>/dev/null)"
-check "Windows: stop_hook_active true does not block" '[[ "$(field .decision)" != block ]]'
-out="$(wpay st2 "" '{"hook_event_name": "Stop", "stop_hook_active": false}' | win bash "$HOOK" 2>/dev/null)"
+out="$(wpay st1 "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | win bash "$HOOK" 2>"$ERR")"
+rc=$?
+check "Windows: stop_hook_active true does not block" '[[ $rc == 0 ]]'
+out="$(wpay st2 "" '{"hook_event_name": "Stop", "stop_hook_active": false}' | win bash "$HOOK" 2>"$ERR")"
+rc=$?
 check "Windows: the Stop finds test-scan's project key and relays both verdicts, the FLAG intact" \
-  '[[ "$(field .reason)" == *"test judge: 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN) in "* ]]'
+  '[[ "$(relay)" == *"test judge: 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN) in "* ]]'
 check "Windows: the relay markers sit under test-scan's project key" '[[ "$(find "$DATA/relayed/$WPK/wsid" -type f | wc -l)" == 2 ]]'
 
 # CRLF alone, with Linux paths: stop_hook_active must still read as true, so a
@@ -1003,10 +973,12 @@ CR1="$REPO/src/crlf.test.ts"
 js_file "$CR1" crlf
 record crlf w1 "$CR1" null
 bg crlf w1 "$CR1"
-out="$(payload crlf stop "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
-check "CRLF jq: stop_hook_active true does not block" '[[ "$(field .decision)" != block ]]'
-out="$(payload crlf stop "" '{"hook_event_name": "Stop"}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
-check "CRLF jq: the next task end relays the verdict" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+out="$(payload crlf stop "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>"$ERR")"
+rc=$?
+check "CRLF jq: stop_hook_active true does not block" '[[ $rc == 0 ]]'
+out="$(payload crlf stop "" '{"hook_event_name": "Stop"}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>"$ERR")"
+rc=$?
+check "CRLF jq: the next task end relays the verdict" '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 # Under Git Bash one file is C:\x in a payload, C:/x from git and /c/x from
 # MSYS, with any case; a diff path from git must match the payload's file, and
@@ -1080,7 +1052,7 @@ sec_stop() {
   js_file "$f" "flag sec$1"
   record "$1" w1 "$f" null
   stop "$1"
-  SF="$(reported "$(field .reason)")"
+  SF="$(reported "$(relay)")"
 }
 # 1. A symlink under the memory root must not carry the findings write, or the
 # self-ignoring .gitignore, out of the checkout.
@@ -1168,7 +1140,7 @@ MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg f "$NR/n.test.ts" '{file:
 stub_reset
 stop sec6
 check "a test file in no repository: no judge run, UNKNOWN 'no repository', no block" \
-  '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
+  '[[ "$(stub_calls)" == 0 && $rc == 0 && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
 sf="$(reported "$(field .systemMessage)")"
 check "a test file in no repository: the findings file is written" '[[ -n "$sf" && -f "$sf" ]]'
 
@@ -1188,7 +1160,7 @@ stop wt1
 check "a linked-worktree test file recorded under the main checkout is judged from the worktree" \
   '[[ "$(stub_calls)" == 1 && "$(cut -d" " -f1 "$STUB_DIR"/call-*.env)" == "$WTOP" ]]'
 check "with the worktree's absolute Read rule" '[[ "$(stub_args 1 | sed -n "/^--allowedTools$/{n;p;}")" == "Read(/$WTOP/**)" ]]'
-wf="$(reported "$(field .reason)")"
+wf="$(reported "$(relay)")"
 check "its findings land under the worktree's review directory" '[[ "$wf" == "$WTOP/.work/reviews/feat-wt-b/"*-test-judge.md && -f "$wf" ]]'
 check "its verdict names the worktree as its repository" '[[ "$(jq -r .repo "$DATA/verdicts/$PKEY/wt1/"*.json)" == "$WTOP" ]]'
 # A file in no repository, recorded under the hook's: not judged, and quiet,
@@ -1201,7 +1173,7 @@ record nr2 w1 "$NR2/n2.test.ts" null
 stub_reset
 stop nr2
 check "a test file in no repository, recorded under the hook's: no judge run, UNKNOWN 'no repository', no block" \
-  '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/nr2/"*.json)" == *"no repository"* ]]'
+  '[[ "$(stub_calls)" == 0 && $rc == 0 && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/nr2/"*.json)" == *"no repository"* ]]'
 # A file whose repository's work tree is set elsewhere (core.worktree): git
 # names a toplevel that does not hold it, so no model run reads around it.
 CW="$TMP/cw"
@@ -1216,7 +1188,7 @@ stop cw1
 check "a test file outside the repository git names for it: no judge run and no verdict" '[[ "$(stub_calls)" == 0 && -z "$(verdict_files cw1)" ]]'
 check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is outside the repository git names for it, $CW/elsewhere" "$DATA/test-judge.log"'
 check "it does not block, and the test is counted for a later task end" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test not judged, the next task end retries." ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test not judged, the next task end retries." ]]'
 check "and the log names it" 'grep -qF "not judged, the judge failed for: cw.test.ts: cwout" "$DATA/test-judge.log"'
 
 # A run Claude Code denied a tool call (the result's permission_denials) that
@@ -1230,7 +1202,7 @@ record dn1 w1 "$DN" null
 stub_reset
 STUB_MODE=denied stop dn1
 check "a denied run with only UNKNOWN verdicts: one run, and no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_files dn1)" ]]'
-check "it does not block Stop" '[[ "$(field .decision)" != block ]]'
+check "it does not block Stop" '[[ $rc == 0 ]]'
 check "its tests are counted as retried at the next task end" '[[ "$(field .systemMessage)" == "test judge: 2 tests not judged, the next task end retries." ]]'
 check "and the log names them" 'grep -qF "not judged, the judge failed for: denied.test.ts: deny me, denied.test.ts: deny too" "$DATA/test-judge.log"'
 check "the denial is logged as a malfunction" \
@@ -1247,7 +1219,7 @@ record mx1 w2 "$REPO/src/z-mixed.test.ts" null
 stub_reset
 STUB_MODE=denied stop mx1
 check "PASS, background and failed keys: one line, failed keys counted apart" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 9 tests PASS; 2 more tests are judged in the background, verdicts at the next task end; 1 test not judged, the next task end retries." ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 9 tests PASS; 2 more tests are judged in the background, verdicts at the next task end; 1 test not judged, the next task end retries." ]]'
 stop_jobs mx1
 # A denial names a tool call, not a block, and one run judges every block of
 # the file: when the run gives any FLAG or PASS, its UNKNOWN verdicts stand,
@@ -1263,7 +1235,7 @@ check "a denied run with a PASS keeps both UNKNOWN verdicts and the PASS" \
 # The judge's own UNKNOWN carries no finding: it is counted, and Stop is not
 # blocked for it.
 check "its UNKNOWN verdicts are counted, and do not block Stop" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 3 tests (0 FLAG, 1 PASS, 2 UNKNOWN) in "* ]]'
+  '[[ $rc == 0 && "$(field .systemMessage)" == "test judge: 3 tests (0 FLAG, 1 PASS, 2 UNKNOWN) in "* ]]'
 check "the judge's UNKNOWN records its reason kind and origin" \
   '[[ "$(verdict_of dn3 "deny one" | jq -c "[.reason_kind, .origin]")" == "[\"judge\",\"UNKNOWN\"]" ]]'
 check "the denial is logged, not as a malfunction" \
@@ -1277,7 +1249,7 @@ js_file "$DT" "deny text"
 record dn2 w1 "$DT" null
 STUB_MODE=deniedtext stop dn2
 check "an UNKNOWN that mentions a denial, with none listed, is still a verdict: counted, with no block" \
-  '[[ -n "$(verdict_files dn2)" && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+  '[[ -n "$(verdict_files dn2)" && $rc == 0 && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
 
 # The allow rule is absolute (`//`), with a Windows path in the POSIX form
 # Claude Code matches it in; the repository is taken from the file's
@@ -1412,8 +1384,9 @@ js_file "$REPO/src/sec7.test.ts" sec7
 record sec7 w1 "$REPO/src/sec7.test.ts" null
 # shellcheck disable=SC2016  # the expansion is the attack, kept literal
 out="$(payload sec7 stop "" '{"hook_event_name": "Stop"}' | TEST_JUDGE_TIMEOUT='a[$(touch '"$TMP"'/pwned5)]' \
-  TEST_JUDGE_DEBOUNCE='b[$(touch '"$TMP"'/pwned5b)]' bash "$HOOK" 2>/dev/null)"
-check "a timeout or debounce value is not evaluated as arithmetic" '[[ ! -e "$TMP/pwned5" && ! -e "$TMP/pwned5b" && "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
+  TEST_JUDGE_DEBOUNCE='b[$(touch '"$TMP"'/pwned5b)]' bash "$HOOK" 2>"$ERR")"
+rc=$?
+check "a timeout or debounce value is not evaluated as arithmetic" '[[ ! -e "$TMP/pwned5" && ! -e "$TMP/pwned5b" && $rc == 0 && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 
 check "no real claude was ever called" '[[ ! -e "$TMP/real-claude-called" ]]'
 echo "$SKIPS skipped (no native symlinks)"
