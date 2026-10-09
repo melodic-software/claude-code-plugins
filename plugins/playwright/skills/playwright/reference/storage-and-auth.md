@@ -125,12 +125,12 @@ For a real site the owner uses (GitHub first), one state file per site lets ever
 
 The owner saves the file once, from a headed session, and re-saves it only when the site expires the login (a loaded session lands on a sign-in page). Agents never run these steps: auto mode denied an agent's `state-save` as credential materialization (observed 2026-10-09), and the owner, not an agent, should decide when a login is written to disk.
 
-Linux and macOS (Claude Code `!` lines, or any shell):
+Linux and macOS, in a shell (in Claude Code, prefix each command line with `!`):
 
 ```bash
-! d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && mkdir -p "$d" && chmod 700 "$d" && playwright-cli -s=save-github open https://github.com/login --headed
+d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && mkdir -p "$d" && chmod 700 "$d" && playwright-cli -s=save-github open https://github.com/login --headed
 # log in in that window, 2FA included, then:
-! d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && playwright-cli -s=save-github state-save "$d/github.json" && chmod 600 "$d/github.json" && playwright-cli -s=save-github close
+d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && playwright-cli -s=save-github state-save "$d/github.json" && chmod 600 "$d/github.json" && playwright-cli -s=save-github close
 ```
 
 Windows, in PowerShell:

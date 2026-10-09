@@ -46,7 +46,7 @@ When a flow targets such a site, load its file right after `open`. This is the d
 
 ```bash
 playwright-cli -s=<flow> open about:blank
-playwright-cli -s=<flow> state-load ~/.local/state/playwright-cli/github.json
+playwright-cli -s=<flow> state-load "${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli/github.json"
 playwright-cli -s=<flow> goto https://github.com/<owner>/<repo>
 ```
 
