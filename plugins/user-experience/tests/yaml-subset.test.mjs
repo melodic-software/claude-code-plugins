@@ -159,3 +159,23 @@ describe("constructs outside the subset are named with their line", () => {
     });
   }
 });
+
+describe("nesting deeper than the limit is rejected with its line", () => {
+  // `levels` mapping keys, each indented one step under the last: line i sits at nesting depth i - 1.
+  const chain = (levels) => Array.from({ length: levels }, (_, i) => `${"  ".repeat(i)}k:`).join("\n");
+  const nestingError = (line) => (e) => e instanceof YamlSubsetError && e.line === line && e.message.startsWith(`line ${line}: `) && e.message.includes("64");
+
+  test("64 levels below the top parse", () => {
+    let d = parse(chain(65));
+    for (let i = 0; i < 64; i++) d = d.k;
+    assert.deepEqual(d, { k: null });
+  });
+
+  test("a 65th level is rejected on line 66, the first line past the limit", () => {
+    assert.throws(() => parse(chain(66)), nestingError(66));
+  });
+
+  test("200000 empty items at one indent, which nest without indenting, are rejected on line 66", () => {
+    assert.throws(() => parse("-\n".repeat(200_000)), nestingError(66));
+  });
+});

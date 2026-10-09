@@ -8,7 +8,8 @@
 // (`[a, "b", 3]`, `[]`); scalars: quoted and plain strings, integers, floats, true/false,
 // null/~, and an empty value meaning null; `#` comments outside quotes; blank lines.
 // Everything else is reported with its line rather than parsed partially: flow mappings (`{`),
-// anchors and aliases, tags, block scalars, document markers, tab indentation, duplicate keys.
+// anchors and aliases, tags, block scalars, document markers, tab indentation, duplicate keys,
+// nesting deeper than MAX_DEPTH.
 // Keys become own data properties, so a `__proto__` key never reaches an object's prototype.
 // Error messages quote file text as JSON strings cut to 60 characters: they describe data.
 
@@ -20,6 +21,8 @@ export class YamlSubsetError extends Error {
   }
 }
 
+// Every descent below the top level passes through nested(), so this bounds the recursion.
+const MAX_DEPTH = 64;
 const INT = /^[-+]?\d+$/;
 const FLOAT = /^[-+]?(\d+\.\d*|\.\d+|\d+)([eE][-+]?\d+)?$/;
 const quote = (text) => JSON.stringify(text.length > 60 ? `${text.slice(0, 60)}...` : text);
@@ -156,6 +159,7 @@ class Parser {
         this.lines.push([indent, number, stripped.slice(indent)]);
       });
     this.pos = 0;
+    this.depth = 0;
   }
 
   parse() {
@@ -193,10 +197,16 @@ class Parser {
 
   nested(parentIndent) {
     if (this.pos < this.lines.length) {
-      const [childIndent, , content] = this.lines[this.pos];
-      if (childIndent > parentIndent) return this.block(childIndent);
-      // A sequence may sit at the parent's indent (`key:` then `- item`).
-      if (childIndent === parentIndent && isItem(content)) return this.sequence(childIndent);
+      const [childIndent, number, content] = this.lines[this.pos];
+      if (childIndent < parentIndent || (childIndent === parentIndent && !isItem(content))) return null;
+      if (this.depth === MAX_DEPTH) throw new YamlSubsetError(number, `nesting deeper than ${MAX_DEPTH} levels is outside the subset`);
+      this.depth++;
+      try {
+        // A sequence may sit at the parent's indent (`key:` then `- item`).
+        return childIndent > parentIndent ? this.block(childIndent) : this.sequence(childIndent);
+      } finally {
+        this.depth--;
+      }
     }
     return null;
   }
