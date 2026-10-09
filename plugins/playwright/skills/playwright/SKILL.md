@@ -35,6 +35,25 @@ playwright-cli -s=<flow> close                       # tear down
 
 Read the YAML snapshot file directly to locate element refs. Do not dump it into context.
 
+## Logged-in sites
+
+The owner keeps one saved login per site, a file named `<site>.json` (for example `github.json`) in:
+
+- Linux and macOS: `${XDG_STATE_HOME:-~/.local/state}/playwright-cli/`
+- Windows: `%LOCALAPPDATA%\playwright-cli\` (`$LOCALAPPDATA/playwright-cli/` from Git Bash)
+
+When a flow targets such a site, load its file right after `open`. This is the default, not an opt-in:
+
+```bash
+playwright-cli -s=<flow> open about:blank
+playwright-cli -s=<flow> state-load ~/.local/state/playwright-cli/github.json
+playwright-cli -s=<flow> goto https://github.com/<owner>/<repo>
+```
+
+`state-load` fails before `open`. A "no such file" error means no saved login: carry on logged out, or ask the owner to save one. Each session loads the file into its own isolated browser, so any number of agents run logged in at once, acting as the owner on that site.
+
+Never run `state-save` for a shared login, and never read, print, or copy the file, into a repo, a brief, or context: it is the owner's login. The owner saves and refreshes it with the commands in [reference/storage-and-auth.md](reference/storage-and-auth.md#shared-login-state).
+
 ## Conventions
 
 - **Always use named sessions** (`-s=<flow>`) for multi-step work, with a name unique to this run. Default (unnamed) sessions are hard to isolate when things go sideways, and a shared name collides with another agent driving the same machine
@@ -53,7 +72,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 | Command reference, raw output, element targeting | [reference/commands.md](reference/commands.md) |
 | Named sessions, persistent profiles, attaching to running browsers | [reference/sessions.md](reference/sessions.md) |
 | Snapshot mechanics, element refs, inspecting DOM attributes | [reference/snapshots-and-refs.md](reference/snapshots-and-refs.md) |
-| Cookies, localStorage, sessionStorage, auth state save/restore | [reference/storage-and-auth.md](reference/storage-and-auth.md) |
+| Cookies, localStorage, sessionStorage, auth state save/restore, saving a shared login | [reference/storage-and-auth.md](reference/storage-and-auth.md) |
 | Trace recording for debugging, video recording with overlays/chapters | [reference/tracing-and-video.md](reference/tracing-and-video.md) |
 | A `@playwright/test` run failed, read why (terminal trace CLI, failure-retention modes) | [reference/tracing-and-video.md](reference/tracing-and-video.md#reading-a-failed-playwrighttest-run) |
 | Network mocking, route patterns, response modification | [reference/network-mocking.md](reference/network-mocking.md) |
@@ -64,7 +83,7 @@ Load the right reference file for the scenario. Each is distilled from Microsoft
 
 ## Defaults (accept, don't override)
 
-Microsoft's defaults are right for autonomous E2E work: headless, an isolated in-memory profile per session, and artifacts under `.playwright-cli/`. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces; they add maintenance surface without benefit. Override per command instead: `--headed` when the user wants to watch, `--persistent` when auth must carry between sessions.
+Microsoft's defaults are right for autonomous E2E work: headless, an isolated in-memory profile per session, and artifacts under `.playwright-cli/`. Don't add `PLAYWRIGHT_MCP_*` env vars to project settings unless a real, recurring need surfaces; they add maintenance surface without benefit. Override per command instead: `--headed` when the user wants to watch, and a saved login state ([Logged-in sites](#logged-in-sites)) when a flow needs a logged-in site.
 
 - **Pointer**: for the current default values (timeouts, viewport, console level) and the full env-var and config-file schema, read `$(npm root -g)/@playwright/cli/README.md` or run `playwright-cli open --help`. **As of**: 2026-10-07. **Recheck trigger**: the frontmatter `upstream-version` moves.
 
@@ -103,7 +122,7 @@ to expand it from. Basis: the plugins reference,
 
 ## Gotchas
 
-Each one was observed in agent trials of the 2026-10-07 browser-CLI benchmark, recorded under Alternatives considered in the marketplace's ADR 0056.
+Each one was observed in agent trials of the 2026-10-07 browser-CLI benchmark, recorded under Alternatives considered in the marketplace's ADR 0056, except the last, which describes how a saved login expires.
 
 - **`fill` does not leave the field.** A form that validates on blur keeps its submit button disabled after `fill`, and the click times out. Press `Tab` (or click the next field) after the last `fill`. Agents hit this on the blur-validated form in most runs.
 - **A ref from before a re-render is refused** ("Ref eN not found ... capture new snapshot"). After filtering, sorting, or any partial update, take a fresh `snapshot` before acting.
@@ -111,6 +130,7 @@ Each one was observed in agent trials of the 2026-10-07 browser-CLI benchmark, r
 - **Each command costs seconds of startup, so a short-lived toast can vanish before the next `snapshot`.** Start `video-start` before the action and read the message from the recording, or snapshot in the same breath as the action that triggers it.
 - **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.
 - **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
+- **A loaded login still lands on a sign-in page.** `state-load` succeeded, but the site has expired that login. Stop the logged-in part of the flow and ask the owner to re-save the file; do not log in yourself.
 
 ## Source attribution
 
