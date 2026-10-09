@@ -129,7 +129,7 @@ SUBJECT="${COMMAND,,}"
 
 # Cheap pre-filter: every shape below names one of these words, so a command
 # that names none leaves without paying for the matcher.
-[[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|env|docker ]] || exit 0
+[[ "$SUBJECT" =~ credential|token|secret|password|passwd|api_?key|access_key|private_key|printenv|_netrc|\.netrc|docker|env ]] || exit 0
 
 # Is a family token in the block_credential_read_allow userConfig comma list?
 allowed() {
@@ -185,6 +185,17 @@ match_shapes() {
   s="${s//.env.sample/.x}"
   s="${s//.env.template/.x}"
 
+  # jq shapes match their own copy. jq is case sensitive: `$ENV` is the builtin,
+  # `$env` a variable, so mark the builtin before lower-casing. `--arg NAME VALUE`
+  # and `--argjson NAME VALUE` operands are values, not filters or files; drop
+  # them (`--slurpfile` and `--rawfile` read their file and stay).
+  local word="([^[:space:]${sq}${dq}]+|${sq}[^${sq}]*${sq}|${dq}[^${dq}]*${dq})"
+  local sj="${COMMAND//\$ENV/\$jq_env_builtin}"
+  sj="${sj,,}"
+  while [[ "$sj" =~ ${sp}--arg(json)?${sp}+${word}${sp}+${word} ]]; do
+    sj="${sj/"${BASH_REMATCH[0]}"/ }"
+  done
+
   local re_fill="${lead}${pre}git(\\.exe)?(${sp}+(-c${sp}+[^[:space:]]+|-[^[:space:]]+))*${sp}+credential(${sp}+fill|-[^[:space:]]+${sp}+get)${end}"
   local re_fill_bin="${lead}${pre}git-credential-[^[:space:]]+${sp}+get${end}"
   local re_gh="${lead}${pre}gh(\\.exe)?(${sp}+-[^[:space:]]+)*${sp}+auth${sp}+token${end}"
@@ -194,7 +205,7 @@ match_shapes() {
   local re_psenv="${lead}${pre}(get-childitem|get-item|gci|gi|dir|ls)${sp}+(${arg}*${sp})?[${sq}${dq}]?env:[/\\\\]?${tokvar}"
   local re_file="${lead}${pre}(cat|get-content|gc|type)(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?${credfile}${end}"
   local re_jqfile="${lead}${pre}jq(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?${dir}${jsonfile}${end}"
-  local re_jqenv="${lead}${pre}jq(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?\\\$?env${end}"
+  local re_jqenv="${lead}${pre}jq(\\.exe)?${sp}+(${arg}*${sp})?[${sq}${dq}]?(env|\\\$jq_env_builtin)${end}"
 
   if ! allowed credential-fill && [[ "$s" =~ $re_fill || "$s" =~ $re_fill_bin ]]; then
     block credential-fill "git credential fill / git credential-<helper> get" \
@@ -212,12 +223,12 @@ match_shapes() {
       "test -n \"\$NAME\" && echo set (PowerShell: if (\$env:NAME) { 'set' })"
   fi
 
-  if ! allowed env-echo && [[ "$s" =~ $re_jqenv ]]; then
+  if ! allowed env-echo && [[ "$sj" =~ $re_jqenv ]]; then
     block env-echo "every environment variable, through jq env" \
       "test -n \"\$NAME\" && echo set"
   fi
 
-  if ! allowed credential-file-read && [[ "$s" =~ $re_file || "$s" =~ $re_jqfile ]]; then
+  if ! allowed credential-file-read && [[ "$s" =~ $re_file || "$sj" =~ $re_jqfile ]]; then
     block credential-file-read "a credential file: .git-credentials, .netrc, .env, .credentials.json, .docker/config.json" \
       "test -f <path> && echo present (PowerShell: Test-Path <path>)"
   fi
@@ -225,4 +236,3 @@ match_shapes() {
 
 match_shapes
 exit 0
-

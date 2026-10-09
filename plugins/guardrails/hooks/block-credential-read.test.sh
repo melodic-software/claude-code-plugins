@@ -120,6 +120,8 @@ run "jq a field of .credentials.json" "jq -r '.claudeAiOauth.accessToken' \"\$HO
 run "jq -n env" 'jq -n env' 2
 run "jq -n '\$ENV'" "jq -n '\$ENV'" 2
 run "jq env after a pipe" 'true | jq env' 2
+run "jq --slurpfile of .credentials.json" "jq -n --slurpfile c ~/.claude/.credentials.json '\$c'" 2
+run "jq \$ENV after an --arg" "jq -n --arg x y '\$ENV'" 2
 run_ps "PowerShell: Get-Content .env" 'Get-Content .env' 2
 run_ps "PowerShell: Get-Content .credentials.json" 'Get-Content $HOME\.claude\.credentials.json' 2
 run_ps "PowerShell: gc -Raw of .netrc" 'gc -Raw $HOME\.netrc' 2
@@ -162,6 +164,8 @@ run "jq . package.json" 'jq . package.json' 0
 run "jq -n '\$ENV.HOME'" "jq -n '\$ENV.HOME'" 0
 run "jq of an env key in a JSON file" "jq '.env' package.json" 0
 run "jq of an ordinary config.json" 'jq . config.json' 0
+run "jq --arg named env" "jq --arg env production '.environment = \$env' package.json" 0
+run "jq --arg whose value is a credential path" "jq --arg path ~/.claude/.credentials.json '.foo' package.json" 0
 run "test -f .credentials.json" 'test -f ~/.claude/.credentials.json && echo present' 0
 run "docker ps" 'docker ps' 0
 run "env -C to a directory" 'env -C /tmp ls' 0

@@ -9,4 +9,4 @@ bump: patch
 
 ### Fixed
 
-- **block-credential-read missed jq and two credential files.** `cat`, `Get-Content`, `gc` and `type` of `.credentials.json` or `.docker/config.json`, `jq` of either file, and `jq env` / `jq '$ENV'` (which print every variable) now block. The pre-filter admits `docker` and `env`, so these shapes reach the matcher. `jq . package.json`, `jq -n '$ENV.HOME'` and a `.env` jq filter still pass.
+- **block-credential-read missed jq and two credential files.** `cat`, `Get-Content`, `gc` and `type` of `.credentials.json` or `.docker/config.json`, `jq` of either file, and `jq env` / `jq '$ENV'` (which print every variable) now block. The pre-filter admits `docker` and `env`, so these shapes reach the matcher. `jq . package.json`, `jq -n '$ENV.HOME'`, a `.env` jq filter, a `$env` jq variable and an `--arg`/`--argjson` value still pass.
