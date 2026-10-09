@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -132,4 +132,279 @@ test("mcp list is not read when the plugin list fails", { skip: process.platform
   assert.equal(out.installed, null);
   assert.match(out.reason, /plugin list.*exit 4/);
   assert.equal(existsSync(log), false, "claude mcp list was called");
+});
+
+describe("team file", () => {
+  const TEAM = join(FIX, "team");
+  const EXISTING = join(FIX, "existing");
+  const SKIPPED = /Built-in routes used; team overrides and the deny floor were not applied\. Run \/user-experience:setup/;
+  const withTeam = (file, project = EXISTING) => detect(["--project", project, ...seams, "--team", file]);
+  const fixture = (name) => withTeam(join(TEAM, name));
+  /** Writes `text` as a scratch team file and returns its path. */
+  const scratchTeam = (name, text) => {
+    const file = join(scratch, name);
+    writeFileSync(file, text);
+    return file;
+  };
+  const builtIn = (routes) => assert.deepEqual(routes.map(({ present, ...row }) => row), ROWS);
+  const ids = (routes, job) => routes.filter((r) => r.job === job).map((r) => r.id);
+
+  test("a valid file loads its settings and leaves the bundled routes as they are", () => {
+    const { team, routes } = fixture("valid.yaml");
+    assert.deepEqual(team, {
+      path: join(TEAM, "valid.yaml"),
+      loaded: true,
+      warnings: [],
+      jtbd_school: "outcome-driven-innovation",
+      research_paths: ["research"],
+      persona_paths: ["personas.md"],
+      output_home: "docs/ux",
+    });
+    builtIn(routes);
+  });
+
+  test("re-rank: a team row overrides the bundled row with the same job and id, key by key", () => {
+    const { routes } = fixture("re-rank.yaml");
+    const row = routes.find((r) => r.job === "synthesis" && r.id === "/design:research-synthesis");
+    assert.equal(row.rank, 1);
+    assert.equal(row.pointer, ROWS.find((r) => r.id === "/design:research-synthesis").pointer, "keys the team row omits keep the bundled value");
+    assert.deepEqual(ids(routes, "synthesis"), ["/design:research-synthesis", "/product-management:synthesize-research", "miro@claude-plugins-official"]);
+  });
+
+  test("add: a row whose id is an installed plugin skill joins its job, marked present", () => {
+    const { routes, team } = fixture("re-rank.yaml");
+    const added = routes.find((r) => r.id === "/product-management:write-spec");
+    assert.equal(added.job, "flows-ia");
+    assert.equal(added.present, true);
+    assert.equal(ids(routes, "flows-ia")[0], "/product-management:write-spec");
+    assert.equal(team.loaded, true);
+  });
+
+  test("disable: every listed job and id is skipped, and a repeated entry is one entry", () => {
+    const { routes } = fixture("re-rank.yaml");
+    assert.ok(!ids(routes, "synthesis").includes("dovetail"));
+    assert.ok(!ids(routes, "flows-ia").includes("optimal"));
+    assert.equal(routes.length, ROWS.length + 1 - 2 - 2, "one added, two disabled, two denied");
+  });
+
+  test("deny: every listed name is skipped and the team file is named as the source", () => {
+    const file = join(TEAM, "re-rank.yaml");
+    const { routes, team } = withTeam(file);
+    assert.ok(!routes.some((r) => r.id === "mixpanel" || r.id === "usertesting"));
+    for (const name of ["mixpanel", "usertesting"]) {
+      const notes = team.warnings.filter((w) => w.includes(`deny "${name}"`));
+      assert.equal(notes.length, 1, `one disclosure for ${name}: ${team.warnings}`);
+      assert.ok(notes[0].includes(`source: ${file}`), notes[0]);
+    }
+  });
+
+  test("an unknown key in a team row drops only that key, with a warning naming it", () => {
+    const { routes, team } = fixture("unknown-key.yaml");
+    const row = routes.find((r) => r.job === "evaluation" && r.id === "/design:design-critique");
+    assert.equal(row.rank, 3);
+    assert.ok(!("color" in row));
+    assert.ok(team.warnings.some((w) => w.includes('unknown key "color" dropped')), team.warnings.join("\n"));
+  });
+
+  test("a row drops, with disclosure, only when what remains fails the row schema", () => {
+    const { routes, team } = fixture("unknown-key.yaml");
+    const row = routes.find((r) => r.id === "contentsquare");
+    assert.equal(row.rank, ROWS.find((r) => r.id === "contentsquare").rank, "the bundled row stands");
+    assert.ok(team.warnings.some((w) => w.includes("contentsquare") && w.includes("dropped") && w.includes("rank")), team.warnings.join("\n"));
+  });
+
+  test("an unknown routing.version major degrades and names the version", () => {
+    const { team, routes } = fixture("unknown-major.yaml");
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /routing\.version 2/);
+    assert.match(team.skipped_reason, SKIPPED);
+    builtIn(routes);
+  });
+
+  test("an unknown top-level version degrades and names the version", () => {
+    const { team, routes } = withTeam(scratchTeam("future.yaml", "version: 2\n"));
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /version 2/);
+    assert.match(team.skipped_reason, SKIPPED);
+    builtIn(routes);
+  });
+
+  test("a missing file degrades: built-in routes, the skipped file named, setup suggested", () => {
+    const file = join(scratch, "absent.yaml");
+    const { team, routes } = withTeam(file);
+    assert.equal(team.loaded, false);
+    assert.equal(team.path, file);
+    assert.ok(team.skipped_reason.startsWith(`${file} skipped: not found.`), team.skipped_reason);
+    assert.match(team.skipped_reason, SKIPPED);
+    builtIn(routes);
+  });
+
+  test("a malformed file degrades and names the line", () => {
+    const { team, routes } = fixture("flow-mapping.yaml");
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /malformed: line 6: flow mapping/);
+    assert.match(team.skipped_reason, SKIPPED);
+    builtIn(routes);
+  });
+
+  test("an unreadable file (a directory at the path) degrades", () => {
+    const dir = join(scratch, "team-dir.yaml");
+    mkdirSync(dir, { recursive: true });
+    const { team, routes } = withTeam(dir);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /unreadable/);
+    assert.match(team.skipped_reason, SKIPPED);
+    builtIn(routes);
+  });
+
+  test("an added kind: tool row is dropped by no-new-tool-rows, with disclosure", () => {
+    const { routes, team } = fixture("tool-row.yaml");
+    assert.ok(!routes.some((r) => r.id === "card-sort-cli"));
+    assert.ok(team.warnings.some((w) => w.includes("card-sort-cli") && w.includes("no-new-tool-rows")), team.warnings.join("\n"));
+  });
+
+  test("an added row with an unknown id is dropped by id-matches-bundled-or-installed, with disclosure", () => {
+    const { routes, team } = fixture("unknown-id.yaml");
+    assert.ok(!routes.some((r) => r.id === "/journey-mapper:map"));
+    assert.ok(team.warnings.some((w) => w.includes("/journey-mapper:map") && w.includes("id-matches-bundled-or-installed")), team.warnings.join("\n"));
+    builtIn(routes);
+  });
+
+  test("path values outside the project are dropped with a warning each", () => {
+    const { team } = fixture("path-escape.yaml");
+    assert.equal(team.loaded, true);
+    assert.deepEqual(team.research_paths, ["research"]);
+    assert.deepEqual(team.persona_paths, []);
+    assert.equal(team.output_home, null);
+    for (const value of ["../outside", "/etc", "../../personas", "../out"]) {
+      assert.ok(team.warnings.some((w) => w.includes(JSON.stringify(value)) && w.includes("outside the project")), `${value}: ${team.warnings}`);
+    }
+  });
+
+  test("a path that leaves the project through a symlink is dropped", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = join(scratch, "linked-project");
+    mkdirSync(project, { recursive: true });
+    symlinkSync(scratch, join(project, "research-link"));
+    const file = scratchTeam("linked.yaml", "version: 1\nresearch_paths:\n  - research-link\n");
+    const { team } = withTeam(file, project);
+    assert.deepEqual(team.research_paths, []);
+    assert.ok(team.warnings.some((w) => w.includes('"research-link"')), team.warnings.join("\n"));
+  });
+
+  test("a missing path under an outward symlink is dropped (research_paths and output_home)", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = join(scratch, "linked-missing");
+    mkdirSync(project, { recursive: true });
+    symlinkSync(scratch, join(project, "out-link"));
+    const file = scratchTeam("linked-missing.yaml", "version: 1\nresearch_paths:\n  - out-link/new-subdir\noutput_home: out-link/ux\n");
+    const { team } = withTeam(file, project);
+    assert.deepEqual(team.research_paths, []);
+    assert.equal(team.output_home, null);
+    assert.ok(team.warnings.some((w) => w.includes('"out-link/new-subdir"')), team.warnings.join("\n"));
+    assert.ok(team.warnings.some((w) => w.includes('"out-link/ux"')), team.warnings.join("\n"));
+  });
+
+  test("a dangling symlink on a path is dropped", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = join(scratch, "dangling-project");
+    mkdirSync(project, { recursive: true });
+    symlinkSync(join(scratch, "no-such-target"), join(project, "dangle"));
+    const file = scratchTeam("dangling.yaml", "version: 1\nresearch_paths:\n  - dangle\n  - dangle/child\n");
+    const { team } = withTeam(file, project);
+    assert.deepEqual(team.research_paths, []);
+  });
+
+  test("a missing path inside the project is kept", () => {
+    const file = scratchTeam("missing-inside.yaml", "version: 1\noutput_home: docs/ux/new\n");
+    assert.equal(withTeam(file).team.output_home, "docs/ux/new");
+  });
+
+  test("an unknown key under routing drops only that key, with a warning", () => {
+    const file = scratchTeam("routing-key.yaml", "version: 1\nrouting:\n  version: 1\n  tint: blue\n  deny:\n    - mixpanel\n");
+    const { team, routes } = withTeam(file);
+    assert.equal(team.loaded, true);
+    assert.ok(team.warnings.some((w) => w.includes('routing: unknown key "tint" dropped')), team.warnings.join("\n"));
+    assert.ok(!routes.some((r) => r.id === "mixpanel"), "the rest of routing still applies");
+  });
+
+  test("an unknown key in a disable entry drops only that key, with a warning", () => {
+    const file = scratchTeam("disable-key.yaml", "version: 1\nrouting:\n  version: 1\n  disable:\n    - job: synthesis\n      id: dovetail\n      why: noisy\n");
+    const { team, routes } = withTeam(file);
+    assert.ok(team.warnings.some((w) => w.includes('routing.disable[0]: unknown key "why" dropped')), team.warnings.join("\n"));
+    assert.ok(!routes.some((r) => r.id === "dovetail"), "the entry still disables");
+  });
+
+  test("a deny entry that is a mapping, not a name, is ignored with a warning", () => {
+    const file = scratchTeam("deny-map.yaml", "version: 1\nrouting:\n  version: 1\n  deny:\n    - name: mixpanel\n");
+    const { team, routes } = withTeam(file);
+    assert.ok(team.warnings.some((w) => w.includes("routing.deny[0]")), team.warnings.join("\n"));
+    assert.ok(routes.some((r) => r.id === "mixpanel"));
+  });
+
+  test("a skill detect that is a path is dropped before installed() looks it up", () => {
+    mkdirSync(join(HOME, ".claude/escape-skill"), { recursive: true });
+    const file = scratchTeam(
+      "detect-path.yaml",
+      "version: 1\nrouting:\n  version: 1\n  rows:\n    - job: journeys\n      rank: 1\n      id: /escape-skill\n      kind: skill\n      detect: ../escape-skill\n      account: none\n      status: unconfirmed\n      as_of: 2026-10-09\n      pointer: https://example.com/escape-skill\n      recheck: the skill moves\n",
+    );
+    const { team, routes } = withTeam(file);
+    assert.ok(!routes.some((r) => r.id === "/escape-skill"));
+    const note = team.warnings.find((w) => w.includes('"/escape-skill"'));
+    assert.match(note, /detect/);
+    assert.doesNotMatch(note, /id-matches-bundled-or-installed/, "dropped by the detect check, before the policy");
+  });
+
+  test("an invalid jtbd_school falls back to unset with a warning", () => {
+    const { team } = withTeam(scratchTeam("school.yaml", "version: 1\njtbd_school: lean-canvas\n"));
+    assert.equal(team.loaded, true);
+    assert.equal(team.jtbd_school, "unset");
+    assert.ok(team.warnings.some((w) => w.includes('"lean-canvas"')), team.warnings.join("\n"));
+  });
+});
+
+describe("team surface", () => {
+  const POINTER = join(FIX, "pointer-home");
+
+  test("--team wins over the convention-home pointer", () => {
+    const file = join(FIX, "team", "valid.yaml");
+    const { team } = detect(["--project", POINTER, ...seams, "--team", file]);
+    assert.equal(team.path, file);
+    assert.equal(team.jtbd_school, "outcome-driven-innovation");
+  });
+
+  test("with no pointer, the team file is docs/conventions/user-experience.yaml", () => {
+    const { team } = detect(["--project", join(FIX, "idea"), ...seams]);
+    assert.equal(team.path, "docs/conventions/user-experience.yaml");
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /not found/);
+  });
+
+  test("a bound pointer gives <home>/user-experience.yaml", () => {
+    const { team } = detect(["--project", POINTER, ...seams]);
+    assert.equal(team.path, "team-conventions/user-experience.yaml");
+    assert.equal(team.loaded, true);
+    assert.equal(team.jtbd_school, "jobs-to-be-done-theory");
+  });
+
+  test("a failing resolver (exit 3) degrades with its cause", () => {
+    const project = join(scratch, "broken-pointer");
+    mkdirSync(project, { recursive: true });
+    writeFileSync(join(project, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome: `no-such-dir`\n<!-- END GENERATED: convention-home -->\n");
+    const { team, routes } = detect(["--project", project, ...seams]);
+    assert.equal(team.loaded, false);
+    assert.equal(team.path, null);
+    assert.match(team.skipped_reason, /pointer target directory missing/);
+    assert.match(team.skipped_reason, /Built-in routes used/);
+    assert.deepEqual(routes.map(({ present, ...row }) => row), ROWS);
+  });
+
+  test("a team file that resolves outside the project through a symlink is skipped", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const outside = join(scratch, "outside-conventions");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "user-experience.yaml"), "version: 1\njtbd_school: outcome-driven-innovation\n");
+    const project = join(scratch, "linked-home");
+    mkdirSync(join(project, "docs"), { recursive: true });
+    symlinkSync(outside, join(project, "docs/conventions"));
+    const { team } = detect(["--project", project, ...seams]);
+    assert.equal(team.loaded, false);
+    assert.match(team.skipped_reason, /outside the project/);
+  });
 });
