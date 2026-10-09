@@ -229,6 +229,31 @@ else
 fi
 rm -rf "$repo"
 
+# --- the workflow's extracted base script reads the base's list through the base's libraries ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+extract="$(mktemp -d)"
+mkdir -p "$extract/lib"
+cp "$SCRIPT" "$extract/dependabot-plugin-bump.sh"
+for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+  cp "$SELF_DIR/lib/$lib" "$extract/lib/$lib"
+done
+rm "$repo/scripts/lib/changelog-fragments.sh"
+out="$(cd "$repo" && bash "$extract/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.0" && "$out" == *"alpha is in fragment mode"* ]]; then
+  ok "an extracted base script on a branch older than the fragment library skips a listed plugin"
+else
+  fail "extracted base script: rc=$rc ver=$ver out='$out'"
+fi
+rm -rf "$repo" "$extract"
+
 # --- no plugin paths: no-op ---
 mk_repo repo
 mk_plugin "$repo" alpha 1.0.0

@@ -67,18 +67,20 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Prefer the base tip's copy of the bump script, and of the entry
-          # renderer it sources from beside itself, so a Dependabot branch that
-          # has not yet rebased still runs the landed implementation.
+          # Prefer the base tip's copy of the bump script, and of the fragment
+          # and entry libraries it sources from beside itself, so a Dependabot
+          # branch that has not yet rebased still runs the landed implementation.
           bump_script=scripts/dependabot-plugin-bump.sh
           if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
             git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
             bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
             chmod +x "$bump_script"
-            if git cat-file -e "origin/$BASE_REF:scripts/lib/dependabot-entry.sh" 2>/dev/null; then
-              mkdir -p "$RUNNER_TEMP/lib"
-              git show "origin/$BASE_REF:scripts/lib/dependabot-entry.sh" > "$RUNNER_TEMP/lib/dependabot-entry.sh"
-            fi
+            mkdir -p "$RUNNER_TEMP/lib"
+            for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+              if git cat-file -e "origin/$BASE_REF:scripts/lib/$lib" 2>/dev/null; then
+                git show "origin/$BASE_REF:scripts/lib/$lib" > "$RUNNER_TEMP/lib/$lib"
+              fi
+            done
           fi
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
       - name: Commit release metadata

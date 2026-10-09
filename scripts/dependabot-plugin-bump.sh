@@ -36,17 +36,17 @@ if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
 fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPTS_DIR/lib/changed-files.sh"
-# The workflow runs the base branch's copy of this script against the PR
-# branch's scripts/; a branch older than the fragment library has no plugin in
-# fragment mode.
-if [[ -f "$SCRIPTS_DIR/lib/changelog-fragments.sh" ]]; then
+# The workflow writes the base's copies of the fragment and entry libraries
+# next to its copy of this script, so a branch older than either still reads
+# the base's fragment list through the base's code and renders the entry.
+fragments_lib="$SELF_DIR/lib/changelog-fragments.sh"
+[[ -f "$fragments_lib" ]] || fragments_lib="$SCRIPTS_DIR/lib/changelog-fragments.sh"
+if [[ -f "$fragments_lib" ]]; then
   # shellcheck source=lib/changelog-fragments.sh
-  . "$SCRIPTS_DIR/lib/changelog-fragments.sh"
+  . "$fragments_lib"
 else
   changelog_fragments::in_mode() { return 1; }
 fi
-# The workflow writes the base's copy of this library next to its copy of this
-# script, so a branch older than the library still renders the entry.
 if [[ -f "$SELF_DIR/lib/dependabot-entry.sh" ]]; then
   # shellcheck source=lib/dependabot-entry.sh
   . "$SELF_DIR/lib/dependabot-entry.sh"
