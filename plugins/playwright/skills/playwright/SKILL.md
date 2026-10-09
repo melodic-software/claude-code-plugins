@@ -119,6 +119,7 @@ to expand it from. Basis: the plugins reference,
 
 - Evidence captured for a pull request: /source-control:pull-request.
 - A UI change driven and checked: /verification:confirm.
+- A flow driven here turned into a produced, QC-checked demo video for a pull request: /playwright:demo-video.
 
 ## Gotchas
 
@@ -131,12 +132,6 @@ Each one was observed in agent trials of the 2026-10-07 browser-CLI benchmark, r
 - **Uncaught page exceptions show in `console`.** Read `console` after an action that "does nothing"; a thrown `TypeError` there is usually the defect.
 - **On a Linux container the default `chrome` channel is often absent.** Point a config at `chromium` (and an `executablePath` when the bundled revision is missing) before the first `open`.
 - **A loaded login still lands on a sign-in page.** `state-load` succeeded, but the site has expired that login. Stop the logged-in part of the flow and ask the owner to re-save the file; do not log in yourself.
-
-## Next
-
-/playwright:demo-video
-
-Turns a flow you drove here into a produced, QC-checked demo video for a pull request.
 
 ## Source attribution
 
