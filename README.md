@@ -168,7 +168,7 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.39.0 (`6ba73b97b058602c4dd2bb6e2cce234d11011787`), the pin in
+- **As of:** `ci-workflows` v0.39.3 (`ab83b01273026ab5c23c6f3b40e946d97a863fa2`), the pin in
   `.github/workflows/pr-require-checks.yml`.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
