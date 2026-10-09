@@ -237,7 +237,7 @@ init_git "$repo"
 begin_pr "$repo"
 echo x >>"$repo/plugins/alpha/server/package-lock.json"
 git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
-extract="$(mktemp -d)"
+extract="$repo/.git/extract"
 mkdir -p "$extract/lib"
 cp "$SCRIPT" "$extract/dependabot-plugin-bump.sh"
 for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
@@ -252,7 +252,7 @@ if [[ $rc -eq 0 && "$ver" == "1.0.0" && "$out" == *"alpha is in fragment mode"* 
 else
   fail "extracted base script: rc=$rc ver=$ver out='$out'"
 fi
-rm -rf "$repo" "$extract"
+rm -rf "$repo"
 
 # --- no plugin paths: no-op ---
 mk_repo repo
