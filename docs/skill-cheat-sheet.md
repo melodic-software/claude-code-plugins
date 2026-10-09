@@ -183,6 +183,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/session-flow:audit-friction`](../plugins/session-flow/skills/audit-friction/SKILL.md) | `session-flow` | Mine sessions for permission and autonomy friction and end in one decision brief |
 | [`/session-flow:audit-sessions`](../plugins/session-flow/skills/audit-sessions/SKILL.md) | `session-flow` | Cross-session audit of transcripts with routed, never-applied findings |
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
