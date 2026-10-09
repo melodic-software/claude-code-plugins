@@ -661,11 +661,7 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
             if row["verdict"] in ("pass", "fail", "inconclusive"):
                 runs += 1
                 cost = row.get("cost_usd")
-                spent += (
-                    cost
-                    if isinstance(cost, (int, float))
-                    else case.get("max_budget_usd", DEFAULT_BUDGET_USD)
-                )
+                spent += cost if isinstance(cost, (int, float)) else budget
             attempts += 1
             if row["verdict"] != "inconclusive" or attempts > args.retries:
                 break

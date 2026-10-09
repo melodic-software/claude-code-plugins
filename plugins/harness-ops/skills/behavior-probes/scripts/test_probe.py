@@ -287,6 +287,21 @@ class SuiteTests(unittest.TestCase):
         self.assertAlmostEqual(budgets[0], 0.4)
         self.assertAlmostEqual(budgets[1], 0.15)
 
+    def test_unknown_cost_is_charged_at_the_capped_budget(self):
+        budgets = []
+
+        def no_result(c, _cwd, _settings_file, _prompt):
+            budgets.append(c["max_budget_usd"])
+            return stream(INIT)
+
+        cases = probe.discover(probe.DEFAULT_CASES)[:2]
+        args = Namespace(
+            max_runs=10, max_cost_usd=0.4, retries=0, keep=False, live=False
+        )
+        rows = probe.run_suite(cases, no_result, args)
+        self.assertEqual(budgets, [0.4])
+        self.assertIn("0.40 USD", rows[1]["note"])
+
     def test_retry_reruns_only_inconclusive(self):
         calls = []
 
