@@ -32,14 +32,19 @@ if [[ -z "$GATE" ]]; then
 fi
 
 skill_verdict() {
+  local body_file verdict
+  body_file=$(mktemp)
+  printf '%s' "$1" >"$body_file"
+  shift
   # shellcheck disable=SC2034  # read by the evaluated create.md block
   (
-    BODY="$1"
-    shift
+    BODY_FILE="$body_file"
     REQUIRED_SECTIONS=("$@")
     REQUIRED_SECTIONS_SOURCE="test fixture"
     eval "$GATE"
-  ) >/dev/null 2>&1 && echo PASS || echo FAIL
+  ) >/dev/null 2>&1 && verdict=PASS || verdict=FAIL
+  rm -f "$body_file"
+  echo "$verdict"
 }
 
 hook_verdict() {
