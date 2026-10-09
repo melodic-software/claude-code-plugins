@@ -65,7 +65,9 @@ research-gated:
   truncates); every reviewer comment gets explore → research → classify →
   react → reply → fix → verify-on-GitHub treatment.
 - **merge**. 6-Gate readiness re-verification, squash merge, worktree
-  reuse/cleanup, post-merge CI health check. Never auto-merges.
+  reuse/cleanup, post-merge CI health check. Merges or enqueues without
+  asking only once the AI review checks pass on the pinned head commit; otherwise
+  merges on approval. Never arms auto-merge.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
 
