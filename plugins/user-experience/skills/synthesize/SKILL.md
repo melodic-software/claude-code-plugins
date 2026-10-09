@@ -74,6 +74,10 @@ that file says; when no file can be written, give the record in the reply. Refus
 under `.claude/` or `.git/`, where a deliverable would become project configuration: say so and use
 that file's default.
 
+Nothing comes before the record's header block. Put the stage line and every note from Context and
+Route (the team file not read and its skipped reason, the route taken, the access that would help)
+after the record.
+
 ## Next
 
 `/user-experience:structure`, which turns the user needs into flows and information architecture.

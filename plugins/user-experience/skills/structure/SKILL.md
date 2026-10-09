@@ -62,6 +62,8 @@ Read the file for the job in front of you:
 ## Rules
 
 - Flows and IA trees are mermaid `flowchart` inline in the record; journeys are markdown tables.
+- Draw the flow in the order the PRD or code gives; put a proposed reorder under recommendations,
+  not in the diagram.
 - Every step names the states it handles (for example empty, error and success) and every exit.
 - For an existing app, read the flow the code already has before proposing a new one, and label
   each step with the file it came from.
@@ -78,6 +80,10 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/deliverable.md` and follow it: the header 
 detect's `team.output_home` when set, else where that file says; when no file can be written, give
 the record in the reply. Refuse an output home under `.claude/` or `.git/`, where a deliverable
 would become project configuration: say so and use that file's default.
+
+Nothing comes before the record's header block. Put the stage line and every note from Context and
+Route (the team file not read and its skipped reason, the route taken, the access that would help)
+after the record.
 
 ## Next
 

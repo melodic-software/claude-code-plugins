@@ -74,6 +74,10 @@ else where that file says; when no file can be written, give the record in the r
 output home under `.claude/` or `.git/`, where a deliverable would become project configuration:
 say so and use that file's default.
 
+Nothing comes before the record's header block. Put the stage line and every note from Context and
+Route (the team file not read and its skipped reason, the route taken, the access that would help)
+after the record.
+
 ## Next
 
 `/user-experience:synthesize`, once the sessions have run and their notes exist.

@@ -87,6 +87,10 @@ that file says; when no file can be written, give the record in the reply. Refus
 under `.claude/` or `.git/`, where a deliverable would become project configuration: say so and use
 that file's default.
 
+Nothing comes before the record's header block. Put the stage line and every note from Context and
+Route (the team file not read and its skipped reason, the route taken, the access that would help)
+after the record.
+
 ## Gotchas
 
 - When the Agent tool is unavailable, evaluate inline and say in the record that the evaluator saw
