@@ -1,0 +1,14 @@
+{
+  "claim": "Control: in default mode under `claude -p`, a permissions.allow rule that matches only the rewritten `git commit -F -` form lets the call run. The model's original `-m` command does not match that rule, so the call running shows the rule was evaluated against the hook's updatedInput.",
+  "tags": ["PreToolUse", "updatedInput", "permissionDecision", "hook", "permission rule", "allow rule", "headless", "print mode"],
+  "permission_mode": "default",
+  "cwd": "repo",
+  "max_budget_usd": 0.5,
+  "target": {
+    "tool": "Bash",
+    "input_match": "git commit -m \\S*Probe subject\\\\n\\\\nProbe body line",
+    "example": { "command": "git commit -m \"Probe subject\n\nProbe body line\"" }
+  },
+  "outcome": "ran",
+  "match": "Probe subject"
+}
