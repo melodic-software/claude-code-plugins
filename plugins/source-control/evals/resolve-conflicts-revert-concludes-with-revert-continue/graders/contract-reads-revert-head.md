@@ -1,5 +1,5 @@
 ---
 type: tool_used
 tool: Bash
-input_match: 'REVERT_HEAD'
+input_match: '\bgit\s+(?:-C\s+\S+\s+)?(?:--no-pager\s+)?(?:show|log|diff)\b[^;&|\n]*\bREVERT_HEAD\b'
 ---
