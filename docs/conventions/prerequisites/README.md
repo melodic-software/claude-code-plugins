@@ -167,15 +167,19 @@ A notice or a failed `check` tells the person what is missing; it does not leave
 fix. When a prerequisite check fails in an interactive session, the agent offers the fix and runs
 it only after the user says yes in this session. Nothing installs without that yes. An unattended
 or autonomous run (a loop lane, CI, a background session) has no one to say yes, so it keeps the
-report-only behavior: it prints the repair line and stops or degrades per the absence class.
+report-only behavior: it prints the repair line and stops or degrades per the absence class. A
+`check` skill stays read-only: it reports and stops, and the offer follows its report. A hook
+notice is not consent; the user's yes in this session is.
 
-How the agent offers and runs the fix depends on what the fix writes:
+How the agent offers and runs the fix depends on how the fix is delivered and what it writes:
 
 | Fix | Offer and run |
 | --- | --- |
 | Plugin-owned, hash-pinned install into the plugin data directory: the same command the plugin's `SessionStart` install hook runs ([Rule P2](../on-demand-dependencies/README.md#rule-p2-install-from-a-hook-never-while-a-skill-runs-spec)), or the repair line of Rule 3 or P4 | Name the command, then run it directly on a yes. |
 | `sudo`, a system-wide package, or a global install | Write the commands to a script file, show its contents, and run it on a yes, reading the result back from a log file. When it needs a password the agent cannot supply, the user runs the script and the agent reads the log. |
-| A large download, such as a model | State its size and source before asking; then run it per the row above that matches where it lands. |
+| A `setup` skill's `apply install-*` subaction | Ask the user to type `/<plugin>:setup apply install-<name>`. A `setup` skill sets `disable-model-invocation`, so the agent cannot invoke its `apply` ([setup is explicit](../../plugin-philosophy.md#setup-is-explicit-and-repeatable)). |
+| A large download, such as a model | State its size and source before asking, then offer it through the row above that matches how it is delivered; a download behind a `setup` subaction is still the user's to type. |
+| Nothing the agent can run: a credential, an account, a service, an MCP server's configuration, or an `install` hint that is only a URL | Say what is missing and where to get it, and stop. The user does it; the agent never improvises a command for it. |
 
 A plugin enabled mid-session needs the first row, because its install hook has not run: per the
 hooks reference, `SessionStart`'s sources (`startup`, `resume`, `clear`, `compact`, `fork`) do not
@@ -187,12 +191,9 @@ error tells the user to "start a new session, whose SessionStart hook installs t
 unnecessary.
 
 The fix is the declared one: the `install` hints, the repair line, or a `setup` skill's
-`apply install-*` subaction. A plain declared command (the hook's install, a sudo script) the agent
-runs on a yes. A `setup` skill sets `disable-model-invocation`, so the agent cannot invoke its
-`apply` ([setup is explicit](../../plugin-philosophy.md#setup-is-explicit-and-repeatable)): for that
-fix it asks the user to type `/<plugin>:setup apply install-<name>`. This rule adds no `apply` verb
-and no subaction ([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)),
-and it never runs an undeclared tool.
+`apply install-*` subaction. This rule adds no `apply` verb and no subaction
+([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)), and it never runs
+an undeclared tool.
 
 Observed 2026-10-04: the speech plugin was enabled mid-session, so its install hook never
 ran; `/speech:check` printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
