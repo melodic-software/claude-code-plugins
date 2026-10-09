@@ -30,6 +30,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 cd "$SCRIPT_DIR/.." || exit 2
+# shellcheck source=lib/changed-files.sh
+. "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/changelog-fragments.sh
 . "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 # shellcheck source=lib/dependabot-entry.sh
@@ -41,7 +43,8 @@ self="$(basename "$0")"
   exit 2
 }
 ref="${1:-HEAD}"
-if ! git rev-parse -q --verify "$ref^{commit}" >/dev/null; then
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! changed_files::verify_base "$ref"; then
   echo "$self: '$ref' is not a commit." >&2
   exit 2
 fi
