@@ -52,15 +52,15 @@ assert_eq() {
 
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "contains: $3" "$2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "contains: $3" "$2" ;;
   esac
 }
 
 assert_absent() {
   case "$2" in
-  *"$3"*) fail "$1" "does NOT contain: $3" "$2" ;;
-  *) pass "$1" ;;
+    *"$3"*) fail "$1" "does NOT contain: $3" "$2" ;;
+    *) pass "$1" ;;
   esac
 }
 
@@ -250,6 +250,21 @@ test_path_with_dotdot_rejected() {
   assert_eq "absolute path: exits 2" 2 "$RC"
 }
 
+test_path_under_dot_claude_rejected() {
+  local r
+  r="$(fixture)"
+  printf 'Team text.\n' >"$r/AGENTS.md"
+  cp "$r/AGENTS.md" "$r/want"
+  run apply --root "$r" --path '.claude/developer-experience.md' --yes
+  assert_eq ".claude path: exits 2" 2 "$RC"
+  assert_contains ".claude path: names the problem" "$ERR" "never under .claude/"
+  assert_file ".claude path: nothing written" "$r/AGENTS.md" "$r/want"
+  run check --root "$r" --path '.claude/rules/dx.md'
+  assert_eq ".claude nested path: check exits 2" 2 "$RC"
+  run check --root "$r" --path 'docs/.claude/dx.md'
+  assert_eq ".claude as a later segment: not a usage error" 1 "$RC"
+}
+
 test_bom_kept_and_line_found() {
   local r
   r="$(fixture)"
@@ -374,6 +389,26 @@ test_load_claude_md_with_import_ok() {
   run check --root "$r" --path "$DEF"
   assert_eq "load import: check exits 0" 0 "$RC"
   assert_absent "load import: no load finding" "$OUT" "load:"
+}
+
+# shellcheck disable=SC2016 # backticks are Markdown fences, not command substitution
+test_load_import_inside_fenced_block_ignored() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  printf '# Claude only\n\n```\n@AGENTS.md\n```\n\n~~~md\n@AGENTS.md\n~~~\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "fenced import: check exits 1" 1 "$RC"
+  assert_contains "fenced import: missing import reported" "$OUT" "load: missing-import CLAUDE.md"
+  mkdir "$r/.claude"
+  printf '```bash\n@../AGENTS.md\n```\n' >"$r/.claude/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "fenced import: .claude/CLAUDE.md reported" "$OUT" "load: missing-import .claude/CLAUDE.md"
+  rm "$r/.claude/CLAUDE.md"
+  printf '```\nexample\n```\n@AGENTS.md\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "import after a closed fence: check exits 0" 0 "$RC"
+  assert_absent "import after a closed fence: no load finding" "$OUT" "load:"
 }
 
 test_load_dot_claude_md_without_import() {
@@ -543,6 +578,7 @@ test_crlf_identical_recognized
 test_path_with_space_rejected
 test_path_with_backslash_rejected
 test_path_with_dotdot_rejected
+test_path_under_dot_claude_rejected
 test_bom_kept_and_line_found
 test_missing_agents_check_reports
 test_missing_agents_apply_without_yes_writes_nothing
@@ -553,6 +589,7 @@ test_other_plugin_citing_dx_skill_untouched
 test_draft_marker_reported_for_migration
 test_load_claude_md_without_import
 test_load_claude_md_with_import_ok
+test_load_import_inside_fenced_block_ignored
 test_load_dot_claude_md_without_import
 test_load_claude_local_md_may_not_load
 test_load_parent_claude_md_may_not_load

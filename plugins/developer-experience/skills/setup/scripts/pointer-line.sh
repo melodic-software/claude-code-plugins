@@ -161,6 +161,7 @@ if [[ -z "$CONV_PATH" ]]; then
   esac
 fi
 valid_path "$CONV_PATH" || die_usage "invalid conventions path (want repo-relative segments of [A-Za-z0-9._-] joined by /): $CONV_PATH"
+[[ "${CONV_PATH%%/*}" != .claude ]] || die_usage "invalid conventions path (the conventions file is never under .claude/): $CONV_PATH"
 DX_LINE="$DX_PREFIX$CONV_PATH$DX_SUFFIX"
 
 AGENTS="$ROOT/AGENTS.md"
@@ -226,9 +227,25 @@ render() {
     }' "$1"
 }
 
-# has_import <file> <token> : the file holds an @-import of AGENTS.md.
+# has_import <file> <token> : the file holds an @-import of AGENTS.md outside
+# fenced code blocks (``` or ~~~, closed by a fence of the same character at
+# least as long), which Claude Code's import parsing skips.
 has_import() {
-  grep -Eq "(^|[[:space:]])$2([[:space:]]|\$)" "$1" 2>/dev/null
+  awk '
+    function fence(s, c,   k) { k = 0; while (substr(s, k + 1, 1) == c) k++; return k }
+    {
+      t = $0
+      sub(/\r$/, "", t)
+      sub(/^ ? ? ?/, "", t)
+      c = substr(t, 1, 1)
+      k = (c == "`" || c == "~") ? fence(t, c) : 0
+      if (open) {
+        if (c == oc && k >= ok && substr(t, k + 1) ~ /^[ \t]*$/) open = 0
+        next
+      }
+      if (k >= 3 && !(c == "`" && index(substr(t, k + 1), "`"))) { open = 1; oc = c; ok = k; next }
+      print
+    }' "$1" 2>/dev/null | grep -E "(^|[[:space:]])$2([[:space:]]|\$)" >/dev/null
 }
 
 # load_report : print load:/add: lines for files that keep AGENTS.md out of
