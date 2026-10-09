@@ -551,5 +551,13 @@ class CheckRow(unittest.TestCase):
         self.assertNotIn(KEY, detail)
 
 
+class ModelOption(unittest.TestCase):
+    def test_the_elevenlabs_model_option_offers_exactly_the_models_table(self):
+        manifest = json.loads((HERE.parent / '.claude-plugin' / 'plugin.json').read_text(encoding='utf-8'))
+        option = manifest['userConfig']['elevenlabs_model']
+        self.assertEqual(option['options'], list(elevenlabs.MODELS))
+        self.assertEqual(option['default'], elevenlabs.DEFAULT_MODEL)
+
+
 if __name__ == '__main__':
     unittest.main()

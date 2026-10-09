@@ -9,7 +9,7 @@ bump: minor
 - **Retries:** HTTP 429 and 5xx are retried with jittered exponential backoff, honoring `Retry-After`; 401 and 422 are not. Errors show the API's `detail.code` (or the older `detail.status`) and message.
 - `words.json` from the elevenlabs backend records `request_id` and `character_cost` from the response headers, plus `voice_settings` and `cached`. `--setting NAME=VALUE` sends voice settings.
 - `eleven_v4` in the `MODELS` table, marked unverified on the with-timestamps endpoint; the default model is unchanged.
-- **Options:** `elevenlabs_model` sets the elevenlabs default model; `model_dir` moves the Kokoro model folder, honored by `narrate.py`, `assets.py` and `check.py`, and `check` reports which source set it (#6373).
+- **Options:** `elevenlabs_model` picks the elevenlabs default model from the `MODELS` ids; `model_dir` moves the Kokoro model folder, honored by `narrate.py`, `assets.py` and `check.py`, and `check` reports which source set it (#6373).
 - `reference/elevenlabs.md`: pointers to the live ElevenLabs docs.
 
 ### Changed

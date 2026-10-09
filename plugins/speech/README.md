@@ -125,7 +125,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `elevenlabs_model` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_ELEVENLABS_MODEL` | Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. Unset keeps the script's default. |
+| `elevenlabs_model` | string | `"eleven_multilingual_v2"` | `CLAUDE_PLUGIN_OPTION_ELEVENLABS_MODEL` | Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default. |
 | `model_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_MODEL_DIR` | Folder that holds the downloaded Kokoro model set (a kokoro-<revision> subfolder per pin), for a larger disk or one cache shared across worktrees and plugins. Unset keeps it under the plugin data directory's models folder. |
 
 ### How to set these
