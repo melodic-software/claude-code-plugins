@@ -30,7 +30,7 @@ CITER='- Run /developer-experience:build-cli before adding a release script (rel
 dx() {
   printf '%s' '- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `'
   printf '%s' "$1"
-  printf '%s' '` and use /developer-experience:build-cli or /developer-experience:audit-tools.'
+  printf '%s' '`. Use /developer-experience:build-cli to create a tool or change its interface, and /developer-experience:audit-tools to take stock of or clean up tools; a bug fix inside one needs neither.'
 }
 
 pass() {
@@ -127,6 +127,22 @@ test_stale_path_replaced() {
   run apply --root "$r" --path "$DEF" --yes
   assert_eq "stale: apply exits 0" 0 "$RC"
   assert_file "stale: only the DX line replaced, in place" "$r/AGENTS.md" "$r/want"
+}
+
+# A line an earlier release wrote: same ownership prefix and path, older tail.
+# It is still this helper's line, so apply converges it in place.
+test_old_tail_replaced() {
+  local r old
+  r="$(fixture)"
+  # shellcheck disable=SC2016 # backticks are Markdown, not command substitution
+  old='- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `'"$DEF"'` and use /developer-experience:build-cli or /developer-experience:audit-tools.'
+  printf '%s\n%s\n%s\n%s\n' "$BEGIN" "$OTHER" "$old" "$END" >"$r/AGENTS.md"
+  printf '%s\n%s\n%s\n%s\n' "$BEGIN" "$OTHER" "$(dx "$DEF")" "$END" >"$r/want"
+  run check --root "$r" --path "$DEF"
+  assert_contains "old tail: check reports stale" "$OUT" "state: stale"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_eq "old tail: apply exits 0" 0 "$RC"
+  assert_file "old tail: only the DX line replaced, in place" "$r/AGENTS.md" "$r/want"
 }
 
 test_identical_line_no_write() {
@@ -567,6 +583,7 @@ test_help_and_usage_errors() {
 test_absent_block_appends_block
 test_block_without_line_inserts
 test_stale_path_replaced
+test_old_tail_replaced
 test_identical_line_no_write
 test_two_dx_lines_fail
 test_unbalanced_begin_only_fails

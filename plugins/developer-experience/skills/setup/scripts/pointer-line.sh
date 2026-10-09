@@ -23,7 +23,7 @@ BEGIN_MARKER='<!-- BEGIN GENERATED: plugin-conventions -->'
 END_MARKER='<!-- END GENERATED: plugin-conventions -->'
 DRAFT_MARKER='<!-- BEGIN plugin-conventions'
 DX_PREFIX='- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `'
-DX_SUFFIX='` and use /developer-experience:build-cli or /developer-experience:audit-tools.'
+DX_SUFFIX='`. Use /developer-experience:build-cli to create a tool or change its interface, and /developer-experience:audit-tools to take stock of or clean up tools; a bug fix inside one needs neither.'
 DEFAULT_PATH='docs/conventions/developer-experience.md'
 
 usage() {

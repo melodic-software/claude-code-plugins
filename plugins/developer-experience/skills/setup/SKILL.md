@@ -11,7 +11,10 @@ disable-model-invocation: true
 the repo-relative conventions file; without it the helper resolves the path. `--user` adds the
 user-level conventions file and the personal pointer lines to the run.
 
-`check` writes nothing. `apply` runs `check`, shows every change and writes only after a yes.
+`check` writes nothing. `apply` runs `check`, shows every change and writes only after a yes. An
+explicit confirmation in the user's invocation ("I confirm the changes it shows") is the yes for
+exactly the changes then shown, still printed before writing; anything beyond them (another file, a
+personal-file pointer, a team-content edit) needs its own yes.
 
 What this skill writes, and only this: the conventions file (format and rules:
 [reference/conventions-file.md](reference/conventions-file.md), read it before writing one), the
