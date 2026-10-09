@@ -40,10 +40,11 @@ saving.
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
 (`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
 edits prompt even in auto mode. It matches only the settings files Claude Code reads:
-`settings.json` and `settings.local.json` in the user settings directory (`CLAUDE_CONFIG_DIR`,
-else `~/.claude`) or in `.claude/` under the project directory, the session's working directory
-or its git toplevel, plus `managed-settings.json` and `managed-settings.d/` drop-ins in the
-managed system directory. A fixture or example named `.claude/settings.json` elsewhere does not
+`settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`),
+`settings.json` and `settings.local.json` in `.claude/` under the project directory or the
+session's working directory, `settings.local.json` at the main checkout's root (where Claude Code
+keeps it for a session started in a subdirectory or a linked worktree), plus
+`managed-settings.json` and `managed-settings.d/` drop-ins in the managed system directory. A fixture or example named `.claude/settings.json` elsewhere does not
 prompt. It is a
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
 removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
@@ -62,7 +63,6 @@ disk. These routes change a settings file without an ask:
 - A tool that renders configuration into place from a source elsewhere, such as a dotfile manager
   applying a template or symlink. That write is a legitimate action by another program, inside the
   session or outside it.
-- A drop-in under `managed-settings.d/`, which the path match does not include.
 
 For a signal that fires whatever wrote the file, Claude Code's `ConfigChange` hook event runs
 when a settings file changes during a session. It can stop the new settings from applying to the

@@ -22,12 +22,13 @@
 //
 // Scope: the settings files Claude Code reads, and nothing else (hook-precision:
 // false positives erode trust in the prompt, so a fixture named
-// `.claude/settings.json` passes silently). Those are settings(.local).json in
-// the user settings directory ($CLAUDE_CONFIG_DIR, else ~/.claude) and in
-// `.claude/` under the session's project directory, the payload cwd, or the
-// cwd's git toplevel (settings.local.json sits at the repository root when a
-// session starts in a subdirectory); plus managed-settings.json and
-// managed-settings.d/*.json in the managed system directory. Paths:
+// `.claude/settings.json` passes silently). Those are settings.json in the user
+// settings directory ($CLAUDE_CONFIG_DIR, else ~/.claude); settings(.local).json
+// in `.claude/` under the session's project directory or the payload cwd;
+// settings.local.json at the main checkout's root (Claude Code keeps it there
+// when a session starts in a subdirectory or a linked worktree); plus
+// managed-settings.json and managed-settings.d/*.json in the managed system
+// directory. Paths:
 // https://code.claude.com/docs/en/settings and /docs/en/managed-settings, as of
 // 2026-10-09; recheck when either page moves a settings path. The matcher sees
 // file-editing tool calls only: a settings write through Bash/PowerShell, or one
@@ -38,17 +39,23 @@
 import { execFileSync } from 'node:child_process';
 
 const slash = (p) => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '');
+// Windows resolves through PROGRAMFILES, as lib/managed-scope.sh does, so a
+// relocated Program Files directory still matches.
 const MANAGED_DIRS = [
   '/Library/Application Support/ClaudeCode',
   '/etc/claude-code',
-  'C:/Program Files/ClaudeCode',
+  `${slash(process.env.PROGRAMFILES) || 'C:/Program Files'}/ClaudeCode`,
 ];
 
-function gitToplevel(cwd) {
+// The root Claude Code keeps settings.local.json at: the main checkout's root,
+// which is the cwd's toplevel except in a linked worktree.
+function localSettingsRoot(cwd) {
   try {
-    return execFileSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], {
+    const [top, common] = execFileSync('git', ['-C', cwd, 'rev-parse', '--path-format=absolute',
+      '--show-toplevel', '--git-common-dir'], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000,
-    });
+    }).split('\n').map(slash);
+    return /\/\.git$/i.test(common) ? common.slice(0, -5) : top;
   } catch {
     return '';
   }
@@ -78,7 +85,7 @@ process.stdin.on('end', () => {
 
     const home = slash(process.env.HOME || process.env.USERPROFILE);
     const userDir = slash(process.env.CLAUDE_CONFIG_DIR) || (home && `${home}/.claude`);
-    const userGlobal = /^settings/i.test(name) && isDir(userDir);
+    const userGlobal = /^settings\.json$/i.test(name) && isDir(userDir);
 
     let live = userGlobal;
     if (!live && /^managed/i.test(name)) {
@@ -87,7 +94,7 @@ process.stdin.on('end', () => {
       const cwd = slash(payload.cwd);
       const atRoot = (r) => isDir(r && `${r}/.claude`);
       live = atRoot(slash(process.env.CLAUDE_PROJECT_DIR)) || atRoot(cwd)
-        || (cwd !== '' && atRoot(slash(gitToplevel(cwd).trim())));
+        || (/local/i.test(name) && cwd !== '' && atRoot(localSettingsRoot(cwd)));
     }
     if (!live) process.exit(0);
 

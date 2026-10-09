@@ -2,11 +2,11 @@
 # Contract test for the settings-write ask checkpoint hook.
 #
 # Contract: a Write/Edit/NotebookEdit whose target is a settings file Claude
-# Code reads gets permissionDecision "ask": settings(.local).json in the user
-# settings directory ($CLAUDE_CONFIG_DIR, else ~/.claude) or in .claude/ under
-# the project directory, the payload cwd or its git toplevel, plus
-# managed-settings.json and managed-settings.d/*.json in the managed system
-# directory, case-insensitively, since macOS and Windows filesystems resolve
+# Code reads gets permissionDecision "ask": settings.json in the user settings
+# directory ($CLAUDE_CONFIG_DIR, else ~/.claude), settings(.local).json in
+# .claude/ under the project directory or the payload cwd, settings.local.json
+# at the main checkout's root, plus managed-settings.json and
+# managed-settings.d/*.json in the managed system directory, case-insensitively, since macOS and Windows filesystems resolve
 # case variants to the same file. Every other payload, including a fixture
 # named .claude/settings.json elsewhere in the tree, gets NO output and exit 0.
 # Fail-open on garbage input. Kill switch via the
@@ -57,6 +57,9 @@ FAKEHOME="$WORK/home"
 REPO="$WORK/repo"
 mkdir -p "$FAKEHOME/.claude" "$REPO/sub"
 git init -q "$REPO"
+git -C "$REPO" -c user.name=t -c user.email=t@t -c commit.gpgsign=false -c core.hooksPath=/dev/null \
+  commit -q --allow-empty -m init
+git -C "$REPO" worktree add -q --detach "$WORK/wt"
 
 # run <tool_name> <file_path> [cwd] [env KEY=VALUE] — prints hook stdout
 run() {
@@ -78,6 +81,12 @@ assert_asks "$(run Edit "$REPO/.claude/settings.local.json")" \
 
 assert_asks "$(run Edit "$REPO/.claude/settings.local.json" "$REPO/sub")" \
   "settings at the git toplevel asks from a subdirectory cwd"
+
+assert_asks "$(run Edit "$REPO/.claude/settings.local.json" "$WORK/wt")" \
+  "the main checkout's settings.local.json asks from a linked worktree cwd"
+
+assert_asks "$(run Write "$WORK/pf/ClaudeCode/managed-settings.json" "$REPO" "PROGRAMFILES=$WORK/pf")" \
+  "managed-settings.json under a relocated PROGRAMFILES asks"
 
 assert_asks "$(run Write "$WORK/elsewhere/.claude/settings.json" "$REPO" "CLAUDE_PROJECT_DIR=$WORK/elsewhere")" \
   "settings under CLAUDE_PROJECT_DIR asks"
@@ -105,6 +114,12 @@ assert_silent "$(run Write "$REPO/tests/fixtures/.claude/settings.json")" \
 
 assert_silent "$(run Write "$REPO/sub/.claude/settings.local.json")" \
   "a nested .claude/settings.local.json outside cwd and root passes silently"
+
+assert_silent "$(run Write "$REPO/.claude/settings.json" "$REPO/sub")" \
+  "a repository-root settings.json passes silently from a subdirectory cwd"
+
+assert_silent "$(run Write "$FAKEHOME/.claude/settings.local.json")" \
+  "settings.local.json in the user settings directory passes silently"
 
 assert_silent "$(run Write "$REPO/docs/managed-settings.json")" \
   "a managed-settings.json outside the managed directory passes silently"

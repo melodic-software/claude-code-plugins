@@ -11,7 +11,7 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 
 ### Fixed
 
-- **Settings-write checkpoint asks only on live settings files.** The `PreToolUse` ask now fires only for `settings.json` and `settings.local.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`) or in `.claude/` under the project directory, the session's working directory or its git toplevel, and for `managed-settings.json` or a `managed-settings.d/` drop-in in the managed system directory. A test fixture or example named `.claude/settings.json` elsewhere in the tree no longer prompts.
+- **Settings-write checkpoint asks only on live settings files.** The `PreToolUse` ask now fires only for `settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`), `settings.json` and `settings.local.json` in `.claude/` under the project directory or the session's working directory, `settings.local.json` at the main checkout's root (also from a linked worktree), and `managed-settings.json` or a `managed-settings.d/` drop-in in the managed system directory (on Windows, under `PROGRAMFILES`). A test fixture or example named `.claude/settings.json` elsewhere in the tree no longer prompts.
 
 ## [0.9.10] - 2026-10-07
 
