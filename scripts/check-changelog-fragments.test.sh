@@ -349,7 +349,7 @@ run_dependabot "--check-required does not exempt a pull request another author o
 run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'dependabot[bot]' false 0
 run_dependabot "--check-required does not exempt when the signature lookup fails" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 1
 out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
-  bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+  env -u GITHUB_REPOSITORY bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
 if [[ $? -eq 1 && "$out" == *"MISSING FRAGMENT"* ]]; then
   ok "--check-required does not exempt without GITHUB_REPOSITORY to look the signature up"
 else
