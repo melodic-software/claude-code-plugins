@@ -84,11 +84,11 @@ the file and line behind it and one remediation line per FAIL:
    conventions` heading, or named `developer-experience.md`. List every file that references the
    old path.
 4. **Sections**: a section the current plugin defines that the file lacks (a newer plugin version
-   added it); a section with no provenance marker; a `default` section whose plugin default changed
-   since `written_against` (apply updates it); a `default` section whose body differs from the
-   default while `written_against` equals the running version (a team edit: report the marker to
-   flip to `chosen`, never overwrite the body); a `chosen` section whose plugin default
-   changed since `written_against` (INFO only, never rewritten). Read the current plugin version
+   added it); a section with no provenance marker; a `default` section whose body differs from the
+   current default: with `written_against` equal to the running version it is a team edit (report
+   the marker to flip to `chosen`, never overwrite the body); otherwise check cannot tell an older
+   default from a team edit, so report "changed default or team edit: confirm"; a `chosen` section
+   whose plugin default changed since `written_against` (INFO only, never rewritten). Read the current plugin version
    from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` (`version`).
 5. **Facts**: every statement outside `## Not yet` that claims something about the repository and
    that you can test by reading it: a command, flag, helper or platform that the file says exists
@@ -115,7 +115,7 @@ configure (conventions at the path), or nothing to do.
    - **migrate**: carry the old file's content to the configured path, unknown sections and prose
      verbatim; add front matter and markers; list removing the old file among the changes.
    - **configure**: plugin-owned changes only: the option the user asked for, missing sections,
-     `default` sections whose default changed since `written_against`. Team content (a `chosen`
+     a "changed default or team edit" body once the user names that change. Team content (a `chosen`
      section, a hand-edited `default` body or its marker, a false fact) stays as found unless the
      user names its fix; `check` reports it. A re-run on a converged file writes nothing.
 3. Show every change: the conventions file as a diff (or the full file when new) and the helper's

@@ -7,6 +7,11 @@
 # Each case builds its own fixture repository under one mktemp directory that
 # the EXIT trap removes. Cases that need a symlink or a chmod the host does not
 # honor (Git Bash without symlink rights, NTFS modes) print SKIP and move on.
+#
+# The helper walks every directory above --root for CLAUDE.md files, and the
+# test cannot control the directories above mktemp's. So no case asserts the
+# absence of a may-not-load finding or a note it could cause, except where the
+# repository's own CLAUDE.md imports AGENTS.md and the walk never runs.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR POINTER_LINE_RESOLVER
 
@@ -448,6 +453,7 @@ test_load_claude_local_md_may_not_load() {
   printf 'my sandbox\n' >"$r/CLAUDE.local.md"
   cp "$r/CLAUDE.local.md" "$r/local.want"
   run check --root "$r" --path "$DEF"
+  assert_eq "load CLAUDE.local.md: may-not-load alone, check exits 0" 0 "$RC"
   assert_contains "load CLAUDE.local.md: may not load" "$OUT" "load: may-not-load CLAUDE.local.md"
   assert_contains "load CLAUDE.local.md: line to add printed" "$OUT" "add: CLAUDE.md: @AGENTS.md"
   run apply --root "$r" --path "$DEF" --yes
@@ -463,6 +469,7 @@ test_load_parent_claude_md_may_not_load() {
   printf '# Parent rules\n' >"$p/CLAUDE.md"
   cp "$p/CLAUDE.md" "$p/claude.want"
   run check --root "$r" --path "$DEF"
+  assert_eq "load parent CLAUDE.md: may-not-load alone, check exits 0" 0 "$RC"
   assert_contains "load parent CLAUDE.md: may not load" "$OUT" "load: may-not-load $p/CLAUDE.md"
   assert_contains "load parent CLAUDE.md: line to add printed" "$OUT" "add: CLAUDE.md: @AGENTS.md"
   run apply --root "$r" --path "$DEF" --yes
@@ -571,13 +578,231 @@ test_apply_without_yes_and_no_tty_declines() {
 }
 
 test_help_and_usage_errors() {
+  local r
+  r="$(fixture)"
   run --help
   assert_eq "help: exits 0" 0 "$RC"
   assert_contains "help: prints usage on stdout" "$OUT" "Usage:"
+  run check --help
+  assert_eq "help after command: exits 0" 0 "$RC"
+  assert_contains "help after command: prints usage" "$OUT" "Usage:"
   run frobnicate
   assert_eq "unknown command: exits 2" 2 "$RC"
+  run
+  assert_eq "no command: exits 2" 2 "$RC"
+  assert_contains "no command: names the problem" "$ERR" "missing command"
   run check --bogus
   assert_eq "unknown flag: exits 2" 2 "$RC"
+  run check --root
+  assert_eq "--root without a value: exits 2" 2 "$RC"
+  run check --root "$r" --path
+  assert_eq "--path without a value: exits 2" 2 "$RC"
+  run check --root "$r/nope" --path "$DEF"
+  assert_eq "--root not a directory: exits 2" 2 "$RC"
+}
+
+# A new AGENTS.md that a .claude/CLAUDE.md without the import keeps out of context.
+test_created_agents_note_for_dot_claude() {
+  local r
+  r="$(fixture)"
+  mkdir "$r/.claude"
+  printf '# Claude only\n' >"$r/.claude/CLAUDE.md"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_eq "created, .claude/CLAUDE.md: exits 0" 0 "$RC"
+  assert_contains "created, .claude/CLAUDE.md: result created" "$OUT" "result: created"
+  assert_contains "created, .claude/CLAUDE.md: note names its import" "$OUT" \
+    "note: AGENTS.md has no effect until .claude/CLAUDE.md imports @../AGENTS.md"
+}
+
+test_created_agents_note_for_claude_local() {
+  local r
+  r="$(fixture)"
+  printf 'my sandbox\n' >"$r/CLAUDE.local.md"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_eq "created, CLAUDE.local.md: exits 0" 0 "$RC"
+  assert_contains "created, CLAUDE.local.md: note says may not load" "$OUT" \
+    "note: AGENTS.md may not load until CLAUDE.md imports @AGENTS.md"
+}
+
+test_created_agents_no_note_when_imported() {
+  local r
+  r="$(fixture)"
+  printf '@AGENTS.md\n' >"$r/CLAUDE.md"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_contains "created, imported: result created" "$OUT" "result: created"
+  assert_absent "created, imported: no note" "$OUT" "note:"
+}
+
+test_missing_import_alongside_may_not_load_fails_check() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  printf '# Claude only\n' >"$r/CLAUDE.md"
+  printf 'my sandbox\n' >"$r/CLAUDE.local.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "missing-import + may-not-load: check exits 1" 1 "$RC"
+}
+
+test_import_forms_recognized() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  printf 'Read this: @./AGENTS.md first.\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "@./AGENTS.md mid-line: check exits 0" 0 "$RC"
+  assert_absent "@./AGENTS.md mid-line: no load finding" "$OUT" "load:"
+  printf '@AGENTS.md.bak\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "@AGENTS.md.bak: not an import" "$OUT" "load: missing-import CLAUDE.md"
+  rm "$r/CLAUDE.md"
+  mkdir "$r/.claude"
+  printf '@../AGENTS.md\n' >"$r/.claude/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq ".claude/CLAUDE.md import: check exits 0" 0 "$RC"
+  assert_absent ".claude/CLAUDE.md import: no load finding" "$OUT" "load:"
+}
+
+# shellcheck disable=SC2016 # backticks are Markdown fences, not command substitution
+test_fence_edge_cases() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  printf '   ````\n```\n@AGENTS.md\n````\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "indented 4-tick fence: a shorter fence does not close it" "$OUT" \
+    "load: missing-import CLAUDE.md"
+  printf '```inline` text\n@AGENTS.md\n' >"$r/CLAUDE.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "backtick info string with a backtick: not a fence" 0 "$RC"
+}
+
+test_both_claude_files_missing_import() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  printf '# Claude only\n' >"$r/CLAUDE.md"
+  mkdir "$r/.claude"
+  printf '# Claude only\n' >"$r/.claude/CLAUDE.md"
+  printf 'my sandbox\n' >"$r/CLAUDE.local.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "both: root reported" "$OUT" "load: missing-import CLAUDE.md"
+  assert_contains "both: .claude reported" "$OUT" "load: missing-import .claude/CLAUDE.md"
+  assert_eq "both: one root add line" 1 "$(grep -c '^add: CLAUDE.md: @AGENTS.md$' <<<"$OUT")"
+}
+
+test_parent_dot_claude_and_local_may_not_load() {
+  local p r
+  p="$(fixture)"
+  r="$p/repo"
+  mkdir -p "$r" "$p/.claude"
+  current_agents "$r"
+  printf 'x\n' >"$p/.claude/CLAUDE.md"
+  printf 'x\n' >"$p/CLAUDE.local.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "parent .claude/CLAUDE.md: may not load" "$OUT" "load: may-not-load $p/.claude/CLAUDE.md"
+  assert_contains "parent CLAUDE.local.md: may not load" "$OUT" "load: may-not-load $p/CLAUDE.local.md"
+}
+
+test_home_dot_claude_skipped() {
+  local p r
+  p="$(fixture)"
+  r="$p/repo"
+  mkdir -p "$r" "$p/.claude"
+  current_agents "$r"
+  printf 'x\n' >"$p/.claude/CLAUDE.md"
+  OUT="$(HOME="$p" bash "$SUT" check --root "$r" --path "$DEF" 2>/dev/null </dev/null)"
+  assert_absent "HOME/.claude/CLAUDE.md: not reported" "$OUT" "$p/.claude/CLAUDE.md"
+}
+
+test_root_from_claude_project_dir() {
+  local r
+  r="$(fixture)"
+  current_agents "$r"
+  OUT="$(CLAUDE_PROJECT_DIR="$r" bash "$SUT" check --path "$DEF" 2>/dev/null </dev/null)"
+  assert_contains "CLAUDE_PROJECT_DIR: used as root" "$OUT" "state: current"
+}
+
+test_dry_run_missing_file() {
+  local r
+  r="$(fixture)"
+  run apply --root "$r" --path "$DEF" --dry-run
+  assert_eq "dry run, no file: exits 0" 0 "$RC"
+  assert_contains "dry run, no file: diff names the new file" "$OUT" "+++ b/AGENTS.md"
+  assert_contains "dry run, no file: diff adds the line" "$OUT" "+$(dx "$DEF")"
+  assert_eq "dry run, no file: nothing created" absent "$(kind "$r/AGENTS.md")"
+}
+
+test_stale_crlf_line_keeps_crlf() {
+  local r
+  r="$(fixture)"
+  printf '%s\r\n%s\r\n%s\r\n' "$BEGIN" "$(dx old.md)" "$END" >"$r/AGENTS.md"
+  printf '%s\r\n%s\r\n%s\r\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_file "stale crlf: replaced line keeps CRLF" "$r/AGENTS.md" "$r/want"
+}
+
+test_no_block_edge_cases() {
+  local r
+  r="$(fixture)"
+  printf 'Team text.\n\n' >"$r/AGENTS.md"
+  printf 'Team text.\n\n%s\n%s\n%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_file "no block, blank last line: no second blank" "$r/AGENTS.md" "$r/want"
+  : >"$r/AGENTS.md"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_file "no block, empty file: block only" "$r/AGENTS.md" "$r/want"
+  printf 'Team text.\r\n' >"$r/AGENTS.md"
+  printf 'Team text.\r\n\r\n%s\r\n%s\r\n%s\r\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/want"
+  run apply --root "$r" --path "$DEF" --yes
+  assert_file "no block, crlf: appended block uses CRLF" "$r/AGENTS.md" "$r/want"
+}
+
+test_marker_and_line_placement() {
+  local r
+  r="$(fixture)"
+  printf '%s\n%s\n%s\n%s\n%s\n' "$BEGIN" "$OTHER" "$END" "$BEGIN" "$END" >"$r/AGENTS.md"
+  run check --root "$r" --path "$DEF"
+  assert_eq "two blocks: check exits 3" 3 "$RC"
+  assert_contains "two blocks: unbalanced" "$OUT" "state: unbalanced-markers"
+  printf '  %s  \n%s\n\t%s\n' "$BEGIN" "$(dx "$DEF")" "$END" >"$r/AGENTS.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "padded markers: recognized" "$OUT" "state: current"
+  printf '%s\n%s\n%s\n' "$(dx "$DEF")" "$BEGIN" "$END" >"$r/AGENTS.md"
+  run check --root "$r" --path "$DEF"
+  assert_contains "DX line outside the block: not counted" "$OUT" "state: no-line"
+}
+
+test_resolver_trailing_slash_and_invalid_path() {
+  local r
+  r="$(fixture)"
+  printf '%s\n%s\n%s\n' "$BEGIN" "$(dx team/developer-experience.md)" "$END" >"$r/AGENTS.md"
+  POINTER_LINE_RESOLVER="$(stub 0 'team/' '')"
+  export POINTER_LINE_RESOLVER
+  run check --root "$r"
+  assert_contains "resolver trailing slash: one separator" "$OUT" "path: team/developer-experience.md"
+  POINTER_LINE_RESOLVER="$(stub 0 '../up' '')"
+  run check --root "$r"
+  unset POINTER_LINE_RESOLVER
+  assert_eq "resolver invalid home: exits 2" 2 "$RC"
+}
+
+test_unwritable_root_reports_write_error() {
+  local r
+  r="$(fixture)"
+  printf 'Team text.\n' >"$r/AGENTS.md"
+  cp "$r/AGENTS.md" "$TEST_TMPDIR/unwritable.want"
+  chmod 0555 "$r"
+  if touch "$r/probe" 2>/dev/null; then
+    rm -f "$r/probe"
+    chmod 0755 "$r"
+    skip "unwritable root" "host lets this user write a 0555 directory"
+    return
+  fi
+  run apply --root "$r" --path "$DEF" --yes
+  chmod 0755 "$r"
+  assert_eq "unwritable root: exits 6" 6 "$RC"
+  assert_file "unwritable root: nothing written" "$r/AGENTS.md" "$TEST_TMPDIR/unwritable.want"
 }
 
 test_absent_block_appends_block
@@ -618,6 +843,22 @@ test_resolver_internal_error_stops
 test_dry_run_shows_diff_writes_nothing
 test_apply_without_yes_and_no_tty_declines
 test_help_and_usage_errors
+test_created_agents_note_for_dot_claude
+test_created_agents_note_for_claude_local
+test_created_agents_no_note_when_imported
+test_missing_import_alongside_may_not_load_fails_check
+test_import_forms_recognized
+test_fence_edge_cases
+test_both_claude_files_missing_import
+test_parent_dot_claude_and_local_may_not_load
+test_home_dot_claude_skipped
+test_root_from_claude_project_dir
+test_dry_run_missing_file
+test_stale_crlf_line_keeps_crlf
+test_no_block_edge_cases
+test_marker_and_line_placement
+test_resolver_trailing_slash_and_invalid_path
+test_unwritable_root_reports_write_error
 
 printf '\n%d checks, %d failed\n' "$CASES" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

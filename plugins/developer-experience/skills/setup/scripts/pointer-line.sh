@@ -44,8 +44,8 @@ Usage:
   --dry-run  print the diff apply would write and stop
 
 Output (stdout, one "key: value" per line): file, state, path, source, then any
-load: and add: lines, then result: (and a note: when a new AGENTS.md cannot load
-yet) for apply.
+load: and add: lines, then result: (and a note: when a new AGENTS.md does not or
+may not load yet) for apply.
   state   current | stale | no-line | no-block | missing-file | duplicate-line |
           unbalanced-markers | draft-marker | symlink
   source  flag | bound | default
@@ -54,8 +54,9 @@ yet) for apply.
 
 Environment: POINTER_LINE_RESOLVER overrides the convention-home resolver path.
 
-Exit: 0 current or written; 1 check: change needed, apply: not confirmed (nothing
-      written); 2 usage or invalid --path; 3 AGENTS.md cannot be edited safely
+Exit: 0 current or written (check: a may-not-load finding alone still exits 0);
+      1 check: change needed (line not current, or a missing-import), apply: not
+      confirmed (nothing written); 2 usage or invalid --path; 3 AGENTS.md cannot be edited safely
       (two DX lines, unbalanced markers, draft marker); 4 AGENTS.md is a symlink;
       5 the convention-home resolver reported FAIL; 6 internal or write error.
 EOF
@@ -234,7 +235,7 @@ render() {
 # fenced code blocks (``` or ~~~, closed by a fence of the same character at
 # least as long), which Claude Code's import parsing skips.
 has_import() {
-  awk '
+  awk -v BINMODE=3 '
     function fence(s, c,   k) { k = 0; while (substr(s, k + 1, 1) == c) k++; return k }
     {
       t = $0
@@ -252,26 +253,31 @@ has_import() {
 }
 
 # load_report : print load:/add: lines for files that keep AGENTS.md out of
-# context. Sets LOAD_FINDINGS.
-LOAD_FINDINGS=0
+# context. Sets MISSING_IMPORTS (only these fail check) and LOAD_NOTE (the
+# first finding, worded for a newly created AGENTS.md).
+MISSING_IMPORTS=0
+LOAD_NOTE=""
 load_report() {
   if [[ -L "$CLAUDE" && "$CLAUDE" -ef "$AGENTS" ]]; then return; fi
   if [[ -f "$CLAUDE" ]] && has_import "$CLAUDE" '@(\./)?AGENTS\.md'; then return; fi
   if [[ -f "$DOT_CLAUDE" ]] && has_import "$DOT_CLAUDE" '@\.\./AGENTS\.md'; then return; fi
   local root_add=0 need_root_add=0 d f
+  local may_not='AGENTS.md may not load until CLAUDE.md imports @AGENTS.md'
   if [[ -e "$CLAUDE" ]]; then
     printf 'load: missing-import CLAUDE.md\nadd: CLAUDE.md: @AGENTS.md\n'
     root_add=1
-    LOAD_FINDINGS=$((LOAD_FINDINGS + 1))
+    MISSING_IMPORTS=$((MISSING_IMPORTS + 1))
+    LOAD_NOTE='AGENTS.md has no effect until CLAUDE.md imports @AGENTS.md'
   fi
   if [[ -e "$DOT_CLAUDE" ]]; then
     printf 'load: missing-import .claude/CLAUDE.md\nadd: .claude/CLAUDE.md: @../AGENTS.md\n'
-    LOAD_FINDINGS=$((LOAD_FINDINGS + 1))
+    MISSING_IMPORTS=$((MISSING_IMPORTS + 1))
+    LOAD_NOTE="${LOAD_NOTE:-AGENTS.md has no effect until .claude/CLAUDE.md imports @../AGENTS.md}"
   fi
   if [[ -e "$ROOT/CLAUDE.local.md" ]]; then
     printf 'load: may-not-load CLAUDE.local.md\n'
     need_root_add=1
-    LOAD_FINDINGS=$((LOAD_FINDINGS + 1))
+    LOAD_NOTE="${LOAD_NOTE:-$may_not}"
   fi
   d="$ROOT"
   while [[ "$d" != / && -n "$d" ]]; do
@@ -282,7 +288,7 @@ load_report() {
       if [[ -e "$f" ]]; then
         printf 'load: may-not-load %s\n' "$f"
         need_root_add=1
-        LOAD_FINDINGS=$((LOAD_FINDINGS + 1))
+        LOAD_NOTE="${LOAD_NOTE:-$may_not}"
       fi
     done
   done
@@ -325,7 +331,7 @@ case "$STATE" in
 esac
 
 if [[ "$CMD" == check ]]; then
-  [[ "$STATE" == current && "$LOAD_FINDINGS" -eq 0 ]] && exit 0
+  [[ "$STATE" == current && "$MISSING_IMPORTS" -eq 0 ]] && exit 0
   exit 1
 fi
 
@@ -383,9 +389,7 @@ DIR_TMP=""
 
 if [[ "$STATE" == missing-file ]]; then
   printf 'result: created\n'
-  if [[ -e "$CLAUDE" && "$LOAD_FINDINGS" -gt 0 ]]; then
-    printf 'note: AGENTS.md has no effect until CLAUDE.md imports @AGENTS.md\n'
-  fi
+  [[ -z "$LOAD_NOTE" ]] || printf 'note: %s\n' "$LOAD_NOTE"
 else
   printf 'result: written\n'
 fi

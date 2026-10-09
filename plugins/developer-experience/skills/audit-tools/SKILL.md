@@ -69,9 +69,10 @@ What earns a verdict:
 - A task-runner entry follows its target: an entry that runs a retired script is retired with it.
 - Each verdict is a recommendation and carries a `Basis:` line per
   the file at `${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md` (read it at that path).
-  When the evidence cannot settle a verdict, give the closest one marked unverified and list it
-  as an open question naming what would settle it. Deleting a script is irreversible for the
-  team, so a retire verdict still deletes nothing without a yes that covers that deletion.
+  When the evidence cannot settle a verdict, the item gets `keep`, marked unverified, with the
+  open question and the evidence that would settle it; `retire`, `consolidate` and `migrate`
+  are never given unverified. Deleting a script is irreversible for the team, so a deletion
+  follows only a settled `retire` plus a yes that covers that deletion.
 
 Report one row per item: item, verdict, evidence (`file:line`), `Basis:`. Then list the proposed
 changes, each one waiting for its own yes; an item that deletes a script names the script in it.

@@ -66,8 +66,10 @@ A fact you could not confirm is asked about or left out, never written as found.
 ## Provenance markers
 
 `<!-- developer-experience: source=default -->`: the body is the current plugin default below,
-word for word. `check` compares it with the default of the running plugin version, and `apply`
-updates it when the default changed.
+word for word. `check` compares it with the default of the running plugin version. When the body
+differs and `written_against` is another version, `check` cannot tell an older default from a team
+edit: it reports "changed default or team edit: confirm", and `apply` rewrites the body only after
+the user names that change.
 
 `<!-- developer-experience: source=chosen -->`: the team wrote or confirmed the body, or it holds
 facts read from this repository. `apply` never rewrites it; `check` reports a changed plugin
@@ -88,7 +90,7 @@ The sections this plugin version defines, in order. A file that lacks one gets i
 | `Tools` | each command and script: how it is run, what it does, whether it reads from the terminal or waits for input, any non-interactive flag it really has | none; always `chosen` |
 | `Shared helpers` | helpers new tools reuse (a process runner, logging, argument parsing), with their paths | none; always `chosen` |
 | `CLI contract` | the contract new and changed commands follow | New and changed commands follow the contract of /developer-experience:build-cli. Existing commands are described under Tools as they are now. |
-| `Secrets` | how tools receive secrets | New and changed tools read secrets from environment variables or stdin, never from a flag value. |
+| `Secrets` | how tools receive secrets | New and changed tools read secrets from environment variables, stdin or a file the caller names, never from a flag value. |
 | `Platforms` | the platforms the project declares, and the rule for new tools | New tools target the platforms listed in this section; with none listed, Windows, macOS and Linux. |
 
 ## Example
@@ -116,7 +118,7 @@ New and changed commands follow the contract of /developer-experience:build-cli.
 
 ## Secrets
 <!-- developer-experience: source=default -->
-New and changed tools read secrets from environment variables or stdin, never from a flag value.
+New and changed tools read secrets from environment variables, stdin or a file the caller names, never from a flag value.
 
 ## Platforms
 <!-- developer-experience: source=chosen -->
