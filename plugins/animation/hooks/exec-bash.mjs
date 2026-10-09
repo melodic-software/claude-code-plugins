@@ -394,9 +394,11 @@ export function payloadSessionId(input) {
 
 // run-python-hook.sh --skip-unless-marker skips when a candidate directory
 // exists and no candidate holds <session>.launched. This skips only when the
-// marker-root directory exists and no candidate it or Git Bash's /tmp could
-// name holds the file. A missing or non-printable-ASCII session id (bash folds
-// non-ASCII per locale) runs.
+// marker-root directory, or off Windows the script's own ${TMPDIR:-/tmp}
+// candidate, exists and no candidate it or Git Bash's /tmp could name holds the
+// file. On Windows the tmp list also holds TEMP and TMP, which the script never
+// reads, so there only the marker-root directory counts. A missing or
+// non-printable-ASCII session id (bash folds non-ASCII per locale) runs.
 // biome-ignore lint/suspicious/noTemplateCurlyInString: the unsubstituted placeholder, verbatim
 const DATA_PLACEHOLDER = "${CLAUDE_PLUGIN_DATA}";
 function markerSkips(subdir, input, ctx) {
@@ -409,7 +411,8 @@ function markerSkips(subdir, input, ctx) {
   if (ctx.platform === "win32") tmpRoots.push(ctx.env.TEMP, ctx.env.TMP);
   const tmpDirs = tmpRoots.filter(Boolean).flatMap((t) => bashPaths(`${t}/disk-hygiene-${subdir}`, ctx));
   if ([...rootDirs, ...tmpDirs].some((d) => ctx.fs.isFile(`${d}/${name}`))) return false;
-  return rootDirs.some((d) => ctx.fs.isDir(d));
+  const seenDirs = ctx.platform === "win32" ? rootDirs : [...rootDirs, ...tmpDirs];
+  return seenDirs.some((d) => ctx.fs.isDir(d));
 }
 
 function pathCandidates(env, platform) {
