@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.0] - 2026-10-09
+
+### Added
+
+- `worktree-create.sh` runs `npm ci` in a new worktree that has a `package-lock.json`, so the first commit's pre-commit hooks find `node_modules/.bin`. A missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`, which stops npm and its child processes) warns on stderr and leaves the exit code unchanged. `prerequisites.json` declares npm as optional.
+
+### Changed
+
+- `pull-request` merges or enqueues a PR without asking only when it reads `CLEAN` and the AI review checks, matched by exact name, have passed on the head commit pinned with `--match-head-commit`, in a melodic-software repository whose live base-branch ruleset requires `ci-status`. Behind a merge queue it passes no strategy flag and waits until the PR merges or leaves the queue. It never arms auto-merge and never passes `--admin`, `--merge` or `--rebase`. A PR that changes CI workflows, permission or agent-instruction configuration still merges only when the user names it. The merge-queue case no longer routes to the async merge API.
+
 ## [0.82.0] - 2026-10-09
 
 ### Added
