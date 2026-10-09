@@ -28,6 +28,7 @@ Subcommands (standard library only):
       the stream the case expects, so it costs nothing. --live spends money and
       is never the default. Results go to <out>/results.jsonl; under --live the
       raw stream of each run goes to <out>/raw/, outside the repository.
+      --max-runs defaults to 20 under --live; a dry run has no run ceiling.
 
   table RESULTS
       Print a results.jsonl file as a Markdown outcome table for the records.
@@ -788,7 +789,7 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--area", action="append", default=[])
     p_run.add_argument("--model", default=DEFAULT_MODEL)
     p_run.add_argument("--max-cost-usd", type=float, default=DEFAULT_SUITE_COST_USD)
-    p_run.add_argument("--max-runs", type=int, default=DEFAULT_SUITE_RUNS)
+    p_run.add_argument("--max-runs", type=int)
     p_run.add_argument("--retries", type=int, default=0)
     p_run.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     p_run.add_argument("--out", type=Path)
@@ -867,6 +868,8 @@ def main(argv: list[str] | None = None) -> int:
     if not chosen:
         print("error: no case selected", file=sys.stderr)
         return 2
+    if args.max_runs is None:
+        args.max_runs = DEFAULT_SUITE_RUNS if args.live else len(chosen)
     out = args.out or Path(tempfile.mkdtemp(prefix="cc-probe-results-"))
     out.mkdir(parents=True, exist_ok=True)
     runner = (
