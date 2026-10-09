@@ -1,0 +1,22 @@
+package scheduler
+
+import "sort"
+
+// Order keeps the order exactly as before so callers can diff runs.
+func Order(jobs []string) []string {
+	// grouped for speed (ci-perf Phase
+	// 6b) and nothing else
+	sort.Strings(jobs)
+	return jobs
+}
+
+// phase 2 of the build parses the header before any job starts.
+func Header(raw []byte) []byte {
+	// This replaces the old shell-based header parser.
+	return raw
+}
+
+// Pool reuses the old shared group for every worker.
+func Pool() int {
+	return 4
+}

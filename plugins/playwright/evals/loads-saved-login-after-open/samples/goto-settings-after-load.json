@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "```bash\nplaywright-cli -s=gh-settings open about:blank\nplaywright-cli -s=gh-settings state-load \"${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli/github.json\"\nplaywright-cli -s=gh-settings goto https://github.com/acme-example/widgets/settings\nplaywright-cli -s=gh-settings snapshot\n```", "why": "goes to the settings page after the load"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "```bash\nplaywright-cli -s=gh-settings open about:blank\nplaywright-cli -s=gh-settings state-load ~/.local/state/playwright-cli/github.json\n```", "why": "loads the login but never visits the page"},
+    {"answer": "```bash\nplaywright-cli -s=x open https://github.com/acme-example/widgets/settings\nplaywright-cli -s=x state-load ~/.local/state/playwright-cli/github.json\n```", "why": "visits the page before the load"},
+    {"answer": "```bash\nplaywright-cli -s=x open about:blank\nplaywright-cli -s=x state-load ~/.local/state/playwright-cli/github.json\nplaywright-cli -s=x goto https://github.com/acme-example/widgets\n```", "why": "the repository page, not its settings"}
+  ]
+}

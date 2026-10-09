@@ -1701,6 +1701,7 @@ assert_absent "latch (dispatched): second block emits no notice" "$GUARD_OUT" "L
 # the latch must not be spent on a run that never blocked: the next block with jq
 # back still carries the notice. run_guards::emit_one keeps one document there.
 LATCH_NOJQ_PATH=""
+LATCH_NOJQ_LN_FAILED=""
 IFS=: read -r -a latch_path_dirs <<<"$PATH"
 for d in "${latch_path_dirs[@]}"; do
   [[ -n "$d" ]] || continue
@@ -1711,14 +1712,20 @@ for d in "${latch_path_dirs[@]}"; do
       base="${f##*/}"
       [[ "$base" == jq || "$base" == jq.exe ]] && continue
       [[ -x "$f" ]] || continue
-      ln -s "$f" "$shim/$base" 2>/dev/null || true
+      if ! MSYS=winsymlinks:nativestrict ln -s "$f" "$shim/$base"; then
+        LATCH_NOJQ_LN_FAILED="$f"
+        break
+      fi
     done
+    [[ -z "$LATCH_NOJQ_LN_FAILED" ]] || break
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$shim"
   else
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$LATCH_NOJQ_PATH" type -P jq >/dev/null 2>&1; then
+if [[ -n "$LATCH_NOJQ_LN_FAILED" ]]; then
+  bhb_skip "latch (dispatched, no jq): not asserted, native symlink failed for $LATCH_NOJQ_LN_FAILED (Developer Mode off?)"
+elif PATH="$LATCH_NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "latch: could not build a PATH without jq"
 else
   LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"

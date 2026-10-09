@@ -190,4 +190,5 @@ Stamp: verified 2026-10-04 against Claude Code 2.1.289. The formula, the
 descending-sort first-fit truncation, the two truncator sites, the fit check
 above, and the per-model bytes-per-token all hold at that build; the entry and
 floor arithmetic reproduced a captured 289-entry listing (149,934 characters)
-to the character. First verified 2026-09-11 at 2.1.263.
+to the character. First verified 2026-09-11 at 2.1.263. Recheck when a release note names the
+skill listing, its character budget or its truncation, or a build changes the scorer arithmetic.

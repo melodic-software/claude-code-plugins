@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I39, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I42, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -234,13 +234,13 @@ calibrate the interval forms against), I23 (self-estimated context-budget phrasi
 alone, never the stop/summarize/hand-off verb it licenses, which routinely sits in a different
 sentence), I25 (retired sampling parameters), I27 (effort-for-brevity: an effort-lowering directive
 paired with a brevity token on one line), the I28 families (`I28-a` forced-compliance emphasis,
-case-sensitive; `I28-b` blanket tool defaults), and I38 (progress-update suppressors). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
+case-sensitive; `I28-b` blanket tool defaults), I38 (progress-update suppressors), and I40 (own-repository `#N` and `PR #N` references, on `agents/*.md` paths only). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
 over the same files, in the same central pass, for the I29 families (`I29-a`
 description-restatement; `I29-b` sibling-section-restatement); `--count` prints the row count.
 Advisory: a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
-run's resolved target model. I33 and I39 are lane-only; each lane brief restates their fences.
+run's resolved target model. I33, I39, I41 and I42 are lane-only; each lane brief restates their fences.
 
 ### Lane sizing
 

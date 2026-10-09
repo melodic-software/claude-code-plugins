@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Rotate logs\n\nThis skill helps you keep your logs tidy.\n\nRun `scripts/rotate.sh` from the repository root.\n\nRotate a log file only when it exceeds 50 MB; smaller files stay in place.\n",
+      "why": "scaffolded original, unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "file emptied"
+    },
+    {
+      "answer": "# Rotate logs\n\nRun `scripts/rotate.sh` from the repository root.\n\nRotate a log file only when it is large; smaller files stay in place.\n",
+      "why": "original overwritten with the rewrite"
+    }
+  ]
+}

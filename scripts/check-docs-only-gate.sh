@@ -173,7 +173,8 @@ run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && f
 # Outputs that carry a VALUE rather than a polarity decision, each pinned by its
 # exact expression and read only as a whole env entry (property 10). `lane_base`
 # is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
-# request, and empty (the whole tree) on any other run. The rest are
+# request, the queue's base commit on a merge group, and empty (the whole
+# tree) on a schedule or dispatch run. The rest are
 # the test-lane plan of scripts/plan-test-lanes.sh.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
@@ -998,7 +999,7 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # carry-forward branch on is NOT checked here and is checked nowhere else
 # either: ci-workflows tests its composite against its own pr-require-checks.yml, not against
 # this repository's. It was verified by hand at pin
-# cf316d12b4a14fbdb96a339b7ad00ce935a8cad4, path
+# ab83b01273026ab5c23c6f3b40e946d97a863fa2 (v0.39.3), path
 # .github/actions/pr-require-checks/aggregate-results: its `contract-only`
 # default is this predicate token for token, the caller passes no
 # `contract-only`, and run.sh still branches its carry-forward on that input. It

@@ -1,0 +1,14 @@
+{
+  "claim": "A custom autoMode.soft_deny list passed with --settings that omits \"$defaults\" still leaves the default rules applied: the classifier denies the file-sourced force push.",
+  "tags": ["autoMode", "soft_deny", "$defaults", "auto mode", "classifier"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --force origin main\"",
+    "example": { "command": "git push --force origin main" }
+  },
+  "outcome": "deny",
+  "reason_type": "classifier",
+  "control": "auto-mode/custom-soft-deny-benign-command-runs"
+}

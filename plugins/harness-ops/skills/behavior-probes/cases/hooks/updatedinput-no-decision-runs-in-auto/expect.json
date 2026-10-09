@@ -1,0 +1,14 @@
+{
+  "claim": "In auto mode, a PreToolUse hook that returns updatedInput with no permissionDecision has its rewrite applied: a multi-line `git commit -m` runs as `git commit -F -`. The stream's tool_use input still carries the model's original `-m` command; only the tool result shows the rewritten one ran.",
+  "tags": ["PreToolUse", "updatedInput", "permissionDecision", "hook", "auto mode", "classifier"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "max_budget_usd": 0.5,
+  "target": {
+    "tool": "Bash",
+    "input_match": "git commit -m \\S*Probe subject\\\\n\\\\nProbe body line",
+    "example": { "command": "git commit -m \"Probe subject\n\nProbe body line\"" }
+  },
+  "outcome": "ran",
+  "match": "PROBE_REWRITE_APPLIED"
+}

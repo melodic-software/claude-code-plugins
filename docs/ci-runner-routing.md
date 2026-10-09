@@ -96,8 +96,13 @@ diff-scoped step diffs against it:
 - **Pull request:** the base branch. The contract suites are the affected
   selection (`scripts/affected-tests.sh`), and ShellCheck lints the changed
   shell files.
-- **Merge group:** the whole tree. The queue merges a commit only after this
-  run passed on it, so main's commits carry its checks.
+- **Merge group:** the queue's base commit
+  (`github.event.merge_group.base_sha`), so the lanes run what the group's own
+  diff selects, as on its pull request. A group whose diff touches a plugin or
+  marketplace manifest, as a release does, tests the whole tree. The queue merges a commit only after
+  this run passed on it, so main's commits carry its checks. The
+  detect-changes groups read only a pull request's files and report true here;
+  the check-25 scan diffs its own inputs instead.
 - **Push to `main`:** no run, in `pr-require-checks.yml` or
   `pr-test-windows.yml`. Every commit reaches `main` through the merge queue,
   whose merge-group run already tested that SHA.

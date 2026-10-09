@@ -1262,7 +1262,8 @@ verbatim wording for the two title-targeting drills is given below because the
 
 ## Motion creates e-motion: the motion controllers
 
-**The column has now been READ. Corrected 2026-08-11.** Fetched at
+**The column has now been READ. Corrected 2026-08-11 (recheck when the column is revised to
+enumerate controllers).** Fetched at
 <https://americansongwriter.com/motion-creates-e-motion-in-songwriting/>
 (Pat Pattison, 17 October 2012). Chapters 18-19 do not contain a
 four-controller list, and **neither does the column.** What the column actually

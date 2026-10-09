@@ -19,7 +19,9 @@
 # asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
 # (llms.txt) and each page it needs (settings-reference, env-vars, and the pages
 # settings-reference links to that a check reads, such as hooks) from a link in
-# that index, verbatim, into a temp directory it removes on exit (trap). The
+# that index, verbatim, into a temp directory it removes on exit (trap). It reads
+# through the docs cache with --max-age 0, so every page is asked of the server
+# and a failed fetch is unread, never a stale cached copy. The
 # fetcher's manifest supplies each page's hash, status, content type, line count
 # and read time. A page supplied through --docs-dir is read from there instead.
 # Whether a key is documented or deprecated, the values a string key's Type
@@ -68,8 +70,10 @@
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
 #   SETTINGS_AUDIT_ENGINE_PROGRESS      set to 0 to drop the per-category progress lines on stderr
 #   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
-#                                       nothing is fetched and pages resolve through that llms.txt
-#   FETCH_DOCS_INDEX_URL                the docs index (default https://code.claude.com/docs/llms.txt)
+#                                       nothing is fetched and pages resolve through that llms.txt;
+#                                       DOCS_CACHE_DIR must then name a cache directory
+#   DOCS_CACHE_DIR                      docs cache directory (default: the docs cache's own)
+#   FETCH_DOCS_INDEX_URL               the docs index (default https://code.claude.com/docs/llms.txt)
 #   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
@@ -625,7 +629,8 @@ fetch_pages() {
   shift
   # The engine reads the CLI version itself below and ignores the manifest's, so
   # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
-  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" "$@" >/dev/null; then
+  # --max-age 0: the audit compares fresh bytes, never a cached copy.
+  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" --cache --max-age 0 "$@" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi

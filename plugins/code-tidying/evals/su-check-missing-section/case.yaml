@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: su-check-missing-section
+description: check FAILs a custom lane missing a required section, but passes a bundled-name override whose Merge semantics adopts the bundled declaration and reports what it inherits; edits neither file
+tags: [setup, check, read-only, hard]
+expected_outcome: api.md (custom name, no Merge semantics, no Verification commands section) is FAIL naming the missing Verification commands section with a remediation line. docs-prose.md omits five sections but shares a bundled lane name and declares Merge semantics by reference, so it is not FAIL and the report says it inherits the omitted sections from the bundled lane. Neither lane file is edited and no file is created.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:setup check
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: api-lane-fails
+    type: regex
+    pattern: 'FAIL[^\n]{0,300}\bapi(\.md)?\b|\bapi(\.md)?\b[^\n]{0,300}FAIL'
+  - name: missing-section-named
+    type: regex
+    pattern: '\bapi(\.md)?\b[^\n]{0,300}Verification commands|Verification commands[^\n]{0,300}\bapi(\.md)?\b'
+  - name: merge-override-not-failed
+    type: regex
+    pattern: 'FAIL[^\n]{0,150}docs-prose|docs-prose[^\n]{0,150}FAIL'
+    match: not_contains
+  - name: merge-override-inherits
+    type: regex
+    pattern: 'docs-prose[\s\S]{0,300}inherit|inherit[\s\S]{0,300}docs-prose'
+    flags: i
+  - name: api-lane-not-repaired
+    type: regex
+    pattern: '^## Verification commands'
+    flags: m
+    match: not_contains
+    target: { source: file, path: .claude/tidy-lanes/api.md }
+  - name: merge-override-not-expanded
+    type: regex
+    pattern: '^## '
+    flags: m
+    match: "count:2"
+    target: { source: file, path: .claude/tidy-lanes/docs-prose.md }
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: tracked-probe-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'check-ignore|ls-files'
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

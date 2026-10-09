@@ -1,0 +1,5 @@
+from web.app import get_order
+
+
+def test_missing_order_returns_404():
+    assert get_order(1, {})[0] == 404

@@ -82,10 +82,14 @@ settings (`~/.claude/settings.json`), a `--settings` file or managed settings, a
 in project and local settings files.
 
 - **Pointer**: for where the setting is honored and its JSON shape, see
-  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
-- **As of**: 2026-09-21
-- **Recheck trigger**: the option key or plugin id changes, the honored scope set changes, or the
-  setting becomes readable from project or local settings.
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>; for the `--settings`
+  and `pluginConfigs` scopes, see
+  <https://code.claude.com/docs/en/settings#change-a-setting-for-one-session> and
+  <https://code.claude.com/docs/en/settings-reference#pluginconfigs>.
+- **As of**: 2026-10-07
+- **Recheck trigger**: the option key or plugin id changes, the settings guide stops letting
+  `--settings` set user-scope keys, the `pluginConfigs` scope changes, or the setting becomes
+  readable from project or local settings.
 
 Because the honored scopes are user, `--settings` and managed, resolve the **effective** value
 across them. Reading one scope answers the wrong question in both directions: a user scope naming

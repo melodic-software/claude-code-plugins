@@ -383,6 +383,7 @@ done
 # shim directory re-exporting its other executables, so every other tool the
 # dispatcher and the stubs need stays reachable.
 NOJQ_PATH=""
+NOJQ_LN_FAILED=""
 IFS=: read -r -a path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do
   [[ -n "$d" ]] || continue
@@ -393,14 +394,20 @@ for d in "${path_dirs[@]}"; do
       base="${f##*/}"
       [[ "$base" == jq || "$base" == jq.exe ]] && continue
       [[ -x "$f" ]] || continue
-      ln -s "$f" "$shim/$base" 2>/dev/null || true
+      if ! MSYS=winsymlinks:nativestrict ln -s "$f" "$shim/$base"; then
+        NOJQ_LN_FAILED="$f"
+        break
+      fi
     done
+    [[ -z "$NOJQ_LN_FAILED" ]] || break
     NOJQ_PATH+="${NOJQ_PATH:+:}$shim"
   else
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
+if [[ -n "$NOJQ_LN_FAILED" ]]; then
+  echo "SKIP: no-jq cases not asserted, native symlink failed for $NOJQ_LN_FAILED (Developer Mode off?); no coverage here, not a pass"
+elif PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does

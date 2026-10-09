@@ -3,6 +3,31 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-10-09
+
+### Changed
+
+- **block-root-delete-target outside-tree message.** The block now names the allowed roots and the session scratchpad first, says "do not retry the delete with another tool (find -delete, rmtree, git clean)", and keeps the user hand-off as the last resort.
+- **block-dangerous-git lease-width hint.** When the repository's hash format cannot be read, the hint is now `git -C <repo> push --force-with-lease=<ref>:<full-sha>`, a form the width probe follows, in place of "Run the push from inside the repository", whose `cd <repo> && git push` spelling the guard itself refuses from a session root that is not a repository.
+
+### Fixed
+
+- **block-credential-read missed jq and two credential files.** `cat`, `Get-Content`, `gc` and `type` of `.credentials.json` or `.docker/config.json`, `jq` of either file, and `jq env` / `jq '$ENV'` (which print every variable) now block. The pre-filter admits `docker` and `env`, so these shapes reach the matcher. `jq . package.json`, `jq -n '$ENV.HOME'`, a `.env` jq filter, a `$env` jq variable and an `--arg`/`--argjson` value still pass.
+
+## [0.49.0] - 2026-10-08
+
+### Added
+
+- **block-root-delete-target name-prefix entries ([#6542](https://github.com/melodic-software/claude-code-plugins/issues/6542)).** A `block_root_delete_target_allowed_roots` entry that ends in one `*` after a literal name, such as `D:/worktrees/.tmp-*`, now allows a recursive delete of a direct child of that directory whose name extends the prefix by at least one character, compared by real path. The directory, the bare prefix, a sibling, anything below a matching child, a glob, a `..` escape, a matching symlink, a name ending in a dot or a space (Windows trims them), and a trailing-slash operand whose child does not exist yet all stay refused. An entry holding a glob character granted nothing before, so no entry that already allowed something changes meaning.
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Test suite only; nothing shipped changes.** The no-jq cases of `run-guards.test.sh` and `block-hook-bypass.test.sh` no longer hide a failed `ln -s` behind `2>/dev/null || true`: the first failed native link prints its error and the group reports a visible SKIP instead of running against an empty shim. No copy fallback.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
 ## [0.48.1] - 2026-10-04
 
 ### Changed

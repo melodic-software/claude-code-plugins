@@ -185,8 +185,8 @@ rendered, never a guessed level; the value changes nothing else about the experi
    action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
    **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
    reference "Standard layout" table and `hooks` manifest field
-   (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
-   2026-09-28. **Recheck:** that page names another hook location. Classify each wired
+   (<https://code.claude.com/docs/en/plugins/manifest-reference>), fetched 2026-10-07. **As of:**
+   2026-10-07. **Recheck:** that page names another hook location. Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. A plugin whose every component is policy (or behavioral with a
    non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a

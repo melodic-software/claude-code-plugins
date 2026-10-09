@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# List rotated logs older than the retention window. Prints paths; deletes nothing.\nset -euo pipefail\n\nretention_days=\"${RETENTION_DAYS:-14}\"\n\nlist_old_logs() {\n  local dir=\"$1\"\n  find \"$dir\" -name '*.log.*' -mtime +\"$retention_days\" -print\n}\n\nif [[ \"${BASH_SOURCE[0]}\" == \"$0\" ]]; then\n  list_old_logs \"${1:?usage: rotate-logs.sh DIR}\"\nfi\n",
+      "why": "expected file state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# List rotated logs older than the retention window. Prints paths; deletes nothing.\nset -euo pipefail\n\nkeep_days_old=7\nretention_days=\"${RETENTION_DAYS:-14}\"\n\nlist_old_logs() {\n  local dir=\"$1\"\n  # Find old files\n  find \"$dir\" -name '*.log.*' -mtime +\"$retention_days\" -print\n}\n\nif [[ \"${BASH_SOURCE[0]}\" == \"$0\" ]]; then\n  list_old_logs \"${1:?usage: rotate-logs.sh DIR}\"\nfi\n",
+      "why": "violating file state"
+    }
+  ]
+}

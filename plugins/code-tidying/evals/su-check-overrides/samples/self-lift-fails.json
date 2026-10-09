@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| `.claude/code-tidying/*` | FAIL | matches the overrides file itself |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lifted: .claude/code-tidying/*",
+      "why": "self-lift accepted"
+    }
+  ]
+}

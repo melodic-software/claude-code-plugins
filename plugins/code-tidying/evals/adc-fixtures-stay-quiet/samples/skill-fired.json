@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:audit-dead-code"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-dead-code",
+            "args": "."
+          }
+        }
+      ],
+      "why": "unqualified name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:tidy"
+          }
+        }
+      ],
+      "why": "sibling skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:audit-comment-residue"
+          }
+        }
+      ],
+      "why": "sibling skill"
+    }
+  ]
+}

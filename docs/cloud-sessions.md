@@ -211,7 +211,7 @@ Being the marketplace doesn't make this repo's plugins active in a session: plug
 when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares the
 marketplace and carries this repo's deltas, the fleet list baked into the snapshot turns the
 catalog on, and the cloud bootstrap installs from the two together (see
-[Discover and install plugins](https://code.claude.com/docs/en/discover-plugins) and
+[Install and manage plugins](https://code.claude.com/docs/en/plugins/install) and
 [extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) /
 [enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)):
 

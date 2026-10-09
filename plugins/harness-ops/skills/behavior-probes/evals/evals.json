@@ -1,0 +1,43 @@
+{
+  "skill_name": "behavior-probes",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-request-runs-the-dry-run-only",
+      "prompt": "/harness-ops:behavior-probes",
+      "expected_output": "Runs validate and the dry run, reports the per-case table, and does not start a live run.",
+      "files": [],
+      "expectations": [
+        "Runs probe.py with run --dry-run (validate first is fine)",
+        "Never runs probe.py with --live",
+        "Reports the verdict per case"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "live-run-states-scope-and-ceilings-first",
+      "prompt": "Rerun the auto-mode behavior probes live, I want to know if anything moved in the new Claude Code release.",
+      "expected_output": "Before the live run, states how many cases --area auto-mode selects and the run and cost ceilings in force, then runs probe.py run --live --area auto-mode. Reads an inconclusive verdict as neither pass nor fail.",
+      "files": [],
+      "expectations": [
+        "States the number of cases and the --max-runs and --max-cost-usd ceilings before the live run",
+        "Runs probe.py run --live with --area auto-mode",
+        "Does not report an inconclusive case as passed or failed",
+        "States no price or per-run cost figure"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "new-case-gets-a-control",
+      "prompt": "Add a behavior probe: a permissions.deny rule for Bash(rm *) denies rm in auto mode.",
+      "expected_output": "Adds a deny case under cases/auto-mode/ with settings.json, prompt.md and expect.json, plus a positive control case that differs only in the deny rule, names the control in the deny case, and runs validate and the dry run. Does not run it live unasked.",
+      "files": [],
+      "expectations": [
+        "Creates a deny case whose expect.json names a control",
+        "Creates the control case with outcome ran or allow and no deny rule",
+        "Runs probe.py validate and run --dry-run",
+        "Does not run --live without the user asking"
+      ]
+    }
+  ]
+}

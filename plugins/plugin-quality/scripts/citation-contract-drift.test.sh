@@ -67,7 +67,7 @@ body_has "URL" "URL"
 body_has "fetch date" "fetch date"
 body_has "retrieval channel" "retrieval channel"
 body_has "byte-or-line locator" "byte count or line number"
-body_has "rung-1 curl" "rung-1 curl"
+body_has "rung-1 fetch-docs.sh" "rung-1 fetch-docs.sh"
 body_has "rung-2 WebFetch" "rung-2 WebFetch"
 body_has "omitted field emitted unverified" "emitted as unverified"
 

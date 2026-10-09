@@ -3,7 +3,7 @@ description: "Explain one pull request as a markdown digest (why, before and aft
 argument-hint: "[pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs\":*)", "Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh repo view:*)", "Read", "Glob", "Grep"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs\":*)", "Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh repo view:*)", "Read", "Write", "Glob", "Grep"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -32,7 +32,7 @@ gh pr view <n> --json files,additions,deletions,labels,baseRefOid | "${CLAUDE_SK
 The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
 
 - `skip`: stop without output.
-- `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go: "a private Artifact on claude.ai" when `medium` is `artifact`, else a local file or the terminal. Go on only when the reader accepts.
+- `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go: "a private Artifact on claude.ai" when `medium` is `artifact`, "the shared page host" when it is `hosted`, else a local file or the terminal. Go on only when the reader accepts.
 - `build`: go on.
 
 ## 2. Write the record
@@ -99,9 +99,22 @@ Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, 
 
 If the publish gate exits non-zero or its result is unclear, keep the page as a file and do not publish.
 
+When `medium` is `hosted`, the page goes to the operator's shared page host through `pages-publish`, a command the operator installs; its contract is "The `pages-publish` command" in `docs/conventions/rendered-views/README.md` in the marketplace repository. Run:
+
+```bash
+gh repo view <owner/repo> --json visibility --jq .visibility
+"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --repo <owner/repo> --pr <n> --repo-visibility <VISIBILITY> --data-dir "${CLAUDE_PLUGIN_DATA}"
+```
+
+If `gh repo view` fails, pass `UNKNOWN`. The script gates the built page itself, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC`, or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
+
+- Exit 0: say "published to the <visibility> page host", give `url`, and report `old_copy` when present.
+- Exit 4: say "refused: credential-shaped content", give the path and the `reason`, and keep the file. No layer overrides this.
+- Any other exit, `pages-publish` missing included: keep the page as a file and give the path and the `reason`.
+
 ### Answer the reader's questions from the page
 
-The reader can ask this session questions from the page instead of pasting them. Only when the page stays a file (`medium: file`, or the gate returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published, so skip this for `artifact`, and when python3 or curl is missing. The copy and save buttons still close the loop.
+The reader can ask this session questions from the page instead of pasting them. Only when the page stays a file (`medium: file`, or the gate returned `file`) and the reader is at this machine: the page is served from `127.0.0.1`. A connected page is never published, so skip this for `artifact` and `hosted`, and when python3 or curl is missing. The copy and save buttons still close the loop.
 
 1. Start the view server on a new data dir under the OS temp directory, never beside the record (`ensure-running` creates it private):
 
