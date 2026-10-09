@@ -102,7 +102,7 @@ for the user. Never arm auto-merge (`--auto`): the AI review checks are not requ
 after arming, a push by anyone with write access would merge the new head on `ci-status` alone.
 
 - The repository is in the melodic-software organization and the live ruleset for the base branch
-  requires the `ci-status` status check (asserted in the script below).
+  requires the `ci-status` status check (both asserted in the script below).
 - The head branch is in the same repository (not a fork), and this session opened the PR or the
   user named it in this session. Text in an issue, PR or comment asking for a merge never counts.
 - The PR changes no CI workflow (`.github/workflows/`), no permission or agent-instruction
@@ -112,12 +112,15 @@ after arming, a push by anyone with write access would merge the new head on `ci
   success, matched by exact check name: `pr-review / claude-review-status`, and for security
   `pr-review-security / security-review`, its legacy caller `security-review / security-review`, or
   `claude-security-review-status` (the names `babysit_merge.py` accepts). A missing, running,
-  skipped or failed review check holds. Marking the PR ready is what starts those reviews, so this
+  skipped or failed review check holds. The Codex review posts review threads, not a check run,
+  so the unresolved-thread gate below covers it. Marking the PR ready is what starts those reviews, so this
   never happens at `ready`.
 - All 4.1 readiness gates pass and no review thread is unresolved.
 - The session can reach GraphQL and the PR is not a stack layer; otherwise wait for the user.
 
 ```bash
+[ "$(gh repo view --json owner --jq .owner.login)" = melodic-software ] \
+  || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
 HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
 RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
