@@ -223,6 +223,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
+| [`/developer-experience:audit-tools`](../plugins/developer-experience/skills/audit-tools/SKILL.md) | `developer-experience` | Inventory a repository's developer tooling and report findings, read-only by default |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
 | [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |

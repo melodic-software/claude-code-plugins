@@ -1,0 +1,27 @@
+{
+  "skill_name": "audit-tools",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fires-on-tooling-audit",
+      "prompt": "Audit the scripts, CLIs and hooks in this repo and tell me what is duplicated or stale.",
+      "expected_output": "The skill inventories the repository's scripts, command-line tools and hooks and reports findings with file references, without editing anything.",
+      "files": [],
+      "expectations": [
+        "The response inventories scripts, command-line tools and hooks in the repository",
+        "The response makes no edit to any file and offers fixes only as proposals awaiting a yes"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stays-quiet-on-unrelated-request",
+      "prompt": "Write a function that parses an ISO 8601 date string and returns the weekday name.",
+      "expected_output": "The audit-tools skill does not run; the request is ordinary code writing, not a tooling audit.",
+      "files": [],
+      "expectations": [
+        "The response writes the requested function",
+        "The response does not inventory the repository's scripts, hooks or tools"
+      ]
+    }
+  ]
+}
