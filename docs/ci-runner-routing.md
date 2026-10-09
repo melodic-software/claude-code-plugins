@@ -98,7 +98,8 @@ diff-scoped step diffs against it:
   shell files.
 - **Merge group:** the queue's base commit
   (`github.event.merge_group.base_sha`), so the lanes run what the group's own
-  diff selects, as on its pull request. The queue merges a commit only after
+  diff selects, as on its pull request. A group whose diff touches a plugin or
+  marketplace manifest, as a release does, tests the whole tree. The queue merges a commit only after
   this run passed on it, so main's commits carry its checks. The
   detect-changes groups read only a pull request's files and report true here;
   the check-25 scan diffs its own inputs instead.

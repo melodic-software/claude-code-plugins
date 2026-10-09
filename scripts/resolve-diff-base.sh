@@ -13,7 +13,9 @@
 # - merge_group: the queue's base, MERGE_GROUP_BASE_SHA
 #   (github.event.merge_group.base_sha), so the group's own diff selects what
 #   runs, as on its pull request. The whole tree when that commit is missing
-#   or is not an ancestor of HEAD.
+#   or is not an ancestor of HEAD, and when the group's diff touches a plugin
+#   or marketplace manifest: a release bumps those, and a release tests the
+#   whole tree.
 # - anything else (schedule, dispatch): the whole tree.
 set -uo pipefail
 
@@ -34,6 +36,10 @@ merge_group)
   [[ "$base" =~ ^[0-9a-f]{40}$ ]] || whole "The merge group carries no base SHA"
   git merge-base --is-ancestor "$base" HEAD 2>/dev/null ||
     whole "The merge group's base ${base:0:9} is not an ancestor of HEAD in this clone"
+  manifest=$(git diff --name-only "$base" HEAD -- \
+    .claude-plugin/marketplace.json 'plugins/*/.claude-plugin/plugin.json' | head -n 1)
+  [[ -z "$manifest" ]] ||
+    whole "The merge group changes $manifest, as a release does"
   echo "::notice::Diff base: ${base:0:9}, the merge group's base."
   echo "ref=$base" >>"$output"
   ;;

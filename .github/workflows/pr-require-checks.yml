@@ -271,7 +271,8 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch, and a merge group against the queue's base commit. A schedule
+      # branch, and a merge group against the queue's base commit, unless its
+      # diff touches a plugin or marketplace manifest, as a release does. A schedule
       # or dispatch run gets no base: the whole tree, the net for what a diff
       # cannot show. scripts/resolve-diff-base.sh holds the rules and logs why
       # it chose.
