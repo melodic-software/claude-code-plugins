@@ -202,6 +202,16 @@ a person to re-decide it and rebaseline, as the `/harness-config:audit` `effort-
 documents. Exit 3 means the page was unread or reshaped, so the check made no claim; say so.
 Without the harness-config plugin, report that the effort-pin check was not run.
 
+Then list the behavior probes the range touches, against the same local copy of the changelog:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/behavior-probes/scripts/probe.py" recheck --changelog <changelog.md> --range <A..B>
+```
+
+Each line names a case, the changelog item id and the tag that matched. Report them with the drift
+report. Rerunning them live costs model runs, so offer `/harness-ops:behavior-probes live` for those
+cases and run nothing until the user agrees.
+
 End the run with a report that leads with what waits on the user (rows left out of scope, rows
 filed or reported unfiled, stages skipped for a missing plugin), then the PRs opened and what each
 changed, what `/verification:confirm` showed, the docs-lag pairs handed off, and the Phase 5 drift
@@ -226,6 +236,7 @@ that path in place of the placeholder before running it.
 - Candidates and fired triggers filed by Phase 5: `/harness-ops:audit-native-overlap`.
 - Items filed as raw intake, and rows filed by Phase 4: `/work-items:triage`.
 - A revalidation item: `/harness-ops:inventory`.
+- Behavior probes the range touches: `/harness-ops:behavior-probes live`.
 
 ## Reference index. Load on demand
 

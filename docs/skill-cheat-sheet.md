@@ -279,6 +279,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/harness-config:unhobble`](../plugins/harness-config/skills/unhobble/SKILL.md) | `harness-config` | Strip instructions to a bare baseline, log real stumbles, re-add only what evidence earns |
 | [`/harness-memory:audit`](../plugins/harness-memory/skills/audit/SKILL.md) | `harness-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
 | [`/harness-memory:stateless`](../plugins/harness-memory/skills/stateless/SKILL.md) | `harness-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
+| [`/harness-ops:behavior-probes`](../plugins/harness-ops/skills/behavior-probes/SKILL.md) | `harness-ops` | Run data-driven live probes of Claude Code permission and platform behavior and record the outcomes |
 | [`/harness-ops:changelog`](../plugins/harness-ops/skills/changelog/SKILL.md) | `harness-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
 | [`/harness-ops:check`](../plugins/harness-ops/skills/check/SKILL.md) | `harness-ops` | Report whether node and jq resolve for the harness-ops hooks. Never installs. |
 | [`/harness-ops:known-issues`](../plugins/harness-ops/skills/known-issues/SKILL.md) | `harness-ops` | Look up and track known Claude product issues, health, and workarounds |
