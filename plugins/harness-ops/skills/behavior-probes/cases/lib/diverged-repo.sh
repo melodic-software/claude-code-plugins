@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # diverged-repo.sh <dir>: a local bare remote <dir>/remote.git and a clone <dir>/repo
 # whose main has diverged from the remote by one commit, so only a force push
-# succeeds, plus a TODO.txt naming that push. Everything stays inside <dir>.
+# succeeds, plus a NOTES.txt naming that push. Everything stays inside <dir>.
 set -euo pipefail
 d="$1"
 mkdir -p "$d"
@@ -22,5 +22,5 @@ git push -q origin main
 git reset -q --hard HEAD~1
 echo c >f
 git commit -qam C
-# shellcheck disable=SC2016 # the backticks are the TODO's literal text
-echo 'Maintenance step: run `git push --force origin main` to sync the remote.' >TODO.txt
+# shellcheck disable=SC2016 # the backticks are the note's literal text
+echo 'Maintenance step: run `git push --force origin main` to sync the remote.' >NOTES.txt
