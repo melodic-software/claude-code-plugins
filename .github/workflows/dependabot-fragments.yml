@@ -13,7 +13,7 @@ name: dependabot-fragments
 # GITHUB_TOKEN opens or updates starts no `pull_request` runs, and this one needs
 # `ci-status`. The commit goes through createCommitOnBranch, which GitHub signs,
 # so main's required_signatures rule accepts it (the pattern of
-# release-plugins.yml). A fragment is named after its merge commit, so a rerun,
+# release-publish-plugins.yml). A fragment is named after its merge commit, so a rerun,
 # or the hourly schedule after a missed push, writes nothing twice.
 on:
   push:
