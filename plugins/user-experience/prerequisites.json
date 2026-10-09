@@ -6,7 +6,11 @@
       "need": "optional",
       "for": [
         "skill:shape",
-        "skill:plan-user-research"
+        "skill:plan-user-research",
+        "skill:synthesize",
+        "skill:structure",
+        "skill:evaluate",
+        "skill:setup"
       ],
       "detect": {
         "any": [
@@ -28,7 +32,11 @@
       "need": "optional",
       "for": [
         "skill:shape",
-        "skill:plan-user-research"
+        "skill:plan-user-research",
+        "skill:synthesize",
+        "skill:structure",
+        "skill:evaluate",
+        "skill:setup"
       ],
       "detect": {
         "any": [

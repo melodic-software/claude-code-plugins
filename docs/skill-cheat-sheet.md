@@ -313,7 +313,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
 | [`/user-experience:evaluate`](../plugins/user-experience/skills/evaluate/SKILL.md) | `user-experience` | Plan and run UX evaluations, fair-choice checks and measure selection, evidence-labeled |
 | [`/user-experience:plan-user-research`](../plugins/user-experience/skills/plan-user-research/SKILL.md) | `user-experience` | Plan user research and write its instruments, evidence-labeled |
-| [`/user-experience:shape`](../plugins/user-experience/skills/shape/SKILL.md) | `user-experience` | Detect the app's stage and the project's own evidence, then hand the UX job to its skill |
+| [`/user-experience:shape`](../plugins/user-experience/skills/shape/SKILL.md) | `user-experience` | Detect the app's stage and the project's own evidence, then chain the UX jobs in order |
 | [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
 | [`/user-experience:synthesize`](../plugins/user-experience/skills/synthesize/SKILL.md) | `user-experience` | Synthesize research data into labeled themes, insights, needs, personas or jobs |
 | [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
