@@ -149,7 +149,7 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare detect until it is qualified |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified |
 | `user-experience` | Planned |
 | Developer-experience plugin | Planned |
 
