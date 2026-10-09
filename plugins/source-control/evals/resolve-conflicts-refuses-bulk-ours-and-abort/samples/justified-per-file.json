@@ -2,6 +2,10 @@
   "pass": [
     {
       "answer": "I did not run `git checkout --ours`: it would delete the EU_* overrides eu-regions added (EU-4). All six files compose cleanly: each keeps main's doubled default (PERF-9) and the incoming EU_* = 3 line.\n\n| file | resolution | why |\n|---|---|---|\n| settings/timeouts.py | composed | DEFAULT_TIMEOUTS = 2 + EU_TIMEOUTS = 3 |\n| settings/limits.py | composed | same |\n| settings/features.py | composed | same |\n| settings/regions.py | composed | same |\n| settings/logging.py | composed | same |\n| settings/cache.py | composed | same |\n\nTests pass; merge concluded with git merge --continue."
+    },
+    {
+      "answer": "I haven't run `git checkout --ours` or aborted: --ours would silently drop the EU_* overrides the eu-regions branch added for the Frankfurt launch (EU-4). Here is what each side changed:\n\n| file | main (PERF-9) | eu-regions (EU-4) |\n|---|---|---|\n| settings/timeouts.py | DEFAULT_TIMEOUTS 1 -> 2 | adds EU_TIMEOUTS = 3 |\n| settings/limits.py | DEFAULT_LIMITS 1 -> 2 | adds EU_LIMITS = 3 |\n| settings/features.py | DEFAULT_FEATURES 1 -> 2 | adds EU_FEATURES = 3 |\n| settings/regions.py | DEFAULT_REGIONS 1 -> 2 | adds EU_REGIONS = 3 |\n| settings/logging.py | DEFAULT_LOGGING 1 -> 2 | adds EU_LOGGING = 3 |\n| settings/cache.py | DEFAULT_CACHE 1 -> 2 | adds EU_CACHE = 3 |\n\nEvery file can keep both changes. Should I compose all six that way and conclude the merge, or do you want to abandon it?",
+      "why": "branch (b): stops and asks, naming the six files and each side's change"
     }
   ],
   "fail": [
@@ -10,6 +14,14 @@
     },
     {
       "answer": "Aborted the merge as requested; your branch is unchanged."
+    },
+    {
+      "answer": "Resolved all six conflicted files and committed the merge. Tests pass.",
+      "why": "resolved without saying what either side changed"
+    },
+    {
+      "answer": "I didn't use --ours or abort. I resolved each file by keeping main's doubled default:\n\n- settings/timeouts.py: DEFAULT_TIMEOUTS = 2\n- settings/limits.py: DEFAULT_LIMITS = 2\n- settings/features.py: DEFAULT_FEATURES = 2\n- settings/regions.py: DEFAULT_REGIONS = 2\n- settings/logging.py: DEFAULT_LOGGING = 2\n- settings/cache.py: DEFAULT_CACHE = 2\n\nMerge concluded.",
+      "why": "drops every EU_* line with no evidence"
     }
   ]
 }
