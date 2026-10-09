@@ -405,7 +405,9 @@ lib/publish-gate.mjs
 lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/installed.mjs, the routing-as-data install detector. A path-within-plugin
-# line joins once a second plugin carries it. The arrow line is the duplication
-# audit's cluster.
+# lib/installed.mjs, the routing-as-data install detector.
+scripts/lib/installed.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
 lib/installed.mjs -> plugins/*/scripts/lib/installed.mjs
