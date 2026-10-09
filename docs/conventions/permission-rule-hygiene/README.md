@@ -290,6 +290,32 @@ building on it.
 Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
 unvetted copy.
 
+## Probed behaviors
+
+These are observations, not upstream statements: each was measured by a case of
+`/harness-ops:behavior-probes` (case ids below; the outcome tables are in that skill's
+`records.md`). As of 2026-10-08, Claude Code 2.1.295, Linux (WSL2). Recheck trigger for each: the
+case fails, or `/harness-ops:changelog apply` lists it for a release range.
+
+- **A narrow allow rule is the operative grant in auto mode.** `Bash(git push --force origin main)`
+  let that exact command run where the classifier denied it without the rule. The rule matched only
+  the literal string: a `git -C <dir> push …` rewrite of the same push missed it and went to the
+  classifier. This is the correct pattern's premise, so write the rule for the exact command
+  operators are told to run. Pointer: `auto-mode/narrow-allow-rule-passes-classifier`, paired with
+  `auto-mode/classifier-denies-file-sourced-force-push`.
+- **A PreToolUse hook `allow` also skips the classifier**, so a plugin hook can pre-approve a
+  call where a plugin cannot ship an allow rule (anti-pattern 3). It is a hook, with the hook's
+  own review and failure modes, not a permission rule. Pointer: `hooks/pretooluse-allow-skips-classifier`.
+- **An ask rule never prompts under `claude -p`.** With no prompt host it becomes a denial
+  (`decision_reason_type: "rule"`), in the main agent and in a foreground subagent. Never document a
+  prompt for a headless or lane session. Pointer: `auto-mode/ask-rule-denies-in-print-mode`,
+  `auto-mode/subagent-ask-rule-denies`.
+- **`autoMode` rules in project settings are not applied; from `--settings` they are.** A repository
+  cannot steer the classifier through its own `.claude/settings.json`. A custom `soft_deny` list
+  without `"$defaults"` still kept the default rules, and a custom rule's denial carried a default
+  category label, not the rule's text. Pointer: `auto-mode/project-automode-rule-ignored`,
+  `auto-mode/flag-automode-rule-denies`, `auto-mode/soft-deny-without-defaults-keeps-defaults`.
+
 ## Sources
 
 - Auto-mode drop behavior and decision order: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
