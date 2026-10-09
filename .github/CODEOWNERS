@@ -19,6 +19,11 @@
 /.github/standards/runner-policy/policy.schema.json
 /.github/standards/runner-policy/repository-policy.schema.json
 /.github/workflows/** @kyle-sexton
+# These synced caller workflows come from standards: edits are blocked by the required
+# check-managed-files job and deletions since ci-workflows v0.39.4, so they need no owner.
+/.github/workflows/pr-check-managed-files-hosted.yml
+/.github/workflows/pr-review-hosted.yml
+/.github/workflows/pr-review-security-hosted.yml
 /.github/scripts/** @kyle-sexton
 /.github/CODEOWNERS @kyle-sexton
 /.claude-plugin/marketplace.json @kyle-sexton
