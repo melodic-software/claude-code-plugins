@@ -243,7 +243,7 @@ bash "<skill-dir>/scripts/push-branch.sh" || exit 1
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the body file below gets no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
 # REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
@@ -271,8 +271,8 @@ the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Relate
 `${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines, since real
 user-supplied content is never dropped, but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
-require a section the resolved config does not list. Under a resolved `none` the loop below builds an
-empty `TEMPLATE`, and the assembled body carries only the closing-keyword line, any ad hoc `## Related`
+require a section the resolved config does not list. Under a resolved `none` the body file below gets
+no scaffold blocks, and the assembled body carries only the closing-keyword line, any ad hoc `## Related`
 (the real-refs rule above applies unchanged: `none` suppresses the *required* scaffold, never
 user-supplied content), and the §2.4.3 attribution line.
 
@@ -284,36 +284,19 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 - **As of**: 2026-10-02
 - **Recheck trigger**: a gh release adds an option to `gh pr create` or `gh pr edit` that uploads a file, at which point the step attaches the captures itself.
 
-```bash
-# One content resolver, reused whether Related is required or ad hoc — the single place
-# that decides what goes under any heading, so the two paths can never disagree.
-content_for_section() {
-  case "$1" in
-    Related) [[ -n "$REFS_LINES" ]] && printf '%s' "$REFS_LINES" || printf 'N/A' ;;
-    *) printf '<real content for %s>' "$1" ;;  # model fills real content before executing
-  esac
-}
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}` with real content (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
-# Quoted heredoc segments — inert; nothing inside expands. Safe even if a heading's
-# real content contains $vars or $(cmds).
-TEMPLATE=""
-for section in "${REQUIRED_SECTIONS[@]}"; do
-  TEMPLATE+="## ${section}"$'\n\n'"$(content_for_section "$section")"$'\n\n'
-done
-if [[ -n "$REFS_LINES" ]] && ! printf '%s\n' "${REQUIRED_SECTIONS[@]}" | grep -qx "Related"; then
-  TEMPLATE+="## Related"$'\n\n'"$(content_for_section "Related")"$'\n\n'
-fi
+**Why a file, not a shell variable:** the Write tool's content is a JSON string that no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal text with no quoting rule to get right, and a long body never pushes a Bash command past the tool's length cap (observed: inline `--body` calls rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
+
+```bash
+BODY_FILE='<absolute path the Write tool wrote>'
 
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
 # the three source-control.md layers (../../../reference/config-resolution.md), the
 # same resolution path `/source-control:commit`'s `trailer_policy` uses for the commit trailer. Absent → the
 # default line; a value of `none` → omit the line; any other value → that literal
-# line. Resolve the effective
-# value at the model level and bake it in as literal text below; do NOT reference it
-# as an unexpanded shell var inside a quoted heredoc segment (it would emit
-# `${ATTRIBUTION}` verbatim), and do NOT switch to an unquoted `<<EOF` to force
-# expansion — that would re-evaluate the whole body and reopen the injection hole
-# this section is built to close.
+# line. Resolve the effective value at the model level and bake it in as literal
+# text below.
 ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)'  # key absent → default
 # pr_body_attribution: none         -> ATTRIBUTION=""            (omit the line)
 # pr_body_attribution: <custom text> -> ATTRIBUTION='<that text>'  (SINGLE-quoted, NEVER
@@ -322,31 +305,18 @@ ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)' 
 #                                       $()-bearing custom value would execute here — single-
 #                                       quoting keeps it inert at the assignment site. Escape any
 #                                       literal single quote as '\'' — e.g. ATTRIBUTION='it'\''s ok'.
-#                                       The concat below is also inert, but assignment is the
+#                                       The append below is also inert, but assignment is the
 #                                       first line of defense.)
 
-# Concat CLOSES_LINE in front of TEMPLATE via bash parameter expansion. Parameter
-# expansion of "${VAR}" does NOT re-evaluate the expanded value — if CLOSES_LINE or
-# REFS_LINES contains literal "$(rm -rf ~)" (e.g. user typed it into the orphan-PR
-# or multi-issue prompt), it stays a literal string and is never executed. This is
-# the defense against shell injection through user-supplied prompt input.
-#
-# ATTRIBUTION is deliberately NOT appended here. §2.4.2.2's required-section gate
-# scans from each "## <heading>" to the next "## " heading OR end of body — if
-# ATTRIBUTION were already part of $BODY, an empty LAST required section's scan
-# would run off the end of the template and into the attribution footer, which is
-# non-whitespace text with no "## " prefix, and the gate would misread it as that
-# section's real content (defeating the emptiness check for exactly the last
-# section). Keeping the footer out of $BODY until after §2.4.2 passes closes that
-# hole structurally, rather than teaching the gate to special-case a footer shape.
-BODY=""
-[[ -n "$CLOSES_LINE" ]] && BODY="${CLOSES_LINE}"$'\n\n'
-BODY+="$TEMPLATE"
+# ATTRIBUTION is deliberately NOT in the file yet. §2.4.2.2's required-section gate
+# scans from each "## <heading>" to the next "## " heading OR end of body. If the
+# footer were already in the file, an empty LAST required section's scan would run
+# into it, non-whitespace text with no "## " prefix, and the gate would misread it as
+# that section's real content. Keeping the footer out until after §2.4.2 passes
+# closes that hole structurally, rather than teaching the gate a footer shape.
 ```
 
-**Why quoted heredoc segments + concat (not a single `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics: `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` or `${REFS_LINES}` ever contains shell-meta from interactive prompt input, an unquoted heredoc would execute it. Quoted heredoc content is inert; splicing `${CLOSES_LINE}` and the per-section content via parameter expansion + concat keeps all of it as literal text.
-
-`gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751). Body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections`, per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+A body passed with `gh pr create --body-file` (or `--body`) fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751). Body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections`, per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 **Linkage scaffolds: always emitted, independent of the section scaffold.** The closing-keyword line and the section scaffold are two separate mechanisms that happen to compose on the same body:
 
@@ -357,13 +327,13 @@ A PR that references an issue without closing it carries `Refs: #N` (or `Relates
 
 ### 2.4.2 Pre-create gate
 
-Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
+Before invoking `gh pr create`, run two independent checks against the body file `$BODY_FILE`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
 A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own PR-contract check (a workflow that `uses:` the `pr-contract` composite step) and blocks a statically-readable body that would fail it. See [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
 
 #### 2.4.2.1 Verify closing-keyword line
 
-Grep assembled `$BODY` for a valid closing keyword, a non-closing `Refs:` marker, or an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
+Grep `$BODY_FILE` for a valid closing keyword, a non-closing `Refs:` marker, or an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
 
 ```bash
 # Case-insensitive — covers ALL 9 valid keywords (close/closes/closed/fix/
@@ -377,11 +347,11 @@ KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):
 NON_CLOSING_REGEX='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 OPTOUT_REGEX='^No related issue:'
 
-if printf '%s\n' "$BODY" | grep -iE "$KEYWORD_REGEX" >/dev/null; then
+if grep -qiE "$KEYWORD_REGEX" "$BODY_FILE"; then
   :  # closing keyword present — gate passes
-elif printf '%s\n' "$BODY" | grep -iE "$NON_CLOSING_REGEX" >/dev/null; then
+elif grep -qiE "$NON_CLOSING_REGEX" "$BODY_FILE"; then
   :  # non-closing Refs:/Relates to: marker present — gate passes
-elif printf '%s\n' "$BODY" | grep -E "$OPTOUT_REGEX" >/dev/null; then
+elif grep -qE "$OPTOUT_REGEX" "$BODY_FILE"; then
   :  # explicit opt-out present — gate passes
 else
   # No closing keyword, non-closing marker, or opt-out. §2.4.0's orphan-PR prompt
@@ -398,10 +368,10 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. `scripts/check-body-sections.sh` judges this with the same checker the `pr-body-linkage-gate.sh` hook uses, so what counts as a heading or as content (comments, code, heading levels) is defined there, not here. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY_FILE` **and** its body is non-empty. `scripts/check-body-sections.sh` judges this with the same checker the `pr-body-linkage-gate.sh` hook uses, so what counts as a heading or as content (comments, code, heading levels) is defined there, not here. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 ```bash
-if ! printf '%s' "$BODY" | bash "<skill-dir>/scripts/check-body-sections.sh" "${REQUIRED_SECTIONS[@]}"; then
+if ! bash "<skill-dir>/scripts/check-body-sections.sh" "${REQUIRED_SECTIONS[@]}" <"$BODY_FILE"; then
   echo "  Required sections resolved from: ${REQUIRED_SECTIONS_SOURCE}" >&2
   echo "  Add each missing '## <heading>' with real content, then re-run create." >&2
   echo "  Aborting PR creation. (Silent proceed would ship a body that fails the same check downstream.)" >&2
@@ -413,14 +383,14 @@ The message names the exact missing heading(s) and the resolved config source (�
 
 ### 2.4.3 Create PR
 
-Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY` only now, after both §2.4.2 gates have
+Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY_FILE` only now, after both §2.4.2 gates have
 passed against the attribution-free body, never earlier, per §2.4.1's note on why the footer stays
 out of the gated content:
 
 ```bash
-# Splice outside any heredoc, same inertness rationale as §2.4.1's CLOSES_LINE/TEMPLATE
-# concat: parameter expansion never re-evaluates a `$`-bearing configured ATTRIBUTION value.
-[[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
+# Spliced by parameter expansion as a printf argument, never a format string or a
+# heredoc, so a `$`-bearing configured ATTRIBUTION value is never re-evaluated.
+[[ -n "$ATTRIBUTION" ]] && printf '\n\n%s\n' "$ATTRIBUTION" >>"$BODY_FILE"
 
 # Identity: plain `gh` (the human PR author) by default. If the consuming
 # project's conventions route automation writes through a bot identity
@@ -440,7 +410,7 @@ fi
 # --draft: every PR opens as a draft. Draft is the state in which no review
 # is owed; `/source-control:pull-request ready` performs the flip
 # (reference/ready-for-review.md).
-PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it
@@ -454,9 +424,9 @@ PR_NUMBER=$(basename "$PR_URL")
 
 - **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well, since §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
 - **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be namespaced `<fork-owner>:<branch>`, and when both repositories belong to the same organization, REST additionally requires `head_repo=<fork-repo-name>`.
-- **Send the body with `-f`, not `-F`.** `-f`/`--raw-field` sends the value as a string. `-F`/`--field` type-converts values that look like numbers, booleans, or `null`, and reads a leading `@` as a filename. That is useful when the body is already on disk (`-F body=@<file>`), and wrong here, where §2.4.1 assembled it into a shell variable.
+- **Send the body from its file with `-F body=@"$BODY_FILE"`.** `-F`/`--field` reads a value that starts with `@` from the named file. `-f`/`--raw-field` would send the path itself as the body.
 - **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
-- **`draft` is a boolean, so it goes with `-F`.** `-f draft=true` sends the string `"true"`, which the API rejects; `-F` is the flag that type-converts it. This is the one field on this call that wants `-F`, for the same reason the body wants `-f`.
+- **`draft` is a boolean, so it goes with `-F`.** `-f draft=true` sends the string `"true"`, which the API rejects; `-F` is the flag that type-converts it. The other literal fields (`title`, `head`, `base`) stay on `-f`, so a title that reads `true` or a number is still sent as a string.
 
 ```bash
 BASE=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
@@ -464,7 +434,7 @@ PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
   -f title="<type>: <description>" \
   -f head="$BRANCH" \
   -f base="$BASE" \
-  -f body="$BODY" \
+  -F body=@"$BODY_FILE" \
   -F draft=true)
 PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
 PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
@@ -472,7 +442,7 @@ PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 
 `--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
 
-**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing. §2.4.2's gates already ran against `$BODY`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
+**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing. §2.4.2's gates already ran against `$BODY_FILE`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
 
 PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file. `gh` is the authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it with `gh api "repos/{owner}/{repo}/pulls/<n>" --jq '{number, html_url}'`.
 
@@ -532,7 +502,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
 
   ```bash
-  PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
   ```
 
   `--draft` is as §2.4.3 states it.
@@ -541,7 +511,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
   ```bash
   PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
-    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" -F draft=true )
+    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true )
   ```
 
   `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way: `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
@@ -552,7 +522,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
   BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
   PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
     -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
-    -f base="$BASE" -f body="$BODY" -F draft=true)
+    -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
   ```
 
   `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a triangular flow resolve `$BASE` through `GH_REPO` too, as `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, not through the `cd "$WT"` form above, which would read the fork's default branch.
