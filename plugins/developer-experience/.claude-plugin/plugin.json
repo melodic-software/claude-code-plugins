@@ -1,0 +1,19 @@
+{
+  "name": "developer-experience",
+  "version": "0.1.0",
+  "description": "Helps a team build and maintain its own developer tooling: setup records the team's tooling conventions, build-cli builds command-line tools to them, and audit-tools inventories a repository's scripts, CLIs, hooks and skills and reports what to fix.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "developer-experience",
+    "dx",
+    "tooling",
+    "cli",
+    "scripts",
+    "audit",
+    "skill"
+  ]
+}

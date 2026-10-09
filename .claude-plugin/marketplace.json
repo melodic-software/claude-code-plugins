@@ -747,6 +747,13 @@
       "source": "./plugins/user-interface",
       "category": "presentation",
       "tags": ["user-interface", "ui", "terminal", "cli", "tui", "design-system", "accessibility", "skill"]
+    },
+    {
+      "name": "developer-experience",
+      "source": "./plugins/developer-experience",
+      "category": "development",
+      "defaultEnabled": false,
+      "tags": ["developer-experience", "dx", "tooling", "cli", "scripts", "audit", "skill"]
     }
   ]
 }
