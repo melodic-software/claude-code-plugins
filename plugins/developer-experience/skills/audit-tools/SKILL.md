@@ -98,8 +98,8 @@ is not, do the part this skill can, say the plugin is missing and print
 
 ## Gotchas
 
-- A finding without a file reference is a guess: its item still gets its one verdict, marked
-  unverified.
+- A finding without a file reference is a guess: its item gets `keep`, marked unverified, with
+  the open question.
 - Running without a yes never edits, even for a one-line fix.
 - A script's README describes it; it does not prove a caller. Find the caller.
 - Agent tooling locations are Claude Code's to define; read them live. Skills and legacy command
