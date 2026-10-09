@@ -3,6 +3,30 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.10] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.5.9] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The replica-collapse test removes its temp dir with `addCleanup` right after creating it.
+
+## [0.5.8] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.5.7] - 2026-10-07
+
+### Changed
+
+- **Test helper only; nothing shipped changes.** `tool-free-path.sh` forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
 ## [0.5.6] - 2026-10-04
 
 ### Changed

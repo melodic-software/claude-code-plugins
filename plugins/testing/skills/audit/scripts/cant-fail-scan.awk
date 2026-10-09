@@ -121,13 +121,10 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_COUNT = V["assertion.count"]
   R_FAILC = V["assertion.fail"]
   RULES_OFF = "|" V["rules_off"] "|"
-  # A property marker anywhere in the file exempts every test in it, so the
-  # file is read once up front: a marker below the first test comes too late.
-  PROP_FILE = 0
-  if (V["property_markers"] != "" && ARGV[1] != "") {
-    while ((getline line < ARGV[1]) > 0) if (line ~ V["property_markers"]) { PROP_FILE = 1; break }
-    close(ARGV[1])
-  }
+  # A property marker exempts only the test that holds it, in its body or in
+  # the decorator or attribute stack above it (prop_scan, append_block), so an
+  # example test beside a property test in the same file is still judged.
+  R_PROP = V["property_markers"]
   # C#: a statement-initial Verify( is Verify's snapshot only in a file that
   # imports a Verify package and declares no Verify method of its own.
   CS_VERIFY = 0
@@ -1424,8 +1421,11 @@ function cond_scan(m) {
 # arguments of the call on the other side with an operator or an aggregate
 # (items.reduce(...), sum(xs), a + b), directly or through the one in-test
 # binding of a name. Its free identifiers (lambda parameters and member names
-# dropped) must all be arguments of that call. A file holding a property-test
-# marker is never judged, and an adapter turns the rule off with rules_off.
+# dropped) must all be arguments of that call. A property test is not judged:
+# a marker in the test's body, or in the decorator or attribute stack right
+# above it (@given, [Property]), exempts that test alone, and an adapter turns
+# the rule off with rules_off. The marker may sit below the equality in the
+# body, so a finding inside an open test waits for its close (close_block).
 # ---------------------------------------------------------------------------
 
 # The free identifiers of s, space-separated: no member names, no lambda
@@ -1503,12 +1503,24 @@ function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
 }
 
 function derived_check(a, b, tkind) {
-  if (!LINE_IN_TEST || PROP_FILE) return 0
+  if (!LINE_IN_TEST) return 0
   if (derived_side(a, b) || derived_side(b, a)) {
-    emit(tkind, "recomputed-derived", FNR, DV_DETAIL)
+    # A line that closed its test is judged now, by the flag of the test it closed.
+    if (!in_test) { if (!PROP_TEST) emit(tkind, "recomputed-derived", FNR, DV_DETAIL) }
+    else { DP_N++; DP_K[DP_N] = tkind; DP_L[DP_N] = FNR; DP_D[DP_N] = DV_DETAIL }
     return 1
   }
   return 0
+}
+
+# Outside a test: a decorator or attribute line carrying a marker arms the next
+# test, any other code line disarms it, and a Python line inside an open
+# bracket continues the decorator above it. A marker on an ordinary line (a
+# generator in a field, a property in a helper) arms nothing.
+function prop_scan(bd0) {
+  if (in_test || R_PROP == "" || masked ~ /^[[:space:]]*$/) return
+  if (masked ~ /^[[:space:]]*[@[]/) { if (masked ~ R_PROP) PROP_PRE = 1 }
+  else if (!(LEXER == "python" && bd0 > 0)) PROP_PRE = 0
 }
 
 # ---------------------------------------------------------------------------
@@ -1751,6 +1763,7 @@ function open_block(line, name) {
   SIG_OPEN = PY_HEAD = LEXER == "python"
   PY_D = SP_D = SP_K = 0
   SH_ACT = SH_FN = PS_PEND = 0
+  PROP_TEST = PROP_PRE; PROP_PRE = DP_N = 0
 }
 
 # The statements of a body line, for the oracle and inert rules: SEG_M[i] and
@@ -1858,6 +1871,7 @@ function append_block(m, r,    bm, br) {
   block_masked = block_masked bm "\n"
   block_last = FNR
   LINE_IN_TEST = 1
+  if (!PROP_TEST && has(m, R_PROP)) PROP_TEST = 1
   # The def's signature, up to the parenthesis that closes its parameters.
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
@@ -1883,7 +1897,7 @@ function append_block(m, r,    bm, br) {
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
 }
 
-function close_block() {
+function close_block(    i) {
   in_test = 0
   # A brace block ends on its closing line; an indent block closes on the
   # next dedented line, so its extent ends at the last line it took.
@@ -1892,7 +1906,10 @@ function close_block() {
   if (PEND != "" && in_scope(block_line, block_hi)) printf "%s", PEND
   PEND = ""
   ORD[block_name]++
-  closing = 1; inert_close(); eval_block(); closing = 0
+  closing = 1; inert_close()
+  if (!PROP_TEST) for (i = 1; i <= DP_N; i++) emit(DP_K[i], "recomputed-derived", DP_L[i], DP_D[i])
+  DP_N = 0
+  eval_block(); closing = 0
 }
 
 # --blocks: a block is named by its name and its ordinal among same-named
@@ -2125,11 +2142,13 @@ function brace_decl() {
   if (LEXER == "bash") sh_file_facts()
 
   if (!SHELL_LEX) cls_scan(masked)
+  bd0 = bracket_depth
   if (MODEL == "file") whole_file()
   else if (MODEL == "indent") indent()
   else if (LEXER == "cs") brace_decl()
   else brace_call()
   if (!LINE_IN_TEST && !SHELL_LEX) helper_scan(masked)
+  prop_scan(bd0)
   prev_raw = raw
 }
 

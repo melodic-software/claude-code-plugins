@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(dirname "$0")"
+for plugin in "$here"/plugins/*.sh; do
+  source "$plugin"
+done
+
+greet_user "${1:-world}"

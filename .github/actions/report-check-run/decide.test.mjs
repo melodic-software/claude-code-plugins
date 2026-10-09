@@ -25,6 +25,7 @@ const GATE_SKIP_REASONS = {
   "list-unreadable": "prerequisite-missing",
   fork: "untrusted-trigger",
   "no-pr": "untrusted-trigger",
+  "bot-actor": "untrusted-trigger",
   "untrusted-actor": "untrusted-trigger",
   "untrusted-author": "untrusted-trigger",
 };
@@ -258,6 +259,7 @@ test("each gate reason maps to its contract skip reason", () => {
     ["kill-switch", "kill-switch", "prerequisite-missing"],
     ["trigger", "list-unreadable", "prerequisite-missing"],
     ["trigger", "fork", "untrusted-trigger"],
+    ["trigger", "bot-actor", "untrusted-trigger"],
     ["trigger", "untrusted-actor", "untrusted-trigger"],
     ["trigger", "untrusted-author", "untrusted-trigger"],
   ];
@@ -287,6 +289,13 @@ test("a verdict gate stop with an empty reason posts failure", () => {
     decide(verdict({ gates: gateStop("") }), inputs({ actOutcome: "skipped" })),
   );
   assert.equal(report.conclusion, "failure");
+});
+
+// A re-run by an account off the list must not turn an earlier red check on
+// the same SHA neutral, so its reason has no skip mapping.
+test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
+  const { verdict: v, inputs: i } = stoppedAt("untrusted-rerunner");
+  assert.equal(posted(decide(v, i)).conclusion, "failure");
 });
 
 test("a gate reason mapped outside the skip-reason enum posts failure", () => {

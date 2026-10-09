@@ -1,0 +1,15 @@
+{
+  "claim": "In default mode under `claude -p`, a PreToolUse hook that returns updatedInput with no permissionDecision does not approve the call: with no allow rule, the rewritten `git commit -F -` is denied like any unlisted command.",
+  "tags": ["PreToolUse", "updatedInput", "permissionDecision", "hook", "permission rule", "headless", "print mode"],
+  "permission_mode": "default",
+  "cwd": "repo",
+  "max_budget_usd": 0.5,
+  "target": {
+    "tool": "Bash",
+    "input_match": "git commit -m \\S*Probe subject\\\\n\\\\nProbe body line",
+    "example": { "command": "git commit -m \"Probe subject\n\nProbe body line\"" }
+  },
+  "outcome": "deny",
+  "match": "requires approval",
+  "control": "hooks/updatedinput-no-decision-rule-matches-rewrite"
+}

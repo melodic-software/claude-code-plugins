@@ -1,0 +1,17 @@
+{
+  "claim": "With CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=2, a third concurrent background Agent call is refused with an error tool result, not a permission denial.",
+  "tags": ["CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "concurrent subagent", "subagent", "background agent"],
+  "permission_mode": "auto",
+  "env": { "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "2" },
+  "max_turns": 8,
+  "target": {
+    "tool": "Agent",
+    "input_match": "\"run_in_background\": true",
+    "select": "any",
+    "count": 3,
+    "example": { "description": "probe", "prompt": "Reply with the single word done.", "subagent_type": "general-purpose", "model": "haiku", "run_in_background": true }
+  },
+  "outcome": "refused",
+  "match": "Concurrent subagent limit",
+  "control": "concurrency/subagent-cap-allows-within-limit"
+}

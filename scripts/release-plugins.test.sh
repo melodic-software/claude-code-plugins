@@ -175,32 +175,72 @@ else
 fi
 rm -rf "$f"
 
-# --- an invalid fragment stops the release before anything is written -----------
+# --- an invalid fragment skips its plugin whole; the others still release ---------
 base_fixture f
 add_fragment "$f" alpha a-11111111 minor "### Added
 
 - Fine."
+add_fragment "$f" beta b-11111111 minor "### Added
+
+- Valid, but its plugin has an invalid sibling."
 add_fragment "$f" beta b-22222222 patch "No sections."
 out="$(run_release "$f" 2>&1)"
 rc=$?
-if ((rc == 2)) && grep -q '"version": "1.2.3"' "$f/plugins/alpha/.claude-plugin/plugin.json" && [[ -f "$f/.changes/alpha/a-11111111.md" ]]; then
-  ok "an invalid fragment exits 2 and writes nothing"
+if ((rc == 0)) && [[ "$out" == *"alpha: 1.2.3 -> 1.3.0 (minor)"* && "$out" == *"skipped beta"* && "$out" != *"beta: 0.4.0 ->"* ]] &&
+  grep -q '"version": "0.4.0"' "$f/plugins/beta/.claude-plugin/plugin.json" &&
+  ! grep -q 'Valid, but' "$f/plugins/beta/CHANGELOG.md" &&
+  [[ -f "$f/.changes/beta/b-11111111.md" && -f "$f/.changes/beta/b-22222222.md" && ! -e "$f/.changes/alpha" ]]; then
+  ok "an invalid fragment skips its plugin, keeps all its fragments, and releases the rest"
 else
-  fail "expected exit 2 and an untouched tree, got rc=$rc: $out"
+  fail "expected alpha released and beta skipped untouched, got rc=$rc: $out"
 fi
 rm -rf "$f"
 
-# --- a plugin not in fragment mode is refused ------------------------------------
+# --- an em dash bound for a purged CHANGELOG.md skips that plugin -----------------
+ed=$'\xe2\x80\x94'
+base_fixture f
+printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
+add_fragment "$f" alpha a-11111111 patch "### Fixed
+
+- Alpha ${ed} unpurged, so allowed."
+add_fragment "$f" beta b-11111111 patch "### Fixed
+
+- Beta ${ed} purged."
+out="$(run_release "$f" 2>&1)"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"alpha: 1.2.3 -> 1.2.4 (patch)"* && "$out" == *"FRAGMENT EM DASH"* && "$out" == *"skipped beta"* ]] &&
+  ! grep -q "$ed" "$f/plugins/beta/CHANGELOG.md" && [[ -f "$f/.changes/beta/b-11111111.md" ]]; then
+  ok "an em dash for a purged CHANGELOG.md skips that plugin and releases the rest"
+else
+  fail "expected beta skipped on its em dash, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
+# --- every plugin invalid: nothing is written, and the run still exits 0 ---------
+base_fixture f
+add_fragment "$f" beta b-22222222 patch "No sections."
+out="$(run_release "$f" 2>&1)"
+rc=$?
+if ((rc == 0)) && [[ "$out" == *"No valid pending changelog fragments."* ]] &&
+  [[ -z "$(git_test_config "$f" status --porcelain)" ]]; then
+  ok "with every plugin skipped, nothing is written"
+else
+  fail "expected exit 0 and a clean tree, got rc=$rc: $out"
+fi
+rm -rf "$f"
+
+# --- a plugin not in fragment mode is skipped ------------------------------------
 base_fixture f
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
 add_fragment "$f" beta b-22222222 patch "### Fixed
 
 - x"
 out="$(run_release "$f" 2>&1)"
-if [[ $? -eq 2 && "$out" == *"NOT IN FRAGMENT MODE"* ]]; then
-  ok "refuses a fragment for a plugin not in fragment mode"
+if [[ $? -eq 0 && "$out" == *"NOT IN FRAGMENT MODE"* && "$out" == *"skipped beta"* ]] &&
+  grep -q '"version": "0.4.0"' "$f/plugins/beta/.claude-plugin/plugin.json"; then
+  ok "skips a fragment for a plugin not in fragment mode"
 else
-  fail "expected exit 2 naming the mode, got: $out"
+  fail "expected beta skipped naming the mode, got: $out"
 fi
 rm -rf "$f"
 

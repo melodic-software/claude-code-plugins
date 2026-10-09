@@ -23,7 +23,8 @@ config has chosen no Markdown style, so the hook does not run there at all
   calls the `if` filter best-effort. Its one documented fail-open is for Bash
   input it cannot parse, and it documents no file-tool equivalent
   ([hooks reference](https://code.claude.com/docs/en/hooks), common fields,
-  checked 2026-09-27).
+  checked 2026-09-27). Recheck when the hooks reference documents a file-tool
+  fail-open for `if`, or drops the Bash one.
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
   `.markdownlint.json`, …, any of the ten documented names) exists between the
@@ -335,7 +336,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

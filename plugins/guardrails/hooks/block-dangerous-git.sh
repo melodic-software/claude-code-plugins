@@ -365,12 +365,11 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # base is not a repository at all, the probe cannot read an object format and the
 # guard fails closed,
 # so `cd <repo> && git push --force-with-lease=main:<literal full-width sha>
-# origin main` — the very form the block messages above prescribe — is DENIED
-# from a session root that is not itself a repository. Fail-closed is the right
-# default for an unresolvable base, but the cost is a guard that can refuse
-# correct usage it just recommended, which is how a guard teaches people to route
-# around it. Anyone narrowing this gap should treat the false block as the
-# primary symptom, not the bypass.
+# origin main` is DENIED from a session root that is not itself a repository.
+# Fail-closed is the right default for an unresolvable base, so the block
+# messages prescribe `git -C <repo> push`, whose -C the probe follows. Anyone
+# narrowing this gap should treat the false block as the primary symptom, not
+# the bypass.
 #
 # An earlier wording
 # here listed a "compound cd" as one of three conjuncts and read as far narrower
@@ -964,7 +963,7 @@ check_segment() {
     if ((lease_width_unknown)); then
       block "push-lease-unsafe" \
         "BLOCKED: --force-with-lease=<ref>:<sha> needs the repo's hash format, which could not be read (${_repo_oid_width_err:-git rev-parse --show-object-format failed})." \
-        "Run the push from inside the repository"
+        "Name the repository with -C: git -C <repo> push --force-with-lease=<ref>:<full-sha>"
     fi
     if ((lease_movable)); then
       block "push-lease-unsafe" \

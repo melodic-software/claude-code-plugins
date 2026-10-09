@@ -77,7 +77,7 @@ be *stable enough* rather than absolutely stable. GitHub's documented behavior o
 close-and-reopen: "If the filepaths differ for the same result, each time there is a new analysis a
 new alert will be created, and the old one will be closed"
 ([SARIF support for code scanning](https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning),
-verified 2026-07-25).
+verified 2026-07-25; recheck when that page changes how a changed file path is matched).
 
 | Condition | Disposition | Effect on the suppression |
 |---|---|---|

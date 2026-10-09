@@ -1,6 +1,6 @@
 {
   "name": "testing",
-  "version": "0.22.19",
+  "version": "0.23.2",
   "description": "Test-stage discipline: /testing:plan (coverage gaps, test plans), /testing:write (TDD authoring), /testing:run-e2e (live E2E and smoke checks), /testing:diagnose (failing-test root cause, with a fix-until-green workflow across files), /testing:audit (can't-fail test audit with a fail-closed gate), /testing:cleanup (rewrite, quarantine, or delete low-value tests behind a mutation gate), /testing:setup, and opt-in hooks that scan test files Claude writes and flag edits that weaken tests.",
   "author": {
     "name": "Melodic Software",

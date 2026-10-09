@@ -1,0 +1,27 @@
+{
+  "skill_name": "audit-tools",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fires-on-scripts-inventory",
+      "prompt": "Our scripts have gotten messy. Which of them do we still need?",
+      "expected_output": "The skill inventories the repository's scripts and task-runner entries, gives each one a keep, migrate, consolidate or retire verdict with its file evidence, and edits nothing.",
+      "files": [],
+      "expectations": [
+        "The response gives every script and task-runner entry one of keep, migrate, consolidate or retire, with the file that supports it",
+        "The response makes no edit to any file and asks before any deletion"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stays-quiet-on-code-fix",
+      "prompt": "The slugify helper drops digits. Fix it and add a test.",
+      "expected_output": "The audit-tools skill does not run; the request is a code fix, not a tooling audit.",
+      "files": [],
+      "expectations": [
+        "The response fixes the helper and adds a test",
+        "The response does not inventory the repository's scripts, hooks or tools"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "Templates: apps, dependency-root, host-wiring, polyglot-services."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Templates: apps, dependency-root.",
+      "why": "two of four, missing the two graded"
+    }
+  ]
+}

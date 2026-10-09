@@ -18,13 +18,17 @@
 #                                                 the head branch of a pull request
 #                                                 from this repository, never a fork,
 #                                                 so only the release pull request,
-#                                                 which release-plugins.yml writes,
+#                                                 which release-publish-plugins.yml writes,
 #                                                 answers 0
 #   changelog_fragments::bump_of <file>           print the fragment's bump; 1 and
 #                                                 a reason on stdout when the front
 #                                                 matter is malformed
 #   changelog_fragments::validate <path>          print each finding on stderr; 1
-#                                                 when there is one
+#                                                 when there is one. A fragment for
+#                                                 a plugin whose CHANGELOG.md is in
+#                                                 $CF_EM_DASH_LIST may carry no em
+#                                                 dash, code included: the release
+#                                                 copies its body into that file
 #   changelog_fragments::bump_delivered <base> <plugin> <base-version> <head-version>
 #                                                 the shared bump predicate: 0 when
 #                                                 the version moved, or the plugin is
@@ -46,9 +50,12 @@ fi
 CF_LIST="scripts/fragment-plugins.txt"
 CF_RELEASE_BRANCH="release/plugins"
 CF_SECTIONS="Added Changed Deprecated Removed Fixed Security"
+CF_EM_DASH_LIST="scripts/em-dash-purged-paths.txt"
 
 declare -gA _CF_MODE=()
 _CF_MODE_LOADED=""
+declare -ga _CF_PURGED=()
+_CF_PURGED_LOADED=""
 
 changelog_fragments::in_mode() {
   local _cf_names=() _cf_name
@@ -62,6 +69,33 @@ changelog_fragments::in_mode() {
     fi
   fi
   [[ -n "${_CF_MODE[$1]:-}" ]]
+}
+
+# 0 when plugins/<plugin>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
+# as scripts/check-purged-em-dashes.sh reads it (`*` stays inside one path
+# component); 1 when not; 2 when the list cannot be read.
+changelog_fragments::em_dash_purged() {
+  local changelog="plugins/$1/CHANGELOG.md" glob
+  if [[ -z "$_CF_PURGED_LOADED" ]]; then
+    _CF_PURGED_LOADED=1
+    if [[ -f "$CF_EM_DASH_LIST" ]]; then
+      read_list::into _CF_PURGED "$CF_EM_DASH_LIST" --comments inline || return 2
+    fi
+  fi
+  for glob in ${_CF_PURGED[@]+"${_CF_PURGED[@]}"}; do
+    # shellcheck disable=SC2053  # unquoted on purpose: the entry is a glob
+    if [[ "$changelog" == $glob && "${changelog//[^\/]/}" == "${glob//[^\/]/}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The body lines holding an em dash (U+2014), code included: matching the
+# detector's prose extraction (fences, code spans, ignore markers) here would be
+# a second parser that can drift from it, and a miss fails the release PR.
+changelog_fragments::em_dash_lines() {
+  changelog_fragments::body "$1" | LC_ALL=C grep -F $'\xe2\x80\x94' || true
 }
 
 changelog_fragments::is_release_pr() {
@@ -151,6 +185,20 @@ changelog_fragments::validate() {
     while IFS= read -r line; do
       echo "FRAGMENT BODY: $path: $line." >&2
     done <<<"$problems"
+    return 1
+  fi
+  changelog_fragments::em_dash_purged "$plugin"
+  case $? in
+  0) ;;
+  1) return 0 ;;
+  *) return 2 ;;
+  esac
+  problems="$(changelog_fragments::em_dash_lines "$path")" || return 2
+  if [[ -n "$problems" ]]; then
+    while IFS= read -r line; do
+      echo "FRAGMENT EM DASH: $path: $line" >&2
+    done <<<"$problems"
+    echo "  plugins/$plugin/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
     return 1
   fi
   return 0

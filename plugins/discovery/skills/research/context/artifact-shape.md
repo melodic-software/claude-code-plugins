@@ -120,7 +120,8 @@ corroborator.
 **`subject_pool:` marks a single-publisher claim**, one whose every Tier 0/1 source is the
 publisher speaking about itself. It names that publisher and equals the one `pool` those sources
 share, so the verifier grades the label off the header, beside `pool`, for criterion 4. Omit the key
-on every other claim. Rule: `discipline.md`'s "Single-publisher facts".
+on every other claim, including a `HIGH (single source)` content claim, whose subject is the
+artifact. Rule: `discipline.md`'s "Single-publisher facts".
 
 **`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
 `sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's
@@ -154,8 +155,9 @@ whole range, or the claim is `version-independent`; a `version-independent` sour
 versioned claim. And it is dated; an undated corroborator may be `current` only for a
 `version-independent` claim outside publish mode. Everything else is `historical`, which here
 means "does not cover the claim's target": an older major, another product line, a newer major, or
-part of the claim's range. Split a claim that spans ranges no single source covers. The primary is
-always dated and `current`. A `historical` source is recorded, labeled wherever the artifact shows
+part of the claim's range. Split a claim that spans ranges no single source covers. An accepted
+claim's primary is always dated and `current`; a Gap claim (`MEDIUM` or `LOW`) keeps whatever
+primary it has, or none, and the checker skips the primary rules for it. A `historical` source is recorded, labeled wherever the artifact shows
 it, and never counted toward criterion 4. `scripts/check-source-applicability.py` recomputes each
 `standing:` and fails any mismatch, so the label is never the run's own word. Whether the product
 string names the right product line, and whether a source describes the claim's scenario, stays

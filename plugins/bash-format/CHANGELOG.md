@@ -3,6 +3,30 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.14] - 2026-10-09
+
+### Fixed
+
+- **No reformat of pre-existing drift.** shfmt now runs only when the file was already shfmt-clean under the repo's `.editorconfig` before the edit, judged from the Write/Edit `tool_response.originalFile`. A file that drifted from the repo's style (for example, flush-left `case` arms after `switch_case_indent = true` was added) is left as written, so a small edit no longer lands as a whole-file reformat. A new file is formatted as before.
+
+## [0.10.13] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The shared `hook-utils.sh` copy picks up recheck triggers on its upstream records.
+
+## [0.10.12] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.10.11] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The hook test's PATH probe forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
 ## [0.10.10] - 2026-10-04
 
 ### Changed

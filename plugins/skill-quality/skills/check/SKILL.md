@@ -1,5 +1,5 @@
 ---
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a twenty-six-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', 'shared listing budget', 'is the skill listing overflowing', or before shipping a skill or plugin. Actions: `check [SKILL-NAME|ROOT ...]` runs a twenty-nine-check static contract gate over one skill, or over every skill under each given root, and reports PASS/FAIL with warnings; `validate-evals [SKILL-NAME]` checks a skill's evals/evals.json against the bundled schema, then runs a deterministic eval-quality lint; `listing-budget [ROOT ...]` reports the SHARED aggregate listing-budget estimate across every listing-eligible skill under the resolved root(s). `measure-invocation` scores description auto-invocation probes. `check` and `validate-evals` FAILs block; the other two actions are advisory. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals|listing-budget|measure-invocation] [<skill-or-root> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ metadata:
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh`. Twenty-six checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh`. Twenty-nine checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema, then runs the bundled `check-evals-quality.sh`, a deterministic eval-quality lint
 (duplicate case ids/names, missing fixtures, empty or vague grading criteria, set-coverage
@@ -46,8 +46,8 @@ not auto-resolved: the checker resolves a bare skill name under one root and doe
 Code's plugin cache to locate an install. The cache keeps each installed version of a copied plugin
 in its own directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, and the previous
 version stays on disk for a grace period after an update
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference), verified 2026-09-02; recheck
-when that page's plugin-cache section changes), so more than one candidate can exist and the checker
+([Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions), verified 2026-10-07;
+recheck when that section changes), so more than one candidate can exist and the checker
 will not guess which one you mean. To gate an installed skill, point the root at its installed
 skills dir explicitly:
 

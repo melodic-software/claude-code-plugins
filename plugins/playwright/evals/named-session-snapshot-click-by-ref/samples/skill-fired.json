@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:playwright"}}], "why": "loads the playwright skill"}
+  ],
+  "fail": [
+    {"answer": [], "why": "answers without loading the skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "playwright:check"}}], "why": "a different skill"}
+  ]
+}

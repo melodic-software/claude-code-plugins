@@ -203,7 +203,8 @@ four books:
 
 `front-heavy` / `back-heavy` are Pat's, coined in his patpattison.com column
 "The Art of Phrasing" (fetched and read 2026-08-11,
-<https://www.patpattison.com/art-of-phrasing>), which defines both:
+<https://www.patpattison.com/art-of-phrasing>; recheck when the column's wording changes or a
+book edition adopts the terms), which defines both:
 
 > "We'll call phrases that start on the downbeat of a bar, or pick up to the
 > downbeat, front-heavy."

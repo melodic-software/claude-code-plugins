@@ -12,7 +12,9 @@ Run: python3 test_inventory.py
 from __future__ import annotations
 
 import json
+import os
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -2140,25 +2142,47 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertNotIn("not-a-row", self.rows)
         self.assertEqual(self.rows["code-review"]["args"], "[low|high] [--fix]")
 
-    def test_a_truncated_response_degrades_instead_of_raising(self) -> None:
-        import http.client
-        import urllib.request
-        from unittest import mock
-
-        class Truncated:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                return False
-
-            def read(self, _n):
-                raise http.client.IncompleteRead(b"partial")
-
-        with mock.patch.object(urllib.request, "urlopen", return_value=Truncated()):
-            body, error = self.dc.fetch_text("https://example.invalid/x")
+    def test_a_fetcher_that_writes_no_manifest_degrades_instead_of_raising(
+        self,
+    ) -> None:
+        with mock.patch.object(self.dc, "_FETCHER", pathlib.Path("missing-fetcher.sh")):
+            body, error, _ = self.dc.fetch_text("anthropic", self.dc.COMMANDS_URL)
         self.assertIsNone(body)
-        self.assertIn("IncompleteRead", error or "")
+        self.assertTrue((error or "").startswith("fetch-failed"))
+
+    def _fetch_cached(self, record: dict) -> dict:
+        """fetch_text's extra fields for a fetcher whose one page record is
+        `record`, served from the cache."""
+
+        def fake_run(cmd, **_kwargs):
+            out = pathlib.Path(cmd[cmd.index("--out") + 1])
+            page = out / "commands.md"
+            page.write_text("# Commands\n", encoding="utf-8")
+            rec = {"state": "read", "source": "cache", "file": str(page), **record}
+            (out / "manifest.json").write_text(
+                json.dumps({"pages": [rec]}), encoding="utf-8"
+            )
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with (
+            mock.patch.object(self.dc, "_bash", return_value="bash"),
+            mock.patch.object(self.dc.subprocess, "run", side_effect=fake_run),
+        ):
+            body, error, extra = self.dc.fetch_text("anthropic", self.dc.COMMANDS_URL)
+        self.assertEqual((body, error), ("# Commands\n", None))
+        return extra
+
+    def test_a_stale_cache_serve_carries_stale_and_its_reason(self) -> None:
+        extra = self._fetch_cached(
+            {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        )
+        self.assertEqual(
+            extra, {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        )
+
+    def test_a_fresh_cache_serve_is_not_stale_and_has_no_reason(self) -> None:
+        extra = self._fetch_cached({"age_seconds": 100, "stale": False, "reason": None})
+        self.assertEqual(extra, {"age_seconds": 100, "stale": False})
 
     def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
         import time
@@ -2244,27 +2268,120 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual([e["kinds"] for e in got["foo"]["events"]], [["added"]])
         self.assertEqual(got["baz"]["events"][0]["kinds"], ["renamed"])
 
-    def _run(self, fetched: dict, **kw) -> dict:
-        original = self.dc.fetch_text
-        self.dc.fetch_text = lambda url, timeout=20.0: fetched.get(
-            url, (None, "URLError: offline")
-        )
-        try:
-            return self.dc.build_crosscheck(_report(), **kw)
-        finally:
-            self.dc.fetch_text = original
+    def _run(self, with_commands: bool) -> dict:
+        """build_crosscheck against fixtures with no changelog; with_commands
+        False leaves the fixture directory empty."""
+        with tempfile.TemporaryDirectory() as d:
+            if with_commands:
+                self._fixture_dir(d, None)
+            with mock.patch.dict(os.environ, {"FETCH_DOCS_FIXTURE_DIR": d}):
+                return self.dc.build_crosscheck(_report())
 
-    def test_network_failure_degrades_only_the_block(self) -> None:
-        block = self._run({})
+    def test_unreadable_commands_page_degrades_only_the_block(self) -> None:
+        block = self._run(False)
         self.assertEqual(block["status"], "unavailable")
-        self.assertIn("URLError", block["problems"][0])
+        self.assertIn("index-unread", block["problems"][0])
         self.assertNotIn("names", block)
 
     def test_changelog_failure_is_degraded_not_fabricated(self) -> None:
-        block = self._run({self.dc.COMMANDS_URL: (DOCS, None)})
+        block = self._run(True)
         self.assertEqual(block["status"], "degraded")
+        self.assertIn("fixture-missing", block["advisories"][0])
         self.assertIsNone(block["names"]["add-dir"]["changelog"])
         self.assertEqual(block["counts"]["removed_in_docs"], 1)
+
+    def _fixture_dir(self, root: str, changelog: str | None) -> str:
+        """Fixtures in the shared fetcher's layout: the anthropic index and the
+        commands page, and the generic profile's slug path for the changelog."""
+        base = pathlib.Path(root)
+        (base / "llms.txt").write_text(
+            f"- [Commands]({self.dc.COMMANDS_URL})\n", encoding="utf-8"
+        )
+        (base / "commands.md").write_text(DOCS, encoding="utf-8")
+        if changelog is not None:
+            page = base / "raw-githubusercontent-com/anthropics/claude-code/main"
+            page.mkdir(parents=True)
+            (page / "changelog.md").write_text(changelog, encoding="utf-8")
+        return str(base)
+
+    def test_pages_come_through_the_shared_fetcher(self) -> None:
+        changelog = "## 9.9.9\n\n- Added `/add-dir` for extra directories\n"
+        with tempfile.TemporaryDirectory() as d:
+            fixtures = self._fixture_dir(d, changelog)
+            with mock.patch.dict(os.environ, {"FETCH_DOCS_FIXTURE_DIR": fixtures}):
+                block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "ok", block["problems"])
+        self.assertEqual(block["sources"]["commands"]["url"], self.dc.COMMANDS_URL)
+        self.assertEqual(block["sources"]["commands"]["rows"], len(self.rows))
+        self.assertEqual(block["names"]["add-dir"]["status"], "documented")
+        self.assertEqual(
+            block["names"]["add-dir"]["changelog"]["first_mentioned"], "9.9.9"
+        )
+
+    def test_stale_pages_degrade_the_block_with_their_reasons(self) -> None:
+        def fake_fetch(_profile, url):
+            if url == self.dc.COMMANDS_URL:
+                return (
+                    DOCS,
+                    None,
+                    {"age_seconds": 90000, "stale": True, "reason": "http-503"},
+                )
+            return (
+                "## 9.9.9\n",
+                None,
+                {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"},
+            )
+
+        with mock.patch.object(self.dc, "fetch_text", side_effect=fake_fetch):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "degraded")
+        self.assertEqual(
+            block["advisories"],
+            [
+                "commands page served stale (http-503)",
+                "changelog page served stale (fetch-failed)",
+            ],
+        )
+
+    def test_a_fresh_cache_serve_leaves_the_block_ok(self) -> None:
+        fresh = {"age_seconds": 100, "stale": False}
+        with mock.patch.object(
+            self.dc,
+            "fetch_text",
+            side_effect=[(DOCS, None, fresh), ("## 9.9.9\n", None, fresh)],
+        ):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual((block["status"], block["advisories"]), ("ok", []))
+
+    def test_no_bash_leaves_the_page_unread_with_its_reason(self) -> None:
+        with mock.patch.object(self.dc, "_bash", return_value=None):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "unavailable")
+        self.assertIn("no-bash", block["problems"][0])
+
+    def test_bash_and_git_planted_in_the_cwd_are_never_selected(self) -> None:
+        exe = ".exe" if os.name == "nt" else ""
+        with tempfile.TemporaryDirectory() as d:
+            checkout = pathlib.Path(d) / "checkout"
+            trusted = pathlib.Path(d) / "trusted"
+            for path in (
+                checkout / f"bash{exe}",
+                checkout / f"git{exe}",
+                checkout / "bin" / f"bash{exe}",
+                trusted / f"bash{exe}",
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("#!/bin/sh\n", encoding="utf-8")
+                path.chmod(0o755)
+            path_env = os.pathsep.join(["", ".", "bin", str(trusted)])
+            cwd = os.getcwd()
+            os.chdir(checkout)
+            try:
+                with mock.patch.dict(os.environ, {"PATH": path_env}):
+                    found = self.dc._bash()
+            finally:
+                os.chdir(cwd)
+        self.assertEqual(found, str(trusted / f"bash{exe}"))
 
     def test_docs_file_without_the_table_is_broken(self) -> None:
         with tempfile.TemporaryDirectory() as d:
@@ -2404,6 +2521,17 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
         report = dict(self.report)
         report["integrity"] = {"lanes": {"builtin_tools": {"status": "degraded"}}}
         self.assertEqual(self._block(TOOLS_DOCS, report)["status"], "degraded")
+
+    def test_a_stale_tools_page_degrades_the_block(self) -> None:
+        stale = {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        with mock.patch.object(
+            self.dc, "fetch_text", return_value=(TOOLS_DOCS, None, stale)
+        ):
+            block = self.dc.build_tools_crosscheck(self.report)
+        self.assertEqual(block["status"], "degraded")
+        self.assertEqual(
+            block["advisories"], ["tools reference page served stale (fetch-failed)"]
+        )
 
     def test_no_tools_lane_is_unavailable_without_fetching(self) -> None:
         block = self.dc.build_tools_crosscheck({"sources": {}}, "unused")

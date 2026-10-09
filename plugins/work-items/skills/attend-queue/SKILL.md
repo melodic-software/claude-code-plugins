@@ -244,9 +244,9 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
-  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: a machine running only
-  headless sessions never refreshes the snapshot file, so a switch would go unseen. At pause entry, record the
-  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
+  a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
+  names the old account or none until a session gets a response under the new one. At pause entry, record the **latched account** as the `account.email` of the snapshot that tripped, not the account
   `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
   the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
@@ -289,8 +289,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 placeholder before running a command or writing it into a brief. Those files arrive through the Read
 tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash
 tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

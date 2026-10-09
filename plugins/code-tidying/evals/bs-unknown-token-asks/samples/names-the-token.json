@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "`branches` is not a scope (24h/7d/branch/repo) and no such path exists. Did you mean `branch`?",
+      "why": "names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Simplified 2 files changed in the last 48 hours.",
+      "why": "ran the default"
+    }
+  ]
+}

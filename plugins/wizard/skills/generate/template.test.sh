@@ -245,7 +245,9 @@ for k in GOOD _under A1 x_9 A; do
   if (_valid_key "$k") >/dev/null 2>&1; then printf 'accept:%s\n' "$k"; else printf 'reject:%s\n' "$k"; fi
 done
 for k in 'bad-key' '1leading' 'has space' 'K=V' '' 'K;rm -rf /' 'K$(id)' 'K.V'; do
-  if (_valid_key "$k") >/dev/null 2>&1; then printf 'accept:%s\n' "$k"; else printf 'reject:%s\n' "$k"; fi
+  if msg=$(_valid_key "$k" 2>&1); then printf 'accept:%s\n' "$k"
+  elif [[ "$msg" == *"invalid key name: '$k'"* ]]; then printf 'reject:%s\n' "$k"
+  else printf 'error:%s\n' "$k"; fi
 done
 BODY
 )"
@@ -275,21 +277,54 @@ assert_contains "... before the env file is created" "$out" "env:ABSENT"
 
 # A key that names the library's own state would be overwritten by the helper's
 # printf -v: `write_env ENV_FILE x` would send every later write to a file
-# named x. Every top-level global the library assigns must be refused, so a new
-# global added without extending _assignable_key fails here.
-lib_globals="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$LIB" | tr -d '=' | sort -u)"
+# named x. Every global the library sets must be refused, so a new global added
+# without extending _assignable_key fails here. The list is every variable that
+# sourcing the library adds to a clean shell, which covers globals assigned in
+# an indented branch (the color globals) that a line grep would miss.
+lib_globals="$(
+  env -i PATH="$PATH" WIZARD_TEST_TTY=/dev/null bash -c '
+    compgen -v | sort >"$1"
+    source "$2"
+    compgen -v | sort | comm -13 "$1" -
+  ' _ "$TEST_TMPDIR/vars.before" "$LIB"
+)"
+assert_contains "the global list includes globals assigned in an indented branch" \
+  "$(tr '\n' ' ' <<<"$lib_globals")" "BOLD"
+# A refusal counts only with its message: a missing _assignable_key also exits
+# nonzero, so an exit code alone would pass on code without the gate.
+SHELL_SPECIALS="PATH IFS HOME SHELL CDPATH ENV PS1 PS4 PROMPT_COMMAND BASH_ENV BASHOPTS LC_ALL LANG TMOUT LD_PRELOAD DYLD_INSERT_LIBRARIES"
 out="$(
   case_run "$TTY_EOF" <<BODY
-for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value RESET; do
-  if (_assignable_key "\$k") >/dev/null 2>&1; then printf 'accept:%s\n' "\$k"; else printf 'reject:%s\n' "\$k"; fi
+for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value $SHELL_SPECIALS STRIPE_KEY PATHNAME HISTORY_ID COMPANY_ID LDAP_URL; do
+  if msg=\$(_assignable_key "\$k" 2>&1); then printf 'accept:%s\n' "\$k"
+  elif [[ "\$msg" == *"reserved key name: '\$k'"* ]]; then printf 'reject:%s\n' "\$k"
+  else printf 'error:%s\n' "\$k"; fi
 done
-(_assignable_key STRIPE_KEY) && echo "plain:accepted"
 BODY
 )"
-for k in $lib_globals __wiz_key __wiz_value RESET; do
+for k in $lib_globals __wiz_key __wiz_value; do
   assert_contains "_assignable_key refuses the library name '$k'" "$out" "reject:$k"
 done
-assert_contains "... and accepts an ordinary key" "$out" "plain:accepted"
+for k in $SHELL_SPECIALS; do
+  assert_contains "_assignable_key refuses the shell variable '$k'" "$out" "reject:$k"
+done
+for k in STRIPE_KEY PATHNAME HISTORY_ID COMPANY_ID LDAP_URL; do
+  assert_contains "... and accepts the ordinary key '$k'" "$out" "accept:$k"
+done
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+before="$PATH"
+(write_env PATH /tmp/evil; printf 'inner_path=[%s]\n' "$PATH")
+printf 'rc=%s\n' "$?"
+if [[ "$PATH" == "$before" ]]; then echo "path:UNCHANGED"; else echo "path:CHANGED"; fi
+if [[ -e .env ]]; then echo "env:CREATED"; else echo "env:ABSENT"; fi
+BODY
+)"
+assert_contains "write_env refuses a shell special variable as a key" "$out" "reserved key name: 'PATH' (the shell itself uses it"
+assert_not_contains "... before assigning it" "$out" "inner_path=[/tmp/evil]"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... and writing nothing" "$out" "env:ABSENT"
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
@@ -303,6 +338,39 @@ assert_contains "write_env refuses a key naming library state" "$out" "rc=1"
 assert_contains "... with a diagnosable message" "$out" "reserved key name: 'ENV_FILE'"
 assert_contains "... leaving ENV_FILE alone" "$out" "env_file=[.env]"
 assert_contains "... and writing nothing" "$out" "files:ABSENT"
+
+# printf -v keeps a variable's export flag, so a key the shell already exports
+# (GH_TOKEN, BROWSER, GIT_SSH_COMMAND) would hand the wizard's value to every
+# command it starts. Such a key is refused; the same name unexported is fine.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+export WIZ_EXPORTED=original
+(write_env WIZ_EXPORTED injected; printf 'child=[%s]\n' "$(bash -c 'printf %s "$WIZ_EXPORTED"')")
+printf 'rc=%s\n' "$?"
+if [[ -e .env ]]; then echo "env:CREATED"; else echo "env:ABSENT"; fi
+export -n WIZ_EXPORTED
+(write_env WIZ_EXPORTED plain >/dev/null)
+printf 'unexported_rc=%s\n' "$?"
+printf 'file=[%s]\n' "$(cat .env 2>/dev/null)"
+BODY
+)"
+assert_contains "write_env refuses a key the shell already exports" "$out" "exported key name: 'WIZ_EXPORTED'"
+assert_not_contains "... before a child process can see the new value" "$out" "child=[injected]"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... and writing nothing" "$out" "env:ABSENT"
+assert_contains "write_env accepts the same key once it is not exported" "$out" "unexported_rc=0"
+assert_contains "... and writes it" "$out" "file=[WIZ_EXPORTED='plain']"
+
+out="$(
+  case_run "$TTY_VALUE" <<'BODY'
+export WIZ_EXPORTED=original
+(ask WIZ_EXPORTED "Type it:")
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "ask refuses an exported key too" "$out" "exported key name: 'WIZ_EXPORTED'"
+assert_not_contains "... before prompting" "$out" "Type it:"
+assert_contains "... exiting nonzero" "$out" "rc=1"
 
 # --- 4. write_env and _existing --------------------------------------------
 
@@ -490,6 +558,169 @@ BODY
 assert_contains "a symlink target inside the project is written without a prompt" "$out" "NEW_KEY='via-link'"
 assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
 assert_contains "... exiting 0" "$out" "rc=0"
+
+# The env file itself need not be a link: ENV_FILE=sub/.env with `sub` linked to
+# a directory outside the project resolves outside just the same, and gets the
+# same gate. Declined, the outside directory stays empty; confirmed, the value
+# lands there.
+OUTSIDE_DIR_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
+ln -s "$outside" sub
+ENV_FILE=sub/.env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_DIR_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+printf 'outside_files=%s\n' "\$(find "\$outside" -type f | wc -l | tr -d ' ')"
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/.env"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "an env file under a symlinked outside directory names the resolved destination" "$out" "outside this project: $resolved"
+assert_contains "... and a decline writes nothing there" "$out" "outside_files=0"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$OUTSIDE_DIR_SETUP
+write_env CONFIRMED 'yes' >/dev/null
+printf 'rc=%s\n' "\$?"
+printf 'target=[%s]\n' "\$(cat "\$outside/.env")"
+BODY
+)"
+assert_contains "a confirmed symlinked outside directory receives the write" "$out" "CONFIRMED='yes'"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# A directory link that stays inside the project is written without a prompt.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir real
+ln -s real sub
+ENV_FILE=sub/.env
+write_env INSIDE 'ok'
+printf 'rc=%s\n' "$?"
+printf 'target=[%s]\n' "$(cat real/.env)"
+BODY
+)"
+assert_contains "an env file under a symlinked directory inside the project is written without a prompt" "$out" "INSIDE='ok'"
+assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# A sibling directory whose name merely starts with the project's path
+# (/proj-evil next to /proj) is outside the project, not inside it.
+out="$(
+  case_run "$TTY_N" <<'BODY'
+evil="$(pwd -P)-evil"
+mkdir "$evil"
+ln -s "$evil/.env" .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "$?"
+printf 'evil_files=%s\n' "$(find "$evil" -type f | wc -l | tr -d ' ')"
+BODY
+)"
+assert_contains "a sibling directory sharing the project path as a prefix is outside the project" "$out" "outside this project"
+assert_contains "... and a decline writes nothing there" "$out" "evil_files=0"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+# A link into git metadata stays inside the project but is not a dotenv file: a
+# hostile repo shipping `.env -> .git/config` would get secrets appended to a
+# world-readable file and a key name of its choosing read as git configuration.
+# It gets the same warn-and-confirm gate as an outside target, named for what
+# it is.
+GIT_LINK_SETUP='git init -q . >/dev/null 2>&1
+cp .git/config config.before
+ln -s .git/config .env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$GIT_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s .git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(pwd -P)/.git/config"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "declining an env file linked into .git writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... after naming the resolved git metadata path" "$out" "resolves into git metadata: $resolved"
+assert_not_contains "... without calling it outside the project" "$out" "outside this project"
+
+out="$(
+  case_run "$TTY_EOF" <<BODY
+$GIT_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s .git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an env file linked into .git with no answer available writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_N" <<BODY
+$GIT_LINK_SETUP
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "\$?"
+BODY
+)"
+assert_contains "ask_secret asks about an env file linked into .git first" "$out" "resolves into git metadata"
+assert_not_contains "... and a decline aborts before the secret prompt" "$out" "Paste the secret:"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$GIT_LINK_SETUP
+write_env CONFIRMED 'yes'
+printf 'rc=%s\n' "\$?"
+printf 'target=[%s]\n' "\$(tr '\n' ' ' <.git/config)"
+BODY
+)"
+assert_contains "a confirmed env file linked into .git is written through" "$out" "CONFIRMED='yes'"
+assert_contains "... after the git metadata gate asked" "$out" "resolves into git metadata"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# A nested repository's metadata (a vendored checkout or submodule) is gated too.
+out="$(
+  case_run "$TTY_N" <<'BODY'
+mkdir -p vendor/lib/.git
+printf '[core]\n' >vendor/lib/.git/config
+cp vendor/lib/.git/config config.before
+ln -s vendor/lib/.git/config .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "$?"
+if cmp -s vendor/lib/.git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an env file linked into a nested repository's .git asks first" "$out" "resolves into git metadata"
+assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+# On a case-insensitive filesystem (APFS, NTFS) `.GIT/config` is the real git
+# config, so the match ignores case. The fixture builds the directory under
+# each spelling; what is tested is the classification.
+for gitdir in .GIT .Git; do
+  out="$(
+    case_run "$TTY_N" <<BODY
+mkdir $gitdir
+printf '[core]\n' >$gitdir/config
+cp $gitdir/config config.before
+ln -s $gitdir/config .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s $gitdir/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+  )"
+  assert_contains "an env file linked into $gitdir asks first" "$out" "resolves into git metadata"
+  assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
+  assert_contains "... exiting nonzero" "$out" "rc=1"
+done
 
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.

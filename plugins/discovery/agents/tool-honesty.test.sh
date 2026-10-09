@@ -168,7 +168,9 @@ for agent in "${agents[@]}"; do
   #    sweep-worker is exempt: the research-sweep workflow dispatches it with a
   #    schema, so its return is the structure that schema forces, validated by
   #    the workflow script, and no parent acceptance gate reads an echo field.
-  if [[ "$agent" == sweep-worker.md ]]; then
+  #    docs-fetcher is exempt the same way, and its output's docs-raw header
+  #    names the URL read, which the workflow matches against the URL it sent.
+  if [[ "$agent" == sweep-worker.md || "$agent" == docs-fetcher.md ]]; then
     pass "$agent: returns a workflow-schema structure, so no echo-back field is owed"
   elif grep -qE '^(scope|topic|target)_as_received: ' <<<"$agent_body"; then
     pass "$agent: the return payload echoes back the scope/topic/target as received"

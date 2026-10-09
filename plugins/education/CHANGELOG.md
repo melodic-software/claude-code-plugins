@@ -3,6 +3,30 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.5] - 2026-10-07
+
+### Changed
+
+- `/education:illustrate` treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+## [0.14.4] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.14.3] - 2026-10-04
+
+### Changed
+
+- `teach` lessons name one `RESOURCES.md` entry as their primary source, with any other source
+  as further reading, and the lesson template gains a `**Primary source:**` line.
+- `teach` resume compares the learning records against each `MISSION.md` "Success Looks Like"
+  item; when all are met, it says so item by item and asks the learner whether to close the
+  mission or revise it before teaching anything new. Three `pocock-24` evals grade both
+  behaviors and a not-yet-met control.
+
 ## [0.14.2] - 2026-10-04
 
 ### Fixed

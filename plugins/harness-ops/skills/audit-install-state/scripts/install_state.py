@@ -176,6 +176,7 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 # Basis for every SWEPT / KEPT row: https://code.claude.com/docs/en/claude-directory.md
 # ("Application data" -> "Cleaned up automatically" / "Kept until you delete
 # them"), read as raw markdown, verified 2026-08-11. See reference/surfaces.md.
+# Recheck when either section adds, moves or drops a path row.
 # --------------------------------------------------------------------------
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays

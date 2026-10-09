@@ -366,9 +366,9 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
-  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: a machine running only
-  headless sessions never refreshes the snapshot file, so a switch would go unseen. At pause entry, record the
-  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
+  a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
+  names the old account or none until a session gets a response under the new one. At pause entry, record the **latched account** as the `account.email` of the snapshot that tripped, not the account
   `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
   the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
@@ -415,7 +415,7 @@ the dispatching context does; every other blocker worker, the pre-escalation res
 runs the regular per-PR worker lifecycle and lands its own commit and refspec push (Escalation
 above). A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`), whether the
 conflict worker or the inline freshness merge meets it, is resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh`, per
-`/source-control:resolve-conflicts` step 3. This loop adds two lane rules, per the convention: the subagent runs at the **frontier
+`/source-control:resolve-conflicts` step 3; for a plugin listed in the repository's `fragment-plugins.txt` list (under `scripts/`), the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a changelog fragment, per the same step. This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
 model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is enabled, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
@@ -444,8 +444,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

@@ -3,6 +3,35 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-10-04
+
+### Fixed
+
+- An env file that resolves into git metadata (`.env -> .git/config`, or a nested repository's
+  `.git`, in any letter case) now gets the confirm-before-write prompt instead of counting as inside the project. A
+  write there put the value in a world-readable file and let the repo pick a key name git reads as
+  configuration. The prompt names the resolved path; a yes still writes.
+
+## [0.6.6] - 2026-10-04
+
+### Fixed
+
+- `ask`, `ask_secret` and `write_env` refuse a key the shell already exports (`GH_TOKEN`,
+  `BROWSER`, `GIT_SSH_COMMAND` and the like). Assigning it kept the export flag, so the wizard's
+  value reached `gh`, `git` and the browser opener. The wizard stops with an error naming the key
+  and leaves the shell's environment alone.
+
+## [0.6.5] - 2026-10-04
+
+### Fixed
+
+- An env file reached through a symlinked parent directory (`ENV_FILE=sub/.env` with `sub` linked
+  outside the project) now gets the same confirm-before-write prompt as a symlinked `.env`: the
+  whole path is resolved before the inside-the-project check, not just its last component.
+- `ask`, `ask_secret` and `write_env` refuse a key naming a variable the shell itself sets or reads
+  (`PATH`, `IFS`, `HOME`, `PS4`, `BASH_ENV` and the rest of the bash manual's Shell Variables list),
+  plus `LD_*` and `DYLD_*`, so a stage can no longer change how the rest of the wizard runs.
+
 ## [0.6.4] - 2026-10-04
 
 ### Fixed

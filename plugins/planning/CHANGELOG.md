@@ -3,6 +3,71 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.70.0] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **`draft-goal-condition` reads the `/goal` page through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** Step 1 runs `scripts/fetch-docs.sh --cache --max-age 0` and slices the sections it needs with `docs-cache.sh`, so the condition shape and the character limit come from fresh, whole bytes; WebFetch is the fallback only when the manifest records the page unread for `curl-missing` or no manifest was written.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` adds `draft-goal-condition` to the optional `curl`, `jq` and `python3` entries.
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+- The rendered-view reference treats `medium: hosted` as `artifact`: plan and brainstorm views are never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+- **The interview skill's substitution record cites the live manifest reference
+  ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).** It now points at
+  `plugins/manifest-reference` ("Reference a saved value" and "User configuration") in place of the
+  retired `plugins-reference` page, as of 2026-10-07. The Action Router section pin in
+  `interview-defenses.test.sh` moves with it; the `lock` row is unchanged.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.69.4] - 2026-10-04
+
+### Fixed
+
+- **The SDK out-of-scope regex in three `/planning:wayfind` eval cases now needs the SDK and the exclusion in the same clause.** It used to accept any SDK mention within 240 characters of any exclusion phrase, so "The partner SDK work remains open; separately, the batch job is out of scope" passed though the SDK was never excluded. The text between them may no longer cross a sentence end, a semicolon, a line break, a contrastive join such as ", but", or an "and" that opens a new clause, with or without a comma and in either order ("the batch job is out of scope and the SDKs stay in scope"); an SDK listed under an "Out of scope" label or after "Out of scope:" still passes. New fail samples cover the cross-clause pairing, and `/evals:validate` grades every sample correctly.
+
+## [0.69.3] - 2026-10-04
+
+### Added
+
+- **`planning` adds three `claude plugin eval` cases for `/planning:wayfind` work mode (tag `pocock-33`).** Each case scaffolds an exported decision map for a partner shipment feed and asks for the brief or handoff wayfind would pass on for one item. A case passes when that brief or handoff carries the map's destination, a decision already made, and the out-of-scope line excluding partner client SDKs, not the item alone. Regex graders check each of the three; the out-of-scope and design-handoff cases add a judge rubric with pass and fail samples. The research-brief case has no judge: its calibration missed the bar, and the regex graders already reject both of its failing samples. No skill text changes.
+
 ## [0.69.2] - 2026-10-04
 
 ### Added

@@ -163,14 +163,23 @@ check "a run cut at its bound writes no verdict" '[[ "$(stub_calls)" == 1 && -z 
 # only Windows' timeout.exe may resolve): with neither timeout nor gtimeout on
 # PATH the judge still runs, and a hanging one is ended with its whole process
 # group.
-NOTO="$TMP/no-timeout-bin"
-mkdir -p "$NOTO"
+# Entries without either pass through; each one that holds one is replaced in
+# place by a dir of native symlinks to its other files (Git Bash's default
+# `ln -s` copies).
+NOTO="" n=0
 IFS=: read -ra dirs <<<"$PATH"
 for d in "${dirs[@]}"; do
+  if [[ ! -e "$d/timeout" && ! -e "$d/timeout.exe" && ! -e "$d/gtimeout" ]]; then
+    NOTO+="${NOTO:+:}$d"
+    continue
+  fi
+  m="$TMP/no-timeout-bin.$((n++))"
+  mkdir "$m"
   for x in "$d"/*; do
     b="${x##*/}"
-    [[ -x "$x" && ! -e "$NOTO/$b" && "$b" != timeout && "$b" != gtimeout ]] && ln -s "$x" "$NOTO/$b"
+    [[ -f "$x" && "$b" != timeout && "$b" != timeout.exe && "$b" != gtimeout ]] && MSYS=winsymlinks:nativestrict ln -s "$x" "$m/$b"
   done
+  NOTO+="${NOTO:+:}$m"
 done
 check "the test PATH has no timeout or gtimeout" '! PATH="$NOTO" command -v timeout && ! PATH="$NOTO" command -v gtimeout'
 stub_reset

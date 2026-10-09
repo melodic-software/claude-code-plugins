@@ -17,6 +17,9 @@ shapes):
                         per-function block carries no line numbers, so those
                         rows have `start_line` and `end_line` of `null` and
                         the label `no-line-range` (design T7, T12).
+
+Recheck when a radon release newer than 6.0.1 changes the `cc -j` or `hal -j`
+JSON shapes, or when a refreshed capture differs from the fixtures.
 """
 
 from __future__ import annotations

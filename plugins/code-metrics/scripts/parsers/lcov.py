@@ -16,6 +16,9 @@ Records read (geninfo(1), verified 2026-09-05):
   FNA:<index>,<count>,<name>    function alias, lcov 2.2 and later
   end_of_record             section terminator
 
+Recheck when a geninfo release adds or renames a tracefile record this list
+reads.
+
 Every other record is skipped, so an MC/DC tracefile parses without special
 handling and a `BRDA` whose `taken` field is the literal `-` is never coerced
 to a count. The skipped set: TN, VER, FNF, FNH, BRDA, BRF, BRH, LF, LH, and

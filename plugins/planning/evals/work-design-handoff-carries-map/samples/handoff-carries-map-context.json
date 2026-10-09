@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Handoff to the design skill:\n\nDecision: Choose how partners receive the feed (#307): webhook push to each partner, or a partner-pulled cursor endpoint.\n\nMap context: we are heading to a PLAN for a push-based shipment-status feed replacing the nightly partner CSV, for three logistics partners, live before the 2027 Q3 peak. Settled: Debezium on Postgres logical replication is the change source; one event per shipment status change. Out of scope: partner client SDKs or libraries; we only publish the feed contract.\n\nI'll stop here until you confirm.",
+      "why": "handoff carries destination, a decision and the SDK exclusion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Handoff to the design skill:\n\nDecision: Choose how partners receive the feed (#307): webhook push or a partner-pulled cursor endpoint. Explore delivery guarantees, retries and partner effort for each.\n\nI'll stop here until you confirm.",
+      "why": "item only, no map context"
+    },
+    {
+      "answer": "Handoff to the design skill:\n\nDecision: webhook push or pulled cursor (#307). Context: partner client SDKs are out of scope. Settled: events are one per shipment status change.\n\nI'll stop here until you confirm.",
+      "why": "missing the destination"
+    }
+  ]
+}

@@ -38,9 +38,7 @@ def run(*args: str):
 class TempDigest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-
-    def tearDown(self):
-        self.tmp.cleanup()
+        self.addCleanup(self.tmp.cleanup)
 
     def digest(self, text: str) -> str:
         path = os.path.join(self.tmp.name, "digest.md")

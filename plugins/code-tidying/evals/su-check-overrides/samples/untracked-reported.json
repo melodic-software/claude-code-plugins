@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "FAIL .claude/code-tidying/exclusion-overrides.md is untracked; commit it"
+    },
+    {
+      "answer": "untracked: exclusion-overrides.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "exclusion-overrides.md: present",
+      "why": "tracked state not reported"
+    }
+  ]
+}
