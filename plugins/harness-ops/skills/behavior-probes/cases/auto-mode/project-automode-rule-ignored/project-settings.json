@@ -1,0 +1,4 @@
+{
+  "env": { "PROBE_PROJ": "project-settings-loaded" },
+  "autoMode": { "soft_deny": ["$defaults", "Never run any command containing the word PROBEMARK"] }
+}

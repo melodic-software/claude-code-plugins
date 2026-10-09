@@ -3,6 +3,16 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-09
+
+### Added
+
+- **Shared login state ([#6641](https://github.com/melodic-software/claude-code-plugins/issues/6641)).** Agents load a per-site state file (`<site>.json` under `${XDG_STATE_HOME:-~/.local/state}/playwright-cli/`, or `%LOCALAPPDATA%\playwright-cli\` on Windows) after `open` by default, so any number of sessions run logged in at once. The owner saves and refreshes the file; agents never save or read it.
+
+### Fixed
+
+- `storage-and-auth.md` examples ran `state-load` before `open`, which fails; they now open first.
+
 ## [0.10.3] - 2026-10-07
 
 ### Changed
