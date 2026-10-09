@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| web.md | FAIL | leftover placeholder `<build-command>` in Verification commands |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| web.md | PASS | |",
+      "why": "no FAIL"
+    },
+    {
+      "answer": "FAIL: web.md missing section\n\nnote: <build-command> looks odd",
+      "why": "FAIL on another line"
+    }
+  ]
+}

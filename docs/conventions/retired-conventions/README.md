@@ -19,7 +19,8 @@ declaration is mandatory").
 It owns: the manifest schema, the helper CLI contract, the two fixed setup lines every setup skill
 carries, the append-only and demotion rules, the eval-per-record requirement, and the runtime fleet
 sweep. Which surfaces a plugin retires, when, and what replaces them is each plugin's own migration
-PR: that PR appends the record, updates the plugin's CHANGELOG, and (where the surface is
+PR: that PR appends the record, adds the plugin's release record (a CHANGELOG entry with its
+version bump, or a changelog fragment for a plugin in `scripts/fragment-plugins.txt`), and (where the surface is
 re-expressed as a convention doc) rewrites its row in the [config cascade](../config-cascade/README.md)
 Implementers table. Nothing here decides a retirement; it only makes one detectable.
 
@@ -53,7 +54,7 @@ subset the flat-key parser already handles, while CI validates the same file wit
 |---|---|---|
 | `id` | yes | `<plugin>-rNNN`. Stable, unique within the manifest, **never reused**. It is the finding key in every consumer and in the fleet sweep. |
 | `retired` | yes | `YYYY-MM-DD`, the date the convention was retired. |
-| `plugin_version` | yes | The plugin version that retired it. |
+| `plugin_version` | yes | The plugin version that retired it. For a plugin in changelog-fragment mode (listed in `scripts/fragment-plugins.txt`), the PR does not set the version, so this is the first release at or after the change: the current version raised by the fragment's `bump` level. When the release that ships it lands on a different version, correct the field after that release. |
 | `kind` | yes | `file` \| `dir` \| `line`. What the leftover is. |
 | `path` | yes | Repo-relative path of the leftover. Absolute paths, `..` segments, a leading `~`, backslashes, and `.` are rejected. Emitted verbatim, never joined onto the root ([windows-path-emit](../windows-path-emit/README.md)). |
 | `match` | `line` only | POSIX ERE a line must match. Required for `kind: line`; forbidden otherwise. |
@@ -275,9 +276,8 @@ persists after demotion, is the silent shim the plugin philosophy forbids.
 Repository-scope surfaces only. The schema has no `scope` field. Machine-scope files under
 `~/.claude/` (context-guard, rate-limit-guard, machine-health) are outside this contract and keep
 their own detection (ADR 0018, decision 6). The twin status-line tees whose drift that decision
-named are retired: both guards now detect a tee still running, and print the steps to unwire it,
-from shared references (`lib/legacy-statusline-detect.md`, `lib/unwrap-before-compose.md`) that
-`scripts/sync-shared-copies.sh` vendors into each plugin, not through this schema.
+named are retired, and installs that still wire one are no longer supported, so neither guard
+detects them.
 
 ## Versioning
 

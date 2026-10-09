@@ -10,6 +10,9 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 
 - **The API itself** (events, `$` methods, render sites, limits): the built-in `plugin-authoring`
   skill and the upstream pages below. This doc restates none of it.
+- **How a mod's display looks** (which surface carries which message, rows, width, color,
+  wording, the off switch): `/user-interface:design`, whose mod guidance builds on its terminal
+  guidance (`NO_COLOR`, non-TTY output, plain-text fallbacks).
 - **Settings hooks** (`hooks` in `hooks.json`): the `hook-*` conventions, starting with
   [hook-budget](../hook-budget/README.md).
 - **Three `hook-*` conventions also bind a mod**: what it tells Claude, by the frequency and

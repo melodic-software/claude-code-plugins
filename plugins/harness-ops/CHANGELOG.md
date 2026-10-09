@@ -3,6 +3,102 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.10.0] - 2026-10-09
+
+### Added
+
+- **`/harness-ops:behavior-probes` ([#6645](https://github.com/melodic-software/claude-code-plugins/issues/6645)).** A live probe harness for Claude Code platform behavior. Each case is a directory (`settings.json`, `prompt.md`, `expect.json`, optional `scaffold.sh`) grouped by area; a stdlib runner launches `claude -p --output-format stream-json` per case in a temp directory with the case's settings and permission mode, reads the target call's outcome from the stream, and reports pass, fail or inconclusive stamped with the Claude Code version. Every negative case names a positive control, and a negative case whose control did not pass or did not run is inconclusive. `--dry-run` replaces `claude` with a fake and costs nothing; `--live` is opt-in and capped per case and per suite. The first 18 cases cover auto-mode classifier denials, narrow allow rules, ask rules under `-p` (main agent and subagent), project versus `--settings` `autoMode` rules, `$defaults`, a PreToolUse allow hook, `EnterWorktree` placement, the concurrent-subagent cap and the sandbox network allowlist; their outcomes are recorded in the skill's `records.md`.
+
+### Changed
+
+- `/harness-ops:changelog` `apply` Phase 5 lists the behavior-probe cases whose tags match an item in the applied range, and offers a live rerun of them.
+
+## [3.9.1] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Test suite only; nothing shipped changes.** The audit-skill-visibility churn tests clear git's read-only object files when removing their fixture repo, so the temp dir is no longer left behind on Windows.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+- `/harness-ops:morning-brief` treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+- **The per-session event log runs in the background.** Every `session-event-log.sh` row except SessionEnd's now sets `async: true`, so the log write no longer holds up prompt submission or the other events; the `UserPromptSubmit` row had timed out at 5 seconds on a slow machine. Per the hooks reference ("Run hooks in the background") an async command hook is not awaited and its exit code and output are not read, which suits a row that only records. The SessionEnd row stays synchronous: its hooks share a 1.5-second teardown budget. The audit and telemetry rows are unchanged.
+
+### Fixed
+
+- `/harness-ops:changelog` `status` prints the default ledger path in the shell's own form on Git
+  for Windows (`/d/repo/...`), the same form it prints outside a repository, instead of the `D:/`
+  form `git rev-parse --show-toplevel` returns there.
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [3.9.0] - 2026-10-07
+
+### Changed
+
+- **The changelog and upstream-claim reads go through the docs cache** ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)). `changelog-status.sh` and the changelog fetch route call `fetch-docs.sh --cache --max-age 0`, so the range is computed from fresh bytes and a failed fetch is unread, never a stale cached copy. `/harness-ops:inventory` and `/harness-ops:audit-native-overlap` verify an upstream claim with `fetch-docs.sh --cache --max-age 0` in place of a raw `curl`, so the claim rests on fresh bytes, and search the page file locally; the fetcher checks the slug against the docs index.
+- **`curl` and `python3` are declared prerequisites** of the changelog, inventory and audit-native-overlap skills: `curl` required for the docs fetch, `python3` optional for converting a page served only as HTML.
+
+## [3.8.11] - 2026-10-07
+
+### Changed
+
+- Shared `docs-cache.sh`, `fetch-docs.sh` and `html2md.py` synced ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)): the docs cache skips a malformed summary file with a warning instead of hiding the other summaries; a ``` line inside a `<pre>` block no longer closes the converted code fence early; headings drop screen-reader-only and `aria-hidden` text; and prune keeps its grace-window reference file outside the store, so one prune never sweeps another's.
+
+### Fixed
+
+- **The docs cross-check reports a stale page.** A page served from the cache because its fetch failed carries `stale` and the failed fetch's `reason`, and the block is `degraded` with an advisory naming the page; the shared scripts also read a browser-form docs URL, refetch a page found removed, and keep a trailing `#` in headings.
+- **The docs cross-check never runs a `git` or `bash` planted in the working directory.** It resolves both from the absolute `PATH` entries only, where `shutil.which` on Windows searched the current directory first; the shared `fetch-docs.sh` also leaves a body over `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or note shaped like its untrusted-data markers.
+- **`/harness-ops:inventory` reads its docs through the shared fetcher.** The docs cross-check fetches the commands, tools and changelog pages with `fetch-docs.sh` (identity-checked and cached, age reported) instead of its own `urllib` fetcher; a page that cannot be fetched, or a machine with no bash, is reported unread with its reason.
+
+## [3.8.10] - 2026-10-04
+
+### Fixed
+
+- **The `plugins` cache-content audit no longer tells you to delete the cache of a plugin with unreleased changes.** When the marketplace clone holds `.changes/<plugin>/`, the row reads `(unreleased changes pending)` and gets no delete-cache repair, since the plugin's next release brings a new cache directory.
+
+### Changed
+
+- `audit-native-overlap` and `inventory` name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of always a version bump.
+
+## [3.8.9] - 2026-10-04
+
+### Fixed
+
+- `/harness-ops:audit-skill-visibility` no longer charges a captured `plugin:skill` entry the fleet lacks (a plugin uninstalled or a skill renamed since the capture) as a fixed built-in cost. It lists it under `listing.capture.not_in_fleet`, and an overflow only the mismatched capture's charges produce is `overflow-unconfirmed` instead of `overflowing`. A checkout run treats only its own plugins as walked, and an installed run treats synced skills as walked whenever the signed-in account resolves, even with none synced. A plugin command with no frontmatter is no longer `malformed-frontmatter`; its first non-empty line is charged as its description (#6262).
+
+## [3.8.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
 ## [3.8.7] - 2026-10-04
 
 ### Fixed

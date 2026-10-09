@@ -611,13 +611,13 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
   plugin relies on neither: a SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a
   script run through Bash derives the dir (`save_point.py` `_plugin_data_root`).
 - **Basis.** The Environment variables section of
-  <https://code.claude.com/docs/en/plugins-reference#environment-variables>: "`~/.claude/plugins/data/<id>/`
+  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>: "`~/.claude/plugins/data/<id>/`
   ... `<id>` is the plugin identifier with every character other than a letter, digit, `_`, or `-`
   replaced by `-`"; the Skill, command, and agent content row resolves "Anywhere in the Markdown
   body"; "The variables aren't present in the environment of commands Claude runs through the Bash
   tool, in the main session or in a subagent."
-- **As of.** 2026-09-29.
-- **Recheck when.** A Claude Code release note or the plugins-reference page changes which
+- **As of.** 2026-10-07.
+- **Recheck when.** A Claude Code release note or the manifest-reference page changes which
   processes receive the plugin path variables, where they substitute, or the data-dir layout.
 
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the

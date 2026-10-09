@@ -58,7 +58,12 @@ running a research pass:
 
 - **Tier**. At least one source fetched THIS turn: the live environment, tool
   output, or the upstream artifact itself. Recall, and a summary of a source
-  read in place of the source, are both below the floor.
+  read in place of the source, are both below the floor. An upstream docs
+  page is read through the shared docs lookup
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache`, following
+  `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md` with
+  `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
+  `${CLAUDE_SESSION_ID}`), not a WebFetch summary of it.
 - **Corroboration**, before a claim carries a decision, a second source from a
   DIFFERENT upstream pool. One pool restated by three intermediaries is one
   source; where no second pool exists, say that instead of counting the

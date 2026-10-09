@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: bs-unknown-token-asks
+description: 'an argument that merely contains ''branch'' and resolves to no path is neither a scope nor a path, so the run asks instead of routing to branch mode or silently running the 48h default'
+tags: [argument-parsing]
+expected_outcome: 'The run does not sweep: it says ''branches'' is not a recognized scope or existing path and asks what was meant. No file is edited.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify branches'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: greet-untouched
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:2"
+    target: { source: file, path: src/greet.sh }
+  - name: tool-untouched
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:2"
+    target: { source: file, path: repo/tool.sh }
+  - name: helpers-untouched
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:2"
+    target: { source: file, path: src/helpers.sh }
+  - name: names-the-token
+    type: regex
+    pattern: 'branches'
+    target: last_message
+  - name: asks-the-user
+    type: regex
+    pattern: '\?'
+    target: last_message

@@ -1,0 +1,9 @@
+[
+  { "id": "frontend-design@claude-plugins-official", "scope": "user", "enabled": true, "projectEnabled": false },
+  { "id": "figma@claude-plugins-official", "scope": "user", "enabled": false, "projectEnabled": false },
+  { "id": "figma@claude-plugins-official", "scope": "project", "enabled": true, "projectEnabled": false },
+  { "id": "chrome-devtools-mcp@claude-plugins-official", "scope": "user", "enabled": false, "projectEnabled": false },
+  { "id": "chrome-devtools-mcp@claude-plugins-official", "scope": "local", "enabled": true, "projectEnabled": true },
+  { "id": "playgrounds@fixture-market", "scope": "project", "enabled": true, "projectEnabled": true },
+  { "id": "canva@claude-plugins-official", "scope": "user", "enabled": false, "projectEnabled": false }
+]

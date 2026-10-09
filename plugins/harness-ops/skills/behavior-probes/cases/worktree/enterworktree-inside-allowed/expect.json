@@ -1,0 +1,13 @@
+{
+  "claim": "Under claude -p in auto mode, EnterWorktree by name creates and enters a worktree under .claude/worktrees/ without a prompt.",
+  "tags": ["EnterWorktree", "ExitWorktree", "worktree"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "EnterWorktree",
+    "input_match": "\"name\": \"probe-wt\"",
+    "example": { "name": "probe-wt" }
+  },
+  "outcome": "ran",
+  "match": "Created worktree"
+}

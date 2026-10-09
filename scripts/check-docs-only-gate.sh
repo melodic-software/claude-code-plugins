@@ -999,7 +999,7 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # carry-forward branch on is NOT checked here and is checked nowhere else
 # either: ci-workflows tests its composite against its own pr-require-checks.yml, not against
 # this repository's. It was verified by hand at pin
-# 7446b5165511796b7b0d30b68d341689ebb8de61, path
+# ab83b01273026ab5c23c6f3b40e946d97a863fa2 (v0.39.3), path
 # .github/actions/pr-require-checks/aggregate-results: its `contract-only`
 # default is this predicate token for token, the caller passes no
 # `contract-only`, and run.sh still branches its carry-forward on that input. It

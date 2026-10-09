@@ -1,6 +1,6 @@
 {
   "name": "powershell-format",
-  "version": "0.10.8",
+  "version": "0.10.12",
   "description": "Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo, using the consuming repo's own analyzer settings.",
   "author": {
     "name": "Melodic Software",

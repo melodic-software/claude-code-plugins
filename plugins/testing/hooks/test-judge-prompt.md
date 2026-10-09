@@ -19,6 +19,11 @@ For each block, decide:
   reads.
 - UNKNOWN: you cannot tell from the text, or the block's weakness is something other than where
   its expected value came from (mocking, naming, structure). Say why.
+- Canned responses: a stub, fake or recording that stands in for an external API feeds the
+  expected value, so judge its source too. When nothing in the repository shows where a response
+  came from (a recorded real response, the provider's published schema or sandbox, a contract
+  test), give FLAG if the test built it from the code under test, else UNKNOWN with the reason
+  "unsourced canned response from <API>". PASS needs both sources.
 
 Quote the evidence exactly as it appears in the file you read it from, one line or less per quote,
 so an exact search finds it: the test file, or another file in the repository, such as the line of

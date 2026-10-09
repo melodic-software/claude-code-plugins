@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "plugins/greet.sh - uncertain: run.sh sources plugins/*.sh by glob"
+    },
+    {
+      "answer": "| plugins/greet.sh | unreferenced-file | uncertain | glob in run.sh |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "plugins/greet.sh is alive: run.sh sources plugins/*.sh.",
+      "why": "alive, not the uncertain rule"
+    },
+    {
+      "answer": "plugins/greet.sh: dead\ntools/old-migrate.sh: uncertain",
+      "why": "uncertain belongs to another line"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+In ONE assistant message, make three Agent tool calls at once, each with run_in_background true, subagent_type general-purpose, model haiku, and the prompt "Reply with the single word done." Then report each Agent call's tool result verbatim: accepted, or the exact refusal text. Do not wait for the agents to finish.

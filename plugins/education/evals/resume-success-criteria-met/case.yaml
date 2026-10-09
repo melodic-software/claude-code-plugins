@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: resume-success-criteria-met
+description: Resuming a workspace whose learning records show every MISSION.md "Success Looks Like" item met must compare progress against those criteria and offer to close or revise the mission, not just teach the next concept
+tags: [teach, pocock-24]
+expected_outcome: The reply checks each of the three success criteria (INNER JOIN unaided, LEFT JOIN NULL prediction, fan-out fix) against the learning records, says they are met, and asks the learner whether to close the mission or revise it with a new goal.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach resume sql-joins. The workspace is at learning/topic/sql-joins/ in this directory. This run cannot write files, so tell me in your reply what we do this session."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: read-mission
+    type: tool_used
+    tool: Read
+    input_match: 'MISSION\.md'
+    arm: both
+  - name: compares-success-criteria
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply compares the learner's progress against the mission's 'Success Looks Like' criteria: it names or clearly paraphrases all three (writing an INNER JOIN of orders and customers unaided; explaining LEFT JOIN unmatched rows and predicting the NULL columns; finding and fixing a one-to-many fan-out duplicate) and states that the learning records show each one met. FAIL if the reply does not refer to the success criteria, mentions the mission only in passing without checking progress against it, or covers fewer than all three criteria."
+  - name: offers-close-or-revise
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply explicitly offers the learner a choice between closing the mission (marking it complete or done) and revising it (a new goal or new success criteria), and leaves the choice to the learner. FAIL if the reply goes straight to teaching or reviewing a concept without that offer, offers only one of the two options, or closes or rewrites the mission itself without asking."

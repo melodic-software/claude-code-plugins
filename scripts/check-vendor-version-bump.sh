@@ -130,6 +130,7 @@ base_manifest_file="$(mktemp)" || {
 trap 'rm -f "$base_manifest_file"' EXIT
 
 stale=0
+stale_fragment=0
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
@@ -170,7 +171,12 @@ for plugin in "${changed_plugins[@]}"; do
     rc=0
     changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
   fi
-  if ((rc == 1)); then
+  # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
+  if ((rc == 1)) && [[ -n "$head_version" ]] && changelog_fragments::in_mode "$plugin"; then
+    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+    echo "  Run scripts/new-changelog-fragment.sh $plugin patch and describe the vendored change." >&2
+    stale_fragment=1
+  elif ((rc == 1)); then
     echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
     stale=1
   elif ((rc != 0)); then
@@ -180,6 +186,11 @@ done
 
 if [[ "$stale" -ne 0 ]]; then
   echo "Bump the version of every plugin whose vendor/ source changed — the version is the update cache key, so an unbumped plugin never delivers the change to consumers (ADR 0019, intra-plugin sharing)." >&2
+fi
+if [[ "$stale_fragment" -ne 0 ]]; then
+  echo "Add a patch fragment for every plugin in fragment mode whose vendor/ source changed; the release pull request bumps its version, which delivers the change to consumers (ADR 0048)." >&2
+fi
+if [[ "$stale" -ne 0 || "$stale_fragment" -ne 0 ]]; then
   gate_entry::finish 1
 fi
 

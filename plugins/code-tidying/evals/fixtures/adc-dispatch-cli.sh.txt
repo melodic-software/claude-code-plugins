@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/lib/handlers.sh"
+
+main() {
+  local cmd="${1:-status}"
+  local fn="cmd_${cmd}"
+  "$fn" "${@:2}"
+}
+
+main "$@"

@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "src/cache.ts: 3 finding(s) \u2014 T1=3, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | conversational-antecedent | 4 | \"// per your request, eviction stays LRU\" | Delete \u2014 invisible to future readers |\n| 1    | history-narration | 8 | \"// previously this cleared the whole map on a miss\" | Delete \u2014 version control owns history |\n| 1    | conversational-antecedent | 15 | \"// like you said, cap the size at 500 entries\" | Delete \u2014 invisible to future readers |\n\nThis audit is read-only, so I have not removed anything; delete these three lines yourself or run /code-tidying:dissolve-comments to apply them.\n\nTotal: 1 file(s) audited, 3 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "src/cache.ts: 3 finding(s) — T1=3, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | conversational-antecedent | 4 | \"// per your request, eviction stays LRU\" | Delete — invisible to future readers |\n| 1    | history-narration | 18 | \"// Map iteration order is insertion order\" | Delete |\n| 1    | history-narration | 8 | \"// previously this cleared the whole map on a miss\" | Delete — version control owns history |\n| 1    | conversational-antecedent | 15 | \"// like you said, cap the size at 500 entries\" | Delete — invisible to future readers |\n\nThis audit is read-only, so I have not removed anything; delete these three lines yourself or run /code-tidying:dissolve-comments to apply them.\n\nTotal: 1 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "lists findings and leaves deletion to the user; the extra Map row is graded by why-comment-not-flagged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I removed the conversational comments from src/cache.ts: the per your request note (conversational-antecedent), the like you said note, and the history-narration comment on line 8. The Map iteration comment stays.",
+      "why": "claims it deleted them"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    }
+  ]
+}

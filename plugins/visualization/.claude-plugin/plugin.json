@@ -1,6 +1,6 @@
 {
   "name": "visualization",
-  "version": "0.11.3",
+  "version": "0.12.1",
   "description": "Visualization skills. visualize picks the form (mermaid diagram, markdown table, SVG/CSS chart, ASCII/Unicode art, or a rendered page) and the medium (terminal, local HTML file, or published Artifact) for what is in the conversation, asking only when the target is ambiguous. present builds a slide deck from the account's claude.ai Slides Artifact type behind a publish gate, with a markdown outline as the record. Chart craft and artifact design route to those capabilities when installed.",
   "author": {
     "name": "Melodic Software",
@@ -23,9 +23,9 @@
     "medium": {
       "type": "string",
       "title": "Preferred delivery medium",
-      "description": "Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file.",
+      "description": "Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file.",
       "default": "auto",
-      "options": ["auto", "terminal", "file", "artifact"]
+      "options": ["auto", "terminal", "file", "artifact", "hosted"]
     },
     "thin_context_prompt": {
       "type": "string",

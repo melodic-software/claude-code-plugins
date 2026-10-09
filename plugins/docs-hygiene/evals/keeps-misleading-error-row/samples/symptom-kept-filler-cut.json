@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service on Node.js; pnpm. Commands are the package.json scripts.\n\n## Troubleshooting\n\n- `pnpm test` fails with `Error: Cannot find module '@ledgerline/schema'`: the package is installed; its generated code is stale after a schema change. Run `pnpm gen:schema`, then rerun the tests.\n```\n\n- Welcome line: says nothing an agent acts on.\n- Project structure: visible from the tree.\n- Commands list: same as package.json scripts.\n- Style: generic advice; ESLint enforces the rest.\n- Final notes: filler.",
+      "why": "P-canonical: schema row kept verbatim with cause and fix; all named filler gone"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Follow `eslint.config.js`.\n- `Cannot find module '@ledgerline/schema'` in tests does not mean the package is missing: the generated schema code is stale. Run `pnpm gen:schema` and rerun.\n```\n\n- About, structure, commands: derivable from package.json and the tree.\n- \"Write clean code\", \"Use TypeScript types\": generic.\n- Welcome and final notes: no instruction.",
+      "why": "P-alt: row reworded, cause and fix intact; ESLint line kept, which does not decide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service, pnpm. Commands are the package.json scripts. Follow `eslint.config.js`.\n```\n\n- Structure, commands: derivable.\n- Style: generic.\n- Troubleshooting: an agent can read the error and investigate.\n- Welcome and final notes: filler.",
+      "why": "F-cut: the misleading-error row is removed"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service, pnpm.\n\n- If tests fail with a module error, rerun `pnpm install`.\n```\n\n- Structure, commands, style: derivable or generic.\n- Troubleshooting: shortened.",
+      "why": "F-nocause: row reduced to a generic fix without the real cause or gen:schema"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n## Project structure\n\n- `src/` contains the application source code.\n- `test/` contains the tests.\n- `package.json` defines the dependencies and scripts.\n- `tsconfig.json` configures the TypeScript compiler.\n\n## Troubleshooting\n\n- `Cannot find module '@ledgerline/schema'`: generated code is stale. Run `pnpm gen:schema`.\n```\n\n- Commands: in package.json.\n- Style, welcome, final notes: generic.",
+      "why": "F-filler: row kept but the project-structure list remains"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Write clean, readable, maintainable code.\n- Use TypeScript types.\n- `Cannot find module '@ledgerline/schema'` during tests: the generated code is stale, not missing. Run `pnpm gen:schema`.\n```\n\n- About, structure, commands: derivable.\n- Welcome and final notes: filler.",
+      "why": "F-near: row kept but the generic style lines remain"
+    }
+  ]
+}

@@ -182,5 +182,5 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 |---|---|
 | The rubric is proven over real audits | Route it upstream to `melodic-software/standards` as shared doc-value policy (deferred; ledger E-a) |
 | Demand surfaces for applying verdicts, not just classifying | Revisit the deferred remediation/apply action (deferred; ledger E-b) |
-| The sub-agents page's "What loads at startup" lists a different set of subagents that skip `CLAUDE.md` or project rules | Re-fetch the page, re-derive the `Explore`/`Plan` requirement in the spot-test protocol and the Sources record, refresh the as-of date |
+| The sub-agents page's "What loads at startup" lists a different set of subagents that skip `CLAUDE.md` or project rules | Re-read the page by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs) (rung 1, fresh bytes), re-derive the `Explore`/`Plan` requirement in the spot-test protocol and the Sources record, refresh the as-of date |
 | A native "regenerate this doc from source" mechanism ships | Strengthen the `keep-as-derivation-cache` drift-control test to prefer regeneration over a recorded recheck trigger |

@@ -42,7 +42,8 @@ PLAN_MIGRATION="$SCRIPT_DIR/plan-migration.sh"
 SOURCES_MD="$SCRIPT_DIR/../reference/sources.md"
 
 FLAG_NAME="tengu_agents_md_mod"
-ENV_VARS_URL="https://code.claude.com/docs/en/env-vars.md"
+FETCH_DOCS="$SCRIPT_DIR/../../../scripts/fetch-docs.sh"
+ENV_VARS_SLUG="env-vars"
 ENV_VARS_HEADING="## Features that need feature-flag fetching"
 # A heading the page carries AFTER the feature-flag list. Its presence is what
 # says the body arrived whole: without it, "the AGENTS.md bullet is gone" and
@@ -352,17 +353,18 @@ condition_1() {
     esac
   fi
 
-  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 fetch_rc=0 complete=1
+  local ev="$ENV_VARS_FILE" body="" heading_found=0 bullet_found=0 complete=1 state=""
   if [[ -z "$ev" ]]; then
-    ev="$PLAN_OUT/env-vars.md"
-    # `--fail` so an error page is not read as the page, and the exit status is
-    # checked: a truncated body keeps whatever arrived, and a body cut off
-    # after the heading but before the AGENTS.md bullet used to read as the
-    # bullet being gone, which is [MET].
-    curl -sL --fail --max-time 60 "$ENV_VARS_URL" -o "$ev" 2>/dev/null || fetch_rc=$?
-    if ((fetch_rc != 0)); then
-      note "env-vars: fetch failed (curl exited $fetch_rc)"
-      ev=""
+    # The bullet's absence is a [MET] verdict, so the page must be fresh and
+    # whole: --max-age 0 asks the server every time and a failed fetch is
+    # unread, never a stale cached copy. The fetcher keeps no partial body.
+    FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --cache --max-age 0 --out "$PLAN_OUT/docs" \
+      "$ENV_VARS_SLUG" >/dev/null 2>&1
+    state="$(jq -r '.pages[0] | "\(.state) \(.reason // "")"' "$PLAN_OUT/docs/manifest.json" 2>/dev/null)"
+    if [[ "$state" == "read "* ]]; then
+      ev="$PLAN_OUT/docs/$ENV_VARS_SLUG.md"
+    else
+      note "env-vars: fetch failed (${state:-no manifest})"
     fi
   fi
   # A page that does not reach a section known to sit AFTER the one being read

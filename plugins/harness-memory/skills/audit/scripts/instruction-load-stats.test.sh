@@ -165,6 +165,8 @@ make_repo "$USR"
 printf '# Project\n' >"$USR/CLAUDE.md"
 UCFG="$TEST_TMPDIR/cfg"
 mkdir -p "$UCFG/rules/deep" "$UCFG/notes"
+# The script reports physical paths; a Windows TMPDIR is D:/ form where pwd -P is /d/ form.
+UCFG=$(cd "$UCFG" && pwd -P)
 printf '# User\n@notes/prefs.md\n' >"$UCFG/CLAUDE.md"
 printf 'prefs body\n' >"$UCFG/notes/prefs.md"
 printf 'user rule\n' >"$UCFG/rules/deep/always.md"

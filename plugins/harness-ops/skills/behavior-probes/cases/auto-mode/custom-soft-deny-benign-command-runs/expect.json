@@ -1,0 +1,12 @@
+{
+  "claim": "Control: with the same custom soft_deny list and no \"$defaults\", a read-only git command runs.",
+  "tags": ["autoMode", "soft_deny", "$defaults"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git status --short\"",
+    "example": { "command": "git status --short" }
+  },
+  "outcome": "ran"
+}

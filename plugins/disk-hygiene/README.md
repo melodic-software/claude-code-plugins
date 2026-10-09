@@ -430,7 +430,10 @@ measurements below carry the conditions they were taken under.
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
   PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
   is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
-  `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
+  `--settings` scope (Claude Code 2.1.207+; [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs),
+  [`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), as of 2026-10-07;
+  recheck when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs`
+  scope changes), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
   can enforce audit-only (the sibling `managed-settings.d/` drop-in directory is merged over it). An absent
@@ -558,15 +561,17 @@ credential, dependency, or MCP surface reopens this review.
 
 ## Sources
 
-Verified 2026-07-16 against current primary documentation:
+Verified 2026-07-16 against current primary documentation. Recheck when the plugin loading page
+changes `--plugin-dir` behavior or the hooks page changes the `PreToolUse` decision output:
 
-- [Create plugins](https://code.claude.com/docs/en/plugins) and
-  [plugins reference](https://code.claude.com/docs/en/plugins-reference). Plugin structure, cache
-  isolation, manifests, versions, and local `--plugin-dir` testing.
+- [Create plugins](https://code.claude.com/docs/en/plugins/create) and
+  [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and
+  [plugin loading reference](https://code.claude.com/docs/en/plugins/loading). Plugin structure, cache isolation, manifests, versions, and
+  local `--plugin-dir` testing.
 - [Skills](https://code.claude.com/docs/en/skills). Side-effecting skills should be manual-only;
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks). Current `PreToolUse` decision output.
-- [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Relative plugin sources.
+- [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference#relative-path-plugin-source). Relative plugin sources.
 - [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
 . Expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
   filename-expansion families rejected by the literal-command guard.
@@ -656,7 +661,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

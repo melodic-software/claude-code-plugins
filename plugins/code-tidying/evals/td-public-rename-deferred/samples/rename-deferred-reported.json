@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I did not rename fmtDate: other repositories source it by name, so the rename is a breaking API change. Deferred as a work item.",
+      "why": "states it"
+    },
+    {
+      "answer": "Deferred (behavioral): renaming fmtDate breaks deploy-tools and infra-scripts.",
+      "why": "states it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Renamed fmtDate to format_date and updated deploy.sh.",
+      "why": "does not state it"
+    },
+    {
+      "answer": "Removed unused_flag from scripts/deploy.sh.",
+      "why": "does not state it"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --diff-filter=ACDMR --name-only main...HEAD -- src/"
+          }
+        }
+      ],
+      "why": "three-dot"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only $(git merge-base main HEAD) -- src/"
+          }
+        }
+      ],
+      "why": "explicit merge base"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only main -- src/"
+          }
+        }
+      ],
+      "why": "two-sided diff sweeps main-only changes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=\"48 hours ago\" --name-only -- src/"
+          }
+        }
+      ],
+      "why": "time window instead of branch"
+    }
+  ]
+}

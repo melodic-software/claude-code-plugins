@@ -1,5 +1,5 @@
 ---
-description: "Verify the rate-limit-guard plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, every option's effective value, and any retired statusline tee still running beside the mod, with the steps to remove it that keep your own status line. Use when: 'set up rate-limit-guard', 'is rate-limit-guard working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after updating from a version with the statusline tee. Action: check (read-only, default). Check-only: prints every remediation and never edits settings, scripts or files."
+description: "Verify the rate-limit-guard plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, and every option's effective value. Use when: 'set up rate-limit-guard', 'is rate-limit-guard working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after a plugin update. Action: check (read-only, default). Check-only: prints every remediation and never edits settings, scripts or files."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
@@ -24,11 +24,6 @@ writable artifact, so `check` inspects, reports PASS/FAIL/INFO with one remediat
 and no `apply` is offered because there is nothing it could conformingly write. The surfaces that
 qualify it:
 
-- **Claude Code settings this contract forbids setup to mutate**: the user-scope `statusLine` in
-  the person's own `settings.json`, where versions before 0.12.0 had them wire a statusline tee.
-  The plugin no longer needs any wiring. `check` finds a tee that still runs and prints the exact
-  edit that removes it, keeping the person's own status line byte for byte, marked as theirs to
-  apply.
 - **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
   never write. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
@@ -47,14 +42,13 @@ qualify it:
   install is the person's.
 
 The files under `~/.claude/rate-limit-guard/` are runtime-owned plugin data, written by the module
-and the StopFailure hook, not an operator-editable surface. Files a retired tee left there are
-removed by the person, from the commands `check` prints.
+and the StopFailure hook, not an operator-editable surface.
 
 Action routing: no argument or `check` runs the check.
 
 The code is the source of truth for its own behavior. Read `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx`
 and `${CLAUDE_PLUGIN_ROOT}/hooks/record-rate-limit-stop.sh` when a finding depends on what they do,
-rather than reciting this file. The consumer-facing constants (tee path, threshold, staleness rule)
+rather than reciting this file. The consumer-facing constants (snapshot path, threshold, staleness rule)
 are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
@@ -130,7 +124,7 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    | `rate_limit_report_mode` | `${user_config.rate_limit_report_mode}` | `automatic` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row above the prompt. |
    | `rate_limit_line_threshold` | `${user_config.rate_limit_line_threshold}` | `95` | Window use at which Claude gets the threshold line. The loop lanes' pause edge stays 95 whatever this is. |
    | `rate_limit_approach_pct` | `${user_config.rate_limit_approach_pct}` | `90` | Window use for the one approach line; at or above the threshold, none is sent. |
-   | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
+   | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,percent,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
    | `rate_limit_guard_band` | `${user_config.rate_limit_guard_band}` | `false` | `true` draws the band row; `/rate-limit-guard band on` or `band off` sets it for one session. |
    | `rate_limit_guard_toast` | `${user_config.rate_limit_guard_toast}` | `true` | `false` drops the toast when a window nears or reaches the threshold or resets; the transcript line stays. |
 
@@ -151,25 +145,6 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      it loads; Claude Code reloads a module when its options change, so a changed value acts from
      the next event. The StopFailure hook reads its value at session start. Report the observed
      value, never an unobserved change.
-6. **Retired statusline tee.** Read
-   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md), shared with
-   context-guard and synced byte-identical, with `<guard>` = `rate-limit-guard` and
-   `<plugin-root>` = `${CLAUDE_PLUGIN_ROOT}`. Run its three steps (stamps newer than this version's
-   install, cached versions still holding a tee, the three wiring routes) and report each finding
-   as that file classifies it. Reading settings, scripts and the plugin cache is all this step
-   does.
-   - **Any finding** (a running tee, files it left behind, a cached version that still carries one,
-     or a wiring route): read [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md)
-     with `<guard>` = `rate-limit-guard` and print its steps for the person to run: the
-     `statusLine` value with every guard shim and tee removed and the person's own renderer kept
-     byte for byte, the wrapper-script lines to remove, the files to delete, and the restart of
-     sessions and lanes started before the update. Print the edited value itself, worked out by
-     that file's rules, never a script to compute it, and name the settings file it goes in.
-   - **The `statusLine` naming a shim or tee lives in managed settings**: name that file, say the
-     person cannot change it from here, and route them to the policy administrator; print no edit
-     for it.
-   - **No finding**: PASS. Say nothing about the person's own status line: it is theirs, and the
-     plugin no longer reads it.
 
 ## Uninstalling
 
@@ -178,36 +153,13 @@ Uninstalling the plugin removes the cache directory, not the files under
 the reader contract says. To remove the files too, delete `~/.claude/rate-limit-guard/` after the
 uninstall.
 
-When step 6 finds a retired tee still wired, the order matters: apply its `statusLine` edit
-first, then delete the directory. A `statusLine` that still names
-`~/.claude/rate-limit-guard/bin/statusline-shim.sh` after the directory is gone runs
-`bash <missing-path>`, which exits 127 and takes the person's whole status line down. Report both
-steps together, in that order, when asked how to back this out.
-
 ## What this skill does NOT do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user, project or managed), a wrapper script, or any other
-  Claude Code settings surface; the printed edit is the person's to apply.
+  Claude Code settings surface.
 - Install `node`, update Claude Code, or install any system package.
 - Write or delete anything under `~/.claude/rate-limit-guard/`. The module and the hook own
-  `rate-limits.json` and `stop-events.jsonl`; files a retired tee left there are deleted by the
-  person from the printed commands.
-- Edit the sibling `context-guard` plugin's files, whose own setup skill runs the same detector.
-
-## Spoke paths
-
-The two `reference/` files write the plugin's root directory as `<plugin-root>` and this plugin's
-name as `<guard>`: `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}` and `<guard>` is `rate-limit-guard`.
-Put those values in place of the placeholders before running a command or writing one into a
-brief. The files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach
-the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand
-it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
-
-- [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md): the retired-tee
-  detector, `check` step 6.
-- [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md): the unwire steps
-  printed on a finding.
+  `rate-limits.json` and `stop-events.jsonl`.
+- Edit the sibling `context-guard` plugin's files.

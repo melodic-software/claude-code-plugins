@@ -18,7 +18,8 @@ still respects a body hold and human comments, so never override one. The hold c
 `docs/conventions/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
-(shared version bump and CHANGELOG line); the rule itself is the scope test in
+(shared version bump and CHANGELOG line, or shared changelog fragment for a plugin in
+`scripts/fragment-plugins.txt`); the rule itself is the scope test in
 `plugins/source-control/reference/review-discipline.md`.
 
 ## When to stop and when to keep going
@@ -55,6 +56,9 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 - Org-wide criteria: [`REVIEW.md`](REVIEW.md), synced from `melodic-software/standards`.
 - Skill and agent bodies link volatile upstream specifics with an as-of date and recheck trigger,
   never restate them: [rule](.claude/rules/skill-bodies-state-current-rules.md).
+- Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
+  eval evidence of no loss:
+  [skill criteria](plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
 - Cost claims: no prices or per-task costs, outside two named exceptions:
   [rule](.claude/rules/cost-claims.md).
 - Eval cases hold no raw session or product transcript:

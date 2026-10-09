@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: acr-dir-batch-skips
+description: natural-language directory audit skips the markdown file, honors a comment-residue-ignore marker, and still counts a finding in an @generated file while noting it belongs upstream
+tags: [acr, outcome, natural-language, batch]
+expected_outcome: The audit-comment-residue skill is invoked on scripts/. Two code files are audited (NOTES.md is skipped). scripts/deploy.sh has one origin-note at line 10; its line 5 ("we switched from rsync") is covered by the comment-residue-ignore marker and is not reported. scripts/gen_client.py has history-narration at line 8, still counted, with a note that the file is generated and the fix belongs upstream. Total 2 files, 2 Tier 1, 0 Tier 2.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: Find stale or narrative comments in the scripts/ directory and tell me what you would flag.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'audit-comment-residue'
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both
+  - name: markdown-skipped
+    type: regex
+    pattern: '^(?:(?![^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b)[^\n]*Priya|[^\n]*(?:\||\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b)[^\n]*Priya|[^\n]*Priya[^\n]*(?:\||\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b))'
+    flags: m
+    match: not_contains
+  - name: ignore-marker-respected
+    type: regex
+    pattern: '^\s*\|[^\n]*switched from rsync'
+    flags: m
+    match: not_contains
+  - name: deploy-origin-line-10
+    type: regex
+    pattern: '^[^\n]*(\borigin-note\b[^\n]*\b10\b|\b10\b[^\n]*\borigin-note\b)'
+    flags: m
+  - name: generated-finding-counted
+    type: regex
+    pattern: '^[^\n]*(\bhistory-narration\b(?!-)[^\n]*\b8\b|\b8\b[^\n]*\bhistory-narration\b(?!-))'
+    flags: m
+  - name: generated-upstream-note
+    type: regex
+    pattern: 'upstream|generator|\btemplate\b|regenerat|codegen|(?:fix|change|edit)[^\n]{0,60}\b(?:at|in) (?:the )?(?:source|generator|template)\b|(?:won''t|will not|wouldn''t|doesn''t|does not) (?:stick|survive|persist)|overwritten'
+    flags: i
+  - name: batch-total
+    type: regex
+    pattern: 'Total:?\**\s*\**2\**\s+files?\b[^\n]*?\b2\**\s+(?:Tier[ -]1|(?:to |must )?remov\w*)\b[^\n]*?\b0\**\s+(?:Tier[ -]2|(?:to |needs? |for )?review\w*)\b'
+    flags: i

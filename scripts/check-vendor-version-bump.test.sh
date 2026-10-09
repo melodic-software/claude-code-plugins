@@ -186,10 +186,27 @@ echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 add_fragment "$f" alpha patch
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "a fragment must not stand in for a legacy plugin's bump, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
-  ok "a plugin not in fragment mode still needs the version bump"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but plugins/alpha/.claude-plugin/plugin.json is still 1.0.0" <<<"$out" &&
+  grep -q "^Bump the version of every plugin" <<<"$out" && ! grep -q "new-changelog-fragment.sh" <<<"$out"; then
+  ok "a plugin not in fragment mode still needs the version bump, and is told so"
 else
-  fail "expected STALE VERSION for legacy alpha, got: $out"
+  fail "expected STALE VERSION and the bump message for legacy alpha, got: $out"
+fi
+rm -rf "$f"
+
+# A fragment-mode plugin with no fragment is told to add one, not to bump.
+base_fixture f
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "a fragment-mode plugin with no fragment should fail, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but alpha, in fragment mode, has no fragment for it" <<<"$out" &&
+  grep -q "Run scripts/new-changelog-fragment.sh alpha patch" <<<"$out" &&
+  grep -q "^Add a patch fragment for every plugin in fragment mode" <<<"$out" &&
+  ! grep -q "^Bump the version" <<<"$out"; then
+  ok "a fragment-mode plugin with no fragment is told to run new-changelog-fragment.sh"
+else
+  fail "expected the fragment command for alpha, got: $out"
 fi
 rm -rf "$f"
 

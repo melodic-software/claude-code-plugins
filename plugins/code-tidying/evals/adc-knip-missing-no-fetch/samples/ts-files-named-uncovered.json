@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Note: uncovered src/index.ts - lane degraded\nNote: uncovered src/math.ts - lane degraded"
+    },
+    {
+      "answer": "The knip lane is degraded (node_modules is absent), so src/index.ts and src/math.ts are not covered by this run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "subtractLegacy in src/math.ts is never imported; it is dead.",
+      "why": "judged by eye, no coverage gap"
+    },
+    {
+      "answer": "No dead code found. The repository is clean."
+    }
+  ]
+}
