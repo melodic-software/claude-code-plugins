@@ -108,6 +108,7 @@ git commit -q -m "docs(retry): document backoff_jitter"
 
 git checkout -q main
 sed -i 's/max_retries/max_attempts/g' retry.py test_retry.py
+# shellcheck disable=SC2016 # markdown code spans; the backticks are literal
 sed -i 's/- `max_retries`: how many times to call the function./- `max_attempts`: how many calls in total, including the first./' README.md
 git add retry.py test_retry.py README.md
 git commit -q -m "refactor(retry): rename max_retries to max_attempts" -m "The count includes the first call, so every caller read max_retries as one more call than it makes. Refs RET-41."
