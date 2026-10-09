@@ -5,8 +5,9 @@
 # computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
 # resolution (`worktree.baseRef` fresh|head), `git worktree add`, arming the
 # `git worktree lock` liveness guard (#2257) with an optional --session-id
-# claim token, and the `.worktreeinclude`
-# local-file copy. The copy Claude Code performs for its
+# claim token, the `.worktreeinclude` local-file copy, and `npm ci` when the
+# new tree has a package-lock.json. The `.worktreeinclude` copy Claude Code
+# performs for its
 # native worktrees (EnterWorktree / --worktree) is bypassed when a worktree is
 # created with `git worktree add` directly, so this helper reimplements it.
 #
@@ -40,7 +41,8 @@
 # (machine-parseable); all diagnostics go to stderr.
 #
 # Exit codes:
-#   0  success — worktree created; path on stdout
+#   0  success — worktree created; path on stdout. A failed, skipped or timed-out
+#      dependency install still exits 0 and names the failure on stderr
 #   2  usage error — unknown/missing flag, or a --name git rejects as a branch
 #   3  refuse — no usable external root, root inside a repository, or a
 #      cross-drive root on Windows at any resolution rung including the
@@ -136,6 +138,26 @@ EOF
   return 3
 }
 # --- same-drive helpers (end) ---
+
+# run_capped <seconds> <command...> — run <command> in the background and stop
+# waiting after <seconds>: return its status, or kill it and return 124 at the
+# cap. Polls with `kill -0` because `timeout` is not on macOS by default.
+run_capped() {
+  local cap="$1" pid ticks=0
+  shift
+  "$@" &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if ((ticks >= cap * 10)); then
+      kill "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      return 124
+    fi
+    sleep 0.1
+    ticks=$((ticks + 1))
+  done
+  wait "$pid"
+}
 
 usage() {
   cat >&2 <<EOF
@@ -240,6 +262,11 @@ Options:
                       never filled in from the host name or the environment, and
                       is not reported as any session's claim.
   -h, --help          Show this help.
+
+Dependencies: when the new worktree has a package-lock.json, the helper runs
+npm ci in it (output on stderr), capped at WORKTREE_CREATE_DEPS_CAP_SECONDS
+(default 45). A missing npm, a failed install or the cap only warns on stderr;
+the exit code is unchanged.
 
 On success the created worktree path is printed as the sole stdout line, for the
 caller to feed to EnterWorktree(path:).
@@ -925,21 +952,10 @@ fetched_recently() {
 # the cap. Prompts are disabled so a credential helper cannot stall the cap
 # waiting on input nobody will type.
 refresh_remote_branch() {
-  local repo_top="$1" remote="$2" branch="$3" pid ticks=0
+  local repo_top="$1" remote="$2" branch="$3"
   fetched_recently "$repo_top" && return 0
-  GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never \
-    git -C "$repo_top" fetch --quiet --no-tags -- "$remote" "$branch" </dev/null >/dev/null 2>&1 &
-  pid=$!
-  while kill -0 "$pid" 2>/dev/null; do
-    if ((ticks >= FETCH_CAP_SECONDS * 10)); then
-      kill "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null
-      return 1
-    fi
-    sleep 0.1
-    ticks=$((ticks + 1))
-  done
-  wait "$pid"
+  GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never run_capped "$FETCH_CAP_SECONDS" \
+    git -C "$repo_top" fetch --quiet --no-tags -- "$remote" "$branch" </dev/null >/dev/null 2>&1
 }
 
 case "$base_ref" in
@@ -1079,6 +1095,37 @@ if [[ -f "$settings_src" ]]; then
     printf '%s: copied settings.local.json into the worktree\n' "$PROG" >&2
   else
     printf '%s: warning: failed to copy settings.local.json into the worktree\n' "$PROG" >&2
+  fi
+fi
+
+# Install the tree's npm dependencies. node_modules is gitignored, so a new
+# worktree has none, and a pre-commit hook that runs a tool from
+# node_modules/.bin (markdownlint-cli2 and the like) fails the first commit.
+# Non-fatal on purpose: the worktree is already usable for reading and editing,
+# so a missing npm, a failed install or the cap warns with the remedy and the
+# exit code stays what creation earned. npm's own output goes to stderr to keep
+# the sole-stdout-line contract. The cap keeps the WorktreeCreate hook (60s
+# timeout in hooks.json) from being killed mid-creation.
+deps_cap="${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}"
+[[ "$deps_cap" =~ ^[0-9]+$ ]] || deps_cap=45
+if [[ -f "$worktree_path/package-lock.json" ]]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    printf '%s: warning: package-lock.json found but npm is not on PATH; dependencies not installed. Run npm ci in %s\n' \
+      "$PROG" "$worktree_path" >&2
+  else
+    printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
+    # `exec` makes the capped pid npm itself, so the cap's kill reaches it.
+    # SC2016: $1 expands in the inner bash, which receives the path as an argument.
+    # shellcheck disable=SC2016
+    run_capped "$deps_cap" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
+    deps_rc=$?
+    if ((deps_rc == 124)); then
+      printf '%s: warning: npm ci did not finish within %ss and was stopped; node_modules may be partial. Run npm ci in %s\n' \
+        "$PROG" "$deps_cap" "$worktree_path" >&2
+    elif ((deps_rc != 0)); then
+      printf '%s: warning: npm ci failed (exit %d); node_modules may be missing or partial. Run npm ci in %s\n' \
+        "$PROG" "$deps_rc" "$worktree_path" >&2
+    fi
   fi
 fi
 
