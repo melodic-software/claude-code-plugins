@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.2] - 2026-10-09
+
+### Changed
+
+- **`/review:fanout` pilots one surface before a fan-out wider than about 4.** In either review mode it dispatches one surface alone and confirms plan usage remains before dispatching the rest, because a usage limit hit mid-fan-out stops every reviewer at once. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+
 ## [0.43.1] - 2026-10-07
 
 ### Fixed

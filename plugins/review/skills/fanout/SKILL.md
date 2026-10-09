@@ -99,6 +99,8 @@ Otherwise resolve the review diff base ("Shared inputs") and confirm it yields a
 
 Either outcome spawns ZERO reviewers, a fan-out against an empty or wrong change set burns the whole roster to produce noise. The `fix` action is exempt: it consumes persisted findings and spawns no reviewers.
 
+**Pilot a wide fan-out.** Before dispatching more than about 4 surfaces, in either review mode, dispatch one surface alone, wait for its return, and confirm plan usage remains (the return carries no usage-limit error, and any usage reading the session has shows room for the rest) before dispatching the others. A usage limit hit mid-fan-out stops every reviewer at once.
+
 ## Step 1: Detect lifecycle tier (default mode)
 
 Read the pre-computed facts (the pre-flight gate above has already screened out unresolvable and empty change sets). Classify the change into a tier (thresholds + the judgment layer in [context/default-mode.md](context/default-mode.md)):
