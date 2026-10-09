@@ -29,8 +29,8 @@ user's yes in this session; with no one to answer (an unattended run), report an
 
 - `python-packages`: the row's repair line is the plugin's own hash-pinned install, the command
   the SessionStart hook runs. Name it and run it as printed on a yes.
-- `espeak-ng`, Python or Node.js: a system install, often with `sudo`. Write the commands from the
-  row's install hints to a script file, show it, and run it on a yes with its output going to a
+- `espeak-ng`, Python or Node.js: a system install, often with `sudo`. Write the install command
+  for this machine's package manager, from the row's install hints, to a script file, show it, and run it on a yes with its output going to a
   log file, then read the log. When it needs a password, the user runs the script and the log is
   read afterwards.
 - `kokoro-model`: state the size the row prints and that `/speech:setup apply install-model`

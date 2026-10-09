@@ -168,8 +168,8 @@ fix. When a prerequisite check fails in an interactive session, the agent offers
 it only after the user says yes in this session. Nothing installs without that yes. An unattended
 or autonomous run (a loop lane, CI, a background session) has no one to say yes, so it keeps the
 report-only behavior: it prints the repair line and stops or degrades per the absence class. A
-`check` skill stays read-only: it reports and stops, and the offer follows its report. A hook
-notice is not consent; the user's yes in this session is.
+`check` skill's own check stays read-only; the offer follows its report. A hook notice is not
+consent; the user's yes in this session is.
 
 How the agent offers and runs the fix depends on how the fix is delivered and what it writes:
 
