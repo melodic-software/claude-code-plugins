@@ -122,7 +122,9 @@ lock ([pip secure installs](https://pip.pypa.io/en/stable/topics/secure-installs
 `uv run`, `uvx`, `pip install` or `--with-requirements`. A skill runs its scripts against the
 installed set through a launcher that puts the install directory on `PYTHONPATH` and never
 installs (the reference's `pydeps.py run`). The component's tests assert this by scanning its
-skills and scripts.
+skills and scripts. Rule P4's repair line is this install, not a second fetch path: it runs the
+same installer in the foreground, by the user or by the agent on the user's yes, and no skill body
+or script runs it on its own.
 
 ### Rule P3: install into the plugin data directory, keyed by lock and interpreter [SPEC]
 

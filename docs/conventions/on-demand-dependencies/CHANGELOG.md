@@ -9,6 +9,8 @@ or adopter is a minor bump; wording is a patch.
 - **Rule P4**: in an interactive session the agent offers to run the repair line and runs it on the
   user's yes, per the prerequisites convention's
   [When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
+- **Rule P2**: the P4 repair line, run in the foreground by the user or by the agent on the user's
+  yes, is the install itself, not a second fetch path.
 
 ## [2.2.0] - 2026-10-02
 
