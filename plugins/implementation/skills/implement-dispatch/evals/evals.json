@@ -225,6 +225,31 @@
         "Waits for the pilot's return and checks remaining plan usage before dispatching the other rows",
         "Withholds the remaining four rows after the pilot returns a usage-limit error and reports it"
       ]
+    },
+    {
+      "id": 18,
+      "name": "worktree-brief-runs-cwd-sensitive-command-by-directory-flag",
+      "prompt": "/implementation:implement-dispatch phase-1 — the worker edits in the dedicated worktree /home/dev/worktrees/app-phase1, outside the session's working directories. The phase's acceptance check is the repository's Makefile `test` target and its `npm run lint` script, both of which read their configuration from the working directory. Compose the brief.",
+      "expected_output": "The brief gives the worktree's absolute path written literally and anchors every command on it: `git -C <path>` for git, absolute paths elsewhere, one plain command per call, and no `cd`, including a `cd` into the worktree itself. The working-directory-sensitive commands run through their own directory flags, `make -C /home/dev/worktrees/app-phase1 test` and `npm --prefix /home/dev/worktrees/app-phase1 run lint`, never as `cd /home/dev/worktrees/app-phase1 && make test`.",
+      "files": [],
+      "expectations": [
+        "Writes the worktree path /home/dev/worktrees/app-phase1 literally in the brief",
+        "Directs the Makefile target through `make -C` with the literal worktree path",
+        "Directs the lint script through `npm --prefix` with the literal worktree path",
+        "Does NOT tell the worker to run any command as `cd <worktree> && <command>`, and states that `cd` is banned even into the worktree"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "worktree-command-without-directory-flag-goes-to-main-side-gate",
+      "prompt": "/implementation:implement-dispatch phase-2 — the worker edits in the dedicated worktree /home/dev/worktrees/svc-phase2, outside the session's working directories. The phase's only check is `./check`, a repository wrapper that reads its configuration from the current working directory, takes no directory flag, and does not locate the repository from its own path. Compose the brief and say who runs the check.",
+      "expected_output": "Because the wrapper has neither a directory flag nor a self-locating path, the brief does not have the worker run it, and in particular never as `cd /home/dev/worktrees/svc-phase2 && ./check`. The check is left to the orchestrator's main-side gate, which runs it after the worker returns. The brief still anchors the worker's own commands on the literal worktree path with `git -C` and absolute paths and bans `cd`.",
+      "files": [],
+      "expectations": [
+        "Does NOT instruct the worker to run `./check` via `cd <worktree> && ./check` or any other `cd`",
+        "Assigns running `./check` to the orchestrator's main-side gate after the worker returns",
+        "Anchors the worker's commands on the literal path /home/dev/worktrees/svc-phase2 with `git -C` and absolute paths"
+      ]
     }
   ]
 }
