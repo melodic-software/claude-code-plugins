@@ -525,6 +525,7 @@ parity_case "SubagentStop" SubagentStop '"stop_hook_active":false,"agent_id":"ag
 parity_case "UserPromptSubmit with content on" UserPromptSubmit "$PROMPT_TAIL" "" "$CONTENT_ON"
 # With tracing on, a settings row got TRACEPARENT and the module gets none: the record
 # loses its traceparent key and nothing else. The value is the W3C trace context example.
+# spellchecker:ignore-next-line
 TP=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 run "$P" "$(payload row-traced Stop "$STOP_TAIL")" "$ON" TRACEPARENT="$TP" >/dev/null
 run "$P" "$(payload mod-traced Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
