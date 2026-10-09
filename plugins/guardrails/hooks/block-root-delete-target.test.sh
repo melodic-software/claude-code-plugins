@@ -1617,6 +1617,19 @@ else
   rdt_skip "no cygpath on this host (2 cases)"
 fi
 
+# A per-machine pair under one fake HOME: a worktree-root name prefix and a
+# home .work directory. The intended targets pass; the worktree root, a sibling
+# worktree, .work itself and HOME stay refused.
+RDT_WH="$RDT_AB/wthome"
+RDT_WK="$RDT_WH/worktrees/.tmp-*,$RDT_WH/.work"
+mkdir -p "$RDT_WH/worktrees/.tmp-x" "$RDT_WH/worktrees/other" "$RDT_WH/.work/x"
+rdt_ar 'pair: a .tmp- worktree child allowed' 0 "rm -rf '$RDT_WH/worktrees/.tmp-x'" "$RDT_WK" "$RDT_WH"
+rdt_ar 'pair: a path under HOME .work allowed' 0 "rm -rf '$RDT_WH/.work/x'" "$RDT_WK" "$RDT_WH"
+rdt_ar 'pair: the worktree root blocks' 2 "rm -rf '$RDT_WH/worktrees'" "$RDT_WK" "$RDT_WH"
+rdt_ar 'pair: a sibling worktree blocks' 2 "rm -rf '$RDT_WH/worktrees/other'" "$RDT_WK" "$RDT_WH"
+rdt_ar 'pair: .work itself blocks' 2 "rm -rf '$RDT_WH/.work'" "$RDT_WK" "$RDT_WH"
+rdt_ar 'pair: HOME blocks' 2 "rm -rf '$RDT_WH'" "$RDT_WK" "$RDT_WH"
+
 # The key is read from the hook's own environment only. Naming it in the
 # command text, as a prefix, an env launcher or an export, grants nothing.
 rdt_ar 'a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_AR' rm -rf '$RDT_AR/child'"
@@ -1630,6 +1643,7 @@ guard_invoke --cwd / --command "rm -rf '$RDT_AO/x'" -- "HOME=$RDT_AH" "$RDT_KEY=
 assert_exit 'allowed roots: a delete outside every root blocks' 2 "$GUARD_RC"
 assert_contains 'allowed roots: the message names the key' "$GUARD_ERR" 'block_root_delete_target_allowed_roots'
 assert_contains 'allowed roots: the message says only the user can set it' "$GUARD_ERR" 'only the user can'
+assert_contains 'allowed roots: the message forbids a retry with another tool' "$GUARD_ERR" 'do not retry the delete with another tool (find -delete, rmtree, git clean)'
 
 # PowerShell judges the same targets through the same arm.
 rdt_arp() { # <label> <want> <command> [roots]
