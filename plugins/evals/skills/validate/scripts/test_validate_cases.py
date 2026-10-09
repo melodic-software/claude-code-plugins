@@ -30,7 +30,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 # what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
-    r"|schema_version|without a prompt.md|sample)",
+    r"|schema_version|is required|requires|no prompt|sample)",
     re.MULTILINE,
 )
 
@@ -424,21 +424,82 @@ class SchemaFixture(ValidatorTestCase):
         result = self.validate()
         self.assert_fail(
             result,
-            'case.yaml without a prompt.md requires "schema_version"',
-            'case.yaml without a prompt.md requires "name"',
+            'yaml-only/case.yaml: "schema_version" is required',
+            'yaml-only/case.yaml: "name" is required',
         )
 
-    def test_a_companion_prompt_md_supplies_the_case_identity(self):
-        self.case(
-            "yaml-with-prompt",
-            prompt=CLEAN_PROMPT,
+    def test_case_yaml_beside_prompt_md_still_requires_name(self):
+        # The repro from issue #6673, which `claude plugin eval` (2.1.295)
+        # refused with "invalid case.yaml: name: Required": a case.yaml turns
+        # off the directory-name default even when prompt.md carries the prompt.
+        case_dir = self.case(
+            "demo",
+            prompt="""\
+            ---
+            description: "demo"
+            allowed_tools: [Read]
+            ---
+            Say hi.
+            """,
             case_yaml="""\
-            execution:
-              max_turns: 10
+            schema_version: "1.1"
+            context:
+              scaffold_script: scaffold.sh
+            """,
+            graders={
+                "says-hi": """\
+                ---
+                type: regex
+                pattern: 'hi'
+                ---
+                """
+            },
+        )
+        write(case_dir / "scaffold.sh", "#!/usr/bin/env bash\ntrue\n")
+        result = self.validate()
+        self.assert_fail(result, 'demo/case.yaml: "name" is required')
+        self.assertNotIn('"schema_version" is required', result.stdout)
+
+    def test_name_in_prompt_md_frontmatter_satisfies_a_case_yaml(self):
+        self.case(
+            "named-in-prompt",
+            prompt=CLEAN_PROMPT.replace("---\n", "---\nname: named-in-prompt\n", 1),
+            case_yaml="""\
+            schema_version: "1.1"
             """,
             graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
         )
-        self.assert_clean(self.validate())
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertNotIn("FAIL", result.stdout)
+
+    def test_without_case_yaml_the_identity_defaults(self):
+        self.case(
+            "prose-only",
+            prompt=CLEAN_PROMPT,
+            graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
+        )
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertNotIn("FAIL", result.stdout)
+
+    def test_a_case_with_no_prompt_fails(self):
+        # `claude plugin eval` refuses this case: "execution.prompt is required
+        # (a prompt.md body, or execution.prompt in case.yaml)".
+        self.case(
+            "no-prompt",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: no-prompt
+            execution:
+              max_turns: 3
+            graders:
+              - name: criteria
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        self.assert_fail(self.validate(), "no-prompt/case.yaml: no prompt")
 
     def test_unsupported_schema_version_major_fails(self):
         self.case(
@@ -473,9 +534,9 @@ class SchemaFixture(ValidatorTestCase):
         result = self.validate()
         self.assert_fail(result, 'schema_version "2.0" is a major newer than 1')
 
-    def test_a_schema_version_with_no_leading_major_is_left_alone(self):
-        # No source records the binary rejecting this shape, so the FAIL tier
-        # does not invent a rejection of its own.
+    def test_a_schema_version_with_no_leading_major_fails(self):
+        # `claude plugin eval` refuses it: 'schema_version "next" is not a valid
+        # version string'.
         self.case(
             "odd-version",
             prompt="""\
@@ -487,7 +548,57 @@ class SchemaFixture(ValidatorTestCase):
             """,
             graders={"names-conftest": REGEX_GRADER, "skill-fired": SKILL_GRADER},
         )
-        self.assert_clean(self.validate())
+        self.assert_fail(
+            self.validate(),
+            'odd-version/prompt.md: schema_version "next" is not a valid version string',
+        )
+
+    def test_an_unquoted_schema_version_fails(self):
+        self.case(
+            "float-version",
+            case_yaml="""\
+            schema_version: 1.1
+            name: float-version
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: criteria
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        self.assert_fail(
+            self.validate(), "float-version/case.yaml: schema_version must be a quoted"
+        )
+
+    def test_each_grader_type_requires_its_options(self):
+        # Messages `claude plugin eval` gave for the same shapes:
+        # "graders.0.pattern: Required", "graders.2.tool: Required",
+        # "graders.0.path: Required". An llm .md body stands in for criteria.
+        self.case(
+            "missing-options",
+            prompt="Say hi.\n",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: missing-options
+            graders:
+              - name: made
+                type: file_exists
+            """,
+            graders={
+                "g": "---\ntype: regex\n---\n",
+                "t": "---\ntype: tool_used\n---\n",
+                "l": "---\ntype: llm\n---\nSays hi politely.\n",
+            },
+        )
+        result = self.validate()
+        self.assert_fail(
+            result,
+            'missing-options/case.yaml: grader type file_exists requires "path"',
+            'missing-options/graders/g.md: grader type regex requires "pattern"',
+            'missing-options/graders/t.md: grader type tool_used requires "tool"',
+        )
+        self.assertNotIn("graders/l.md: grader type llm requires", result.stdout)
 
 
 class UnknownGraderOptionFixture(ValidatorTestCase):
