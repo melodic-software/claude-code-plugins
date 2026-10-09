@@ -110,7 +110,8 @@ boundary.
    → `/clear`. *The cheapest reset, asked before any writing mechanism: capturing state nothing
    needs is pure cost. Unrelated work is work that neither uses this stage's artifact or files nor
    serves the same Original goal or work item. After two failed corrections we clear and restate
-   the problem rather than carry those attempts forward.*
+   the problem rather than carry those attempts forward, recording first only the decisions the
+   restated problem keeps.*
 5. **Does the work leave this session, is a finished spec or plan moving into execution, or is
    the next work unrelated while something from this session still carries over?** →
    `session-flow:handoff`, then the user `/clear`s. *Leaving means another agent, another
@@ -162,12 +163,15 @@ see. Before suggesting any of them:
 
 1. Write every decision made this session, and every pending decision with its recommendation, to
    a durable file the next context reads: the active plan or spec, else the workflow checklist
-   (SKILL.md, "Consumer conventions"); on a handoff route, the save-point carries them.
+   (SKILL.md, "Consumer conventions"). A handoff route records there too, because the save-point
+   does not exist until the handoff runs; the save-point then carries what that file holds.
 2. Ask the pending decisions now, while the user is present, and record each answer or deferral
    in that file.
 
 Only then name the mechanism. Never suggest compacting first and recording afterwards: a
-compaction summary is not a durable record, and a decision it drops is lost.
+compaction summary is not a durable record, and a decision it drops is lost. A `/clear` that
+question 4 chose because nothing carries over has nothing to record and skips both steps; after two
+failed corrections, record the decisions the restated problem keeps before suggesting `/clear`.
 
 ## Output shape: suggest by default
 
