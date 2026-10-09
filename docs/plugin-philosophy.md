@@ -1440,11 +1440,11 @@ same depth on two models):
 **Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
 cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
 kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Ten pin `effort: high`: `implementation` `phase-verifier`;
+[effort floor](#effort-floor)). Eleven pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
 `architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`. Six pin `effort: medium`: `planning` `plan-reviewer` by its
-[recorded exception](#named-agent-bar); `implementation` `implementer`, because a phase brief is
+`plugin-quality` `auditor`; `user-experience` `evaluator`. Six pin `effort: medium`: `planning`
+`plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `implementer`, because a phase brief is
 scoped feature work and its verifier runs at `high`; `implementation` `scoped-implementer`, because
 a plan routes only well-scoped work to it; `songwriting` `object-writer`, because creative
 generation is not verification; and `review` `ecosystem-specialist` and `discovery` `explorer`,
@@ -1494,6 +1494,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `review` `ecosystem-specialist` | `sonnet` | `medium` | `medium` | Runs a repository's declared build, test and lint commands |
 | `review` `security-reviewer` | `opus` | `high` | `high` | Security verdict |
 | `songwriting` `object-writer` | `opus` | `medium` | `medium` | Creative generation, which no row names; the `medium` choice is our judgment |
+| `user-experience` `evaluator` | `opus` | `high` | `high` | Verdict on a UX artifact |
 
 - **Pointer:** for the rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
