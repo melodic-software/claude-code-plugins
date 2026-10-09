@@ -1,7 +1,8 @@
 {
   "pass": [
     {"answer": "playwright-cli -s=cart click e42", "why": "ref"},
-    {"answer": "playwright-cli -s=cart click <ref>", "why": "placeholder"}
+    {"answer": "playwright-cli -s=cart click <ref>", "why": "placeholder"},
+    {"answer": "REF=$(playwright-cli -s=cart --raw snapshot | grep -m1 'Add to cart' | sed -E 's/.*ref=(e[0-9]+).*/\\1/')\nplaywright-cli -s=cart click \"$REF\"", "why": "quoted variable holding a snapshot ref"}
   ],
   "fail": [
     {"answer": "playwright-cli -s=cart click \"text=Add to cart\"", "why": "text selector"},
