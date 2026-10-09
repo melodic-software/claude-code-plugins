@@ -14,8 +14,7 @@ Every optional reference to another plugin's skill carries, at the reference sit
    "invoke `/other-plugin:skill` (if that plugin is installed)" or an equivalent
    "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
-   install-recipe sites and third-party route-row `id` and `detect` fields, for which see the
-   carve-outs below).
+   install-recipe sites and the third-party route-row fields the carve-outs below name).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.

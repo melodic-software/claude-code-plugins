@@ -68,7 +68,7 @@ marketplace id.
 - A bare `detect` names a plugin when `kind` is `plugin`, or `kind` is `skill` and `id` is
   `/<plugin>:<skill>`. It resolves to `<detect>@<own>`, where `<own>` is the marketplace part of the
   `claude plugin list --json` record whose `installPath` realpath equals the detecting plugin's root.
-  Any other bare `detect` names a skill directory or an MCP server.
+  Any other bare `detect` names a skill directory, an MCP server or, on a `kind: tool` row, a tool.
 - The self-record lookup takes each record on its own: a record with no `installPath`, or whose path
   is missing or fails `realpathSync.native`, is skipped inside its own `try`, so one bad record never
   nulls detection. Both sides go through `realpathSync.native`, compared case-insensitively on
