@@ -52,15 +52,23 @@ const DSF = Number(process.env.DEMO_DSF || 2);
 const SLOW = Number(process.env.DEMO_SLOW || 3);
 const out = path.resolve(outArg);
 const existing = fs.existsSync(out) ? fs.readdirSync(out) : [];
-if (existing.length && !existing.includes('timeline.json') && !existing.includes('frames')) {
-  console.error(`record.mjs: ${out} is not empty and holds no earlier capture (timeline.json or frames/); pass a new or empty CAPTURE_DIR.`);
+const isDir = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
+const isFile = (p) => fs.statSync(p, { throwIfNoEntry: false })?.isFile() ?? false;
+const earlierCapture = existing.length === 2 && isDir(path.join(out, 'frames')) && isFile(path.join(out, 'timeline.json'));
+if (existing.length && !earlierCapture) {
+  console.error(`record.mjs: ${out} is not empty and is not an earlier capture (exactly timeline.json and frames/); pass a new or empty CAPTURE_DIR.`);
   process.exit(1);
 }
-fs.rmSync(out, { recursive: true, force: true });
-fs.mkdirSync(path.join(out, 'frames'), { recursive: true });
+const launcher = chromium(pwDir);
+// Record into a sibling staging directory: the earlier capture is replaced only once this one succeeds.
+fs.mkdirSync(path.dirname(out), { recursive: true });
+const stage = fs.mkdtempSync(path.join(path.dirname(out), `.${path.basename(out)}.recording-`));
+let committed = false;
+process.on('exit', () => { if (!committed) fs.rmSync(stage, { recursive: true, force: true }); });
+fs.mkdirSync(path.join(stage, 'frames'));
 
 let browser;
-try { browser = await chromium(pwDir).launch({ headless: !headed }); } catch (e) {
+try { browser = await launcher.launch({ headless: !headed }); } catch (e) {
   console.error(`record.mjs: Chromium did not launch (${e.message.split('\n')[0]}); ${REMEDY}.`);
   process.exit(2);
 }
@@ -99,7 +107,7 @@ function startCapture() {
         continue;
       }
       const file = `frames/${String(n++).padStart(5, '0')}.png`;
-      fs.writeFileSync(path.join(out, file), buf);
+      fs.writeFileSync(path.join(stage, file), buf);
       frames.push({ file, t: (t0 + now()) / 2, t0, digest: crypto.createHash('md5').update(buf).digest('hex') });
     }
   })();
@@ -218,6 +226,9 @@ if (grabber) await grabber;
 await browser.close();
 if (failed) { console.error(`record.mjs: replay failed: ${failed.message}`); process.exit(1); }
 if (!frames.length) { console.error('record.mjs: no frames captured (did the replay call demo.goto?)'); process.exit(1); }
-fs.writeFileSync(path.join(out, 'timeline.json'), JSON.stringify({ width: W, height: H, dsf: DSF, frames, events }, null, 1));
+fs.writeFileSync(path.join(stage, 'timeline.json'), JSON.stringify({ width: W, height: H, dsf: DSF, frames, events }, null, 1));
+fs.rmSync(out, { recursive: true, force: true });
+fs.renameSync(stage, out);
+committed = true;
 const span = frames.at(-1).t - frames[0].t;
 console.log(`frames=${frames.length} (${(frames.length / Math.max(span, 1e-9)).toFixed(1)} fps) events=${events.length} span=${span.toFixed(2)}s -> ${out}`);

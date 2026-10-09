@@ -10,5 +10,6 @@ bump: minor
 - **`/playwright:playwright` names `/playwright:demo-video` in its `## Next` section.**
 - **Demo-video safety.** `pydeps.py` runs its import probe and `pip` with `python -P`, so a
   `numpy.py` or `pip/` in the working directory cannot run or replace the locked set; `record.mjs`
-  refuses to wipe a non-empty capture directory that holds no earlier capture; the independent
-  review now fails a video showing secrets, personal data or internal hosts.
+  records into a staging directory and replaces an earlier capture only once the new one
+  succeeds, and refuses a non-empty directory that is not exactly an earlier capture; the
+  independent review now fails a video showing secrets, personal data or internal hosts.
