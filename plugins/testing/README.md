@@ -99,7 +99,7 @@ Otherwise there is nothing to decide: when every verdict is a PASS, Claude gets 
 count on its next turn, and in the other cases, or in an unattended session, the counts and the
 file. The hook uses `asyncRewake` ([hooks reference: run hooks in the
 background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background), as of 2026-10-09;
-recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes). Each
+recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes).
 A `claude -p` or Agent SDK session ends before the async Stop judge finishes (Claude Code kills
 unfinished async hooks at print-mode teardown), so it gets no task-end verdict; CI is its gate.
 Each UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
