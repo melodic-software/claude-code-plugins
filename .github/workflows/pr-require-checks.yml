@@ -49,11 +49,13 @@ on:
   # required check that never reports on it leaves the queued pull request
   # unmergeable. A merge-group run carries no `github.event.pull_request`, so
   # every expression below that reads one takes its non-PR branch: the
-  # contract-only and draft gates are false, so every lane runs in full; the
+  # contract-only and draft gates are false, so no lane is gated off; the
   # concurrency group falls back to `github.run_id`, so no queued run cancels
-  # another; the docs-only detector does not run, the detect-changes action
-  # fails open and `select-tests` resolves no diff base, so the whole tree is
-  # tested; the base-diff gates decline as on a schedule run; `check-contract` finds no pull
+  # another; `select-tests` diffs against the queue's base
+  # (`github.event.merge_group.base_sha`), so the test lanes run the suites
+  # the group's own diff selects, as its pull request did, while the
+  # detect-changes action, which reads only a pull request's files, fails
+  # open; the base-branch gates decline as on a schedule run; `check-contract` finds no pull
   # request number and reports `skipped`, because the title and linkage were
   # already checked on the pull request before it could enter the queue, and a
   # label can land after enqueue, so a step of its own re-reads `do-not-merge`
@@ -164,8 +166,8 @@ jobs:
   # non-zero exit, or an output file it could not write — leaves
   # `steps.detect.outputs.docs_only` unset, which every expression below
   # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a run with no diff base (a schedule or dispatch run, or a
-  # merge group), where the detect step does not run at all. The
+  # path covers a run with no diff base (a schedule or dispatch run), where
+  # the detect step does not run at all. The
   # narrowing clauses read the detect-changes action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
@@ -269,12 +271,16 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. Every other run gets no base: the whole tree.
-      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
+      # branch, and a merge group against the queue's base commit, unless its
+      # diff touches a plugin or marketplace manifest, as a release does. A schedule
+      # or dispatch run gets no base: the whole tree, the net for what a diff
+      # cannot show. scripts/resolve-diff-base.sh holds the rules and logs why
+      # it chose.
       - name: Resolve the diff base
         id: base
         env:
           BASE_REF: ${{ github.base_ref }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -1953,15 +1959,33 @@ jobs:
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
-      # and on every other run. Elsewhere an unchanged skill's check-25
+      # on a merge group only when its diff touched the same inputs, and on
+      # every schedule or dispatch run. Elsewhere an unchanged skill's check-25
       # verdict cannot have moved, because nothing it reads changed, and a
       # changed skill is checked by the next step, which fails it on check 25
       # like any other FAIL. The one verdict a diff can no longer see is a stale
       # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
       # the list has no active rows, and the scheduled run still reports one.
+      #
+      # detect-changes reads only a pull request's files, so on a merge group
+      # every group reports true and the diff is checked here instead, against
+      # the `skill_checker` group's paths.
       - name: Gate every skill on description/verb-contract polarity (check 25)
         if: needs.select-tests.outputs.run_skill_checker == 'true'
-        run: bash scripts/check-all-skills-verb-contract.sh
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] && [ -n "$DIFF_BASE" ]; then
+            touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
+              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt \
+              scripts/lib .github/workflows/pr-require-checks.yml) ||
+              touched="(git diff failed)"
+            if [ -z "$touched" ]; then
+              echo "::notice::No check-25 input changed since $DIFF_BASE; the scheduled run checks every skill."
+              exit 0
+            fi
+          fi
+          bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -2130,7 +2154,7 @@ jobs:
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
   # that wrapper in `test-bash`, and a Pester suite in pr-test-windows.yml. The
-  # whole tree (a schedule, a dispatch, a merge group, or a change
+  # whole tree (a schedule, a dispatch, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
