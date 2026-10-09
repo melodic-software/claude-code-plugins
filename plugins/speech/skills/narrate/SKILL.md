@@ -39,8 +39,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGI
 
 Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
 Keep the `--model-dir` argument exactly as shown, in single quotes: it carries the plugin's
-`model_dir` option, and when that option is unset the script reads the unsubstituted placeholder
-as unset.
+`model_dir` option, and the script handles an unset one ([reference/plugin-options.md](../../reference/plugin-options.md)).
 
 `narrate.py` owns the behavior: how words are split, how timings are measured, and the
 `words.json` fields. Read its docstring when you need the details.
@@ -72,7 +71,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --data-dir "${CLAUDE_PLUGI
 ```
 
 Keep `--model` exactly as shown, in single quotes: it carries the plugin's `elevenlabs_model`
-option, and an unset option leaves a placeholder the script reads as its default model. When the
+option, and the script uses its default model when that option is unset ([reference/plugin-options.md](../../reference/plugin-options.md)). When the
 user names a model for this run, replace that argument with `--model <model id>`.
 
 1. **Without `--proceed`**, the script prints one statement and sends nothing (exit 3): the

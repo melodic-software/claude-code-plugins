@@ -31,8 +31,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DAT
 ```
 
 Where `python3` is not on PATH, run this and the `assets.py` command below with `python`; the
-SessionStart hook accepts either. Keep `--model-dir` exactly as shown, in single quotes: an unset
-`model_dir` option leaves a placeholder the scripts read as unset.
+SessionStart hook accepts either. Keep `--model-dir` exactly as shown, in single quotes; the
+scripts handle an unset `model_dir` option ([reference/plugin-options.md](../../reference/plugin-options.md)).
 
 It prints one `PASS` or `FAIL` row per prerequisite, then a summary, and exits 1 when any row
 fails. Report the rows as printed. A `FAIL` row carries its remedy: install hints for a tool, the
