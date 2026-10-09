@@ -64,8 +64,8 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
 
 ### workflow
 
-The map for a staged development workflow (contract → explore → research → plan → implement → test
-→ review → verify → retro). Detects the current position from conversation evidence, suggests the
+The map for a staged development workflow (explore → research → [PRD] → contract → design → plan →
+[decompose] → implement → test → review → verify → ship → retro). Detects the current position from conversation evidence, suggests the
 next stage, and serves ordered checklists for the pre-PR sequence and end-of-session wrap-up. When
 the consuming repo defines its own stage skills, it routes to them; otherwise stages execute
 inline.
@@ -538,6 +538,6 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

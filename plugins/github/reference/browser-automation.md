@@ -31,10 +31,14 @@ UI-only and degrade directly to the guided-manual fallback below.
 
 ## Preference order
 
-When both integrations are present, prefer **claude-in-chrome first**: it drives the user's
-live authenticated browser session, which org-admin UI surfaces typically require. playwright
-is second (it relies on saved authentication state, which may not carry an admin session).
-When the user names an integration, their choice is honored over this order.
+Which browser tool fits which job is owned by the browser-tool rubric in `/testing:run-e2e`; this
+section applies its "user's logged-in real browser" row. Org-admin UI surfaces need the user's
+authenticated session, so when both integrations are present, prefer **claude-in-chrome**, then
+playwright (its saved authentication state may not carry an admin session). For Claude in
+Chrome's status under WSL, read the rubric's row; this file does not restate it. Without the
+testing plugin, fetch the WSL note at the top of <https://code.claude.com/docs/en/chrome> and
+prefer playwright while it does not list WSL as supported. When the
+user names an integration, their choice is honored over this order.
 
 ## The routing precondition: resolved `guided-apply` only
 

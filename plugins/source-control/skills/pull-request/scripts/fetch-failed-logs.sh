@@ -332,7 +332,8 @@ if ! unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" 2>/dev/null; then
   exit 4
 fi
 
-# Real GitHub Actions ZIP layout (verified 2026-05-08 against run 25505236665):
+# Real GitHub Actions ZIP layout (verified 2026-05-08 against run 25505236665;
+# recheck when GitHub changes the run-log archive layout):
 #   TOP-LEVEL:  <step-num>_<job-name>.txt    consolidated step log (errors live here)
 #   PER-JOB:    <job-name>/system.txt         agent metadata only
 # Errors appear in the top-level consolidated files. Walk all *.txt recursively

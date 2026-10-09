@@ -12,6 +12,10 @@ cd "$PROJECT_DIR" && go build ./...
 cd "$PROJECT_DIR" && go test ./...
 ```
 
+### Test output signals
+
+For the `Run signals to echo` rule in `SKILL.md` §2: when the command or `GOFLAGS` sets `-shuffle`, `go test` prints the seed it used per package; echo it, since `-shuffle=<seed>` replays that order. `go test` has no built-in retry, so a flaky count comes only from a wrapper the project documents. Pointer: <https://pkg.go.dev/cmd/go/internal/test> (`-shuffle`). As of: 2026-10-06. Recheck trigger: the testflag doc changes how the seed is printed or passed.
+
 ## Lint / Format
 
 Opt-in gated: only runs when a governing `.golangci.yml`/`.golangci.yaml`/`.golangci.toml`/

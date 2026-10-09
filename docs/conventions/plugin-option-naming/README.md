@@ -14,8 +14,8 @@ text shown beneath the field"; every option except `sensitive` options and `mult
 appears as a row in `/config`; `options` turns a `string` field into a picker in `/config` and needs
 v2.1.271 or later; the docs' examples use sentence-case titles ("API token", "Bot token") and
 snake_case keys; `displayName` is "Name shown in UI in place of `name`". Basis:
-<https://code.claude.com/docs/en/plugins-reference> "User configuration" and "displayName". As of:
-2026-10-02. Recheck: that section adds a casing or length rule, changes which options reach
+<https://code.claude.com/docs/en/plugins/manifest-reference> "User configuration" and "displayName". As of:
+2026-10-07. Recheck: that section adds a casing or length rule, changes which options reach
 `/config`, or changes the `options` version floor.
 
 **Record.** Claim: in Claude Code 2.1.287 the `/config` row reads `<title> · <name>`, using the

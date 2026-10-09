@@ -34,7 +34,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the auditor falls back to WebFetch for its documentation fetch, which is less exact.",
+      "degrade": "Without curl, fetch-docs.sh records each page unread with reason curl-missing and the auditor falls back to WebFetch, a rung-2 read that grounds a claim but never an absence.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
@@ -48,19 +48,43 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:audit"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the context-zone script reports unknown for the session and the audit continues without it.",
+      "degrade": "Without jq, the context-zone script reports unknown for the session and the audit continues without it, and fetch-docs.sh exits without a manifest, so the auditor reads docs over WebFetch (rung 2).",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a docs page served only as HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown, including code.claude.com, read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
     },

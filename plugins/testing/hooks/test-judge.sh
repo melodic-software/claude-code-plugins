@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
-# Stop hook: the task-end test judge's relay. It never blocks on its own
-# failure: an EXIT trap turns every path into exit 0.
+# Stop hook (asyncRewake): the task-end test judge's relay. It never blocks
+# on its own failure: an EXIT trap turns every path but the relay's own exit 2
+# into exit 0.
+#
+# A subagent shares its parent's session id; test-scan records the agent_id
+# of a write a subagent made. The parent's Stop leaves the writes of a
+# subagent still running (background_tasks) to a later Stop, and judges and
+# relays a finished subagent's writes with the parent's own.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
-#    nothing, never block; name the tests still being judged. Their verdicts
-#    wait in the ledger for the next task end.
+#    nothing, never block, say nothing. Verdicts wait in the ledger for the
+#    next task end.
 # 2. Re-derive the in-doubt keys of every file the session (and, for a /clear
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
@@ -14,13 +20,16 @@
 #    test-judge-bg.sh job just before returning; that job waits for a dying
 #    run's lock, and a job that dies leaves its keys to the next task end.
 #    Every wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s,
-#    below the hooks.json timeout of 240 s), so the hook returns within about
-#    2 s of it.
+#    below the hooks.json timeout of 240 s, which Claude Code enforces on an
+#    asyncRewake hook), so the hook returns within about 2 s of it.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
-# 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
-#    fixed template when the relayed set has a FLAG or an UNKNOWN for a
-#    reason that is not environmental (no repository, no judge class).
-#    Either way a systemMessage carries the counts and path.
+# 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1) with a FLAG, or an
+#    UNKNOWN that started as a FLAG, in the relayed set: exit 2 with the fixed
+#    template, then any count lines, on stderr. asyncRewake wakes Claude only
+#    on exit 2 and shows it that stderr, which asks it to show the user.
+#    Otherwise exit 0 with a systemMessage of the counts and path, or, when
+#    every verdict is a PASS, one line with the count; Claude gets it on its
+#    next turn.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -38,9 +47,13 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
-testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active || exit 0
-SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}"
+testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active \
+  '[.background_tasks[]? | objects | select(.type == "subagent" and .status == "running") | .id | strings
+    | select(test("^[A-Za-z0-9_-]+$"))] | join(" ")' || exit 0
+SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}" JUDGE_AGENT_SKIP="${FIELDS[4]}"
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
+# A turn a Stop hook forced: the verdicts wait for the next task end.
+[[ "$active" == true ]] && exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # The idle path: no write recorded and nothing to adopt.
@@ -48,53 +61,42 @@ testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # shellcheck source=judge-lib.sh
 source "$HOOK_DIR/judge-lib.sh"
 
-# Only the final document reaches stdout.
-exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
+# Only the final relay reaches stdout (3) or stderr (4).
+exec 3>&1 4>&2 >/dev/null 2>>"$JUDGE_LOG"
 LATE="$(mktemp -d)" || exit 0
-trap 'rm -rf "$LATE"; exit 0' EXIT
-emit() { [[ -z "$2" ]] || jq -cn --arg r "$1" --arg m "$2" 'if $r == "" then {} else {decision: "block", reason: $r} end + {systemMessage: $m}' >&3; }
-judge::session_set
-
-# label <key index>: "<file>: <name>", with #n past the first of a name.
-label() {
-  local r="${KR[$1]}" name
-  name="${r#* }" && name="${name#* }"
-  judge::label "${KFILE[$1]}" "$name" "${r%% *}"
+RC=0
+trap 'rm -rf "$LATE"; exit "$RC"' EXIT
+# emit <reason> <message>: a reason goes to stderr, the message after it, and
+# the hook exits 2; a message alone goes to stdout as the systemMessage.
+emit() {
+  if [[ -n "$1" ]]; then
+    printf '%s\n' "$1${2:+$'\n'$2}" >&4 && RC=2
+  elif [[ -n "$2" ]]; then
+    jq -cn --arg m "$2" '{systemMessage: $m}' >&3
+  fi
 }
+# plural <n> <one> <many>
+plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
+# labels <key index>...: "<file>: <name>" per key, with #n past the first of
+# a name, comma-separated: how the judge log names the tests a message counts.
 labels() {
   local i out=""
-  for i in "$@"; do out+="${out:+, }$(label "$i")"; done
+  for i in "$@"; do
+    kr "$i"
+    out+="${out:+, }${KFILE[$i]##*[/\\]}: $KNAME"
+    [[ "$KO" =~ ^[0-9]+$ ]] && ((KO > 1)) && out+=" #$KO"
+  done
   printf '%s' "$out"
 }
+judge::session_set
 
-# relay_needs_decision: true when an attended Stop has something to show. A
-# FLAG, or an UNKNOWN whose reason is not environmental. The two environmental
-# reasons are the ones judge::run sets without a model run, verbatim.
-relay_needs_decision() {
-  local norepo noclass
-  norepo="no repository: the judge reads only inside a git repository, and this test file is in none"
-  noclass="no judge class differs from the writers"
-  ((RELAY_F)) && return 0
-  ((RELAY_U)) || return 1
-  jq -Rne --arg norepo "$norepo" --arg noclass "$noclass" \
-    '[inputs | select(length > 0) | fromjson? | select(type == "object" and .verdict == "UNKNOWN" and .reason != $norepo and .reason != $noclass)] | length > 0' \
-    <<<"$RELAY" >/dev/null
-}
-
-if [[ "$active" == true ]]; then
-  waiting=""
-  for s in "${SESSIONS[@]}"; do
-    for p in "$DATA/pending/$PKEY/$s"/*; do
-      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) &&
-        waiting+="${waiting:+, }$(sed -n '2{s|.*/||;p;}' "$p")"
-    done
-  done
-  emit "" "${waiting:+test judge: still judging $waiting; the verdicts are shown at the next task end.}"
-  exit 0
-fi
+# relay_needs_decision: true when an attended Stop has a finding to show: a
+# FLAG, or an UNKNOWN that started as a FLAG (its quote, diff or file failed
+# validation). An UNKNOWN that carries no finding (no repository, no judge
+# class, the judge's own UNKNOWN, a failed PASS) is counted, not relayed.
+relay_needs_decision() { ((RELAY_F || RELAY_UF)); }
 
 judge::now
-began=$NOW
 deadline=$((NOW + JUDGE_TIMEOUT))
 judge::harvest_orphans
 judge::load
@@ -125,6 +127,39 @@ state() {
   fi
 }
 for i in "${!KH[@]}"; do state "$i"; done
+
+# kr <key index>: set KO, KRANGE and KNAME from the key's "<ordinal>
+# <start>-<end> <name>".
+kr() {
+  local r="${KR[$1]}"
+  KO="${r%% *}" r="${r#* }"
+  KRANGE="${r%% *}" KNAME="${r#* }"
+}
+
+# Free keys with one reuse key (judge::reuse: the same normalized body under
+# the same judge, prompt and repository) are judged once in this Stop: the
+# first is judged, each other one is a dup that takes its verdict after the
+# runs. Background jobs judge one file each, so this grouping is the Stop's.
+declare -A DUPOF=() firstof=()
+if [[ "${TEST_JUDGE_REUSE:-1}" != 0 ]]; then
+  for fx in "${!INFOS[@]}"; do
+    testing::fields "${INFOS[$fx]}" '.writers | tojson' || continue
+    judge::pick "${FIELDS[0]}" || continue
+    judge::file_repo "${IFILES[$fx]}"
+    [[ -n "$FREPO" ]] || continue
+    for i in "${!KH[@]}"; do
+      [[ "${KF[$i]}" == "$fx" && "${ST[$i]}" == free ]] || continue
+      kr "$i"
+      judge::rkey "${KFILE[$i]}" "$KO" "$KRANGE" "$KNAME" "$FREPO"
+      [[ -n "$RK" ]] || continue
+      if [[ -n "${firstof[$RK]+x}" ]]; then
+        ST[i]=dup DUPOF[$i]="${firstof[$RK]}"
+      else
+        firstof[$RK]="$i"
+      fi
+    done
+  done
+fi
 
 # judge_now <file index> <run reservation> <key index>...: one run over the file's keys that
 # this process can lock, under a machine slot; in a subshell. The slot wait
@@ -217,6 +252,46 @@ while [[ -n "$(jobs -rp)" ]]; do
   sleep 0.2
 done
 
+# Each dup takes its first's verdict as validation leaves it, never the raw
+# one: a PASS, a FLAG whose quotes and diff passed, or the UNKNOWN (with its
+# reason_kind and origin) a failed FLAG became. It is recorded with
+# reused_from; a FLAG's diff edits the first's file, so the dup carries none
+# (judge::copy_verdict). The validation runs in a subshell, so the relay
+# counts take the first only once, below. A dup whose first got no verdict,
+# or one validation could not read (no JSON object out), takes the first's
+# state: a run that failed or ran late, the run limit, or lateness; any other
+# state goes to a background job.
+dups=()
+((${#DUPOF[@]} == 0)) || dups=("${!DUPOF[@]}")
+for i in ${dups[@]+"${dups[@]}"}; do
+  rep="${DUPOF[$i]}"
+  judge::verdict "${KH[$i]}" && continue
+  if judge::verdict "${KH[$rep]}" && testing::fields "${INFOS[${KF[$i]}]}" .owner; then
+    dir="$DATA/verdicts/$PKEY/${FIELDS[0]:-$SID}"
+    (
+      judge::relay_reset
+      judge::validate "$VERDICT" "${KFILE[$rep]}"
+      RELAY="${RELAY%$'\n'}"
+      printf '%s\n' "${RELAY##*$'\n'}"
+    ) >"$LATE/v$i"
+    kr "$i"
+    judge::file_repo "${KFILE[$i]}"
+    if jq -e 'objects' "$LATE/v$i" >/dev/null 2>&1 && mkdir -p "$dir" &&
+      judge::copy_verdict "$LATE/v$i" "$dir" "${KH[$i]}" "${KFILE[$i]}" "$FREPO" "$KO" "$KRANGE" "$KNAME" "${KH[$rep]}"; then
+      judge::log "reused in this run: ${KFILE[$i]}: $KNAME: the validated verdict of ${KH[$rep]}"
+      continue
+    fi
+  fi
+  case "${ST[$rep]}" in
+  limit | late) ST[i]="${ST[$rep]}" ;;
+  run)
+    ST[i]=run RUNPID[i]="${RUNPID[$rep]}"
+    [[ -e "$LATE/$rep" ]] && : >"$LATE/$i"
+    ;;
+  *) ST[i]=over ;;
+  esac
+done
+
 # Lateness is decided here, from the deadline: a key this Stop's own run has
 # not finished judging (its subshell still alive, or done after the deadline)
 # is late, and goes to a background job with the overflow. "Still judging" is
@@ -264,21 +339,34 @@ for fx in "${!INFOS[@]}"; do
   done
 done
 
+# Counts only: the test names are in the findings file and the judge log.
+# Keys waited on, past the cap or late are judged in the background; failed
+# keys are retried at the next task end. Both are counts in one line, merged
+# into the all-PASS line when there is one. The reason carries the counts, so
+# the lines after it do not repeat them.
+((${#failed[@]} == 0)) || judge::log "not judged, the judge failed for: $(labels "${failed[@]}")"
+((${#notrun[@]} == 0)) || judge::log "judge not run after 2 failed attempts for: $(labels "${notrun[@]}")"
+((${#limit[@]} == 0)) || judge::log "not judged, the session's judge-run limit is reached, for: $(labels "${limit[@]}")"
+bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
+((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
+((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
 msg="" reason=""
 if ((RELAY_N)); then
   judge::findings
-  judge::counts && counts="$COUNTS"
-  msg="test judge: reviewed $counts. Findings: $FINDINGS"
-  if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
-    reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
+  if ((RELAY_F + RELAY_U == 0)); then
+    msg="test judge: $RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
+    later=""
+  else
+    judge::counts
+    msg="test judge: $COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
+    if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
+      reason="$msg. Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
+      msg=""
+    fi
   fi
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}
-judge::now
-((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
-((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: past the 10 tests one task end judges: $(labels "${over[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#failed[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(labels "${failed[@]}"); the next task end tries again."
-((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: judge not run for $(labels "${notrun[@]}") after 2 failed attempts; see $JUDGE_LOG."
-((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached: $(labels "${limit[@]}")."
+[[ -z "$later" ]] || msg+="${msg:+$'\n'}test judge: $later."
+((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#notrun[@]} $(plural ${#notrun[@]} test tests) not judged after 2 failed attempts; see $JUDGE_LOG."
+((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#limit[@]} $(plural ${#limit[@]} test tests) not judged: the session's judge-run limit is reached."
 emit "$reason" "$msg"

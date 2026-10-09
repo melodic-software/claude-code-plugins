@@ -14,7 +14,7 @@ Every optional reference to another plugin's skill carries, at the reference sit
    "invoke `/other-plugin:skill` (if that plugin is installed)" or an equivalent
    "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
    marketplace (marketplace-qualified IDs never appear in reusable content outside
-   install-recipe sites, for which see the carve-out below).
+   install-recipe sites and the third-party route-row fields the carve-outs below name).
 2. **The fallback** is what the skill does instead, stated in the same sentence or the one
    adjacent: degrade to a bundled capability, record into the artifact at hand, or report
    the missing optional capability clearly. "Skip silently" is not a fallback.
@@ -36,6 +36,13 @@ a capability is present, not where the operator would obtain it. A skill that pr
 therefore carries both shapes, a bare-plugin gate and a marketplace-qualified recipe beneath
 it. The recipe is printed for the operator to run, never executed for them; the plugin
 philosophy's setup contract owns that rule and this carve-out does not relax it.
+
+### Route-row detect carve-out
+
+A route row's `detect` that names a third-party plugin and, for a third-party `kind: plugin` row,
+its `id` carry `name@marketplace`, as the [routing-as-data](../routing-as-data/README.md) doc sets; our own
+marketplace's detects and ids stay bare. A route row is data a detector matches, not prose, so
+this carve-out leaves the gate rule above unchanged.
 
 ## What this convention is not
 
@@ -63,13 +70,14 @@ qualification IS the content, not a leak. Bounds:
   marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
   parity traces it to the store exactly as native gates trace to theirs
   (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`).
-- Fleet seam audits treat a marketplace-qualified ID outside install-uplift content as a
-  violation, unchanged.
+- Fleet seam audits treat a marketplace-qualified ID outside install-uplift content and the
+  route-row carve-out as a violation, unchanged.
 
 ## Conformance
 
 Fleet audits check dim-11-adjacent seam phrasing against this shape: gate present, fallback
-stated, no marketplace qualification outside an install-recipe site. Existing adopters
+stated, no marketplace qualification outside an install-recipe site or the fields the route-row
+carve-out names. Existing adopters
 (work-items' tracker seam, harness-ops' known-issues reference, session-flow's stage-skill
 preference, planning's glossary hand-off) conform by carrying all three elements at each
 instructed invocation.

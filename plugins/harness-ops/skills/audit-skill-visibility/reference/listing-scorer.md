@@ -155,8 +155,40 @@ grep -a -o -E '.{0,120}SLASH_COMMAND_TOOL_CHAR_BUDGET.{0,160}' "$(command -v cla
 ```
 
 The third grep lands on the budget arithmetic; its `bytesPerToken` parameter
-and the `?? 200000` fallback are where the per-model inputs show up.
+and the `?? 200000` fallback are where the per-model inputs show up. The
+second lands on the fit check and the walk; the model-to-bytes rule sits beside
+the list of 4-byte model ids, found with
+`grep -a -o -E '.{0,40}new Set\(\["claude-3-opus".{0,400}' "$(command -v claude)"`.
 
-Stamp: verified 2026-09-11 against Claude Code 2.1.263. The formula, the
-descending-sort first-fit truncation, the two truncator sites, and the per-model
-bytes-per-token all hold at that build.
+## What the fit check compares
+
+The truncator decides fit on the whole rendered listing, not on the
+descriptions alone:
+
+```js
+entryLen = name.length + 4 + min(desc.length, maxDescChars)  // "- name: desc"
+entryLen = name.length + 2          // forced name-only: "- name"
+total    = sum(entryLen) + (entries - 1)                       // newline joins
+if (total <= budget) -> fits
+floor    = sum(exempt ? entryLen : name.length + 2) + (entries - 1)
+grant    = entryLen - (name.length + 2)                        // desc + 2
+```
+
+Exempt is a bundled prompt skill or a `name-only` override. A check that
+compares description characters with the budget leaves out every name, every
+colon-space joiner and every newline. On a 289-entry listing at 1M and 3 bytes per token
+(150,000 characters) that was 6,105 characters of names, 496 of joiners, 288 of
+newlines and 17,775 of entries never enumerated, which together hid a listing
+at its cap behind "fits".
+
+Bytes per token is 4 only for the model ids in that set (the Claude 3 family
+and the 4.0 to 4.6 Opus, Sonnet and Haiku ids); every other model, current ones
+included, gets 3. So for a current model at 1M the live band row is the `/3`
+one.
+
+Stamp: verified 2026-10-04 against Claude Code 2.1.289. The formula, the
+descending-sort first-fit truncation, the two truncator sites, the fit check
+above, and the per-model bytes-per-token all hold at that build; the entry and
+floor arithmetic reproduced a captured 289-entry listing (149,934 characters)
+to the character. First verified 2026-09-11 at 2.1.263. Recheck when a release note names the
+skill listing, its character budget or its truncation, or a build changes the scorer arithmetic.

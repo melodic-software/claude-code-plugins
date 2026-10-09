@@ -80,17 +80,9 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 # Strict-and-loud enable (#3130 F7). hook::check_enabled treats any value other
 # than exact "true" as off, so a typo would silently disable a blocking safety
 # control. Only true/false (unset → true) are accepted; anything else keeps the
-# guard on and says so.
+# guard on and tells the user once per session, after stdin is read (it names
+# the session). An exact `false` already exited above.
 _bbh_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_ENABLED:-true}"
-case "$_bbh_enabled" in
-true) ;;
-false) exit 0 ;;
-*)
-  _bbh_bad="guardrails block-hook-bypass: block_hook_bypass_enabled=${_bbh_enabled} is not exactly true or false; treating as enabled (a safety switch does not silently disable)"
-  echo "$_bbh_bad" >&2
-  hook::emit_channels PreToolUse "$_bbh_bad" "$_bbh_bad"
-  ;;
-esac
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
@@ -131,12 +123,14 @@ hook::buffer_stdin_to INPUT || {
   fi
   exit 0
 }
+[[ "$_bbh_enabled" == true ]] ||
+  guard::bad_switch_notice block_hook_bypass_enabled "$_bbh_enabled" "$INPUT"
 
 # jq is required to parse the tool payload. hook::require jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq spawn is
 # fork() emulation on Windows Git Bash and this guard runs on every Bash/PowerShell
@@ -150,9 +144,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 # A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
 # bytes before matching, so a clean verdict would not reflect the bytes carried.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -1317,15 +1309,12 @@ py_inline_invocation() {
 # single literal destination, so their remedy names none.
 #
 # The operator's levers and the guard's scope are not the agent's to act on.
-# The levers go on systemMessage once per (session, agent), latched by
-# hook::notice_once with its every-N renewal declined, so a long session of
-# blocks is one notice. The enforced scope, the list of write forms this guard
-# does not inspect, lives in the guardrails README ("block-hook-bypass inspects
-# one command string"), not on every block.
-#
-# Until a human has confirmed interactively that an exit-2 PreToolUse
-# systemMessage renders, stderr keeps a one-line pointer to the README, so the
-# levers stay reachable if it does not.
+# The levers go on systemMessage once per session, latched by hook::notice_once,
+# so a long session of blocks is one notice. Claude Code reads a hook's JSON on
+# every exit code, so the systemMessage renders beside an exit-2 block
+# (https://code.claude.com/docs/en/hooks#exit-code-output). The enforced scope,
+# the list of write forms this guard does not inspect, lives in the guardrails
+# README ("block-hook-bypass inspects one command string"), not on every block.
 
 # The reason line for a scratch refusal code, in _BBH_REFUSAL_LINE. $1 is the
 # code, $2 the noun the lane names its operand by.
@@ -1371,9 +1360,11 @@ _bbh_exempt_roots() {
 
 block_bypass() {
   local form="$1" reason="$2" noun=target code
-  echo "BLOCKED: $reason" >&2
-  [[ "$form" == powershell-computed-positional ]] ||
-    echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  if [[ "$form" == powershell-computed-positional ]]; then
+    echo "BLOCKED: $reason" >&2
+  else
+    echo "BLOCKED: $reason. Use the Write or Edit tool." >&2
+  fi
   case "$form" in
   powershell-computed-positional) ;;
   cat-redirect | echo-redirect | staged-write-move)
@@ -1383,25 +1374,29 @@ block_bypass() {
       ! _bbh_temp_default_applies && hook::under_temp_root "$_BBH_SCRATCH_REFUSED_AT"; then
       code="temp-default-off"
     fi
-    _bbh_refusal_line "$code" "$noun"
-    [[ -n "$_BBH_REFUSAL_LINE" ]] && echo "$_BBH_REFUSAL_LINE" >&2
     _bbh_exempt_roots
-    if [[ -n "$_BBH_EXEMPT_ROOTS" ]]; then
-      # The quoted and unnormalized reason lines already say the second half.
-      local never="; a quoted or variable-carried one never is"
-      [[ "$code" == quoted || "$code" == unnormalized ]] && never=""
-      echo "An unquoted literal $noun under these roots is exempt: $_BBH_EXEMPT_ROOTS$never." >&2
+    if [[ "$code" == not-under-any-root && -n "$_BBH_EXEMPT_ROOTS" ]]; then
+      # The refusal and the roots that would have exempted the target, as one line.
+      echo "Not exempt: only an unquoted literal $noun under $_BBH_EXEMPT_ROOTS is." >&2
+    else
+      _bbh_refusal_line "$code" "$noun"
+      [[ -n "$_BBH_REFUSAL_LINE" ]] && echo "$_BBH_REFUSAL_LINE" >&2
+      if [[ -n "$_BBH_EXEMPT_ROOTS" ]]; then
+        # The quoted and unnormalized reason lines already say the second half.
+        local never="; a quoted or variable-carried one never is"
+        [[ "$code" == quoted || "$code" == unnormalized ]] && never=""
+        echo "Exempt: an unquoted literal $noun under $_BBH_EXEMPT_ROOTS$never." >&2
+      fi
     fi
-    echo "If Write or Edit is refused for this path, stop and tell the user; the operator can add a root with block_hook_bypass_scratch_roots." >&2
+    echo "If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots." >&2
     ;;
   *)
-    echo "If Write or Edit is refused for this path, stop and tell the user; this guard's switches are operator-only." >&2
+    echo "If Write or Edit is refused for this path, stop and tell the user." >&2
     ;;
   esac
-  echo "Operator levers for this guard: the guardrails README, block-hook-bypass." >&2
   if hook::notice_once "guardrails-block-hook-bypass-levers" "$INPUT" &&
-    [[ "$HOOK_NOTICE_KIND" == full ]]; then
-    hook::emit_channels PreToolUse "" "guardrails block-hook-bypass blocked a shell file-write. Its levers, narrowest first: (1) block_hook_bypass_scratch_roots, a target-scoped exemption for Bash redirect targets and a PowerShell command's single literal write destination; (2) a session-scoped disable via claude --settings; (3) the user-global block_hook_bypass_enabled switch via /plugin configure, which persists in every repository where guardrails is enabled, so re-enable it once the bypass is no longer needed. This guard is a deterrent over one command string, not a sandbox; the guardrails README lists what it does not inspect."
+    [[ "$HOOK_NOTICE_TO_USER" == 1 ]]; then
+    hook::emit_channels PreToolUse "" "guardrails block-hook-bypass blocked a shell file-write. Levers, narrowest first: block_hook_bypass_scratch_roots (exempt a directory); a session-only disable via claude --settings; block_hook_bypass_enabled in /plugin configure (every repo; turn it back on after). What it does not inspect: guardrails README."
   fi
   emit_tel "blocked" "$form"
   exit 2

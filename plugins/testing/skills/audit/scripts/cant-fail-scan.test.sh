@@ -726,6 +726,193 @@ else
 fi
 chmod 600 "$CFGUNREAD/playwright.config.js" 2>/dev/null || true
 
+# --- retry settings: pytest, vitest, jest -------------------------------------
+# Engine: retry-config-scan.awk, loaded beside mask-js.awk. The same rule as the
+# Playwright config, rule-flaky-passes-suite: a runner told to retry a failing
+# test leaves the run green when the retry passes. Each case is a tree written
+# here; every quiet case sits beside a firing one that differs only in the
+# setting under test, so its silence is the setting's.
+RC="$TMP_ROOT/retry"
+# rc_file <case>/<path> <line>...
+rc_file() {
+  mkdir -p "$(dirname "$RC/$1")"
+  local f="$RC/$1"
+  shift
+  printf '%s\n' "$@" >"$f"
+}
+FLAKY='[testing/audit/rule-flaky-passes-suite]'
+
+# pytest: --reruns in addopts fires at its own line; the gate is advisory until
+# --strict, and the Action names --fail-on-flaky.
+rc_file py-reruns/pytest.ini "[pytest]" "addopts =" "    -ra" "    --reruns=3" "testpaths = tests"
+rc_file py-reruns/test_ok.py "def test_ok():" "    assert 1 + 1 == 2"
+run_scan "$RC/py-reruns" --check
+assert_exit "pytest reruns gate clean without --strict (exit 0)" 0 "$rc"
+assert_contains "pytest --reruns in a continued addopts fires at the token's line" "$out" \
+  "pytest.ini:4: --reruns 3 in addopts at line 4 with --fail-on-flaky absent from addopts"
+assert_contains "the pytest threshold names --fail-on-flaky" "$out" "--fail-on-flaky absent from addopts)"
+assert_contains "the pytest Action proposes --fail-on-flaky" "$out" "Add --fail-on-flaky to addopts"
+assert_contains "the advisory note counts the retry settings apart" "$out" "pytest/vitest/jest retry settings 1."
+assert_contains "coverage reports the pytest config denominator" "$out" \
+  "retry settings: pytest configs 1 examined of 1 enumerated (0 shadowed)"
+run_scan "$RC/py-reruns" --check --strict
+assert_exit "--strict gates the pytest retry setting (exit 1)" 1 "$rc"
+# The eval fixture retry-config/pytest/ (pytest.ini beside test_checkout.py)
+# holds the shape its eval case names.
+run_scan "$FIX/retry-config/pytest"
+assert_contains "the pytest eval fixture fires at its addopts line" "$out" \
+  "pytest.ini:2: --reruns 2 in addopts at line 2 with --fail-on-flaky absent from addopts"
+assert_finding_count "the pytest eval fixture yields exactly one finding" 1
+
+# Stay quiet: the same reruns with --fail-on-flaky beside them.
+rc_file py-guarded/pyproject.toml "[project]" 'name = "calc"' "" "[tool.pytest.ini_options]" 'addopts = "-ra --reruns 3 --fail-on-flaky"'
+run_scan "$RC/py-guarded"
+assert_not_contains "pytest reruns with --fail-on-flaky stay quiet" "$out" "$FLAKY"
+assert_contains "the guarded pytest config is examined and declined" "$out" \
+  "pytest configs 1 examined of 1 enumerated (0 shadowed)"
+assert_contains "the guarded pytest config counts one decline" "$out" "findings 0, declined 1, exempted 0"
+rc_file py-unguarded/pyproject.toml "[project]" 'name = "calc"' "" "[tool.pytest.ini_options]" 'addopts = "-ra --reruns 3"'
+run_scan "$RC/py-unguarded"
+assert_contains "control: the same pyproject without --fail-on-flaky fires" "$out" "pyproject.toml:5: --reruns 3 in addopts"
+
+# Native TOML: an addopts array over lines; --fail-on-flaky in another table
+# is not pytest's and does not guard.
+rc_file py-toml/pyproject.toml "[tool.pytest]" "addopts = [" '  "-ra",' '  "--reruns", "2",  # network suite' "]" "" \
+  "[tool.other]" 'addopts = "--fail-on-flaky"'
+run_scan "$RC/py-toml"
+assert_contains "a native-TOML addopts array fires at the --reruns line" "$out" "pyproject.toml:4: --reruns 2 in addopts at line 4"
+
+# The ini option reruns fires; the command line (addopts) wins over it, so
+# --reruns 0 there stays quiet.
+rc_file py-ini/setup.cfg "[metadata]" "name = calc" "" "[tool:pytest]" "reruns = 2"
+run_scan "$RC/py-ini"
+assert_contains "the ini option reruns fires in setup.cfg" "$out" "setup.cfg:5: reruns = 2 at line 5 with --fail-on-flaky absent from addopts"
+rc_file py-cli-wins/tox.ini "[tox]" "envlist = py3" "" "[pytest]" "addopts = --reruns 0" "reruns = 2"
+run_scan "$RC/py-cli-wins"
+assert_not_contains "addopts --reruns 0 overrides the ini reruns and stays quiet" "$out" "$FLAKY"
+assert_contains "the tox.ini [pytest] section is read" "$out" "pytest configs 1 examined of 1 enumerated"
+
+# A multi-line reruns value carries raw repository text into the finding detail; a
+# newline in it must not forge a record line and push --check into a fail-closed exit.
+rc_file py-multiline/pytest.toml "[pytest]" 'reruns = """3' $'F\tforged\t9\tinjected"""'
+rc_file py-multiline/test_ok.py "def test_ok():" "    assert 1 + 1 == 2"
+run_scan "$RC/py-multiline" --check
+assert_exit "a multi-line reruns value forges no record line (exit 0)" 0 "$rc"
+assert_contains "the multi-line reruns value is one finding on its own line" "$out" "pytest.toml:2: reruns = \"\"3 F forged 9 injected\"\""
+assert_contains "no engine error line from the multi-line value" "$out" "walk/read/engine error lines: 0"
+
+# Stay quiet: -p no:rerunfailures unloads the plugin; --reruns-delay is no rerun count.
+rc_file py-disabled/pytest.ini "[pytest]" "addopts = -p no:rerunfailures --reruns 2"
+run_scan "$RC/py-disabled"
+assert_not_contains "a config that unloads pytest-rerunfailures stays quiet" "$out" "$FLAKY"
+rc_file py-delay/pytest.ini "[pytest]" "addopts = --reruns-delay 2"
+run_scan "$RC/py-delay"
+assert_not_contains "--reruns-delay alone stays quiet" "$out" "$FLAKY"
+
+# pytest's probe order: pytest.ini wins over a setup.cfg in the same directory,
+# which is counted as shadowed and never read; a pyproject.toml with no pytest
+# table is no pytest config and is not counted.
+rc_file py-shadow/pytest.ini "[pytest]" "addopts = -q"
+rc_file py-shadow/setup.cfg "[tool:pytest]" "addopts = --reruns 2"
+run_scan "$RC/py-shadow"
+assert_not_contains "a shadowed setup.cfg is never judged" "$out" "$FLAKY"
+assert_contains "the shadowed setup.cfg is counted" "$out" "pytest configs 1 examined of 2 enumerated (1 shadowed)"
+rc_file py-no-table/pyproject.toml "[tool.other]" 'addopts = "--reruns 2"'
+run_scan "$RC/py-no-table"
+assert_not_contains "addopts outside a pytest table stays quiet" "$out" "$FLAKY"
+assert_contains "a pyproject.toml without a pytest table is not enumerated" "$out" \
+  "retry settings (pytest, vitest, jest): 0 enumerated; not applicable"
+
+# cant-fail-ok: anywhere in a pytest config suppresses it, counted.
+rc_file py-exempt/pytest.toml "[pytest]" "# cant-fail-ok: the sandbox API drops one request in fifty" "reruns = 2"
+run_scan "$RC/py-exempt"
+assert_not_contains "an annotated pytest config emits no finding" "$out" "$FLAKY"
+assert_contains "the suppressed pytest finding is counted" "$out" "exempted findings (cant-fail-ok): 1"
+
+# vitest: retry under test fires, an expression included; a literal 0 and a
+# retry outside any test key stay quiet; vitest.config wins over vite.config.
+rc_file vt-expr/vitest.config.ts "import { defineConfig } from 'vitest/config';" "export default defineConfig({" "  test: {" \
+  "    retry: process.env.CI ? 2 : 0," "  }," "});"
+run_scan "$RC/vt-expr"
+assert_contains "a vitest retry expression fires" "$out" \
+  "vitest.config.ts:4: retry: process.env.CI ? 2 : 0 at line 4 under a test key"
+assert_contains "the vitest Action names --retry 0 for local loops" "$out" "run local and agent loops with --retry 0"
+rc_file vt-zero/vitest.config.ts "export default defineConfig({" "  test: { retry: 0 }," "});"
+rc_file vt-zero/vite.config.ts "export default defineConfig({" "  test: { retry: 3 }," "});"
+run_scan "$RC/vt-zero"
+assert_not_contains "a literal vitest retry: 0 stays quiet, and the shadowed vite.config is not read" "$out" "$FLAKY"
+assert_contains "the shadowed vite.config is counted" "$out" "vitest configs 1 examined of 2 enumerated (1 shadowed)"
+rc_file vt-other/vite.config.ts "export default defineConfig({" "  plugins: [fetchPlugin({ retry: 3 })]," "  server: { retry: 4 }," "});"
+run_scan "$RC/vt-other"
+assert_not_contains "a retry key outside any test key stays quiet" "$out" "$FLAKY"
+rc_file vt-other-ctl/vite.config.ts "export default defineConfig({" "  plugins: [fetchPlugin({ retry: 3 })]," "  test: { retry: 4 }," "});"
+run_scan "$RC/vt-other-ctl"
+assert_contains "control: the same retry under test fires" "$out" "vite.config.ts:3: retry: 4 at line 3"
+# The object form (Vitest 4.1): count is the number; an object without count
+# retries nothing. A retry inside a projects[] entry's test, or a tag under
+# test, counts too.
+rc_file vt-object/vitest.config.mts "export default defineConfig({" "  test: {" "    retry: {" "      count: 2," "      delay: 500," \
+  "    }," "  }," "});"
+run_scan "$RC/vt-object"
+assert_contains "a vitest retry object fires on its count" "$out" "vitest.config.mts:4: retry.count: 2 at line 4"
+rc_file vt-object-nocount/vitest.config.mts "export default defineConfig({" "  test: { retry: { delay: 500 } }," "});"
+run_scan "$RC/vt-object-nocount"
+assert_not_contains "a vitest retry object without count stays quiet" "$out" "$FLAKY"
+rc_file vt-projects/vitest.config.ts "export default defineConfig({" "  test: {" "    projects: [" \
+  "      { test: { name: 'unit', retry: 2 } }," "      { test: { name: 'tags', tags: [{ name: 'flaky', retry: 1 }] } }," "    ]," "  }," "});"
+run_scan "$RC/vt-projects"
+assert_contains "a projects[] entry's retry fires and every occurrence is counted" "$out" \
+  "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
+# Stay quiet: a spread after retry in the same object may override it.
+rc_file vt-spread/vitest.config.ts "export default defineConfig({" "  test: { retry: 2, ...shared }," "});"
+run_scan "$RC/vt-spread"
+assert_not_contains "a spread after a vitest retry declines rather than fires" "$out" "$FLAKY"
+# The spread makes only its own object's retry undecidable: a project retry
+# below it still fires, and the finding anchors to that firing retry.
+rc_file vt-spread-project/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 2, ...shared," \
+  "    projects: [{ test: { retry: 3 } }]," "  }," "});"
+run_scan "$RC/vt-spread-project"
+assert_contains "a project retry below an outer spread still fires, at its own line" "$out" \
+  "vitest.config.ts:4: retry: 3 at line 4; 2 retry occurrence(s)"
+rc_file vt-zero-first/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 0," \
+  "    projects: [{ test: { retry: 2 } }]," "  }," "});"
+run_scan "$RC/vt-zero-first"
+assert_contains "a retry: 0 ahead of a firing retry does not take the anchor" "$out" \
+  "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
+
+# jest: an argument on the next line is read there, so a wrapped 0 stays quiet
+# and a wrapped 2 fires with its value.
+rc_file jest-wrap/jest.setup.js "jest.retryTimes(" "  0," ");"
+run_scan "$RC/jest-wrap"
+assert_not_contains "a jest.retryTimes(0) wrapped onto the next line stays quiet" "$out" "$FLAKY"
+rc_file jest-wrap-ctl/jest.setup.js "jest.retryTimes(" "  2," ");"
+run_scan "$RC/jest-wrap-ctl"
+assert_contains "control: a wrapped jest.retryTimes(2) fires with its value" "$out" "jest.retryTimes(2) at line 1"
+
+# jest: each jest.retryTimes call fires at its line; a 0, a comment and a
+# string stay quiet; cant-fail-ok: on the line above suppresses that call only.
+rc_file jest/jest.setup.js "jest.retryTimes(3, { logErrorsBeforeRetry: true });"
+rc_file jest/quiet.test.js "// jest.retryTimes(3)" "const note = 'jest.retryTimes(3)';" "jest.retryTimes(0);" \
+  "test('adds', () => {" "  expect(add(1, 2)).toBe(3);" "});"
+rc_file jest/exempt.test.js "// cant-fail-ok: the sandbox API drops one request in fifty" "jest.retryTimes(2);" \
+  "describe('payments', () => {" "  jest.retryTimes(Number(process.env.RETRIES));" "  test('charges', () => {" \
+  "    expect(charge(5)).toBe(true);" "  });" "});"
+run_scan "$RC/jest"
+assert_contains "a jest.retryTimes call in a setup file fires" "$out" \
+  "jest.setup.js:1: jest.retryTimes(3) at line 1; Jest has no option that fails a run on a retry-earned pass"
+assert_contains "an unannotated call in an annotated file still fires" "$out" "exempt.test.js:4: jest.retryTimes(Number(process.env.RETRIES))"
+assert_not_contains "a retryTimes(0), a comment and a string stay quiet" "$out" "quiet.test.js:"
+assert_not_contains "the annotated call is suppressed" "$out" "exempt.test.js:2:"
+assert_contains "the suppressed jest call is counted" "$out" "exempted findings (cant-fail-ok): 1"
+assert_contains "every file naming retryTimes is read" "$out" "jest files naming retryTimes 3 examined of 3 enumerated"
+# An edit-scoped run reads no retry setting: a file-level setting is no finding
+# about the lines an edit wrote.
+out="$(bash "$SCAN" --file "$RC/jest/exempt.test.js" --lines 4 2>&1)"
+assert_not_contains "a --lines run does not report retryTimes" "$out" "$FLAKY"
+assert_contains "a --lines run says the retry settings were not read" "$out" "retry settings (pytest, vitest, jest): not read in a --lines run"
+out="$(bash "$SCAN" --file "$RC/jest/exempt.test.js" 2>&1)"
+assert_contains "a whole-file --file run reports retryTimes" "$out" "exempt.test.js:4: jest.retryTimes"
+
 # --- --file: scan exactly one file ---------------------------------------------
 # One file, the same exit codes as a whole-tree scan, repo-relative Location,
 # and no evals/fixtures prune: the path was named, so it is scanned.
@@ -810,7 +997,18 @@ assert_contains "--blocks keeps the findings" "$out" "cant-fail-js.test.js:11: t
 assert_matches "--blocks lists blocks beside findings" "$out" '^block plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11-13 1 adds numbers$'
 run_file --file "$B/dup.test.ts" --blocks --check
 assert_exit "--blocks works only in the report mode (exit 2)" 2 "$rc"
-assert_contains "--blocks outside the report mode says so" "$out" "--blocks lists blocks in the report mode only"
+assert_contains "--blocks outside the report mode says so" "$out" "--blocks and --brief apply to the report mode only"
+
+# --brief: the hooks' form. Three recomputed-expectation findings carry one Action.
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief
+assert_exit "--brief completes (exit 0)" 0 "$rc"
+assert_finding_count "--brief keeps every finding" 5
+assert_matches "--brief finding line has no threshold or Action" "$out" \
+  "^finding \[rule-zero-assertion\] plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11: test 'adds numbers' has 0 assertion tokens$"
+if [[ "$(count_lines "$out" '^action \[rule-recomputed-expectation\] ')" == 1 ]]; then pass "--brief: one Action for three findings of a rule"; else fail "--brief: one Action for three findings of a rule" "$out"; fi
+if [[ "$(count_lines "$out" '^action \[')" == 3 ]]; then pass "--brief: one Action per distinct rule"; else fail "--brief: one Action per distinct rule" "$out"; fi
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief --check
+assert_exit "--brief works only in the report mode (exit 2)" 2 "$rc"
 
 printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "  {" "    Assert.Equal(3, Sum(1, 2));" "  }" \
   "  [Fact]" "  public void Subs()" "    => Assert.Equal(1, Sub(3, 2));" "}" >"$B/BlocksTests.cs"
@@ -1067,6 +1265,7 @@ CORPUS="$FIX/corpus"
 corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/bad/bats-greet-run-twice-one-line.bats.fixture
   bash-bats/bad/bats-greet-run-unchecked.bats.fixture
   bash-bats/bad/bats-last-bang-or-true.bats.fixture
   bash-bats/bad/bats-page-source-text.bats.fixture
@@ -1074,6 +1273,7 @@ corpus_files=(
   bash-bats/good/bats-config-removed-last-bang.bats.fixture
   bash-bats/good/bats-greet-against-literal.bats.fixture
   bash-bats/good/bats-greet-asserts-output.bats.fixture
+  bash-bats/good/bats-greet-run-checked-one-line.bats.fixture
   bash-bats/good/bats-greet-run-status.bats.fixture
   bash-bats/good/bats-greet-skipped.bats.fixture
   bash-bats/good/bats-greet-test-command.bats.fixture
@@ -1096,6 +1296,7 @@ corpus_files=(
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
+  cs-mstest/bad/OrderConstructedIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderDiscountIfTests.cs.fixture
   cs-mstest/bad/OrderIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderLinesSumTests.cs.fixture
@@ -1104,6 +1305,7 @@ corpus_files=(
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
+  cs-mstest/good/OrderConstructedIdTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
   cs-mstest/good/OrderRepaired4bTests.cs.fixture
@@ -1111,6 +1313,7 @@ corpus_files=(
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
   cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
+  cs-nunit/bad/CartConstructedNotNullTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
   cs-nunit/bad/CartIsNotNullTests.cs.fixture
   cs-nunit/bad/CartPlaceOrderCatchTests.cs.fixture
@@ -1120,6 +1323,7 @@ corpus_files=(
   cs-nunit/bad/CartSourceTextTests.cs.fixture
   cs-nunit/bad/CartTotalSumTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
+  cs-nunit/good/CartConstructedCurrencyTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
@@ -1127,6 +1331,7 @@ corpus_files=(
   cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/ConfigEarlyReturnTests.cs.fixture
   cs-xunit/bad/DiagnosticsCheckPrintsOnlyTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionNotNullTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionVerifyTests.cs.fixture
@@ -1147,13 +1352,17 @@ corpus_files=(
   cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/UnitTest1.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
+  cs-xunit/bad/WidgetConstructedNotNullTests.cs.fixture
   cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
+  cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
   cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
   cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
   cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/CheckoutStepDefinitions.cs.fixture
   cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
@@ -1166,10 +1375,14 @@ corpus_files=(
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
+  cs-xunit/good/ReportTrialGuardTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetConstructedOraclesTests.cs.fixture
+  cs-xunit/good/WidgetTwoStatementsOneLineTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
+  go-testing/bad/go_check_named_runs_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
   go-testing/bad/go_render_snapshot_test.go.fixture
@@ -1178,6 +1391,7 @@ corpus_files=(
   go-testing/bad/go_slugify_runs_test.go.fixture
   go-testing/bad/go_user_nil_check_test.go.fixture
   go-testing/good/go_cart_helper_test.go.fixture
+  go-testing/good/go_check_named_asserts_test.go.fixture
   go-testing/good/go_codec_fuzz_test.go.fixture
   go-testing/good/go_export_skipped_test.go.fixture
   go-testing/good/go_hash_bench_test.go.fixture
@@ -1203,6 +1417,7 @@ corpus_files=(
   js-jest/good/jest-discount-checked.test.ts.fixture
   js-jest/good/jest-repaired-4b.test.ts.fixture
   js-jest/good/jest-repaired-oracles.test.ts.fixture
+  js-jest/good/jest-slug-literal.spec.cts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
   js-jest/good/jest-split-call.test.ts.fixture
   js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
@@ -1254,7 +1469,10 @@ corpus_files=(
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
   js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
   js-vitest/bad/vitest-session-truthy.test.ts.fixture
+  js-vitest/bad/vitest-slug-prints.test.mts.fixture
+  js-vitest/bad/vitest-total-bare-expect-one-line.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
+  js-vitest/good/vitest-average-non-null.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
@@ -1266,6 +1484,7 @@ corpus_files=(
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
+  js-vitest/good/vitest-two-statements-one-line.test.ts.fixture
   planted/bad/PlantedShouldAloneTests.cs.fixture
   planted/bad/PlantedSumRecomputedTests.cs.fixture
   planted/bad/PlantedUnawaitedAsyncTests.cs.fixture
@@ -1297,6 +1516,7 @@ corpus_files=(
   pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_check_named_runs.py.fixture
   py-pytest/bad/test_pytest_limit_restated.py.fixture
   py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
   py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
@@ -1307,9 +1527,11 @@ corpus_files=(
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_total_tuple_one_line.py.fixture
   py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_check_named_asserts.py.fixture
   py-pytest/good/test_pytest_deterministic_report.py.fixture
   py-pytest/good/test_pytest_exec_tool_script.py.fixture
   py-pytest/good/test_pytest_helper_check_returncode.py.fixture
@@ -1326,6 +1548,7 @@ corpus_files=(
   py-pytest/good/test_pytest_snapshot_local.py.fixture
   py-pytest/good/test_pytest_split_signature.py.fixture
   py-pytest/good/test_pytest_try_fail.py.fixture
+  py-pytest/good/test_pytest_two_statements_one_line.py.fixture
   py-pytest/good/test_pytest_unittest_mock.py.fixture
   py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture
@@ -1338,6 +1561,7 @@ corpus_files=(
   py-unittest/bad/test_unittest_render_snapshot.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
   py-unittest/bad/test_unittest_total_recomputed.py.fixture
+  py-unittest/bad/test_unittest_validate_named_runs.py.fixture
   py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_deterministic_call.py.fixture
@@ -1350,6 +1574,7 @@ corpus_files=(
   py-unittest/good/test_unittest_skipunless.py.fixture
   py-unittest/good/test_unittest_skipunless_split.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
+  py-unittest/good/test_unittest_validate_named_asserts.py.fixture
 )
 on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
 listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
@@ -1432,6 +1657,25 @@ done
 run_scan "$RO/source"
 assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
   "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
+# (c) git may print the toplevel in another spelling of the same directory
+# than pwd -P does (Git for Windows: C:/..., Git Bash: /c/...). A git shim
+# that appends /. to the toplevel stands in for that on every platform.
+SHIM="$TMP_ROOT/git-shim"
+mkdir -p "$SHIM"
+REAL_GIT="$(command -v git)"
+cat >"$SHIM/git" <<EOF
+#!/usr/bin/env bash
+if [[ " \$* " == *" --show-toplevel "* ]]; then
+  "$REAL_GIT" "\$@" | sed '1s|\$|/.|'
+  exit "\${PIPESTATUS[0]}"
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$SHIM/git"
+rc=0
+out="$(PATH="$SHIM:$PATH" CANT_FAIL_SCAN_ROOT="$RO/source" bash "$SCAN" 2>&1)" || rc=$?
+assert_contains "(c) a toplevel git spells another way than pwd -P still keeps the read" "$out" \
+  "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
 git -C "$RO/source" rm -q --cached app/pitch-detail.tsx
 run_scan "$RO/source"
 assert_not_contains "(c) the same read of an untracked file is no finding" "$out" "rule-source-text-read"
@@ -1472,6 +1716,10 @@ remedy() {
   printf '%s\n' "$out" | sed -n "s|^finding \[testing/audit/$2\].*Action: ||p" | head -1
 }
 C="$TMP_ROOT/corpus"
+a="$(remedy "$FIX/positive/cant-fail-js.test.js" rule-zero-assertion)"
+check_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "got: $2"; fi; }
+check_eq "zero-assertion remedy is one sentence, no rationale tail" "$a" \
+  "Add an assertion on the observable behavior this test exercises."
 a="$(remedy "$C/js-playwright/bad/playwright-saved-unawaited.spec.ts" rule-inert-assertion)"
 assert_contains "inert remedy (js) says to await the matcher" "$a" "await (or return) the async matcher"
 assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tuple"
@@ -1531,7 +1779,8 @@ assert_contains "Surfaces counts the report-only rules" "$out" \
 for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
   derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
   snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
-  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs; do
+  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs \
+  throw:rule-throw-only-oracle:cs-xunit/bad/WidgetConstructedNotNullTests.cs; do
   IFS=: read -r name rule rel <<<"$pair"
   ro_repo "$RO/$name"
   cp "$CORPUS/$rel.fixture" "$RO/$name/test/${rel##*/}"
@@ -1573,9 +1822,6 @@ assert_finding_count "(b) a toHaveScreenshot test gives 0 findings" 0
 DERIVED_JS=("test('adds', () => {" "  expect(add(a, b)).toBe(a + b);" "});")
 b4 derived.test.ts "import { expect, test } from 'vitest';" "${DERIVED_JS[@]}"
 assert_contains "(c) control: the vitest body fires recomputed-derived" "$out" "rule-recomputed-derived"
-b4 derived-fc.test.ts "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
-  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => add(a, b) === add(b, a)));" "});"
-assert_finding_count "(c) the same body in a fast-check file gives 0 findings" 0
 b4 derived.spec.ts "import { expect, test } from '@playwright/test';" "${DERIVED_JS[@]}"
 assert_contains "(c) the Playwright file was parsed" "$out" "test blocks parsed: 1;"
 assert_finding_count "(c) the same body in a js-playwright file gives 0 findings" 0
@@ -1587,8 +1833,62 @@ assert_finding_count "(c) the same body under @given gives 0 findings" 0
 GO_DERIVED=("func TestAdd(t *testing.T) {" "	if !reflect.DeepEqual(Add(a, b), a+b) {" "		t.Error(a, b)" "	}" "}")
 b4 derived_test.go "package calc" "" 'import "reflect"' "" "${GO_DERIVED[@]}"
 assert_contains "(c) control: the go body fires recomputed-derived" "$out" "rule-recomputed-derived"
-b4 derived_quick_test.go "package calc" "" 'import (' '	"reflect"' '	"testing/quick"' ')' "" "${GO_DERIVED[@]}"
-assert_finding_count "(c) the same body in a testing/quick file gives 0 findings" 0
+
+# (c2) a property marker exempts only the test that holds it, in its body or in
+# the decorator or attribute stack above it. Each file mixes property tests with
+# an example test whose expected value is rebuilt from the call's arguments:
+# exactly that example fires, at its own line. Each control renames the marker
+# calls away (PROP_OFF) and the property tests fire too, so the quiet ones are
+# quiet because of the marker. js-vitest, js-node-test, py-unittest, cs-nunit and
+# cs-mstest inherit their markers by extends, so each is exercised here.
+PROP_OFF='s/fc\./gc./g; s/@given(/@params(/; s/quick\.Check(/quickCheck(/; s/Prop\.ForAll/Run/; s/QuickCheck/Run/; s/\.Sample(/.Each(/; s/Check\.Quick/Runner.Go/'
+# prop_case <name> <file> <example line> <control count> <line>...
+prop_case() {
+  local name="$1" file="$2" at="$3" ctl="$4"
+  shift 4
+  b4 "$file" "$@"
+  assert_finding_count "(c2) $name: only the example test fires" 1
+  assert_contains "(c2) $name: the finding is the example test's line" "$out" "$file:$at: expected value"
+  mkdir -p "$B4/ctl"
+  printf '%s\n' "$@" | sed "$PROP_OFF" >"$B4/ctl/$file"
+  run_file --file "$B4/ctl/$file"
+  assert_finding_count "(c2) $name control: without the markers every test fires" "$ctl"
+}
+prop_case "vitest fast-check" derived-fc.test.ts 4 3 \
+  "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => {" "    expect(add(a, b)).toBe(a + b);" "  }));" "});" \
+  "test('marker below', () => {" "  const prop = (a, b) => {" "    expect(add(a, b)).toBe(a + b);" "  };" \
+  "  fc.assert(fc.property(fc.integer(), fc.integer(), prop));" "});"
+prop_case "node:test fast-check" derived-fc.test.mjs 10 2 \
+  "import test from 'node:test';" "import assert from 'node:assert';" "import fc from 'fast-check';" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => {" "    assert.strictEqual(add(a, b), a + b);" \
+  "  }));" "});" "test('adds', () => {" "  assert.strictEqual(add(a, b), a + b);" "});"
+prop_case "pytest multi-line @given" test_derived_mixed.py 11 2 \
+  "from hypothesis import given, strategies as st" "" "@given(" "    st.integers()," "    st.integers()," ")" \
+  "def test_prop(a, b):" "    assert add(a, b) == a + b" "" "def test_example():" "    assert add(a, b) == a + b"
+prop_case "unittest @given" test_derived_unit.py 10 2 \
+  "import unittest" "from hypothesis import given, strategies as st" "" "class AddTest(unittest.TestCase):" \
+  "    @given(st.integers(), st.integers())" "    def test_prop(self, a, b):" "        self.assertEqual(add(a, b), a + b)" "" \
+  "    def test_example(self):" "        self.assertEqual(add(a, b), a + b)"
+prop_case "go testing/quick" derived_mixed_test.go 19 2 \
+  "package calc" "" 'import (' '	"reflect"' '	"testing"' '	"testing/quick"' ')' "" \
+  "func TestAddProp(t *testing.T) {" "	f := func(a, b int) bool {" "		return reflect.DeepEqual(Add(a, b), a+b)" "	}" \
+  "	if err := quick.Check(f, nil); err != nil {" "		t.Error(err)" "	}" "}" "" "${GO_DERIVED[@]}"
+prop_case "nunit FsCheck" CalcNunitTests.cs 17 2 \
+  "using NUnit.Framework;" "using FsCheck;" "public class CalcTests" "{" "    [Test]" "    public void Add_Commutes()" "    {" \
+  "        Prop.ForAll<int, int>((a, b) =>" "        {" "            Assert.AreEqual(Calc.Add(a, b), a + b);" \
+  "        }).QuickCheckThrowOnFailure();" "    }" "" "    [Test]" "    public void Add_Example()" "    {" \
+  "        Assert.AreEqual(Calc.Add(a, b), a + b);" "    }" "}"
+# The CsCheck generator field sits right above the example test's attribute
+# stack and arms nothing: a marker outside a test counts only on a decorator or
+# attribute line.
+prop_case "mstest CsCheck and FsCheck" CalcMstestTests.cs 10 3 \
+  "using Microsoft.VisualStudio.TestTools.UnitTesting;" "using CsCheck;" "[TestClass]" "public class CalcTests" "{" \
+  "    static readonly Gen<(int, int)> Pairs = Gen.Int.Select(Gen.Int);" "    [TestMethod]" "    public void Add_Example()" "    {" \
+  "        Assert.AreEqual(Calc.Add(a, b), a + b);" "    }" "" "    [TestMethod]" "    public void Add_Commutes()" "    {" \
+  "        Pairs.Sample((a, b) =>" "        {" "            Assert.AreEqual(Calc.Add(a, b), a + b);" "        });" "    }" "" \
+  "    [TestMethod]" "    public void Add_Quick()" "    {" "        Check.QuickThrowOnFailure((int a, int b) =>" "        {" \
+  "            Assert.AreEqual(Calc.Add(a, b), a + b);" "        });" "    }" "}"
 
 # (d) an assertion inside a loop over a result, with a length check, gives 0
 # findings; without the check it fires.
@@ -1633,10 +1933,26 @@ for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/t
   assert_contains "weak remedy ($f) asks for the exact value or exception" "$a" "Assert the value the code should produce"
   assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
 done
+a="$(remedy "$C/cs-xunit/bad/WidgetConstructedNotNullTests.cs" rule-throw-only-oracle)"
+assert_contains "throw-only remedy asks for what the constructor sets" "$a" "Assert what the constructed value should hold"
+assert_contains "throw-only remedy names the cant-fail-ok: exemption for a smoke test" "$a" "cant-fail-ok: <why>"
+# An early return is a conditional-assertion finding, and its C# remedy names a
+# skip that xUnit v2 lacks as a package rather than assuming Assert.Skip.
+a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-assertion)"
+assert_contains "conditional remedy (cs) offers xUnit v3's Assert.Skip" "$a" "Assert.Skip on xUnit v3"
+assert_contains "conditional remedy (cs) offers a skip package on xUnit v2" "$a" "a skip package such as Xunit.SkippableFact on xUnit v2"
+run_file --file "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs"
+if [[ "$(count_lines "$out" 'a return before every assertion')" == 3 ]]; then
+  pass "an early return before each test's only assertion is one finding per test"
+else
+  fail "an early return before each test's only assertion is one finding per test" "$out"
+fi
+a="$(remedy "$C/js-vitest/bad/vitest-rows-loop-unchecked.test.ts" rule-conditional-assertion)"
+assert_not_contains "conditional remedy (js) offers no C# skip" "$a" "Assert.Skip"
 
 # The findings file carries the tiers: conditional is can't-fail; derived,
 # snapshot-only and weak-oracle can fail.
-for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
+for name in cond derived snap weak throw; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
 assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
@@ -1646,6 +1962,7 @@ assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" 
   '^\| [0-9]+ \| SUGGESTION \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
 assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
+assert_matches "a throw-only-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/WidgetConstructedNotNullTests.cs:12 \|'
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
   "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 

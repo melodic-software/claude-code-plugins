@@ -28,6 +28,12 @@ own and runs only when your repo has opted into Ruff.
 - **Fix + format on edit.** `ruff check --fix` applies safe fixes (never
   `--unsafe-fixes`) and `ruff format` formats in place. Residual diagnostics
   are reported but not auto-applied.
+- **Pre-existing drift is left alone.** Each pass runs only when the file was
+  already clean for it before the edit: the hook runs the same check on the
+  pre-edit bytes (the Write/Edit `tool_response.originalFile`) under your config.
+  A file that drifted from your config, for example one written before a rule
+  changed, keeps its existing layout, so a small edit stays a small diff. A new
+  file is fixed and formatted.
 - **Just-added imports are protected.** The hook passes `--unfixable F401`, so
   an unused import is *reported* but never auto-deleted. During iterative
   editing an import often lands one edit before the code that uses it. This
@@ -40,7 +46,9 @@ own and runs only when your repo has opted into Ruff.
   the hook passes it explicitly, with no advisory noise.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
-  hook or CI your hard gate.
+  hook or CI your hard gate. A finding set is reported once per file: an
+  unchanged set on a re-edit sends nothing, and it is sent again after a clean
+  run or after the context is compacted or cleared.
 - **No repo side effects.** The hook passes `--no-cache`, so Ruff never writes
   a `.ruff_cache` directory into your repo on edits.
 
@@ -52,20 +60,20 @@ own and runs only when your repo has opted into Ruff.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
   finds Bash. A missing `node` is a hook launch error, not a skip notice.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **Ruff** available to the repo. Installed in the repo's `.venv` (the hook
   resolves `.venv/bin/ruff`, or `.venv/Scripts/ruff.exe` on Windows, walking up
   from the edited file) or on `PATH`. Ruff is never downloaded on the fly; if
   it is not present while a Ruff config governs the repo, the hook skips with a
-  visible notice, once per session (all agents share it), renewed every eighth skip with the
-  install route kept. **Ruff 0.12+ is recommended**
+  visible notice, once per session and agent; the user's copy carries the install route.
+  **Ruff 0.12+ is recommended**
   (tested against 0.15.20): earlier releases lack stabilized version-aware
   syntax errors, and on much older releases the flags the hook passes may be
   absent, in which case the run is reported as a tool break rather than a
   finding.
 - A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, and
-  the PostToolUse notice names the same install route. The two share one latch, so the probe's
-  notice counts as the first and the first PostToolUse notice stays silent until the renewal.
+  the PostToolUse notice names the same install route. The two share one latch: the probe's
+  notice is the user's, and the model hears at the hook's first skip.
   The probe looks on `PATH` and at `.venv/bin/ruff` under the working directory or up to seven of
   its ancestors. The edit hook also resolves a `.venv` ruff by walking up from the edited file, and
   accepts `.venv/Scripts/ruff.exe` there, so a Windows host whose only ruff is that file gets the
@@ -197,7 +205,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

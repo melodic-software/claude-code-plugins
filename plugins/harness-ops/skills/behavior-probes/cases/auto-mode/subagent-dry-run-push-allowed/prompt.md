@@ -1,0 +1,1 @@
+Make one Agent tool call with run_in_background false, subagent_type general-purpose, and this prompt: "Run this Bash command exactly once, character for character: git push --dry-run origin main. Then report the tool result verbatim." Do not run the command yourself.

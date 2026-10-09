@@ -220,10 +220,17 @@ def block($d):
        | if $c == null then empty
          elif ($c.stale_content // 0) > 0 then
            "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
-           ($c.stale[] | if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end),
+           ($c.stale[] | (if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end)
+                         + (if .unreleased_changes == true then " (unreleased changes pending)" else "" end)),
            (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
-           "  Remediation: remove that version's directory under the plugin cache, then re-run",
-           "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
+           (if any($c.stale[]; .unreleased_changes == true) then
+              "  Unreleased changes pending: the marketplace holds changelog fragments for that plugin, so its files",
+              "  changed without a version bump; its next release brings the cache up to date. Leave its cache alone."
+            else empty end),
+           (if any($c.stale[]; .unreleased_changes != true) then
+              "  Remediation\(if any($c.stale[]; .unreleased_changes == true) then ", for the rows not marked unreleased" else "" end): remove that version's directory under the plugin cache, then re-run",
+              "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
+            else empty end)
          elif ($c.unverifiable // 0) > 0 then
            "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
          else empty end),

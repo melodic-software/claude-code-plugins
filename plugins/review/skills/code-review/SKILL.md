@@ -97,8 +97,10 @@ caller, or command that produces the wrong result). Exclude:
 
 ## Adversarial validation
 
-When you fan out subagents for candidate findings, the producer of a finding
-must not be the verifier. Drop candidates the verifier rejects. Committable
+When you fan out subagents for candidate findings, dispatch each hunter and
+verifier as the `review:lane-verifier` agent, never a general-purpose
+subagent, so no subagent can re-invoke this skill and fan out. The producer of a
+finding must not be the verifier. Drop candidates the verifier rejects. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.
 

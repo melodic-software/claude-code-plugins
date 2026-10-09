@@ -760,9 +760,9 @@ to the template re-renders here too.
 > **Rate-limit floor** (inlined verbatim per the loop-lane convention;
 > provenance: the `rate-limit-guard` reader contract):
 >
-> - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 > - **Pause threshold (fixed):** pause when **either** window reports
->   `used_percentage >= 90`
+>   `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than
@@ -771,7 +771,7 @@ to the template re-renders here too.
 >   from a fresh snapshot stays valid through the pause unless the
 >   account changes (see **Account switch**; no refresh happens while
 >   paused). While paused, a consumer **must** arm a session Monitor on
->   the tee file and re-evaluate on every write: the file carries an
+>   the snapshot file and re-evaluate on every write: the file carries an
 >   **`account.email` field when the writer could attribute the
 >   observation**, so a write is still the signal that the windows
 >   changed under you (account switch, another session's refresh).
@@ -780,9 +780,11 @@ to the template re-renders here too.
 >   only on explicit user request.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
->   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a
->   machine running only headless sessions never refreshes the tee, so a
->   switch would go unseen. At pause entry, record the **latched
+>   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
+>   file: it names an account only as of a session's last API response,
+>   and a paused lane's Monitor ticks never write it, so after a switch
+>   it names the old account or none until a session gets a response
+>   under the new one. At pause entry, record the **latched
 >   account** as the `account.email` of the snapshot that tripped, not
 >   the account `.claude.json` names now: that snapshot can be up to 10
 >   minutes old and may describe an account the operator has since left.
@@ -791,9 +793,9 @@ to the template re-renders here too.
 >   detect. Read `.claude.json` at pause entry and on every
 >   re-evaluation (each Monitor tick and each wake). When it differs
 >   from the latched account, re-evaluate at once against the new
->   account's windows, taken from a fresh tee snapshot whose
->   `account.email` equals the new account: below 90, drop the latched
->   pause and resume; at or above 90, keep pausing and re-latch the
+>   account's windows, taken from a fresh snapshot whose
+>   `account.email` equals the new account: below 95, drop the latched
+>   pause and resume; at or above 95, keep pausing and re-latch the
 >   pause end and the latched account against the new account's
 >   `resets_at`; with no fresh or attributable snapshot, treat the
 >   windows as **unknown**, drop the latch, and fall back to
@@ -806,7 +808,7 @@ to the template re-renders here too.
 > Two further reader-contract rules apply alongside the floor (outside the
 > byte-audited block):
 >
-> - **Fail-open capability detection, classified per window:** tee file
+> - **Fail-open capability detection, classified per window:** snapshot file
 >   absent, stale, or missing `rate_limits` → mode **unknown →
 >   reactive-only** for the whole guard. Absurd values are narrower than
 >   that: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
@@ -814,7 +816,7 @@ to the template re-renders here too.
 >   window, makes **that window** unknown, and each window may be
 >   independently absent. Keep applying the floor to every window still
 >   plausible: one absurd window is no reason to ignore a valid window
->   already at or above 90, and a trip on the only plausible window is still
+>   already at or above 95, and a trip on the only plausible window is still
 >   a trip. The guard drops to reactive-only only when NO window is
 >   plausible. Never throttle proactively on untrusted data and never
 >   fabricate a pause. Reactive-only means no proactive pause at all: react

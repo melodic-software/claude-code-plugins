@@ -111,7 +111,8 @@ and launches a different server process instead.
 Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__miro__<tool>`
 (directly configured) once the override is active. Update any permission rule written against the
 old prefix. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP
-tool names" and "Server deduplication," verified 2026-09-23.
+tool names" and "Server deduplication," verified 2026-09-23. Recheck when either section changes
+the plugin tool-name prefix or the deduplication rule.
 
 `event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
 working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back
@@ -236,6 +237,6 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

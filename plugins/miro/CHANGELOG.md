@@ -3,6 +3,40 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.9] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.6.8] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The launcher test helper unlinks the `node_modules` junction before deleting its temp data dir, so a recursive delete cannot reach the real `node_modules`.
+
+## [0.6.7] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.6.6] - 2026-10-04
+
+### Changed
+
+- **Tool descriptions and server instructions say what each call returns and when it stops short.** The server instructions name the kinds of tasks the tools handle and when to search for them. `miro_get_board` no longer claims to return sharing status. `miro_delete_board` drops "Permanently", which contradicted its Trash note. The list tools and `miro_detect_overlaps` state their default and maximum result counts and that a full page may hide more. `miro_update_sticky_note` uses the create tool's position wording and says shape cannot change. `miro_create_frame` says its x/y are the frame's center relative to the board center. Em dashes are gone from tool descriptions.
+
+### Fixed
+
+- **`miro_update_board` returns the board's sharing policy.** It read a top-level field the Miro SDK never sets, so the policy was always missing from the result; it now reads `policy.sharingPolicy`.
+
+## [0.6.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.6.4] - 2026-10-04
 
 ### Changed

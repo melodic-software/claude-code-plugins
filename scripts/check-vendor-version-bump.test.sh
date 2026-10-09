@@ -163,6 +163,53 @@ else
 fi
 rm -rf "$f"
 
+# --- a fragment carries the bump only in fragment mode -----------------------
+# add_fragment <fixture> <plugin> <bump>: an added changelog fragment.
+add_fragment() {
+  mkdir -p "$1/.changes/$2"
+  printf -- '---\nbump: %s\n---\n\n### Fixed\n\n- x\n' "$3" >"$1/.changes/$2/feat-x-0123abcd.md"
+  git -C "$1" add -A
+}
+base_fixture f
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
+add_fragment "$f" alpha patch
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a fragment-mode plugin's vendor change passes with an added patch fragment"
+else
+  fail "a patch fragment should stand in for the bump in fragment mode, got: $out"
+fi
+rm -rf "$f"
+
+base_fixture f
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+add_fragment "$f" alpha patch
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "a fragment must not stand in for a legacy plugin's bump, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but plugins/alpha/.claude-plugin/plugin.json is still 1.0.0" <<<"$out" &&
+  grep -q "^Bump the version of every plugin" <<<"$out" && ! grep -q "new-changelog-fragment.sh" <<<"$out"; then
+  ok "a plugin not in fragment mode still needs the version bump, and is told so"
+else
+  fail "expected STALE VERSION and the bump message for legacy alpha, got: $out"
+fi
+rm -rf "$f"
+
+# A fragment-mode plugin with no fragment is told to add one, not to bump.
+base_fixture f
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "a fragment-mode plugin with no fragment should fail, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but alpha, in fragment mode, has no fragment for it" <<<"$out" &&
+  grep -q "Run scripts/new-changelog-fragment.sh alpha patch" <<<"$out" &&
+  grep -q "^Add a patch fragment for every plugin in fragment mode" <<<"$out" &&
+  ! grep -q "^Bump the version" <<<"$out"; then
+  ok "a fragment-mode plugin with no fragment is told to run new-changelog-fragment.sh"
+else
+  fail "expected the fragment command for alpha, got: $out"
+fi
+rm -rf "$f"
+
 # --- a plugin new in this change set is exempt ------------------------------
 base_fixture f
 plugin "$f" gamma 0.1.0

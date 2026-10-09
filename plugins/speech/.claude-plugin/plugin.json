@@ -1,6 +1,6 @@
 {
   "name": "speech",
-  "version": "0.2.3",
+  "version": "0.2.10",
   "description": "Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word. The default kokoro backend runs Kokoro-82M locally with onnxruntime. The optional elevenlabs backend sends the text to the third-party ElevenLabs API (ELEVENLABS_API_KEY) after showing a cost estimate; an organization can forbid it. You install espeak-ng (GPL-3.0). A hook installs the Python packages; setup downloads the models; check reports missing prerequisites.",
   "author": {
     "name": "Melodic Software",

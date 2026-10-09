@@ -3,6 +3,119 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.9] - 2026-10-07
+
+### Changed
+
+- The triage board treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+## [0.49.8] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.49.7] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.49.6] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The work-item-tracker test builds its tool-free PATH from per-file native symlinks of the entries that hold the tool, instead of linking every PATH entry and subdirectory into one dir.
+
+## [0.49.5] - 2026-10-04
+
+### Changed
+
+- `work`'s dispatch brief names the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of always a version bump.
+
+## [0.49.4] - 2026-10-04
+
+### Changed
+
+- **work-loop and attend-queue inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.49.3] - 2026-10-04
+
+### Changed
+
+- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
+## [0.49.2] - 2026-10-04
+
+### Added
+
+- **`blocked_by_wont_do_count` on every normalized item.** It counts blockers closed as
+  not planned or as a duplicate. A non-zero value means the item waits on work that will never
+  finish and needs re-triage. Generated adapters emit it too.
+
+### Fixed
+
+- **A blocker closed as won't-do no longer unblocks its dependents.** `blocked_by_count` now
+  also counts blockers closed as not planned or duplicate, so an unattended loop no longer
+  picks work whose prerequisite was abandoned. The GitHub adapter reads each closed blocker's
+  `stateReason` through `gh api graphql` (a `null` reason still resolves; a failed query keeps
+  the blocker blocking); Linear unblocks only on the `completed` state type, and only while
+  `done_state_types` lists it; local-markdown
+  reads an optional `state_reason` frontmatter field. Jira and Gitea record no readable close
+  reason, so they keep counting a closed blocker as resolved.
+- **A fork's closing PR no longer parks an item as in flight.** The GitHub "Open linked PRs"
+  reductions count only open PRs whose head branch lives in the item's own repository, so an
+  outsider's `Closes #N` PR does not hold the item off the frontier for the stale window.
+
+## [0.49.1] - 2026-10-04
+
+### Changed
+
+- `work-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
+## [0.49.0] - 2026-10-04
+
+### Added
+
+- **Decomposed slices carry their design excerpt, and a `design` investigation type exists ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** `/work-items:decompose` reads PLAN.md's `## Design` and quotes each slice's part of it in a `## Key interfaces` section. The slice body is now the agent-brief template laid out as sections, so the two slice shapes no longer differ. Design unknowns get `design` investigation tickets routed to `/planning:design`.
+
+### Fixed
+
+- **Decomposed slices and agent briefs carry the design's conventions followed.** Key interfaces now quote the conventions as ADR and rule names, never file paths, so a ticket agent gets the same guardrails a dispatched worker does.
+- **The skill cheat sheet lists `/work-items:decompose` under the workflow ladder's Decompose stage.** Its `workflow-stage` metadata moves from `plan` to `decompose`.
+
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **`/work-items:attend-queue`'s description names triage as the owner of untriaged intake ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It drives escalations to resolution and hands each untriaged intake row to `/work-items:triage`; it no longer claims to resolve intake itself.
+
+## [0.48.7] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.48.6] - 2026-10-04
+
+### Changed
+
+- **`/work-items:triage` routes an undiagnosed bug to diagnosis ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** Step 3 separates a verified bug from a diagnosed one: an unknown root cause routes through `/debugging:debug` (or `/testing:diagnose` for a failing test) before any fix, and a report too unstructured to reproduce from is shaped with `/bugs:write` first. `## Next` gains the `/debugging:debug` route. The state machine and its exits are unchanged.
+
+## [0.48.5] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

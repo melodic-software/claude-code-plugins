@@ -1,0 +1,16 @@
+# good-for: rule-zero-assertion
+# good-for: rule-weak-oracle
+# The same check-like names, with bodies that assert, one of them on the
+# def's own line.
+from users import load_user
+from widgets import build_widget
+
+
+def test_check_widget_builds(expected="w"):
+    assert build_widget() == expected
+
+
+def test_verify_widget_name(): assert build_widget() == "w"
+
+
+def test_assert_user_loads(): assert load_user(1).name == "ada"

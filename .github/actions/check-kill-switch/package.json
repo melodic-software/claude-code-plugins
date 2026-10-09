@@ -1,0 +1,7 @@
+{
+  "name": "check-kill-switch",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -4940,6 +4940,219 @@ else
   fail "--help should document CHECK_SKILL_SKIP_MARKDOWNLINT"
 fi
 
+# --- Check 28: metadata keys come from the registry (WARN) --------------------
+# Expected values: the registry the design names holds `summary` and
+# `workflow-stage` (consumer: the cheat-sheet generator); `favorite-color` has
+# no consumer anywhere.
+make_skill meta-registered '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+metadata:
+  workflow-stage: anytime
+  summary: Do a thing
+---
+
+## Purpose
+
+A skill whose metadata keys are all registered.
+
+## Gotchas
+
+None known.
+'
+out="$(run meta-registered 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'INFO: every metadata key is in the registry' <<<"$out" &&
+  ! grep -q 'not in the metadata registry' <<<"$out"; then
+  pass "check 28 stays quiet on registered metadata keys"
+else
+  fail "check 28 should report registered keys as INFO only (rc=$rc): $out"
+fi
+make_skill meta-unregistered '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+metadata:
+  summary: Do a thing
+  favorite-color: blue
+---
+
+## Purpose
+
+A skill carrying a metadata key nothing reads.
+
+## Gotchas
+
+None known.
+'
+out="$(run meta-unregistered 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: metadata key 'favorite-color' is not in the metadata registry" <<<"$out" &&
+  ! grep -q "metadata key 'summary' is not in" <<<"$out"; then
+  pass "check 28 WARNs (exit 0) on an unregistered metadata key, naming only that key"
+else
+  fail "check 28 should WARN on favorite-color only, exit 0 (rc=$rc): $out"
+fi
+
+# --- Check 29: this repo's history references in a SKILL.md body (WARN) -------
+# hist_case <name> <expect: warn|quiet> <label>, body text on stdin.
+hist_case() {
+  local body
+  body="$(cat)"
+  make_skill "$1" '---
+description: "Do a thing. Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+---
+
+## Purpose
+
+'"$body"'
+
+## Gotchas
+
+None known.
+'
+  out="$(run "$1" 2>&1)"
+  rc=$?
+  if [[ "$2" == warn ]]; then
+    if [[ $rc -eq 0 ]] && grep -q "WARN: SKILL.md body cites this repository's history" <<<"$out"; then
+      pass "$3"
+    else
+      fail "$3 (want WARN at exit 0, rc=$rc): $out"
+    fi
+  elif [[ $rc -eq 0 ]] && grep -q "INFO: no history references in the SKILL.md body" <<<"$out" &&
+    ! grep -q "cites this repository's history" <<<"$out"; then
+    pass "$3"
+  else
+    fail "$3 (want quiet, rc=$rc): $out"
+  fi
+}
+hist_case hist-pr warn "check 29 WARNs on a bare 'See PR #1234' line" <<'EOF'
+See PR #1234 for the background.
+EOF
+hist_case hist-todo warn "check 29 WARNs on a TODO(#9) in the body" <<'EOF'
+TODO(#9): tighten this step.
+EOF
+# Copied verbatim from plugins/harness-ops/skills/observability/SKILL.md
+# (lines 163-167): a pointer record whose As of and Recheck trigger sit on
+# different bullets of one block, plus a cross-repo citation above it.
+hist_case hist-pointer-block quiet "check 29 stays quiet inside a multi-line pointer-record block" <<'EOF'
+`compare` treats `claude_code.cost.usage` and `claude_code.token.usage` as the total of record over `api_request` events; when a session's events fall short, `compare` names [anthropics/claude-code#98193](https://github.com/anthropics/claude-code/issues/98193), the open upstream report on missing `api_request` events. Events above the metric are flagged, never clamped, since that report does not cover them. `compare` sums data points only for delta temporality, so a non-delta token or cost metric exits 2.
+
+- **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
+- **As of**: 2026-10-01; #98193 open.
+- **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
+EOF
+hist_case hist-code-span quiet "check 29 stays quiet on #N inside a code span" <<'EOF'
+The add-side is `/code-tidying:tidy #14`.
+EOF
+hist_case hist-cross-repo quiet "check 29 stays quiet on a cross-repo owner/repo#N" <<'EOF'
+Upstream bug anthropics/claude-code#8961 leaves the deny rule inert.
+EOF
+hist_case hist-fenced quiet "check 29 stays quiet on #N inside a fenced code block" <<'EOF'
+Run this:
+
+```bash
+gh pr view #1234
+```
+EOF
+hist_case hist-anchor quiet "check 29 stays quiet on a link anchor and a heading" <<'EOF'
+See [the steps](#1-setup) and <https://example.com/page#42>.
+EOF
+make_skill hist-frontmatter '---
+description: "Do a thing (#77). Use when: '"'"'a thing'"'"' is needed."
+disable-model-invocation: false
+---
+
+## Purpose
+
+No history in the body.
+
+## Gotchas
+
+None known.
+'
+out="$(run hist-frontmatter 2>&1)"
+if grep -q "INFO: no history references in the SKILL.md body" <<<"$out" &&
+  ! grep -q "cites this repository's history" <<<"$out"; then
+  pass "check 29 reads the body only, never the frontmatter"
+else
+  fail "check 29 should not read the frontmatter: $out"
+fi
+
+# --- Check 30: skill size against Pocock's measured max and the base ref -----
+# Expected values come from the plan: max description 419 characters, max body
+# 160 lines (lines after the closing frontmatter fence), medians 130 / 70.
+# size_skill <name> <description chars> <body lines>
+size_skill() {
+  local desc body i
+  desc="Do a thing. Use when: 'a thing' is needed."
+  while ((${#desc} < $2)); do desc+="x"; done
+  body=""
+  for ((i = 1; i <= $3; i++)); do body+="line $i"$'\n'; done
+  mkdir -p "$SKILLS/$1"
+  printf -- '---\ndescription: "%s"\ndisable-model-invocation: false\n---\n%s' "$desc" "$body" >"$SKILLS/$1/SKILL.md"
+}
+size_skill sz-at-max 419 160
+out="$(run sz-at-max 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q "Pocock's measured max" <<<"$out" &&
+  grep -q 'INFO: size: description 419 chars, body 160 lines (Pocock medians 130 chars, 70 lines; max 419, 160)' <<<"$out"; then
+  pass "check 30 stays quiet at exactly 419 chars and 160 body lines, printing the medians as INFO"
+else
+  fail "check 30 should be quiet at the max and print the INFO line (rc=$rc): $out"
+fi
+size_skill sz-over-desc 420 10
+out="$(run sz-over-desc 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above Pocock's measured max 419" <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a 420-char description"
+else
+  fail "check 30 should WARN on 420 chars, exit 0 (rc=$rc): $out"
+fi
+size_skill sz-over-body 100 161
+out="$(run sz-over-body 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN: SKILL.md body is 161 lines, above Pocock's measured max 160" <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a 161-line body"
+else
+  fail "check 30 should WARN on 161 body lines, exit 0 (rc=$rc): $out"
+fi
+# This fixture repo has no origin remote, so with no CHECK_SKILL_BASE_REF the
+# growth half has no base and says so.
+if grep -q 'INFO: no base ref for the size-growth comparison' <<<"$out"; then
+  pass "check 30 skips growth with an INFO when no base ref resolves"
+else
+  fail "check 30 should name the missing base ref: $out"
+fi
+size_skill sz-grow 100 20
+git -C "$TMP" add -A && git -C "$TMP" commit -qm 'add sz-grow' >/dev/null
+size_skill sz-grow 150 25
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-grow) 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'WARN: description grew vs HEAD: 100 -> 150 chars' <<<"$out" &&
+  grep -q 'WARN: SKILL.md body grew vs HEAD: 20 -> 25 lines' <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on description and body growth vs the base ref"
+else
+  fail "check 30 should WARN on growth vs HEAD, exit 0 (rc=$rc): $out"
+fi
+size_skill sz-grow 90 18
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-grow) 2>&1)"
+if ! grep -q 'grew vs' <<<"$out" && grep -q 'INFO: size: description 90 chars, body 18 lines' <<<"$out"; then
+  pass "check 30 stays quiet when the skill shrank vs the base ref"
+else
+  fail "check 30 should not WARN on a shrink: $out"
+fi
+size_skill sz-new 100 20
+out="$( (cd "$TMP" && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  CHECK_SKILL_BASE_REF=HEAD bash "$SUT" sz-new) 2>&1)"
+if grep -q 'INFO: no HEAD version (new skill): size growth skipped' <<<"$out" && ! grep -q 'grew vs' <<<"$out"; then
+  pass "check 30 skips growth with an INFO for a skill new at the base ref"
+else
+  fail "check 30 should skip growth for a new skill: $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

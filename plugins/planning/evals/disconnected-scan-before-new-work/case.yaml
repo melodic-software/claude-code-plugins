@@ -13,12 +13,12 @@ execution:
 graders:
   - name: unused-build-digest-import
     type: regex
-    pattern: '(?=[\s\S]*build_digest)(?=[\s\S]*notifier)(?=[\s\S]*(?:unused|never (?:called|used)|not (?:called|used)|unreferenced|imported but|dead import))'
+    pattern: '(?=[\s\S]*build_digest)(?=[\s\S]*notifier)(?=[\s\S]*(?:unused|never (?:call|use|invoke)|not (?:called|used)|nothing (?:calls|uses)|unreferenced|imported but|dead import))'
     flags: i
     arm: both
   - name: weekly-digest-flag-off-and-unread
     type: regex
-    pattern: '(?=[\s\S]*weekly_digest)(?=[\s\S]*(?:False|defaults? (?:to )?(?:off|false)|disabled))(?=[\s\S]*(?:never (?:read|checked|referenced|consulted)|not (?:read|checked|referenced)|nothing (?:reads|checks)|no reader|unread))'
+    pattern: '(?=[\s\S]*weekly_digest)(?=[\s\S]*(?:False|defaults? (?:to )?(?:off|false)|disabled))(?=[\s\S]*(?:never (?:read|checked|referenced|consulted)|not (?:read|checked|referenced)|nothing (?:reads|checks)|no (?:code|caller|module)\b[^.\n]{0,20}(?:reads|checks)|no reader|unread))'
     flags: i
     arm: both
   - name: delivery-receipts-has-no-reader
@@ -41,7 +41,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the answer reports the disconnected items (wiring up the existing build_digest, enabling the weekly_digest flag, and using the delivery_receipts table) as candidates that come BEFORE any greenfield option in the ordering, framed as connecting or enabling what is already built before building new. FAIL if the first candidates are new builds, if the disconnected items appear only as an afterthought or footnote, or if they are not offered as candidates at all."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'

@@ -4,8 +4,14 @@ Taxonomy of improvements codifiable from session findings. Each category maps a 
 specific ecosystem target.
 
 **Research before recommending.** The Claude Code ecosystem evolves constantly, so verify current
-capabilities against current official docs (WebSearch, WebFetch, or a docs-lookup agent/MCP
-server) before recommending; never recommend features from training-data assumptions.
+capabilities against current official docs before recommending; never recommend features from
+training-data assumptions. WebSearch only finds which page to read. Read the page itself through
+the docs lookup: follow `<plugin-root>/reference/docs-lookup-procedure.md` with `<scripts>` =
+`<plugin-root>/scripts` and `<session>` = `${CLAUDE_SESSION_ID}`, fetching with
+`bash "<plugin-root>/scripts/fetch-docs.sh" --cache` and taking the section with `docs-cache.sh`
+`slice`. Use `--max-age 0` when the recommendation rests on a feature being absent. WebFetch is
+the fallback only when the manifest records the page unread with reason `curl-missing` or the
+script wrote no manifest.
 
 ## Placement Decision Tree
 
@@ -116,7 +122,8 @@ matcher syntax, and environment variables against the current hooks documentatio
 ### Hook events
 
 The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
-the current list at <https://code.claude.com/docs/en/hooks> before recommending. It grows and
+the current list at <https://code.claude.com/docs/en/hooks> (slug `hooks`, through the docs lookup
+above) before recommending. It grows and
 changes faster than any copy here could track, so no copy is kept here.
 
 ### Recommendation format

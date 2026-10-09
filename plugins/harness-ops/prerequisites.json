@@ -34,11 +34,59 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the harness-ops hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the harness-ops hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
       "check": "/harness-ops:check"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:changelog",
+        "skill:inventory",
+        "skill:audit-native-overlap"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh cannot fetch a docs page and records it unread with reason curl-missing, so /harness-ops:changelog reports its range as not computed and an upstream claim in /harness-ops:inventory or /harness-ops:audit-native-overlap has no page to rest on; a cached entry still within --max-age is served without a request.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:changelog",
+        "skill:inventory",
+        "skill:audit-native-overlap"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a docs page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

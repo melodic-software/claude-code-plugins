@@ -1,0 +1,14 @@
+// good-for: rule-zero-assertion
+// The same check-like names, with bodies that fail on a wrong widget, one of
+// them on the func's own line.
+package widget
+
+import "testing"
+
+func TestCheckWidgetBuilds(t *testing.T) {
+	if got := Build().Name; got != "w" {
+		t.Fatalf("Build().Name = %q, want %q", got, "w")
+	}
+}
+
+func TestVerifyBuild(t *testing.T) { if Build().Name != "w" { t.Fatal("wrong widget") } }

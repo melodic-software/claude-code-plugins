@@ -46,7 +46,7 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 
 | Lane | Shape | What it looks like | Default tier | Treatment |
 |---|---|---|---|---|
-| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching 500 lines; CLAUDE.md above ~200; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
+| split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching the line cap `/playbooks:skill-authoring` `## Body` records and `/skill-quality:check` enforces; CLAUDE.md above ~200; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
 | split | `mixed-concerns` | Mutually-exclusive contexts co-resident (content that never co-executes), category straddle, multi-topic rules file, cross-file contradiction | 2 | Split by concern. One topic per file; name the proposed split seams |
 | split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule, unless owned upstream (see Hard rules); the finding names source section and destination surface |
 | structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-NOT-to-use clause is advisory color (community-sourced), never a violation |
@@ -100,7 +100,8 @@ sibling divergences it owns.
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash` ops; the author owns every treatment edit.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
   Tier 3 = likely legitimate, surfaced for awareness and carrying NO treatment.
-- **Citation posture.** Vendor-defined numbers (500/200/1,024/1,536/1%/~100 tokens/5k/25k) are
+- **Citation posture.** Skill size and description caps are `/playbooks:skill-authoring`'s (`## Body`,
+  `## Descriptions`); the other vendor-defined numbers (200/1%/~100 tokens/5k/25k) are
   cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
   than trusted. Consensus language is reserved for independently corroborated claims;
@@ -158,7 +159,7 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 - Ownership is usually stated outside the audited targets. A file that looks local may be synced
   or vendored; grep the repo, not just the target.
-- The 500/200 numbers are **ceilings, not targets**; we treat *approaching* the cap as the split
+- The SKILL.md line cap and the 200-line CLAUDE.md target are **ceilings, not targets**; we treat *approaching* the cap as the split
   trigger, and a well-split hub sits far below it (about 30 lines is common). Size alone under the
   cap never fires `oversize`.
 - Invocation-loaded is **cheap to have, not cheap to use**: once a skill body loads, every line

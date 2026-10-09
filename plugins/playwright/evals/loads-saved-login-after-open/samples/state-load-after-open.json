@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "```bash\nplaywright-cli -s=gh-settings open about:blank\nplaywright-cli -s=gh-settings state-load \"${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli/github.json\"\nplaywright-cli -s=gh-settings goto https://github.com/acme-example/widgets/settings\n```", "why": "the skill's sequence"},
+    {"answer": "```bash\nplaywright-cli -s=run1 open https://github.com\nplaywright-cli -s=run1 state-load ~/.local/state/playwright-cli/github.json\n```", "why": "open on the site, then load"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "```bash\nplaywright-cli -s=x open https://github.com/acme-example/widgets/settings\nplaywright-cli -s=x snapshot\n```", "why": "no state-load: lands logged out"},
+    {"answer": "```bash\nplaywright-cli -s=x state-load github.json\n```\nThen open the page.", "why": "state-load with no open command before it"},
+    {"answer": "Here is how to configure branch protection rules in the GitHub UI.", "why": "answer to a different question"}
+  ]
+}

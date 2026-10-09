@@ -190,7 +190,7 @@ says `defaultEnabled` decides it and defaults to `true`
 trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
 plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
-[metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence)).
+[metadata precedence](https://code.claude.com/docs/en/plugins/manifest-reference#metadata-precedence)).
 Whatever entry the install leaves for that id, none or an explicit `false` (the probe Step 4's
 disabled-install record points at), the id is off by the publisher's choice, not a
 completeness gap, and `missing_from_enabled` excludes it either way. This step never runs `enable`

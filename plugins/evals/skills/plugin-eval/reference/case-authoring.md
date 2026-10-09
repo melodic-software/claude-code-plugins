@@ -35,12 +35,12 @@ a run, because each one costs a paid pass to discover afterwards.
 
 ## Precedence
 
-- [ ] With both files present, `prompt.md` frontmatter **overrides** the matching `case.yaml`
-      fields, the `prompt.md` body is the prompt, and `graders/*.md` are appended after any
-      `case.yaml` graders. Author one or the other per field; two sources for one value is how a
-      suite starts measuring something nobody intended.
-- [ ] `case.yaml` alone requires `schema_version` and `name`. It is also the only place
-      `context.scaffold_script`, `context.history_file`, and `context.add_dirs` exist.
+- [ ] Which file wins when both are present, what `case.yaml` requires, and which fields exist
+      only there: [case.yaml fields](https://code.claude.com/docs/en/plugin-evals#case-yaml-fields),
+      as of 2026-10-07. Recheck trigger: that section's precedence sentence or its only-in-`case.yaml`
+      table changes.
+- [ ] Author one or the other per field; two sources for one value is how a suite starts
+      measuring something nobody intended.
 
 ## The workspace starts empty
 
@@ -73,6 +73,13 @@ unless the case routes it in explicitly.
       `arm: with-only`) is excluded from scoring in both arms and reported as an indicator. Use
       `arm: both` when the check must score in both arms, which a must-not-invoke check
       (`min: 0` **and** `max: 0`) requires.
+- [ ] A prompt that starts with the skill's slash command loads the skill without a `Skill` tool
+      call, so a `tool_used: Skill` grader fails and the validity gate marks the run INVALID. Drop
+      that grader on slash-invoked cases, or phrase the prompt in natural language. Seen at Claude
+      Code 2.1.289 on all 24 with-arm runs of two suites, 2026-10-04. Recheck trigger: a Claude
+      Code release note touches slash-command skill loading or the `Skill` tool, or a kept trace
+      of a slash-invoked case shows a `Skill` call; then re-run one such case with `--keep-temp`
+      and restore the grader if the call appears.
 - [ ] Drop any assertion that passes in both arms and measures nothing. A case at 1.00 on both sides
       is a passing case and a null measurement. Keep one only as a regression guard: tag it
       `regression-guard`, say so in its `description`, and pair it with a case a person judged
@@ -82,8 +89,8 @@ unless the case routes it in explicitly.
 |---|---|---|
 | `regex` | `pattern`, `flags`, `match`, `target` | The JS regex is found in the target; `match: not_contains` requires absence, `match: "count:N"` exactly N |
 | `tool_used` | `tool`, `input_match`, `min`, `max` | Matching calls fall in range; `min` defaults to 1 and `max` to unlimited |
-| `tool_order` | `before`, `after` | Both were called and the first `before` precedes the first `after`; each is a tool name or `{tool, input_match}` |
-| `file_exists` | `path`, `exists` | A file the model **created** during the run matches the glob. Scaffold output and edited files do not count |
+| `tool_order` | `before`, `after` | The `tool_order` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change |
+| `file_exists` | `path`, `exists` | The `file_exists` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change. Scaffold output and files the model only edits do not count |
 | `llm` | `criteria`, `focus` | The judge votes PASS in at least 2 of 3. In the `.md` layout the body is the criteria |
 | `baseline` | `baseline_file`, `criteria` | The judge finds the run at least as good as the reference `.jsonl` in the case dir |
 
@@ -113,7 +120,7 @@ where a judge sees only the first 12 and last 12 messages and quotes are JSON-es
       run error, not a low score.
 - [ ] `allowed_tools` requests only what the case needs. Read-only tools (`Read`, `Glob`, `Grep`,
       `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) need no operator grant;
-      anything else needs `--allow-tools` and, for `Bash`, `Write`, or `Edit`, a sandbox backend.
+      anything else needs `--allow-tools` and, for `Bash`, `PowerShell`, `Write`, or `Edit`, a sandbox backend.
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
@@ -123,7 +130,8 @@ Run the static validator before every paid pass; it checks the bounds above with
 - `target: files` when the contents were meant. `files` is the list of created paths.
 - Assuming `target` defaults to `trace`. It defaults to `last_message`.
 - Inline `(?i)` in a pattern. Case-insensitivity is `flags: i`.
-- `file_exists` in a read-only suite. Nothing is created, so the grader can never pass.
+- `file_exists` with the default `exists` in a read-only suite. Nothing is created, so the grader
+  can never pass.
 - A gated tool in `allowed_tools` with no matching `--allow-tools` grant. The tool is removed from
   the session and reported on stderr as `not granted`, and the case quietly measures a model without
   it.

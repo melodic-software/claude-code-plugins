@@ -26,7 +26,7 @@ sources where verifiable.
 
 **Course:** *Songwriting*, taught by Pat Pattison via Coursera + Berklee
 Online. Available in English, Spanish, and Portuguese.
-**URL:** <https://www.coursera.org/specializations/songwriting> (verified 2026-05-13, specialization page; individual `/learn/songwriting` course page returns 404 post-2026 restructure)
+**URL:** <https://www.coursera.org/specializations/songwriting> (verified 2026-05-13, specialization page; individual `/learn/songwriting` course page returns 404 post-2026 restructure; recheck when Coursera restores that course page or changes the specialization's four-module format)
 **Enrollment:** 1.5M+ since 2013
 **Format:** 4 modules, ~13 hours total
 
@@ -59,7 +59,8 @@ Online. Available in English, Spanish, and Portuguese.
 
 ## Berklee Online: Pat's courses
 
-Course codes verified via Berklee Online catalog (2026-05-10):
+Course codes verified via Berklee Online catalog (2026-05-10; recheck when the catalog renumbers
+or retitles a course listed here):
 
 | Code | Title | Notes |
 |---|---|---|
@@ -132,7 +133,7 @@ replace.
 URL: <https://www.patpattison.com/pat-s-lyric-tips>
 
 The full set of Pat-authored short-form lyric tips on the official site,
-verified 2026-05-10:
+verified 2026-05-10 (recheck when the Lyric Tips page adds or removes a tip):
 
 | Tip | Distinctive content |
 |---|---|

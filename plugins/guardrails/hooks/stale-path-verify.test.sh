@@ -111,8 +111,8 @@ assert_run_helpers_propagate_exit
 run 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.'
 assert_exit "deleted path in code span → exit 0 (advisory)" 0 "$?"
 assert_contains "deleted path → named" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
-assert_contains "deleted path → count" "$OUT" "1 cited path(s) were removed"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
+assert_contains "deleted path → count" "$OUT" "cited path(s) in"
 
 # Criterion 4: the finding carries the moved-file hint when exactly one tracked
 # file now carries that basename.
@@ -120,13 +120,13 @@ assert_contains "unique surviving basename → moved-file hint" "$OUT" \
   "plugins/discipline/context/re-anchor-audit-correct.md"
 
 # Criterion 8: the advisory must read as a prompt for a verdict, not a verdict.
-assert_contains "advisory states detect-then-judge" "$OUT" "Detect-then-judge"
+assert_absent "advisory carries no verdict trailer" "$OUT" "Detect-then-judge"
 assert_contains "advisory exempts a deliberate deletion record" "$OUT" \
-  "deletion or completion record"
+  "A path cited as a deletion record is correct as written."
 
 run_edit 'Now cites `plugins/re-anchor/context/re-anchor-audit-correct.md` instead.'
 assert_contains "Edit hunk scanned via new_string" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 
 # PARTIAL-EDIT RECONSTRUCTION. An Edit may replace a bare substring INSIDE an
 # existing code span: the surrounding backticks are pre-existing and never enter
@@ -143,7 +143,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'gone')
 RC=$?
 assert_exit "bare-substring Edit hunk → exit 0" 0 "$RC"
 assert_contains "bare-substring Edit hunk → containing citation recovered" "$OUT" \
-  "STALE_PATH: docs/gone.md"
+  "  docs/gone.md"
 
 # Diff-scope is preserved: a PRE-EXISTING unrelated stale citation must NOT fire
 # just because reconstruction read from disk.
@@ -181,7 +181,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORTFRAG" 'md')
 RC=$?
 assert_exit "two-character partial-edit anchor → exit 0" 0 "$RC"
 assert_contains "two-character partial-edit anchor → stale citation recovered" "$OUT" \
-  "STALE_PATH: docs/gone.md"
+  "  docs/gone.md"
 
 # Occurrences, not matching lines. Two occurrences on ONE physical line are a
 # single grep hit, so a line-uniqueness gate would call this unique and adjudicate
@@ -221,20 +221,20 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'gon
 RC=$?
 assert_exit "replace_all Edit → exit 0" 0 "$RC"
 assert_contains "replace_all → repeated anchor still adjudicated" "$OUT" \
-  "STALE_PATH: docs/gone.md"
+  "  docs/gone.md"
 
 # A line-citation suffix is stripped for resolution; the finding names the path
 # without it.
 run 'Per `plugins/re-anchor/context/re-anchor-audit-correct.md:12` the rule applies.'
 assert_contains "line citation suffix stripped → still fires" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 
 # CRITERION 2, behaviorally. git records tools/legacy-emit.sh -> tools/current-emit.sh
 # as a rename; with git's default rename detection --name-only prints only the new
 # path, so this case fails and the guard is silently inert.
 run 'Run `tools/legacy-emit.sh` to build.'
 assert_contains "renamed-away path fires (--no-renames in effect)" "$OUT" \
-  "STALE_PATH: tools/legacy-emit.sh"
+  "  tools/legacy-emit.sh"
 
 # #1446: deleted root-level paths are valid citations when the basename is
 # referentially unambiguous.
@@ -253,7 +253,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$ROOT_FIRE" bash "$HOOK" \
   <<<"$(write_json "$ROOT_FIRE_TARGET" 'See `CONTRIBUTING.md` for the old process.')" 2>&1)
 RC=$?
 assert_exit "deleted root-level path → exit 0 (advisory)" 0 "$RC"
-assert_contains "deleted root-level path fires" "$OUT" "STALE_PATH: CONTRIBUTING.md"
+assert_contains "deleted root-level path fires" "$OUT" "  CONTRIBUTING.md"
 
 # Generic root basenames stay out even when this repo once deleted its root copy.
 ROOT_QUIET="$TEST_TMPDIR/root-quiet-repo"
@@ -458,7 +458,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
 RC=$?
 assert_exit "unstaged deletion → exit 0" 0 "$RC"
 assert_contains "unstaged deletion is not a sparse exemption → fires" "$OUT" \
-  "STALE_PATH: docs/restored.md"
+  "  docs/restored.md"
 
 # assume-unchanged (`ls-files -v` tag `h`) is deliberately NOT exempted. It is a
 # stat-skipping performance promise about a path the user keeps on disk, not a
@@ -474,7 +474,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
 RC=$?
 assert_exit "assume-unchanged deletion → exit 0" 0 "$RC"
 assert_contains "assume-unchanged is not a sparse exemption → fires" "$OUT" \
-  "STALE_PATH: docs/restored.md"
+  "  docs/restored.md"
 
 # BOTH bits together: `ls-files -v` marks assume-unchanged by LOWERCASING the
 # letter, so a skip-worktree entry that is also assume-unchanged is tagged `s`,
@@ -494,7 +494,7 @@ git -C "$SPARSE" update-index --no-assume-unchanged docs/restored.md >/dev/null 
 OUT=$(CLAUDE_PROJECT_DIR="$SPARSE" bash "$HOOK" \
   <<<"$(write_json "$SPARSE_TARGET" 'Read `docs/truly-gone.md` first.')" 2>&1)
 assert_contains "deleted and never restored → still fires" "$OUT" \
-  "STALE_PATH: docs/truly-gone.md"
+  "  docs/truly-gone.md"
 
 # A deleted path reintroduced as a symlink whose target is unavailable is present
 # in the working tree, but `-e` reports false for it.
@@ -544,7 +544,8 @@ if git clone -q --no-local --depth 1 "$REPO" "$SHALLOW_REPO" >/dev/null 2>&1 &&
   assert_exit "shallow clone → exit 0" 0 "$RC"
   assert_contains "shallow clone → visible prerequisite notice" "$OUT" "clone is shallow"
   assert_contains "shallow clone → notice names the remedy" "$OUT" "fetch --unshallow"
-  assert_absent "shallow clone → no finding claimed" "$OUT" "STALE_PATH"
+  assert_absent "shallow clone → the user is told, not the model" "$OUT" "additionalContext"
+  assert_absent "shallow clone → no finding claimed" "$OUT" "deleted from this repo"
 
   OUT=$(CLAUDE_PROJECT_DIR="$SHALLOW_REPO" bash "$HOOK" \
     <<<"$(write_json "$SHALLOW_TARGET" 'The spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md`.')" 2>&1)
@@ -612,9 +613,10 @@ if ((WALK_RC != 0)) && [[ "$WALK_OUT" == *docs/late.md* ]] &&
     <<<"$(write_json "$WALK_TARGET" 'The spoke is `docs/late.md`.')" 2>&1)
   RC=$?
   assert_exit "incomplete walk → exit 0" 0 "$RC"
-  assert_contains "incomplete walk → visible prerequisite notice" "$OUT" "history walk exited nonzero"
+  assert_contains "incomplete walk → visible prerequisite notice" "$OUT" "stale-path-verify is off"
   assert_contains "incomplete walk → notice names the diagnostic" "$OUT" "diff-filter=D"
-  assert_absent "incomplete walk → partial set never adjudicated" "$OUT" "STALE_PATH"
+  assert_absent "incomplete walk → the user is told, not the model" "$OUT" "additionalContext"
+  assert_absent "incomplete walk → partial set never adjudicated" "$OUT" "deleted from this repo"
 
   OUT=$(CLAUDE_PROJECT_DIR="$WALK_REPO" bash "$HOOK" \
     <<<"$(write_json "$WALK_TARGET" 'The spoke is `docs/late.md`.')" 2>&1)
@@ -657,20 +659,17 @@ git_c "$UNI_REPO" commit -qm del >/dev/null 2>&1
 UNI_TARGET="$UNI_REPO/notes.md"
 : >"$UNI_TARGET"
 out=$(CLAUDE_PROJECT_DIR="$UNI_REPO" bash "$HOOK" <<<"$(write_json "$UNI_TARGET" 'See `docs/café.md`.')" 2>&1)
-assert_contains "non-ASCII deleted path fires" "$out" "STALE_PATH: docs/café.md"
+assert_contains "non-ASCII deleted path fires" "$out" "  docs/café.md"
 
 # ============================ SOURCE CONTRACT ===============================
 
 HOOK_SRC=$(cat "$HOOK")
 
-# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
-# cannot host bash + coreutils across Git Bash and Linux, the same constraint
-# secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
-# document. Assert the fail-open guard is present; hook::require's own behavior is
-# covered by lib/hook-utils.test.sh and the notice key's plugin-wide uniqueness
-# by require-jq-notice-isolation.test.sh.
+# Runtime jq-removal is not portably simulable through an isolated bin dir. Assert
+# the fail-open guard is present; hook::require's own behavior is covered by
+# lib/hook-utils.test.sh and the plugin-wide notice label by
+# require-jq-notice-isolation.test.sh.
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
-assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-stale-path-verify'
 
 # The repo root is resolved from the written file, never from the process CWD, so
 # the hook is correct in a linked worktree and in a bare-hub clone.
@@ -723,10 +722,10 @@ fi
 # alone is not its verdict: the additionalContext document is. `parity` in
 # guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: deleted path" 'See `docs/gone.md` here.' 0 \
-  "STALE_PATH: docs/gone.md"
+  "  docs/gone.md"
 parity "dispatched parity: surviving path" 'See `docs/real.md` here.' 0 ""
 parity "dispatched parity: renamed-away path" 'Run `tools/legacy-emit.sh` to build.' 0 \
-  "STALE_PATH: tools/legacy-emit.sh"
+  "  tools/legacy-emit.sh"
 
 # --- Builtin twins answer what the pipelines answer ------------------------------
 # The twins replace grep/sed/sort/head pipelines for printable-ASCII text. Each
@@ -855,7 +854,7 @@ rm -f "$REPO/.git/guardrails-deleted-paths"
 OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
 assert_contains "deleted-path cache: cold fire still names the removed path" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 COLD_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
 if [[ "$COLD_LOGS" -ge 1 ]]; then
   ok "deleted-path cache: a cold fire walks history"
@@ -866,7 +865,7 @@ fi
 OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
 assert_contains "deleted-path cache: a repeat fire still names the removed path" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 WARM_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
 assert_eq "deleted-path cache: a repeat fire at the same HEAD does not walk history" \
   0 "$WARM_LOGS"
@@ -875,7 +874,7 @@ git_c "$REPO" commit --allow-empty -qm "cache key moves with HEAD" >/dev/null 2>
 OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
   <<<"$(write_json "$TARGET" 'The shared spoke is `plugins/re-anchor/context/re-anchor-audit-correct.md` today.')" 2>&1)
 assert_contains "deleted-path cache: a new HEAD still names the removed path" "$OUT" \
-  "STALE_PATH: plugins/re-anchor/context/re-anchor-audit-correct.md"
+  "  plugins/re-anchor/context/re-anchor-audit-correct.md"
 NEW_LOGS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
 if [[ "$NEW_LOGS" -ge 1 ]]; then
   ok "deleted-path cache: a new HEAD walks history again"
@@ -938,14 +937,14 @@ assert_whole() {
 # something, and it holds the no-second-walk property.
 printf '%s\nok\nend 0\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
-assert_absent "cache: a whole file at this HEAD is trusted, not walked over" "$OUT" "STALE_PATH"
+assert_absent "cache: a whole file at this HEAD is trusted, not walked over" "$OUT" "deleted from this repo"
 assert_eq "cache: a whole file at this HEAD starts no history walk" 0 "$CACHE_WALKS"
 
 # A file cut after its header carries no sentinel.
 printf '%s\nok\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a deleted-path file cut after its header is a miss, the finding stays" "$OUT" \
-  "STALE_PATH: docs/old-spec.md"
+  "  docs/old-spec.md"
 if ((CACHE_WALKS >= 1)) && cache_is_whole "$CACHE_DEL" 2; then
   ok "cache: the cut file is rebuilt whole"
 else
@@ -956,7 +955,7 @@ fi
 printf '%s\nok\nsome/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a sentinel count that disagrees with the lines read is a miss" "$OUT" \
-  "STALE_PATH: docs/old-spec.md"
+  "  docs/old-spec.md"
 assert_whole "cache: the disagreeing file is rebuilt whole" "$CACHE_DEL" 2 docs/old-spec.md
 
 # Two writers leave the later one's sentinel inside the earlier one's body; the
@@ -964,13 +963,13 @@ assert_whole "cache: the disagreeing file is rebuilt whole" "$CACHE_DEL" 2 docs/
 printf '%s\nok\nsome/other.md\nend 1\nmore/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a sentinel inside the body is a miss even when the count agrees" "$OUT" \
-  "STALE_PATH: docs/old-spec.md"
+  "  docs/old-spec.md"
 
 # A different HEAD is a miss however whole the file is.
 printf '%s\nok\nend 0\n' "$CACHE_PREV" >"$CACHE_DEL"
 cache_fire
 assert_contains "cache: a file keyed to another HEAD is a miss, the finding stays" "$OUT" \
-  "STALE_PATH: docs/old-spec.md"
+  "  docs/old-spec.md"
 if ((CACHE_WALKS >= 1)) && [[ "$(head -n 1 "$CACHE_DEL")" == "$CACHE_HEAD" ]]; then
   ok "cache: the other-HEAD file is rebuilt for this HEAD"
 else
@@ -1019,7 +1018,7 @@ mkdir -p "$EMPTY_CACHE_REPO/docs"
 EMPTY_OUT=$(CLAUDE_PROJECT_DIR="$EMPTY_CACHE_REPO" bash "$HOOK" \
   <<<"$(write_json "$EMPTY_CACHE_REPO/notes.md" 'See `docs/a.md`.')" 2>&1)
 assert_contains "cache: a repo with no tracked files still reports the removed path" "$EMPTY_OUT" \
-  "STALE_PATH: docs/a.md"
+  "  docs/a.md"
 assert_eq "cache: an empty tracked-file list is written as a whole file of zero" \
   "end 0" "$(cat "$EMPTY_CACHE_REPO/.git/guardrails-ls-files" 2>/dev/null)"
 
@@ -1030,14 +1029,14 @@ for _ in 1 2 3 4 5; do
   (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-a" 2>&1) &
   (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-b" 2>&1) &
   wait
-  [[ "$(cat "$TEST_TMPDIR/conc-a")" == *"STALE_PATH: docs/old-spec.md"* ]] || CONC_BAD=1
-  [[ "$(cat "$TEST_TMPDIR/conc-b")" == *"STALE_PATH: docs/old-spec.md"* ]] || CONC_BAD=1
+  [[ "$(cat "$TEST_TMPDIR/conc-a")" == *"  docs/old-spec.md"* ]] || CONC_BAD=1
+  [[ "$(cat "$TEST_TMPDIR/conc-b")" == *"  docs/old-spec.md"* ]] || CONC_BAD=1
   cache_is_whole "$CACHE_DEL" 2 || CONC_BAD=1
   cache_is_whole "$CACHE_LS" 0 || CONC_BAD=1
 done
 assert_eq "cache: two cold fires at once both report the finding and leave whole caches" 0 "$CONC_BAD"
 cache_fire
-assert_contains "cache: the caches the concurrent fires left are readable" "$OUT" "STALE_PATH: docs/old-spec.md"
+assert_contains "cache: the caches the concurrent fires left are readable" "$OUT" "  docs/old-spec.md"
 assert_eq "cache: and they are trusted, so no walk runs" 0 "$CACHE_WALKS"
 
 # A git directory the hook cannot write costs it the caches, not a diagnostic on

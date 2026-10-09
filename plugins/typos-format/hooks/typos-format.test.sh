@@ -345,10 +345,43 @@ else
   fail "stub/default: out-of-the-box hook modified the file: $(cat "$STUB_REPO/default.txt")"
 fi
 CTX_DEF=$(ctx_of "$OUT_DEF")
-if printf '%s' "$CTX_DEF" | grep -q 'report-only' && printf '%s' "$CTX_DEF" | grep -q 'teh'; then # spellchecker:disable-line
+if [[ "$CTX_DEF" == "typos-format: default.txt has 1 typo(s):"$'\n'*teh* ]]; then # spellchecker:disable-line
   ok "stub/default: findings still reported in report-only default"
 else
-  fail "stub/default: findings or mode statement missing: $CTX_DEF"
+  fail "stub/default: findings or heading missing: $CTX_DEF"
+fi
+if [[ "$CTX_DEF" != *"NOT modified"* && "$CTX_DEF" != *report-only* && "$CTX_DEF" != *"(advisory)"* ]]; then
+  ok "stub/default: no mode status line on the default path"
+else
+  fail "stub/default: report carries a mode status line: $CTX_DEF"
+fi
+
+# --- An unchanged report is sent once; the allow-list hint once per file -----
+# With a data directory the same typo set on a re-edit sends nothing. A grown
+# set is sent again, without the allow-list hint it already carried. A
+# SessionStart compact resets the record, so the set is sent again.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+printf 'this has teh typo\n' >"$STUB_REPO/delta.txt" # spellchecker:disable-line
+D1=$(ctx_of "$(run_stub_default "$STUB_REPO/delta.txt" CLAUDE_PLUGIN_DATA="$DELTA_DATA")")
+D2=$(ctx_of "$(run_stub_default "$STUB_REPO/delta.txt" CLAUDE_PLUGIN_DATA="$DELTA_DATA")")
+if [[ "$D1" == *teh*extend-words* && -z "$D2" ]]; then # spellchecker:disable-line
+  ok "delta: an unchanged typo set is sent once, with the allow-list hint, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+printf 'this has teh typo\nand wnat too\n' >"$STUB_REPO/delta.txt" # spellchecker:disable-line
+D3=$(ctx_of "$(run_stub_default "$STUB_REPO/delta.txt" CLAUDE_PLUGIN_DATA="$DELTA_DATA")")
+if [[ "$D3" == *wnat* && "$D3" != *extend-words* ]]; then # spellchecker:disable-line
+  ok "delta: a grown set is sent again, and the allow-list hint is not repeated for the file"
+else
+  fail "delta: grown set: '$D3'"
+fi
+printf '{"session_id":"stub-1","source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D4=$(ctx_of "$(run_stub_default "$STUB_REPO/delta.txt" CLAUDE_PLUGIN_DATA="$DELTA_DATA")")
+if [[ "$D4" == *wnat* ]]; then # spellchecker:disable-line
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D4'"
 fi
 if [[ -z "$(sys_of "$OUT_DEF")" ]]; then
   ok "stub/default: no user-channel message (nothing was mutated)"
@@ -391,10 +424,10 @@ else
   fail "stub/report-only: file was modified: $(cat "$STUB_REPO/readonly.txt")"
 fi
 CTX_RO=$(ctx_of "$OUT_RO")
-if printf '%s' "$CTX_RO" | grep -q 'report-only' && printf '%s' "$CTX_RO" | grep -q 'NOT modified'; then
-  ok "stub/report-only: mode is stated in the report"
+if [[ "$CTX_RO" == "typos-format: readonly.txt has 1 typo(s):"$'\n'* && "$CTX_RO" != *"NOT modified"* ]]; then
+  ok "stub/report-only: findings reported without a mode status line"
 else
-  fail "stub/report-only: mode not stated: $CTX_RO"
+  fail "stub/report-only: report shape: $CTX_RO"
 fi
 if [[ -z "$(sys_of "$OUT_RO")" ]]; then
   ok "stub/report-only: no user-channel message (nothing was mutated)"
@@ -446,7 +479,7 @@ else
   fail "stub/write-lockfile-deny: lockfile was rewritten: $(cat "$STUB_REPO/package-lock.json")"
 fi
 CTX_LOCK=$(ctx_of "$OUT_LOCK")
-if printf '%s' "$CTX_LOCK" | grep -qi 'lockfile basename' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
+if printf '%s' "$CTX_LOCK" | grep -qi 'not rewritten: generated lockfile' && printf '%s' "$CTX_LOCK" | grep -q 'teh'; then # spellchecker:disable-line
   ok "stub/write-lockfile-deny: findings reported with lockfile skip note"
 else
   fail "stub/write-lockfile-deny: skip note or findings missing: $CTX_LOCK"
@@ -830,7 +863,7 @@ RES_START=$(date +%s)
 OUT_SR=$(run_stub "$STUB_REPO/scale-residual.txt")
 RES_ELAPSED=$(($(date +%s) - RES_START))
 CTX_SR=$(ctx_of "$OUT_SR")
-if printf '%s' "$CTX_SR" | grep -q "$((SCALE_N * 2)) finding(s)\|residual typos findings"; then
+if printf '%s' "$CTX_SR" | grep -qF "has $((SCALE_N * 2)) typo(s):"; then
   ok "stub/scale-residual: an all-residual set of $((SCALE_N * 2)) findings is still reported"
 else
   fail "stub/scale-residual: residual report missing: $CTX_SR"
@@ -873,11 +906,9 @@ for _i in $(seq 1 "$DEEP_N"); do
 done
 OUT_DR=$(run_stub "$STUB_REPO/deep-residual.txt")
 CTX_DR=$(ctx_of "$OUT_DR")
-# The count is asserted against the overflow line, which carries the real
-# number. Grepping for the words "residual typos findings" cannot fail on it:
-# an all-residual run prints that phrase whether it carried 5000 findings or
-# one, and the `$COUNT finding(s)` form appears only ALONGSIDE applied rewrites,
-# which this fixture has none of. Telemetry is not usable here either — at this
+# The count is asserted against the overflow line, which carries the number of
+# findings the capped list leaves out, and so proves every residual was
+# attributed rather than the heading alone. Telemetry is not usable here either — at this
 # size the envelope exceeds the sink cap and is dropped, which is inside
 # contract (see the scale case above, #1595), so a sink-based count would be
 # asserting on something the hook is permitted not to send.
@@ -989,35 +1020,23 @@ if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root 
 else
   fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"
 fi
-
-# --- Notice text is bound to prerequisites.json --------------------------------
-# The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest lists typos and jq,
-# and the hook's missing-binary notice states that tool's name, check and
-# install, verbatim.
-MANIFEST="$PLUGIN_ROOT/prerequisites.json"
-if [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: declares exactly typos, jq and node"
-  else
-    fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST")"
-  fi
-  IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
-  NOTICE_CALL="$(sed -n '/hook::notice_once "typos-format-typos"/,/^  fi$/p' "$HOOK")"
-  # assert_hook_states <field> <needle>
-  assert_hook_states() {
-    if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$NOTICE_CALL"; then
-      ok "manifest binding: hook states the manifest's $1 ($2)"
-    else
-      fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
-    fi
-  }
-  assert_hook_states name "'$MF_NAME'"
-  assert_hook_states check "$MF_CHECK"
-  assert_hook_states install "$MF_INSTALL"
+# The SessionStart compact|clear row that resets the findings delta gate.
+if [[ "$(jq '[.hooks.SessionStart[] | select(.matcher == "compact|clear") | .hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/typos-format.sh", "--reset-digests"])] | length' "$HOOKS_JSON")" == "1" ]]; then
+  ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
 else
-  fail "manifest binding needs $MANIFEST"
+  fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
 fi
+
+# --- The manifest lists the plugin's tools --------------------------------------
+# The missing-typos notice is composed from this manifest at run time; the
+# typos-absent cases below assert what it renders.
+MANIFEST="$PLUGIN_ROOT/prerequisites.json"
+if [[ -f "$MANIFEST" ]] && jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly typos, jq and node"
+else
+  fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST" 2>/dev/null)"
+fi
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
 
 # --- SessionStart probe honors typos_format_enabled ----------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
@@ -1036,7 +1055,7 @@ else
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != typos && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      ln -s "$exe" "$PG_WORK/sysbin/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
   PG_ARGS=()
@@ -1248,7 +1267,7 @@ printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker
 OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)
 RC_BR=$?
 CTX_BR=$(ctx_of "$OUT_BR")
-if [[ $RC_BR -eq 0 ]] && printf '%s' "$CTX_BR" | grep -q 'tool break'; then
+if [[ $RC_BR -eq 0 ]] && printf '%s' "$CTX_BR" | grep -q '^typos-format: typos failed on break.txt:$'; then
   ok "stub/write-break: exit 2 with empty output is reported as a tool break"
 else
   fail "stub/write-break: not reported as a tool break (rc=$RC_BR): $CTX_BR"
@@ -1566,7 +1585,7 @@ run_gi() {
   (
     cd "$UNRELATED" || return 1
     printf '{"session_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$session" "$REPO_GI/.work/scratch.txt" |
-      env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_ROOT PATH="$path" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")" \
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" PATH="$path" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
@@ -1574,7 +1593,7 @@ run_gi() {
 OUT_GI=$(run_gi "$GI_BIN" gi-notypos)
 RC_GI=$?
 if [[ $RC_GI -eq 0 ]]; then ok "gitignored + typos absent: exit 0"; else fail "gitignored + typos absent: exit $RC_GI"; fi
-if jq -e '.systemMessage | contains("no '"'typos'"' binary")' <<<"$OUT_GI" >/dev/null 2>&1; then
+if jq -e '.systemMessage | contains("typos not on the hook PATH")' <<<"$OUT_GI" >/dev/null 2>&1; then
   ok "gitignored + typos absent: emits the missing-typos notice (the gate no longer skips first)"
 else
   fail "gitignored + typos absent: no missing-typos notice: $OUT_GI"
@@ -1907,15 +1926,19 @@ run_nt() {
   (
     cd "$UNRELATED" || return 1
     printf '{"session_id":"test-notypos-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NT/app.txt" |
-      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NT_DATA" \
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NT_DATA" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 OUT_NT=$(run_nt)
 RC_NT=$?
 if [[ $RC_NT -eq 0 ]]; then ok "typos-absent -> exit 0"; else fail "typos-absent exit $RC_NT"; fi
-if jq -e '(.systemMessage | contains("typos")) and (.hookSpecificOutput.additionalContext | contains("PATH"))' <<<"$OUT_NT" >/dev/null 2>&1; then
-  ok "typos-absent -> visible notice on both channels"
+# The manifest's degrade and check reach the model; its install route reaches
+# the user only, and neither copy says the notice renews.
+if jq -e '(.hookSpecificOutput.additionalContext | startswith("typos-format: typos not on the hook PATH. Without typos,") and contains("/typos-format:check") and (contains("cargo install") | not))
+    and (.systemMessage | contains("cargo install typos-cli"))
+    and ([.systemMessage, .hookSpecificOutput.additionalContext] | map(test("renew|eighth")) | any | not)' <<<"$OUT_NT" >/dev/null 2>&1; then
+  ok "typos-absent -> manifest notice, install route on the user channel only, no renewal claim"
 else
   fail "typos-absent: notice missing or malformed: $OUT_NT"
 fi
@@ -1926,47 +1949,39 @@ else
   fail "typos-absent second run not silent: $OUT_NT2"
 fi
 
-# The missing-typos notice is a prerequisite: its latch key is the session
-# alone, so another agent in the same session stays silent, and the renewal on
-# the eighth skip keeps the install route.
+# The missing-typos notice latches per channel: the user is told once per
+# session, each agent's model once, and no skip after that renews it.
 run_nt_agent() {
   local session="$1" agent="$2" data="$3"
   (
     cd "$UNRELATED" || return 1
     printf '{"session_id":"%s","agent_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$session" "$agent" "$REPO_NT/app.txt" |
-      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" \
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT" \
         CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 OUT_NT_AGENT=$(run_nt_agent test-notypos-1 other-agent "$NT_DATA")
-if [[ -z "$OUT_NT_AGENT" ]]; then
-  ok "typos-absent -> a different agent in the same session is silent (session-only latch)"
+if jq -e '(.hookSpecificOutput.additionalContext | contains("typos")) and (has("systemMessage") | not)' \
+  <<<"$OUT_NT_AGENT" >/dev/null 2>&1; then
+  ok "typos-absent -> a different agent in the same session tells its model only"
 else
-  fail "typos-absent: a second agent in the same session was not silent: $OUT_NT_AGENT"
+  fail "typos-absent: a second agent in the same session: want the model notice alone: $OUT_NT_AGENT"
 fi
 NT_RENEW_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 NT_INSTALL_URL="https://github.com/crate-ci/typos#install"
 NT_RENEW_SILENT=1
-for i in 1 2 3 4 5 6 7; do
+for i in $(seq 1 16); do
   OUT_NT_RN=$(run_nt_agent test-notypos-renew "agent-$((i % 2))" "$NT_RENEW_DATA")
   if [[ $i -eq 1 ]]; then
     [[ "$OUT_NT_RN" == *"$NT_INSTALL_URL"* ]] || NT_RENEW_SILENT=0
-  elif [[ -n "$OUT_NT_RN" ]]; then
+  elif [[ $i -ge 3 && -n "$OUT_NT_RN" ]]; then
     NT_RENEW_SILENT=0
   fi
 done
 if [[ $NT_RENEW_SILENT -eq 1 ]]; then
-  ok "typos-absent -> skips 2-7 are silent whichever agent fires them"
+  ok "typos-absent -> after each agent's first skip, skips 3-16 are silent (no renewal)"
 else
-  fail "typos-absent: skips 2-7 across two agents were not silent (or the first notice lacked the install URL)"
-fi
-OUT_NT_RN8=$(run_nt_agent test-notypos-renew agent-0 "$NT_RENEW_DATA")
-if jq -e --arg url "$NT_INSTALL_URL" \
-  '(.systemMessage | contains($url) and contains("[8 skips this session]")) and (.hookSpecificOutput.additionalContext | contains($url))' \
-  <<<"$OUT_NT_RN8" >/dev/null 2>&1; then
-  ok "typos-absent -> the eighth skip renews the notice and keeps the install URL"
-else
-  fail "typos-absent: eighth-skip renewal missing the install URL or count: $OUT_NT_RN8"
+  fail "typos-absent: a skip after each agent's first notice was not silent (or the first notice lacked the install URL)"
 fi
 
 # jq-absent -> visible once per session and agent notice (input parsing gate).
@@ -2176,7 +2191,7 @@ fi
 # such a path, and hook::repo_root reads an empty hint as `.`, the hook process
 # CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
 # loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
   fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else

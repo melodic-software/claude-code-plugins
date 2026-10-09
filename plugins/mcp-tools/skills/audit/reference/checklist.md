@@ -12,18 +12,20 @@ not recap them here, read them at the source:
 treats 500,000 characters as the ceiling above which a declared `anthropic/maxResultSizeChars`
 value no longer applies, and treats a tool returning image content as outside that annotation. C18
 treats only the JSON boolean `true` as an effective `anthropic/requiresUserInteraction`, and grades
-any other value FAIL because the consent prompt it was meant to force never fires. C4's 2KB budget
-is this skill's own judgment, not a client limit: the page sets none for a tool description or a
-server `instructions` field.
+any other value FAIL because the consent prompt it was meant to force never fires. C4 treats
+2,048 characters as the default length at which Claude Code truncates each tool description and
+each server `instructions` field.
 
 - **Pointer**: for the result-size annotation, see
   <https://code.claude.com/docs/en/mcp#raise-the-limit-for-a-specific-tool> and
   <https://code.claude.com/docs/en/mcp#images-in-tool-results>; for the per-call approval
   annotation, see <https://code.claude.com/docs/en/mcp#require-approval-for-a-specific-tool>; for
-  per-tool deferral, see <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>.
-- **As of**: 2026-09-06
-- **Recheck trigger**: the page moves either value, gains a description-size limit, or a release
-  note names MCP `_meta` annotations.
+  per-tool deferral, see <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>; for
+  the description and instructions truncation length, see
+  <https://code.claude.com/docs/en/mcp#for-mcp-server-authors>.
+- **As of**: 2026-10-04 (truncation length); 2026-09-06 (the other values)
+- **Recheck trigger**: the page moves any of these values or the truncation default, or a release
+  note names MCP `_meta` annotations or description truncation.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -51,7 +53,7 @@ Severity levels:
 | C1 | **Has "what"**. The description states what the tool does | ANTHROPIC | FAIL | First sentence should clearly describe the action. Missing or generic ("handles X") fails |
 | C2 | **Has "when"**. The description states when to use the tool | ANTHROPIC | WARN | Look for usage context: "Use this when...", "Call this before...", "Useful for...". Absent = warn |
 | C3 | **Has "returns"**. The description states what the tool returns | ANTHROPIC | WARN | Look for return documentation: "Returns the board id and...", "Returns a list of...". Absent = warn |
-| C4 | **Within size budget**. A tool description, and a server `instructions` field, stays under this skill's 2KB budget | OPINION | FAIL | Estimate the byte size, per tool description and once per server for the server `instructions` field. Over 2KB fails: a long description crowds the tool listing and buries the parts that drive selection. Because the budget is measured in bytes, each non-ASCII UTF-8 character spends more than one. Critical details belong near the start. This budget is this skill's own judgment, not a documented client limit and not a spec rule |
+| C4 | **Within the truncation length**. A tool description, and a server `instructions` field, fits within the length Claude Code keeps by default (Client-behavior record) | OPINION | FAIL | Count characters, per tool description and once per server for the server `instructions` field. Over 2,048 characters fails: Claude Code drops the rest, so text past the cut never reaches the model. Critical details belong near the start, where truncation cannot reach them. The length is client behavior the page documents, not a spec rule |
 | C5 | **No implementation-detail leak**. No database types, API names, partition keys, or internal structure | ANTHROPIC | WARN | Prefer semantic names over technical identifiers. Scan for terms that belong to the implementation, not the domain |
 
 ## 2. Parameter quality (C6-C8)

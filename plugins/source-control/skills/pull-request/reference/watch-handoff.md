@@ -8,7 +8,7 @@ The facts each route rests on (who can start it, what it needs, what it cannot s
 ## Check usage first
 
 Every route spends the person's plan limits, and a cloud session shares them with all other usage
-on the account (its native-surfaces row). Before recommending or starting a route, read the tee file
+on the account (its native-surfaces row). Before recommending or starting a route, read the snapshot file
 under the rate-limit floor below and act on what it says:
 
 - **A window at or past the pause threshold:** start nothing and offer nothing to launch. Report the
@@ -22,7 +22,7 @@ under the rate-limit floor below and act on what it says:
   who is staying, prefer `monitor`, which stays in view, over an open-ended route; for one who is
   leaving, keep their row and say its launch is unchecked against the windows.
 
-The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no tee file,
+The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no snapshot file,
 so nothing pauses it as the windows fill; a local `monitor` or loop that trips later follows the
 floor's drain-then-pause.
 
@@ -32,33 +32,33 @@ Inlined **verbatim** per the loop-lane convention's inline-floor rule; provenanc
 `rate-limit-guard` plugin's reader contract
 (`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository), cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime. A
-launch decision uses the tee file, the threshold, the pause end and the staleness rule; the rest
+launch decision uses the snapshot file, the threshold, the pause end and the staleness rule; the rest
 applies to a watcher that later pauses.
 
-- **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
+- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
   fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
   no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
-  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
-  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
-  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
-  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
+  a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
+  names the old account or none until a session gets a response under the new one. At pause entry, record the **latched account** as the `account.email` of the snapshot that tripped, not the account
   `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
   the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
   every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
-  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
-  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
-  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  re-evaluate at once against the new account's windows, taken from a fresh snapshot whose
+  `account.email` equals the new account: below 95, drop the latched pause and resume; at or above
+  95, keep pausing and re-latch the pause end and the latched account against the new account's
   `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
   latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
   missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never

@@ -3,6 +3,12 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5] - 2026-10-04
+
+### Changed
+
+- The README's `curate-language` row now says the skill sharpens definitions to state what each term is, matching the manifest description.
+
 ## [0.3.4] - 2026-10-02
 
 ### Fixed

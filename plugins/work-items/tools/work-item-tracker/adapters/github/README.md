@@ -289,50 +289,54 @@ than re-picked. With the draft-aware reduction below, the same check serves `/wo
 drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
 exactly the PRs GitHub links as closing this issue, the same linkage GitHub renders in the
-issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
-PR that closed the issue already dropped it from the open frontier, and a `CLOSED` (unmerged) PR
-is not in flight (bare read):
+issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes whose
+**head branch lives in the item's own repository**: a `MERGED` PR that closed the issue already
+dropped it from the open frontier, a `CLOSED` (unmerged) PR is not in flight, and a PR from a fork
+(or from another repository whose body says `Closes owner/repo#<N>`) is an outsider's proposal,
+not our work in flight. Counting it would let anyone park an item for the whole stale-in-flight
+window by opening a PR. A fork that was deleted has a `null` head repository and is dropped too.
+The reductions (bare read):
+
+<!-- open-linked-prs-filter:start -->
+```bash
+PR_OPEN='.data.repository as $r | $r.issue.closedByPullRequestsReferences.nodes[] | select(.state == "OPEN" and .headRepository.nameWithOwner == $r.nameWithOwner)'
+PR_GATE="[$PR_OPEN] | any"
+PR_READY_GATE="[$PR_OPEN | select(.isDraft | not)] | any"
+PR_REPORT="$PR_OPEN | {number, isDraft, createdAt} | tojson"
+```
+<!-- open-linked-prs-filter:end -->
 
 ```bash
 OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name' | tr -d '\r')
 open_pr_pages=$(gh api graphql --paginate \
   -f query='query($owner:String!, $repo:String!, $n:Int!, $endCursor:String) {
     repository(owner:$owner, name:$repo) {
+      nameWithOwner
       issue(number:$n) {
         closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
-          nodes { number state isDraft createdAt }
+          nodes { number state isDraft createdAt headRepository { nameWithOwner } }
           pageInfo { hasNextPage endCursor }
         }
       }
     }
   }' \
   -f owner="${OWNER_REPO% *}" -f repo="${OWNER_REPO#* }" -F n=<N> \
-  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any') \
+  --jq "$PR_GATE") \
   || { echo "open-linked-PR check failed for #<N>" >&2; exit 1; }
 if printf '%s\n' "$open_pr_pages" | tr -d '\r' | grep -qx true; then echo true; else echo false; fi
 ```
 
-On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. The query
-requests `isDraft` so each consumer applies the draft policy its decision needs. The default
-reduction above deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
+On success emits `true` when at least one **open same-repository** PR closes `#<N>`, `false`
+otherwise. The query requests `isDraft` so each consumer applies the draft policy its decision
+needs. `PR_GATE` deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
 still work in flight, and re-picking its issue would be exactly the double-dispatch this operation
 prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires an open
-**non-draft** closing PR. For that consumer, reduce with
-
-```bash
---jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
-```
-
-which emits `true` only when a ready (non-draft) open PR closes `#<N>`. A third reduction is for
-**reporting**: it emits each open closing PR as one compact JSON line `{number, isDraft, createdAt}`
-(`createdAt` is an ISO-8601 UTC timestamp), and nothing when no open PR closes `#<N>`:
-
-```bash
---jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN") | {number, isDraft, createdAt} | tojson'
-```
-
-Run it with the same captured-then-checked call, then `printf '%s\n' "$open_pr_pages" | tr -d '\r'`
-in place of the `grep -qx true` line. The two boolean reductions are for gating and this one is for
+**non-draft** closing PR. For that consumer, pass `--jq "$PR_READY_GATE"`, which emits `true` only
+when a ready (non-draft) open same-repository PR closes `#<N>`. `PR_REPORT` is for **reporting**:
+it emits each such PR as one compact JSON line `{number, isDraft, createdAt}` (`createdAt` is an
+ISO-8601 UTC timestamp), and nothing when none closes `#<N>`. Run it with the same
+captured-then-checked call, then `printf '%s\n' "$open_pr_pages" | tr -d '\r'` in place of the
+`grep -qx true` line. The two boolean reductions are for gating and this one is for
 reporting: a caller never derives the gate from it, and reads an item's report fields from it only
 after the boolean has already excluded the item. Every other note in this section (failure
 semantics, pagination, `\r` handling) applies to all three reductions unchanged. **On query
@@ -438,7 +442,9 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
 - **`--json subIssues` nodes carry no `repository`.** Each node is projected down to `id`,
   `number`, `title`, `url`, `state`. gh's own GraphQL query does ask for
   `repository{nameWithOwner}`, but its export path drops the object again, and `parent`,
-  `blockedBy` and `blocking` project the same way. So filtering sub-issues on
+  `blockedBy` and `blocking` project the same way (no `stateReason` either, so `get-item` and
+  `list-items` read closed blockers' close reasons with one `gh api graphql` `nodes(ids:)`
+  query). So filtering sub-issues on
   `.repository.nameWithOwner` matches nothing and reads as "no children" (#3825). Derive
   owner/repo from the node's `url` instead (`<host>/<owner>/<repo>/issues/<n>`), or request
   `repository { nameWithOwner }` through `gh api graphql`, which does return it. Verified

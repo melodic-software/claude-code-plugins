@@ -16,7 +16,8 @@ never from markup or script written in the session.
    `<repo root>/.claude/rendered-views.md`, then `<repo root>/.claude/rendered-views.local.md`, whichever exist.
    The last layer that states `medium:` wins (`auto`, `terminal`, `file`, `artifact`). A team layer that is not
    tracked is a hard stop; an overlay that is staged or not gitignored is reported, not honored; a malformed
-   layer is reported and treated as absent. Name the layer that decided. Absent or `auto` means `file`.
+   layer is reported and treated as absent. Name the layer that decided. Absent or `auto` means `file`. `hosted`
+   is treated as `artifact` here: this view is never sent to a page host.
 4. **Build.** Pass the record file to the builder. It prints the path of the page it wrote under the OS
    temp directory:
 

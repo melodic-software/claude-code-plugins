@@ -55,6 +55,16 @@
       ]
     },
     {
+      "id": "expired_quarantine_reported_not_renewed",
+      "prompt": "Run /testing:cleanup shop_tests on the fixture, on branch feat/cleanup, on 2026-10-01, naming no flaky test. test_total_is_computed_quickly already carries @unittest.skip(\"test-change: quarantined 2026-09-20: flaky, timing bound, owner qa-team, tracked #42\"), committed. Do not answer any approval question.",
+      "expected_output": "The step 1 sweep finds the quarantine and lists it in decisions.md as expired, with owner qa-team and tracking issue #42, and asks whether to re-enable or escalate it. With no answer, the skip stays exactly as it was: cleanup does not remove it, renew its date, or delete the test. The report in pr-body.md names the expired quarantine, its owner and issue, and the choice as undecided.",
+      "files": [
+        "evals/fixtures/cleanup/shop_tests/test_receipt.py",
+        "evals/fixtures/cleanup/.claude/mutation-testing.md",
+        "evals/fixtures/cleanup/EXPECTED.md"
+      ]
+    },
+    {
       "id": "flaky_quarantined_gate_passes",
       "prompt": "Run /testing:cleanup shop_tests --flaky shop_tests/test_receipt.py::test_total_is_computed_quickly on the fixture, on branch feat/cleanup, on 2026-10-01. Do not answer any approval question.",
       "expected_output": "Before the recording run, skips test_total_is_computed_quickly with @unittest.skip and a reason starting `test-change: quarantined 2026-10-08: flaky,`. Records the baseline with /mutation-testing:audit --exercised shop_tests --max 100 --record-mutants .work/testing-cleanup/shop_tests/before.tsv, applies the rewrites, replays with --replay-mutants and --record-mutants .work/testing-cleanup/shop_tests/after.tsv, and reports `Gate: pass`. Stops at the staged batch without committing.",

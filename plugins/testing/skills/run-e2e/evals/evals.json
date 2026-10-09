@@ -84,6 +84,35 @@
         "Does not invoke run",
         "Drives the existing instance and launches nothing"
       ]
+    },
+    {
+      "id": 8,
+      "name": "flow-suite-is-the-oracle",
+      "prompt": "/testing:run-e2e the checkout flow. The project has a committed @playwright/test suite under e2e/ with a checkout.spec.ts, and its README documents `npm run test:e2e`. The app is running.",
+      "expected_output": "Runs the committed checkout spec through the project's documented command before any ad-hoc driving, with traces kept for failed tests, and reports its pass or fail as the verdict for the checkout scenario. Ad-hoc driving and screenshots still run for the changed screens, but are reported as evidence, not as the verdict. A screenshot that looks right does not override a failing spec.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the committed spec through the project's documented command before driving the app ad hoc",
+        "Reports the spec's pass or fail as the scenario verdict",
+        "Labels screenshots and the ad-hoc drive as evidence, not the oracle",
+        "Starts a trace before the ad-hoc drive and lists the trace path as an artifact"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "failure-packet-handed-to-diagnose",
+      "prompt": "/testing:run-e2e the login flow. The committed login.spec.ts fails: the expect on the welcome heading times out. Playwright is 1.63.",
+      "expected_output": "Writes one failure packet for the failed scenario, with scenario, expected outcome taken from the requirement (not from what the app shows), actual, failing step as spec file and line, trace path, the `npx playwright trace action <n>` output for the failing expect, the error-context aria snapshot, new console errors, failed requests and screenshot path, each filled or saying why it is empty. The Handoff invokes /testing:diagnose with the packet as its input rather than a summary.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a failure packet with every field filled or explained",
+        "States the expected outcome from the requirement, not from the app's current behavior",
+        "Includes the trace path and the trace action output for the failing action",
+        "Includes the error-context aria snapshot",
+        "Passes the packet to /testing:diagnose"
+      ]
     }
   ]
 }

@@ -250,17 +250,20 @@ The script opens the binary read-only. It never writes to it and never executes 
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself ships must come from the raw markdown endpoint. `curl -sSL`
-`https://code.claude.com/docs/en/plugins-reference.md` to a file, then read the file. A summarizing
-fetch returns a small model's answer *about* the page, so absence from that answer is not evidence
-of absence.
+Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> plugins/manifest-reference`,
+then search `<dir>/plugins/manifest-reference.md` locally. The fetcher confirms the slug against the docs
+index (`llms.txt`), and `--max-age 0` asks the server every time, so the claim rests on fresh bytes;
+treat a page `<dir>/manifest.json` reports `unread` as no evidence. A
+summarizing fetch returns a small model's answer *about* the page, so absence from that answer is
+not evidence of absence.
 
 Upstream facts this skill depends on, each with the trigger that obliges re-deriving it:
 
 | Claim | Basis | Recheck trigger | Verified |
 |---|---|---|---|
 | The commands page publishes a partial built-in table, so it is a cross-check and the binary stays the source: its "All commands" table carries rows for commands, aliases, removed commands, and **Skill**/**Workflow** markers, and the binary registers names it omits | `docs/en/commands.md` parsed by `--docs` (115 rows) against a `--binary-only --docs` run on this machine, which classed 39 registered names `undocumented` | The commands page drops or restructures its table (the docs block goes `broken`), or the undocumented count reaches zero | 2026-09-29, Claude Code 2.1.284 |
-| The plugin component set is skills, commands, agents, workflows, output-styles, themes, monitors, hooks, bin, settings.json, .mcp.json, .lsp.json, dependencies; the manifest also declares `channels`, each bound to one of the plugin's MCP servers, which this skill does not scan | `docs/en/plugins-reference.md` manifest schema and standard plugin layout table | The manifest schema gains or drops a component key | 2026-09-29 |
+| The plugin component set is skills, commands, agents, workflows, output-styles, themes, monitors, hooks, bin, settings.json, .mcp.json, .lsp.json, dependencies; the manifest also declares `channels`, each bound to one of the plugin's MCP servers, `types` (a mod's `.d.ts` declaration file) and `experimental.evals` (the eval-case directory), none of which this skill scans | `docs/en/plugins/manifest-reference.md` manifest schema and standard plugin layout table | The manifest schema gains or drops a component key | 2026-10-07 |
 | A user reaches a built-in or custom subagent by @-mention or `--agent`, and the model by the Agent tool; the page documents Explore, Plan, general-purpose, claude, statusline-setup, and claude-code-guide, and the binary also defines fork, web-fetch, worker, workflow-subagent, and comment-thread-analyst | `docs/en/sub-agents.md` ("Built-in subagents", "Invoke subagents explicitly") against a `--binary-only` run on this machine | The page changes its built-in list or invocation patterns, or a run's `builtin_agents` names change | 2026-09-29, Claude Code 2.1.285 |
 | Claude Code ships built-in plugins as `<name>@builtin`, registered in the binary rather than installed on disk, so the binary read stays the source; the overview's roster of built-in mods is a cross-check, as the commands page is for commands, because the binary registers built-ins the roster omits | Pointer: [Mods built into Claude Code](https://code.claude.com/docs/en/plugins/mods/overview#mods-built-into-claude-code), against an inventory run on this machine whose `builtin_plugins` lane resolved 11 names, every roster row among them | The roster section moves, its rows come to match the `builtin_plugins` names, or the `builtin_plugins` lane goes `broken` | 2026-10-02, Claude Code 2.1.288 |
 | A built-in plugin's gate reads a GrowthBook flag cached in the global config's `cachedGrowthBookFeatures`; `cc-plugin-diff`'s `isAvailable` is `ft()&&lo(Ce(),at)`, where `lo` stores the first value per flag in `pinnedFeatureValues` for the process, so availability is fixed at session start; installed mods load under `tengu_plugin_hooks_modules` (default true) | The 2.1.287 bundle on this machine (`var vr=()=>ft()&&lo(Ce(),at)`; `function lo(e,n){let r=Co().pinnedFeatureValues??=new Map;if(!r.has(e))r.set(e,C(e,n));...}`; `var HXe="tengu_plugin_hooks_modules";var kjt=!0;var dQ=()=>C(HXe,kjt)`) and `jq .cachedGrowthBookFeatures ~/.claude.json` | A release renames `cachedGrowthBookFeatures` or `pinnedFeatureValues`, drops the rollout flag string (`builtin_plugin_notes.mods_flag_in_bundle` goes false), or docs publish per-plugin availability | 2026-10-01, Claude Code 2.1.287 |
@@ -320,8 +323,9 @@ against the new build, bump `VALIDATED_AGAINST` to that version. It is the one c
 
 **For downstream consumers.** A consumer on an older plugin version against a newer CLI gets a
 `degraded` or `broken` verdict rather than a wrong answer, the report tells on itself, which is the
-property that makes shipping this safe. Fixes reach them the ordinary way: bump the plugin version,
-and `/harness-ops:plugins sync` carries it. Never quietly widen a count to make a status look better;
+property that makes shipping this safe. Fixes reach them the ordinary way: a new plugin version
+(bumped in the pull request, or by the release pull request where the repo uses changelog
+fragments), which `/harness-ops:plugins sync` carries. Never quietly widen a count to make a status look better;
 the stale-but-honest report is the one a consumer can act on.
 
 ## Next

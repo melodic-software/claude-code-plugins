@@ -9,8 +9,8 @@ never assume the literal `.work`; the memory root is consumer-configurable. Add 
 `<root>/handoffs/`, where `<root>` is what
 `"$PY" -X utf8 "<plugin-root>/scripts/save_point.py" memory-root` prints (the writer's
 own plugin-data derivation; never glob `CLAUDE_PLUGIN_DATA` directly, since it is not exported to
-Bash-tool commands per the [plugins-reference environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables),
-read 2026-09-29; recheck when a release note or that section changes which processes receive it), **only when project-root resolution fails**: the
+Bash-tool commands per the [plugin manifest reference environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
+read 2026-10-07; recheck when a release note or that section changes which processes receive it), **only when project-root resolution fails**: the
 producer writes there only on its no-project-root branch, so inside a repo
 that shared location holds unrelated sessions' save-points, and a newer one could hijack the
 short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,

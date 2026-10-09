@@ -3,6 +3,119 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.70.0] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **`draft-goal-condition` reads the `/goal` page through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** Step 1 runs `scripts/fetch-docs.sh --cache --max-age 0` and slices the sections it needs with `docs-cache.sh`, so the condition shape and the character limit come from fresh, whole bytes; WebFetch is the fallback only when the manifest records the page unread for `curl-missing` or no manifest was written.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` adds `draft-goal-condition` to the optional `curl`, `jq` and `python3` entries.
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+- The rendered-view reference treats `medium: hosted` as `artifact`: plan and brainstorm views are never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+- **The interview skill's substitution record cites the live manifest reference
+  ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).** It now points at
+  `plugins/manifest-reference` ("Reference a saved value" and "User configuration") in place of the
+  retired `plugins-reference` page, as of 2026-10-07. The Action Router section pin in
+  `interview-defenses.test.sh` moves with it; the `lock` row is unchanged.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.69.4] - 2026-10-04
+
+### Fixed
+
+- **The SDK out-of-scope regex in three `/planning:wayfind` eval cases now needs the SDK and the exclusion in the same clause.** It used to accept any SDK mention within 240 characters of any exclusion phrase, so "The partner SDK work remains open; separately, the batch job is out of scope" passed though the SDK was never excluded. The text between them may no longer cross a sentence end, a semicolon, a line break, a contrastive join such as ", but", or an "and" that opens a new clause, with or without a comma and in either order ("the batch job is out of scope and the SDKs stay in scope"); an SDK listed under an "Out of scope" label or after "Out of scope:" still passes. New fail samples cover the cross-clause pairing, and `/evals:validate` grades every sample correctly.
+
+## [0.69.3] - 2026-10-04
+
+### Added
+
+- **`planning` adds three `claude plugin eval` cases for `/planning:wayfind` work mode (tag `pocock-33`).** Each case scaffolds an exported decision map for a partner shipment feed and asks for the brief or handoff wayfind would pass on for one item. A case passes when that brief or handoff carries the map's destination, a decision already made, and the out-of-scope line excluding partner client SDKs, not the item alone. Regex graders check each of the three; the out-of-scope and design-handoff cases add a judge rubric with pass and fail samples. The research-brief case has no judge: its calibration missed the bar, and the regex graders already reject both of its failing samples. No skill text changes.
+
+## [0.69.2] - 2026-10-04
+
+### Added
+
+- **Four `claude plugin eval` cases for whether `/planning:interview` asks the quality bar in round 1.** Two vague build requests with no stated bar check, by regex, that round 1 asks whether the work is a prototype, an internal tool or production; the bar terms must sit in a sentence ending in a question mark, so a stated assumption does not pass. Two controls state the bar (a throwaway prototype, a production service) and check that round 1 does not ask it again, with a model judge for whether the round's depth fits the stated bar. The cases carry the `row38` tag so they run alone. The skill body is unchanged: the cases record what the current skill does before any instruction is added. No case under `evals/` carries a `tool_used: Skill` grader any more, the three earlier `brainstorm` and `plan` cases included: every prompt starts with a slash command, which loads the skill without a Skill tool call, so that grader failed every with-plugin run; the slash command guarantees the load, and the cases measure behavior after it, not triggering. The `depth-fits-prototype` judge rubric now judges questions only and counts where demo data lives as scoping, after calibration showed it failing its own prototype-sized pass sample. The three earlier cases now carry offline pass and fail samples for every regex grader, so `/evals:validate` proves each one before a paid run; two `disconnected-scan-before-new-work` patterns were widened after their samples showed them rejecting valid wording ("imports `build_digest` but never calls it", "no code ever reads it").
+
+## [0.69.1] - 2026-10-04
+
+### Changed
+
+- **`/planning:wayfind` work mode sweeps the map after every resolution.** A new step 6 rewrites or closes as moot any open item whose premise the resolution invalidated, and supersedes a closed decision found wrong with a new item that links it; the old Decisions-so-far line then points at its replacement. A rewritten item gets its type, mode label and blocked-by edges reset, and a moot item closes as not planned. Fog prose is deleted from Not-yet-specified once it becomes a typed item, and session-start hygiene deletes any such prose an interrupted run left behind. `context/map-anatomy.md` states the moot and superseded cases in its invariants, and eval case 9 covers the sweep.
+
+### Fixed
+
+- **`/planning:design` no longer says the ideal test-seam count is one.** The test-seam posture thread still drives toward the fewest seams that cover the surface.
+
+## [0.69.0] - 2026-10-04
+
+### Added
+
+- **PLAN.md carries a `## Design` section, written by `/planning:design-handoff` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** On a passed gate the handoff writes module layout, contracts, variation verdicts, and the conventions followed into PLAN.md, so design decisions reach the plan, the implementer's brief, and decomposed tickets instead of staying in the unpublished design directory. `/planning:plan` keeps the section, audits every phase against it in Step 2, and its `## Next` now names implement, implement-dispatch, and decompose.
+
+### Fixed
+
+- **`/planning:interview` Step 5 routes design-significant work to `/planning:design`.** The "contract IS the plan" shortcut to implementation no longer skips design for small design-significant work, and Step 5 now matches the skill's `## Next`.
+- **`/planning:design` no longer calls decompose's design-label reading unimplemented.** The `## Next` and relationship rows name the PLAN.md `## Design` path, and the wayfind order matches the workflow ladder's design, PRD, and decompose stages.
+- **A Tier C early exit from `/planning:design` goes through `/planning:design-handoff`.** It used to invoke `/planning:plan` directly, so PLAN.md never got the one-line `## Design` record of the early exit and its reason. `/planning:plan` writes that record too when it documents an early exit itself, and its anatomy line now lists the Design section.
+- **A Tier B early exit keeps its type sketch, and `design-resolution.md` is its only gate artifact.** `/planning:plan` no longer accepts a `type-inventory.md` alone for Tier B, so a plan that passed Step 1 no longer bounces off `/planning:design-handoff`. The handoff fails a `tier: B` artifact with no type sketch, and writes a `### Contracts` subsection quoting the sketch under the one-line early-exit record in PLAN.md `## Design`.
+- **The skill cheat sheet lists `/planning:prd`, `/planning:design`, and `/planning:design-handoff` under the ladder's PRD and Design stages.** Their `workflow-stage` metadata moves from `contract` and `plan` to `prd` and `design`.
+
+## [0.68.0] - 2026-10-04
+
+### Added
+
+- **`/planning:interview` tries to answer each question itself before asking, and offers to connect a system it cannot reach ([#6204](https://github.com/melodic-software/claude-code-plugins/issues/6204)).** A new shared step, `context/self-answer.md`, checks each candidate question against the codebase (ADRs, docs, and question-specific git history included), then connected tools such as MCP servers, then research for external facts. A fact it finds is stated with its `Basis:` and an `answered-from-<source>` tag, recorded in the ledger's new `## Self-answered facts` section, and gets no register row. A fact held by a named system that is not connected gets one offer to connect it, naming the system, the questions it would settle, and how to connect; once connected, the agent looks the answers up. Unattended runs record the missing access as a named blocker and never wait. Decisions still go to the user, and the auto-guard is unchanged. The interview's frontier gate and assumption sweep use the step, and `/planning:design`, `/planning:prd`, `/planning:questionnaire`, and `/planning:audit-answers` cite it.
+
+## [0.67.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.67.7] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/planning:interview`'s "Ground before recommending" states the new bar.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed

@@ -58,8 +58,8 @@ same triggers. These stamps are probe results with a date, not standing facts.
   Zones below).
 - **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
   inclusive, selected by window class as described under "Occupancy and combination rule"):**
-  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **160000** < `dumb`;
-  window class **1000000**: `smart` ≤ **200000** < `acceptable` ≤ **400000** < `dumb`.
+  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **150000** < `dumb`;
+  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **500000** < `dumb`.
 - **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
   `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
   token fields mean current occupancy rather than cumulative session totals.
@@ -184,10 +184,10 @@ questions. Never equate them without normalizing:
   and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
   answers *distance to quality loss*. That is also why the token bands are absolute numbers
   selected by window class rather than percentages: 50% of a 1M window is a materially different
-  cognitive state than 50% of a 200k window. Pointer: for the degradation evidence, see the Chroma
-  context-rot report, <https://research.trychroma.com/context-rot>. As of: 2026-10-01. Recheck
-  trigger: Chroma revises or withdraws the report, or a newer study finds degradation tracking
-  window fraction.
+  cognitive state than 50% of a 200k window. This is a declared judgment: no published study
+  compares absolute tokens with window fraction, and Anthropic publishes no context-quality
+  threshold. As of: 2026-10-04. Recheck trigger: Anthropic publishes a context-quality threshold,
+  or a study compares the two.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row, so the token
@@ -225,12 +225,38 @@ also marks the token shape not-computable**. That is corrupt or forged data, and
 a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
 every other snapshot value). The bundled resolver implements both gates.
 
-**Band provenance:** all shipped band numbers are **declared judgment defaults with named
-anchors**, not benchmark-derived constants. The 1M row's anchor is an informal range a named staff
-member gave and hedged as task-dependent; the 200k row is declared judgment near practitioner
-folklore values, but deliberately below them. Both rows carry equally low confidence;
-`zones.json` is the correction path, and the numeric agreement of the 200k row's percentage
-translation with the shipped 50/75 percentage defaults is coincidence, not validation.
+**Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
+constants. Anthropic publishes no per-length long-context scores for Claude Opus 5.5, Sonnet 5.5
+or Fable 5.1: their system cards report one aggregate ProgramBench score each, an agentic task
+whose episodes run up to the full 1M window. The published per-length data is retrieval and graph
+traversal, not agentic work, and no study we found links those scores to agentic task quality. On
+GraphWalks BFS, run by Google at max reasoning and published with Gemini 4 Argon, Opus 5.5 scores
+90.6% up to 128K and 66.8% from 256K to 1M, and Fable 5.1 91.4% and 65.0%. On Context Arena's
+8-needle MRCR (max effort), Claude Opus 5 scores 0.913 at 128K, 0.656 at 256K and 0.425 at 512K,
+and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M row's `smart` edge, 128000, is the last length
+at which those current-model scores are still near their best. Its `acceptable` edge, 500000,
+sits below 512K, the first MRCR length at which both Claude rows score under one half. Between
+the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
+`acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
+or agentic work (#6644). The 200k row's `acceptable` edge, 150000, sits at
+the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
+the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
+defaults is coincidence, not validation.
+
+- **Pointer**: when re-deriving a 1M band edge, fetch live:
+  [Context Arena, 8 needles](https://contextarena.ai/api/needle-summary?needles=8), the Claude
+  Opus 5 and Claude Sonnet 5 rows; [Gemini models](https://deepmind.google/models/gemini), the
+  Gemini 4 Argon table's Opus 5.5 and Fable 5.1 GraphWalks BFS rows; the absence of per-length data, the
+  [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
+  section 8.10 and the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
+  section 8.11. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
+  and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
+  degrades on a 200K window as of 2026-10-04.
+- **As of**: 2026-10-09
+- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; Google's table
+  splits the 256K-1M GraphWalks bin; a new or revised
+  Anthropic system card publishes per-length scores; or a docs page starts covering where quality degrades on a 200K window, at which point the
+  200k row's pointer moves there.
 
 ## The module (first shipped consumer)
 
@@ -244,36 +270,46 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries the zone word and a counter-steer worded as facts with their
-  source: the reading is a measurement rather than an instruction, degradation shows in the work
-  itself and never in a zone word, and continuation is the operator's call. In `dumb` it also
-  carries the save-state note, labeled as the dumb zone's default. A line carries no figure
-  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  `prompt.submit` hook adds) carries facts only, never an instruction: by default the zone word and its rank of three. A
+  line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
+  carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
-  percentage points before it), one line per `thresholds` entry passed, the verdict restated once
-  after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
-  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. After
+  percentage points before it), one line per `thresholds` entry passed, and the verdict restated
+  once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
+  in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
+  sent, and each gate denial, is also written as sent to the debug log. Lines due
+  at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
+  a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
   only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
-  offers them as the prompt box's suggestion plus a band notice when the turn ends; headless,
+  offers them as the prompt box's suggestion plus a notice row when the turn ends; headless,
   loop, schedule and notification turns get the lines either way. The **operator channel** (a
-  transcript line Claude does not read, and a band notice) carries the same crossing plus the
-  continuation menu that is the human's call
-  to make (continue / `/compact` / `/clear` / handoff-then-`/clear`, with a hand-written resume
-  note as the standalone-install fallback). The menu does not say which option fits when: it says
-  to route the next step with `/session-flow:workflow` (if installed). Without session-flow, we
-  send the operator to the docs section on a filling context and restate none of it. Pointer: for
-  what to do when the context fills up, see
-  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-02.
+  transcript line Claude does not read and a toast, plus a notice row on every surface but the
+  terminal, where a toast may not show) carries the same crossing plus the continuation menu that
+  is the human's call to make (continue / `/compact` / `/clear` / `/session-flow:handoff` then
+  `/clear`), at the reading that saw the crossing rather than at the carrier that takes Claude's
+  line (a measurement, a tool call, a prompt, or a `/context-guard` or status-tool read), and not
+  for a first reading already past `smart`, which has no earlier zone to name. A crossing already
+  shown in an unattended turn is not offered again as a typed turn's suggestion. The
+  transcript line ends `more: /context-guard`. `/context-guard` replies with the verdict, its
+  figures and the settings in force only, because a command's reply is stored as a transcript row
+  Claude reads; it writes the router pointer and the docs link as a separate transcript line
+  Claude does not read. The menu does not say which option fits when, so that line says to route
+  the next step with `/session-flow:workflow` (if installed). Without session-flow, we send the
+  operator to the docs section on a filling context and restate none of it. Pointer: for the
+  command reply reaching the model and `$.ui.log` not, see the `CommandRunResult`, `CommandOutput`
+  and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
+  Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
   Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-   pointer ever reaches the model channel.** A menu injected into
+  pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under the instruction-audit catalog's I23 (`harness-config`, `reference/criteria.md`),
-  whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
-  the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
-  measurement decides only *when to ask*; the model still decides whether to stop. The model
-  channel states that continuation is the operator's call, never that the operator has seen the
-  menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
+  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
+  verdict and any operator-configured `zones.json` action, and nothing that tells the model what
+  to do: no save-state or handoff advice, no reassurance, no counter-steer rule about what a zone
+  means. The model decides what to do with the facts; `/session-flow:workflow` and the user's own
+  instructions own handoff and compaction guidance. The model
+  channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
   *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.
@@ -303,8 +339,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
-  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
-  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
+  the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
+  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
 Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
@@ -352,7 +389,7 @@ session itself can know.
 compaction fires at or near the model's context limit; the cases that fire earlier depend on the
 model, the window it runs with, and the environment. For the current thresholds, see
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-09-30, the one number that section publishes, for native 1M windows, sits above
+**As of:** 2026-10-09, the one number that section publishes for native 1M windows, about 967K tokens, sits above
 the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
 protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
 or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
@@ -420,10 +457,10 @@ on the session's behalf and the boundary was reached too late. Auto-compact offe
 hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
 with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
-trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50), so
-auto-compact would fire while every zone still reads green. Keeping bands below that trigger means
-pulling the percentage bands under 40, not comparing 400000 against the same-looking `dumb`
-occupancy number. Those two 400000s are different quantities.
+trigger at **40% of the full window**, which is *inside* the shipped percentage `smart` band
+(≤ 50), so the percentage shape still reads smart when auto-compact fires, and the token shape,
+which decides the zone there, reads `acceptable`: neither shipped shape reaches `dumb` first. Keeping the percentage bands below that trigger means pulling them under 40, not
+comparing 400000 against the token bands' occupancy edges, which measure a different quantity.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
@@ -431,7 +468,8 @@ is not this plugin's guidance: unattended cloud and autonomous sessions have no 
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
 is instrumentation, not prohibition: observable zones, then advisory injection, then an opt-in
 blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
-all of it (as-of 2026-08-17).
+all of it (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
+what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
 widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
@@ -468,8 +506,8 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
   "smart_max_used_percentage": 50,
   "acceptable_max_used_percentage": 75,
   "token_bands": {
-    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
-    "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
+    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
   }
 }
 ```
@@ -511,9 +549,10 @@ an absent or invalid one means its default, so a file without them keeps working
   points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
   known window size there is no token-shape approach line.
 - `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
-  replaces the default wording. The action's sentence appears at that zone's crossing and
+  replaces the default wording, which names the action (`block`'s describes the gate). The
+  action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labeled "operator setting for the <zone> zone".
-  Defaults: `none` everywhere except `save-state` at `dumb`. `block` arms the gate in that zone.
+  Default: `none` everywhere. `block` arms the gate in that zone.
   An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
 - `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
   100), each with an `action` and optional `text`; each fires once per cycle like a zone
@@ -607,8 +646,10 @@ writer side: whether the module runs in the session. A session with the module l
   Report "no instrument in this environment" or "mods off", and never offer a fix the session
   cannot apply.
 - **The tool is present, and after a tool call there is still no fresh snapshot**: a real defect,
-  usually a missing `node` or an unwritable `~/.claude/context-guard/context/`. Invoke
-  `/context-guard:setup` via the Skill tool with `check` for the diagnosis.
+  usually a missing `node` or an unwritable `~/.claude/context-guard/context/`. Run
+  `/context-guard:check` for what the session can check itself (`node`, `jq`, whether the mod
+  loads), and ask the operator to run `/context-guard:setup check`, which is user-only, for the
+  rest of the diagnosis.
 - **The tool is present and answers**: its zone is the module's live reading, and a consumer may
   use it in place of the file.
 

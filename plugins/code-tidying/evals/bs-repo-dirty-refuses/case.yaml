@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: bs-repo-dirty-refuses
+description: 'repo in-place refuses to start when a file in the sweep universe has uncommitted tracked modifications, names it, and edits nothing, so the user''s in-flight work is never captured as a simplification'
+tags: [repo-mode, precondition]
+expected_outcome: 'The run refuses repo mode because src/greet.sh carries an uncommitted modification, names src/greet.sh, and edits nothing: the WIP line survives verbatim and every bait script keeps both arms.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify repo in-place'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: greet-untouched
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:2"
+    target: { source: file, path: src/greet.sh }
+  - name: wip-line-kept
+    type: regex
+    pattern: '# WIP-KEEP: half-written retry flag, not committed yet\n(?![\s\S])'
+    target: { source: file, path: src/greet.sh }
+  - name: tool-untouched
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:2"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: helpers-untouched
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:2"
+    target: { source: file, path: src/helpers.sh }
+  - name: refusal-names-dirty-file
+    type: regex
+    pattern: 'src\/greet\.sh'
+    target: last_message
+  - name: refusal-stated
+    type: regex
+    pattern: 'refus|uncommitted|tracked modification|commit or stash|stash'
+    flags: i
+    target: last_message

@@ -3,6 +3,70 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.29.0] - 2026-10-07
+
+### Changed
+
+- **Concise skill text, measured ([#6476](https://github.com/melodic-software/claude-code-plugins/issues/6476)).** `audit-comment-residue`, `audit-dead-code`, `dissolve-comments`, `setup` and `tidy` are rewritten shorter under `/playbooks:skill-authoring`'s skill criteria. Each rewrite was non-inferior to the previous text on before/after evals on Opus and Sonnet, run concurrently. `audit-comment-residue`'s shape definitions move to `reference/shapes.md`. `tidy`'s description keeps its quoted trigger phrases, which held-out probes on Sonnet showed it needs. `batch-simplify` keeps its previous body: the rewrite made an unrecognized scope word sweep files instead of asking. Only its description is updated.
+
+### Added
+
+- **Outcome eval cases for five skills.** 37 cases for `audit-comment-residue`, `audit-dead-code`, `batch-simplify`, `setup` and `tidy`, with their fixtures, join the existing `dissolve-comments` suite under `evals/`. `scripts/evals-fixtures.test.sh` now accepts a fixture seeded by a fixtures seed script a scaffold runs.
+
+## [0.28.12] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The comment-census and rank-comment-targets tests register their temp-dir cleanup right after creating the dir, and the census tests clear git's read-only object files so the removal succeeds on Windows.
+
+## [0.28.11] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.28.10] - 2026-10-07
+
+### Added
+
+- Trigger probe sets under `probes/` for the five model-invoked skills, written blind from their current descriptions and frozen as the baseline for a later description rewrite. No skill behavior changes.
+
+## [0.28.9] - 2026-10-04
+
+### Changed
+
+- `batch-simplify` repo mode and `dissolve-comments` name the repo's release record (a version bump plus changelog entry, or a changelog fragment where the repo uses them) instead of always a version bump.
+
+## [0.28.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.28.7] - 2026-10-04
+
+### Changed
+
+- **`/code-tidying:tidy` reads its scope budget from the shared PR scope budget convention.** The
+  plugin ships a generated copy at `reference/pr-scope-budget.md`; Phase D, the self-update
+  exclusions and the README point there instead of restating the target and hard cap.
+  `reference/scope-budget.md` keeps only tidy's overflow priority order and deferred-items
+  template, and drops its own research lineage. The convention leaves overflow handling to each
+  adopter, so tidy's own overflow protocol stays in force. Spokes write the plugin directory as
+  `<plugin-root>`.
+
+## [0.28.6] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.28.5] - 2026-10-04
 
 ### Changed

@@ -3,6 +3,64 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-10-04
+
+### Fixed
+
+- An env file that resolves into git metadata (`.env -> .git/config`, or a nested repository's
+  `.git`, in any letter case) now gets the confirm-before-write prompt instead of counting as inside the project. A
+  write there put the value in a world-readable file and let the repo pick a key name git reads as
+  configuration. The prompt names the resolved path; a yes still writes.
+
+## [0.6.6] - 2026-10-04
+
+### Fixed
+
+- `ask`, `ask_secret` and `write_env` refuse a key the shell already exports (`GH_TOKEN`,
+  `BROWSER`, `GIT_SSH_COMMAND` and the like). Assigning it kept the export flag, so the wizard's
+  value reached `gh`, `git` and the browser opener. The wizard stops with an error naming the key
+  and leaves the shell's environment alone.
+
+## [0.6.5] - 2026-10-04
+
+### Fixed
+
+- An env file reached through a symlinked parent directory (`ENV_FILE=sub/.env` with `sub` linked
+  outside the project) now gets the same confirm-before-write prompt as a symlinked `.env`: the
+  whole path is resolved before the inside-the-project check, not just its last component.
+- `ask`, `ask_secret` and `write_env` refuse a key naming a variable the shell itself sets or reads
+  (`PATH`, `IFS`, `HOME`, `PS4`, `BASH_ENV` and the rest of the bash manual's Shell Variables list),
+  plus `LD_*` and `DYLD_*`, so a stage can no longer change how the rest of the wizard runs.
+
+## [0.6.4] - 2026-10-04
+
+### Fixed
+
+- `write_env` now sets the shell variable it names, as `ask` and `ask_secret` do, so a stage can
+  read back a value it wrote.
+- `write_env` on a symlinked `.env` no longer replaces the link with a regular file holding the
+  target's secrets. It writes through the link, so the target gets the key and keeps its mode.
+  We chose this over resolving the link, which needs `realpath` (missing on older macOS) or a
+  hand-rolled `readlink` loop, and whose rename would change the target's inode and mode. The cost
+  is that a symlinked write is not atomic; a regular `.env` keeps the atomic rename from a `0600`
+  temp file. A link whose target lies outside the project (a repo can ship `.env -> ~/.bashrc`)
+  is followed with a portable `readlink` loop: the wizard prints the real destination and writes
+  only after the human confirms, asking before any value is prompted for. The link is re-resolved
+  on every call and a yes covers only that resolved target, so a link repointed mid-run asks
+  again. A decline, or no terminal to answer, aborts with nothing written.
+- A terminal without a `clear` capability (`TERM=dumb`, no terminfo) no longer stops every
+  generated wizard silently before its first prompt: `tput` failures are non-fatal.
+- `ask`, `ask_secret` and `write_env` now set a key named like one of their own locals (`key`,
+  `value`, `input`, `tmp` and the rest) in the caller instead of in the helper. Their locals carry a
+  `__wiz_` prefix, and a key naming library state (`ENV_FILE`, `SKIPPED`, `__wiz_*` and the rest)
+  is refused, so `write_env ENV_FILE x` can no longer redirect later writes.
+
+## [0.6.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.6.2] - 2026-10-03
 
 ### Changed

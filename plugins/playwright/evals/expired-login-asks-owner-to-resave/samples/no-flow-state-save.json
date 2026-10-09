@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "The saved login expired. Sign in yourself in a visible browser and re-save it:\n```bash\nplaywright-cli -s=save-github open https://github.com/login --headed\nplaywright-cli -s=save-github state-save \"$HOME/.local/state/playwright-cli/github.json\"\n```", "why": "the owner re-saves in a separate session the owner runs"},
+    {"answer": "The login expired; please re-save github.json and tell me when it's done.", "why": "asks without any command"}
+  ],
+  "fail": [
+    {"answer": "The login expired; please re-save it.\n```bash\nplaywright-cli -s=gh-issues state-save github.json\n```", "why": "saves state from the flow's own session"},
+    {"answer": "playwright-cli --session gh-issues state-save ~/.local/state/playwright-cli/github.json", "why": "long-form session flag"}
+  ]
+}

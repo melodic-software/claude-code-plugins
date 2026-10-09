@@ -238,6 +238,16 @@ class CaptureTest(unittest.TestCase):
             self.assertEqual(sorted(p.name for p in out.glob("shot-*.png")), ["shot-0.png", "shot-1.png"])
             self.assertFalse((out / "manifest.json").exists())
 
+    def test_a_timed_out_wait_names_its_step_and_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scene, out = self.scene_and_out(tmp)
+            err = io.StringIO()
+            with fake_browser({"shots": []}), \
+                    mock.patch.object(capture, "_open_page", side_effect=TimeoutError("timed out")), \
+                    redirect_stderr(err):
+                self.assertEqual(capture.main([str(scene), "--at", "0", "--out", str(out)]), 1)
+            self.assertEqual(err.getvalue(), "capture.py: opening the scene page: timed out\n")
+
     def test_scene_is_served_from_a_temp_copy(self):
         with tempfile.TemporaryDirectory() as tmp:
             scene, out = self.scene_and_out(tmp)
@@ -296,14 +306,18 @@ class CaptureTest(unittest.TestCase):
             subprocess.check_call([sys.executable, str(work / "hero_mz.py")], cwd=work)
             embed.embed(work / "scene.html", work / "campfire.html")
             out = work / "capture"
-            code = capture.main([
-                str(work / "campfire.html"),
-                "--at", "0,3",
-                "--record", "4",
-                "--scale", "2",
-                "--out", str(out),
-            ])
-            self.assertEqual(code, 0, (out / "browser.log").read_text() if (out / "browser.log").is_file() else "")
+            err = io.StringIO()
+            with redirect_stderr(err):
+                code = capture.main([
+                    str(work / "campfire.html"),
+                    "--at", "0,3",
+                    "--record", "4",
+                    "--scale", "2",
+                    "--out", str(out),
+                ])
+            # capture.py's own error first: the browser log under it is mostly headless D-Bus noise.
+            log = out / "browser.log"
+            self.assertEqual(code, 0, err.getvalue() + (log.read_text() if log.is_file() else ""))
             early = count_tunic(png_rgba(out / "shot-0.png")[2])
             later = count_tunic(png_rgba(out / "shot-1.png")[2])
             self.assertEqual(early, 0)

@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=\"72 hours ago\" --name-only --pretty=format:\"\""
+          }
+        }
+      ],
+      "why": "normalized"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=72h --name-only"
+          }
+        }
+      ],
+      "why": "raw shorthand"
+    }
+  ]
+}

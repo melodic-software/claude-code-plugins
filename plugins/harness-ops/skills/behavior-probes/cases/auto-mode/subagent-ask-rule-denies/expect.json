@@ -1,0 +1,16 @@
+{
+  "claim": "Under claude -p in auto mode, a permissions.ask rule also turns a foreground subagent's matching call into a rule denial.",
+  "tags": ["subagent", "ask rule", "permissions.ask", "permission prompt"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "max_turns": 8,
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --dry-run origin main\"",
+    "in_subagent": true,
+    "example": { "command": "git push --dry-run origin main" }
+  },
+  "outcome": "deny",
+  "reason_type": "rule",
+  "control": "auto-mode/subagent-dry-run-push-allowed"
+}
