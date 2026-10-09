@@ -832,7 +832,7 @@ fails again.
 
 A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its JSON), only when all
 of these hold: the failed check is an AI review check on the pinned live head of an open, non-draft
-PR; its check run carries a `class=rate-limit` annotation; its job finished at least five hours ago;
+PR, or of a stack layer below it that the gate evaluated; its check run carries a `class=rate-limit` annotation; its job finished at least five hours ago;
 and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
 has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
 failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any

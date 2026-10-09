@@ -167,6 +167,25 @@ class RerunScope(unittest.TestCase):
         ):
             self._reruns(**overrides).assert_not_called()
 
+    def test_a_lower_stack_layer_failed_check_is_considered(self) -> None:
+        layer_head = base.STALE
+        layer = {
+            **self.RESULT,
+            "pr": f"{REPO}#2",
+            "headRefOid": layer_head,
+        }
+        top = {
+            **self.RESULT,
+            "aiReviewChecks": [],
+            "stack": {"layers": [layer, {**layer, "isDraft": True}]},
+        }
+        with mock.patch.object(
+            merge, "rerun_rate_limited_review", return_value={"rerun": True}
+        ) as one:
+            reruns = merge.rerun_rate_limited_reviews(REPO, top)
+        one.assert_called_once_with(REPO, layer_head, CHECK)
+        self.assertEqual(reruns, [{"pr": f"{REPO}#2", "rerun": True}])
+
 
 class EvaluateReportsAiReviewChecks(unittest.TestCase):
     def setUp(self) -> None:

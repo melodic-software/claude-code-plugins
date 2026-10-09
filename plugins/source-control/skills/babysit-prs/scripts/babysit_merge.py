@@ -297,7 +297,15 @@ def rerun_rate_limited_reviews(
     repo: str, result: dict[str, Any]
 ) -> list[dict[str, Any]]:
     """`rerun_rate_limited_review` over every failed AI review check of an
-    open, non-draft PR whose live head is the pinned head."""
+    open, non-draft PR whose live head is the pinned head, and of each stack
+    layer below it the gate evaluated, since their holds bind this merge too."""
+    layers = json_array(json_object(result.get("stack")).get("layers"))
+    reruns = [
+        {"pr": layer.get("pr"), **report}
+        for layer in layers
+        if is_json_object(layer)
+        for report in rerun_rate_limited_reviews(repo, layer)
+    ]
     head = result.get("headRefOid")
     if (
         result.get("headMatches") is not True
@@ -305,12 +313,12 @@ def rerun_rate_limited_reviews(
         or result.get("isDraft")
         or not isinstance(head, str)
     ):
-        return []
+        return reruns
     return [
         rerun_rate_limited_review(repo, head, check)
         for check in result.get("aiReviewChecks") or []
         if check.get("effective_state") == "FAILURE"
-    ]
+    ] + reruns
 
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
@@ -490,7 +498,9 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         # matches Go's url.PathEscape, which go-github uses for this endpoint
         # (github.com/google/go-github repos_rules.go, ListRulesForBranch).
         # gh 2.99.0 forwards that path unchanged.
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"])
+        rules = gh_json(
+            ["api", f"repos/{repo}/rules/branches/{quote(branch, safe='')}"]
+        )
     except (RuntimeError, json.JSONDecodeError) as exc:
         # Rules are advisory context; a read failure must never fail the run.
         summary["error"] = f"could not read branch rules: {exc}"
@@ -1241,6 +1251,12 @@ def evaluate_stack_layers(
                 "baseRef": layer.get("baseRef"),
                 "ready": layer.get("ready"),
                 "blockers": layer.get("blockers"),
+                # What `rerun_rate_limited_reviews` needs to re-run this
+                # layer's rate-limited AI reviews.
+                "state": layer.get("state"),
+                "isDraft": layer.get("isDraft"),
+                "headMatches": layer.get("headMatches"),
+                "aiReviewChecks": layer.get("aiReviewChecks"),
             }
         )
         blockers.extend(f"{label}: {b}" for b in layer.get("blockers") or [])
@@ -1643,9 +1659,7 @@ def evaluate(
         for lane, names in AI_REVIEW_CHECKS.items()
         if not (
             matches := [
-                c
-                for c in checks["checks"]
-                if is_ai_review_check(c["name"], names)
+                c for c in checks["checks"] if is_ai_review_check(c["name"], names)
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)
