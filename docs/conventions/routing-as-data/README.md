@@ -41,8 +41,10 @@ this folder: row schemas differ per plugin, and no CI reader spans them.
   unconfirmed route is disclosed when it is used. An account-bound row is never unconfirmed.
 - **`id`.** A `kind: skill` row's `id` is its slash invocation, `/plugin:skill`, or `/skill` for a
   standalone skill, with no args (pattern `^/[a-z0-9-]+(:[a-z0-9-]+)?$`). For a skill row the
-  marketplace appears only in `detect`. A third-party row's `detect`, and a third-party `kind: plugin`
-  row's `id`, carry `name@marketplace`; our own marketplace's detects and ids stay bare.
+  marketplace appears only in `detect`. A `detect` that names a third-party plugin (on a `kind: plugin`
+  row or a `/plugin:skill` row), and a third-party `kind: plugin` row's `id`, carry
+  `name@marketplace`; our own marketplace's detects and ids stay bare. A skill-directory, MCP-server
+  or tool `detect` is never qualified.
 - **`as_of` and `pointer`.** Every row carries `as_of` (YYYY-MM-DD). An own-marketplace skill row
   (`kind: skill`, a `detect` with no `@`, an `id` of the form `/plugin:skill`) carries no `pointer`.
   Every other row carries a required `https://` `pointer`, a citation for a reader. This is
@@ -147,7 +149,7 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare detect until it is qualified |
 | `user-experience` | Planned |
 | Developer-experience plugin | Planned |
 

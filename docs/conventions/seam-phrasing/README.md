@@ -39,8 +39,8 @@ philosophy's setup contract owns that rule and this carve-out does not relax it.
 
 ### Route-row detect carve-out
 
-A third-party route row's `detect` and, for a `kind: plugin` row, its `id` carry
-`name@marketplace`, as the [routing-as-data](../routing-as-data/README.md) doc sets; our own
+A route row's `detect` that names a third-party plugin and, for a third-party `kind: plugin` row,
+its `id` carry `name@marketplace`, as the [routing-as-data](../routing-as-data/README.md) doc sets; our own
 marketplace's detects and ids stay bare. A route row is data a detector matches, not prose, so
 this carve-out leaves the gate rule above unchanged.
 

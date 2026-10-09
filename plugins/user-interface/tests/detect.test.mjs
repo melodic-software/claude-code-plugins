@@ -217,7 +217,7 @@ describe("own marketplace", () => {
     assert.ok(!("reason" in out), out.reason);
   });
 
-  test("axe-accessibility is never installed", () => {
+  test("a bare third-party plugin detect does not match another marketplace once the own marketplace resolves", () => {
     const out = detectWith([self(), record("axe-accessibility@deque-market")]);
     assert.ok(Array.isArray(out.installed), out.reason);
     assert.ok(!out.installed.includes("axe-accessibility"));

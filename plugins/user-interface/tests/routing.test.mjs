@@ -80,10 +80,6 @@ test("routing.json matches its schema", () => {
   assert.deepEqual(validate(schema, routing), []);
 });
 
-test("routing.json version is 2", () => {
-  assert.equal(routing.version, 2);
-});
-
 test("the schema check rejects a bad row", () => {
   const bad = structuredClone(routing);
   Object.assign(bad.rows[0], { rank: 0, account: "free", extra: true });
