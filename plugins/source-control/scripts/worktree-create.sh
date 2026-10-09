@@ -141,15 +141,19 @@ EOF
 
 # run_capped <seconds> <command...> — run <command> in the background and stop
 # waiting after <seconds>: return its status, or kill it and return 124 at the
-# cap. Polls with `kill -0` because `timeout` is not on macOS by default.
+# cap. Polls with `kill -0` because `timeout` is not on macOS by default. `set -m`
+# starts the command in its own process group, so the cap kills the whole group
+# (npm's lifecycle scripts included), not just the top pid; setsid is not on macOS.
 run_capped() {
   local cap="$1" pid ticks=0
   shift
+  set -m
   "$@" &
   pid=$!
+  set +m
   while kill -0 "$pid" 2>/dev/null; do
     if ((ticks >= cap * 10)); then
-      kill "$pid" 2>/dev/null
+      kill -- -"$pid" 2>/dev/null
       wait "$pid" 2>/dev/null
       return 124
     fi
@@ -1114,7 +1118,6 @@ if [[ -f "$worktree_path/package-lock.json" ]]; then
       "$PROG" "$worktree_path" >&2
   else
     printf '%s: installing dependencies with npm ci (capped at %ss)\n' "$PROG" "$deps_cap" >&2
-    # `exec` makes the capped pid npm itself, so the cap's kill reaches it.
     # SC2016: $1 expands in the inner bash, which receives the path as an argument.
     # shellcheck disable=SC2016
     run_capped "$deps_cap" bash -c 'cd -- "$1" && exec npm ci --no-audit --no-fund' _ "$worktree_path" </dev/null >&2
