@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --since=\"48 hours ago\" --diff-filter=ACDMR --name-only --pretty=format:\"\" -- repo"
+          }
+        }
+      ],
+      "why": "default window"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --cached --others --exclude-standard"
+          }
+        }
+      ],
+      "why": "repo mode"
+    }
+  ]
+}

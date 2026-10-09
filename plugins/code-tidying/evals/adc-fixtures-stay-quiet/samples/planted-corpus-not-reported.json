@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "No candidates. Lanes: grep ran over scripts/build.sh; knip and gopls no-manifest; vulture scanned-zero-files."
+    },
+    {
+      "answer": "evals/fixtures is excluded from scanning input by policy."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "orphan_planted_helper in evals/fixtures/planted-dead.sh is never called; it is dead."
+    }
+  ]
+}

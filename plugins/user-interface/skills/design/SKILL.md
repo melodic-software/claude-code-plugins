@@ -25,8 +25,13 @@ It prints JSON:
 - `project`: the project's design signals (`tokens`, `packages`, `components_json`, `storybook`,
   `docs`, `mcp_servers`).
 - `installed`: the routing ids present here, or `null` with a `reason` when the `claude` CLI could
-  not be read. On `null`, check the session's own skill listing for each id instead, and treat a
-  match on wording alone as a hint, not proof.
+  not be read. On `null`, check the session's own skill listing for each id instead (a skill id
+  carries a leading slash; drop the leading slash before matching), and treat a match on wording
+  alone as a hint, not proof.
+- `reason`: read it whenever it is present. Beside a list (`own marketplace unresolved (<origin>);
+  matched by name`), sibling plugins were matched by name only; tell the user once.
+- `uncertain`: a map from a routing id to the same-named third-party plugin that may hold it. Treat
+  those ids as not installed, and name them in that same disclosure.
 - `reachable`: for each installed id, `true`, `false`, or `null` when only an account, a key or the
   session can tell.
 
@@ -64,8 +69,8 @@ its rows in rank order and use the first one for which all of these hold:
   the concern. When an account-bound row's `reachable` is `null`, route to it and tell the user
   they may need to sign in.
 
-Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
-concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
+Invoke a skill route by its id without the leading slash (the Skill tool takes `plugin:skill`);
+for a plugin route, use the skill it provides for the concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
 the user its slash command. Say which route you took and why.
 
 ## Combine routes and settle conflicts
@@ -116,6 +121,9 @@ the user agrees.
   `installed` as `null`.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
+- A `reason` beside a non-null `installed` list means detect could not resolve this plugin's own
+  marketplace and matched siblings by name, so a same-named plugin from elsewhere can pass; the
+  `uncertain` ids are the ones it could not tell apart.
 - A `null` in `reachable` means detect cannot tell, not that the tool is down. Route to the
   account-bound row as Step 4 says; if it then fails, fall back to the next row and say signing in
   may fix it.

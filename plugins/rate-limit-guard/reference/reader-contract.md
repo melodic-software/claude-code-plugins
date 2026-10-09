@@ -163,9 +163,9 @@ module runs, it writes inside that container, where only sessions in the same co
 the file; no run of the module in a cloud session has been made, so this contract does not count on
 it.
 
-- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods#where-mods-run),
+- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run),
   the cloud session row.
-- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **As of**: 2026-10-07, Claude Code 2.1.292.
 - **Recheck trigger**: that section changes whether mods run in cloud sessions, or a cloud run of
   this module is made.
 
@@ -260,10 +260,10 @@ versions used, once it is older than 60 seconds.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the snapshot file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry, because Monitors is an experimental Claude Code component and this plugin takes no
-  dependency on one until it stabilizes. Verified 2026-09-06 against Claude Code 2.1.263 and the plugins reference
-  at `https://code.claude.com/docs/en/plugins-reference`, which calls monitors an experimental
-  component and names `experimental.monitors` in `plugin.json` as the declaration key. Recheck when
-  that page stops calling monitors experimental, or when a release note names the monitors component.
+  dependency on one until it stabilizes. Verified 2026-10-07 against the plugin manifest reference
+  at `https://code.claude.com/docs/en/plugins/manifest-reference`, whose `experimental` field is the "Container for `themes`, `monitors`, and
+  `evals`, whose manifest shape may still change" and names `experimental.monitors` in `plugin.json`
+  as the declaration key. Recheck when that page moves monitors out of `experimental`, or when a release note names the monitors component.
 - **Fixed constants.** The snapshot path and the 95% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
   silently split writer and readers. None of the plugin's 7 `userConfig` options changes either:

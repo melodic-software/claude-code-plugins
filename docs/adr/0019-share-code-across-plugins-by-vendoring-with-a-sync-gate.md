@@ -30,7 +30,7 @@ Alternatives weighed (docs verified 2026-07-03):
   *dependency's* install path, and cache directories are per-version (with a commit-SHA suffix for
   tag-resolved dependencies), so computing the path is unsupported by design
   (<https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk>;
-  <https://code.claude.com/docs/en/plugin-dependencies>). **Recheck trigger:** Claude Code
+  <https://code.claude.com/docs/en/plugins/dependencies>). **Recheck trigger:** Claude Code
   ships a documented dependency-path variable; that would also allow sharing the lib beyond this
   marketplace.
 - **Marketplace-internal symlinks: rejected (amended 2026-10-02, was deferred).** Documented

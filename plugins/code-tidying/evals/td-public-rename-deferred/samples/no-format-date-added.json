@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared text helpers. Sourced by scripts in this repo and, by function name,\n# by the deploy-tools and infra-scripts repositories.\n\nfmtDate() {\n  date -u -d \"@$1\" +%Y-%m-%d\n}\n\ntrim_space() {\n  local s=\"$1\"\n  s=\"${s#\"${s%%[![:space:]]*}\"}\"\n  s=\"${s%\"${s##*[![:space:]]}\"}\"\n  printf '%s' \"$s\"\n}\n",
+      "why": "expected file state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared text helpers. Sourced by scripts in this repo and, by function name,\n# by the deploy-tools and infra-scripts repositories.\n\nformat_date() {\n  date -u -d \"@$1\" +%Y-%m-%d\n}\n\ntrim_space() {\n  local s=\"$1\"\n  s=\"${s#\"${s%%[![:space:]]*}\"}\"\n  s=\"${s%\"${s##*[![:space:]]}\"}\"\n  printf '%s' \"$s\"\n}\n",
+      "why": "violating file state"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\n# Shared text helpers. Sourced by scripts in this repo and, by function name,\n# by the deploy-tools and infra-scripts repositories.\n\nformat_date() {\n  date -u -d \"@$1\" +%Y-%m-%d\n}\n\ntrim_space() {\n  local s=\"$1\"\n  s=\"${s#\"${s%%[![:space:]]*}\"}\"\n  s=\"${s%\"${s##*[![:space:]]}\"}\"\n  printf '%s' \"$s\"\n}\n\nfmtDate() { format_date \"$@\"; }\n",
+      "why": "violating file state"
+    }
+  ]
+}

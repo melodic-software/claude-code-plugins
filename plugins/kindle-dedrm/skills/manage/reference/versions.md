@@ -1,6 +1,6 @@
 # Captured version pins
 
-URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched. It does NOT attest that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using.
+URLs and SHA256 hashes as captured at each row's `Captured` date (initial capture 2026-05-10; DeDRM archive re-fetched + SHA-verified and upstream URLs re-probed 2026-07-19). A `Captured` date attests the artifact was downloaded and its hash matched. It does NOT attest that a full single-book extraction was re-run at that date (that is manual and machine-bound; see "How to refresh this file"). The `update` action diffs upstream against these. Treat each row as a Tier 0 fact at the date captured; verify before re-using. A row's recheck trigger is its drift signal in `reference/sources.md`.
 
 ## Kindle for PC
 
@@ -34,7 +34,7 @@ Previous pin for rollback: `v10.0.20` (SHA256 `c908be142934a7a030d890ba023ba32be
 
 Repo: `https://github.com/Satsuoni/DeDRM_tools`. This is a fork of the original NoDRM/Apprentice Harper DeDRM_tools, maintained specifically for compatibility with current Kindle for PC / KFX format. Upstream `noDRM/DeDRM_tools` is also viable but lags this fork on KFX support.
 
-Asset contents (verified 2026-07-19, v10.0.28):
+Asset contents (verified 2026-07-19, v10.0.28; recheck when the pinned tag moves or the release's asset list changes):
 
 ```text
 DeDRM_plugin.zip                    (Calibre plugin to install)

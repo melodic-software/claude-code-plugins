@@ -1,0 +1,13 @@
+{
+  "claim": "An autoMode.soft_deny rule passed with --settings is applied: the classifier denies the command it forbids. The denial's reason label is not asserted, because the observed label was a default category, not the rule's text.",
+  "tags": ["autoMode", "soft_deny", "auto mode", "classifier"],
+  "permission_mode": "auto",
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": { "command": "python3 -c \"print('PROBEMARK')\"" }
+  },
+  "outcome": "deny",
+  "reason_type": "classifier",
+  "control": "auto-mode/probemark-runs-without-rule"
+}

@@ -39,8 +39,8 @@ convention/config files the plugin reads.
   plugin reload, while `"on-skill-invoke:<skill-name>"` keeps it dormant until that skill is first
   dispatched. Every stdout line from `command` reaches Claude as a notification; check volume for
   the trigger's actual lifetime and that the command runs on the consumer's platform. (All three
-  surfaces per <https://code.claude.com/docs/en/plugins> and
-  <https://code.claude.com/docs/en/plugins-reference#monitors>, fetched 2026-08-10. Recheck when
+  surfaces per <https://code.claude.com/docs/en/plugins/components#monitors> and
+  <https://code.claude.com/docs/en/plugins/manifest-reference#monitors>, fetched 2026-10-07. Recheck when
   either page stops describing the monitor trigger values or the stdout-to-notification path, or
   when a release note names the monitors component.)
 

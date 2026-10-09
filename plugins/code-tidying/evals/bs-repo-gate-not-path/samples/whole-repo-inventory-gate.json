@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Repo mode (whole repository, in-place on feature/tidy). Universe 16 files; 7 survive filters in 4 groups: src (3), lib (2), repo (1), tests (1). Excluded: vendor/gen.sh (generated), .github/workflows/ci.yml (agent config), 6 markdown files. One wave, ~4 agents. Confirm to proceed?",
+      "why": "full gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Swept repo/: simplified repo/tool.sh. Tests pass.",
+      "why": "narrowed and applied"
+    },
+    {
+      "answer": "Simplified 6 files across the repository; all tests pass.",
+      "why": "no gate"
+    }
+  ]
+}

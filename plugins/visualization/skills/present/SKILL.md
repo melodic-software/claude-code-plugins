@@ -1,6 +1,6 @@
 ---
 description: "Turn material into a slide deck through the claude.ai Slides Artifact type: write the markdown outline as the record, then fill a deck made from the type the account offers, behind a publish gate that keeps private or credential-shaped content local. Use when: 'make slides', 'make a deck', 'turn this into a presentation', 'slides for this talk', 'present this', 'deck from these notes'. Not for one chart or diagram (/visualization:visualize) or a pull-request explainer (/review:explain-change)."
-argument-hint: "[topic or source] [terminal|file|artifact]"
+argument-hint: "[topic or source] [terminal|file|artifact|hosted]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs\":*)", "Bash(gh repo view:*)", "Read", "Write", "Glob", "Grep"]
@@ -36,6 +36,7 @@ The gate script in step 4 reads the medium layers itself: this plugin's `medium`
 `~/.claude/rendered-views.md`, an untracked and gitignored `<repo>/.claude/rendered-views.local.md`,
 and the team `.claude/rendered-views.md`, which can keep a deck local but never publishes from the
 team layer, since it can arrive in a checked-out branch. Do not read or weigh those files yourself.
+A deck never goes to a page host: `medium: hosted` is treated as `artifact` here.
 
 - A CI or other non-interactive run: deliver the outline only.
 - Otherwise go on. The visibility is the source repository's
@@ -73,7 +74,7 @@ escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `cl
 `alt`, and images uploaded this session.
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument terminal|file|artifact]
+"${CLAUDE_SKILL_DIR}/scripts/check-deck.mjs" <root> <VISIBILITY> --class K0|K1|K2 --option "${user_config.medium}" [--argument terminal|file|artifact|hosted]
 ```
 
 Pass the real path of the folder, not one through a symlink. Pass `--argument` only when the user's

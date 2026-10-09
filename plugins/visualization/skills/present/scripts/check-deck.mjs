@@ -214,14 +214,16 @@ export function checkDeck({ root, visibility, cls, layers = {} }) {
       return { exit: 1, result: { medium: "file", class: cls, reason: "a K2 deck carries more than text in the slide format", refused } };
     }
   }
-  const { medium, source, warnings } = trustedMedium(layers);
+  const { medium: chosen, source, warnings } = trustedMedium(layers);
   const extra = warnings.length ? { warnings } : {};
-  if (medium === "terminal" || medium === "file") {
-    return { exit: 0, result: { medium, class: cls, reason: `${source} sets medium: ${medium}`, ...extra } };
+  if (chosen === "terminal" || chosen === "file") {
+    return { exit: 0, result: { medium: chosen, class: cls, reason: `${source} sets medium: ${chosen}`, ...extra } };
   }
+  // A deck is many files on a Slides type, never one page, so it is never sent to a page host.
+  const medium = chosen === "hosted" ? "artifact" : chosen;
   const text = files.map(([p, t]) => `${p}\n${t}`).join("\n");
   const gate = publishGate({ explicit: medium === "artifact", visibility, text, subject: "deck" });
-  if (medium === "artifact") gate.reason = `${source} sets medium: artifact`;
+  if (medium === "artifact") gate.reason = `${source} sets medium: ${chosen === "hosted" ? "hosted, treated as artifact" : "artifact"}`;
   // The title is printed only for a create call; a deck kept local never echoes it.
   const named = gate.medium === "artifact" ? { title } : {};
   return { exit: 0, result: { class: cls, files: files.length, ...named, ...gate, ...extra } };
@@ -236,13 +238,13 @@ function main(argv) {
   for (let i = 0; i < rest.length; i += 1) {
     const next = rest[i + 1];
     if (rest[i] === "--class" && ["K0", "K1", "K2"].includes(next)) cls = rest[++i];
-    else if (rest[i] === "--argument" && ["terminal", "file", "artifact"].includes(next)) argument = rest[++i];
+    else if (rest[i] === "--argument" && ["terminal", "file", "artifact", "hosted"].includes(next)) argument = rest[++i];
     else if (rest[i] === "--option" && next !== undefined) option = rest[++i];
     else bad = true;
   }
   if (bad || !root || !visibility || visibility.startsWith("--") || !cls) {
     process.stderr.write(
-      "usage: check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2 [--argument terminal|file|artifact] [--option <value>]\n",
+      "usage: check-deck.mjs <root> <PUBLIC|PRIVATE|INTERNAL|UNKNOWN|NONE> --class K0|K1|K2 [--argument terminal|file|artifact|hosted] [--option <value>]\n",
     );
     return 2;
   }

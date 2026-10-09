@@ -2,8 +2,9 @@
 
 Region positions are the Window.png row in reference/engine-layouts.md. They match
 rmmz_core.js Window._refreshBack, _refreshFrame, _refreshCursor, _refreshArrows,
-_refreshPauseSign, and ColorManager.textColor, fetched 2026-09-28. render.py uses one
-frame size per spec, so the regions are drawn into that single frame.
+_refreshPauseSign, and ColorManager.textColor, fetched 2026-09-28. Recheck when a RPG Maker MZ
+release changes those methods. render.py uses one frame size per spec, so the
+regions are drawn into that single frame.
 """
 import json
 import pathlib

@@ -566,7 +566,8 @@ artifacts; verified against `raw/`. Do not correct them.)
 
 ## Front-heavy and back-heavy phrases
 
-**Non-book material, and the source has now been READ (2026-08-11).**
+**Non-book material, and the source has now been READ (2026-08-11; recheck when the column's
+wording changes or a book edition adopts the terms).**
 "Front-heavy," "back-heavy" and "body language" return **zero hits across all
 four books**. That is because the frame is from Pat's patpattison.com column
 "The Art of Phrasing" (<https://www.patpattison.com/art-of-phrasing>), which

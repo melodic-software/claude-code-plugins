@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Planted-defect corpus for a detector test: deliberately unreferenced.
+
+orphan_planted_helper() {
+  printf 'never called\n'
+}

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .claude/tidy-lanes/scratch-ui.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --ignored"
+          }
+        }
+      ],
+      "why": "status, not check-ignore"
+    }
+  ]
+}

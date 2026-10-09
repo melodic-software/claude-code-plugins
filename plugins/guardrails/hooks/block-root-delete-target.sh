@@ -73,8 +73,14 @@
 #     hook's own environment and never from the command text, adds roots on
 #     the temp-root rule: comma-separated absolute directories, compared by
 #     real path, so a target is allowed only strictly under one, and the root
-#     itself and its glob stay refused. An entry that is relative, empty, UNC,
-#     holds a glob character, a line break or a `..` component, or resolves
+#     itself and its glob stay refused. An entry ending in one `*` after a
+#     literal name (`D:/worktrees/.tmp-*`) is a NAME PREFIX instead: only a
+#     direct child of its directory whose name extends the prefix by at least
+#     one character passes, and never one that is itself a symlink, ends in
+#     a dot or a space (Win32 trims them), or is named with a trailing slash
+#     before it exists (a link the same command creates). An entry
+#     that is relative, empty, UNC, holds any other glob character, a line
+#     break or a `..` component, or resolves
 #     to a filesystem root or HOME grants nothing, and no listed root lets
 #     through a filesystem root, HOME or a directory holding HOME. Every other
 #     refusal in this guard runs before this judgment and ignores the key.
@@ -472,8 +478,9 @@ rdt_block() {
     ;;
   outside-tree)
     printf '%s\n' \
-      "BLOCKED: recursive delete of $target, outside the working tree, the temp directories and the session scratchpad." \
-      'Fix: delete only strictly under one of those. Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
+      "BLOCKED: recursive delete of $target, outside the working tree, the temp directories, the session scratchpad and the roots in block_root_delete_target_allowed_roots." \
+      'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
+      'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
     ;;
   too-many-origins)
     printf '%s\n' \
@@ -943,7 +950,8 @@ rdt_short_cluster_arg() {
 # table here carries (see the operand-taking-option gap in the header). So
 # `env0-from` and `quoting-style` exist only in newer GNU env, and are kept: a
 # name an env lacks only adds a refusal, and removing one would loosen the
-# guard. The sudo names above carry no source here.
+# guard. The sudo names above carry no source here. Recheck when a GNU
+# coreutils or uutils release adds an `env` option that takes an argument.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
   local name="$2" ops fls o nop=0
@@ -1762,17 +1770,19 @@ rdt_tree_to() {
   printf -v "$1" '%s' "$out"
 }
 
-# rdt_allowed <canonical target> <deep>: the order the destructive-removal
+# rdt_allowed <canonical target> <deep> <link>: the order the destructive-removal
 # engine uses. The scratchpad itself, then a temp root itself, are refused
 # first; then strictly under the scratchpad or a temp root, or under (or equal
 # to) the payload cwd's tree, is allowed. With <deep> 1 the target is the
 # literal directory in front of a glob before the last component, so what is
 # deleted lies at least two levels below it, and equal to the scratchpad or a
 # temp root is enough. Last, strictly under a user-listed allowed root (the
-# same rule as a temp root), but never a root, HOME, or a directory holding
-# HOME, whatever is listed.
+# same rule as a temp root), or a direct child of a name-prefix entry's
+# directory whose name extends the prefix by at least one character and that
+# is not itself a symlink (<link> 1), but never a root, HOME, or a directory
+# holding HOME, whatever is listed.
 rdt_allowed() {
-  local t="$1" deep="$2" c
+  local t="$1" deep="$2" link="${3:-0}" c i rest
   if ((deep == 0)); then
     [[ -n "$RDT_SPC" && "$t" == "$RDT_SPC" ]] && return 1
     for c in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
@@ -1784,11 +1794,20 @@ rdt_allowed() {
     [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
   done
   [[ -n "$RDT_TREEC" && ("$t" == "$RDT_TREEC" || "$t" == "$RDT_TREEC"/*) ]] && return 0
-  ((${#RDT_ALLOWC[@]})) || return 1
+  ((${#RDT_ALLOWC[@]} + ${#RDT_PDIRC[@]})) || return 1
   { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && return 1
   [[ "$t" == "$RDT_HOMEC" || "$RDT_HOMEC" == "$t"/* ]] && return 1
-  for c in "${RDT_ALLOWC[@]}"; do
+  for c in ${RDT_ALLOWC[@]+"${RDT_ALLOWC[@]}"}; do
     [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
+  done
+  ((link)) && return 1
+  for ((i = 0; i < ${#RDT_PDIRC[@]}; i++)); do
+    c="${RDT_PDIRC[i]}"
+    [[ "$t" == "$c"/* ]] || continue
+    rest="${t#"$c"/}"
+    # Win32 trims a trailing dot or space, so `.tmp-.` names `.tmp-` and
+    # `.tmp-n.` names `.tmp-n` past the symlink test: such a name is refused.
+    [[ "$rest" != */* && "$rest" != *[.\ ] && "$rest" == "${RDT_PNAME[i]}"?* ]] && return 0
   done
   return 1
 }
@@ -2006,10 +2025,13 @@ rdt_judge_pending() {
   # The user's allowed roots, from this hook's own environment (userConfig),
   # never from the command text. An entry that is empty, relative, UNC, a
   # drive path on a host without drives, over the operand bounds, or holds a
-  # glob character, a line break or a `..` component grants nothing. HOME is
-  # resolved with them, and an unusable HOME leaves the whole list unused.
-  local -a allow=()
-  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x
+  # glob character, a line break or a `..` component grants nothing. One
+  # trailing `*` after a literal name makes a NAME-PREFIX entry instead
+  # (`D:/worktrees/.tmp-*`): its directory follows the same rules, and the name
+  # before the `*` may hold no glob character. HOME is resolved with them, and
+  # an unusable HOME leaves the whole list unused.
+  local -a allow=() pdir=() pname=()
+  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x pfx
   home="${home//\\//}"
   if ! rdt_is_abs "$home" || rdt_is_unc "$home"; then roots=""; fi
   while [[ -n "$roots" ]]; do
@@ -2019,20 +2041,33 @@ rdt_judge_pending() {
     c="${c#"${c%%[![:space:]]*}"}"
     c="${c%"${c##*[![:space:]]}"}"
     c="${c//\\//}"
+    pfx=""
+    if [[ "$c" == */?*'*' ]]; then
+      pfx="${c##*/}"
+      pfx="${pfx%'*'}"
+      c="${c%/*}"
+      [[ -n "$pfx" && "$pfx" != *[*?[]* ]] || continue
+    fi
     x="${c//[^\/]/}"
     [[ -n "$c" && "$c" != *[$'\n\r*?[']* && "/$c/" != */../* ]] || continue
-    ((${#c} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
+    ((${#c} + ${#pfx} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
     if ! rdt_is_abs "$c" || rdt_is_unc "$c"; then continue; fi
     ((RDT_WIN)) || [[ ! "$c" =~ ^[A-Za-z]: ]] || continue
-    allow+=("$c")
+    if [[ -n "$pfx" ]]; then
+      ((RDT_WIN)) && pfx="${pfx,,}"
+      pdir+=("$c")
+      pname+=("$pfx")
+    else
+      allow+=("$c")
+    fi
   done
-  ((${#allow[@]})) || home=""
+  ((${#allow[@]} + ${#pdir[@]})) || home=""
 
   # One realpath over the parents, the tree, the temp roots, the scratchpad,
   # the allowed roots and HOME. A `*/` operand then has its symlink matches
   # added, each resolved whole, and on Windows one cygpath maps every full
   # target and root onto one spelling.
-  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} "$home"
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home"
   local n0=${#tp[@]} l
   for ((k = 0; k < n0; k++)); do
     [[ -n "${te[k]}" ]] || continue
@@ -2054,7 +2089,7 @@ rdt_judge_pending() {
     targets[k]="$p"
   done
   local -a others=()
-  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} "$home"; do
+  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home"; do
     [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
   done
   rdt_winmap_all ${targets[@]+"${targets[@]}"} ${others[@]+"${others[@]}"}
@@ -2078,21 +2113,36 @@ rdt_judge_pending() {
     rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
-  # An allowed root that is a filesystem root or HOME itself is dropped.
+  # An allowed root, or a name-prefix entry's directory, that is a filesystem
+  # root or HOME itself is dropped.
   RDT_ALLOWC=()
+  RDT_PDIRC=()
+  RDT_PNAME=()
   RDT_HOMEC=""
   if [[ -n "$home" ]]; then
     rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
-    for c in "${allow[@]}"; do
+    for c in ${allow[@]+"${allow[@]}"}; do
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
       rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
+    done
+    for ((k = 0; k < ${#pdir[@]}; k++)); do
+      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
+      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      RDT_PDIRC+=("$t")
+      RDT_PNAME+=("${pname[k]}")
     done
   fi
   for ((k = 0; k < ${#tp[@]}; k++)); do
     rdt_deadline
     p="${RDT_WMAP[${targets[k]}]}"
     rdt_canon_to c "$p"
-    rdt_allowed "$c" "${td[k]}" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
+    # A symlink, or a leaf rm would follow through a trailing slash that does
+    # not exist yet (a link the same command may create), never passes a
+    # name-prefix entry.
+    l=0
+    [[ -L "${targets[k]}" ]] && l=1
+    [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
+    rdt_allowed "$c" "${td[k]}" "$l" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
   done
   return 0
 }
@@ -2233,6 +2283,8 @@ rdt_check_segment() {
     # that source `-` and `-l` set initflag, whose chdir to the home directory
     # comes AFTER that execl, so a command runs from the current directory. The
     # guard still treats the directory as unknown, which only adds refusals.
+    # Recheck when shadow's newgrp.c changes how `sg` builds its `sh -c`
+    # command, or moves the home-directory chdir ahead of the execl.
     sg)
       j=$((i + 1))
       if ((j < n)) && [[ "${words[j]}" == - || "${words[j]}" == -l ]]; then

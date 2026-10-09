@@ -71,8 +71,10 @@ rendered diagram. These facts and their sources are documented in the catalog.
   `auto` (defer to the `rendered-views` cascade, then decide by content and
   available surfaces), `terminal` (always inline), `file` (rich forms as a local
   HTML file, never published off the machine), or `artifact` (prefer a published
-  Artifact when available, else a local file, else terminal). A `/config` picker
-  offers these four values.
+  Artifact when available, else a local file, else terminal). `hosted` is accepted
+  so one personal `rendered-views` value can serve every lane, and is treated as
+  `artifact` here: only `/review:explain-change` sends pages to a page host. A
+  `/config` picker offers these five values.
 - **`thin_context_prompt`** (`userConfig`, string, default `auto`). What the skill
   does when code is pasted with little conversational context and no form named:
   `auto` (ask one ranked question only when two or more code-shape forms fit about
@@ -92,8 +94,8 @@ its own.
 ### Option details
 
 **`medium`.** `terminal` degrades richer forms to their best terminal approximation; `file` writes
-a self-contained local HTML file; `artifact` applies when that surface is available. An
-unrecognized value is reported and treated as `auto`.
+a self-contained local HTML file; `artifact` applies when that surface is available; `hosted`
+behaves as `artifact`. An unrecognized value is reported and treated as `auto`.
 
 **`thin_context_prompt`.** `auto` renders without asking when one form dominates. A value outside
 the three the picker offers is reported and treated as `auto`.
@@ -108,7 +110,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file. |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 
 ### How to set these
@@ -166,7 +168,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

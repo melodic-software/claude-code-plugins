@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Print one REPORT line per .log file in a directory: name and line count.
+set -euo pipefail
+
+legacy_mode=1
+
+count_lines() {
+  wc -l <"$1" | tr -d ' '
+}
+
+render_report() {
+  dir="$1"
+  if [[ -d "$dir" ]]; then
+    # Loop over files
+    for f in "$dir"/*.log; do
+      if [[ -f "$f" ]]; then
+        printf 'REPORT %s %s\n' "$(basename "$f")" "$(count_lines "$f")"
+      fi
+    done
+  else
+    echo "no such directory: $dir" >&2
+    return 1
+  fi
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  render_report "${1:-.}"
+fi

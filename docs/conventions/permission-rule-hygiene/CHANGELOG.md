@@ -4,6 +4,18 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.0] - 2026-10-08
+
+Additive; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **Added a Probed behaviors section
+  ([#6645](https://github.com/melodic-software/claude-code-plugins/issues/6645)).** Four records
+  measured by `/harness-ops:behavior-probes` cases on Claude Code 2.1.295: a narrow allow rule
+  passes a classifier-blocked command and matches only the literal string; a PreToolUse hook
+  `allow` also skips the classifier; an ask rule becomes a denial under `claude -p`, including in a
+  foreground subagent; and `autoMode` rules apply from `--settings` but not from project settings,
+  with the defaults kept when `"$defaults"` is omitted.
+
 ## [1.5.0] - 2026-09-29
 
 Additive guidance; the principle, the three anti-patterns, and the correct pattern are unchanged.

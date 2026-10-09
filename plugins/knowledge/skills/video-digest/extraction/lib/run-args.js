@@ -124,7 +124,8 @@ export function buildChildEnv(baseEnv, flags = {}) {
  * and that value wins. Without the flag an inherited value is used only when its last
  * path segment names this plugin (`knowledge-<marketplace>`), the order the
  * marketplace's on-demand-dependencies convention sets. Basis: plugins reference,
- * "Where each variable resolves", as of 2026-10-02.
+ * "Where each variable resolves", as of 2026-10-02. Recheck when that section
+ * changes what `CLAUDE_PLUGIN_DATA` holds in the Bash tool's environment.
  *
  * @param {string|undefined} flagValue
  * @param {NodeJS.ProcessEnv} env

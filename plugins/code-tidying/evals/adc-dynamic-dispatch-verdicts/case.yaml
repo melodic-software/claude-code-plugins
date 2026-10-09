@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: adc-dynamic-dispatch-verdicts
+description: With adjudication pre-approved, the grep lane's three shell candidates are split into one dead function and two handlers saved by a constructed-name dispatch, and the report carries the labeled lane roster
+tags: [audit-dead-code, adjudication, dynamic-usage, lane-roster, grep-lane]
+expected_outcome: The scan emits three tier-1 unreferenced-symbol candidates in lib/handlers.sh. render_table is verdicted dead. cmd_status and cmd_restart are uncertain or alive, citing the cmd_${cmd} handler name built in cli.sh, never dead. The report closes with the lane roster, naming the knip and gopls lanes as no-manifest and vulture as scanned-zero-files (or equivalent wording), so a reader sees which lanes actually ran.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/code-tidying:audit-dead-code\n\nAdjudication is approved for every candidate the scan reports; go straight through it without asking me first."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: render-table-dead
+    type: regex
+    pattern: 'render_table[^\n]{0,160}\bdead\b|\bdead\b[^\n]{0,160}render_table'
+    flags: i
+    arm: both
+  - name: dispatch-handlers-not-dead
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if all hold: (1) render_table is verdicted dead; (2) cmd_status and cmd_restart each get a verdict of uncertain or alive, never dead, and neither is recommended for deletion; (3) the evidence cited for the two handlers is the dynamically constructed handler name in cli.sh (the 'cmd_${cmd}' string invoked through \"$fn\"), i.e. string-name dispatch that a literal search cannot see. FAIL if either cmd_ handler is called dead or deletable, if no saving evidence is cited for them, or if render_table is not judged dead."
+  - name: lane-roster-reported
+    type: regex
+    pattern: '\b(?:knip|vulture|gopls)\b[^\n]{0,120}\b(?:no-manifest|no manifest|scanned-zero-files|zero files|skipped|not installed|degraded)\b'
+    flags: i
+    arm: both
+  - name: scan-ran
+    type: tool_used
+    tool: Bash
+    input_match: dead-code-scan
+    arm: both

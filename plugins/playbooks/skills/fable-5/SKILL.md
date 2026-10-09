@@ -134,6 +134,8 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 Read a chapter the first time its trigger fires in the session; once read, it stays active. Every chapter lives under `context/` except the model-adaptation and API prompt-caching chapters, whose rows carry their own paths.
 
+When you follow a chapter's Pointer to a vendor docs section, read that section through the docs lookup: `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`, with `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` = `${CLAUDE_SESSION_ID}` (`fetch-docs.sh --cache`, then `docs-cache.sh slice` for the anchored section). Use WebFetch only when the manifest records the page unread with reason `curl-missing` or the script wrote no manifest.
+
 | Trigger, the first time you... | Read |
 | --- | --- |
 | Start work on any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone | `problem-framing.md` |

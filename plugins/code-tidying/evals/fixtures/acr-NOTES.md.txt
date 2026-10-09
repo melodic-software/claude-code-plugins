@@ -1,0 +1,5 @@
+# Deploy notes
+
+As you asked, Priya, the deploy script used to rsync everything; now it only copies dist/.
+
+<!-- per our discussion: see PR #9 -->

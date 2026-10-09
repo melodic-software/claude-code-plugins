@@ -17,6 +17,48 @@
         "docs": "https://nodejs.org/en/download"
       },
       "check": "/multi-agent:check"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit-defaults"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, the drift-audit fetch stage records every page unread, and the checkers read their sources with WebFetch alone.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit-defaults"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, docs-raw.sh stops before reading a page, so the drift-audit checkers read their sources with WebFetch alone.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }
