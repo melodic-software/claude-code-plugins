@@ -32,7 +32,7 @@ as fact is reported as a finding in the check table; the write set above and the
 writing stay fixed.
 
 Each recommendation (a default path, a migration, a section to add) carries a `Basis:` line per
-[`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
+the file at `${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md` (read it at that path).
 
 ## The helper
 
