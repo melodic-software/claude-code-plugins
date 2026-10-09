@@ -213,6 +213,18 @@
         "It does NOT enable holdout tests on its own initiative",
         "The brief's fence lists existing test files as FORBIDDEN"
       ]
+    },
+    {
+      "id": 17,
+      "name": "wide-wave-pilots-one-row-first",
+      "prompt": "/implementation:implement-dispatch phase-2 --wave-cap 5 — autonomous run, commit authority orchestrator in one assigned worktree. Phase 2 has five worker rows with disjoint fences. You dispatch the first row and it returns with a usage-limit error.",
+      "expected_output": "Because the wave is wider than about 4 rows, the orchestrator dispatches one row alone first rather than all five at once, waits for its return, and checks that plan usage remains before sending the other four. The pilot returned a usage-limit error, so it withholds the remaining four rows and reports the limit instead of dispatching them.",
+      "files": [],
+      "expectations": [
+        "Dispatches exactly one row first, not all five at once",
+        "Waits for the pilot's return and checks remaining plan usage before dispatching the other rows",
+        "Withholds the remaining four rows after the pilot returns a usage-limit error and reports it"
+      ]
     }
   ]
 }

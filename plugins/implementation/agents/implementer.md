@@ -53,6 +53,15 @@ PowerShell tool is unavailable, so one unresolved entry never blocks the launch.
 - **Recheck trigger**: that section changes how unresolved entries are handled, or a launch with
   `PowerShell` unresolved fails.
 
+We grant `Monitor` so a wait on CI or a long command never holds a foreground turn. Where it is
+unavailable, run the same wait with Bash `run_in_background`.
+
+- **Pointer**: for what Monitor does and where it is unavailable, see
+  <https://code.claude.com/docs/en/tools-reference#monitor-tool>.
+- **As of**: 2026-10-09
+- **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
+  available.
+
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
 work as your own.
