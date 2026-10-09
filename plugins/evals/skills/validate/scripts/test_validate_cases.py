@@ -429,9 +429,9 @@ class SchemaFixture(ValidatorTestCase):
         )
 
     def test_case_yaml_beside_prompt_md_still_requires_name(self):
-        # The repro from issue #6673, which `claude plugin eval` (2.1.295)
-        # refused with "invalid case.yaml: name: Required": a case.yaml turns
-        # off the directory-name default even when prompt.md carries the prompt.
+        # A case `claude plugin eval` (2.1.295) refused with "invalid case.yaml:
+        # name: Required": a case.yaml turns off the directory-name default
+        # even when prompt.md carries the prompt.
         case_dir = self.case(
             "demo",
             prompt="""\
