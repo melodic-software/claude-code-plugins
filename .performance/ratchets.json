@@ -62,6 +62,20 @@
       "field": "spawns",
       "ceiling": 3,
       "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "multi-agent-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh multi-agent PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a multi-agent:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+    },
+    {
+      "name": "discovery-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh discovery PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
     }
   ]
 }

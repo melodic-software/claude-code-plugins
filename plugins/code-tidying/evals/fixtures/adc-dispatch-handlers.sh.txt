@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Command handlers for the service CLI.
+
+cmd_status() {
+  printf 'service: running\n'
+}
+
+cmd_restart() {
+  printf 'restarting %s\n' "${1:-all}"
+}
+
+render_table() {
+  column -t -s ','
+}

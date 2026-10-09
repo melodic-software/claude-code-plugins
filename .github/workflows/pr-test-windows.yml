@@ -385,6 +385,9 @@ jobs:
       - name: Test the guards' snapshot writer on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/write-snapshot.test.mjs')
         run: node --test lib/write-snapshot.test.mjs
+      - name: Test the developer-experience pointer-line helper on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh')
+        run: bash plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh
 
   test-windows-lib:
     needs: [select-tests-windows]

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| ruff.toml | FAIL | collides with the CLAUDE.md protected path ruff.toml; the protection wins |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Lifted: .editorconfig, ruff.toml",
+      "why": "collision missed"
+    }
+  ]
+}

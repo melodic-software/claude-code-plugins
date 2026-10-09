@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Did you mean `branch`?",
+      "why": "question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ran branch mode: simplified src/greet.sh and src/helpers.sh.",
+      "why": "no question"
+    }
+  ]
+}

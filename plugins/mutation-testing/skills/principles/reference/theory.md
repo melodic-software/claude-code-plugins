@@ -92,6 +92,16 @@ is a judgment about the test, which the `testing` plugin's task-end judge rule
 `testing/judge/rule-restated-expectation` owns. `/mutation-testing:audit --exercised` prints this
 limit on every report.
 
+**Mutants also grade properties (tentative).** A property-based test has the same question to
+answer: can it fail at all? Recent work on LLM-written properties uses mutation to grade them:
+Vikram et al. measure property coverage with mutants (<https://arxiv.org/abs/2307.04346>, 2024),
+and PROBE generates counter-implementations that satisfy a property while being wrong
+(<https://aclanthology.org/2026.findings-acl.683/>, ACL 2026 Findings). Two independent studies,
+abstract and conference page read on 2026-10-06, so treat this as MEDIUM: mutation is one way 2024-2026
+research shows a generated property can fail, not an established standard. The same limit as
+above applies, a property that restates the implementation can still kill mutants. Recheck when
+either study is revised or a mutation tool's docs address property tests.
+
 Read alongside Khorikov's framing of test value: a test's protection against regressions is its
 guard against false negatives, meaning missed bugs. Mutation testing is the closest available *empirical
 measurement* of that specific property, which is why it earns a place beside coverage rather than

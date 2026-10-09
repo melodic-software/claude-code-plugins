@@ -114,6 +114,21 @@
         "It writes the phase-boundary handoff entry and ends the turn",
         "It names the pending model switch as the reason"
       ]
+    },
+    {
+      "id": 10,
+      "name": "port-routes-to-replace-mode-with-differential-harness",
+      "narration": true,
+      "prompt": "/implementation:implement: the approved plan ports our Python invoice-total calculator (src/legacy/invoice.py) to a new Go service. Totals must stay identical except that the Go version rounds half-even, which the user already approved. Start phase 1.",
+      "expected_output": "Replace mode, not refactor: it reads context/replace.md, keeps the Python calculator runnable, builds the differential harness over a recorded corpus of real invoices before writing Go code, normalizes volatile fields, records half-even rounding as a signed-off ledger entry, and plans to report inputs run, mismatches, ledger-covered and unexplained counts rather than 'tests pass'.",
+      "files": [],
+      "expectations": [
+        "It selects replace mode (context/replace.md), not refactor or feature",
+        "It builds the differential harness over a recorded input corpus before the new Go code",
+        "It keeps the Python implementation runnable rather than deleting it early",
+        "It records the half-even rounding difference as an intentional-differences ledger entry with the user's sign-off",
+        "It plans to report mismatch counts (inputs run, mismatches, ledger-covered, unexplained) instead of only 'tests pass'"
+      ]
     }
   ]
 }

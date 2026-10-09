@@ -31,11 +31,15 @@ if [[ -z "$GATE" ]]; then
   exit 1
 fi
 
+body_file=$(mktemp)
+trap 'rm -f "$body_file"' EXIT
+
 skill_verdict() {
+  printf '%s' "$1" >"$body_file"
+  shift
   # shellcheck disable=SC2034  # read by the evaluated create.md block
   (
-    BODY="$1"
-    shift
+    BODY_FILE="$body_file"
     REQUIRED_SECTIONS=("$@")
     REQUIRED_SECTIONS_SOURCE="test fixture"
     eval "$GATE"

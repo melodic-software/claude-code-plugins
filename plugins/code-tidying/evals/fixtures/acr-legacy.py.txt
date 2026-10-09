@@ -1,0 +1,8 @@
+def retry(fn):
+    # per our discussion with Dana, keep three attempts
+    for _ in range(3):
+        try:
+            return fn()
+        except OSError:
+            continue
+    return None

@@ -248,8 +248,8 @@ The Bash tool's environment does not carry this plugin's `CLAUDE_PLUGIN_DATA`, a
 plugin's SessionStart hook can put its own data directory there under that name. The scripts
 therefore take the directory from the flag, and accept an inherited value only when it names this
 plugin. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-10-02; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
 
 ## Storage

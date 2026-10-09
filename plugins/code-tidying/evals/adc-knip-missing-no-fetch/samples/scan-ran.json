@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugins/code-tidying/skills/audit-dead-code/scripts/dead-code-scan.sh"
+          }
+        }
+      ],
+      "why": "bare scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash ${CLAUDE_SKILL_DIR}/scripts/dead-code-scan.sh --max 10 ."
+          }
+        }
+      ],
+      "why": "scan with cap"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn 'legacy_banner' ."
+          }
+        }
+      ],
+      "why": "hand grep instead of the scan"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/x/scripts/dead-code-scan.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}

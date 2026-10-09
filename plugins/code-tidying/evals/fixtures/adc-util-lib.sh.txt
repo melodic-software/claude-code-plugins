@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Shared helpers for the report scripts.
+
+print_header() {
+  printf '== %s ==\n' "$1"
+}
+
+trim_spaces() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  printf '%s' "${s%"${s##*[![:space:]]}"}"
+}
+
+legacy_banner() {
+  printf '*** %s ***\n' "$1"
+}

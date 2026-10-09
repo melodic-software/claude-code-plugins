@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "| scratch-ui.md | FAIL | ignored by .gitignore:2:.claude/tidy-lanes/scratch-*.md |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| scratch-ui.md | INFO | untracked |",
+      "why": "graded INFO"
+    }
+  ]
+}

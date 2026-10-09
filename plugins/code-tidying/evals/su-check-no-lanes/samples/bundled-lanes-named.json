@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Bundled lanes available: shell-tooling, docs-prose, self-update."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bundled lanes available: shell-tooling.",
+      "why": "one lane only"
+    },
+    {
+      "answer": "Default lanes apply.",
+      "why": "none named"
+    }
+  ]
+}

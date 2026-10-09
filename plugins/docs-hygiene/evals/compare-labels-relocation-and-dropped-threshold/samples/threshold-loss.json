@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| SEMANTIC LOSS | SKILL.md:7 \"Rotate a log file only when it exceeds 50 MB\" | none | the threshold became \"large\" |",
+      "why": "canonical row"
+    },
+    {
+      "answer": "| SEMANTIC LOSS | before/SKILL.md:7 \"exceeds 50MB\" | after/SKILL.md, reworded to \"is large\" | number dropped |",
+      "why": "no space before MB"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "| FALSE POSITIVE | SKILL.md:7 \"exceeds 50 MB\" | after/SKILL.md \"is large\" | same meaning |",
+      "why": "the dropped threshold waved through"
+    },
+    {
+      "answer": "| INTENDED CUT | SKILL.md:7 \"exceeds 50 MB\" | none | concision |",
+      "why": "the threshold cut treated as intended"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "claim": "Control: under claude -p in auto mode with no ask rule, the permission layer lets a dry-run push the user names through. The push itself is rejected by the diverged remote, so the call ends in an error result, not a denial.",
+  "tags": ["ask rule", "permissions.ask", "auto mode"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --dry-run origin main\"",
+    "example": { "command": "git push --dry-run origin main" }
+  },
+  "outcome": "allow"
+}

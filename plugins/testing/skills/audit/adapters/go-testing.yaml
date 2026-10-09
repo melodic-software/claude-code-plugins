@@ -43,9 +43,11 @@ assertion:
 snapshot:
   - '(snaps[[:space:]]*\.[[:space:]]*Match[A-Za-z]*|cupaloy[[:space:]]*\.[[:space:]]*Snapshot[A-Za-z]*|\.[[:space:]]*SnapshotT)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
 # testing/quick and rapid: the expected value is derived from generated inputs on purpose.
+# A marker exempts only the test whose body holds it, so these are the calls that run
+# a property, not the import paths, which sit outside every test.
 property_markers:
-  - 'testing/quick'
-  - 'pgregory\.net/rapid'
+  - '(^|[^A-Za-z0-9_])quick[[:space:]]*\.[[:space:]]*(Check|CheckEqual)[[:space:]]*\('
+  - '(^|[^A-Za-z0-9_])rapid[[:space:]]*\.[[:space:]]*(Check|MakeCheck|MakeFuzz)[[:space:]]*\('
 equality:
   call2: [reflect.DeepEqual, cmp.Equal, cmp.Diff, bytes.Equal, slices.Equal, maps.Equal, errors.Is, strings.EqualFold]
 # Go constants are CamelCase, so an uppercase name says nothing about constness.

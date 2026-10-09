@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "playwright-cli -s=cart screenshot --filename=after-add-to-cart.png\nplaywright-cli -s=cart close", "why": "closes own session"},
+    {"answer": "playwright-cli --session cart close", "why": "long form"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "playwright-cli -s=cart screenshot", "why": "leaves the browser running"},
+    {"answer": "playwright-cli close-all", "why": "closes every agent's browser"}
+  ]
+}

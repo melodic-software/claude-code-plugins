@@ -22,8 +22,8 @@ file ahead of the first event so `check` can report a configured state before lo
 The consumer's root `.gitignore` is never touched (config-cascade convention: a setup skill leaves the
 consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns).
 
-Official contract (verified 2026-07-18):
-<https://code.claude.com/docs/en/plugins-reference#user-configuration>. Recheck when a fetch of that
+Official contract (verified 2026-10-07):
+<https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>. Recheck when a fetch of that
 section no longer states that Claude Code prompts for `userConfig` values and stores non-sensitive
 ones in user settings, when the `#user-configuration` anchor stops resolving, or when a release note
 changes how `pluginConfigs` entries in project and local settings are treated.

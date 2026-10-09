@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Found 2 candidates, cap none. Proceed with adjudication?"
+    },
+    {
+      "answer": "2 candidates at lines 8 and 14 of lib/util.sh."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Adjudication should take about 2 minutes."
+    },
+    {
+      "answer": "This will use roughly 5k tokens."
+    },
+    {
+      "answer": "It takes a few seconds per candidate."
+    }
+  ]
+}

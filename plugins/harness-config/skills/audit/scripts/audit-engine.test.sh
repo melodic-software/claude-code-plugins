@@ -13,6 +13,9 @@ if [[ -z "$TEST_TMPDIR" || ! -d "$TEST_TMPDIR" ]]; then
   echo "FATAL: mktemp -d gave no directory" >&2
   exit 2
 fi
+# The shell's own physical form: a D:/x TMPDIR would split PATH at the drive
+# colon and hide the curl and jq shims the fetch and process-count cases add.
+TEST_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)" || exit 2
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # Nothing the caller exported reaches a case: every settings-path variable is
 # cleared or pinned to a fixture under the suite temp dir. Each run sets the
@@ -26,6 +29,11 @@ mkdir -p "$TEST_TMPDIR/home/.claude"
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
 export CLAUDE_SETTINGS_FILE="$TEST_TMPDIR/inherited/settings.json"
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+# A run that can serve its own content for a slug gets a docs cache of its own,
+# so no cached title or quarantine carries over from another run.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export DOCS_CACHE_DIR="$TEST_TMPDIR/cache" XDG_CONFIG_HOME="$TEST_TMPDIR/config"
 
 FAILED=0
 CASE_NUM=0
@@ -215,6 +223,7 @@ run() {
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$1/debug" \
     SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 \
     FETCH_DOCS_FIXTURE_DIR="${DOCS_FIXTURE:-$DOCS}" \
+    DOCS_CACHE_DIR="$(mktemp -d "$TEST_TMPDIR/cache-run.XXXXXX")" \
     SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="${CLI_BIN:-$CLI}" \
     CLAUDE_CODE_DEBUG_LOGS_DIR="" \
     bash "$SCRIPT" "${@:2}"
@@ -347,9 +356,11 @@ assert_contains "case 4m: the table prints a set mod-plane key" "$out" "allowMod
 
 # strictPluginOnlyCustomization is per-surface. "mcp" does not switch hooks off.
 # "hooks" does. v2.1.257 closed the /mcp reconnect bypass; the lever row says so.
+# write_surface_lock <name> <lock JSON>: the name is the directory, since the JSON
+# holds quote characters a Windows path cannot.
 write_surface_lock() {
-  local value="$1"
-  m="$(make_machine "surface-$value")"
+  local value="$2"
+  m="$(make_machine "surface-$1")"
   mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
   jq -n --argjson lock "$value" '{
     "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -363,14 +374,14 @@ write_surface_lock() {
   printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push --force *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
 }
-write_surface_lock '["mcp"]'
+write_surface_lock mcp '["mcp"]'
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 # Other baseline denies are still absent, so the run exits 1. The force-push
 # row is the signal that the mcp-only lock did not switch hooks off.
 assert_eq "case 4b: force push stays info" "info" "$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push --force *)") | .severity' <<<"$out")"
 assert_contains "case 4b: the lever row says hooks are not locked" "$(jq -r '.rows[] | select(.claim=="lever-set:strictPluginOnlyCustomization") | .detail' <<<"$out")" "hooks are not locked"
-write_surface_lock '["hooks"]'
+write_surface_lock hooks '["hooks"]'
 rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 4c: hooks lock keeps the error" 1 "$rc"
@@ -925,7 +936,7 @@ printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
 out="" url="" wfmt=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -o | -w | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+  -o | -w | -D | -H | --connect-timeout | --max-time | --max-filesize | --proto | --proto-redir | --max-redirs)
     [[ "$1" == "-o" ]] && out="$2"
     [[ "$1" == "-w" ]] && wfmt="$2"
     shift 2
@@ -958,7 +969,7 @@ cp "$DOCS/settings-reference.md" "$DOCS/env-vars.md" "$m/served/"
 printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Environment variables](https://other.test/docs/en/env-vars.md): vars' >"$m/served/llms.txt"
 fetch_run() {
   env -u FETCH_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
-    CURL_SHIM_REDIRECT="${CURL_SHIM_REDIRECT:-}" \
+    CURL_SHIM_REDIRECT="${CURL_SHIM_REDIRECT:-}" DOCS_CACHE_DIR="$(mktemp -d "$m/cache.XXXXXX")" \
     SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \

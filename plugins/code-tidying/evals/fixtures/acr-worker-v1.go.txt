@@ -1,0 +1,10 @@
+package main
+
+import "fmt"
+
+// Run drains the queue.
+func Run(queue []string) {
+	for _, item := range queue {
+		fmt.Println(item)
+	}
+}

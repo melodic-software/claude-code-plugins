@@ -157,8 +157,10 @@ coverage ledger on every phase boundary. It is scoped by the same instruction as
 
 So: `Bash`, `Write` and `Edit` all write, and none of them is read-only. `Bash` is for the research
 itself: `gh` against upstream repos in the read-only `gh` forms the skill's `discipline.md` names
-("Read-only `gh` forms"), `curl` into the session scratch dir for artifacts too large to fetch in
-context, local extractors.
+("Read-only `gh` forms"), an upstream docs page read with
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache` per
+`${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`, `curl` into the session scratch dir for
+other artifacts too large to fetch in context, local extractors.
 
 **A path you may not read stays unread.** A path denied to the `Read` tool, or barred by your
 dispatch prompt, is not reached through `Bash`, a script, `Grep`, or any other tool, and that
@@ -177,7 +179,10 @@ dispatch prompt, `scratch-`-prefixed working files inside that same slice, and t
 self-ignoring `.gitignore` guard when it is absent.** Read that table rather than a restatement of
 it; three restatements is how it drifted. You delete any scratch you created before you return. The
 session scratch dir the `curl` above writes into is a separate, harness-owned place outside that
-boundary. Nothing in it is a deliverable and no artifact ever records a path into it. You do not
+boundary. Nothing in it is a deliverable and no artifact ever records a path into it. Point the
+docs fetcher's `--out` there too; its `--cache` writes go to the user-scope docs cache
+([ADR 0057](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0057-share-a-user-scope-docs-cache-across-plugins.md)),
+which the script owns and which is likewise no deliverable. You do not
 modify repository source, and do not write artifacts outside the
 slice.
 

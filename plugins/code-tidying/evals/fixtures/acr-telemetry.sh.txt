@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Copyright (c) 2026 Example Corp.
+# Adapted from the libspan project.
+# SPDX-License-Identifier: MIT
+
+set -euo pipefail
+
+# Ported from the legacy billing service.
+flush_spans() {
+  # verified 2026-09-03 against collector v2.1.259
+  local batch=50
+  # Added 2026-08-10 while wiring the exporter
+  printf '%s\n' "$batch"
+}
+
+# TODO(#88): ported from libspan, tighten the batch bound
+# As of 2026-09-03 the collector still requires gzip.
+# 2026-08-10
+# Bytes copied from the source buffer are never reused.
+read_spans() {
+  cat "$1"
+}
+
+# Adapted from the libspan project.
+export_spans() {
+  echo done
+}

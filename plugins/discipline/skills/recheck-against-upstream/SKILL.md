@@ -34,6 +34,15 @@ re-anchor THAT. Otherwise re-anchor this portable baseline:
   matches upstream. Conformance is a claim to verify, not to assume.
 - **Compare against the CURRENT official upstream, fetched now.** Re-read
   the vendor's live documentation for the surface in play this session, never training-data recall of it, never a stale in-repo summary of it.
+  Read each docs page through the shared docs lookup, not a WebFetch
+  summary: the procedure is
+  `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md`. Read it before
+  the first fetch and follow it, with `<scripts>` =
+  `${CLAUDE_PLUGIN_ROOT}/scripts` (`fetch-docs.sh --cache`) and `<session>` =
+  `${CLAUDE_SESSION_ID}`. Report each page's age. A read that settles a
+  verdict uses raw bytes (the procedure's step 6). A source that is not a
+  docs page, such as a changelog repository or GitHub release notes, keeps
+  its existing route.
 - **Resolve the applicable upstream version first.** When the repo pins a
   supported major/minor, compare against the docs for THAT version. The
   latest docs can legitimately prescribe APIs and defaults the pin does not
@@ -46,8 +55,8 @@ re-anchor THAT. Otherwise re-anchor this portable baseline:
 ## The loop's audit step. Classify each divergence
 
 Run the method doc's audit as a compare-and-classify pass. For the surface
-in flight, fetch the current upstream docs, diff the repo's state against
-them, and sort every divergence into one of three categories:
+in flight, fetch the current upstream docs through the lookup above, diff the
+repo's state against them, and sort every divergence into one of three categories:
 
 1. **Gap**. Docs say X, we do Y, and no rationale is recorded anywhere in
    the repo. Treat as a straight defect to correct toward upstream. Call out

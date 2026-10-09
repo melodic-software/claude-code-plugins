@@ -23,7 +23,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **Key principle: "no comments" ≠ "ready to merge."** An empty comment list may mean reviewers haven't posted yet, not that there are no issues. The readiness checklist includes a **cooldown period** (minimum 2 minutes after the last check-run completion or comment arrival) to prevent the race condition where monitor declares readiness before all actors post.
 
-**Bounded autonomy: NEVER auto-merge.** Monitor is a co-pilot, not an autopilot. It evaluates, classifies, and recommends. It does not merge. The merge decision is always a human gate (Phase 4), even in `full` mode. The only difference in `full` mode: readiness gates are checked automatically, never relaxed. The user must explicitly approve every merge via `/source-control:pull-request merge` or manual `gh pr merge`. No auto-merge, no `--auto` flag, no autonomous merge under any condition. Only the babysit merge lane arms auto-merge (`babysit-prs/reference/safety.md`, "Merge-lane auto-merge").
+**Bounded autonomy: monitor does not merge.** It evaluates, classifies, and recommends; merging is Phase 4. In `full` mode the readiness gates are checked automatically, never relaxed. Phase 4 merges or enqueues without asking only under [merge.md](merge.md) §4.2.1: once the PR is `CLEAN` and the AI review checks have passed on the head commit, pinned with `--match-head-commit`, with no strategy flag behind a merge queue. Every other merge waits for the user's approval (`/source-control:pull-request merge` or a manual `gh pr merge`). Never arm auto-merge (`--auto`), and never pass `--admin`, `--merge` or `--rebase`.
 
 ## 3.0.0 Cloud session baseline poll
 
@@ -31,7 +31,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s in a blocking loop until all readiness gates pass.
+Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again.
 
 **If local CLI session (`CLAUDE_CODE_REMOTE` not set or `false`):** skip this section. Event delivery is handled by the push-channel primary path (§3.0.05) when available, otherwise by the Monitor watch (§3.0.1).
 
@@ -245,7 +245,7 @@ the values you mean, never on the complement:
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
 1. **Mergeable pre-check (MANDATORY before polling):** `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows. Integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
-2. **Poll CI:** every 30s (the standard monitor cadence), max 15 minutes per cycle, with the §3.0.1 REST read; `gh pr checks <N>` is for a one-off read only, never a loop ("Polling CI from more than one worker" below). Never `--watch`; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
+2. **Poll CI:** wait on the §3.0.1 Monitor watch (30s, the standard monitor cadence), or in a cloud session on the §3.0.0 background poll, and act when it emits. Never wait in a foreground `sleep` or `until` loop. `gh pr checks <N>` is for a one-off read only, never a loop ("Polling CI from more than one worker" below). Never `--watch`; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments:** on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately:** if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure:** route to 3.2 (research-driven fix)
@@ -288,7 +288,7 @@ whatever the worker count. `--watch` re-runs its GraphQL query every `--interval
 10) until every check settles, so its cost grows with how long the wait lasts, not with how much
 changes. A single session that watched a job sitting in a saturated self-hosted queue exhausted the
 account's GraphQL limit before the job had started. Poll with the §3.0.1 REST read at the monitor
-cadence: 30s in the Monitor watch, 60-90s in a blocking loop (§3.0.0), and never faster while every
+cadence: 30s in the Monitor watch, 60-90s in the cloud background poll (§3.0.0), and never faster while every
 pending check is queued.
 
 Before the first wait, split `pending` into **queued** and **running**. The bucket cannot tell them

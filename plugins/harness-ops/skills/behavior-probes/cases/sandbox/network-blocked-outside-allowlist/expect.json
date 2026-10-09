@@ -1,0 +1,15 @@
+{
+  "claim": "On Linux with sandbox.enabled, a Bash request to a host not on the sandbox allowlist fails inside the sandbox (an error tool result naming the sandbox), not as a permission denial.",
+  "tags": ["sandbox", "allowed_domains", "network"],
+  "permission_mode": "auto",
+  "platforms": ["linux"],
+  "requires": ["bwrap", "socat", "curl"],
+  "target": {
+    "tool": "Bash",
+    "input_match": "curl",
+    "example": { "command": "curl -sS -m 10 -o /dev/null https://example.com" }
+  },
+  "outcome": "refused",
+  "match": "sandbox",
+  "control": "sandbox/write-in-cwd-runs"
+}

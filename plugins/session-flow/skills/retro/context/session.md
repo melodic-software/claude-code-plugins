@@ -184,8 +184,8 @@ Map each Phase 2 finding to an improvement target. Also identify improvements no
 findings.
 
 **Research before recommending.** For any recommendation involving skills, hooks, agents, or Claude
-Code configuration: verify it against current official docs before presenting. Never recommend
-features from training-data assumptions.
+Code configuration: verify it against current official docs before presenting, read through the
+docs lookup the catalog below describes. Never recommend features from training-data assumptions.
 
 **Load the catalog.** Read `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`
 before filling the table. The placement decision tree and the per-target recommendation formats

@@ -56,12 +56,35 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, /instruction-placement:migrate's cutover check cannot confirm a remote reference and reports it as unknown.",
+      "degrade": "Without curl, /instruction-placement:migrate's cutover check records the env-vars page unread with reason curl-missing, so condition 1 rests on the bundle probe alone and is UNREACH unless the code default is true, and its docs read of the rules frontmatter format records the page unread with reason curl-missing unless a cached copy is still fresh.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
+      },
+      "check": "/instruction-placement:check-prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:migrate"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a docs page that serves only HTML cannot be converted, so /instruction-placement:migrate's docs read records it unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
       },
       "check": "/instruction-placement:check-prerequisites"
     }

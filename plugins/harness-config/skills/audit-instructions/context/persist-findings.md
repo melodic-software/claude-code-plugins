@@ -65,8 +65,8 @@ the contract's consumer-precedence rule.
 ## Which findings enter the file
 
 **The I28 and I29 families from the scan, and I30 to I33 from the lanes.** `instruction-scan.sh`
-marks twelve check families and `restatement-scan.py` marks two more; the other ten scanned
-families (I6, I8-a/b/c/f, I10, I23, I25, I27, I38) and every other lane check have no
+marks thirteen check families and `restatement-scan.py` marks two more; the other eleven scanned
+families (I6, I8-a/b/c/f, I10, I23, I25, I27, I38, I40) and every other lane check have no
 severity-crosswalk row, and the contract admits no row whose tier cannot be looked up from one.
 They stay in the human report and are counted in `## Surfaces` as
 `reason=no-severity-crosswalk-row`. They are declined, never silently dropped.

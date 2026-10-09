@@ -1,0 +1,18 @@
+import { fetchJson } from "./http";
+
+// TODO(#123): switch to the v2 endpoint once it is stable
+// FIXME: retry budget is shared with the uploader (#77)
+const RELEASES_URL = "https://github.com/acme/app/pull/12";
+const previously = "used to cache; now fetches";
+
+// see PR #45 for why pagination is cursor-based
+export async function listReleases(): Promise<unknown[]> {
+  // TODO see issue 12 before raising the page size
+  const page = await fetchJson(RELEASES_URL);
+  // carried over from the feature/retry branch
+  return page as unknown[];
+}
+
+export function backoff(attempt: number): number {
+  return Math.min(2 ** attempt, 30); // capped so a retry never outlasts one poll interval
+}

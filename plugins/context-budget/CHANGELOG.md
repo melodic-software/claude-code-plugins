@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.9.11] - 2026-10-09
+
+### Fixed
+
+- **Settings-write checkpoint asks only on live settings files.** The `PreToolUse` ask now fires only for `settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`), `settings.json` and `settings.local.json` in `.claude/` under the project directory or the session's working directory, `settings.local.json` at the main checkout's root (also from a linked worktree), and `managed-settings.json` or a `managed-settings.d/` drop-in in the managed system directory (on Windows, under `PROGRAMFILES`). A test fixture or example named `.claude/settings.json` elsewhere in the tree no longer prompts.
+
+## [0.9.10] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.9.9] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
 ## [0.9.8] - 2026-10-04
 
 ### Changed

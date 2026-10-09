@@ -8,6 +8,9 @@
 # repo does not ship a grant on docs alone
 # (plugins/discovery/reference/parent-contract.md). The skill-local path is the
 # exercised shape; the implementation stays single-source at the plugin root.
+# Recheck when the skills page stops documenting ${CLAUDE_PLUGIN_ROOT}
+# substitution in `allowed-tools` Bash rules, or documents that such a rule
+# matches at runtime.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec "$here/../../../scripts/changed-code-files.sh" "$@"

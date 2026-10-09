@@ -10,6 +10,7 @@ import contextlib
 import io
 import json
 import pathlib
+import shutil
 import tempfile
 import unittest
 
@@ -241,6 +242,7 @@ class TestAllow(unittest.TestCase):
 class TestCli(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, True)
 
     def _write(self, name: str, data: object) -> str:
         path = self.dir / name
