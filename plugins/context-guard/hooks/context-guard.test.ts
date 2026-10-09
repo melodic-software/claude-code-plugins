@@ -421,8 +421,8 @@ test('zones.json: an extra threshold gets its approach line and its line once pe
   ])
 })
 
-// Issue #6644: on a 1000000-token window with the shipped bands, 26% used (260000 tokens) read
-// dumb. The reader contract's 1M row puts the dumb edge past 500000 tokens.
+// On a 1000000-token window with the shipped bands, 26% used (260000 tokens) reads acceptable:
+// the reader contract's 1M row puts the dumb edge past 500000 tokens.
 test('shipped bands, 1000000 window: 26% used announces acceptable, never dumb; 51% announces dumb', async ($, on) => {
   const { w } = world(on, { window: 1_000_000 })
   expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
