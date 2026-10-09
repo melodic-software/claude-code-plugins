@@ -213,7 +213,7 @@ class VaultDelivery(unittest.TestCase):
         self.assertIn('ELEVENLABS_API_KEY', err)
         self.assertNotIn('Traceback', err)
 
-    def test_the_childs_own_failure_passes_through_with_its_code(self):
+    def test_a_failure_in_the_child_passes_through_with_its_code(self):
         def child(cmd, env, stderr, text):
             return subprocess.CompletedProcess(cmd, 1, stderr='speech: ElevenLabs answered HTTP 422: bad\n')
         code, _, err = cli(None, vault='/usr/local/bin/vault-exec', run_child=child)
@@ -392,7 +392,7 @@ class Outputs(unittest.TestCase):
         words = elevenlabs.word_times('ab cd', reply('ab cd'))
         self.assertEqual(words, [{'word': 'ab', 'start': 0.0, 'end': 0.2}, {'word': 'cd', 'start': 0.3, 'end': 0.5}])
 
-    def test_multi_character_entries_take_their_entrys_times(self):
+    def test_multi_character_entries_take_their_own_times(self):
         alignment = {'characters': ['ab', ' ', 'cd'], 'character_start_times_seconds': [0.0, 0.2, 0.3],
                      'character_end_times_seconds': [0.2, 0.3, 0.5]}
         words = elevenlabs.word_times('ab cd', {'alignment': alignment})
