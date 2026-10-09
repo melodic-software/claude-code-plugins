@@ -271,7 +271,13 @@ proven.
 4. **Fleet.** Add every remaining plugin, let `new-changelog-fragment.sh` write one fragment for
    every plugin that carries an edited shared library, update `docs/migration-playbook.md` and
    ADR 0019, and update the contributor instructions listed under Consequences. Rollback: empty
-   the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins.
+   the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins. On
+   2026-10-09 the remaining 68 plugins joined, so the list names all 87. In the 7 days to
+   2026-10-09 their `plugin.json` changed 845 times on main, led by `review` (34), `work-items`
+   (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
+   (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
+   and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
+   "all plugins".
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4.

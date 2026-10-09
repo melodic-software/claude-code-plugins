@@ -4,7 +4,7 @@ description: "Scope-fenced implementation worker dispatched per phase by /implem
 skills:
   - implementation:report
   - testing:test-value
-tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
+tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, Monitor, WebFetch, WebSearch, Skill, Agent"
 model: opus
 effort: medium
 ---
@@ -38,7 +38,8 @@ guardrail; that absence alone is not a STOP.
 
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
-directly rather than launching pwsh through Bash), web research (so a consuming project's
+directly rather than launching pwsh through Bash), Monitor (so a wait on CI or a long command runs
+in the background, never as a foreground poll), web research (so a consuming project's
 fresh-docs obligations stay satisfiable), skill invocation, and nested dispatch for skills that fan
 out their own workers. Nothing else is granted.
 
@@ -51,6 +52,15 @@ PowerShell tool is unavailable, so one unresolved entry never blocks the launch.
 - **As of**: 2026-10-02
 - **Recheck trigger**: that section changes how unresolved entries are handled, or a launch with
   `PowerShell` unresolved fails.
+
+We grant `Monitor` so a wait on CI or a long command never holds a foreground turn. Where it is
+unavailable, run the same wait with Bash `run_in_background`.
+
+- **Pointer**: for what Monitor does and where it is unavailable, see
+  <https://code.claude.com/docs/en/tools-reference#monitor-tool>.
+- **As of**: 2026-10-09
+- **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
+  available.
 
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's

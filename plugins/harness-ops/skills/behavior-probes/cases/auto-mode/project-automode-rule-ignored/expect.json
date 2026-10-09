@@ -1,0 +1,12 @@
+{
+  "claim": "An autoMode.soft_deny rule in the project's .claude/settings.json is not applied, though the same file's env is: the command the rule forbids runs and prints the project env value.",
+  "tags": ["autoMode", "soft_deny", "project settings", "auto mode"],
+  "permission_mode": "auto",
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": { "command": "python3 -c \"import os; print('PROBEMARK', os.environ.get('PROBE_PROJ'))\"" }
+  },
+  "outcome": "ran",
+  "match": "project-settings-loaded"
+}
