@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: assumption-label
+description: "Evidence labels: a deliverable built partly from five interview notes and partly beyond them carries the envelope label, a source per claim and the assumptions to test"
+tags: [labels]
+runs: 3
+expected_outcome: "The deliverable opens with an Evidence label, cites N1 to N5 beside each need, marks first-run steps the notes do not support as assumptions, and ends with Assumptions to test"
+execution:
+  prompt: "From these five interview notes, write the user needs for our dog-walking booking app and outline its first-run flow. N1: books walks on her lunch break and wants the same walker every week. N2: was nervous about handing over keys to a stranger. N3: wants a photo when the dog is picked up and dropped off. N4: cancelled once because the walker arrived 40 minutes late with no message. N5: books walks a week ahead for travel days. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

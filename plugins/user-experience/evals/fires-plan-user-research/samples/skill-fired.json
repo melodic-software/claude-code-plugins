@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research"
+          }
+        }
+      ],
+      "why": "the namespaced skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plan-user-research"
+          }
+        }
+      ],
+      "why": "the bare leaf name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:synthesize"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ]
+}

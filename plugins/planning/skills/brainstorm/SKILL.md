@@ -37,6 +37,7 @@ Session output has no persisted artifact by default (ideation is conversation ou
 - Engineering contract: /planning:interview.
 - Product intent: /planning:prd.
 - Type and module decisions: /planning:design.
+- Who the users are and what they need: /user-experience:shape.
 
 ## What this skill does NOT do
 
