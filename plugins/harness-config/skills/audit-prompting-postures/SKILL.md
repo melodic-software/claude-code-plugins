@@ -174,9 +174,10 @@ marketplace's `plugin-data-report-keying` convention and reused rather than rein
 lives in one executable rather than being restated per skill,
 [`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it. Pass `--explain`
 when the report should say which rung produced the key. **The key stops overwrites, not reaping.**
-"By default, uninstalling from the last remaining scope also deletes the plugin's
-`${CLAUDE_PLUGIN_DATA}` directory. Use `--keep-data` to preserve it."
-(<https://code.claude.com/docs/en/plugins-reference>, `plugin uninstall`, fetched 2026-08-12; recheck
+"When you uninstall a plugin from the last scope it's installed at, Claude Code also deletes
+the plugin's stored options and secrets and its data directory, `~/.claude/plugins/data/<id>/`",
+unless `--keep-data` is passed
+(<https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall>, `plugin uninstall`, fetched 2026-10-07; recheck
 when a fetch of that page's `plugin uninstall` entry no longer carries that sentence, or a release
 note changes what uninstalling does with `${CLAUDE_PLUGIN_DATA}`), so when a report must outlive the
 plugin the closing line says to copy it out of the data directory.

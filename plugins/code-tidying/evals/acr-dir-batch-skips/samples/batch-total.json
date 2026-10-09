@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "scripts/deploy.sh: 1 finding(s) \u2014 T1=1, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | origin-note | 10 | \"# Copied from the ops runbook script.\" | Delete. Git history owns origin |\n\nscripts/gen_client.py: 1 finding(s) \u2014 T1=1, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | history-narration | 8 | \"# renamed from ApiClient to match the proto service name\" | Delete \u2014 version control owns history |\n\nNote: upstream (sync-managed or generated file) scripts/gen_client.py \u2014 fix it in the generator, not here.\n\nTotal: 2 file(s) audited, 2 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "**Total:** 2 files audited, 2 Tier 1, 0 Tier 2 findings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "Stale or narrative comments in scripts/:\n- NOTES.md: \"As you asked, Priya, the deploy script used to rsync everything\" (conversational)\n- deploy.sh line 5: \"we switched from rsync to scp\" (history)\n- deploy.sh line 10: \"Copied from the ops runbook script.\" (origin)\n- gen_client.py line 8: \"renamed from ApiClient\" (history)"
+    },
+    {
+      "answer": "Total: 3 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "markdown counted"
+    },
+    {
+      "answer": "Total: 2 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
+      "why": "ignore marker not respected"
+    }
+  ]
+}

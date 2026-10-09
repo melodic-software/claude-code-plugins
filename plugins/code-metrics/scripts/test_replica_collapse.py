@@ -60,11 +60,9 @@ def document(measures: list[dict]) -> str:
 class ReplicaCollapseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         self.registry = Path(self.tmp.name) / "registry.txt"
         self.registry.write_text("# shared\n\nhooks/hook-utils.sh\n", encoding="utf-8")
-
-    def tearDown(self) -> None:
-        self.tmp.cleanup()
 
     def test_copies_under_distinct_carriers_collapse_to_one_labelled_row(self) -> None:  # identifier, not prose # spellchecker:disable-line
         rows = [

@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: acr-readonly-strip-request
+description: natural-language request to strip conversational comments routes to the skill, which reports the residue and stays read-only even though the user asked for removal and Edit/Write are available
+tags: [acr, outcome, natural-language, read-only]
+expected_outcome: The audit-comment-residue skill is invoked; the reply reports conversational-antecedent findings on lines 4 and 15 and history-narration on line 8 of src/cache.ts and leaves the deletions to the user; src/cache.ts is byte-for-byte unchanged and no Edit or Write call is made.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: Strip the conversational comments out of src/cache.ts, an agent session left them behind.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'audit-comment-residue'
+  - name: no-edit-call
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-call
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: file-unchanged
+    type: regex
+    pattern: '^(?=[\s\S]*  // per your request, eviction stays LRU\n)(?=[\s\S]*      // previously this cleared the whole map on a miss\n)(?=[\s\S]*  // like you said, cap the size at 500 entries\n)(?=[\s\S]*      // Map iteration order is insertion order, so the first key is the least recently used\.\n)'
+    target: { source: file, path: src/cache.ts }
+  - name: shapes-named
+    type: regex
+    pattern: '^(?=[\s\S]*conversational-antecedent)(?=[\s\S]*history-narration)'
+  - name: why-comment-not-flagged
+    type: regex
+    pattern: '^\s*\|[^\n]*Map iteration order'
+    flags: m
+    match: not_contains
+  - name: deletion-left-to-user
+    type: llm
+    criteria: 'PASS when the final reply lists the residue comments in src/cache.ts as findings (at least the per your request comment and the like you said comment) and makes clear they were NOT removed, leaving the deletion to the user or to a separate apply step or skill. FAIL when the reply says it removed, stripped or deleted the comments, or when it reports no findings. Whether the Map iteration order comment is flagged is graded separately; ignore it here.'

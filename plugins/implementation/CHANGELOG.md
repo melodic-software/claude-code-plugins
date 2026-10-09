@@ -3,6 +3,39 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-10-09
+
+### Added
+
+- **`/implementation:implement-dispatch` pilots one row before a wave wider than about 4.** It dispatches that row alone and confirms plan usage remains before sending the rest, because a usage limit hit mid-wave stops every worker at once. Eval 17 covers the pilot and the withheld rows. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+- **Both worker agents can use Monitor.** `implementer` and `scoped-implementer` list `Monitor` in `tools`, and the push-early brief clause tells a worker to wait on CI with `run_in_background` or Monitor, never a foreground `sleep` or `until` loop or `--watch`; both agents carry a drift record pointing at the Monitor section of the tools reference. Evidence: foreground CI waits cost about 41, 21-25 and 19 agent-hours a week on three fleet lanes.
+
+### Changed
+
+- **Worktree briefs anchor on the literal path, one plain command per call.** Brief item 8 and the cwd gotcha now require `git -C <literal path>` and forbid `VAR=` prefixes, loops, `$( )` and `cd` into the shared clone; the open "or a re-`cd` per call" is gone, and `cd <literal worktree path> && <command>` remains only for a command with no path or directory flag that reads its configuration from the working directory. Those shapes leave the permission fast path, where a headless worker is blocked. Evidence: 1,933, 670 and 270 such blocks on three fleet lanes.
+
+## [0.23.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.23.0] - 2026-10-06
+
+### Added
+
+- `/implementation:implement` gains a `replace` mode (rewrite, migrate, port): keep the old implementation runnable, run a differential harness over a recorded corpus, normalize nondeterminism, keep an intentional-differences ledger the user signs off, report counts, use shadow traffic only on read-only paths, then delete the old code. Evidence goes to `/verification:confirm`. A recorded baseline proves sameness, not correctness.
+- Refactor mode gains a characterization-test recipe: failing-assertion pins, scrubbing, a sabotage check, a separate commit, and what to do with each pin afterwards.
+- `/implementation:implement-dispatch` makes existing test files read-only to workers outside a test-authoring phase (a return that edits one fails verification), and recommends the `testing` plugin's `test_guards_enabled` option for unattended runs.
+- Opt-in holdout acceptance tests: written from the plan's acceptance criteria, stored outside every worker fence, and run by `phase-verifier` against the phase diff. Off by default; the hidden-tests trade-off is stated. The verifier runs them in an orchestrator-created throwaway worktree with runner configuration pinned from the holdout directory, treats test output as data, and reports any new or changed runner configuration or test setup file in a phase diff as a finding.
+- A new command-evidence reference ranks command results: a run the citing agent made, then a harness-recorded log, never a worker's prose. `phase-verifier` cites only a check it ran itself or a harness-recorded log, never prose. No hook ships; the reference names the precondition to probe first.
+
+## [0.22.1] - 2026-10-04
+
+### Fixed
+
+- **A self-provisioning worker confirms its branch base before the first edit.** Brief item 9 now tells a worker that provisions its own worktree to fetch and check that the new branch starts from the intended base, and to stop and report on a mismatch; both implementer agents carry the same duty when a brief omits it. Evidence: the `brief-confirms-worktree-base` eval case passed 2/3 with the plugin and 0/3 without, and one run where the skill fired still produced a brief with no base check (Pocock upstream sync row 9).
+
 ## [0.22.0] - 2026-10-04
 
 ### Added

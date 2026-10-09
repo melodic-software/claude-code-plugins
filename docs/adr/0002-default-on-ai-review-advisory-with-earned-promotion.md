@@ -340,7 +340,8 @@ that without the push trigger the required check can certify a head the branch h
 That warning is written against a base where the evidence check is required. Here it no longer is:
 the ci-perf required-check contract (Phase 3, melodic-software/github-iac#378) made `ci-status` the
 single required context, and `gh api repos/melodic-software/claude-code-plugins/rules/branches/main`
-read on 2026-09-07 returns exactly `[{"context": "ci-status", "integration_id": 15368}]`. No
+read on 2026-09-07 returns exactly `[{"context": "ci-status", "integration_id": 15368}]`
+(recheck when that endpoint lists a second required context). No
 security-evidence context is required, so dropping `synchronize` gives up no certification the
 ruleset asks for. Reinstating a required execution check is a new decision, and it would have to
 restore the push trigger with it; the revisit triggers below already say so.

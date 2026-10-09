@@ -270,7 +270,9 @@ jobs:
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
           # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN, so a
           # subprocess still holds this activity's GitHub token
-          # (code.claude.com/docs/en/env-vars, as of 2026-10-04).
+          # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck when
+          # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
+          # and GITHUB_TOKEN as kept).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
           TRUSTED_CONTEXT_FILE: >-

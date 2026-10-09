@@ -95,10 +95,17 @@ mock:
 snapshot:
   - '^[[:space:]]*(return[[:space:]]+|await[[:space:]]+)*(Verifier[[:space:]]*\.[[:space:]]*)?Verify(Json|Xml|File)?[[:space:]]*\('
 # FsCheck and CsCheck: the expected value is derived from generated inputs on purpose.
+# cs-nunit and cs-mstest inherit this list. A marker exempts only the test whose
+# body or attribute stack holds it. FsCheck's Check.Quick and QuickCheck forms run a
+# property with no attribute integration, the MSTest route; CsCheck's Sample runs a
+# generator held in a field, whose Gen. line sits outside the test.
 property_markers:
   - '\[[[:space:]]*(FsCheck[[:space:]]*\.[[:space:]]*)?(Xunit[[:space:]]*\.[[:space:]]*)?Property([[:space:]]*[](]|$)'
   - 'Prop[[:space:]]*\.[[:space:]]*ForAll'
   - '(^|[^A-Za-z0-9_])Gen[[:space:]]*\.[[:space:]]*[A-Z]'
+  - '(^|[^A-Za-z0-9_])Check[[:space:]]*\.[[:space:]]*(Quick|Verbose)(ThrowOnFailure)?[[:space:]]*\('
+  - '\.[[:space:]]*(Quick|Verbose)Check(ThrowOnFailure)?[[:space:]]*\('
+  - '\.[[:space:]]*Sample(Async)?[[:space:]]*\('
 equality:
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
 # C# constants are PascalCase, so an uppercase name says nothing about constness.

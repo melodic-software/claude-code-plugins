@@ -1,0 +1,33 @@
+# Lane: web
+
+Web request handlers and their tests.
+
+## Scope
+
+```text
+src/web/**
+tests/test_app.py
+```
+
+## Watch-for patterns
+
+- **Beck #1, Guard Clauses**: early returns in request handlers
+- **Beck #2, Dead Code**: unused helpers beside the handlers
+
+## Lane-specific extra exclusions
+
+- **HTTP route signatures** and response shapes are behavioral, never tidy
+
+## Verification commands
+
+```bash
+<build-command>
+```
+
+## Conventional Commits type
+
+`refactor:`. Example title: `refactor(web): extract not-found response helper`.
+
+## Preferred research sources
+
+- https://docs.python.org/3/

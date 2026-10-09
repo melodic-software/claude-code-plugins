@@ -3,6 +3,77 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-10-08
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- The `list-scripts` test suite passes on Git for Windows ([#6527](https://github.com/melodic-software/claude-code-plugins/issues/6527)): the quote-in-path case and the symlink case (`leaves out link.md`) are skipped there, since a Windows path cannot hold a quote and a plain `ln -s` copies the file. Both assertions are unchanged on Linux.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.6.3] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.6.2] - 2026-10-07
+
+### Fixed
+
+- The docs-fetcher gate's `CLAUDE_PLUGIN_DATA` citation points at
+  `plugins/manifest-reference#environment-variables` in place of the retired `plugins-reference`
+  page, re-verified 2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+
+## [0.6.1] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate keeps its once-per-run markers in the plugin data directory instead of a
+  shared temp directory, created with mode 0700, and denies the call when that directory is a
+  link, is owned by another user, or others can reach it
+  ([#6526](https://github.com/melodic-software/claude-code-plugins/issues/6526)).
+
+## [0.6.0] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate passes its one `docs-raw.sh` command once per agent run, so a page cannot
+  steer a second fetch, and denies when its input stream fails or the gate errors instead of
+  failing open. `docs-raw.sh` fetches with `--public-only`: a host, a redirect or a DNS answer
+  that leads to a non-global address is unread `private-address`, and curl (now run with `-q`)
+  connects only to the checked address with no proxy. A generic page is cached in a per-run
+  directory, never the shared docs cache
+  ([#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486),
+  [#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+- `docs-raw.sh` prints `body_sha256` and normalizes CRLF; the workflow marks a slice unread when
+  the body the fetcher returned differs from the header byte count or hash
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+
+## [0.5.1] - 2026-10-07
+
+### Changed
+
+- **`audit-defaults`'s main-thread fallback reads each pointer by the fetch-route rungs ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** Step 2 no longer says WebFetch: rung 1 with fresh bytes is the route, and WebFetch is the degraded rung 2. The workflow's `drift-checker` agent is unchanged.
+
+## [0.5.0] - 2026-10-07
+
+### Added
+
+- The `multi-agent:docs-fetcher` agent and a `PreToolUse` Bash gate (`lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on the first-party docs hosts. `drift-audit` now runs a Fetch stage first and passes the raw page slices inline to finders and skeptics. A finder or skeptic can request more sections or pages for one more round; it uses WebFetch for a page no slice covers, and in that last round for a section the slices still lack, naming in notes any claim it could not check. Ships generated copies of `fetch-docs.sh`, `docs-cache.sh`, `html2md.py` and `docs-raw.sh` ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
 ## [0.4.6] - 2026-10-04
 
 ### Changed

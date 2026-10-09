@@ -267,15 +267,17 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-29; recheck when that table adds supporting files to where a `${…}` reference resolves.
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugin manifest reference,
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
 - Findings are ready to act on with no design question open: `/planning:plan`.
 - A multi-topic or workflow-driven pass: `/discovery:research-deep`.
+- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`
+  (`scripts/fetch-docs.sh --cache`).
 - The reasons behind a past decision: `/discovery:trace-intent <subject>`.
 
 ## See also

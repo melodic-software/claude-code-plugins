@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Project lanes present | INFO | No .claude/tidy-lanes/*.md; tidy resolves the bundled lanes |"
+    },
+    {
+      "answer": "INFO: no project lanes found, so /code-tidying:tidy uses the bundled lanes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FAIL: .claude/tidy-lanes/ does not exist. Run apply.",
+      "why": "absence as FAIL"
+    },
+    {
+      "answer": "The repo has no lane configuration yet.",
+      "why": "no INFO verdict"
+    }
+  ]
+}

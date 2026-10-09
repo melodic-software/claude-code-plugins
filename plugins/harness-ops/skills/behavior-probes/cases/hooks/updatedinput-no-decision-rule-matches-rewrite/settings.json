@@ -1,0 +1,11 @@
+{
+  "permissions": { "allow": ["Bash(git commit -F - *)"] },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "python3 \"${PROBE_CASE_DIR}/../../lib/commit-f-hook.py\"" }]
+      }
+    ]
+  }
+}

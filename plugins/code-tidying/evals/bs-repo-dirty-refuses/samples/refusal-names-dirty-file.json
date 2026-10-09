@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Refusing to start: src/greet.sh has uncommitted tracked modifications. Commit or stash it first.",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Refusing to start: the tree is dirty.",
+      "why": "not named"
+    }
+  ]
+}

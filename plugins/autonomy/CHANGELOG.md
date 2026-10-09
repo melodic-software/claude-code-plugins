@@ -3,11 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.12] - 2026-10-04
+## [0.26.13] - 2026-10-07
 
 ### Changed
 
-- **The lane-stop gate's Stop row no longer starts bash in a session with no gate configured.** The launcher now makes the script's own pre-filter test first: it runs the gate when `lane_stop_gate_arm_id` or `lane_stop_gate_enabled` is set, or when the user settings beside a plugins/cache install or a managed settings file mentions `lane_stop_gate`. An armed lane is never skipped, and the script keeps its own check. Shared `exec-bash.mjs` synced.
+- **Upstream records (#6498).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.26.12] - 2026-10-07
+
+### Changed
+
+- **Docs links (#6498).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
 
 ## [0.26.11] - 2026-10-04
 

@@ -113,6 +113,9 @@ run_stderr_in() {
 err="$(run_stderr_in "$NOT_A_REPO" "width-undeterminable block names the git failure, not abbreviation" "git push --force-with-lease=main:$SHA1_OID origin main" 2)"
 assert_contains "width-undeterminable: cites object format" "$err" "hash format, which could not be read"
 assert_absent "width-undeterminable: does not blame abbreviation" "$err" "abbreviated object id"
+assert_contains "width-undeterminable: hints git -C" "$err" "git -C <repo> push --force-with-lease=<ref>:<full-sha>"
+assert_absent "width-undeterminable: does not prescribe a cd" "$err" "cd <repo>"
+run_in "$NOT_A_REPO" "git -C <sha1-repo> push --force-with-lease=main:<40-hex> outside a repository (the hint's form, allowed)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
 # git's repository-locating globals move the push off the invoking directory, so
 # the width follows them. `-C` takes its value as a separate word — git rejects

@@ -58,6 +58,12 @@ deferred, with re-introducing a shell grant as its trigger.
    posts, and `replies` is an integer count rather than an array. Verified end to end: a genuine
    12-post chain came back from xtomd as a 346-character root, and Thread Reader App recovered all
    twelve.
+   **Other sources.** Replies, media files, and threads Thread Reader App misses go to the
+   closed list of services in [`skills/read/context/sources.md`](skills/read/context/sources.md):
+   what each is for, a command template for each, and the date it was checked. These services
+   drift, so the skill searches for alternatives and reports them as suggestions, never calling a
+   host a search turned up. Same gate, same spooling, same untrusted-data rule, and one request
+   budget per invocation (replies one level deep, at most 10 reply-id requests, 256 KB in all).
 3. **Ask**. Reached whenever the requested content is still incomplete, including the common case of
    step 1 succeeding with a chain root and step 2 missing. The skill names what each step did, then
    asks for the remaining post URLs. It never presents a truncated chain as complete and never
@@ -97,11 +103,14 @@ via scope-level `enabledPlugins`.
 
 Both providers return **attacker-authored text**: anyone can post anything on X. The skill treats
 every returned byte as data to report, never as instructions to follow, and never lets fetched text
-select a subsequent tool call, path, or URL.
+select a subsequent tool call, path, or URL. There are two narrow exceptions, each checked against
+an anchored pattern: a reply's all-digit id, used against the same service to expand that reply's
+own replies, and an image URL on X's media CDN.
 
 ## What leaves the machine
 
-Only the gate's rebuilt, query-stripped URL, sent to `xtomd.com` and `threadreaderapp.com`. No
+Only the gate's rebuilt, query-stripped URL, sent to `xtomd.com` and `threadreaderapp.com`, plus
+the captured id to any other source the skill uses for replies or media. No
 credentials, no repository content, no conversation text. This holds because of the gate. Without
 it the request body is attacker-steerable.
 

@@ -54,6 +54,48 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "curl",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:docpage-digest"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, /knowledge:docpage-digest cannot fetch a docs page for an absence claim and records it unread with reason curl-missing; a cached entry still within --max-age is served without a request.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:docpage-digest"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, fetch-docs.sh and docs-cache.sh exit before reading anything, so the docs fetch of /knowledge:docpage-digest stops.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "npm",
       "kind": "cli",
       "need": "optional",
@@ -124,7 +166,8 @@
         "docs": "https://ffmpeg.org/download.html",
         "brew": "ffmpeg",
         "winget": "Gyan.FFmpeg",
-        "apt": "ffmpeg"
+        "apt": "ffmpeg",
+        "conda": "conda-forge ffmpeg (when the distro package is below 7.1; prefer a release build, since a nightly reports no version)"
       },
       "check": "/harness-ops:prerequisites"
     },
@@ -174,7 +217,8 @@
       "install": {
         "docs": "https://imagemagick.org/script/download.php",
         "brew": "imagemagick",
-        "winget": "ImageMagick.ImageMagick"
+        "winget": "ImageMagick.ImageMagick",
+        "conda": "conda-forge imagemagick (ImageMagick 7, for distros whose package is still ImageMagick 6)"
       },
       "check": "/harness-ops:prerequisites"
     },
@@ -188,13 +232,21 @@
       "detect": {
         "any": [
           "yt-dlp"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "([0-9]+\\.[0-9]+)",
+          "min": "2026.6"
+        }
       },
-      "degrade": "Without yt-dlp, /knowledge:video-digest cannot download a YouTube video or its captions, and stops.",
+      "degrade": "Without yt-dlp 2026.6 or newer, /knowledge:video-digest cannot download a YouTube video or its captions, and stops.",
       "install": {
         "docs": "https://github.com/yt-dlp/yt-dlp#installation",
         "brew": "yt-dlp",
-        "winget": "yt-dlp.yt-dlp"
+        "winget": "yt-dlp.yt-dlp",
+        "pip": "yt-dlp[default,curl-cffi]"
       },
       "check": "/harness-ops:prerequisites"
     },

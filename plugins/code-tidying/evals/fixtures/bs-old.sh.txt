@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Prints the old status.
+set -euo pipefail
+
+level="${1:-1}"
+if [ -n "$level" ]; then
+  echo "old: level is $level"
+else
+  echo "old: level is $level"
+fi

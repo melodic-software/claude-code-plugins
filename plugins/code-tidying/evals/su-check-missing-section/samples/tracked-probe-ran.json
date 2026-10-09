@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v .claude/tidy-lanes/web.md"
+          }
+        }
+      ],
+      "why": "check-ignore half"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --error-unmatch .claude/code-tidying/exclusion-overrides.md"
+          }
+        }
+      ],
+      "why": "ls-files half"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "status is not the tracked-file pair"
+    }
+  ]
+}

@@ -66,7 +66,9 @@ flag. Without `--changelog` it fetches the raw changelog itself by the route bel
 
 The changelog page is `https://code.claude.com/docs/en/changelog.md`, the raw-markdown channel. Read
 it by rung 1 of the upstream-drift convention's fetch route, through the plugin's fetcher, which
-writes the `.md` to a file and a manifest beside it; search the file locally. A summarizing fetch
+writes the `.md` to a file and a manifest beside it; search the file locally. `--cache --max-age 0`
+stores the page in the docs cache but always asks the server, so a failed fetch is `unread`, never a
+stale cached copy. A summarizing fetch
 truncates a page this long and a truncated read supports no absence claim, so never report a
 version "absent from the changelog" from anything but a complete local copy. The script and this
 action both check the body's first heading, which reads `# Claude Code changelog`; a retired slug
@@ -85,7 +87,7 @@ Page-specific shape, the only facts this skill keeps about the page:
 Slice a release or range out of the local copy with the block boundaries:
 
 ```bash
-bash "<skill-dir>/../../scripts/fetch-docs.sh" --out "$TMPDIR/docs" changelog
+bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --out "$TMPDIR/docs" changelog
 jq -r '.pages[0] | "\(.state) \(.reason)"' "$TMPDIR/docs/manifest.json"
 awk '/<Update label="2.1.261"/,/^<\/Update>/' "$TMPDIR/docs/changelog.md"
 ```

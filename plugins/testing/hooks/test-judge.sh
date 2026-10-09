@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# Stop and SubagentStop hook: the task-end test judge's relay. It never blocks
-# on its own failure: an EXIT trap turns every path into exit 0.
+# Stop hook (asyncRewake): the task-end test judge's relay. It never blocks
+# on its own failure: an EXIT trap turns every path but the relay's own exit 2
+# into exit 0.
 #
 # A subagent shares its parent's session id; test-scan records the agent_id
-# of a write a subagent made. At a SubagentStop the hook judges and relays
-# only that agent's writes, and its block reason goes to the subagent, which
-# can still fix them. At the parent's Stop the writes of a subagent still
-# running (background_tasks) wait for its SubagentStop; a finished agent's
-# keys that no SubagentStop relayed (a killed subagent) are relayed here.
+# of a write a subagent made. The parent's Stop leaves the writes of a
+# subagent still running (background_tasks) to a later Stop, and judges and
+# relays a finished subagent's writes with the parent's own.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
 #    nothing, never block, say nothing. Verdicts wait in the ledger for the
@@ -21,16 +20,16 @@
 #    test-judge-bg.sh job just before returning; that job waits for a dying
 #    run's lock, and a job that dies leaves its keys to the next task end.
 #    Every wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s,
-#    below the hooks.json timeout of 240 s), so the hook returns within about
-#    2 s of it.
+#    below the hooks.json timeout of 240 s, which Claude Code enforces on an
+#    asyncRewake hook), so the hook returns within about 2 s of it.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
-# 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
-#    fixed template when the relayed set has a FLAG, or an UNKNOWN that
-#    started as a FLAG: at a Stop it asks Claude to show the user, at a
-#    SubagentStop it asks the subagent to act, and a systemMessage still
-#    carries the counts and path for the user. Otherwise a systemMessage
-#    carries the counts and path, or, when every verdict is a PASS, one line
-#    with the count.
+# 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1) with a FLAG, or an
+#    UNKNOWN that started as a FLAG, in the relayed set: exit 2 with the fixed
+#    template, then any count lines, on stderr. asyncRewake wakes Claude only
+#    on exit 2 and shows it that stderr, which asks it to show the user.
+#    Otherwise exit 0 with a systemMessage of the counts and path, or, when
+#    every verdict is a PASS, one line with the count; Claude gets it on its
+#    next turn.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -48,20 +47,13 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
-testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active .hook_event_name .agent_id \
+testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active \
   '[.background_tasks[]? | objects | select(.type == "subagent" and .status == "running") | .id | strings
     | select(test("^[A-Za-z0-9_-]+$"))] | join(" ")' || exit 0
-SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}" AGENT="${FIELDS[5]}"
+SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}" JUDGE_AGENT_SKIP="${FIELDS[4]}"
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
 # A turn a Stop hook forced: the verdicts wait for the next task end.
 [[ "$active" == true ]] && exit 0
-SUB=0
-if [[ "${FIELDS[4]}" == SubagentStop ]]; then
-  [[ "$AGENT" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
-  SUB=1 JUDGE_AGENT_ONLY="$AGENT" JUDGE_AGENT_SKIP=""
-else
-  JUDGE_AGENT_ONLY="" JUDGE_AGENT_SKIP="${FIELDS[6]}"
-fi
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # The idle path: no write recorded and nothing to adopt.
@@ -69,15 +61,19 @@ testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # shellcheck source=judge-lib.sh
 source "$HOOK_DIR/judge-lib.sh"
 
-# Only the final document reaches stdout.
-exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
+# Only the final relay reaches stdout (3) or stderr (4).
+exec 3>&1 4>&2 >/dev/null 2>>"$JUDGE_LOG"
 LATE="$(mktemp -d)" || exit 0
-trap 'rm -rf "$LATE"; exit 0' EXIT
-# emit <reason> <systemMessage>: either may be empty; both empty prints nothing.
+RC=0
+trap 'rm -rf "$LATE"; exit "$RC"' EXIT
+# emit <reason> <message>: a reason goes to stderr, the message after it, and
+# the hook exits 2; a message alone goes to stdout as the systemMessage.
 emit() {
-  [[ -n "$1$2" ]] || return 0
-  jq -cn --arg r "$1" --arg m "$2" \
-    '(if $r == "" then {} else {decision: "block", reason: $r} end) + (if $m == "" then {} else {systemMessage: $m} end)' >&3
+  if [[ -n "$1" ]]; then
+    printf '%s\n' "$1${2:+$'\n'$2}" >&4 && RC=2
+  elif [[ -n "$2" ]]; then
+    jq -cn --arg m "$2" '{systemMessage: $m}' >&3
+  fi
 }
 # plural <n> <one> <many>
 plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
@@ -333,9 +329,8 @@ for fx in "${!INFOS[@]}"; do
     id="stop-$NOW-$RANDOM"
     mkdir -p "$DATA/pending/$PKEY/$SID"
     set -m
-    jq -cn --arg s "$SID" --arg u "$id" --arg t "$TPATH" --arg c "$pcwd" --arg f "${KFILE[$i]}" --arg a "$AGENT" \
-      '{session_id: $s, tool_use_id: $u, transcript_path: $t, cwd: $c, tool_input: {file_path: $f}}
-        + if $a == "" then {} else {agent_id: $a} end' |
+    jq -cn --arg s "$SID" --arg u "$id" --arg t "$TPATH" --arg c "$pcwd" --arg f "${KFILE[$i]}" \
+      '{session_id: $s, tool_use_id: $u, transcript_path: $t, cwd: $c, tool_input: {file_path: $f}}' |
       TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_HANDOFF=1 bash "$HOOK_DIR/test-judge-bg.sh" >/dev/null 2>&1 3>&- &
     pid=$!
     set +m
@@ -347,32 +342,26 @@ done
 # Counts only: the test names are in the findings file and the judge log.
 # Keys waited on, past the cap or late are judged in the background; failed
 # keys are retried at the next task end. Both are counts in one line, merged
-# into the all-PASS line when there is one. On a blocking Stop the user sees
-# the reason, so no systemMessage repeats it. At a SubagentStop the reason
-# goes to the subagent, so the systemMessage stays for the user.
+# into the all-PASS line when there is one. The reason carries the counts, so
+# the lines after it do not repeat them.
 ((${#failed[@]} == 0)) || judge::log "not judged, the judge failed for: $(labels "${failed[@]}")"
 ((${#notrun[@]} == 0)) || judge::log "judge not run after 2 failed attempts for: $(labels "${notrun[@]}")"
 ((${#limit[@]} == 0)) || judge::log "not judged, the session's judge-run limit is reached, for: $(labels "${limit[@]}")"
 bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
 ((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
 ((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
-msg="" reason="" who=""
-((SUB)) && who="subagent $AGENT: "
+msg="" reason=""
 if ((RELAY_N)); then
   judge::findings
   if ((RELAY_F + RELAY_U == 0)); then
-    msg="test judge: $who$RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
+    msg="test judge: $RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
     later=""
   else
     judge::counts
-    msg="test judge: $who$COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
+    msg="test judge: $COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
     if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
-      if ((SUB)); then
-        reason="$msg. Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source, or say in your final message why it stands; name the findings file there."
-      else
-        reason="$msg. Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
-        msg=""
-      fi
+      reason="$msg. Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
+      msg=""
     fi
   fi
 fi

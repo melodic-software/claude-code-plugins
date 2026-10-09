@@ -4,15 +4,33 @@
   "required": ["version", "note", "rows"],
   "additionalProperties": false,
   "properties": {
-    "version": {"const": 1},
+    "version": {"const": 2},
     "note": {"type": "string", "minLength": 1},
     "rows": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["concern", "rank", "id", "kind", "detect", "account", "status", "platforms", "as_of", "pointer"],
+        "required": ["concern", "rank", "id", "kind", "detect", "account", "status", "platforms", "as_of"],
         "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {"required": ["kind"], "properties": {"kind": {"const": "skill"}}},
+            "then": {"properties": {"id": {"type": "string", "pattern": "^/[a-z0-9-]+(:[a-z0-9-]+)?$"}}}
+          },
+          {
+            "if": {
+              "required": ["kind", "detect", "id"],
+              "properties": {
+                "kind": {"const": "skill"},
+                "detect": {"type": "string", "pattern": "^[^@]+$"},
+                "id": {"type": "string", "pattern": "^/[a-z0-9-]+:[a-z0-9-]+$"}
+              }
+            },
+            "then": {"not": {"required": ["pointer"]}},
+            "else": {"required": ["pointer"]}
+          }
+        ],
         "properties": {
           "concern": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
           "rank": {"type": "integer", "minimum": 1},

@@ -41,8 +41,10 @@ machine-path and layout half to the audits that check it.
 content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned: a citation that *names a source rather than a target the
-plugin acts on*, whether a documentation URL or a cross-plugin reference to this marketplace's own
-published files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+plugin acts on*, whether a documentation URL or a reference to this marketplace's own
+published docs outside any plugin's `skills/` folder, cited for a reader to consult; a skill in
+another plugin is cited as the encapsulation rule below says
+([Configuration ownership and scope](#configuration-ownership-and-scope)). Whether that sanctioned citation is forfeited turns on the
 target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
 publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
 dependency, so fetching one does not forfeit the citation. This rule reaches publisher-owned targets
@@ -387,12 +389,15 @@ Choose one authoritative owner for each value:
 | Tracked repository convention or rich team policy (structured, policy-floor, per-operator-keyed, or state) | A documented file under the consumer project |
 | Team-shared prose convention with no per-operator axis | A natural-language convention doc at the consumer's convention home, bound by the root instruction file's pointer line (config-cascade § Expression doctrine, ADR 0018) |
 | Personal project instruction | A documented, gitignored local overlay where the convention supports one |
-| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}` |
+| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}`; exception: the upstream docs cache several plugins share lives in a user-scope directory ([ADR 0057](adr/0057-share-a-user-scope-docs-cache-across-plugins.md)) |
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
 
 `userConfig` is not repository configuration. Claude Code reads its stored `pluginConfigs` values only
-from user settings, `--settings`, and managed settings. It ignores project and local settings for this
-key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
+from user settings, `--settings`, and managed settings
+([`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
+2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys, or the
+`pluginConfigs` scope changes). It ignores project and local settings for this key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
 
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
@@ -461,10 +466,12 @@ not there.
 
 This permission stops at the plugin boundary. It exists because a plugin is the unit that ships:
 one `plugin.json`, one version, one marketplace entry, and skills that always travel together, so
-a citation between two skills in the same plugin cannot arrive at an absent file. **Do not path-cite
-into a skill in a different plugin.** Plugins install independently, so that path can genuinely be
-missing at runtime; cite the other plugin's skill by its `/plugin:skill` invocation instead, or
-promote the shared content to a convention doc both plugins can cite. The same limit applies to
+a citation between two skills in the same plugin cannot arrive at an absent file.
+**Do not cite a skill in another plugin in this marketplace by a path or a URL into its `skills/`
+folder.** Plugins install independently, so that path can genuinely be missing at runtime; cite the other
+plugin's skill by its `/plugin:skill` invocation instead, or promote the shared content to a
+convention doc both plugins can cite. A third-party skill's URL, such as a route row's external
+`pointer`, is a citation for a reader and stays allowed. The same limit applies to
 anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
 by path.
 
@@ -843,6 +850,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/conventions/plugin-option-naming/`](conventions/plugin-option-naming/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
+| Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
@@ -1206,8 +1214,8 @@ per-spawn `model`.
 There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
-[plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-As of: 2026-08-10. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
 runs on).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
@@ -1558,7 +1566,7 @@ reach an agent's `effort` field. We record this as a gap against
 [configuration ownership](#configuration-ownership-and-scope), not as a design choice.
 
 - **Pointer:** for plugin options, see
-  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
   for the agent field, see
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
 - **As of:** 2026-10-01.
@@ -1686,14 +1694,15 @@ and the topics we read each one for. Recheck trigger for both lists: a page move
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):
 
-- [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
+- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference): component schemas,
-  `userConfig`, experimental components, version management, cache isolation, persistent data.
+- [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): component schemas,
+  `userConfig`, experimental components, persistent data.
+- [Plugin loading reference](https://code.claude.com/docs/en/plugins/loading): version management and cache isolation.
 - [Skills](https://code.claude.com/docs/en/skills): frontmatter reference and skill lifecycle.
 - [Hooks reference](https://code.claude.com/docs/en/hooks): exec form vs shell form, event list,
   `Setup` event, skill-scoped hooks.
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): constraints, release
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): constraints, release
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
@@ -1705,7 +1714,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 
 As of 2026-07-17:
 
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): the `dependencies`
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): the `dependencies`
   array, automatic installation, and version constraints.
 - [Skills](https://code.claude.com/docs/en/skills): command-name derivation and the plugin skill
   namespace.
@@ -1713,3 +1722,6 @@ As of 2026-07-17:
   naming-convention guidance this document deviates from deliberately.
 - [Agent Skills specification](https://agentskills.io/specification): `name` field constraints and
   directory matching.
+
+Recheck when the dependencies page changes how constraints resolve, the skills page changes the
+plugin skill namespace, or the specification changes the `name` constraints.

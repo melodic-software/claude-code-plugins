@@ -24,7 +24,7 @@ Claude Code prompts for when the plugin is enabled, stores in user settings, and
 `apply` could only write the `pluginConfigs` the uniform setup contract forbids, and reconfiguration
 routes through the native flow instead.
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 Keys, layers, merge semantics, the `output_dir` partition rule, and the file format live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md), their single home. Read it

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Inventory: 14 files, 5 groups. Confirm to proceed?",
+      "why": "gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done. Simplified 6 files across 4 groups.",
+      "why": "no gate"
+    }
+  ]
+}

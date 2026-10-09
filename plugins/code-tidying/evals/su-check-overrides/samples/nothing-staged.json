@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --error-unmatch .claude/tidy-lanes/jobs.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-ignore -v x"
+          }
+        }
+      ],
+      "why": "read-only git"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .claude/tidy-lanes/jobs.md"
+          }
+        }
+      ],
+      "why": "staged a lane"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w commit -m lanes"
+          }
+        }
+      ],
+      "why": "committed"
+    }
+  ]
+}

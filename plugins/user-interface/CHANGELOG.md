@@ -3,6 +3,38 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-10-09
+
+### Changed
+
+- Skill route ids are slash invocations (`/plugin:skill`), and `design` drops the leading slash
+  before calling the Skill tool.
+- Bare sibling plugin detects resolve to `<name>@<own marketplace>`.
+- The own-row pointers are removed from the routing data, which moves to schema `version` 2 (see
+  docs/conventions/routing-as-data).
+
+### Added
+
+- Detect resolves its own marketplace. When it cannot, it matches siblings by name and sets `reason`
+  (`own marketplace unresolved (<origin>); matched by name`) beside the `installed` list.
+- `uncertain`: a per-row map of ids that a same-named third-party plugin may hold. `design` treats
+  them as not installed and names them to the user.
+- `axe-accessibility` must be qualified with its marketplace before it is confirmed.
+
+## [0.1.3] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.1.2] - 2026-10-04
+
+### Changed
+
+- The terminal and mods references now say the developer-experience guidance decides what a hook
+  notice must contain and the hook-observability convention governs how each channel phrases it,
+  while this plugin owns its look.
+
 ## [0.1.1] - 2026-10-04
 
 ### Fixed

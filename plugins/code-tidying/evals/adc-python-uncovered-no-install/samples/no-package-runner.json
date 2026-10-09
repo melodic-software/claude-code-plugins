@@ -1,0 +1,97 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/skills/audit-dead-code/scripts/dead-code-scan.sh"
+          }
+        }
+      ],
+      "why": "the scan itself"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git grep -n subtractLegacy"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log -1 -- app/pricing.py"
+          }
+        }
+      ],
+      "why": "read-only evidence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx knip --reporter json"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pip install vulture && vulture app"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uvx vulture app/"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx run vulture app"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx knip"
+          }
+        }
+      ]
+    }
+  ]
+}

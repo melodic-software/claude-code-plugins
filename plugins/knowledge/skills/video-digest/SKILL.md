@@ -118,7 +118,9 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 **Bootstrap contract**
 
 1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if the pre-computed context above shows
-   MISSING for yt-dlp, ffmpeg, or ImageMagick. Cloud agents without the media toolchain fail closed.
+   MISSING, or a version below its floor, for yt-dlp, ffmpeg, or ImageMagick (install fallbacks
+   and the upgrade policy: "Prerequisites" below). Cloud agents without the media toolchain fail
+   closed, and so does any run whose video exists but fails to download ("No video, no watch").
 2. **Phase 0b. Companion deep-dive**, only when `source/companion-sources.md` exists, and **before**
    CLI bootstrap.
 3. **CLI bootstrap**. Deterministic stages (acquire → transcript → coverage watching → link
@@ -204,15 +206,16 @@ The Bash tool's environment does not carry this plugin's `CLAUDE_PLUGIN_DATA`, a
 plugin's SessionStart hook can put its own data directory there under that name. The scripts
 therefore take the directory from the flag, and accept an inherited value only when it names this
 plugin. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-10-02; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
 
 ## Gotchas
 
 Observed failure modes. Recovery detail in `context/gotchas.md`: bot/sign-in cookie fallback,
 HTTP 429 backoff + concurrency cap, temp-session expiry (re-run `run-watch.js` before vision),
-cloud-agent media-toolchain fail-closed, phase state only in `watch.json`. Source-specific failure
+cloud-agent media-toolchain fail-closed, video download blocked (HTTP 403 on the media stream),
+phase state only in `watch.json`. Source-specific failure
 patterns live in the source spokes.
 
 ## Prerequisites
@@ -223,13 +226,47 @@ Verify before starting (stop and route to the fix path on failure):
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
    updates); idempotent. Safe to re-run, and re-run after a plugin update.
 2. **yt-dlp**, required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp`
-   (Windows), `brew install yt-dlp` (macOS), `pip install -U yt-dlp` or distro package (Linux).
-   X acquisition in particular tracks yt-dlp closely. See `reference/sources/x.md`.
+   (Windows), `brew install yt-dlp` (macOS), `pip install -U "yt-dlp[default,curl-cffi]"` or
+   distro package (Linux). X acquisition in particular tracks yt-dlp closely. See
+   `reference/sources/x.md`.
 3. **ffmpeg**, required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
-If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node
-dependencies; the media binaries are OS-level installs via your platform's package manager.
+If any prerequisite is missing or below its floor, stop and inform the user. Re-run
+`setup-deps.mjs` for the node dependencies; the media binaries are OS-level installs via your
+platform's package manager, or one of the fallbacks below.
+
+**When the usual install falls short.** These are pointers to try, not rules for any one machine:
+
+- **Distro package below the floor** (ffmpeg and ImageMagick on long-term-support distros often
+  are): use the project's own prebuilt release from its download page, or conda-forge through
+  micromamba, which installs into a user directory without root. Prefer a release build to a
+  nightly: a nightly ffmpeg prints a git revision instead of a version, so no floor check can read
+  it.
+- **yt-dlp from pip**: install the `default` and `curl-cffi` extras, not bare `yt-dlp`; a run
+  without them met the bot check where one with them did not. The skill already passes a
+  JavaScript runtime (`--js-runtimes node`). What each extra provides and which runtime YouTube
+  needs: the yt-dlp README's [Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies)
+  section and the [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS), as of 2026-10-06;
+  recheck when a yt-dlp release renames those extras or changes the JavaScript runtime it needs.
+- A tool installed outside the system path must be on `PATH` for the shell that runs `run.mjs`.
+
+**Use the newest safe release.** The floors are minimums, not targets. Before a run, compare each
+tool with its latest stable release and upgrade when a newer one exists, yt-dlp above all, because
+YouTube changes break older releases quickly. Upgrade only when both hold: the release comes from
+the project's own channel or a well-known distribution (PyPI, conda-forge, the OS package manager,
+the project's releases page) over verified TLS, checked against a published checksum where one
+exists; and its release notes and security advisories (the project's GitHub Security Advisories,
+<https://osv.dev>) show nothing open against that version. Never disable TLS verification to get a
+download through.
+
+**No video, no watch.** When the source has a video, a `watch` needs the file itself. When
+acquisition cannot download it (an HTTP 403 on the media stream, a bot check that cookies do not
+clear), `run-watch.js` exits non-zero, and the watch stops there: report the failure and the fix
+path from `context/gotchas.md`. Do not continue without frames, and do not switch to the
+`transcript` action on the user's behalf; a transcript-only digest runs only when the user asks
+for that action by name. A source with no video at all (the 0-video X result above) is not a
+failed download and keeps its text-only path.
 
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
 selected automatically for caption-absent entries and available on request via

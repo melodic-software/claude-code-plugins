@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The scan found 2 candidates (cap: none). Shall I adjudicate them?"
+    },
+    {
+      "answer": "Summary candidates: total=2 emitted=2 dropped-by-cap=0 cap=0"
+    },
+    {
+      "answer": "Two candidates in lib/util.sh: trim_spaces and legacy_banner. Approve adjudication?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "trim_spaces and legacy_banner are dead; delete them.",
+      "why": "no count"
+    },
+    {
+      "answer": "The scan found 3 candidates.",
+      "why": "wrong count"
+    }
+  ]
+}

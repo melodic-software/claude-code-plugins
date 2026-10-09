@@ -126,7 +126,8 @@ Resolve the medium; the first rung that gives a value wins:
 2. The `rendered-views` cascade: anchor at the repo root (`${CLAUDE_PROJECT_DIR}`, else
    `git rev-parse --show-toplevel`), then read whichever of `~/.claude/rendered-views.md`,
    `<root>/.claude/rendered-views.md`, and `<root>/.claude/rendered-views.local.md` exist, in that
-   order. The last layer that sets `medium:` wins. `auto` defers. Name the winning layer; on a
+   order. The last layer that sets `medium:` wins. `auto` defers, and `hosted` is treated as
+   `artifact`: this view is never sent to a page host. Name the winning layer; on a
    malformed layer, say so and treat it as absent.
 3. The shipped ladder: `artifact` when this session can publish one, else `file`, else
    `terminal`.

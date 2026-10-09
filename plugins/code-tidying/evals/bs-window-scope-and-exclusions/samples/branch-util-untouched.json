@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the branch utility status.\nset -euo pipefail\n\nstate=\"${1:-ok}\"\nif [ \"$state\" = \"ok\" ]; then\n  echo \"branch-util: state is $state\"\nelse\n  echo \"branch-util: state is $state\"\nfi\n",
+      "why": "lib/branch-util.sh untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Prints the branch utility status.\nset -euo pipefail\n\nstate=\"${1:-ok}\"\necho \"branch-util: state is $state\"\n",
+      "why": "lib/branch-util.sh simplified"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}
