@@ -144,7 +144,7 @@ permission denial.
 
 ## Basis for records 9 and 10
 
-A second live run of only these cases, `probe.py run --live --retries 1 --max-cost-usd 2.7 --case
+A second live run of only these cases, `probe.py run --live --retries 1 --max-cost-usd <ceiling> --case
 <id>...`, with the launch above. Linux (WSL2), Claude Code **2.1.295**, 2026-10-09: 6 runs, no retry
 needed. An earlier run the same day failed two cases for fixture reasons, corrected before this run:
 the first control allow entry carried the conditions record 9 now tests separately, and the first
