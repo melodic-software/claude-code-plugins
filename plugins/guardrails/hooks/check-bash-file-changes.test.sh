@@ -89,7 +89,7 @@ OUT=$(post "$REPO")
 EXPECTED=$(edit_path Write "$REPO/config.txt" "root = $LINUX_HOME")
 assert_contains "edit path itself blocks the new file" "$EXPECTED" "Linux user path detected"
 assert_eq "new file: PostToolUse decision" "block" "$(jq -r .decision <<<"$OUT")"
-assert_contains "new file: names the file" "$(jq -r .reason <<<"$OUT")" "changed config.txt"
+assert_contains "new file: names the file, quoted" "$(jq -r .reason <<<"$OUT")" 'changed "config.txt"'
 assert_contains "new file: carries the Write path's own message" "$(jq -r .reason <<<"$OUT")" "$EXPECTED"
 assert_eq "snapshot consumed by the check" "" "$(ls -A "$SNAPSHOTS")"
 
@@ -119,7 +119,7 @@ scratch write "$REPO/config.txt" "root = $LINUX_HOME"
 OUT=$(post "$REPO" PostToolUseFailure)
 assert_eq "failure: event" "PostToolUseFailure" "$(jq -r .hookSpecificOutput.hookEventName <<<"$OUT")"
 assert_contains "failure: additionalContext names the file" \
-  "$(jq -r .hookSpecificOutput.additionalContext <<<"$OUT")" "changed config.txt"
+  "$(jq -r .hookSpecificOutput.additionalContext <<<"$OUT")" 'changed "config.txt"'
 
 # 5. The PowerShell tool is gated the same way.
 new_repo
@@ -127,7 +127,22 @@ pre "$REPO" PowerShell
 scratch write "$REPO/config.txt" "root = $LINUX_HOME"
 OUT=$(post "$REPO" PostToolUse PowerShell)
 assert_contains "powershell: names the tool and file" "$(jq -r .reason <<<"$OUT")" \
-  "this PowerShell command changed config.txt"
+  'this PowerShell command changed "config.txt"'
+
+# 5b. A tracked file whose content forges a diff header, and one whose name
+#     git quotes or tab-suffixes in its own header: each still gets its lines
+#     checked.
+new_repo
+printf 'one\n' >"$REPO/sp ace.txt"
+printf 'one\n' >"$REPO/forged.txt"
+git -C "$REPO" add . && git -C "$REPO" -c user.name=t -c user.email=t@example.invalid commit -qm more
+pre "$REPO"
+scratch append "$REPO/sp ace.txt" "dir = $LINUX_HOME"
+scratch append "$REPO/forged.txt" "++ b/zzz"
+scratch append "$REPO/forged.txt" "dir = $LINUX_HOME"
+OUT=$(jq -r .reason <<<"$(post "$REPO")")
+assert_contains "space in name: checked" "$OUT" 'changed "sp ace.txt"'
+assert_contains "forged header: checked" "$OUT" 'changed "forged.txt"'
 
 # ========================== MUST STAY QUIET =================================
 
@@ -157,6 +172,14 @@ pre "$REPO"
 scratch write "$REPO/ignored.txt" "root = $LINUX_HOME"
 assert_silent "gitignored file: silent" "$(post "$REPO")"
 
+# 9b. A new symbolic link to a file outside the repository: its target is
+#     never read, so nothing outside the repository is quoted back.
+new_repo
+printf 'root = %s\n' "$LINUX_HOME" >"$TEST_TMPDIR/outside.txt"
+pre "$REPO"
+ln -s "$TEST_TMPDIR/outside.txt" "$REPO/link.txt"
+assert_silent "symlink to an outside file: silent" "$(post "$REPO")"
+
 # 10. A cwd outside any repository: no snapshot, no check, fail open.
 rm -rf "$SNAPSHOTS"
 mkdir -p "$TEST_TMPDIR/plain"
@@ -179,6 +202,14 @@ pre "$REPO"
 scratch write "$REPO/config.txt" "root = $LINUX_HOME"
 OUT=$(CLAUDE_PLUGIN_OPTION_BASH_FILE_CHANGE_CHECK_ENABLED=false post "$REPO")
 assert_silent "kill switch: check silent" "$OUT"
+
+# 12b. No CLAUDE_PLUGIN_DATA: nothing is written anywhere, not even to a
+#      shared temp directory another user could plant a link at.
+new_repo
+T_TMP="$TEST_TMPDIR/tmpdir"
+mkdir -p "$T_TMP"
+payload PreToolUse "$REPO" | env -u CLAUDE_PLUGIN_DATA TMPDIR="$T_TMP" node "$HOOK" snapshot
+assert_eq "no plugin data dir: temp dir untouched" "" "$(ls -A "$T_TMP")"
 
 # 13. Malformed stdin.
 assert_silent "malformed stdin: silent" "$(printf 'not json' | node "$HOOK" check)"

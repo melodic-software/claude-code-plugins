@@ -20,14 +20,20 @@
 // Cheap and fail-open by design. The repository is the one holding the call's
 // cwd, found by walking up to a `.git` entry with no process; outside one, both
 // modes exit 0 having started nothing. A fire costs one `git status`, and a
-// check that finds changes adds one `git diff` and one guard process per file,
-// at most MAX_FILES. Git runs with GIT_OPTIONAL_LOCKS=0, so it never takes the
-// index lock a concurrent git command needs. Every error, a missing snapshot,
-// a timeout, an oversized or binary file, exits 0 with nothing reported.
+// check that finds changes adds, per file and at most MAX_FILES, one `git diff`
+// for a tracked file and one guard process. Git runs with GIT_OPTIONAL_LOCKS=0,
+// so it never takes the index lock a concurrent git command needs, and with
+// fsmonitor and textconv off, so a repository config the command wrote starts
+// no program outside the sandbox. Snapshots live only under CLAUDE_PLUGIN_DATA;
+// without it both modes do nothing. Every error, a missing snapshot, a timeout,
+// an oversized or binary file, exits 0 with nothing reported.
 //
 // Scope residuals: a file outside the cwd's repository, a gitignored file
-// (hook-precision rule 6), and a file that was already dirty and whose size and
-// mtime did not change are not checked. A file dirty before the command is
+// (hook-precision rule 6), a symbolic link, a change inside a submodule, a file
+// that was already dirty and whose size and mtime did not change, files past
+// the first MAX_FILES in path order, a repository with more than
+// MAX_STATUS_ENTRIES dirty paths, and what a run_in_background command writes
+// after the call returns are not checked. A file dirty before the command is
 // judged on every line it adds against the index, not only this command's.
 //
 // Kill switch: the bash_file_change_check_enabled userConfig option set to
@@ -39,11 +45,11 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  lstatSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -86,7 +92,9 @@ function gitEnv() {
 }
 
 function git(root, args) {
-  const result = spawnSync("git", ["-C", root, ...args], {
+  // No fsmonitor: the hook runs outside the Bash sandbox, so a repository
+  // config the command wrote must not name a program for it to start.
+  const result = spawnSync("git", ["-C", root, "-c", "core.fsmonitor=false", ...args], {
     env: gitEnv(),
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
@@ -120,7 +128,9 @@ export function gitStatus(root) {
 
 function stamp(file) {
   try {
-    const s = statSync(file);
+    // lstat: a symbolic link is not followed, so a link to a file outside the
+    // repository never has that file's content read and quoted back.
+    const s = lstatSync(file);
     return s.isFile() ? [s.size, s.mtimeMs] : null;
   } catch {
     return null;
@@ -128,8 +138,9 @@ function stamp(file) {
 }
 
 function snapshotDir(env) {
-  const base = env.CLAUDE_PLUGIN_DATA || path.join(os.tmpdir(), "claude-guardrails");
-  return path.join(base, "bash-file-snapshots");
+  // No shared-temp fallback: a predictable path there is one another local
+  // user could plant a symbolic link at. Without a data directory, no-op.
+  return env.CLAUDE_PLUGIN_DATA ? path.join(env.CLAUDE_PLUGIN_DATA, "bash-file-snapshots") : null;
 }
 
 function snapshotFile(env, payload) {
@@ -176,20 +187,28 @@ export function changedFiles(before, after) {
   return changed.sort((a, b) => a.rel.localeCompare(b.rel));
 }
 
-// The lines `git diff` adds against the index, per relative path.
-export function addedLines(root, rels) {
-  const added = {};
-  if (rels.length === 0) return added;
-  const out = git(root, ["diff", "--no-color", "--no-ext-diff", "--no-renames", "-U0", "--", ...rels]);
-  if (out === null) return added;
-  let current = null;
+// The lines `git diff` adds against the index to one relative path. One diff
+// per file, keyed by the name asked for, so no header is parsed for a name: a
+// quoted, tab-suffixed or content-forged `+++` header cannot redirect lines.
+// A `+` line counts only after the first `@@`.
+export function addedLines(root, rel) {
+  const out = git(root, [
+    "--literal-pathspecs",
+    "diff",
+    "--no-color",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-renames",
+    "-U0",
+    "--",
+    rel,
+  ]);
+  if (out === null) return [];
+  const added = [];
+  let inHunk = false;
   for (const line of out.split("\n")) {
-    if (line.startsWith("diff --git ")) current = null;
-    else if (line.startsWith("+++ ")) {
-      const target = line.slice(4);
-      current = target.startsWith("b/") ? target.slice(2) : null;
-      if (current !== null) added[current] = [];
-    } else if (current !== null && line.startsWith("+")) added[current].push(line.slice(1));
+    if (line.startsWith("@@")) inHunk = true;
+    else if (inHunk && line.startsWith("+")) added.push(line.slice(1));
   }
   return added;
 }
@@ -258,10 +277,6 @@ export function check(payload, env) {
   const guards = writeGuards();
   const bash = resolveBash(env, process.platform, isFile);
   if (guards.length === 0 || !bash) return [];
-  const added = addedLines(
-    before.root,
-    changed.filter((f) => !f.untracked).map((f) => f.rel),
-  );
   const findings = [];
   const deadline = Date.now() + CHECK_BUDGET_MS;
   changed.forEach((f, n) => {
@@ -270,7 +285,7 @@ export function check(payload, env) {
     if (content === null) return;
     const toolInput = f.untracked
       ? { file_path: f.abs, content }
-      : { file_path: f.abs, old_string: "", new_string: (added[f.rel] ?? []).join("\n") };
+      : { file_path: f.abs, old_string: "", new_string: addedLines(before.root, f.rel).join("\n") };
     if (!f.untracked && toolInput.new_string === "") return;
     const message = runGuards(
       bash,
@@ -295,7 +310,7 @@ export function report(event, tool, findings) {
   const reason = findings
     .map(
       (f) =>
-        `guardrails: this ${tool} command changed ${f.rel}, and the check a Write or Edit of ` +
+        `guardrails: this ${tool} command changed ${JSON.stringify(f.rel)}, and the check a Write or Edit of ` +
         `that file runs reports:\n${f.message}\nThe change is already on disk: fix the file ` +
         "with Edit, or revert it.",
     )
@@ -309,6 +324,7 @@ export function report(event, tool, findings) {
 async function main() {
   const mode = process.argv[2];
   if (!enabled(process.env) || (mode !== "snapshot" && mode !== "check")) return;
+  if (!snapshotDir(process.env)) return;
   const input = await readStdin(stdinIdleMs(process.env));
   if (input === null) return;
   let payload;
