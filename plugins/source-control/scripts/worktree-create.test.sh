@@ -1279,6 +1279,19 @@ else
   fail "capped install: returns well before the 30s install would finish" "<15s" "${elapsed}s"
 fi
 
+# A cap with a leading zero (08) is 8 seconds, not an invalid octal number: an
+# install that outlasts several polls finishes cleanly with no arithmetic error.
+npm_log="$TEST_TMPDIR/npm-octal.log"
+errfile="$TEST_TMPDIR/err-deps-octal.txt"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=0.5 \
+  WORKTREE_CREATE_DEPS_CAP_SECONDS=08 bash "$HELPER" --name feat/deps-octal --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+assert_exit "cap 08: creation succeeds" 0 "$?"
+assert_contains "cap 08: the cap is read as 8 seconds" "$(cat "$errfile")" "capped at 8s"
+assert_not_contains "cap 08: no octal arithmetic error" "$(cat "$errfile")" "value too great for base"
+assert_not_contains "cap 08: the install is not stopped" "$(cat "$errfile")" "warning"
+assert_file_exists "cap 08: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
+
 # npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
 # an npm; skipped when that would also drop git or bash.
 no_npm_path=""

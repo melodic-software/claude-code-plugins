@@ -1111,7 +1111,12 @@ fi
 # the sole-stdout-line contract. The cap keeps the WorktreeCreate hook (60s
 # timeout in hooks.json) from being killed mid-creation.
 deps_cap="${WORKTREE_CREATE_DEPS_CAP_SECONDS:-45}"
-[[ "$deps_cap" =~ ^[0-9]+$ ]] || deps_cap=45
+if [[ "$deps_cap" =~ ^[0-9]+$ ]]; then
+  # 10# reads a leading-zero value such as 08 as decimal, not octal.
+  deps_cap=$((10#$deps_cap))
+else
+  deps_cap=45
+fi
 if [[ -f "$worktree_path/package-lock.json" ]]; then
   if ! command -v npm >/dev/null 2>&1; then
     printf '%s: warning: package-lock.json found but npm is not on PATH; dependencies not installed. Run npm ci in %s\n' \
