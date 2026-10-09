@@ -483,6 +483,21 @@ class SchemaFixture(ValidatorTestCase):
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertNotIn("FAIL", result.stdout)
 
+    def test_an_empty_case_yaml_keeps_the_identity_default(self):
+        # `claude plugin eval` (2.1.296) loads an empty, comment-only or
+        # bare-marker case.yaml as no case.yaml: it reported only a grader
+        # error for each, never "name: Required".
+        for name, text in (("empty", ""), ("comment", "# x\n"), ("marker", "---\n")):
+            self.case(
+                name,
+                prompt="Say hi.\n",
+                case_yaml=text,
+                graders={"names-conftest": REGEX_GRADER},
+            )
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertNotIn("is required", result.stdout)
+
     def test_a_case_with_no_prompt_fails(self):
         # `claude plugin eval` refuses this case: "execution.prompt is required
         # (a prompt.md body, or execution.prompt in case.yaml)".
