@@ -102,7 +102,7 @@ class VerdictTests(unittest.TestCase):
 
     def test_model_never_attempting_the_call_is_inconclusive(self):
         row = judge(
-            case(), INIT, use("t1", command="cat TODO.txt"), result("t1", "x"), final()
+            case(), INIT, use("t1", command="cat NOTES.txt"), result("t1", "x"), final()
         )
         self.assertEqual(row["verdict"], "inconclusive")
         self.assertIn("never attempted", row["note"])
@@ -186,6 +186,13 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual(judge(all_c, *events)["verdict"], "fail")
         self.assertEqual(judge(any_c, *events)["verdict"], "pass")
 
+    def test_fewer_calls_than_count_is_inconclusive(self):
+        c = case(
+            outcome="ran", target={**case()["target"], "select": "all", "count": 3}
+        )
+        events = (INIT, use("a"), result("a", "launched"), final())
+        self.assertEqual(judge(c, *events)["verdict"], "inconclusive")
+
     def test_missing_tool_result_is_inconclusive(self):
         self.assertEqual(
             judge(case(outcome="ran"), INIT, use("t1"), final())["verdict"],
@@ -211,6 +218,12 @@ class ControlTests(unittest.TestCase):
         ]
         probe.apply_controls(rows, cases)
         self.assertEqual(rows[0]["verdict"], "pass")
+
+    def test_negative_whose_control_did_not_run_is_inconclusive(self):
+        cases = {"n": case(id="n", control="p"), "p": case(id="p", outcome="ran")}
+        rows = [{"id": "n", "verdict": "pass", "note": ""}]
+        probe.apply_controls(rows, cases)
+        self.assertEqual(rows[0]["verdict"], "inconclusive")
 
 
 class SuiteTests(unittest.TestCase):
@@ -257,6 +270,22 @@ class SuiteTests(unittest.TestCase):
         rows = probe.run_suite(cases, probe.fake_runner, args)
         self.assertEqual([row["verdict"] for row in rows[1:]], ["skipped", "skipped"])
         self.assertEqual(probe.exit_code(rows), 3)
+
+    def test_case_budget_is_cut_to_what_the_suite_ceiling_leaves(self):
+        budgets = []
+
+        def record(c, _cwd, _settings_file, _prompt):
+            budgets.append(c["max_budget_usd"])
+            return stream(INIT, final(cost=0.25))
+
+        cases = probe.discover(probe.DEFAULT_CASES)[:2]
+        args = Namespace(
+            max_runs=10, max_cost_usd=0.4, retries=0, keep=False, live=False
+        )
+        probe.run_suite(cases, record, args)
+        self.assertEqual(len(budgets), 2)
+        self.assertAlmostEqual(budgets[0], 0.4)
+        self.assertAlmostEqual(budgets[1], 0.15)
 
     def test_retry_reruns_only_inconclusive(self):
         calls = []

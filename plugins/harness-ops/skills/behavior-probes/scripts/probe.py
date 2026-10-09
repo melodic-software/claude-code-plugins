@@ -339,6 +339,13 @@ def verdict(case: dict, obs: dict) -> dict:
             "verdict": "inconclusive",
             "note": "the model never attempted the target call",
         }
+    want = int(target.get("count", 1))
+    if len(uses) < want:
+        return {
+            **row,
+            "verdict": "inconclusive",
+            "note": f"the model attempted {len(uses)} of {want} target calls",
+        }
     seen = [observe_use(use, obs) for use in uses]
     select = target.get("select", "first")
     if select == "first":
@@ -374,8 +381,8 @@ def apply_controls(rows: list[dict], cases: dict[str, dict]) -> None:
             continue
         control = by_id.get(case.get("control"))
         if control is None:
-            prior = row.get("note") or ""
-            row["note"] = f"{prior}; " * bool(prior) + "control not run in this suite"
+            row["verdict"] = "inconclusive"
+            row["note"] = f"control {case.get('control')} not run in this suite"
         elif control["verdict"] != "pass":
             row["verdict"] = "inconclusive"
             row["note"] = f"control {control['id']} did not pass ({control['verdict']})"
@@ -644,7 +651,13 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
                     "note": f"suite ceiling reached ({runs} runs, {spent:.2f} USD)",
                 }
                 break
-            row = run_case(case, runner, args.keep, args.live)
+            budget = min(
+                case.get("max_budget_usd", DEFAULT_BUDGET_USD),
+                args.max_cost_usd - spent,
+            )
+            row = run_case(
+                {**case, "max_budget_usd": budget}, runner, args.keep, args.live
+            )
             if row["verdict"] in ("pass", "fail", "inconclusive"):
                 runs += 1
                 cost = row.get("cost_usd")

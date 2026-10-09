@@ -41,7 +41,8 @@ refuse a plugin with a top-level `bin/`. **Pointer**: when deciding whether this
 
 Run `live` only when the user asks for a live run in this turn. Before it, state how many cases it
 selects and the ceilings in force (`--max-runs`, `--max-cost-usd`, each case's `max_budget_usd`); a
-case past a ceiling is reported `skipped`, never run. For what a run costs, point at
+case past a ceiling is reported `skipped`, never run, and each case's budget is cut to what the suite
+ceiling leaves. For what a run costs, point at
 [Manage costs](https://code.claude.com/docs/en/costs#track-your-costs).
 
 Each live case runs in its own temp directory with `--setting-sources project,local`, the case's
@@ -56,7 +57,7 @@ repository.
 |---|---|---|
 | `pass` | The target call's outcome matched `expect.json` | Refresh the case's row in records.md with the date and version |
 | `fail` | It did not | Platform behavior moved. Update the record and every convention that cites it |
-| `inconclusive` | The model never attempted the call, the CLI did not start, or a negative case's control did not pass | Rerun with `--retries 1`; never read it as pass or fail |
+| `inconclusive` | The model never attempted the call or made fewer than the case's `count`, the CLI did not start, or a negative case's control did not pass or did not run | Rerun with `--retries 1`; never read it as pass or fail |
 | `error` | The scaffold or case is broken | Fix the case; a fixture failure says nothing about the platform |
 | `skipped` | Platform, a missing tool, or a ceiling | Report it |
 
