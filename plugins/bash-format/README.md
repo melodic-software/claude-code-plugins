@@ -28,6 +28,14 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
   and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
   vendored scripts) is honored even on a single edited file.
+- **Pre-existing drift is left alone.** shfmt runs only when the file was already
+  shfmt-clean under your `.editorconfig` before the edit: the hook checks the
+  pre-edit bytes (the Write/Edit `tool_response.originalFile`) with
+  `shfmt -d --filename`. A file that drifted from your style, for example
+  flush-left `case` arms written before `switch_case_indent = true` was added,
+  keeps its existing layout, so a small edit stays a small diff. A new file is
+  formatted. The check costs one `jq` and one `shfmt` on an edit to an existing
+  file under the opt-in.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an
   unquoted subscript as arithmetic and spaces it, because it cannot know the
   array is associative, so `${m[a-b]}` would become the different key

@@ -28,6 +28,12 @@ own and runs only when your repo has opted into Ruff.
 - **Fix + format on edit.** `ruff check --fix` applies safe fixes (never
   `--unsafe-fixes`) and `ruff format` formats in place. Residual diagnostics
   are reported but not auto-applied.
+- **Pre-existing drift is left alone.** Each pass runs only when the file was
+  already clean for it before the edit: the hook runs the same check on the
+  pre-edit bytes (the Write/Edit `tool_response.originalFile`) under your config.
+  A file that drifted from your config, for example one written before a rule
+  changed, keeps its existing layout, so a small edit stays a small diff. A new
+  file is fixed and formatted.
 - **Just-added imports are protected.** The hook passes `--unfixable F401`, so
   an unused import is *reported* but never auto-deleted. During iterative
   editing an import often lands one edit before the code that uses it. This
