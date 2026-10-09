@@ -179,7 +179,8 @@ HT="$WORK/h-token"
 # Token shape stands alone when used_percentage is null but tokens are valid.
 write_snapshot_tok "$HT" t1 null 110000 10000 1000000 && expect "tokens alone: occ=120k on 1M" smart "$HT" t1
 write_snapshot_tok "$HT" t2 null 180000 20000 1000000 && expect "tokens alone: occ=200k on 1M" acceptable "$HT" t2
-write_snapshot_tok "$HT" t3 null 240000 10001 1000000 && expect "tokens alone: occ=250001 on 1M" dumb "$HT" t3
+write_snapshot_tok "$HT" t4 null 260000 0 1000000 && expect "tokens alone: occ=260000 (26%, #6644) on 1M" acceptable "$HT" t4
+write_snapshot_tok "$HT" t3 null 490000 10001 1000000 && expect "tokens alone: occ=500001 on 1M" dumb "$HT" t3
 # Shipped 200k-class edges, uppers inclusive.
 write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (smart edge)" smart "$HT" t4
 write_snapshot_tok "$HT" t5 null 140000 10000 200000 && expect "200k class: occ=150000 (acceptable edge)" acceptable "$HT" t5
