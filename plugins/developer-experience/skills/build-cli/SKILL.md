@@ -51,29 +51,33 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    official docs first, the basis labeled.
 4. **Withhold what you cannot settle.** A choice the user left open, or a consequential one
    (data that cannot be recovered, security, a new dependency for the whole team) that the
-   repository and research do not settle, is withheld: name it in the plan as an open question
-   with the options and the evidence that would settle it, and recommend none: the plan gives it
-   no default, and does not say what a yes without an answer would build. Never make it on
+   repository and research do not settle, is withheld: the plan asks it as a question, with the
+   options and the evidence that would settle it, and nothing else: no recommendation, no default,
+   no "easiest to undo", no word on what a yes without an answer would build. Never make it on
    `Basis: judgment`, and never pass it to the tool's callers as a required flag: every normal
    run would then fail until someone answers a question the user left open.
 5. **Plan, then wait.** Show the files to create or change, the command's interface (arguments,
    flags, exit codes, JSON shape, dry-run), which helper it calls, and the open questions. Write
-   nothing until the user says yes. A yes that leaves an open question unanswered approves the
-   plan, not an option: only then pick the option easiest to undo, build it as an overridable
-   default and report it as unconfirmed, naming the flag that changes it. When no option can be
-   undone (data that cannot be recovered, security), ask that question again and write only what
-   it does not decide.
-6. **Write**, then record each new or changed command in the conventions file's Tools section:
-   how it is run, what it does, whether it reads from the terminal, its non-interactive flags.
-   This is the one conventions edit this skill makes; anything else goes through
-   `/developer-experience:setup`.
-7. **Verify.** Build and test through `/toolchain:check` when the toolchain plugin is installed;
-   otherwise run the project's own build and test commands (its ecosystem file, else its build
-   files, else ask). Run one smoke run through `/testing:run-e2e` when the testing plugin is
-   installed; otherwise run the command yourself: `--help`, then the dry-run, then a real run only
-   when it changes nothing or the user agreed. A script runs once on this platform and must exit
-   0; when a run could change anything, use its dry-run or ask first and say why. Report other
-   platforms, and any run the user declined, as unverified, not failed.
+   nothing until the user says yes.
+6. **Write.** A yes that leaves an open question unanswered approves the plan, not an option: only
+   now pick the option easiest to undo, build it as an overridable default and report it as
+   unconfirmed, naming the flag that changes it. When no option can be undone (data that cannot be
+   recovered, security), ask that question again and write only what it does not decide. Then
+   record each new or changed command in the conventions file's Tools section: how it is run, what
+   it does, whether it reads from the terminal, its non-interactive flags. This is the one
+   conventions edit this skill makes; anything else goes through `/developer-experience:setup`.
+7. **Verify** in the same turn as the writing, by running the checks yourself; a list of commands
+   for the user to run is not verification. Build and test through `/toolchain:check` when the
+   toolchain plugin is installed; otherwise run the project's own build and test commands (its
+   ecosystem file, else its build files, else ask). Run one smoke run through `/testing:run-e2e`
+   when the testing plugin is installed; otherwise run the command yourself: `--help`, then the
+   dry-run, then a real run only when it changes nothing or the user agreed. A script runs once on
+   this platform and must exit 0; when a run could change anything, use its dry-run or ask first
+   and say why. Run each as one plain command (no `cd`, `;`, `&&` or pipe): an allowlist approves a
+   compound line only if every part matches, so an earlier denial says nothing about this call
+   (pointer <https://code.claude.com/docs/en/permissions>, "Compound commands", as of 2026-10-09;
+   recheck when that section changes). Report as unverified, with the reason, never as failed:
+   other platforms, a run the user declined, and a plain call that was itself denied.
 8. **Report** what ran and what each run returned. A failed build, test or smoke run is reported
    with its output, including a failure the change did not cause, and the files stay in place for
    review: never revert or delete work to make a check pass.

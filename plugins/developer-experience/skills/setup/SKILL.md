@@ -13,8 +13,9 @@ user-level conventions file and the personal pointer lines to the run.
 
 `check` writes nothing. `apply` runs `check`, shows every change and writes only after a yes. An
 explicit confirmation in the user's invocation ("I confirm the changes it shows") is the yes for
-exactly the changes then shown, still printed before writing; anything beyond them (another file, a
-personal-file pointer, a team-content edit) needs its own yes.
+exactly the changes then shown, still printed before writing, a deletion among them included;
+anything not shown (another file, a deletion, a personal-file pointer, a team-content edit) needs
+its own yes.
 
 What this skill writes, and only this: the conventions file (format and rules:
 [reference/conventions-file.md](reference/conventions-file.md), read it before writing one), the
@@ -70,8 +71,8 @@ the file and line behind it and one remediation line per FAIL:
    `<!-- BEGIN GENERATED: plugin-conventions -->` form the helper writes.
 2. **Load**: each helper `load:` line. `missing-import` fails; `may-not-load` is INFO worded
    "may not load", because the outcome depends on a per-user setting, a gitignored file, or a
-   `CLAUDE.md` in a directory above the repository. Print the
-   helper's `add:` line verbatim. When the instruction-placement plugin is installed, name
+   `CLAUDE.md` in a directory above the repository. From the helper's `add:` line, name the file
+   and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is installed, name
    `/instruction-placement:migrate` for moving instructions into `AGENTS.md`; otherwise print
    `claude plugin install instruction-placement@<marketplace>` and the line still stands alone.
    Load rules: pointer <https://code.claude.com/docs/en/memory> ("When Claude Code reads
@@ -112,7 +113,7 @@ configure (conventions at the path), or nothing to do.
      settle (team rules, secrets handling, a fact you could not confirm). Every target the user
      names goes under `## Not yet`.
    - **migrate**: carry the old file's content to the configured path, unknown sections and prose
-     verbatim; add front matter and markers. Deleting the old file is a separate yes.
+     verbatim; add front matter and markers; list removing the old file among the changes.
    - **configure**: plugin-owned changes only: the option the user asked for, missing sections,
      `default` sections whose default changed since `written_against`. Team content (a `chosen`
      section, a hand-edited `default` body or its marker, a false fact) stays as found unless the
@@ -122,12 +123,12 @@ configure (conventions at the path), or nothing to do.
    yes; when a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists here or above, say
    that under the default instruction-file setting Claude Code reads that file instead of
    `AGENTS.md`, so the new file needs the helper's `add:` import line.
-4. On the user's yes, write the conventions file, then run the helper `apply --yes --root <repo>
-   --path <file>`. Set `written_against` to the current plugin version only in a file you write.
+4. On the user's yes, write the conventions file (on migrate, then delete the old one), then run
+   the helper `apply --yes --root <repo> --path <file>`. Set `written_against` to the current plugin version only in a file you write.
    With nothing to change, write nothing and say so.
 5. Run `check` again and report what you observed on disk: the files written, the line's state,
    and each `load:` finding. For a remaining `missing-import`, tell the user the line is not read
-   under the default instruction-file setting until that import is added, and print it. A fresh session, not
+   under the default instruction-file setting until that import is added, and print it as in `check`. A fresh session, not
    this one, shows the change. Offer `git add` and a commit; run them only when accepted.
 
 ### User level (`--user`)
