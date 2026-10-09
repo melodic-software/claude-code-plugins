@@ -3,23 +3,23 @@
   "evals": [
     {
       "id": 1,
-      "name": "fires-on-tooling-audit",
-      "prompt": "Audit the scripts, CLIs and hooks in this repo and tell me what is duplicated or stale.",
-      "expected_output": "The skill inventories the repository's scripts, command-line tools and hooks and reports findings with file references, without editing anything.",
+      "name": "fires-on-scripts-inventory",
+      "prompt": "Our scripts have gotten messy. Which of them do we still need?",
+      "expected_output": "The skill inventories the repository's scripts and task-runner entries, gives each one a keep, migrate, consolidate or retire verdict with its file evidence, and edits nothing.",
       "files": [],
       "expectations": [
-        "The response inventories scripts, command-line tools and hooks in the repository",
-        "The response makes no edit to any file and offers fixes only as proposals awaiting a yes"
+        "The response gives every script and task-runner entry one of keep, migrate, consolidate or retire, with the file that supports it",
+        "The response makes no edit to any file and asks before any deletion"
       ]
     },
     {
       "id": 2,
-      "name": "stays-quiet-on-unrelated-request",
-      "prompt": "Write a function that parses an ISO 8601 date string and returns the weekday name.",
-      "expected_output": "The audit-tools skill does not run; the request is ordinary code writing, not a tooling audit.",
+      "name": "stays-quiet-on-code-fix",
+      "prompt": "The slugify helper drops digits. Fix it and add a test.",
+      "expected_output": "The audit-tools skill does not run; the request is a code fix, not a tooling audit.",
       "files": [],
       "expectations": [
-        "The response writes the requested function",
+        "The response fixes the helper and adds a test",
         "The response does not inventory the repository's scripts, hooks or tools"
       ]
     }
