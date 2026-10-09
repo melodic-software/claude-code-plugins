@@ -5,7 +5,7 @@ runs: 3
 max_turns: 15
 timeout_seconds: 300
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The reply says the saved login has expired and asks the owner to re-save it, and gives no command that fills the sign-in form or saves state"
+expected_outcome: "The reply says the saved login has expired and asks the owner to re-save it, and gives no command that fills the sign-in form or saves state in the flow's own session; steps the owner runs to re-save the login are allowed"
 ---
 
 I'm partway through a playwright-cli flow. I ran these and each one succeeded:
