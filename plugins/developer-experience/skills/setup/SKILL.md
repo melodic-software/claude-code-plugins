@@ -123,8 +123,10 @@ configure (conventions at the path), or nothing to do.
    yes; when a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists here or above, say
    that under the default instruction-file setting Claude Code reads that file instead of
    `AGENTS.md`, so the new file needs the helper's `add:` import line.
-4. On the user's yes, write the conventions file (on migrate, then delete the old one), then run
-   the helper `apply --yes --root <repo> --path <file>`. Set `written_against` to the current plugin version only in a file you write.
+4. On the user's yes, write the conventions file, then run the helper
+   `apply --yes --root <repo> --path <file>`. On migrate, delete the old file only after the
+   helper reports `written`, `created` or `unchanged`; on any other result keep it, so `AGENTS.md` never
+   points at a deleted file. Set `written_against` to the current plugin version only in a file you write.
    With nothing to change, write nothing and say so.
 5. Run `check` again and report what you observed on disk: the files written, the line's state,
    and each `load:` finding. For a remaining `missing-import`, tell the user the line is not read
