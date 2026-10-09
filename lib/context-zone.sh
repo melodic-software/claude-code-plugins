@@ -53,7 +53,7 @@
 # window-class token bands over occupancy:
 #
 #   window class 200000:  smart ≤ 100000 < acceptable ≤ 150000 < dumb
-#   window class 1000000: smart ≤ 128000 < acceptable ≤ 250000 < dumb
+#   window class 1000000: smart ≤ 128000 < acceptable ≤ 500000 < dumb
 #
 # All are declared judgment defaults, NOT doc- or benchmark-derived
 # constants (anchors and provenance are recorded in the reader contract).
@@ -64,7 +64,7 @@
 #     "acceptable_max_used_percentage": 75,
 #     "token_bands": {
 #       "200000":  { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-#       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
+#       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
 #     }
 #   }
 #
@@ -92,7 +92,7 @@ DEFAULT_ACCEPTABLE_MAX=75
 # [class, smart_max, acceptable_max] rows, ascending class order. JSON rather
 # than whitespace rows because the bands are handed to the snapshot pass as
 # data, so the comparison happens there instead of in a separate awk process.
-DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,250000]]'
+DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,500000]]'
 
 unknown() {
   printf 'unknown\n'
@@ -197,7 +197,7 @@ if [[ -e "$zones" ]]; then
     acceptable_max=${zpct#* }
   fi
   if [[ "$ztb" == "invalid" ]]; then
-    printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/250000)\n' >&2
+    printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/500000)\n' >&2
   elif [[ "$ztb" != "absent" ]]; then
     token_bands=$ztb
   fi

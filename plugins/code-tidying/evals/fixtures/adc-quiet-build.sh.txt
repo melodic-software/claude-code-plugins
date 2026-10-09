@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+compile_assets() {
+  printf 'compiling assets\n'
+}
+
+package_release() {
+  printf 'packaging %s\n' "$1"
+}
+
+compile_assets
+package_release "${1:-dev}"

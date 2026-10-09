@@ -1,0 +1,7 @@
+# Orders service
+
+## Protected paths
+
+Automated tidying must never edit these; treat each as HARD-protected:
+
+- `ruff.toml` (the lint baseline is changed only in a dedicated review)

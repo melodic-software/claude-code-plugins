@@ -1,6 +1,6 @@
 {
   "name": "mutation-testing",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "description": "Measures whether a test suite detects faults, not merely runs code. /mutation-testing:principles answers operator, mutant-state, and metric questions from the literature. /mutation-testing:setup verifies the mutation tool and writes tracked config. /mutation-testing:audit runs mutation analysis on the diff (or, with --exercised, on code the changed tests call), reports surviving mutants and why each lived, verifies source was restored, and can save survivors as findings.",
   "author": {
     "name": "Melodic Software",

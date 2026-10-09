@@ -62,7 +62,8 @@ code it may run is limited by what it holds. Line references are to
 5. **Subprocess isolation.** The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which strips
    the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives Bash its own
    PID namespace (lines 373-379). It keeps `GH_TOKEN` and `GITHUB_TOKEN` by design
-   ([environment variables](https://code.claude.com/docs/en/env-vars), as of 2026-10-04), so a
+   ([environment variables](https://code.claude.com/docs/en/env-vars), as of 2026-10-04; recheck
+   when the `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` row stops listing those two as kept), so a
    subprocess still holds the activity's GitHub token. Because the action installs bubblewrap only
    for `allowed_non_write_users`, the run job installs bubblewrap and socat itself and fails red
    when `bwrap` is missing (lines 306-327).

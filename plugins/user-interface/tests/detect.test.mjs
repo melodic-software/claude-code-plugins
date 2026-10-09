@@ -1,15 +1,15 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
-const DETECT = join(TESTS, "../scripts/detect.mjs");
+const PLUGIN = join(TESTS, "..");
+const DETECT = join(PLUGIN, "scripts/detect.mjs");
 const FIX = join(TESTS, "fixtures");
-const PLUGINS = join(FIX, "plugin-list.json");
 const MCP = join(FIX, "mcp-list.txt");
 
 const scratch = mkdtempSync(join(tmpdir(), "ui-detect-"));
@@ -23,6 +23,20 @@ function detect(args, env) {
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
+/** A `claude plugin list --json` record, enabled at user scope unless `fields` says otherwise. */
+const record = (id, fields) => ({ id, scope: "user", enabled: true, projectEnabled: false, ...fields });
+/** This plugin's own record: its installPath is this checkout's plugin root. */
+const self = (id = "user-interface@fixture-market", installPath = PLUGIN) => record(id, { installPath });
+let lists = 0;
+/** Writes `records` as a plugin list file and returns its path. */
+function pluginList(records) {
+  const file = join(scratch, `plugin-list-${++lists}.json`);
+  writeFileSync(file, JSON.stringify(records));
+  return file;
+}
+/** detect.mjs output for the no-ds project with `records` as the plugin list. */
+const detectWith = (records) => detect(["--project", join(FIX, "no-ds"), "--home", HOME, "--plugin-list-json", pluginList(records), "--mcp-list", MCP]);
+const PLUGINS = pluginList([...JSON.parse(readFileSync(join(FIX, "plugin-list.json"), "utf8")), self()]);
 const seams = ["--home", HOME, "--plugin-list-json", PLUGINS, "--mcp-list", MCP];
 
 describe("project signals", () => {
@@ -86,16 +100,16 @@ describe("installed tools", () => {
   });
 
   test("a repo skill counts through its plugin", () => {
-    assert.ok(installed.includes("playgrounds:use"));
-    assert.ok(!installed.includes("writing:be-concise"));
+    assert.ok(installed.includes("/playgrounds:use"));
+    assert.ok(!installed.includes("/writing:be-concise"));
   });
 
   test("a skill counts when its directory is in the user or project skills folder", () => {
-    assert.ok(installed.includes("animate"));
-    assert.ok(!installed.includes("design-taste-frontend"));
+    assert.ok(installed.includes("/animate"));
+    assert.ok(!installed.includes("/design-taste-frontend"));
     const project = join(scratch, "proj");
     mkdirSync(join(project, ".claude/skills/design-taste-frontend"), { recursive: true });
-    assert.ok(detect(["--project", project, ...seams]).installed.includes("design-taste-frontend"));
+    assert.ok(detect(["--project", project, ...seams]).installed.includes("/design-taste-frontend"));
   });
 
   test("an mcp server counts from claude mcp list or the project's .mcp.json", () => {
@@ -128,7 +142,85 @@ describe("reachable", () => {
 
   test("an installed route that needs no account is reachable", () => {
     assert.equal(reachable["frontend-design@claude-plugins-official"], true);
-    assert.equal(reachable["playgrounds:use"], true);
+    assert.equal(reachable["/playgrounds:use"], true);
+  });
+});
+
+describe("own marketplace", () => {
+  test("a bare sibling resolves in its own marketplace", () => {
+    const out = detectWith([self(), record("pixel-art@fixture-market")]);
+    assert.ok(out.installed.includes("/pixel-art:ui"), JSON.stringify(out));
+    assert.ok(!("reason" in out), out.reason);
+  });
+
+  test("playgrounds@other-market alone does not resolve", () => {
+    const out = detectWith([self(), record("playgrounds@other-market")]);
+    assert.ok(Array.isArray(out.installed), out.reason);
+    assert.ok(!out.installed.includes("/playgrounds:use"));
+  });
+
+  test("no self record falls back to a name match with a reason beside the list", () => {
+    const out = detectWith([record("playgrounds@other-market")]);
+    assert.notEqual(out.installed, null);
+    assert.ok(out.installed.includes("/playgrounds:use"), JSON.stringify(out));
+    assert.match(out.reason, /own marketplace unresolved/);
+  });
+
+  test("an inline self record names inline in the reason", () => {
+    const out = detectWith([self("user-interface@inline"), record("playgrounds@other-market")]);
+    assert.notEqual(out.installed, null);
+    assert.ok(out.installed.includes("/playgrounds:use"), JSON.stringify(out));
+    assert.match(out.reason, /own marketplace unresolved.*inline/);
+  });
+
+  test("a name also listed as a qualified detect is uncertain on the fallback", () => {
+    const out = detectWith([record("playwright@claude-plugins-official")]);
+    assert.notEqual(out.installed, null);
+    assert.match(out.reason, /own marketplace unresolved/);
+    assert.ok(out.installed.includes("playwright@claude-plugins-official"), JSON.stringify(out));
+    assert.ok(!out.installed.includes("/playwright:playwright"));
+    assert.match(out.uncertain?.["/playwright:playwright"] ?? "", /playwright@claude-plugins-official/);
+  });
+
+  test("a record with a missing installPath does not null detection", () => {
+    const out = detectWith([
+      record("ghost@fixture-market", { installPath: join(scratch, "no-such-dir") }),
+      { id: "no-path@fixture-market", scope: "user", enabled: true },
+      { scope: "user", enabled: true },
+      self(),
+      record("pixel-art@fixture-market"),
+      record("frontend-design@claude-plugins-official"),
+    ]);
+    assert.ok(Array.isArray(out.installed), out.reason);
+    assert.ok(out.installed.includes("frontend-design@claude-plugins-official"));
+    assert.ok(out.installed.includes("/pixel-art:ui"), JSON.stringify(out));
+    assert.ok(!("reason" in out), out.reason);
+  });
+
+  test("two records for one id resolve against the one whose path matches", () => {
+    const out = detectWith([
+      self("user-interface@market-a", join(scratch, "no-such-dir")),
+      self("user-interface@market-b"),
+      record("playgrounds@market-a"),
+      record("pixel-art@market-b"),
+    ]);
+    assert.ok(out.installed.includes("/pixel-art:ui"), JSON.stringify(out));
+    assert.ok(!out.installed.includes("/playgrounds:use"));
+    assert.ok(!("reason" in out), out.reason);
+  });
+
+  test("a symlinked installPath matches", () => {
+    const link = join(scratch, "linked-plugin");
+    symlinkSync(PLUGIN, link, "junction");
+    const out = detectWith([self(undefined, link), record("pixel-art@fixture-market")]);
+    assert.ok(out.installed.includes("/pixel-art:ui"), JSON.stringify(out));
+    assert.ok(!("reason" in out), out.reason);
+  });
+
+  test("a bare third-party plugin detect does not match another marketplace once the own marketplace resolves", () => {
+    const out = detectWith([self(), record("axe-accessibility@deque-market")]);
+    assert.ok(Array.isArray(out.installed), out.reason);
+    assert.ok(!out.installed.includes("axe-accessibility"));
   });
 });
 

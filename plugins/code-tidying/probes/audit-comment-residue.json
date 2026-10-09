@@ -1,0 +1,128 @@
+{
+  "skill": "code-tidying:audit-comment-residue",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/audit-comment-residue",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
+  "competitors": [
+    "code-tidying:audit-dead-code",
+    "code-tidying:batch-simplify",
+    "code-tidying:dissolve-comments",
+    "code-tidying:tidy"
+  ],
+  "competitor_dirs": {
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "code-tidying:batch-simplify": "plugins/code-tidying/skills/batch-simplify",
+    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
+    "code-tidying:tidy": "plugins/code-tidying/skills/tidy"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I commit this, look through the comments Claude added and flag any that talk about our chat or the plan."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Some comments in src/payments say things like 'changed from the old approach'; can you list which ones are leftover narration?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Find comments in this module that point at JIRA tickets or PR numbers instead of explaining the code."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which code comments on this branch only make sense if you read the conversation that produced them?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Scan the services folder for comments like 'per step 3' or 'as you asked' and report them without editing anything."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Review the comments in my diff for history lessons that belong in the commit message rather than the source."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are there any comments in lib/ that say where the code was copied from or who asked for it?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a read-only pass over the comments in this PR and tell me which ones are stale storytelling."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I suspect the agent left 'now uses X instead of Y' style notes everywhere in the code, can you classify them?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Delete every comment in utils.py so the code has to speak for itself."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Clean up the markdown in our docs folder, it is full of stale notes and filler."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find functions in this repo that nothing calls anymore."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add docstrings to the public functions in parser.ts."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename the variables in this file so the comments explaining them become unnecessary."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find all the TODO and FIXME markers and file issues for them."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This file has way too many comments, remove the ones that add nothing."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run simplify across everything I changed on this branch this week."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain what the comment on line 40 of auth.go means."
+    }
+  ]
+}

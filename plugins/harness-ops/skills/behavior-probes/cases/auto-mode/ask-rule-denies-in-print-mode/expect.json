@@ -1,0 +1,14 @@
+{
+  "claim": "Under claude -p in auto mode, with no prompt host, a permissions.ask rule turns a call the classifier would allow into a rule denial.",
+  "tags": ["ask rule", "permissions.ask", "permission prompt", "permission-prompts", "print mode", "headless"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --dry-run origin main\"",
+    "example": { "command": "git push --dry-run origin main" }
+  },
+  "outcome": "deny",
+  "reason_type": "rule",
+  "control": "auto-mode/dry-run-push-allowed-without-ask-rule"
+}

@@ -1,0 +1,29 @@
+"""Invoice helpers."""
+
+import decimal
+
+
+def total(lines):
+    # used to round per line; now rounds once at the end
+    subtotal = sum(line.amount for line in lines)
+    return subtotal.quantize(decimal.Decimal("0.01"))
+
+
+def tax(amount, rate):
+    # as you asked, keep the rate lookup outside the loop
+    return amount * rate
+
+
+def apply_discount(amount, pct):
+    # in this PR the discount is capped at the subtotal
+    return max(amount - amount * pct, 0)
+
+
+def currency(code):
+    # see PR #482 for the currency table design
+    return code.upper()
+
+
+def round_half_even(value):
+    # Banks require half-even rounding; half-up drifts on large batches.
+    return value.quantize(decimal.Decimal("0.01"), rounding=decimal.ROUND_HALF_EVEN)

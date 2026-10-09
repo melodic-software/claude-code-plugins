@@ -59,7 +59,7 @@ same triggers. These stamps are probe results with a date, not standing facts.
 - **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
   inclusive, selected by window class as described under "Occupancy and combination rule"):**
   window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **150000** < `dumb`;
-  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **250000** < `dumb`.
+  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **500000** < `dumb`.
 - **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
   `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
   token fields mean current occupancy rather than cumulative session totals.
@@ -225,28 +225,37 @@ also marks the token shape not-computable**. That is corrupt or forged data, and
 a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
 every other snapshot value). The bundled resolver implements both gates.
 
-**Band provenance:** the shipped token bands are **declared judgment anchored on measured
-data**, not benchmark-derived constants. The 1M row's `smart` edge, 128000, is the last measured
-strong point for a current Claude model on long-context retrieval (Claude Opus 5 (max), 8-needle
-MRCR: 91.3% at 128K; AUC 97.5% to 128K, 45.7% to 1M). Its `acceptable` edge, 250000, is judgment
-between that point and a 300K cap in practice. The 200k row's `acceptable` edge, 150000, sits at
+**Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
+constants. Anthropic publishes no per-length long-context scores for Claude Opus 5.5, Sonnet 5.5
+or Fable 5.1: their system cards report one aggregate ProgramBench score each, an agentic task
+whose episodes run up to the full 1M window. The published per-length data is retrieval and graph
+traversal, not agentic work, and no study we found links those scores to agentic task quality. On
+GraphWalks BFS, run by Google at max reasoning and published with Gemini 4 Argon, Opus 5.5 scores
+90.6% up to 128K and 66.8% from 256K to 1M, and Fable 5.1 91.4% and 65.0%. On Context Arena's
+8-needle MRCR (max effort), Claude Opus 5 scores 0.913 at 128K, 0.656 at 256K and 0.425 at 512K,
+and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M row's `smart` edge, 128000, is the last length
+at which those current-model scores are still near their best. Its `acceptable` edge, 500000,
+sits below 512K, the first MRCR length at which both Claude rows score under one half. Between
+the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
+`acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
+or agentic work (#6644). The 200k row's `acceptable` edge, 150000, sits at
 the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
 the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
 defaults is coincidence, not validation.
 
-- **Pointer**: when re-deriving a band edge, fetch live: the 1M `smart` edge,
-  [Context Arena, 8 needles](https://contextarena.ai/?needles=8), Claude Opus 5 (max) row; the 1M
-  `acceptable` edge's cap, [Cursor's Claude Opus 5.5 page](https://cursor.com/docs/models/claude-opus-5-5),
-  "Context window" field; the absence of per-length data, the
+- **Pointer**: when re-deriving a 1M band edge, fetch live:
+  [Context Arena, 8 needles](https://contextarena.ai/api/needle-summary?needles=8), the Claude
+  Opus 5 and Claude Sonnet 5 rows; [Gemini models](https://deepmind.google/models/gemini), the
+  Gemini 4 Argon table's Opus 5.5 and Fable 5.1 GraphWalks BFS rows; the absence of per-length data, the
   [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
   section 8.10 and the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
   section 8.11. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
   and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
   degrades on a 200K window as of 2026-10-04.
-- **As of**: 2026-10-04
-- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; a new or revised
-  Anthropic system card publishes per-length scores; Cursor changes Opus 5.5's default context
-  window; or a docs page starts covering where quality degrades on a 200K window, at which point the
+- **As of**: 2026-10-09
+- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; Google's table
+  splits the 256K-1M GraphWalks bin; a new or revised
+  Anthropic system card publishes per-length scores; or a docs page starts covering where quality degrades on a 200K window, at which point the
   200k row's pointer moves there.
 
 ## The module (first shipped consumer)
@@ -261,10 +270,9 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three. In `dumb` it also
-  carries the save-state note, labeled as the dumb zone's default. A line carries no figure
-  unless `zone_line_data` adds one (percent, tokens, window), and a line with a figure ends
-  "Continuing is the user's call."; it never carries a session id. Beside the
+  `prompt.submit` hook adds) carries facts only, never an instruction: by default the zone word and its rank of three. A
+  line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
+  carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
   once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
@@ -296,13 +304,11 @@ skill's module check), none of the following runs except the PostCompact marker.
   Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
   pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under I23 of `/harness-config:audit-instructions`,
-  whose Remediate clause says that where the harness must surface a count, it pairs it with a
-  reassurance rather than with an exit menu. By default the module surfaces no count: it sends the
-  verdict, in `dumb` the save-state note that zone carries by default, and any operator-configured
-  `zones.json` action; a count `zone_line_data` adds is paired with "Continuing is the user's
-  call."; it sends no counter-steer rule about what a zone means. The
-  measurement decides only *when to ask*; the model still decides whether to stop. The model
+  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
+  verdict and any operator-configured `zones.json` action, and nothing that tells the model what
+  to do: no save-state or handoff advice, no reassurance, no counter-steer rule about what a zone
+  means. The model decides what to do with the facts; `/session-flow:workflow` and the user's own
+  instructions own handoff and compaction guidance. The model
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
@@ -383,7 +389,7 @@ session itself can know.
 compaction fires at or near the model's context limit; the cases that fire earlier depend on the
 model, the window it runs with, and the environment. For the current thresholds, see
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-09-30, the one number that section publishes, for native 1M windows, sits above
+**As of:** 2026-10-09, the one number that section publishes for native 1M windows, about 967K tokens, sits above
 the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
 protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
 or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
@@ -452,8 +458,8 @@ hook, so a firing is best read diagnostically: **it means the boundary was misse
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
 with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
 trigger at **40% of the full window**, which is *inside* the shipped percentage `smart` band
-(≤ 50), so the percentage shape still reads smart when auto-compact fires (the token shape decides
-the zone there). Keeping the percentage bands below that trigger means pulling them under 40, not
+(≤ 50), so the percentage shape still reads smart when auto-compact fires, and the token shape,
+which decides the zone there, reads `acceptable`: neither shipped shape reaches `dumb` first. Keeping the percentage bands below that trigger means pulling them under 40, not
 comparing 400000 against the token bands' occupancy edges, which measure a different quantity.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
@@ -462,7 +468,8 @@ is not this plugin's guidance: unattended cloud and autonomous sessions have no 
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
 is instrumentation, not prohibition: observable zones, then advisory injection, then an opt-in
 blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
-all of it (as-of 2026-08-17).
+all of it (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
+what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
 widely-cited practitioner anchor. We record it as a **named anchor, never an adopted number**: its
@@ -500,7 +507,7 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
   "acceptable_max_used_percentage": 75,
   "token_bands": {
     "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
+    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
   }
 }
 ```
@@ -542,9 +549,10 @@ an absent or invalid one means its default, so a file without them keeps working
   points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
   known window size there is no token-shape approach line.
 - `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
-  replaces the default wording. The action's sentence appears at that zone's crossing and
+  replaces the default wording, which names the action (`block`'s describes the gate). The
+  action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labeled "operator setting for the <zone> zone".
-  Defaults: `none` everywhere except `save-state` at `dumb`. `block` arms the gate in that zone.
+  Default: `none` everywhere. `block` arms the gate in that zone.
   An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
 - `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
   100), each with an `action` and optional `text`; each fires once per cycle like a zone

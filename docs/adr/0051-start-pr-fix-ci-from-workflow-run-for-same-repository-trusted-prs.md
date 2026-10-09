@@ -15,7 +15,8 @@ access secrets and write tokens, even if the previous workflow was not". GitHub 
 untrusted code on this trigger can lead to cache poisoning and unintended access to write
 privileges or secrets. It also allows at most three chained levels.
 (<https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows>,
-fetched 2026-10-03.)
+fetched 2026-10-03; recheck when that page changes the `check_run` Actions exclusion, the
+`workflow_run` secrets and write-token behavior, or the chained-level limit.)
 
 The two existing ci-workflows review lanes carry a tripwire step that fails on `workflow_run` and
 `pull_request_target`. It binds those two lanes only.

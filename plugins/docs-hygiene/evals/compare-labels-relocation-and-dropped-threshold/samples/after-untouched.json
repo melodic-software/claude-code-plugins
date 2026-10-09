@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Rotate logs\n\nRun `scripts/rotate.sh` from the repository root.\n\nRotate a log file only when it is large; smaller files stay in place.\n\nRetention: [reference/retention.md](reference/retention.md).\n",
+      "why": "scaffolded rewrite, unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "file emptied"
+    },
+    {
+      "answer": "# Rotate logs\n\nRun `scripts/rotate.sh` from the repository root.\n\nRotate a log file only when it exceeds 50 MB; smaller files stay in place.\n",
+      "why": "compare reverted the loss into the rewrite"
+    }
+  ]
+}

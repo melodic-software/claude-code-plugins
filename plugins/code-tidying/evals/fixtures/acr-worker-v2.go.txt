@@ -1,0 +1,11 @@
+package main
+
+import "fmt"
+
+// Run drains the queue; it no longer blocks on an empty queue.
+func Run(queue []string) {
+	for _, item := range queue {
+		// in this refactor the print moved out of the handler
+		fmt.Println(item)
+	}
+}

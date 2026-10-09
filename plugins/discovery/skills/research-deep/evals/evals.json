@@ -80,6 +80,19 @@
         "Output does NOT write or modify code to implement the switch",
         "Output leaves the decision and any implementation to a downstream step"
       ]
+    },
+    {
+      "id": 7,
+      "name": "wide-fan-out-pilots-one-researcher",
+      "prompt": "Research six separate things for me: (1) Postgres logical replication limits, (2) whether Redis 8 changed its license again, (3) the current state of WebGPU in Safari, (4) Rust async traits stabilization, (5) Kafka KRaft migration steps, and (6) how Terraform state locking works on S3 without DynamoDB.",
+      "expected_output": "Runs the multi-topic check, recognizes six separable topics, and because that is more than about four, spawns one discovery:researcher alone first. It waits for that researcher's return and confirms plan usage remains before spawning the other five, then closes the post-dispatch boundary per topic and synthesizes the slice-root RESEARCH.md.",
+      "files": [],
+      "expectations": [
+        "Output identifies six separable topics and dispatches one discovery:researcher per topic rather than one engine over the combined blob",
+        "Output spawns exactly one researcher first and waits for its return before spawning any of the others",
+        "Output checks the pilot's return for a usage-limit error, and any usage reading the session has, before spawning the remaining five",
+        "Output does NOT spawn all six researchers in a single parallel batch"
+      ]
     }
   ]
 }

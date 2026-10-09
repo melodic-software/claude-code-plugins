@@ -22,7 +22,7 @@ explicit recheck trigger; no implementation issues emitted (zero accepted).
   recurring in-session watch need surfaces for a shipped plugin, scoped via the documented `when:
   "on-skill-invoke:<skill-name>"` monitor field so it starts only on demand rather than at session
   start. Upstream:
-  <https://code.claude.com/docs/en/plugins-reference#monitors>,
+  <https://code.claude.com/docs/en/plugins/components#monitors>,
   <https://code.claude.com/docs/en/tools-reference#monitor-tool>.
 - **`bin/`** (executables added to the Bash tool `PATH`): **REJECT** as a marketplace-wide adoption.
   Plugin-owned scripts already ship via `${CLAUDE_PLUGIN_ROOT}/scripts/` invoked by full path (the

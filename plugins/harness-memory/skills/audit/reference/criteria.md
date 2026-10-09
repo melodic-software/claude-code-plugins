@@ -234,6 +234,8 @@ overwrite it.
 - **Pointer**: for the include/exclude table, see
   [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
 - **As of**: 2026-08-17
+- **Recheck trigger**: the table gains a navigation-pointer row, or drops an exclude row steps 1-3
+  apply.
 
 ### C6: Consistency [FAIL]
 

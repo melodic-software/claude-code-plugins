@@ -6,6 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 const WORKFLOWS = ".github/workflows";
 const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
@@ -34,7 +35,7 @@ try {
   const requireFrom = createRequire(
     path.join(root, ".github/standards/runner-policy/package.json"),
   );
-  yaml = await import(requireFrom.resolve("yaml"));
+  yaml = await import(pathToFileURL(requireFrom.resolve("yaml")).href);
 } catch {
   environmentError(
     "the yaml package is not installed; run npm ci --prefix .github/standards/runner-policy",

@@ -24,8 +24,9 @@ their repo mid-session.
   `/session-flow:workflow` offers the `session` mode at wrap-up when a plugin skill ran.
 - **Auditor agent** (`agents/auditor.md`), the fresh-context specialist for steps 2–3. Tools:
   Read/Grep/Glob/WebFetch plus Bash. Named honestly: Bash is there for `claude plugin validate`,
-  config-resolution probes, and the fetch ladder's rung-1 `curl` of the raw-markdown docs channel,
-  not mutation.
+  config-resolution probes, and the fetch ladder's rung-1 `scripts/fetch-docs.sh` read of the
+  raw-markdown docs channel, not mutation. That script also stores the page in the shared
+  user-scope docs cache, its own store.
 - **Reference corpus** (`skills/audit/reference/`), the recurring-concerns checklist plus five
   component-type lenses (hook, skill, agent, command, config). Extending coverage = one file +
   one index row; the hub never grows.
@@ -72,10 +73,11 @@ and pin a sink in the topic doc there.
 ## Requirements
 
 `gh` (authenticated) for the issue sink. Optional; without it the ladder ends in a local
-markdown item. `jq` for the context-gate probe. Optional; without it dispatch is conservative.
-`curl` for the auditor's rung-1 raw-markdown doc fetch. Optional; without it the auditor falls
-back to `WebFetch` and records the read as rung 2, which still grounds a claim but never an
-absence. Works on Git Bash (Windows), macOS, and Linux shells.
+markdown item. `jq` for the context-gate probe and the auditor's `fetch-docs.sh` doc fetch.
+Optional; without it dispatch is conservative. `curl` for that rung-1 raw-markdown doc fetch.
+Optional; without `curl` or `jq` the auditor falls back to `WebFetch` and records the read as
+rung 2, which still grounds a claim but never an absence. `python3` only for pages a publisher
+serves as HTML; optional. Works on Git Bash (Windows), macOS, and Linux shells.
 
 ## License
 

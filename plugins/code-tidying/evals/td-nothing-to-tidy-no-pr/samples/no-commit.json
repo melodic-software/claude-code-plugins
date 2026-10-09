@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no matching call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -c user.name=a commit -m \"chore: tidy\"",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a commit was made"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -qm 'refactor(tools): drop dead var'",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a commit was made"
+    }
+  ]
+}

@@ -184,6 +184,29 @@ fi
 # cache. Discovery is file-anchored, so the config that governs is the repo's
 # own regardless of flags.
 RUFF_COMMON=(--force-exclude --no-cache --quiet)
+RUFF_FIX=(--no-unsafe-fixes --unfixable F401)
+
+# Pre-existing drift gate: each pass below runs only when the file was already
+# clean for that pass before this edit. A file that drifted from the repo's
+# Ruff config (written before the config changed, say) is not, and a pass over
+# it rewrites every drifted line, so a small edit lands as a whole-file diff.
+# The pre-edit bytes are the Write/Edit `tool_response.originalFile`, checked
+# through stdin under the file's own name so the same config governs. No
+# original (a Write that created the file, or a payload without the field)
+# leaves nothing to preserve, and both passes run.
+PRE_EDIT=$(jq -j '(.tool_response | objects | .originalFile | strings | "1" + . + ".") // "0"' <<<"$INPUT" 2>/dev/null) || PRE_EDIT=0
+PRE_EDIT_KNOWN=0
+if [[ "$PRE_EDIT" == 1* ]]; then
+  PRE_EDIT="${PRE_EDIT#1}"
+  PRE_EDIT="${PRE_EDIT%.}"
+  PRE_EDIT_KNOWN=1
+fi
+# was_clean <ruff subcommand and check flags...>: 0 when the pre-edit bytes
+# pass that check, or when there are no pre-edit bytes.
+was_clean() {
+  ((PRE_EDIT_KNOWN)) || return 0
+  printf '%s' "$PRE_EDIT" | (cd "$RUN_DIR" && "$RUFF_BIN" "$@" "${RUFF_COMMON[@]}" --stdin-filename "$RUFF_ARG" -) >/dev/null 2>&1
+}
 
 # Pass 1: apply safe lint fixes, keeping F401 unfixable per the header
 # rationale. --no-unsafe-fixes is explicit, not the default restated: a
@@ -201,8 +224,10 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 # arm's one JSON document, never emitted mid-run as a second document.
 RUFF_REWRITE_MESSAGE="ruff-format: reformatted $FILE_BASE."
 hook::rewrite_guard_begin "$FILE"
-(cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
-(cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
+was_clean check --diff "${RUFF_FIX[@]}" &&
+  { (cd "$RUN_DIR" && "$RUFF_BIN" check --fix "${RUFF_FIX[@]}" "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
+was_clean format --check &&
+  { (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
 
 # Verify pass — a pure reporter. --no-fix matters: a consumer config may set
 # fix=true, which would make a bare `ruff check` re-apply fixes here, including

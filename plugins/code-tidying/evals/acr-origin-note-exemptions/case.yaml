@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: acr-origin-note-exemptions
+description: origin-note findings respect the block-scoped license exemption, dated freshness stamps, the bare date, a mid-sentence verb-from description, and a TODO marker; the same "Adapted from" sentence outside the license block is a finding
+tags: [acr, outcome, explicit]
+expected_outcome: In telemetry.sh, exactly three origin-note findings at Tier 1, on lines 8 ("Ported from the legacy billing service"), 12 ("Added 2026-08-10 while wiring the exporter") and 24 ("Adapted from the libspan project", outside the license block). Line 3 (the same sentence inside the Copyright/SPDX block), the verified and As of stamps, the bare date, "Bytes copied from the source buffer", and the TODO(#88) marker are not findings. Counts T1=3, T2=0.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue telemetry.sh
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: origin-lines-8-12-24
+    type: regex
+    pattern: '^(?=[\s\S]*^[^\n]*(origin-note[^\n]*\b8\b|\b8\b[^\n]*origin-note))(?=[\s\S]*^[^\n]*(origin-note[^\n]*\b12\b|\b12\b[^\n]*origin-note))(?=[\s\S]*^[^\n]*(origin-note[^\n]*\b24\b|\b24\b[^\n]*origin-note))'
+    flags: m
+  - name: counts-t1-3-t2-0
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**3\b[^\n]*T2\s*[=:]\s*\**0\b|\b3\**\s+Tier[ -]1\b[^\n]*\b0\**\s+Tier[ -]2\b'
+  - name: license-line-3-not-flagged
+    type: regex
+    pattern: '^\s*\|\s*(Tier\s*|T)?[12]\s*\|\s*[a-z-]+\s*\|\s*3\s*\|'
+    flags: m
+    match: not_contains
+  - name: exemptions-respected
+    type: llm
+    criteria: 'The audited file is telemetry.sh. PASS when the final reply reports origin-note findings for line 8 (Ported from the legacy billing service), line 12 (Added 2026-08-10 while wiring the exporter) and line 24 (Adapted from the libspan project, the copy outside the license header), and lists NONE of the following as a finding to delete or review: line 3 (the Adapted from sentence inside the Copyright/SPDX license header), the verified 2026-09-03 stamp, the As of 2026-09-03 stamp, the bare 2026-08-10 date line, the Bytes copied from the source buffer comment, or the TODO(#88) marker. Mentioning those as kept or exempt is fine. FAIL when any of them is reported as a finding, when line 24 is treated as exempt, or when any of the three findings is missing.'
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

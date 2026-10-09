@@ -54,6 +54,14 @@ playwright-cli snapshot --depth=4            # top-level structure only
 playwright-cli snapshot e34                  # partial — subtree under e34
 ```
 
+For a geometry question (does the modal cover the button, is the footer below the fold), add each element's bounding box to the snapshot instead of guessing from the tree:
+
+```bash
+playwright-cli snapshot --boxes              # each element gains [box=x,y,width,height]
+```
+
+Boxes answer where elements are; a screenshot still answers how they look.
+
 ## Targeting without refs
 
 CSS selectors and Playwright locators also work when no snapshot is available:

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -52,6 +53,20 @@ def _watchdog_fire():
     z = """assigned triple quote is not a comment"""
     return 1
 '''
+
+
+def _clear_readonly(func, path, _error):  # noqa: ANN001 - shutil callback signature
+    """Retry a removal that failed because Windows marked the file read-only (git's object store)."""
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
+def rmtree_force(path: Path) -> None:
+    # `onerror` is deprecated from 3.12 and `onexc` does not exist before it; the repo floor is 3.10.
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_clear_readonly)
+    else:
+        shutil.rmtree(path, onerror=_clear_readonly)
 
 
 def git_env(**extra: str) -> dict:
@@ -101,10 +116,8 @@ def pygments_present() -> bool:
 class PygmentsLayer(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(rmtree_force, self.tmp)
         fixture(self.tmp)
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp)
 
     def report(self, *extra: str) -> dict:
         p = run(".", "--json", "--layer", "pygments", *extra, cwd=self.tmp)
@@ -198,7 +211,7 @@ class SccArgv(unittest.TestCase):
 
     def test_flag_shaped_filename_is_passed_as_a_path(self):
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         fixture(tmp)
         (tmp / "-o=evil.py").write_text(MOD_PY)
         shim_dir = tmp / "bin"
@@ -235,7 +248,7 @@ class SccArgv(unittest.TestCase):
 class SccLayer(unittest.TestCase):
     def test_flag_shaped_filename_is_scanned_not_parsed(self):
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         fixture(tmp)
         (tmp / "-o=evil.py").write_text(MOD_PY)
         p = run(".", "--json", "--layer", "scc", cwd=tmp)
@@ -251,7 +264,7 @@ class SccLayer(unittest.TestCase):
 
     def test_scc_supplies_lines_and_complexity(self):
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         fixture(tmp)
         p = run(".", "--json", "--layer", "scc", cwd=tmp)
         self.assertEqual(p.returncode, 0, p.stderr)
@@ -265,7 +278,7 @@ class SccLayer(unittest.TestCase):
 class Degradation(unittest.TestCase):
     def test_no_layer_exits_3_with_install_hint(self):
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         fixture(tmp)
         env = {**os.environ, "PATH": str(tmp), "PYTHONPATH": str(tmp)}
         p = subprocess.run(
@@ -291,7 +304,7 @@ class Degradation(unittest.TestCase):
         so only the availability probe, never the record count, can decide.
         """
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         bin_dir = tmp / "stub-bin"
         bin_dir.mkdir()
         scc_stub = bin_dir / "scc"
@@ -332,7 +345,7 @@ class Degradation(unittest.TestCase):
     def test_empty_scope_with_no_layer_exits_3(self):
         """The other half of the empty-vs-unavailable split: no layer is still a stop."""
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         repo = tmp / "repo"
         repo.mkdir()
         env = git_env(
@@ -363,7 +376,7 @@ class Degradation(unittest.TestCase):
         # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
         # matches nothing, so a directory target used to census zero files.
         tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp)
+        self.addCleanup(rmtree_force, tmp)
         env = git_env()
         subprocess.run(["git", "init", "-q", str(tmp)], check=True, env=env)
         sub = tmp / "plugins" / "thing"

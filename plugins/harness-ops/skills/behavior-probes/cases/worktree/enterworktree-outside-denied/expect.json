@@ -1,0 +1,14 @@
+{
+  "claim": "Under claude -p in auto mode, EnterWorktree with a path outside .claude/worktrees/ is denied by a safety check: it is a confirmation, and print mode has no one to answer it.",
+  "tags": ["EnterWorktree", "worktree", "safetyCheck", "permission prompt"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "EnterWorktree",
+    "input_match": "wt-outside",
+    "example": { "path": "/tmp/cc-probe-dry/wt-outside" }
+  },
+  "outcome": "deny",
+  "reason_type": "safetyCheck",
+  "control": "worktree/enterworktree-inside-allowed"
+}

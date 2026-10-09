@@ -59,13 +59,27 @@ Each resolved slot carries `applies` and `skip-reason`: `disabled-by-config` whe
 sets `enabled: false`, `not-applicable-paths` when a `paths` predicate misses, `not-applicable`
 when a `labels`, `events` or `work-classes` predicate misses. An enabled slot whose predicate was
 not decided carries `applies` and `skip-reason` null. Its `grant` is the effect's row in
-`effect-grants.json`.
+`effect-grants.json`. The step fails when that row does not set exactly `contents`,
+`pull-requests` and `issues`, each `read` or `write`, or when an `effect` is not a string: an empty
+grant would mint a token with every App permission.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
 `effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `model`, `max-turns`,
 `reads-untrusted`, `applies`, `skip-reason`, `contents`, `pull-requests`, `issues` and
 `can-commit` (`false` only when `contents` is `read`).
 `args` is free text and stays in the file.
+
+## Token broker entry point
+
+`resolve.mjs` exports `resolveGrant(files, { lane, activity, configPath })` for the token broker,
+which fetches `effect-grants.json` and `lane-rules.json` from this repository's default-branch tip
+and decides a lane's App token grant through it. It runs the same file checks as the action
+(rejections 1-9 above) and the effect-grant check, for one required `activity`, and returns
+`{ effect, grant }`, where `grant` is a frozen copy of the effect's row in `effect-grants.json`. A
+slot whose lane or slot sets `enabled: false` gets no grant: it rejects with `slot-disabled`. It
+decides no `applies-when` predicate, so it takes no facts. `applies-when` is not an authorization
+control: it decides whether a slot runs, never what its token may do. Like `resolve()`, it throws
+a `Rejection` whose `code` names the failure.
 
 ## Job contract
 

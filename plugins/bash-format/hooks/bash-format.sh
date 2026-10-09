@@ -247,6 +247,22 @@ msys* | cygwin* | win32)
 *) ;;
 esac
 
+# Pre-existing drift gate: format only a file that was already shfmt-clean
+# before this edit. A file written before the repo's style changed (a new
+# `switch_case_indent`, say) is not clean, and shfmt on it rewrites every line
+# that drifted, so a 12-line edit lands as a whole-file diff. The pre-edit
+# bytes are the Write/Edit `tool_response.originalFile`; the check pipes them
+# through shfmt under the file's own name, so the same .editorconfig governs
+# it. No original (a Write that created the file, or a payload without the
+# field) leaves nothing to preserve, and the file is formatted.
+pre_edit_was_clean() {
+  local pre
+  pre=$(jq -j '(.tool_response | objects | .originalFile | strings | "1" + . + ".") // "0"' <<<"$INPUT" 2>/dev/null) || return 0
+  [[ "$pre" == 1* ]] || return 0
+  pre="${pre#1}"
+  printf '%s' "${pre%.}" | shfmt -d --filename "$TOOL_FILE" >/dev/null 2>&1
+}
+
 # Format pass (opt-in, mutating). No parser/printer flags — that keeps
 # .editorconfig formatting in effect. --apply-ignore is a utility flag (not a
 # parser/printer flag, so it does not disable editorconfig formatting): it makes
@@ -283,7 +299,7 @@ if shell_editorconfig_opt_in; then
     # Re-check existence immediately before mutating: the earlier
     # hook::read_file_path guard can race a deleted scratch/worktree file, and
     # shfmt/ShellCheck then surface GHC's openBinaryFile error (#1817).
-    if [[ -f "$TOOL_FILE" || -f "$FILE" ]]; then
+    if [[ -f "$TOOL_FILE" || -f "$FILE" ]] && pre_edit_was_clean; then
       _fmt_target="$TOOL_FILE"
       [[ -f "$_fmt_target" ]] || _fmt_target="$FILE"
       # Content-mutation disclosure (#1596): shfmt rewrites structural layout

@@ -63,10 +63,7 @@ class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dir = tempfile.mkdtemp()
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.dir, ignore_errors=True)
+        cls.addClassCleanup(shutil.rmtree, cls.dir, True)
 
     def run_parser_raw(self, snapshot_path, rung, base_url, expect_code):
         proc = subprocess.run(

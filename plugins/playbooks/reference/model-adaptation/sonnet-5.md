@@ -188,3 +188,6 @@ Our reads, recorded so a re-read can tell whether a page moved:
   [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 - <https://code.claude.com/docs/en/model-config>, read 2026-08-04 and re-read 2026-10-01 for the
   fallback and thinking sections.
+
+Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
+decision beside it.

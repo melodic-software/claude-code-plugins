@@ -17,6 +17,8 @@
 #   - Claude Code plugin version delivery (code.claude.com/docs/en/plugins/loading)
 #   - scripts/check-changelog-parity.sh --check-bump (never relaxes for bots)
 #   - Tracker consensus: keep the gate; generalize dependabot-miro-bundle.yml
+#   Recheck when the GitHub page stops naming [dependabot skip] or the Claude
+#   Code plugin-loading page stops tying update delivery to the version string.
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

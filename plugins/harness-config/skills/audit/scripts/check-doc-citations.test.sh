@@ -11,6 +11,11 @@ SCRIPT="$SCRIPT_DIR/check-doc-citations.sh"
 MANIFEST="$SCRIPT_DIR/../reference/doc-citations.tsv"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+# A case that serves its own content for a slug another case also serves runs
+# with its own DOCS_CACHE_DIR, so no cached title or quarantine carries over.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export DOCS_CACHE_DIR="$TEST_TMPDIR/cache" XDG_CONFIG_HOME="$TEST_TMPDIR/config"
 
 FAILED=0
 CASE_NUM=0
@@ -66,7 +71,7 @@ printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
 out="" url="" wfmt=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -o | -w | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+  -o | -w | -D | -H | --connect-timeout | --max-time | --max-filesize | --proto | --proto-redir | --max-redirs)
     [[ "$1" == "-o" ]] && out="$2"
     [[ "$1" == "-w" ]] && wfmt="$2"
     shift 2
@@ -90,11 +95,12 @@ printf '%s' "$wfmt"
 EOF
 chmod +x "$SHIM/curl"
 
-# shim_run <served dir> <log> <script args...>: run the script through the stand-in with no fixture seam.
+# shim_run <served dir> <log> <script args...>: run the script through the stand-in with no fixture seam,
+# and a docs cache of its own beside the log.
 shim_run() {
   local src="$1" log="$2"
   shift 2
-  PATH="$SHIM:$PATH" CURL_SHIM_SRC="$src" CURL_SHIM_LOG="$log" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" \
+  PATH="$SHIM:$PATH" CURL_SHIM_SRC="$src" CURL_SHIM_LOG="$log" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" DOCS_CACHE_DIR="$log.cache" \
     FETCH_DOCS_FIXTURE_DIR="" bash "$SCRIPT" "$@" 2>&1
 }
 
@@ -107,7 +113,7 @@ printf '%s\n' '# alpha' '### `keyOne`' 'prose, a sentence with `code` inside' >"
 printf '%s\n' '* **The space before a trailing `*` is part of the rule.** more' >"$fx/beta.md"
 index_of "$fx"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(DOCS_CACHE_DIR="$fx.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 1: all present exits 0" 0 "$rc"
 assert_contains "case 1: OK rows" "$out" "OK    alpha: ### \`keyOne\`"
 assert_contains "case 1: summary counts" "$out" "Checked 3 citation(s), 0 missing, 0 skipped"
@@ -116,7 +122,7 @@ assert_contains "case 1: summary counts" "$out" "Checked 3 citation(s), 0 missin
 man="$TEST_TMPDIR/manifest-missing.tsv"
 printf '%s\n' 'alpha	### `keyOne`' 'alpha	### `keyGone`' >"$man"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(DOCS_CACHE_DIR="$fx.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 2: missing span exits 1" 1 "$rc"
 assert_contains "case 2: MISS row names the span" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 2: summary counts the miss" "$out" "1 missing"
@@ -125,7 +131,7 @@ assert_contains "case 2: summary counts the miss" "$out" "1 missing"
 man="$TEST_TMPDIR/manifest-skip.tsv"
 printf '%s\n' 'alpha	### `keyOne`' 'gamma	anything' 'gamma	anything else' >"$man"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(DOCS_CACHE_DIR="$fx.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 3: skip does not fail" 0 "$rc"
 assert_contains "case 3: SKIP line printed once per page" "$out" "SKIP  gamma: page could not be read"
 assert_contains "case 3: SKIP line carries the reason" "$out" "not-in-index"
@@ -175,7 +181,7 @@ printf 'alpha\t### `keyOne`\nalpha\t### `keyGone`' >"$man"
 printf '%s\n' '### `keyOne`' >"$fx7/alpha.md"
 index_of "$fx7"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx7" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(DOCS_CACHE_DIR="$fx7.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx7" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 7: the unterminated last row is checked and fails" 1 "$rc"
 assert_contains "case 7: MISS names the last row" "$out" "MISS  alpha: ### \`keyGone\`"
 assert_contains "case 7: both rows counted" "$out" "Checked 2 citation(s), 1 missing"
@@ -204,7 +210,7 @@ for bad in '../escape' '/escape' 'alpha/../../escape' 'Alpha'; do
   man="$TEST_TMPDIR/manifest-badslug.tsv"
   printf 'alpha\tan escaped span\n%s\tan escaped span\n' "$bad" >"$man"
   rc=0
-  out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx9" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+  out=$(DOCS_CACHE_DIR="$fx9.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx9" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
   assert_exit "case 9: slug '$bad' exits 2" 2 "$rc"
   assert_contains "case 9: slug '$bad' is named with its row" "$out" "ERROR: manifest row 2 has an invalid page slug: $bad"
   assert_not_contains "case 9: slug '$bad' checks no row" "$out" "OK "
@@ -223,7 +229,7 @@ printf '%s\n' '# Docs' '- [Skills](https://code.claude.com/docs/en/skills.md): s
 man="$TEST_TMPDIR/manifest-retired.tsv"
 printf '%s\n' 'slash-commands	a span the skills page carries' >"$man"
 rc=0
-out=$(SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx10" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+out=$(DOCS_CACHE_DIR="$fx10.cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx10" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
 assert_exit "case 10: fixture, the unindexed page does not fail" 0 "$rc"
 assert_contains "case 10: fixture, SKIP names the page and the reason" "$out" "SKIP  slash-commands: page could not be read this run (not-in-index)"
 assert_not_contains "case 10: fixture, no OK for the unindexed page" "$out" "OK "
@@ -261,6 +267,26 @@ assert_eq "case 11: every request is HTTPS only, redirects included and capped" 
 timed="$(grep -c -- '--connect-timeout .* --max-time ' "$TEST_TMPDIR/curl-11.log")"
 assert_eq "case 11: every request carries a connect timeout and a max time" "$total" "$timed"
 assert_not_contains "case 11: no plain-http request" "$calls" "http://"
+
+# --- Case 12: a jq that ends each @tsv line with CR (Windows) leaves no CR in the reason ---
+crjq="$TEST_TMPDIR/crjq"
+mkdir -p "$crjq"
+real_jq="$(command -v jq)"
+cat >"$crjq/jq" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+*@tsv*) "$real_jq" "\$@" | sed 's/\$/\r/' ;;
+*) exec "$real_jq" "\$@" ;;
+esac
+EOF
+chmod +x "$crjq/jq"
+man="$TEST_TMPDIR/manifest-crlf.tsv"
+printf '%s\n' 'gamma	anything' >"$man"
+rc=0
+out=$(PATH="$crjq:$PATH" DOCS_CACHE_DIR="$fx.crlf-cache" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --manifest "$man" 2>&1) || rc=$?
+assert_exit "case 12: CR-terminated reason still skips" 0 "$rc"
+assert_contains "case 12: SKIP reason closes without a CR" "$out" "SKIP  gamma: page could not be read this run (not-in-index)"
+assert_not_contains "case 12: no CR reaches the output" "$out" $'\r'
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
