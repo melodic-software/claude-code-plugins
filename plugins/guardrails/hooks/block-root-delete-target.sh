@@ -478,8 +478,9 @@ rdt_block() {
     ;;
   outside-tree)
     printf '%s\n' \
-      "BLOCKED: recursive delete of $target, outside the working tree, the temp directories and the session scratchpad." \
-      'Fix: delete only strictly under one of those. Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
+      "BLOCKED: recursive delete of $target, outside the working tree, the temp directories, the session scratchpad and the roots in block_root_delete_target_allowed_roots." \
+      'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
+      'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
     ;;
   too-many-origins)
     printf '%s\n' \
