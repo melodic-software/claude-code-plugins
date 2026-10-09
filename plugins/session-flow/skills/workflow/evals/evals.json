@@ -337,6 +337,30 @@
         "It cites the follow-up that carries over as the reason it does not plain `/clear`",
         "It does NOT recommend `/compact` for unrelated work"
       ]
+    },
+    {
+      "id": 29,
+      "name": "disposable-clear-records-nothing",
+      "prompt": "/workflow continue: that was a throwaway spike to see how the date library parses offsets. No decisions came out of it, nothing is pending, and next I am starting the unrelated billing export work.",
+      "expected_output": "Nothing carries over and the next work is unrelated, so question 4 routes to `/clear`, typed by the user. With nothing to carry over there is nothing to record, so the router writes no decision record and asks no pending decisions before naming `/clear`.",
+      "files": [],
+      "expectations": [
+        "It recommends `/clear`, typed by the user",
+        "It does NOT write a decision record or create a plan, spec or checklist entry before naming `/clear`",
+        "It does NOT route to session-flow:handoff"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "suggest-only-handoff-records-in-checklist-first",
+      "prompt": "/workflow continue: the plan is finished and ready to execute, there is no separate spec file, and we decided to keep the v1 endpoint while the retry policy is still open.",
+      "expected_output": "A finished plan moving into execution routes to question 5: `session-flow:handoff`, then `/clear`. Before naming it, the router records the decision to keep the v1 endpoint and the open retry-policy decision with its recommendation in the active plan or the workflow checklist, since the save-point does not exist until the handoff runs, and asks the retry-policy decision now. It suggests the handoff rather than invoking it.",
+      "files": [],
+      "expectations": [
+        "It records the made and pending decisions in the plan or the workflow checklist before naming the handoff",
+        "It does NOT invoke session-flow:handoff itself in this suggest-only run",
+        "It asks the user the open retry-policy decision in this turn"
+      ]
     }
   ]
 }
