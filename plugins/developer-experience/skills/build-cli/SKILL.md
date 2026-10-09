@@ -52,16 +52,17 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
 4. **Withhold what you cannot settle.** A choice the user left open, or a consequential one
    (data that cannot be recovered, security, a new dependency for the whole team) that the
    repository and research do not settle, is withheld: name it in the plan as an open question
-   with the options and the evidence that would settle it, and recommend none. Never make it on
+   with the options and the evidence that would settle it, and recommend none: the plan gives it
+   no default, and does not say what a yes without an answer would build. Never make it on
    `Basis: judgment`, and never pass it to the tool's callers as a required flag: every normal
    run would then fail until someone answers a question the user left open.
 5. **Plan, then wait.** Show the files to create or change, the command's interface (arguments,
    flags, exit codes, JSON shape, dry-run), which helper it calls, and the open questions. Write
    nothing until the user says yes. A yes that leaves an open question unanswered approves the
-   plan, not an option: build with the option easiest to undo as an overridable default and
-   report it as unconfirmed, naming the flag that changes it. When no option can be undone (data
-   that cannot be recovered, security), ask that question again and write only what it does not
-   decide.
+   plan, not an option: only then pick the option easiest to undo, build it as an overridable
+   default and report it as unconfirmed, naming the flag that changes it. When no option can be
+   undone (data that cannot be recovered, security), ask that question again and write only what
+   it does not decide.
 6. **Write**, then record each new or changed command in the conventions file's Tools section:
    how it is run, what it does, whether it reads from the terminal, its non-interactive flags.
    This is the one conventions edit this skill makes; anything else goes through

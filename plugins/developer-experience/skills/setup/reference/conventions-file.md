@@ -73,9 +73,10 @@ updates it when the default changed.
 facts read from this repository. `apply` never rewrites it; `check` reports a changed plugin
 default beside it as INFO.
 
-A team edit to a `default` section makes it `chosen`: `apply` changes the marker when it records
-the edit, and `check` reports a `default` body that differs while `written_against` equals the
-running version as a marker to fix.
+A team edit to a `default` section makes it `chosen`: `apply` sets the marker when it writes an
+edit the user asked for. A `default` body found edited by hand, while `written_against` equals the
+running version, is reported by `check` as a marker to fix; `apply` leaves the body and the marker
+as found until the user names that fix.
 
 ## Sections and their defaults
 
