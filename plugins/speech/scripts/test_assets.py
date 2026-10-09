@@ -93,6 +93,15 @@ class ModelDir(Served):
         self.assertIn(str(shared), detail)
         self.assertIn('model_dir option', detail)
 
+    def test_a_folder_that_cannot_be_created_exits_1_naming_it(self):
+        blocked = self.tmp / 'not-a-folder'
+        blocked.write_text('', encoding='utf-8')
+        err = io.StringIO()
+        with mock.patch.object(assets, 'manifest', lambda: self.manifest), mock.patch.object(sys, 'stderr', err):
+            code = assets.main(['fetch', '--data-dir', str(self.data), '--model-dir', str(blocked)])
+        self.assertEqual(code, 1)
+        self.assertIn(f'the model folder {blocked / f"kokoro-{REVISION[:12]}"}', err.getvalue())
+
 
 class PinnedManifest(unittest.TestCase):
     def test_the_shipped_pin_holds_the_model_tokenizer_and_english_voices(self):

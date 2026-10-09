@@ -65,7 +65,10 @@ def fetch(data, m=None, log=sys.stderr, model_dir=None):
         meta = m['files'][rel]
         url = f'{m["source"]}/resolve/{m["revision"]}/{rel}'
         target = root / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise RuntimeError(f'{rel}: the model folder {target.parent} could not be created: {e}') from e
         partial = target.with_name(target.name + '.partial')
         log.write(f'speech: downloading {rel} ({meta["size"] / 1e6:.1f} MB)\n')
         digest = hashlib.sha256()
