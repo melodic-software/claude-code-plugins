@@ -25,7 +25,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/pr-body-linkage-gate.sh"
             ],
-            "if": "Bash(*pr create*)",
+            "if": "Bash(*pr*create*)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           },
@@ -36,7 +36,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/pr-body-linkage-gate.sh"
             ],
-            "if": "Bash(*pr new*)",
+            "if": "Bash(*pr*new*)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           },
@@ -47,7 +47,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/pr-body-linkage-gate.sh"
             ],
-            "if": "Bash(*pr edit*)",
+            "if": "Bash(*pr*edit*)",
             "timeout": 15,
             "statusMessage": "Checking PR body against the repo's pr-contract gate..."
           },
@@ -58,7 +58,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-containment-gate.sh"
             ],
-            "if": "Bash(*worktree add*)",
+            "if": "Bash(*worktree*add*)",
             "timeout": 15,
             "statusMessage": "Checking git worktree add target against the nesting invariant..."
           }
@@ -91,7 +91,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "${CLAUDE_PLUGIN_ROOT}/hooks/worktree-add-claim-gate.sh"
             ],
-            "if": "Bash(*worktree add*)",
+            "if": "Bash(*worktree*add*)",
             "timeout": 15,
             "statusMessage": "Claiming a newly added worktree..."
           }

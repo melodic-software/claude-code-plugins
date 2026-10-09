@@ -5,10 +5,10 @@ bump: patch
 ### Changed
 
 - **The Bash gates spawn only for the commands they judge.** `pr-body-linkage-gate` now
-  runs from three entries, `Bash(*pr create*)`, `Bash(*pr new*)` and `Bash(*pr edit*)`, in
+  runs from three entries, `Bash(*pr*create*)`, `Bash(*pr*new*)` and `Bash(*pr*edit*)`, in
   place of `Bash(*gh *)`, so it still sees `gh -R o/r pr create` and the `gh pr new` alias
   but no longer starts for every other `gh` call. `worktree-add-containment-gate` and
-  `worktree-add-claim-gate` now run under `Bash(*worktree add*)` in place of
+  `worktree-add-claim-gate` now run under `Bash(*worktree*add*)` in place of
   `Bash(*worktree*)`, so `git worktree list` and paths that merely contain `worktree` no
   longer start them.
 - **`/source-control:worktree create` skips `EnterWorktree` with no user present.** Outside
