@@ -9,3 +9,4 @@ bump: patch
 ### Changed
 
 - The skill's `when_to_use` now names checking or inspecting a saved playwright-cli login or state file, so that request loads the skill and its never-read-the-file rule.
+- The skill now answers "is my saved login still good" by loading the file in a session and looking at the page, never by inspecting the file, cookie names or expiry included.

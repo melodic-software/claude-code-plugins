@@ -52,7 +52,7 @@ playwright-cli -s=<flow> goto https://github.com/<owner>/<repo>
 
 `state-load` fails before `open`. A "no such file" error means no saved login: carry on logged out, or ask the owner to save one. Each session loads the file into its own isolated browser, so any number of agents run logged in at once, acting as the owner on that site.
 
-Never run `state-save` for a shared login, and never read, print, or copy the file, into a repo, a brief, or context: it is the owner's login. The owner saves and refreshes it with the commands in [reference/storage-and-auth.md](reference/storage-and-auth.md#shared-login-state).
+Never run `state-save` for a shared login, and never read, print, or copy the file, into a repo, a brief, or context: it is the owner's login. To answer "is my saved login still good", load the file in a session and look at the page: a sign-in page means it expired. Never inspect the file for that, cookie names or expiry included. The owner saves and refreshes it with the commands in [reference/storage-and-auth.md](reference/storage-and-auth.md#shared-login-state).
 
 ## Conventions
 
