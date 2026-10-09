@@ -81,19 +81,27 @@ describe("project signals", () => {
 describe("installed and routes", () => {
   test("installed ids come from the plugin list and the mcp list", () => {
     const out = detect(["--project", join(FIX, "idea"), ...seams]);
-    assert.deepEqual(out.installed, ["/user-interface:design"]);
-    assert.deepEqual(out.reachable, { "/user-interface:design": true });
+    assert.ok(out.installed.includes("/user-interface:design"), "plugin-list id");
+    assert.ok(out.installed.includes("dovetail"), "mcp-list id");
+    assert.ok(out.installed.includes("mixpanel"), "plugin-bundled mcp-list id");
+    assert.ok(!out.installed.includes("/design:user-research"), "a disabled plugin's row");
+    assert.equal(out.reachable["/user-interface:design"], true);
+    assert.equal(out.reachable.dovetail, true);
+    assert.equal(out.reachable.mixpanel, false);
     assert.ok(!("reason" in out), out.reason);
   });
 
   test("routes are the bundled rows, each marked present when installed", () => {
+    // Enabled in plugin-list.json (user-interface, product-management) or listed in mcp-list.txt (dovetail, mixpanel).
+    const expected = new Set(["/user-interface:design", "/product-management:synthesize-research", "/product-management:metrics-review", "dovetail", "mixpanel"]);
     const { routes } = detect(["--project", join(FIX, "idea"), ...seams]);
-    assert.deepEqual(routes, ROWS.map((r) => ({ ...r, present: true })));
+    assert.deepEqual(routes, ROWS.map((r) => ({ ...r, present: expected.has(r.id) })));
   });
 
   test("a route whose plugin is not enabled is marked absent", () => {
     const list = pluginList([self(), record("user-interface@fixture-market", { enabled: false })]);
-    const { installed, routes } = detect(["--project", join(FIX, "idea"), "--home", HOME, "--plugin-list-json", list, "--mcp-list", MCP]);
+    const noMcp = join(FIX, "mcp-list-empty.txt");
+    const { installed, routes } = detect(["--project", join(FIX, "idea"), "--home", HOME, "--plugin-list-json", list, "--mcp-list", noMcp]);
     assert.deepEqual(installed, []);
     assert.deepEqual(routes, ROWS.map((r) => ({ ...r, present: false })));
   });

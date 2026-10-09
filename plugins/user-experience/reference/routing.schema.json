@@ -28,7 +28,7 @@
               }
             },
             "then": {"not": {"required": ["pointer"]}},
-            "else": {"required": ["pointer"]}
+            "else": {"required": ["pointer", "recheck"]}
           }
         ],
         "properties": {
@@ -42,7 +42,8 @@
           "account": {"enum": ["none", "key", "login", "paid"]},
           "status": {"enum": ["confirmed", "unconfirmed", "deferred"]},
           "as_of": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
-          "pointer": {"type": "string", "pattern": "^https://"}
+          "pointer": {"type": "string", "pattern": "^https://"},
+          "recheck": {"type": "string", "minLength": 1}
         }
       }
     }
