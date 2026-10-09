@@ -10,6 +10,7 @@ Manage cookies, localStorage, sessionStorage, and complete browser state (for au
 - [sessionStorage](#sessionstorage)
 - [IndexedDB](#indexeddb)
 - [Auth reuse pattern (the standard flow)](#auth-reuse-pattern-the-standard-flow)
+- [Shared login state](#shared-login-state)
 - [Security invariants](#security-invariants)
 
 ## Storage state (the big knob)
@@ -20,9 +21,10 @@ Save whole browser state to a file, restore later to skip login:
 # After a successful login:
 playwright-cli -s=auth state-save auth.json
 
-# Later, in a fresh session:
+# Later, in a fresh session (state-load needs an open browser):
+playwright-cli -s=auth open about:blank
 playwright-cli -s=auth state-load auth.json
-playwright-cli -s=auth open https://app.example.com/dashboard   # already logged in
+playwright-cli -s=auth goto https://app.example.com/dashboard   # already logged in
 ```
 
 **Never commit state files with real auth tokens.** Add `*.auth-state.json` and `auth.json` to `.gitignore` if used. For your project's E2E fixtures, prefer test accounts with rotatable tokens.
@@ -107,8 +109,9 @@ playwright-cli -s=login state-save auth.json
 playwright-cli -s=login close
 
 # Step 2: subsequent sessions load state and skip login
+playwright-cli -s=test open about:blank
 playwright-cli -s=test state-load auth.json
-playwright-cli -s=test open https://app.example.com/dashboard
+playwright-cli -s=test goto https://app.example.com/dashboard
 # ... run tests against authenticated app ...
 playwright-cli -s=test close
 ```
@@ -116,8 +119,40 @@ playwright-cli -s=test close
 Set `E2E_TEST_PASSWORD` in your own environment before running this. An unset variable
 expands to an empty string and the fill succeeds while typing nothing.
 
+## Shared login state
+
+For a real site the owner uses (GitHub first), one state file per site lets every agent session run logged in at once: each loads the file into its own in-memory browser after `open` ([SKILL.md](../SKILL.md#logged-in-sites)). A `--persistent` or `--profile` directory cannot do this, because a browser profile admits one running browser at a time.
+
+The owner saves the file once, from a headed session, and re-saves it only when the site expires the login (a loaded session lands on a sign-in page). Agents never run these steps: auto mode denied an agent's `state-save` as credential materialization (observed 2026-10-09), and the owner, not an agent, should decide when a login is written to disk.
+
+Linux and macOS, in a shell (in Claude Code, prefix each command line with `!`):
+
+```bash
+d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && mkdir -p "$d" && chmod 700 "$d" && playwright-cli -s=save-github open https://github.com/login --headed
+# log in in that window, 2FA included, then:
+d="${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli" && playwright-cli -s=save-github state-save "$d/github.json" && chmod 600 "$d/github.json" && playwright-cli -s=save-github close
+```
+
+Windows, in PowerShell:
+
+```powershell
+$d = "$env:LOCALAPPDATA\playwright-cli"; New-Item -ItemType Directory -Force $d | Out-Null; playwright-cli -s=save-github open https://github.com/login --headed
+# log in in that window, 2FA included, then:
+$d = "$env:LOCALAPPDATA\playwright-cli"; playwright-cli -s=save-github state-save "$d\github.json"; icacls "$d\github.json" /inheritance:r /grant:r "$env:USERDOMAIN\${env:USERNAME}:F"; playwright-cli -s=save-github close
+```
+
+For another site, change the URL and the file name (`<site>.json`).
+
+What the file means:
+
+- It is equivalent to a logged-in browser session as the owner. Anyone who can read it, and every agent that loads it, acts as the owner on that site.
+- It lives outside every repository, in an owner-only directory (mode 700, file mode 600; an owner-only ACL on Windows). It is never committed, copied, or read into an agent's context.
+- To revoke it, delete the file and sign that session out on the site (GitHub: Settings, Sessions).
+
+- **Pointer**: the default directory follows `$XDG_STATE_HOME` from the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/latest/); what a state file holds and why it is sensitive is in [Playwright authentication](https://playwright.dev/docs/auth). **As of**: 2026-10-09. **Recheck trigger**: the frontmatter `upstream-version` moves, or the spec changes `XDG_STATE_HOME`.
+
 ## Security invariants
 
 - Default sessions are in-memory, which is safer for sensitive operations. Use `--persistent` only when auth carry-through across browser restarts required
-- `state-save` files contain raw tokens. Treat as secrets: gitignore, delete after tests, don't share between developers
+- `state-save` files contain raw tokens. Treat as secrets: gitignore, delete after tests, don't share between developers. The [shared login state](#shared-login-state) is the one kept file, and it lives outside every repository
 - Prefer env-var-driven test credentials over hard-coded values in skill examples
