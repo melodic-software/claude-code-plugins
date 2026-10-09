@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"Total: 71.50\\n\"}",
+      "why": "the buggy run's stdout in the trace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"Total: 67.95\\n\"}",
+      "why": "only the fixed output"
+    }
+  ]
+}

@@ -439,6 +439,8 @@ wit_gitea_require_ok() {
 #     grammar wants. The instance HOST is deliberately not part of the ID: one binding
 #     addresses one host, and putting it in the ID would break every persisted ID the
 #     day an instance moves.
+#   • Gitea records no close reason, so a closed blocker counts as resolved and
+#     won't-do detection is unsupported: blocked_by_wont_do_count is always 0.
 #   • Gitea has NO issue-type registry and NO parent/sub-issue field on Issue, so
 #     `type` and `parent_id` are structurally null here — not "unmapped".
 # shellcheck disable=SC2016,SC2034  # jq program — $sv/$bbc are jq args, not bash; used by verb scripts
@@ -453,6 +455,7 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM='
     labels: [ (.labels // [])[] | .name // empty ],
     type: null,
     blocked_by_count: $bbc,
+    blocked_by_wont_do_count: 0,
     parent_id: null,
     url: (.html_url // "")
   }'

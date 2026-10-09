@@ -30,7 +30,9 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   example `PSAvoidGlobalVars`) are *reported* but never auto-applied.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate.
+  your hard gate. A finding set is reported once per file: an unchanged set on a
+  re-edit sends nothing, and it is sent again after a clean run or after the
+  context is compacted or cleared.
 - **Graceful degrade.** If PowerShell (`pwsh`) is not installed, or the
   PSScriptAnalyzer module is not available, the hook is a clean silent no-op.
   No error spam. `pwsh` is resolved from `PATH` and is never downloaded.
@@ -43,12 +45,13 @@ not inert data. A settings file may declare a
 pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
 modules' exported functions during analysis. The hook therefore never runs the
 analyzer under such a settings file without an explicit approval: it skips the
-format/lint run and reports a visible trust-gate notice (once per session and agent, renewed every eighth skip, on
-both the agent and user channels) naming the settings file and the approval
-marker to create. To approve, review the settings file and every rule module it
+format/lint run and reports a visible trust-gate notice, once per session and agent. Your
+copy names the settings file and the approval marker to create; Claude's copy
+says the run was skipped and that approval is yours, without the command that
+grants it. To approve, review the settings file and every rule module it
 references. Treat them with the same trust you give your build and CI
 configuration, then create the marker directory using the exact `mkdir -p`
-command the notice carries. The marker lives under
+command your notice carries. The marker lives under
 `${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
 repository, the settings file, every file reachable under each declared
 `CustomRulePath` entry (recursively for directories), and every repository
@@ -74,11 +77,12 @@ directory outside the project.
   Claude Code can run it under Git Bash.
 - **Node.js** on `PATH`. Every handler in `hooks/hooks.json` runs through
   `node hooks/exec-bash.mjs`, which starts the Bash script. Claude Code's native binary neither
-  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29),
+  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29;
+  recheck when the setup docs say the native binary ships or uses Node),
   so without `node` the hooks do not launch and nothing is formatted, with no notice.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
   hook probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,
@@ -219,7 +223,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

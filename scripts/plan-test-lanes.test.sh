@@ -4,10 +4,9 @@
 # goes wider than the selection only where the planner's header says, and a
 # selected suite no lane runs fails the plan. The fixture cases run a copy of
 # the planner and the selector in a throwaway repo; the LIVE cases hold the
-# real tree: the whole-tree plan covers the whole corpus, every Node suite has
-# a home, and scripts/test-windows-plan.txt names exactly the steps
-# test-windows.yml gates.
-# test-scope: .github/workflows/test-windows.yml
+# real tree: scripts/test-windows-plan.txt names exactly the steps
+# pr-test-windows.yml gates.
+# test-scope: .github/workflows/pr-test-windows.yml
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,11 +66,15 @@ mk plugins/orphan/o.test.js "require('./o.js');"
 mk plugins/ps/x.ps1 "function X {}"
 mk plugins/ps/x.Tests.ps1 ". \$PSScriptRoot/x.ps1"
 mk plugins/z/data.cfg "k=v"
+mk plugins/z/z.sh "echo z"
+mk .github/actions/download-full-history/action.yml "name: download-full-history"
+mk .github/actions/other/action.yml "name: other"
+mk docs/conventions/pr-pipeline/pr-pipeline.schema.json "{}"
 mk .python-version 3.14
 mk pyproject.toml "[project]"
 mk .node-version 24
-mk .github/workflows/ci.yml "name: ci"
-mk .github/workflows/test-windows.yml "name: test-windows"
+mk .github/workflows/pr-require-checks.yml "name: ci"
+mk .github/workflows/pr-test-windows.yml "name: test-windows"
 printf '%s\n' "# seconds" \
   "plugins/a/a.test.sh 100" "plugins/b/b.test.sh 30" "plugins/c/c.test.sh 90" "plugins/d/d.test.sh 60" \
   "plugins/e/e.test.sh 50" "plugins/f/f.test.sh 40" "plugins/g/g.test.sh 20" "plugins/h/h.test.sh 10" \
@@ -164,8 +167,12 @@ plan -- plugins/fx/evals/fixtures/fx.test.js
 [[ "$RC" -eq 0 ]] && is "$(key node)" false
 check "a Node eval fixture is data, not a suite" $?
 
+plan -- docs/conventions/pr-pipeline/pr-pipeline.schema.json
+is "$(key node_packages)" ".github/actions/resolve-config" && is "$(key node)" true
+check "a change under a package's trigger directory runs that package" $?
+
 plan -- .node-version
-is "$(key node_packages | wc -w | tr -d ' ')" 5
+is "$(key node_packages | wc -w | tr -d ' ')" 6
 check "a Node pin runs every Node package" $?
 
 plan -- plugins/ps/x.ps1
@@ -173,20 +180,32 @@ is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?
 
 plan -- plugins/z/data.cfg
-is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12
-check "an unmapped data file runs the whole shell corpus and is counted" $?
+is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
+check "an unmapped data file runs no corpus and is counted" $?
+
+plan -- plugins/z/z.sh
+is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
+check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
 # --- wider than the selection ------------------------------------------------
 
-plan -- .github/workflows/ci.yml
+plan -- .github/workflows/pr-require-checks.yml
 is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
-  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 5 &&
+  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 6 &&
   is "$(key windows_jobs)" "[]"
-check "a ci.yml change runs every ci.yml lane whole on 6 legs, and test-windows from the selection" $?
+check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 6 legs, and test-windows from the selection" $?
 
-plan -- .github/workflows/test-windows.yml
+plan -- .github/actions/download-full-history/action.yml
+is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+check "the local action every lane runs plans every lane whole" $?
+
+plan -- .github/actions/other/action.yml
+is "$(key bash)" false && is "$(key python)" false && is "$(key windows_jobs)" "[]"
+check "another local action plans no lane whole" $?
+
+plan -- .github/workflows/pr-test-windows.yml
 is "$(key windows_jobs)" '["win-a","win-b"]' && is "$(key bash)" false
-check "a test-windows.yml change runs every Windows step and no ci.yml lane" $?
+check "a pr-test-windows.yml change runs every Windows step and no pr-require-checks.yml lane" $?
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
@@ -209,40 +228,27 @@ is "$RC" 2
 check "--base with no ref is a usage error" $?
 
 # --- LIVE: the real tree -------------------------------------------------------
+# The whole-tree plan of the live tree reads every file, so it is the
+# `test-plan-corpus` gate step of pr-require-checks.yml's lint-repo job, which
+# runs on every pull request, not a case here.
 
-live="$(cd "$REPO_ROOT" && bash scripts/plan-test-lanes.sh 2>/dev/null)" || fail "the whole-tree plan of the live repo failed"
-OUT="$live"
-is "$(suites bash)" "$(cd "$REPO_ROOT" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_plan | jq -r '[.[][]] | length' | tr -d '\r')" "$(suites bash | wc -l | tr -d ' ')"
-check "live: the whole-tree bash plan is the runner's corpus, each suite once" $?
-is "$(suites python)" "$(cd "$REPO_ROOT" && git ls-files --cached --others --exclude-standard |
-  awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort)"
-check "live: the whole-tree Python plan is every test module but the eval fixtures" $?
-is "$(key bash_plan | jq '[.[] | length > 0] | all' | tr -d '\r')" true &&
-  is "$(key python_plan | jq '[.[] | length > 0] | all' | tr -d '\r')" true
-check "live: no leg of the whole-tree plan is empty" $?
-
-mapfile -t node_suites < <(cd "$REPO_ROOT" && git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
-(cd "$REPO_ROOT" && bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null 2>"$ERR")
-check "live: every Node suite in the tree runs through a wrapper or a Node package" $?
-
-# The (job, key) pairs test-windows.yml gates on, against the plan's lines.
+# The (job, key) pairs pr-test-windows.yml gates on, against the plan's lines.
 yml_pairs="$(awk '
   /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1; sub(/:$/, "", job) }
   match($0, /outputs\.steps\), '\''[^'\'']+'\''\)/) {
     k = substr($0, RSTART, RLENGTH); sub(/^outputs\.steps\), '\''/, "", k); sub(/'\''\)$/, "", k)
     print job " " k
-  }' "$REPO_ROOT/.github/workflows/test-windows.yml" | LC_ALL=C sort -u)"
+  }' "$REPO_ROOT/.github/workflows/pr-test-windows.yml" | LC_ALL=C sort -u)"
 plan_pairs="$(awk '!/^[[:blank:]]*(#|$)/ { print $1 " " $2 }' "$REPO_ROOT/scripts/test-windows-plan.txt" | LC_ALL=C sort -u)"
 same "$yml_pairs" "$plan_pairs"
-check "live: test-windows.yml gates exactly the steps scripts/test-windows-plan.txt names" $?
+check "live: pr-test-windows.yml gates exactly the steps scripts/test-windows-plan.txt names" $?
 yml_jobs="$(awk '
   /^  [A-Za-z0-9_-]+:[[:blank:]]*$/ { job = $1; sub(/:$/, "", job) }
   match($0, /outputs\.jobs \|\| '\''\[\]'\''\), '\''[^'\'']+'\''\)/) {
     k = substr($0, RSTART, RLENGTH); sub(/^.*\), '\''/, "", k); sub(/'\''\)$/, "", k)
     print (k == job ? job : "MISMATCH " job " gates on " k)
-  }' "$REPO_ROOT/.github/workflows/test-windows.yml" | LC_ALL=C sort -u)"
+  }' "$REPO_ROOT/.github/workflows/pr-test-windows.yml" | LC_ALL=C sort -u)"
 same "$yml_jobs" "$(cut -d' ' -f1 <<<"$plan_pairs" | LC_ALL=C sort -u)"
-check "live: every test-windows.yml job gates on the plan's job list under its own name" $?
+check "live: every pr-test-windows.yml job gates on the plan's job list under its own name" $?
 
 test_harness::report

@@ -4,6 +4,16 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [2.2.0] - 2026-10-07
+
+Additive guidance; minor under this contract's own rule. Rung 1 now covers any publisher through
+the docs lookup (`/discovery:read-docs` over `lib/fetch-docs.sh` and `lib/docs-cache.sh`): raw
+`.md`, `Accept: text/markdown`, a `.md` suffix, the origin's `llms.txt` link, or converted HTML.
+WebFetch is rung 2, for finding a page and small questions, with a pointer record to the tools
+reference WebFetch section and a dated truncation measurement (2026-10-04). The hashing section
+states that cached section hashes now expire notes, and that a stamp hash store stays deferred
+([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
 ## [2.1.0] - 2026-10-02
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

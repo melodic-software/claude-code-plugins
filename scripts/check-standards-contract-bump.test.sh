@@ -138,6 +138,40 @@ if out="$(run_gate "$f" "$base" 2>&1)"; then
 else
   fail "the gate should pass when frontmatter, changelog, and manifests all moved, got: $out"
 fi
+
+# --- a fragment stands in for a carrier's bump only in fragment mode ----------
+printf 'planning\n' >"$f/scripts/fragment-plugins.txt"
+bump "$f" planning 0.1.0
+bump "$f" review 0.1.0
+for plugin in planning review; do
+  mkdir -p "$f/.changes/$plugin"
+  printf -- '---\nbump: patch\n---\n\n### Changed\n\n- Contract synced.\n' >"$f/.changes/$plugin/sync-0123abcd.md"
+done
+git -C "$f" add .changes
+out="$(run_gate "$f" "$base" 2>&1)"
+if [[ $? -eq 1 && "$out" == *"plugins/review/.claude-plugin/plugin.json is still 0.1.0"* && "$out" != *plugins/planning/* ]]; then
+  ok "the gate accepts a fragment-mode carrier's fragment and still requires the legacy carrier's bump"
+else
+  fail "expected only review reported stale, got: $out"
+fi
+if [[ "$out" == *"and bump every carrying plugin."* && "$out" != *"new-changelog-fragment.sh"* ]]; then
+  ok "a legacy carrier alone gets the unchanged bump message"
+else
+  fail "expected the legacy bump message and no fragment command, got: $out"
+fi
+# A fragment-mode carrier with no fragment is told to add one, not to bump.
+git -C "$f" rm -q --cached .changes/planning/sync-0123abcd.md
+rm "$f/.changes/planning/sync-0123abcd.md"
+out="$(run_gate "$f" "$base" 2>&1)"
+if [[ $? -eq 1 && "$out" == *"STALE VERSION: $CANONICAL changed vs $base but planning, in fragment mode, has no fragment for it"* &&
+  "$out" == *"Run scripts/new-changelog-fragment.sh planning patch."* &&
+  "$out" == *"bump every carrying plugin not in fragment mode."* &&
+  "$out" == *"A carrying plugin in fragment mode takes a patch fragment instead"* &&
+  "$out" != *"plugins/planning/.claude-plugin/plugin.json is still"* ]]; then
+  ok "a fragment-mode carrier with no fragment is told to run new-changelog-fragment.sh"
+else
+  fail "expected the fragment command for planning, got: $out"
+fi
 rm -rf "$f"
 
 # --- carrying plugin manifest not bumped → fail -------------------------------

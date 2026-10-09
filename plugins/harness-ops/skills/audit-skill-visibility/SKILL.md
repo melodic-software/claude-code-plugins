@@ -14,7 +14,7 @@ Relay the sentence below to the user and do not run `/skill-doctor` yourself: it
 
 If /skill-doctor is available in your session (claim: `/skill-doctor` is a built-in command reserved for the person to run, and it requires a minimum Claude Code version and a session that fetches feature flags; basis: the `/skill-doctor` row on the commands reference and the find-unused-skills section of the skills reference, both fetched 2026-09-29; as of 2026-09-29; recheck: either page changes that requirement, or a release renames it or merges it into `/doctor`), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
-**Arguments.** `[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked. Full form: [unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
+**Arguments.** `[unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]`. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked. Full form: [unattended] [--installed [dir]] [--plugins-root <dir>] [--context-window <tokens>] [--bytes-per-token 3|4] [--budget-fraction <f>] [--max-desc-chars <n>] [--listing-capture <transcript.jsonl>] [--render markdown|json] [--now <RFC3339>] [--fixture <path>]. Collects live; --installed reads the plugin manifest, else fleet defaults to ./plugins; unpinned, the budget is a band over both windows and both byte estimates
 
 ## Purpose
 
@@ -28,8 +28,9 @@ my skill fleet never get used?* A skill the model cannot see cannot be chosen, s
 `skillOverrides` under "Override skill visibility". This skill audits every way a
 plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
 are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
-of the skills it ships. `skillOverrides` governs non-plugin skills, which this
-audit does not enumerate, so it is never cited here as a cause. Verified 2026-09-27 against
+of the skills it ships. `skillOverrides` governs non-plugin skills (user, project and
+claude.ai-synced), which `--installed` enumerates and applies it to; it is never cited
+as a cause for a plugin skill. Verified 2026-09-27 against
 <https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
 `skillOverrides`. Manage those through `/plugin` instead.") and Claude Code 2.1.283,
 whose listing resolver returns `on` for every plugin-sourced skill before it reads the
@@ -225,7 +226,7 @@ The budget has five inputs, and the report states where each one came from:
   pin either value over every scope.
 - `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides the whole computation
   unconditionally, exactly as the product does, and the row then carries
-  `budget_basis: env-override`.
+  `budget_basis: env-override` and the label `SLASH_COMMAND_TOOL_CHAR_BUDGET`.
 - The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT` collapses
   it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` names it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
@@ -235,13 +236,63 @@ The budget has five inputs, and the report states where each one came from:
   report carries both.
 
 With nothing pinned the `listing` section is a **band** of four labeled rows
-(200k/4, 200k/3, 1M/4, 1M/3), each with its own budget, overflow, verdict, and
-starved count, and the top-level numbers are null under `budget_basis: band`.
+(200k/4, 200k/3, 1M/4, 1M/3), each with its own demand, floor, budget,
+overflow, verdict, and starved count, and the top-level numbers are null under
+`budget_basis: band`.
 Pinning both model-side inputs yields the single-row shape with the pinned
 numbers at the top level. A row's `budget_basis` names the settings file that
 supplied the fraction (`settings:<path>`), `fraction` for the documented
 default, or the pin. `inputs` in the JSON, and the "Inputs consulted" list in
 the Markdown, carry every scope and variable consulted with its status.
+
+### What the verdict counts
+
+The verdict compares the **whole rendered listing** with the budget, as the
+product does: every listed entry is `- <name>: <description>` (or `- <name>`
+when name-only), joined by newlines. `demand_chars` is the competing
+descriptions alone; `floor_chars` is what the listing costs before any
+description is granted (every name, the exempt entries in full, the
+separators); `listing_chars` is the full rendering, and `overflow_chars` is
+that over the budget. [reference/listing-scorer.md](reference/listing-scorer.md)
+carries the arithmetic and its stamp.
+
+The entries come from every source on disk: plugin skills, commands and
+workflows, and with `--installed` the user's `~/.claude/skills`, the
+`.claude/skills` of the project and each parent up to the repository root, and
+the signed-in account's claude.ai-synced skills, each with `skillOverrides`
+applied. A user or project skill is listed under its frontmatter `name` when it
+sets one, a synced skill under its folder name, and a personal skill shadows a
+project skill of the same name. Built-in and bundled skills ship
+inside Claude Code and cannot be read from disk, so without a capture
+`coverage` is `enumerated-only`, the Markdown says what was not counted, and a
+row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
+only a read capture that covers the counted fleet can confirm a fit. A capture
+that omits a counted entry, or renders one longer than it is counted, came from
+a session that loaded a different fleet; it is listed under
+`listing.capture.not_in_capture` or `longer_in_capture` and the fit stays
+`fit-unconfirmed`. `overflowing` needs no capture, since an uncounted entry
+only adds to the listing.
+`--listing-capture <transcript.jsonl>` reads the listing a session actually
+received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
+counts every entry no disk walk could find (built-in, bundled, synced skills
+when no signed-in account was read, and, in a checkout, any plugin outside the
+checkout and the project's own skills) at its captured length, and reports in
+`listing.capture.not_in_fleet` the qualified `plugin:skill` entries it names
+that the fleet lacks, as when a plugin was uninstalled after the captured
+session. Those are not counted, the capture is from a different fleet, and an
+overflow that only the capture's charges produce is `overflow-unconfirmed`,
+never `overflowing`. An unqualified captured name is always counted, since a
+removed personal skill cannot be told from a built-in by name. It also reports in
+`listing.capture` the descriptions the session shed; a budget row that says
+`listing-fits` while the session shed descriptions is listed under
+`disagrees`. The engine only reads the file; it never launches Claude Code.
+The transcript's listing record is not a published format: its shape, as-of
+date (2026-10-04, Claude Code 2.1.289) and recheck trigger are stamped beside
+`parse_listing_capture` in the script, and a shape it does not recognize
+reports the capture as `not-read` rather than guessing.
+
+A verdict covers the main session at the stated window. A subagent gets a
+listing sized to its own window and can shed where the main session does not.
 
 `--fixture <bundle.json>` reads a recorded collection instead of the live one, the reproduction path, used by the tests and for handing someone else's state to
 the same engine. It is not needed to get a report.
@@ -308,22 +359,27 @@ shipped binary, and every row says so in its `provenance`. Do not present it to
 a user as documented.
 
 `starvation.verdict` values: `likely-starved` · `likely-retained` ·
-`listing-fits` · `withheld` · `not-assessable`. A listing that overflows with no
+`listing-fits` · `fit-unconfirmed` · `withheld` · `not-assessable`. A listing that overflows with no
 usage recorded for any competing skill reports `withheld` with
 `reason: "unscored"` on every competing row and no band, because at all-zero
 scores the product's ordering is the catalog-order tie its stable sort leaves,
 and naming rows would sell catalog position as preference. How many descriptions
 cannot fit is arithmetic and is still reported, as `starved_count` and as a
 count in the Markdown; the run carries one run-level `withheld` entry for the
-per-skill claim, never one per skill.
+per-skill claim, never one per skill. An `overflow-unconfirmed` listing
+withholds the same way with `reason: "capture-mismatch"`.
 
 `not-assessable` marks the rows that never enter the contest, with
 `starvation.eligibility` naming why: `exempt-bundled` (a bundled skill keeps
-its description unconditionally), `exempt-user-only` (`disable-model-invocation`
-keeps it out of context), and `exempt-hidden` (the owning plugin is `hidden` or
-`not-enabled`, so the product never loads the skill). Exempt rows contribute no
-`demand_chars`, so a fleet whose only excess sits in plugins that do not load
-reports `listing-fits`. `exempt-hidden` covers both not-loading answers, and
+its description unconditionally and is charged for it in the floor),
+`exempt-user-only` (`disable-model-invocation`, or a `user-invocable-only`
+override, keeps it out of context), `exempt-name-only` (a `name-only` override
+lists the name alone), and `exempt-hidden` (the owning plugin is `hidden` or
+`not-enabled`, or an `off` override drops the skill, so it is never listed).
+Only `exempt-bundled` and `exempt-name-only` rows are listed, so a fleet whose
+only excess sits in plugins that do not load reports a fit (`listing-fits`
+with a capture that covers the fleet, `fit-unconfirmed` otherwise).
+`exempt-hidden` covers both not-loading answers, and
 only a settled not-loading answer (`hidden` or `not-enabled`) exempts: a
 `not-assessed` checkout row or an `unknown` one keeps competing, because
 unknown is not hidden.

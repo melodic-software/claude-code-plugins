@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Here is what I see.\n\nQ1: Should habits persist across reloads?",
+      "why": "a Q1 line"
+    },
+    {
+      "answer": "Round 1\n**Q1: Which export format?**",
+      "why": "bold Q1"
+    },
+    {
+      "answer": "Questions:\n1. Which export format?",
+      "why": "numbered list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here is the locked brief. Goal: a habit tracker.",
+      "why": "no round asked"
+    }
+  ]
+}

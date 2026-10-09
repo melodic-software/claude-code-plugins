@@ -3,6 +3,30 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.6.7] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.6.6] - 2026-10-04
+
+### Fixed
+
+- **`capture.py` waits up to 60 s for each browser step on a slow host, and a timeout names the step ([#6219](https://github.com/melodic-software/claude-code-plugins/issues/6219)).** Opening the page had 10 s, the debugger connection 20 s, the scene's readiness 15 s, and the capture its recording length plus 20 s (30 s at least); a contended CI runner ran past them with the browser still alive, and the run failed with a bare `timed out`. Each now has 60 s, the capture its recording length plus 60 s, and the error reads, for example, `opening the scene page: timed out`. The campfire test puts capture.py's error ahead of the browser log in its failure message; the log's headless D-Bus lines were read as the cause.
+
+## [0.6.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.6.4] - 2026-10-04
 
 ### Changed

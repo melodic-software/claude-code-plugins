@@ -1,0 +1,12 @@
+{
+  "claim": "Control: in auto mode with no autoMode rule, the PROBEMARK command runs.",
+  "tags": ["autoMode", "soft_deny"],
+  "permission_mode": "auto",
+  "target": {
+    "tool": "Bash",
+    "input_match": "PROBEMARK",
+    "example": { "command": "python3 -c \"print('PROBEMARK')\"" }
+  },
+  "outcome": "ran",
+  "match": "PROBEMARK"
+}

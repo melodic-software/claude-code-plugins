@@ -60,8 +60,9 @@ and `generate-file-name-gate` emits the check that keeps the tree from drifting
 back. Three things stay with the operator on purpose:
 
 - **The version bump and the changelog entry.** A renamed file inside a
-  versioned unit usually needs both, and the shape of each is the consuming
-  project's release convention. The realign never edits either.
+  versioned unit usually needs both (or a changelog fragment, where the project
+  releases from fragments), and the shape of each is the consuming project's
+  release convention. The realign never edits either.
 - **The commit.** The realign leaves the working tree uncommitted so the diff
   gets read before it is recorded. A rename sweep is exactly the change that
   deserves that.

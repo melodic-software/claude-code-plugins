@@ -84,7 +84,7 @@ hook::buffer_stdin_to INPUT || {
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
@@ -106,11 +106,13 @@ hook::jq_fields "$INPUT" \
 # refusal, reached from the envelope below and from each file of the MCP lane, so
 # the two cannot drift to different wording or a different posture.
 secret_nul_refusal() {
-  echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
-  echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 }
+
+# The fix line both lanes print. The allowlist is fixed globs in this file, not
+# an option, so a fixture that trips it is the user's call.
+SECRET_FIX="Remove the value; use an environment variable, settings.local.json or a secret manager. For a test fixture, ask the user."
 
 if ((HOOK_JQ_FIELDS_NUL)); then
   secret_nul_refusal
@@ -234,12 +236,9 @@ mcp_lane() {
   [[ -n "$violations" ]] || return 0
 
   {
-    printf 'Secret/credential pattern(s) detected in content bound for GitHub:\n\n'
+    printf 'BLOCKED: secret/credential pattern(s) in content bound for GitHub:\n\n'
     printf '%s\n' "$violations"
-    printf 'This write goes straight to a repository — there is no local file to\n'
-    printf 'fix afterwards, and no pre-commit hook on this path. Remove the secret\n'
-    printf 'and reissue. If this is a test fixture or example, add its path to the\n'
-    printf 'allowlist in secret-pattern-detection.sh.\n'
+    printf '%s\n' "$SECRET_FIX"
   } >&2
 
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
@@ -651,12 +650,17 @@ if [[ -z "$scan_out" ]]; then
 fi
 
 # --- Report violations ---
+# The file as the model names it: project-relative when it sits under the
+# project spelled the same way, else as given. A prefix strip, not
+# hook::repo_relative_path_to: that one forks cygpath on Windows and degrades to
+# a basename, which names a different file.
+show_file="$FILE"
+_spd_proj="${CLAUDE_PROJECT_DIR:-}"
+[[ -n "$_spd_proj" && "$FILE" == "${_spd_proj%/}/"?* ]] && show_file="${FILE#"${_spd_proj%/}/"}"
 {
-  printf 'Secret/credential pattern(s) detected in %s:\n\n' "$FILE"
+  printf 'BLOCKED: secret/credential pattern(s) in %s:\n\n' "$show_file"
   printf '%s\n' "$scan_out"
-  printf 'If this is a test fixture or example, add the file to the allowlist\n'
-  printf 'in secret-pattern-detection.sh. Never commit real secrets — use\n'
-  printf 'environment variables, settings.local.json, or a secret manager.\n'
+  printf '%s\n' "$SECRET_FIX"
 } >&2
 labels_json=$(printf '%s\n' "${labels[@]}" | jq -Rn '[inputs]' 2>/dev/null) || labels_json='[]'
 emit_tel "blocked" "$labels_json"

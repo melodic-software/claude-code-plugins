@@ -1,0 +1,5 @@
+# 1. Greeting function name
+
+Status: Accepted
+
+We name the greeting function `say_hello`.

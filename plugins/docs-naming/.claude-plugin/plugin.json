@@ -1,6 +1,6 @@
 {
   "name": "docs-naming",
-  "version": "0.2.5",
+  "version": "0.2.7",
   "description": "File-name toolkit that plans, applies, and enforces a casing rule across a tracked tree: setup (the one configuration surface), audit-file-names (read-only inventory plus the reference sweep, writing the rename plan), realign-file-names (the executor, one human acceptance per file), and generate-file-name-gate (emits the standalone check that keeps the tree from drifting back).",
   "author": {
     "name": "Melodic Software",

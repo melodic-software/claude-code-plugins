@@ -76,6 +76,9 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 
 WORK="$(mktemp -d)"
+# Git Bash hands node a POSIX /tmp path inside JS source strings unconverted;
+# a mixed-form path reads on both sides.
+if command -v cygpath >/dev/null 2>&1; then WORK="$(cygpath -m "$WORK")"; fi
 cleanup() { rm -rf "$WORK"; }
 trap cleanup EXIT
 
@@ -91,7 +94,9 @@ jsonmutate() {
 }
 
 # write_snapshot <file> <mode> <version> <signature> <systemtools> <skilltokens>
-# Minimal but schema-valid snapshot record for compare tests.
+# Minimal but schema-valid snapshot record for compare tests. The deferred
+# bucket is the literal 1000 in every record, which is why two of them compare
+# with a deferred delta of 0 (the dA/dB test below).
 write_snapshot() {
   printf '{"schema":"context-budget.snapshot/1","timestampUtc":"2026-01-01T00:00:00Z","mode":"%s","precision":"exact","label":null,"deny":[],"binary":{"path":"/opt/fake/claude","version":"%s"},"categories":{"System tools":%s,"System tools (deferred)":1000,"Skills":%s},"totalTokens":%s,"skillListing":{"signature":"%s","tokens":%s,"rows":3}}\n' \
     "$2" "$3" "$5" "$6" "$5" "$4" "$6" >"$1"
@@ -157,6 +162,41 @@ assert_degrade "$WORK/norow-out.json" 'System tools' \
   "missing System tools row: expected exit 3 naming the row" \
   node "$ENGINE" parse-context --file "$WORK/norow.md"
 
+# --- parse-context: one system-tool bucket alone parses --------------------
+
+# Deferred-only shape (observed on headless Claude Code 2.1.289). Expected
+# values come from the fixture's own cells: 14k deferred, 2.5k system prompt.
+donly="$WORK/deferred-only.json"
+if node "$ENGINE" parse-context --file "$SCRIPT_DIR/fixtures/context-deferred-only.md" --out "$donly" >/dev/null; then
+  ok "deferred-only table exits 0"
+  assert_eq "$(jsonget "$donly" '"System tools" in j.categories')" "false" \
+    "absent System tools row stays absent (unmeasured, not zero-filled)" "absent System tools row was filled in"
+  assert_eq "$(jsonget "$donly" 'j.categories["System tools (deferred)"]')" "14000" \
+    "deferred row 14k parses to 14000" "deferred row misparsed"
+  assert_eq "$(jsonget "$donly" 'j.categories["System prompt"]')" "2500" \
+    "other categories still parse alongside a missing bucket" "other categories lost"
+  assert_eq "$(jsonget "$donly" 'Object.keys(j.categories).length')" "7" \
+    "every category row in the fixture is reported" "category count wrong"
+  assert_eq "$(jsonget "$donly" 'j.caveats.some((c)=>c.includes("\"System tools\" row absent") && c.includes("unmeasured"))')" "true" \
+    "a caveat names the missing System tools row" "missing-row caveat absent"
+else
+  fail "deferred-only table did not parse"
+fi
+
+# Prefix-only shape: the deferred row is the absent one.
+printf '## Context Usage\n\n### Estimated usage by category\n\n| Category | Tokens | Percentage |\n|---|---|---|\n| System tools | 3.0k | 1.0%% |\n| Messages | 10 | 0.0%% |\n' >"$WORK/prefix-only.md"
+ponly="$WORK/prefix-only.json"
+if node "$ENGINE" parse-context --file "$WORK/prefix-only.md" --out "$ponly" >/dev/null; then
+  assert_eq "$(jsonget "$ponly" 'j.categories["System tools"]')" "3000" \
+    "prefix-only table parses its System tools row" "prefix-only System tools misparsed"
+  assert_eq "$(jsonget "$ponly" '"System tools (deferred)" in j.categories')" "false" \
+    "absent deferred row stays absent" "absent deferred row was filled in"
+  assert_eq "$(jsonget "$ponly" 'j.caveats.some((c)=>c.includes("\"System tools (deferred)\" row absent"))')" "true" \
+    "a caveat names the missing deferred row" "missing deferred-row caveat absent"
+else
+  fail "prefix-only table did not parse"
+fi
+
 # --- compare: identical runs are comparable, deltas are zero --------------
 
 write_snapshot "$WORK/a.json" sdk 9.9.9 sigAAAA 5000 2000
@@ -215,6 +255,26 @@ assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.systemToolsCompara
 assert_eq "$(jsonget "$WORK/row-skills.json" 'j.comparability.modeBinaryComparable')" "true" \
   "Skills-token drift does not poison the shared mode/binary predicate" \
   "Skills-token drift wrongly flipped modeBinaryComparable"
+
+# --- compare: a bucket missing from a cli-parse snapshot -------------------
+
+jsonmutate "$WORK/a.json" "$WORK/dA.json" 'delete j.categories["System tools"]'
+jsonmutate "$WORK/b.json" "$WORK/dB.json" 'delete j.categories["System tools"]'
+node "$ENGINE" compare --before "$WORK/dA.json" --after "$WORK/dB.json" --out "$WORK/row-donly.json" >/dev/null
+assert_eq "$(jsonget "$WORK/row-donly.json" '"System tools" in j.delta')" "false" \
+  "two deferred-only snapshots yield no System tools delta row" "System tools delta invented for two deferred-only runs"
+assert_eq "$(jsonget "$WORK/row-donly.json" 'j.delta["System tools (deferred)"]')" "0" \
+  "the measured deferred bucket still compares" "deferred delta lost between deferred-only runs"
+node "$ENGINE" compare --before "$WORK/dA.json" --after "$WORK/b.json" --out "$WORK/row-mixed.json" >/dev/null
+assert_eq "$(jsonget "$WORK/row-mixed.json" 'j.delta["System tools"]')" "null" \
+  "deferred-only vs full snapshot yields a null System tools delta, never 0" "one-sided System tools delta not null"
+if [[ "$(jsonget "$WORK/row-mixed.json" 'j.unmeasured["System tools"]')" == *"only one run"* ]]; then
+  ok "the null System tools delta carries a reason"
+else
+  fail "null System tools delta has no reason"
+fi
+assert_eq "$(jsonget "$WORK/row-self.json" 'Object.keys(j.unmeasured).length')" "0" \
+  "fully measured runs carry no unmeasured reasons" "unmeasured reasons on a fully measured compare"
 
 # --- emit: --out creates missing parent directories -----------------------
 
@@ -297,7 +357,9 @@ if (mode === 'nonadd') prefixSaved['AlphaTool+BetaTool'] = 1200;
 // saturate — combined prefix numbers would add, but the run is marked a
 // synthesized zero. The verdict must be unmeasured, not the true the
 // arithmetic would publish.
-const table = { 'System tools': 18000 - (prefixSaved[key] ?? 0) };
+// noprefix: the observed headless shape with no prefix System tools row.
+const table = {};
+if (mode !== 'noprefix') table['System tools'] = 18000 - (prefixSaved[key] ?? 0);
 // The deferred bucket is dropped (omitted, not reported as 0) when:
 //   novocab      — this fake "version" has no deferred bucket in any run;
 //   vanish       — the combined deny empties it out of the snapshot (#3197);
@@ -705,6 +767,49 @@ assert_degrade "$WORK/nobin.json" 'binary-not-found' \
   "snapshot with a missing --binary degrades with a structured error" \
   "missing --binary: expected exit 3 + binary-not-found" \
   node "$ENGINE" snapshot --binary "$WORK/does-not-exist"
+
+# Headless /context with no prefix System tools row (the 2.1.289 shape) and no
+# Agent SDK: snapshot must return a cli-parse record, not exit 3.
+snapnp="$WORK/snap-noprefix.json"
+if (cd "$WORK" && FAKE_MODE=noprefix node "$ENGINE" snapshot --binary "$FAKE" --out "$snapnp" >/dev/null); then
+  assert_eq "$(jsonget "$snapnp" 'j.mode')" "cli-parse" \
+    "snapshot without a System tools row returns a cli-parse record" "snapshot mode wrong"
+  assert_eq "$(jsonget "$snapnp" '"System tools" in j.categories')" "false" \
+    "snapshot leaves the absent System tools bucket out" "snapshot filled the absent System tools bucket"
+  assert_eq "$(jsonget "$snapnp" 'j.caveats.some((c)=>c.includes("\"System tools\" row absent at 9.9.9"))')" "true" \
+    "snapshot caveat names the missing row and the binary version" "snapshot caveat missing row or version"
+else
+  fail "snapshot exited nonzero on a table without a System tools row"
+fi
+
+# Two such snapshots compared: the prefix bucket is absent from both, but the
+# parser disclosed it, so the ledger row must say it went unmeasured. Both
+# runs print the same deferred cell (12000), so that delta is 0.
+snapnp2="$WORK/snap-noprefix-2.json"
+(cd "$WORK" && FAKE_MODE=noprefix node "$ENGINE" snapshot --binary "$FAKE" --out "$snapnp2" >/dev/null)
+node "$ENGINE" compare --before "$snapnp" --after "$snapnp2" --out "$WORK/row-noprefix.json" >/dev/null
+assert_eq "$(jsonget "$WORK/row-noprefix.json" '"System tools" in j.delta')" "false" \
+  "disclosed-absent bucket gets no invented delta" "delta invented for a bucket absent from both runs"
+assert_eq "$(jsonget "$WORK/row-noprefix.json" 'typeof j.unmeasured["System tools"]')" "string" \
+  "disclosed-absent bucket is listed in unmeasured with a reason" "ledger hides the unmeasured System tools bucket"
+assert_eq "$(jsonget "$WORK/row-noprefix.json" 'j.delta["System tools (deferred)"]')" "0" \
+  "the measured deferred bucket still compares" "deferred delta wrong between noprefix runs"
+
+# Attribution over the same shape: the deferred side moves by 400 (12000 vs
+# 11600 with AlphaTool denied), but with the prefix bucket unmeasured the
+# saving is null and the row incomparable, never 400 with the prefix as 0.
+anp="$WORK/attr-noprefix.json"
+if attr noprefix "$anp" --tools AlphaTool; then
+  assert_eq "$(jsonget "$anp" 'j.perTool[0].deferredDelta')" "-400" \
+    "deferred delta is still measured when the prefix bucket is absent" "deferred delta lost"
+  assert_eq "$(jsonget "$anp" 'j.perTool[0].savedTokens')" "null" \
+    "unmeasured prefix bucket makes savedTokens null, not the deferred side alone" \
+    "unmeasured prefix bucket counted as zero in savedTokens"
+  assert_eq "$(jsonget "$anp" 'j.perTool[0].comparable')" "false" \
+    "unmeasured prefix bucket marks the row incomparable" "row with an unmeasured prefix bucket published comparable"
+else
+  fail "attribute (noprefix scenario) exited nonzero"
+fi
 
 # --- summary ---------------------------------------------------------------
 

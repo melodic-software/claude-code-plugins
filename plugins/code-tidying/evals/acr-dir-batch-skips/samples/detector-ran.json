@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "code-tidying:audit-comment-residue"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/p/skills/audit-comment-residue/scripts/detect.sh scripts/"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn '#' scripts/"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -21,7 +21,9 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 Platform facts verified 2026-07-18: hook `terminalSequence` output landed in Claude Code
 v2.1.141 per the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md);
-channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks).
+channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks). Recheck when
+the hooks reference changes how `terminalSequence` output is written or documents a Windows toast
+path.
 
 ### Per-OS `os_toast` behavior
 
@@ -42,7 +44,8 @@ The hook runs on Bash 3.2+. On native Windows, install
 available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
 Claude Code's native binary neither ships nor uses Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
-are disabled with a visible notice, once per session and agent, renewed every eighth skip. macOS needs nothing
+are disabled and `/desktop-notification:check` reports it (a Notification hook cannot show a notice:
+Claude Code [discards its `systemMessage`](https://code.claude.com/docs/en/hooks#notification)). macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
@@ -159,7 +162,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

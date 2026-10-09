@@ -85,12 +85,12 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 | **block-windows-drive-tmp** | PreToolUse · Bash \| PowerShell **and** Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Windows-only: write targets that are a drive-root temp path: POSIX `/tmp`, MSYS `/c/tmp`, `C:\tmp`, or drive-root `\tmp`, which resolve to `<drive>:\tmp` instead of `%TEMP%` and accumulate at the volume root. On a stock Git for Windows install the Bash-tool POSIX `/tmp` is a `usertemp` mount of `%TEMP%` itself, so that spelling is not blocked there; `/c/tmp`, `C:\tmp`, `\tmp`, PowerShell `/tmp`, and the file-path lane still are. On the **command lane** redirects and write utilities (`mkdir`/`mktemp`/`tee`/`cp`/`curl -o`/`--output-dir` (bare or bundled, as in `-sSLo`)/`wget -O`/`Set-Content`/`Out-File`/…) are blocked; on the **file-path lane** (since **0.30.0**) the tool's own `file_path` / `notebook_path` is matched directly, because on a Write the path *is* the write target. Both lanes call one matcher, so the same spellings block and the same ones pass. Does not fire on non-Windows hosts; leaves `%TEMP%` / `$TEMP` / `$TMPDIR` / `$env:TEMP` / `/var/tmp`, relative `./tmp`, `foo/tmp`, `/tmpdir`, `C:/tmp2` and UNC `\\server\tmp` alone. Covers the `tmp` spellings only: `C:\Temp` and other `Temp` directories are not matched. Inline python `open (` and `getattr(__builtins__,'open')(` count as writes, except a provable read: a bare one-argument `open(` (optional read-only mode `r`/`b`/`t`, optional literal `encoding=`/`errors=`/`newline=`) followed by `.read(`/`.readline(`/`.readlines(` or wrapped whole in `json.load(`, e.g. `json.load(open('/tmp/x.json'))`. That exemption is judged over the whole unsplit command, never per segment, and applies only when that command is one plain python run (`python`, `python3` or `py` with plain flags) whose code is its `-c` string or a heredoc on stdin, with no pipe, `;`, `&&`, redirect, argument, wrapper, second command or later line, so a pipeline cannot lift the path out of the text and write it (`echo "open('/c/tmp/x').read()" \| cut -d "'" -f2 \| xargs tee`): every `open` in the command must be such a read and no drive-root temp path may remain outside those calls, so a decoy read beside a write (`os.system`, `shutil.copy`, a second `open(..., 'w')`, a heredoc body) still blocks. Fail-closed: the method form (`Path(...).open()`), a variable or non-read mode, an argument that is not a plain path (a leading pipe that Ruby's `open` runs as a subprocess, `%x[...]`, `#{...}`), an argv operand, any `\`, `$` or backtick in the command, and indirection (`exec`, `eval`, `getattr`, `subprocess`, `os.popen`, ...) keep the block. Quoted `open(` / `write_text(` text counts as data only when the whole command, with every quoted string replaced by one placeholder word, is exactly one of `gh issue` or `gh pr` with `create`, `comment` or `edit`, `git commit`, `git tag`, `echo` or `printf`, with plain flag words, on the Bash tool and with no `\`, `$`, backtick, operator, newline, glob or redirect, so `gh issue create --body "...open('/tmp/x','w')..."` passes while any other command, including an interpreter this guard does not know, blocks. The read exemption also keeps the block when the token `tmp` remains outside the read calls. A deterrent over one command string, not a sandbox: concatenated or computed paths pass. |
 | **block-exported-msys-pathconv** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | Windows-only: an **exported** `MSYS_NO_PATHCONV` / `MSYS2_ARG_CONV_EXCL` (also the `declare -x` / `typeset -x` spellings), which switches off MSYS argv rewriting for every *later* command in the same command string. A later path argument then reaches a Windows-native program unconverted and git resolves its leading `/` against the current drive, so `git worktree add /d/worktrees/x` creates `<current-drive>:\d\worktrees\x` (#2870). Deliberately keys on the environment, not on a path shape: the incident command's path argument was identical to one that had already worked. A prefix whose command word is a **shell** (`MSYS_NO_PATHCONV=1 bash -c '…'`, `env … sh -c '…'`) blocks too: the prefix scopes to one *process*, and when that process is an interpreter, one process is every command inside it. A prefix on a **non-shell** command word (`MSYS_NO_PATHCONV=1 git show …`) and a bare assignment are not matched. The first scopes to exactly that command, and the second has no effect at all because the MSYS runtime reads the environment. Does not fire on non-Windows hosts. |
 | **block-root-delete-target** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A recursive `rm` whose target normalizes to a filesystem root. The command is parsed the way the shell builds argv, through launchers (`sudo`, `env`, `timeout`, the util-linux family including `setpriv` and `prlimit`, `systemd-run`), child shells (`bash -c`, `su -c`, `sg`), `eval` and command substitutions, and a segment is judged when its command word is `rm` with a recursive flag. Roots: `/` and `/*`, the MSYS-translated bare backslash in both its quoted (`rm -rf "\\"`, the shape behind the whole-volume loss in anthropics/claude-code#92593, which no permission pattern keyed on `rm -rf /*` matches) and **dangling** (`rm -rf \`) spellings, `~`, a literal `$HOME` / `${HOME}`, a drive root (`C:\`, `c:/`, `C:`), an MSYS, WSL or cygdrive drive root (`/c`, `/mnt/c`, `/cygdrive/c`), and a UNC share root (`//server/share`). `--no-preserve-root` is refused whatever it targets. Also refused: an **empty operand** (`rm -rf ""`), a **bare variable operand** made of expansions alone (`$X`, `"$X/"`, `"$X"/*`, `$X$Y`, any `${...}` form but `"${X:?}/"`), and, when the payload carries an absolute `cwd`, a target **outside the session's allowed roots**: not under the git toplevel of the payload cwd, and not strictly under a temp root, the session scratchpad or a root you list in `block_root_delete_target_allowed_roots` (`rm -rf ../../..`, `rm -rf ~/Documents/x`, `cd / && rm -rf *`, `rm -rf {/c,x}`, `rm -rf /c/Users/*/.claude`, a `link/` that points outside). Not host-gated. The guard's header in `hooks/block-root-delete-target.sh` lists how braces, globs, directory changes and symlinks are judged, the bounds past which it refuses, the known false positives, and the declared gaps. On the PowerShell tool the same classes are refused for `Remove-Item -Recurse` (aliases `ri`/`rm`/`rd`/`rmdir`, prefixes `-r`/`-rec`) and for `cmd /c rd /s` / `rmdir /s`, without loading the shared PowerShell classifier ([#4516](https://github.com/melodic-software/claude-code-plugins/issues/4516)). Each statement is judged, including one after a newline and one inside a `{ }` scriptblock, a `( )` grouping or `$( )`, and a `Remove-Item` target that is a grouping is refused. `$env:NAME` and `${env:NAME}` are judged as the Bash lane judges `$NAME`: refused bare or followed only by `\` or `\*`, allowed with a named subpath (`$env:TEMP\build`). Not covered: a delete wrapped in `Start-Process` or `Invoke-Expression`, nested PowerShell, a command that is not the first word of its statement (`$r = Remove-Item -Recurse C:\`), a comma list of targets, and a here-string. |
-| **block-credential-read** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A command whose output is a credential: `git credential fill`, credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks such as `gh auth status` and `test -n "$GH_TOKEN"` pass. The guard header in `hooks/block-credential-read.sh` lists the known gaps and false positives. Escape: `block_credential_read_enabled` (off switch) or `block_credential_read_allow` (comma list of `credential-fill`, `gh-auth-token`, `env-echo`, `credential-file-read`). |
+| **block-credential-read** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A command whose output is a credential: `git credential fill`, credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, `jq env` (every variable), `cat` of `.git-credentials`, `.netrc`, `.env`, `.credentials.json` or `.docker/config.json`, and `jq` of the last two. Presence checks such as `gh auth status` and `test -n "$GH_TOKEN"` pass. The guard header in `hooks/block-credential-read.sh` lists the known gaps and false positives. Escape: `block_credential_read_enabled` (off switch) or `block_credential_read_allow` (comma list of `credential-fill`, `gh-auth-token`, `env-echo`, `credential-file-read`). |
 | **cli-flag-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated to `.md`, `.sh`, `.bash`, `.ps1`, `.psm1` | **Advisory** (exit 0) | Hallucinated CLI flags: a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
-| **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
+| **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out: a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a one-line advisory via `additionalContext` that points at the workflow-authoring skill, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `workflow_resilience_check_enabled=true` to enable). |
 | **block-noncanonical-commit** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | `git commit -m` whose message actually contains a newline. A multi-line `-m` flattens newlines unpredictably across shells; pipe it via `-F -` / `--file -` instead (narrowed in 0.20.0 per #2021: single-line `-m`, bare `git commit`, and repeated single-line `-m` paragraphs all pass). On the PowerShell tool a here-string `-m` value blocks too. Its content is uninspectable and multi-line by construction of the form. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
 | **block-convention-violation** | PreToolUse · Bash \| PowerShell | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
-| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin, and is silent otherwise. Surfaces via `additionalContext`, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
+| **flag-commit-pr-skill-bypass** | PreToolUse · Bash \| PowerShell | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/source-control:pull-request` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin, and is silent otherwise. Surfaces via `additionalContext` once per session and agent, never blocks. **Opt-in. Default off since 0.20.0** (behavioral-class injector config-disabled per #2021; set `flag_commit_pr_skill_bypass_enabled=true` to enable). |
 | **skill-reference-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated as above, the guard itself scans `.md` only | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own. A reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 | **stale-path-verify** | PostToolUse · Write \| Edit, dispatcher `if`-gated as above, the guard itself scans `.md` only | **Advisory** (exit 0) | A repo-relative path cited in a markdown inline code span that this repo's own history shows was **deleted** and that is gone from the working tree. The gate is provenance, not absence: the exact path must appear in `git log HEAD --no-renames --diff-filter=D --name-only`, so a path belonging to a consuming project's tree, an example, or a plan is never adjudicated. Names the surviving file when exactly one tracked path now carries that basename. Link destinations are out of scope. Surfaces via `additionalContext`, never blocks. |
 
@@ -194,7 +194,10 @@ out of scope until such a signal exists.
   and Node's `child_process` **refuses** a NUL-bearing string outright.
   Which of them, if either, a hook payload reaches has not been traced. Refusing
   is the one verdict correct under all of them, and needs no such trace. A NUL is
-  treated as malformed input rather than as an exotic-but-valid command.
+  treated as malformed input rather than as an exotic-but-valid command. Under
+  the dispatcher every guard that refuses it shares one deny reason, so the
+  refusal is printed once per call; so are the jq-missing denial, a shared git
+  alias refusal and the PowerShell unparsable-command message.
 - **Read-only git inside PowerShell grouping passes; anything else in it is
   refused.** A PowerShell command carrying a construct the git guards cannot
   tokenize (`{}` / `()`, a backtick, `--%`, a subexpression) goes to a
@@ -267,24 +270,24 @@ out of scope until such a signal exists.
   (`/guardrails:setup apply install-pre-commit-content`) or an equivalent CI check.
   This entry is where that scope is stated. Since **0.38.0** the block message
   no longer prints it, so a blocked agent is not handed the list of unchecked
-  write forms; the operator notice (once per session and agent, renewed every eighth skip) points here instead.
+  write forms; the operator notice (once per session) points here instead.
 - **`block-hook-bypass` block message and operator levers.** stderr is what the
   blocked agent reads, so it carries only what the agent can act on: the
   verdict, the Write/Edit remedy, and a remedy for when Write or Edit is refused
   too ("stop and tell the user"). On the `cat`, `echo`/`printf` and staged-move
   lanes it also says why the target was not scratch-exempt and lists the roots
   that exempt an unquoted literal target in this session, with no configuration
-  needed for the temp tree when the project root is outside it. It says a quoted
+  needed for the temp tree when the project root is outside it, and that the
+  user can add a root to `block_hook_bypass_scratch_roots`. It says a quoted
   or variable-carried target is never exempt. The python lane never consults a
   scratch root, and the PowerShell lane consults one only for a single literal
   destination, so their message names none. The operator's levers, narrowest
   first, are `block_hook_bypass_scratch_roots` (Bash redirect targets and a
   PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`, and the
   user-global `block_hook_bypass_enabled` switch, which persists across every
-  repository where guardrails is enabled. They arrive once per session and agent
-  as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
-  human has confirmed that notice renders on a block, stderr also ends with a
-  one-line pointer to this README.
+  repository where guardrails is enabled. They arrive once per session as a
+  `systemMessage`, which Claude Code reads on exit 2 as on exit 0
+  (<https://code.claude.com/docs/en/hooks#exit-code-output>).
 - **`block-hook-bypass` reads a PowerShell `& $var` call with two positionals
   as a file write.** A call through a variable (`& $sh x.sh record dir`,
   `& $py tool.py run x`) whose leading operands hold two or more positionals,
@@ -301,8 +304,8 @@ out of scope until such a signal exists.
   the statuses the hook chooses through untouched and turns any other exit (an
   unbound variable under `set -u`, a helper that stopped existing, a
   `hook-utils.sh` that failed to load) into a one-line "guard did not run"
-  notice naming the hook and the status, on stderr and as a
-  `systemMessage` / `additionalContext` document, then exits with the posture
+  notice naming the hook and the status, on stderr and as a `systemMessage`
+  for the user (the model cannot fix a hook), then exits with the posture
   the hook declares beside its install. Every hook currently declares
   **fail-open**: the tool call proceeds exactly as it did before this boundary
   existed, and the notice is the only change. Before it, such an abort exited
@@ -315,7 +318,7 @@ out of scope until such a signal exists.
 - **`block-hook-bypass` fails open on its own crash.** The boundary above is
   the generalization of the handler this guard carried first (#3130 F5): an
   internal script error exits 0 so a defect on this hottest-path hook cannot
-  freeze the session, with the dual-channel notice so the allow is not silent.
+  freeze the session, with the user notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
   override: we treat a guard killed at that bound as letting the tool call
@@ -328,7 +331,7 @@ out of scope until such a signal exists.
   carries the ceiling before anything tokenizes it (#4528).
 - **`block-hook-bypass` option parse is strict.** Only the exact strings `true`
   and `false` are accepted (`unset` defaults to enabled). Any other value keeps
-  the guard enabled and names the bad value. A typo must not silently disable
+  the guard enabled and tells the user once per session. A typo must not silently disable
   a blocking safety control.
 - **`block-hook-bypass` does not see MCP-provided shell or file-write tools.**
   The matcher is `Bash|PowerShell`. A write issued through an MCP tool is an
@@ -995,7 +998,8 @@ to early-exit inside each guard. The `Write|Edit` row now carries one handler pe
 extension, each with an `if` predicate (`Edit(*.md)` and so on; the field holds one
 rule, so one row per extension is the documented shape), and Claude Code evaluates
 the predicate before spawning: "The hook command only runs if the tool call matches
-the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05).
+the pattern" (hooks reference, `if` field, raw `hooks.md` fetched 2026-09-05). Recheck when the
+hooks reference changes how the `if` field is evaluated or lets one handler hold several rules.
 `run-guards.test.sh` pins the predicate set to the union of the verifiers' own
 `case "$FILE"` gates, so an extension added to a gate without an `if` row fails the
 suite rather than silently never firing.
@@ -1264,6 +1268,12 @@ others.
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
+Hook cost of the three verifiers: their PostToolUse rows (`.md`, `.sh`, `.bash`, `.ps1`,
+`.psm1` edits) carry the launcher gate `--skip-if-all-false` over all three switches. With
+`cli_flag_verify_enabled`, `skill_reference_verify_enabled` and `stale_path_verify_enabled` all
+`false`, an edit starts node only, never bash. Any other value, one switch left on included, runs
+the row as before, and each verifier still checks its own switch.
+
 Set them interactively with `/plugin configure guardrails@<marketplace>`, or headless on the
 install command:
 
@@ -1377,9 +1387,10 @@ as before.
 
 ## Requirements
 
-- **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, each guard
-  fails **open** (disabled) and prints a one-line stderr notice, never a silent
-  disable.
+- **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, the guards that
+  block irreversible operations deny every Bash and PowerShell call, with one
+  line naming jq per call, and the other guards skip their work after one
+  notice per session, never a silent disable.
 - **Node.js** on `PATH`. Every guard row starts through `hooks/exec-bash.mjs`, which finds bash
   and runs the guard; the script declares no minimum Node version. The exec-form row needs `node`
   resolvable on `PATH`, and we treat a row that cannot start because `node` is missing as a guard
@@ -1387,8 +1398,8 @@ as before.
   `node` or `jq`. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model, once per session across plugins, and the notice names `/guardrails:check`.
+  absent it exits 0 with a `systemMessage` that shows the user a warning once per session across
+  plugins, and the notice names `/guardrails:check`.
   It prints nothing when node is present. It does not read the per-guard toggles, because an unset toggle exports no
   environment variable and the row would need every guard's key listed by hand; a host that turns
   every guard off should disable the plugin instead. Pointer: for how an exec-form `command`
@@ -1497,6 +1508,19 @@ escape. An entry that is relative, empty, UNC, holds a glob character, a line br
 component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through
 HOME or a directory holding it. The kill switch, not this option, is the whole-guard lever.
 
+A **name-prefix entry** ends in one `*` after a literal name, for example `D:/worktrees/.tmp-*` for
+the throwaway test directories agents create beside their worktrees. It allows only a direct child
+of that directory whose name starts with the text before the `*` and has at least one more
+character (`D:/worktrees/.tmp-6527`), and never one that is itself a symlink. It refuses the
+directory, the bare prefix (`.tmp-`), a sibling (`D:/worktrees/other-worktree`), anything below a
+matching child, a glob such as `rm -rf D:/worktrees/.tmp-*`, and a `..` escape. It also refuses a
+name ending in a dot or a space, which Windows trims (`.tmp-.` names `.tmp-`), and a trailing-slash
+operand whose child does not exist yet, because a link the same command creates would be followed. The `*` marks the
+form because an entry holding a glob character granted nothing before, so no entry that already
+allowed something changes meaning. The directory follows the rules above, and a name with any other
+glob character grants nothing. An alternative that needs no entry: point the user-level `TEMP` or
+`TMPDIR` at a directory on the drive you want, which the guard already treats as a temp root.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -1520,7 +1544,7 @@ reads it from.
 | `block_windows_drive_tmp_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_WINDOWS_DRIVE_TMP_ENABLED` | Blocks writes to a Windows drive-root temp path (/tmp, C:\tmp, \tmp, /c/tmp) that resolves to <drive>:\tmp instead of %TEMP%, in shell commands and Write/Edit file paths alike. On by default. The Git for Windows exception is in the README's Option details. |
 | `block_exported_msys_pathconv_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_EXPORTED_MSYS_PATHCONV_ENABLED` | Blocks a leaking MSYS path-conversion suppressor on Windows: an exported MSYS_NO_PATHCONV or MSYS2_ARG_CONV_EXCL, or one prefixed on a child shell (MSYS_NO_PATHCONV=1 bash -c ...). On by default. What it does not match is in the README's Option details. |
 | `block_root_delete_target_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED` | Blocks a recursive delete (rm, Remove-Item, rd /s) whose target is a filesystem, home, drive or UNC share root, an empty or bare-variable operand, or a path outside the repo not under a temp root, the scratchpad or an allowed root. On by default. Full rules in the README's Option details. |
-| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories block-root-delete-target lets a recursive delete through when the target's real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). Empty by default; adds to the temp roots and scratchpad. Limits are in the README's Option details. |
+| `block_root_delete_target_allowed_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS` | Comma-separated absolute directories; a recursive delete passes when its real path is strictly under one. An entry like D:/worktrees/.tmp-* allows only direct children whose name extends that prefix. Empty by default; adds to the temp roots and scratchpad. Limits: README Option details. |
 | `block_noncanonical_commit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ENABLED` | Blocks git commit -m when the message contains a newline (pipe it via -F - instead); a single-line -m passes. On by default. Exempt: --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge or rebase. |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens block-noncanonical-commit permits. The only token today is message-flag, which permits -m even when the message contains a newline. Empty, the default, permits none. |
 | `block_convention_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_BLOCK_CONVENTION_GATE_ENABLED` | Blocks a commit subject or gh pr create --title that violates the team-tracked convention pattern in .claude/source-control.md. On by default; with no tracked pattern nothing is enforced. Same exemptions as block-noncanonical-commit. |
@@ -1588,7 +1612,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

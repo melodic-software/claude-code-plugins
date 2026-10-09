@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "playwright-cli -s=a state-load \"${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli/github.json\"", "why": "XDG form, quoted"},
+    {"answer": "playwright-cli -s=a state-load ~/.local/state/playwright-cli/github.json", "why": "tilde form"},
+    {"answer": "playwright-cli -s=a state-load \"$LOCALAPPDATA/playwright-cli/github.json\"", "why": "Windows Git Bash form"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "playwright-cli -s=a state-load auth.json", "why": "a repo-local file, not the saved login"},
+    {"answer": "playwright-cli -s=a open https://github.com/acme-example/widgets/settings", "why": "no load at all"}
+  ]
+}

@@ -32,6 +32,11 @@ from pathlib import Path
 UNREVIEWED = (
     "visually unreviewed: no browser tool is present, so the scene was not captured"
 )
+# The bound on each wait for the browser, and the slack on top of a recording's own length. A
+# browser that exits fails at once; this is only for one that is alive but slow. On busy CI
+# runners a cold launch has passed 20 s and opening the page 10 s, and on one contended core a
+# 4 s recording has taken 30 s.
+BROWSER_WAIT_SECONDS = 60
 BROWSERS = (
     "google-chrome",
     "google-chrome-stable",
@@ -207,7 +212,7 @@ def _ws_connect(ws_url):
     path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query
-    sock = socket.create_connection((parsed.hostname, parsed.port), timeout=20)
+    sock = socket.create_connection((parsed.hostname, parsed.port), timeout=BROWSER_WAIT_SECONDS)
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     key = base64.b64encode(os.urandom(16)).decode()
     request = (
@@ -236,7 +241,7 @@ class DevTools:
         self.ws = ws
         self.next_id = 0
 
-    def call(self, method, params=None, timeout=30):
+    def call(self, method, params=None, timeout=BROWSER_WAIT_SECONDS):
         self.next_id += 1
         mid = self.next_id
         self.ws.sock.settimeout(timeout)
@@ -255,15 +260,14 @@ class DevTools:
 
 def _http_json(url, method="GET"):
     request = urllib.request.Request(url, data=b"" if method != "GET" else None, method=method)
-    with urllib.request.urlopen(request, timeout=10) as response:
+    with urllib.request.urlopen(request, timeout=BROWSER_WAIT_SECONDS) as response:
         return json.loads(response.read().decode())
 
 
 def _devtools_port(profile, proc):
     port_file = profile / "DevToolsActivePort"
     # A browser that exits fails at once below; this bound is only for one that is still starting.
-    # A cold first launch on a busy 4-vCPU CI runner has run past 20 s with the browser alive.
-    deadline = time.time() + 60
+    deadline = time.time() + BROWSER_WAIT_SECONDS
     while time.time() < deadline:
         if proc.poll() is not None:
             raise RuntimeError(f"browser exited {proc.returncode} before the debugger opened")
@@ -347,6 +351,7 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
     profile = out_dir / ".chrome-profile"
     log_path = out_dir / "browser.log"
     server = proc = log = devtools = None
+    step = "starting the browser"
     try:
         shutil.copy2(scene, served / scene.name)
         server = _serve(served)
@@ -377,10 +382,14 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
+        step = "waiting for the debugger port"
         debug_port = _devtools_port(profile, proc)
+        step = "opening the scene page"
         target = _open_page(debug_port, page)
+        step = "connecting to the page"
         devtools = DevTools(_ws_connect(target["webSocketDebuggerUrl"]))
-        deadline = time.time() + 15
+        step = "waiting for the scene"
+        deadline = time.time() + BROWSER_WAIT_SECONDS
         ready = False
         while time.time() < deadline:
             probed = devtools.call(
@@ -398,11 +407,11 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             .replace("__RECORD__", json.dumps(record))
             .replace("__SCALE__", json.dumps(scale))
         )
-        timeout = max(30, record + 20)
+        step = "capturing the scene"
         evaluated = devtools.call(
             "Runtime.evaluate",
             {"expression": expression, "awaitPromise": True, "returnByValue": True},
-            timeout=timeout,
+            timeout=record + BROWSER_WAIT_SECONDS,
         )
         if "exceptionDetails" in evaluated:
             detail = evaluated["exceptionDetails"].get("text", "scene capture failed")
@@ -437,6 +446,9 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         }
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
+    except TimeoutError as exc:
+        # A socket timeout says only "timed out"; name the wait that ran out.
+        raise TimeoutError(f"{step}: {exc}") from exc
     finally:
         if devtools is not None:
             devtools.ws.sock.close()

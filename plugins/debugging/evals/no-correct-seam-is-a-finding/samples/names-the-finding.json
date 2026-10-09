@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Don't force the test there. The missing seam is the finding: file an architectural recommendation.",
+      "why": "missing seam + recommendation"
+    },
+    {
+      "answer": "There is no correct seam for this test, and that absence is what we record in Phase 6.",
+      "why": "no correct seam"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Write the unit test anyway; some coverage beats none.",
+      "why": "forces the test"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

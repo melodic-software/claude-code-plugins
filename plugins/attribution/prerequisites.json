@@ -33,12 +33,56 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, /attribution:audit leaves its config layers unread and audits with the defaults.",
+      "degrade": "Without jq, /attribution:audit leaves its config layers unread and audits with the defaults, and fetch-docs.sh and docs-cache.sh exit before reading anything, so a source page is read by the rung-2 fallback instead.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh records a source page unread with reason curl-missing, so /attribution:audit reads it by the rung-2 fallback, which cannot ground an absence; a cached entry still within --max-age is served without a request.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a source page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
     }

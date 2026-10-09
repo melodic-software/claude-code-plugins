@@ -40,8 +40,9 @@ of its cited page no longer matching the bullet re-derives it here):
 - **Multi-repo product:** consumers do not memorize 200+ skill names; model-side discoverability
   is part of what this marketplace sells. This inverts upstream's solo-operator premise.
 - **Listing budget is manageable, not a forcing function:** every skill name is always listed;
-  only descriptions are dropped (least-invoked first) under the ~1%-of-context budget
-  (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`, 1,536 chars).
+  only descriptions are dropped (least-invoked first) under the listing budget
+  (`skillListingBudgetFraction`), with a per-entry cap (`skillListingMaxDescChars`); the current
+  figures and their source records are in `/playbooks:skill-authoring` `## Descriptions`.
   The per-skill `skillOverrides: "name-only"` lever reaches project/user skills only, and plugin
   skills are explicitly exempt ("Plugin skills are not affected by `skillOverrides`. Manage
   those through `/plugin` instead"), so for this marketplace's fleet the applicable levers are
@@ -129,8 +130,9 @@ text, new and existing alike; the fleet-wide normalization sweep landed
 there is no longer a grandfathered set. Adopted 2026-08-18, lane 6 of the AI Hero course vetting
 (`docs/upstream/aihero-course.md`). Upstream basis, named
 provenance: mattpocock/skills standardized the same rule in `.agents/invocation.md` (upstream
-PRs #878 and #880) on his measured claim, his repo's measurement and not re-verified here, that
-explicit Skill-tool phrasing has a higher cross-skill hit rate than bare `/name` prose.
+PRs #878 and #880) on his asserted, unmeasured claim that explicit Skill-tool phrasing has a higher
+cross-skill hit rate than bare `/name` prose: his changeset says the phrasing "is intended to raise
+the hit rate", and `.agents/invocation.md` gives no data.
 
 **What the rule binds: operative chains, not mentions.** An *operative* chain is text that
 directs the executing model to hand work to another skill at some point in the flow: an

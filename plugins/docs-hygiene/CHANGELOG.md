@@ -1,5 +1,62 @@
 # Changelog: docs-hygiene plugin
 
+## [0.27.2] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.27.1] - 2026-10-07
+
+### Changed
+
+- **`audit-derivability`'s sub-agents recheck reads the page by the fetch-route rungs ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** The Recheck triggers row now says to re-read the page at rung 1 with fresh bytes instead of a bare "re-fetch".
+
+## [0.27.0] - 2026-10-07
+
+### Added
+
+- **`compress compare ORIG_DIR NEW_DIR [REASONS]` labels a rewrite of a whole skill directory.** It is read-only: a new read-only agent, `compare-labeler` (Read, Grep, Glob), labels every difference across SKILL.md and its reference files as SEMANTIC LOSS, RELOCATED, INTENDED CUT, AMBIGUITY or FALSE POSITIVE, and ends with `VERDICT: BLOCK` when any loss remains or the compared text carries an instruction aimed at the labeler. Text moved into a reference file counts as relocated, not lost, and the optional REASONS file lists each intended cut with its deletion-test reason. A new eval case covers a relocated paragraph and a dropped threshold.
+
+### Changed
+
+- **`audit-noise` no longer flags `ticket-pr-residue` in a `SKILL.md` or an `agents/*.md`.** `/skill-quality:check` reports those history notes in a SKILL.md and `/harness-config:audit-instructions` reports them in agent files; the same line in any other markdown still flags.
+- **`audit-progressive-disclosure`, `extract-ssot` and `write-for-agents` point to `/playbooks:skill-authoring` for skill size, description and nesting caps** (`## Body`, `## Descriptions`, `## Reference files`) instead of restating the numbers, with `/skill-quality:check` named as the enforcer.
+
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+
+## [0.26.8] - 2026-10-04
+
+### Added
+
+- **`write-for-agents` gains three `claude plugin eval` cases (tag `pocock-34`) under the plugin's `evals/`.** Two check that trimming an AGENTS.md keeps a row mapping a misleading error to its real cause while cutting derivable filler; a control checks that a row whose error already names its own fix is cut.
+
+### Changed
+
+- **`write-for-agents` description names trimming an existing CLAUDE.md or AGENTS.md as a trigger ([#6381](https://github.com/melodic-software/claude-code-plugins/issues/6381)).** It adds 'trim this AGENTS.md', 'cut it down to what earns its place' and 'prune what an agent could derive'; every earlier trigger phrase stays. The skill fired in 0 of 9 runs of the cases above, whose prompts all ask for a trim.
+
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
+## [0.26.6] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.26.5] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
 ## [0.26.4] - 2026-10-03
 
 ### Changed

@@ -58,7 +58,12 @@ running a research pass:
 
 - **Tier**. At least one source fetched THIS turn: the live environment, tool
   output, or the upstream artifact itself. Recall, and a summary of a source
-  read in place of the source, are both below the floor.
+  read in place of the source, are both below the floor. An upstream docs
+  page is read through the shared docs lookup
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache`, following
+  `${CLAUDE_PLUGIN_ROOT}/reference/docs-lookup-procedure.md` with
+  `<scripts>` = `${CLAUDE_PLUGIN_ROOT}/scripts` and `<session>` =
+  `${CLAUDE_SESSION_ID}`), not a WebFetch summary of it.
 - **Corroboration**, before a claim carries a decision, a second source from a
   DIFFERENT upstream pool. One pool restated by three intermediaries is one
   source; where no second pool exists, say that instead of counting the
@@ -111,7 +116,8 @@ yet settled is audited too, whether it is an option, verdict, default, or
 next step. Apply the contract in
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
 ground the affected code and its consumers or blast radius through
-`/discovery:explore`, and current consensus through `/discovery:research`,
+`/discovery:explore`, and the authoritative sources the contract names
+through `/discovery:research`,
 when the `discovery` plugin is installed; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:

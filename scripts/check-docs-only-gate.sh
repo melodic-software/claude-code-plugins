@@ -4,7 +4,7 @@
 #
 #   scripts/check-docs-only-gate.sh --check [<workflow>]
 #
-# Default workflow: .github/workflows/ci.yml.
+# Default workflow: .github/workflows/pr-require-checks.yml.
 #
 # WHY. The heavy lanes short-circuit on a diff confined to the docs-only
 # allowlist. That short-circuit is a fail-open shape by construction: getting it
@@ -94,7 +94,8 @@
 #                           draft's included: a draft runs no lane, and a green
 #                           draft ci-status is the newest one on the SHA from
 #                           the flip to ready until the lanes finish.
-#  12. A SKIP IS CHECKED  — a test lane `test-<x>` may skip as a job on its own
+#  12. A SKIP IS CHECKED  — a test lane `test-<x>`, or `lint-shell` on
+#                           `run_shell`, may skip as a job on its own
 #                           `run_<x>` row (the ordered-skip form, the draft gate
 #                           followed by `&& needs.<resolver>.outputs.run_<x> ==
 #                           'true'`), and only when the aggregate reads its
@@ -134,7 +135,7 @@ usage() {
 }
 
 [[ "${1:-}" == "--check" ]] || usage
-WORKFLOW="${2:-.github/workflows/ci.yml}"
+WORKFLOW="${2:-.github/workflows/pr-require-checks.yml}"
 [[ $# -le 2 ]] || usage
 
 if [[ ! -f "$WORKFLOW" ]]; then
@@ -145,7 +146,7 @@ fi
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
 TAB="$(printf '\t')"
-RESOLVER_JOB="scope"
+RESOLVER_JOB="select-tests"
 DETECT_STEP_ID="detect"
 # The resolver publishes a TABLE of boolean-string outputs, not one. Every
 # polarity decision in the workflow lives in this table, and consumers only
@@ -155,7 +156,7 @@ DETECT_STEP_ID="detect"
 #
 # `run_full` is the root: it is the only row derived from the detector, and
 # every other row narrows it. The narrowing rows read `steps.match.outputs`
-# (the change-detection action) through fromJSON with a `|| '{}'` default, or
+# (the detect-changes action) through fromJSON with a `|| '{}'` default, or
 # the test-lane plan (`steps.plan.outputs`), and compare `!= 'false'`, never
 # `== 'true'`, so an unset group or plan runs the lane.
 OUTPUT_NAME="run_full"
@@ -165,14 +166,15 @@ run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && githu
 run_bash${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
+run_shell${TAB}\${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
 # Outputs that carry a VALUE rather than a polarity decision, each pinned by its
 # exact expression and read only as a whole env entry (property 10). `lane_base`
 # is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
-# request, the newest green push run's commit on a push, and empty (the whole
-# tree) on a schedule, a dispatch, or a push with no usable base. The rest are
+# request, the queue's base commit on a merge group, and empty (the whole
+# tree) on a schedule or dispatch run. The rest are
 # the test-lane plan of scripts/plan-test-lanes.sh.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
@@ -993,12 +995,15 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # `ci-lanes` commit status instead. The exemption is an exact-text match, not a
 # family of shapes: a variant is a different condition, and pinning the literal
 # is also what keeps every job's copy equal to each other. Their equality with
-# the `contract-only` default the `ci-status` composite resolves its
+# the `contract-only` default the `aggregate-results` composite resolves its
 # carry-forward branch on is NOT checked here and is checked nowhere else
-# either: ci-workflows tests its composite against its own ci.yml, not against
+# either: ci-workflows tests its composite against its own pr-require-checks.yml, not against
 # this repository's. It was verified by hand at pin
-# 906ae7ef379ea4d2b8497f64475dce1d3d8715c4 and must be re-verified whenever that
-# pin moves. A drifted copy that skipped the lanes while the composite still
+# ab83b01273026ab5c23c6f3b40e946d97a863fa2 (v0.39.3), path
+# .github/actions/pr-require-checks/aggregate-results: its `contract-only`
+# default is this predicate token for token, the caller passes no
+# `contract-only`, and run.sh still branches its carry-forward on that input. It
+# must be re-verified whenever that pin moves. A drifted copy that skipped the lanes while the composite still
 # aggregated would turn all-`skipped` into a pass with nothing executed.
 #
 # AND ITS DRAFT FORM, `$JOB_GATE_DRAFT`, pinned the same way: the contract-only
@@ -1008,7 +1013,8 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # aggregate fails.
 
 #
-# AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` only,
+# AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` (or
+# `lint-shell`, row `run_shell`) only,
 # whose `run_<x>` row the table names: the draft form followed by
 # `&& needs.<resolver>.outputs.run_<x> == 'true'`. Still no status-check
 # function, so the needs edge governs; what it subtracts is a change that gives
@@ -1022,12 +1028,14 @@ while IFS= read -r refjob; do
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
     [[ "$ctext" == "$JOB_GATE" || "$ctext" == "$JOB_GATE_DRAFT" ]] && continue
-    if [[ "$refjob" == test-* ]] && table_has "run_${refjob#test-}" &&
-      [[ "$ctext" == "$(job_gate_skip "${refjob#test-}")" ]]; then
+    lane="${refjob#test-}"
+    [[ "$refjob" == lint-shell ]] && lane=shell
+    if [[ "$refjob" == test-* || "$refjob" == lint-shell ]] && table_has "run_$lane" &&
+      [[ "$ctext" == "$(job_gate_skip "$lane")" ]]; then
       skip_lanes+="$refjob"$'\n'
       continue
     fi
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> whose run_<x> row the table names: $(job_gate_skip '<x>')"
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> (or lint-shell, row shell) whose run_<x> row the table names: $(job_gate_skip '<x>')"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
 

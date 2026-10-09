@@ -45,12 +45,16 @@ As of: 2026-10-01. Recheck trigger: typos changes its config file names or searc
   your file, so the hook reports each one it applied (the word, its
   replacement, and the line) to Claude *and* to you, capped at ten per run
   with a count of the remainder. Nothing this hook writes is silent.
-- **Remediation guidance included.** Both an applied rewrite and a residual
-  finding carry the fix: add the term to `extend-words` / `extend-identifiers`
-  (or an `extend-ignore-re` pattern) in your typos config if it's intentional.
-  This matters most on the *applied* path. The dictionary has no memory of
-  your repair, so a word you correct by hand is rewritten again on the next
-  edit until the allowlist entry exists.
+- **Remediation guidance included.** The first report for a file says to
+  allow-list intended words in your typos config (`extend-words`; the
+  [typos config docs](https://github.com/crate-ci/typos/blob/master/docs/reference.md)
+  cover `extend-identifiers` and `extend-ignore-re`). This matters most on the
+  *applied* path. The dictionary has no memory of your repair, so a word you
+  correct by hand is rewritten again on the next edit until the allowlist entry
+  exists.
+- **Each finding set is reported once.** An unchanged set on a re-edit sends
+  nothing; it is sent again after a clean run or after the context is
+  compacted or cleared.
 - **Respects your excludes.** The hook passes `--force-exclude`, so a path
   your config's `[files] exclude`/`extend-exclude` excludes (generated or
   vendored code, intentional-misspelling fixtures) is left untouched even
@@ -119,17 +123,17 @@ status, see <https://code.claude.com/docs/en/permissions#read-and-edit>. As of:
   trigger: that section starts listing Node as a dependency. A missing `node` is a hook launch
   error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session (all agents share the latch),
-  renewed every eighth skip with the install route kept.
+  present, the hook skips with a visible notice, once per session and agent; your copy carries the
+  install route.
   [Install typos](https://github.com/crate-ci/typos#install). A SessionStart probe reports a
   missing `typos` once per session, from `prerequisites.json`, and the PostToolUse notice names
-  the same install route. The two share one latch, so the probe's notice counts as the first and
-  the first PostToolUse notice stays silent until the renewal. Run `/typos-format:check` to see
+  the same install route. The two share one latch: the probe's notice is yours, and Claude hears
+  at the hook's first skip. Run `/typos-format:check` to see
   what resolves; it is read-only and installs nothing.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
@@ -285,7 +289,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 
@@ -373,7 +377,7 @@ per-edit critical path, but it gives up more than it saves:
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session, shared by all agents, renewed every eighth skip with the install route kept) that `typos` is not on `PATH`. As an async row,
+  mode) and for the notice (once per session and agent) that `typos` is not on `PATH`. As an async row,
   that notice would reach only Claude, once, and the skip would be invisible to the person who can
   install the binary.
 

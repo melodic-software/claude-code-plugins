@@ -786,7 +786,7 @@ RC=$?
 assert_exit "MCP create_or_update_file: secret → exit 2" 2 "$RC"
 assert_contains "MCP create_or_update_file: names the pattern" "$OUT" "GitHub PAT"
 assert_contains "MCP create_or_update_file: names the repo path" "$OUT" "src/app.py"
-assert_contains "MCP create_or_update_file: says there is no local file to fix" "$OUT" "goes straight to a repository"
+assert_contains "MCP create_or_update_file: names the GitHub destination" "$OUT" "content bound for GitHub"
 
 # --- push_files: the multi-file shape, and the LAST file must be reached
 RC=0

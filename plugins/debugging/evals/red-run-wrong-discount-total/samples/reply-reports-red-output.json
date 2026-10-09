@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Reproduced: `python3 cart.py orders/discounted.json` printed Total: 71.50; expected 67.95.",
+      "why": "quotes the red value"
+    },
+    {
+      "answer": "Before the fix the order came to 71.5 instead of 67.95.",
+      "why": "71.5 without the trailing zero"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Fixed: the discount now applies to every line, so the order totals 67.95.",
+      "why": "reports only the fixed value"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

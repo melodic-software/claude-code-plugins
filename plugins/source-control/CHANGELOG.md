@@ -3,11 +3,144 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.12] - 2026-10-04
+## [0.83.0] - 2026-10-09
 
 ### Added
 
-- **A `claude plugin eval` suite for `/source-control:resolve-conflicts`.** Seven cases tagged `row22`, each scaffolding a git repository that is stopped in a real conflict: a two-stop rebase, a six-file merge where the prompt asks for `--ours` or abort, a merge with a conflict that has no markers, a cherry-pick, a merge whose incoming tip never touched the file, a revert, and a merge with only "sort it out" as the prompt. Most graders are deterministic: the resolved file contents, history read before the first edit, tests run before the operation concludes, and the concluding reflog line. They also cover the "It's working if" checks from the archived upstream skill page. Three cases add one model-judged grader each, and every grader carries pass and fail samples. The skill body is unchanged.
+- `worktree-create.sh` runs `npm ci` in a new worktree that has a `package-lock.json`, so the first commit's pre-commit hooks find `node_modules/.bin`. A missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`, which stops npm and its child processes) warns on stderr and leaves the exit code unchanged. `prerequisites.json` declares npm as optional.
+
+### Changed
+
+- `pull-request` merges or enqueues a PR without asking only when it reads `CLEAN` and the AI review checks, matched by exact name, have passed on the head commit pinned with `--match-head-commit`, in a melodic-software repository whose live base-branch ruleset requires `ci-status`. Behind a merge queue it passes no strategy flag and waits until the PR merges or leaves the queue. It never arms auto-merge and never passes `--admin`, `--merge` or `--rebase`. A PR that changes CI workflows, permission or agent-instruction configuration still merges only when the user names it. The merge-queue case no longer routes to the async merge API.
+
+## [0.82.0] - 2026-10-09
+
+### Added
+
+- **The babysit merge gate re-runs an AI review that hit the usage limit.** A `--merge`
+  run held on a failed `claude-review-status` or security-review check re-runs that
+  check's workflow run when its check run carries a `class=rate-limit` annotation, five
+  hours after the failure, on the pinned live head, and only on the run's first attempt,
+  and only when the job its `details_url` names emitted that check.
+  Every other failure class is left alone, a check-only run never re-runs, and auto-merge
+  still arms only on SUCCESS. The JSON reports each decision under `aiReviewReruns`.
+
+### Changed
+
+- **The Bash gates spawn only for the commands they judge.** `pr-body-linkage-gate` now
+  runs from three entries, `Bash(*pr *create*)`, `Bash(*pr *new*)` and `Bash(*pr *edit*)`, in
+  place of `Bash(*gh *)`, so it still sees `gh -R o/r pr create` and the `gh pr new` alias
+  but no longer starts for every other `gh` call. `worktree-add-containment-gate` and
+  `worktree-add-claim-gate` now run under `Bash(*worktree *add*)` in place of
+  `Bash(*worktree*)`, so `git worktree list` and paths that merely contain `worktree` no
+  longer start them.
+- **`/source-control:worktree create` skips `EnterWorktree` with no user present.** Outside
+  `.claude/worktrees/`, the call asks for approval, which a headless run cannot give; the
+  run works by explicit path with `git -C <literal path>` instead.
+- **`/source-control:pull-request create` writes the PR body to a file.** The body is
+  written with the Write tool, the pre-create gates read that file, and `gh pr create`
+  gets `--body-file` (the REST fallback sends `-F body=@<file>`), so a long body no longer
+  hits the Bash command length cap.
+- **`/source-control:pull-request monitor` waits in the background.** The cloud baseline
+  poll and the per-push CI wait run through the Monitor watch or a `run_in_background`
+  poll, never a foreground `sleep` or `until` loop.
+
+- **`/source-control:pull-request ready` adds a fresh-context code review.** Before the flip,
+  `/code-review` (or the review plugin's reviewer agents) runs over the pull request's diff
+  in a subagent that gets the diff and the acceptance criteria, not the author's reasoning,
+  beside the security review, which now runs the same way. Findings are fixed or recorded.
+
+## [0.81.2] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.81.1] - 2026-10-04
+
+### Fixed
+
+- **`pull-request merge` no longer reads as removing worktrees.** The routing row, the MERGED-state shortcut, the Phase 4 heading and the checklist said "worktree cleanup"; they now name what Phase 4.3 does: reuse the worktree for the next task, or release this session's lock on one it leaves. Phase 4.3 states that the merge phase never removes a worktree and that one left behind is a candidate for `/source-control:worktree cleanup`. No command changed (#6441).
+
+## [0.81.0] - 2026-10-04
+
+### Added
+
+- **`commit` and `pull-request create` write changelog fragments in place of the hand version bump** in a repository with `scripts/fragment-plugins.txt`, for each plugin that list names. The new `scripts/write-changelog-fragments.sh` maps the Conventional Commits type to the bump (`feat` minor; `fix` and `perf` patch; `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or `BREAKING CHANGE` major) and files the subject and body under `Added`, `Fixed` or `Changed`. Repositories without the list, and plugins it does not name, keep the per-PR bump.
+
+### Changed
+
+- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment, which `resolve-conflicts` routes through `convert-bump-to-fragment.sh` on the branch before merging main again; `babysit-loop` and `babysit-prs` say so.
+
+## [0.80.0] - 2026-10-04
+
+### Added
+
+- `scripts/convert-bump-to-fragment.sh [<base-ref>]` moves a branch's hand-written version bump into a changelog fragment for each plugin listed in `scripts/fragment-plugins.txt` (ADR 0048), so a pull request opened before its plugin moved to fragment mode stops failing `FRAGMENT-MODE RELEASE`. Run on the branch after merging the default branch, or during that merge: it restores the plugin's `plugin.json` version and `CHANGELOG.md` to the base (MERGE_HEAD, else the merge base with `<base-ref>`, default origin's default branch) and keeps every other edit, writes the removed entries through `scripts/new-changelog-fragment.sh` at the level of the version delta, and stages all three files. A plugin whose files are still conflicted, whose version went down, or that gained no CHANGELOG heading is named and left alone (exit 1), as is one whose CHANGELOG gained a heading with no version change; a written fragment that fails the repository's fragment validation is named too (exit 1); a repository with no fragment list has nothing to convert (exit 0); a rebase or cherry-pick in progress is refused (exit 2). `scripts/convert-bump-to-fragment.test.sh` covers these paths and checks the result against the repository's real fragment and parity gates (#6006).
+
+## [0.79.21] - 2026-10-04
+
+### Changed
+
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.79.20] - 2026-10-04
+
+### Changed
+
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.79.19] - 2026-10-04
+
+### Changed
+
+- `babysit-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
+## [0.79.18] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
+
+## [0.79.17] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.79.16] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.79.15] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.79.14] - 2026-10-04
+
+### Fixed
+
+- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted. A configured heading such as `What changed?` is matched as text, not as a regular expression.
+
+## [0.79.13] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.79.11] - 2026-10-04
 

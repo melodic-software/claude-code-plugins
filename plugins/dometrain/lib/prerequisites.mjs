@@ -13,8 +13,9 @@
 //         --for keeps the entries scoped to that skill, hook or MCP server, plus
 //         the plugin-wide ones. --data-dir is the plugin data directory, which a
 //         command run through the Bash tool does not get in its environment.
-// probe   A SessionStart hook. Notifies once per session for each missing entry a
-//         hook needs, on both hook channels. Always exits 0 on a valid manifest,
+// probe   A SessionStart hook. Notifies the user (systemMessage) once per session
+//         for each missing entry a hook needs; the model hears of it when the hook
+//         first skips. Always exits 0 on a valid manifest,
 //         because Claude Code reads hook JSON only from a zero exit.
 //         --run-if-unset-or-true is the plugin option gate exec-bash.mjs offers: the
 //         probe stays silent when CLAUDE_PLUGIN_OPTION_<OPTION> is set to anything
@@ -474,12 +475,12 @@ function readHookInput(stdin) {
   }
 }
 
-// Once per session per entry, with the marker name hook::notice_once uses for
-// its prerequisite class, so a bash probe and this one share a latch.
+// Once per session per entry, on the user marker hook::notice_once reads, so the
+// hook's first skip of the same tool does not tell the user again.
 function firstNoticeThisSession(plugin, id, session, env) {
   if (!env.CLAUDE_PLUGIN_DATA) return true;
   const dir = path.join(env.CLAUDE_PLUGIN_DATA, "skip-notices");
-  const marker = path.join(dir, `${plugin}-${id}.${session}.session`);
+  const marker = path.join(dir, `${plugin}-${id}.${session}.user`);
   try {
     if (existsSync(marker)) return false;
     mkdirSync(dir, { recursive: true });
@@ -579,20 +580,23 @@ function cmdProbe(opts, ctx, out) {
   for (const entry of manifest.requires.filter((e) => e.for.some((s) => s.startsWith("hook:")))) {
     const { status, detail } = detectEntry(entry, { ...ctx, root });
     if (!isFailure(status) || !firstNoticeThisSession(plugin, entry.id, session, ctx.env)) continue;
-    notices.push(
-      `${plugin}: ${detail}. Hooks that need ${entry.id} skip until it is installed. ${remediation(entry)} It does not install.`,
-    );
+    notices.push(userNotice(plugin, entry, status, detail));
   }
-  if (notices.length) {
-    const msg = notices.join("\n");
-    out.stdout(
-      JSON.stringify({
-        hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: msg },
-        systemMessage: msg,
-      }),
-    );
-  }
+  if (notices.length) out.stdout(JSON.stringify({ systemMessage: notices.join("\n") }));
   return 0;
+}
+
+// The user line for a missing hook dependency. hook::prereq_notice_to in
+// hook-utils.sh renders the same line from the same fields when the hook skips.
+// A version floor or a non-PATH kind keeps the detector's own detail.
+function userNotice(plugin, entry, status, detail) {
+  const onPath = status === "missing" && (entry.kind === "cli" || entry.kind === "runtime");
+  const local = entry.detect.local_bin?.length ? ` or at ${entry.detect.local_bin.join(" or ")}` : "";
+  const what = onPath ? `${entry.id} not on the hook PATH${local}` : detail;
+  return (
+    `${plugin}: ${what}. ${entry.degrade} Install (${installText(entry)}). ` +
+    `Hooks read Claude Code's PATH, not your shell profile. No further notice this session; ${entry.check} diagnoses.`
+  );
 }
 
 // main(argv, ctx, out) -> exit code. ctx and out are injectable for tests.

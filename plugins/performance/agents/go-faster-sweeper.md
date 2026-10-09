@@ -27,7 +27,9 @@ If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say 
   write is denied (exit 3, a `cannot write` line), stop and return `write-denied` with the
   command that was refused. This
   plugin's own measurement scripts (`untracked-cache-probe.sh`, `ab.sh`) create and remove their
-  own scratch under the system temp directory; that is theirs, not a write of yours.
+  own scratch under the system temp directory; that is theirs, not a write of yours. The same holds
+  for `scripts/fetch-docs.sh`, which writes a catalog pointer's page into its `--out` directory
+  (put it under the system temp directory) and the shared user-scope docs cache, its own store.
 - **Every area gets an outcome**: a measured finding, a candidate, a flag-only item, or
   `not-checked` with a reason code and a reason. Silence is not an outcome. Every not-checked
   reason states why the area was not checked, then either (a) the step that would make the area

@@ -123,8 +123,8 @@ fi
 # this runs on every Write and Edit, and FILE names an existing regular file, so
 # there is no trailing slash for basename to handle differently.
 case "$ACTION" in
-lf) EOL_MSG="eol-normalizer: normalized line endings to LF in ${FILE##*/}." ;;
-crlf) EOL_MSG="eol-normalizer: normalized line endings to CRLF in ${FILE##*/}." ;;
+lf) EOL_MSG="eol-normalizer: line endings in ${FILE##*/} set to LF." ;;
+crlf) EOL_MSG="eol-normalizer: line endings in ${FILE##*/} set to CRLF." ;;
 *) EOL_MSG="" ;;
 esac
 hook::rewrite_take_disclosure "$FILE" "$EOL_MSG"

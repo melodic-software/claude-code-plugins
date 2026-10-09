@@ -30,8 +30,9 @@
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
 # suite it selected but ALSO selected suites in other ecosystems, whose runner
 # it deliberately will not guess (see the --run note at the foot of this file);
-# 4 --unmapped-corpus widened the selection to the corpus of an unmapped file's
-# language. Under --run the first that applies wins, in the order 1, 3, 4.
+# 4 --unmapped-corpus met an unmapped file (and widened the selection to the
+# corpus of its language when it is code). Under --run the first that applies
+# wins, in the order 1, 3, 4.
 #
 # HOST: --run IS A LINUX GATE. On a Windows Git Bash host a standing set of
 # suites fails for reasons that belong to the host and not to the tree: text-mode
@@ -58,9 +59,12 @@
 # the lane that does cover it, and deletions, which have no content left to
 # cover. --allow-unmapped downgrades the error to a warning; --unmapped-corpus
 # keeps the report and adds every suite of the file's language to the selection:
-# the shell corpus for .sh and .bash, Python for .py, Node for .js .mjs .cjs,
-# Pester for .ps1 .psm1, and the shell corpus for any other file, because shell
-# suites are the ones that read data files out of the tree.
+# the shell corpus for .sh and .bash and for an extensionless file with a `#!`
+# line, Python for .py, Node for .js .mjs .cjs, Pester for .ps1 .psm1. Any
+# other unmapped file is data that no rule reaches, and a suite that reads a
+# tree file names it or declares it (R8), so it adds no corpus: the report
+# still counts it (exit 4), scripts/selection-audit.sh's daily trace reports a
+# suite read the rules miss, and the scheduled whole-tree run runs every suite.
 #
 # SELECTION RULES. A suite runs when the changed file is code the suite runs or
 # loads, or data the suite (or code it runs) reads. Every rule finds that
@@ -73,12 +77,21 @@
 #                    <dir>/test_<stem>.py and <dir>/tests/test_<stem>.py, the
 #                    two Python forms also with `-` folded to `_`. Every match is
 #                    taken: a .py can carry a test_<stem>.py and a wrapping
-#                    <stem>.test.sh at once.
+#                    <stem>.test.sh at once. pytest loads a conftest.py, and
+#                    Python an __init__.py, with no mention, so either selects
+#                    every test_*.py at or below its directory.
 #   R3 same language a file in the changed file's language that NAMES it (see
 #                    MATCHING) on a line that is not only a comment is a
 #                    dependent; R1, R2 and R3 then apply to it, transitively,
 #                    with no depth cap. A suite that names it is selected. This is
 #                    what carries a library change out to what sources it.
+#                    A Python `import`/`from` line names <stem>.py for each
+#                    dotted component and imported name equal to the stem
+#                    (`from harness.stub_harness import run` names
+#                    stub_harness.py), since an import never spells the file;
+#                    an AMBIGUOUS stem resolves to a module only when that
+#                    module is the one of its name in the nearest directory,
+#                    from the importer's up, that holds any.
 #   R4 other language a file in another language counts only where the naming
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
@@ -150,7 +163,7 @@
 # path has a directory in it: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
 # `$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin. A path that
 # spells only the name (`$SKILL_DIR/SKILL.md`, `$T/README.md`) or that is
-# relative to the root alone (`$ROOT/.github/workflows/ci.yml`) does not
+# relative to the root alone (`$ROOT/.github/workflows/pr-require-checks.yml`) does not
 # resolve: tests build the same path under a temporary directory as often as
 # they read the real file, so a suite that reads such a file declares it (R8),
 # as the strace of every suite showed where one does. A shared
@@ -162,8 +175,14 @@
 # PowerShell; `//`, `/*` or a `*` continuation in Node) names nothing, in suites
 # and in code alike: prose that cites a file is not a dependency on it. A
 # `# shellcheck source=` directive and a JSDoc type import (`@import`,
-# `import('...')`) are read by tools and still count, as does a trailing
-# comment on a code line.
+# `import('...')`) are read by tools and still count. A trailing comment on a
+# shell, Python or PowerShell code line (a `#` outside quotes after a blank)
+# names nothing either: `pin="1.7" # matches .github/actionlint.yaml` reads
+# no file. A trailing comment on a Node line, or on a Python `import`/`from`
+# line, still counts: `import transcript_reader  # scripts/transcript_reader.py`
+# is how a module import names its file. Nor does a shell
+# output redirect's target (`>file`, `>>"$dir/file"`): a suite that seeds a
+# fixture under a temporary directory writes that name and reads nothing.
 #
 # REPLAY. `--replay <range>` selects every first-parent commit of <range>
 # (`git rev-list --first-parent <range>`) against its parent, the squash-merged
@@ -497,6 +516,40 @@ build_tree_index() {
     echo "error: listing the tree failed." >&2
     exit 2
   fi
+  # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
+  # match; anything above it is an unreadable lookup, fatal like the grep in
+  # select_for.
+  local grep_rc=0 wrap_rc=0 WRAP_LINES="${AFFECTED_TESTS_WRAP_LINES:-1000}"
+  git grep --untracked -E '^[[:blank:]]*(from|import)[[:blank:]]' -- '*.py' >"$WORK_DIR/py-imports" || grep_rc=$?
+  # A `from m import (` or `from m import \` statement carries its names on the
+  # lines after it, so each is joined into one line of the index. --null keeps
+  # the path apart from a context line's text, which `-` cannot.
+  git grep --untracked --null -E -A "$WRAP_LINES" '^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*([(][^)]*|.*\\[[:blank:]]*)$' \
+    -- '*.py' >"$WORK_DIR/py-wrapped" || wrap_rc=$?
+  if [[ "$grep_rc" -gt 1 || "$wrap_rc" -gt 1 ]]; then
+    echo "error: 'git grep' failed (exit $grep_rc, $wrap_rc) listing the Python import lines." >&2
+    exit 2
+  fi
+  # A statement still open when the window runs out was cut short, and its
+  # later names would be lost: that fails loud, like an unreadable grep.
+  if ! tr '\0' '\t' <"$WORK_DIR/py-wrapped" | awk -v max="$WRAP_LINES" '
+    function close_open() { if (open && n >= max) cut = 1; open = 0 }
+    { i = index($0, "\t") }
+    i == 0 { close_open(); next }
+    { p = substr($0, 1, i - 1); t = substr($0, i + 1); sub(/#.*/, "", t) }
+    open && p == path {
+      s = s " " t; n++
+      if (paren ? index(t, ")") : t !~ /\\[[:blank:]]*$/) { print path ":" s; open = 0 }
+      next
+    }
+    { close_open() }
+    t ~ /^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*(\([^)]*|.*\\[[:blank:]]*)$/ {
+      path = p; s = t; open = 1; n = 0; paren = index(t, "(") > 0
+    }
+    END { close_open(); exit cut }' >>"$WORK_DIR/py-imports"; then
+    echo "error: a wrapped Python import ran past $WRAP_LINES lines, or joining the wrapped imports failed." >&2
+    exit 2
+  fi
   while IFS= read -r b; do
     AMBIGUOUS["$b"]=1
   done <"$WORK_DIR/ambiguous"
@@ -604,7 +657,7 @@ lang_family() {
 #   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
 #   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
-  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" '
+  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" -v impf="$WORK_DIR/py-imports" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
@@ -615,6 +668,9 @@ token_hits() {
       b = base_of($0)
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
+      if (b ~ /\.py$/) want_stem[substr(b, 1, length(b) - 3)] = 1
+      # A package initializer is reached through its package name (import_names).
+      if (b == "__init__.py") rt[b, ++nrt[b]] = $0
       next
     }
     FILENAME == resf {
@@ -628,6 +684,49 @@ token_hits() {
       if (b in nrt) same[b, ++nsame[b]] = $0
       next
     }
+    # R3 for a Python import, which names a module and never its file:
+    # `from a.b import c as d, e` names a.py, b.py, c.py and e.py, since an
+    # imported name can be a submodule. Same language, so no transition.
+    FILENAME == impf {
+      i = index($0, ":")
+      if (i == 0) next
+      path = substr($0, 1, i - 1)
+      text = substr($0, i + 1)
+      sub(/#.*/, "", text)
+      gsub(/[(),\\]/, " ", text)
+      n = split(text, w, /[ \t]+/)
+      for (j = 1; j <= n; j++) {
+        if (w[j] == "as") { j++; continue }
+        if (w[j] == "" || w[j] == "from" || w[j] == "import") continue
+        m = split(w[j], comp, ".")
+        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k])
+      }
+      next
+    }
+    # import_names: module c, imported by path, names c.py when that is a
+    # frontier basename; an ambiguous c.py resolves when it is the only module
+    # of that name in the nearest directory, from the importer up, holding one.
+    function import_names(path, c,   b, k, key) {
+      b = c ".py"
+      if (c in want_stem) {
+        key = path SUBSEP b
+        if (!(key in kept)) order[++nkept] = key
+        kept[key] = 1
+      }
+      if (b in nrt) for (k = 1; k <= nrt[b]; k++)
+        if (rt[b, k] != path && nearest_module(path, rt[b, k], "")) {
+          key = path SUBSEP rt[b, k]
+          if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
+        }
+      # Importing package c, or anything inside it, runs c/__init__.py.
+      b = "__init__.py"
+      if (b in nrt) for (k = 1; k <= nrt[b]; k++)
+        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && nearest_module(path, rt[b, k], c)) {
+          key = path SUBSEP rt[b, k]
+          if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
+        }
+    }
+    function pkg_of(p) { p = dir_of(p); sub(/\/$/, "", p); return base_of(p) }
     # uniq_suffix: the shortest path suffix, two components or more, that no
     # other file of the same basename ends in; empty when there is none.
     function uniq_suffix(t,   n, pa, k, j, suf, b, i, o, clash) {
@@ -672,6 +771,23 @@ token_hits() {
       }
       return 0
     }
+    # nearest_module: whether t is the one module of its name in the nearest
+    # directory, from the importer namer up to the root, that holds any. The
+    # importer reaches it through its own directory, a tests/ parent or a
+    # sys.path entry for its plugin lib/, never across two candidates.
+    # With pkg set, t is a package __init__.py and only those of package pkg count.
+    function nearest_module(namer, t, pkg,   a, b, i, n, hit) {
+      b = base_of(t)
+      for (a = dir_of(namer); ; sub(/[^\/]*\/$/, "", a)) {
+        n = 0; hit = 0
+        for (i = 1; i <= nsame[b]; i++)
+          if ((a == "" || index(same[b, i], a) == 1) && (pkg == "" || pkg_of(same[b, i]) == pkg)) {
+            n++; if (same[b, i] == t) hit = 1
+          }
+        if (n > 0) return n == 1 && hit
+        if (a == "") return 0
+      }
+    }
     # runs_or_loads: R4. An interpreter or process API on the line, or a path
     # to the file.
     function runs_or_loads(name, n,   j) {
@@ -692,6 +808,23 @@ token_hits() {
       if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
       return text ~ /^[ \t]*#/
     }
+    # code_part: a shell, Python or PowerShell line with its trailing comment
+    # cut, a `#` outside quotes that starts the line or follows a blank, so
+    # `${#x}` and `$#` stay code. A trailing shellcheck source directive stays.
+    function code_part(text,   n, k, c, q, prev) {
+      n = length(text); q = ""; prev = " "
+      for (k = 1; k <= n; k++) {
+        c = substr(text, k, 1)
+        if (q == "\"" && c == "\\") { k++; prev = "x"; continue }
+        if (q != "") { if (c == q) q = ""; prev = c; continue }
+        if (c == "\"" || c == "'\''") q = c
+        else if (c == "#" && (prev == " " || prev == "\t") &&
+          substr(text, k) !~ /^#[ \t]*shellcheck[ \t]+source=/)
+          return substr(text, 1, k - 1)
+        prev = c
+      }
+      return text
+    }
     {
       i = index($0, ":")
       # No separator means no path: git grep says "Binary file X matches" that way.
@@ -699,6 +832,13 @@ token_hits() {
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
       if (comment_only(path, text)) next
+      # A Python import keeps its comment: `import x  # scripts/x.py` is how a
+      # module import, which never spells the file name, names the file.
+      if (path ~ /\.(sh|bash|ps1|psm1)$/ || (path ~ /\.py$/ && text !~ /^[ \t]*(import|from)[ \t]/))
+        text = code_part(text)
+      # A shell redirect target is written, not read: a suite that seeds a
+      # fixture with `printf x >"$dir/docs/a.md"` does not read docs/a.md.
+      if (path ~ /\.(sh|bash)$/) gsub(/>>?[ \t]*("[^"]*"|[^ \t;|&()<>]+)/, "", text)
       # A word, not an extension: the `.sh` of `x.sh` is no interpreter.
       exec_line = text ~ /(^|[^A-Za-z0-9_.-])(bash|sh|zsh|python3?|node|deno|pwsh|powershell|uv|npx|source|subprocess|Popen|check_output|check_call|spawn[A-Za-z0-9_]*|exec[A-Za-z0-9_]*|execa|child_process|Start-Process|Invoke-Expression)([^A-Za-z0-9_-]|$)/
       # Path tokens. A leading `.` stays: `./x`, `../x` and `.claude-plugin/x`
@@ -738,7 +878,7 @@ token_hits() {
         print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
       }
     }
-  ' "$1" "$2" "$WORK_DIR/all-files" "$3" >"$4"
+  ' "$1" "$2" "$WORK_DIR/all-files" "$WORK_DIR/py-imports" "$3" >"$4"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
@@ -771,6 +911,15 @@ colocated_suites() {
   for candidate in ${candidates[@]+"${candidates[@]}"}; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
+  # pytest loads a conftest.py, and Python a package's __init__.py, without
+  # either being named, for every test module at or below the directory.
+  case "${p##*/}" in
+  conftest.py | __init__.py)
+    awk -v d="$dir/" '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && (d == "./" || index($0, d) == 1)' \
+      "$WORK_DIR/all-files"
+    ;;
+  *) ;;
+  esac
   return 0
 }
 
@@ -1297,8 +1446,13 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
     for f in "${UNMAPPED[@]}"; do
       lang_family "$f"
       case "$LANG_FAMILY" in
-      py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
-      *) CORPORA[sh]=1 ;;
+      sh | py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
+      *)
+        # An executable without an extension is shell-run code. Data no rule
+        # reaches is read by no suite: a suite that reads a tree file names it
+        # or declares it (R8), so it widens nothing.
+        [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && CORPORA[sh]=1
+        ;;
       esac
     done
     awk -v want=" ${!CORPORA[*]} " '
@@ -1312,7 +1466,11 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
     while IFS=$'\t' read -r lang suite; do
       add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
     done <"$WORK_DIR/corpus"
-    echo "Selecting the whole corpus of each unmapped file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    if [[ ${#CORPORA[@]} -gt 0 ]]; then
+      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    else
+      echo "Every unmapped file is data no suite reads; --unmapped-corpus selects no corpus for it." >&2
+    fi
     corpus_used=1
   elif [[ "$allow_unmapped" -eq 0 ]]; then
     echo "Re-run with --allow-unmapped to proceed anyway." >&2
@@ -1344,6 +1502,10 @@ if [[ ${#SUITES[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#selected[@]} -eq 0 ]]; then
+  if [[ "$corpus_used" -eq 1 ]]; then
+    echo "No suites selected (every unmapped file is data no suite reads)." >&2
+    exit 4
+  fi
   echo "No suites selected (every changed file is a recorded no-suite class or a deletion)." >&2
   exit 0
 fi

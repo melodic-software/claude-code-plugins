@@ -1,0 +1,7 @@
+# report-tools
+
+Shell tooling that summarizes application logs.
+
+## Tests
+
+Run `bash tests/build-report.test.sh` after any change under `scripts/`. It must print `PASS`.

@@ -206,6 +206,29 @@
         "Output reports testing/audit/rule-weak-oracle with the fired threshold",
         "Output proposes asserting the exact saved value instead of only that a row exists"
       ]
+    },
+    {
+      "id": 18,
+      "name": "throw-only-oracle-constructed-value",
+      "prompt": "Our widget tests build a Widget with new and then Assert.NotNull and Assert.IsType on it. Audit them.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-throw-only-oracle: a value built with new is never null and is always its own type, so the tests fail only if the constructor throws. Proposes asserting what the constructor sets (the widget's name) and notes that a smoke test kept to prove wiring records that with a cant-fail-ok: annotation, and that the rule is report-only.",
+      "files": ["evals/fixtures/corpus/cs-xunit/bad/WidgetConstructedNotNullTests.cs.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-throw-only-oracle with the fired threshold",
+        "Output proposes asserting a value the constructor sets instead of only that the widget exists"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "pytest-reruns-flaky-passes-suite",
+      "prompt": "Our pytest suite never goes red in CI, and the one test body looks fine. Audit it for tests that cannot fail.",
+      "expected_output": "Runs cant-fail-scan.sh, which reads the pytest config beside the test files, and reports testing/audit/rule-flaky-passes-suite at the pytest.ini addopts line: --reruns 2 with --fail-on-flaky absent, so a test that fails and passes on a rerun leaves the run green. Proposes adding --fail-on-flaky to addopts (pytest-rerunfailures 15.0 or later) or dropping the reruns, and notes the finding is advisory in --check unless --strict.",
+      "files": ["evals/fixtures/retry-config/pytest/pytest.ini", "evals/fixtures/retry-config/pytest/test_checkout.py"],
+      "expectations": [
+        "Output reports testing/audit/rule-flaky-passes-suite for the --reruns setting in pytest.ini with --fail-on-flaky absent",
+        "Output explains that a test passing on a rerun leaves the pytest run green",
+        "Output proposes --fail-on-flaky in addopts or removing the reruns, and notes the finding gates only under --strict"
+      ]
     }
   ]
 }

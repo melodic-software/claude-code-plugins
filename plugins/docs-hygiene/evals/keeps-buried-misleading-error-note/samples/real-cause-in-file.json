@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nTidepool: Python 3.12 FastAPI API; uv. `uv sync`, `uv run pytest`, `uv run ruff check .`.\n\n- `uv run pytest` fails with `PermissionError: [Errno 13] Permission denied: '/tmp/tidepool-test.lock'`: not a permissions problem. A killed earlier run left its lock file. Delete `/tmp/tidepool-test.lock` and rerun.\n```\n\n- Layout: visible from the tree.\n- Router, model, conftest locations: visible from the tree.\n- Type hints, small functions: generic.",
+      "why": "killed earlier run named in the file"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Stale test lock: a `PermissionError` on `/tmp/tidepool-test.lock` means a killed run left the lock behind, not a real permissions issue. Remove the file and rerun pytest.\n```\n\n- Overview, layout, commands: in pyproject.toml and the tree.\n- Other notes: derivable or generic.",
+      "why": "reworded: stale lock from a killed run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nTidepool: FastAPI, uv.\n\n- If pytest hits a PermissionError on `/tmp/tidepool-test.lock`, fix the file permissions with `chmod 666 /tmp/tidepool-test.lock`.\n```\n\n- Layout, other notes: derivable or generic.",
+      "why": "permissions reading replaces the real cause"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nTidepool: Python 3.12 FastAPI API managed with uv. Commands: `uv sync`, `uv run pytest`, `uv run ruff check .`.\n```\n\n- Layout: visible from the tree.\n- Notes: all derivable from the code or generic advice.",
+      "why": "note cut with the Notes block"
+    }
+  ]
+}

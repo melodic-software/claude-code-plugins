@@ -29,15 +29,17 @@ check "PostToolUse Write|Edit runs test-scan and test-judge-bg, PreToolUse runs 
     "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
 # The judge rows: the background job on the same `if` rows as test-scan,
-# async; one Stop entry at timeout 240; one SessionStart entry. Every judge
-# row is gated on both options.
+# async; one Stop entry with asyncRewake at timeout 240 and no SubagentStop
+# entry; one SessionStart entry. Every judge row is gated on both options.
 judge() { jq -r "$1" "$HOOKS"; }
 check "test-judge-bg rows are async and match test-scan's if rows" \
   '[[ "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\")) | .async] | unique | tostring")" == "[true]" &&
     "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\")) | .if] | sort | tostring")" == "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-scan.sh\")) | .if] | sort | tostring")" ]]'
-check "Stop: one entry, test-judge.sh, timeout 240" \
+check "Stop: one entry, test-judge.sh, asyncRewake, timeout 240" \
   '[[ "$(judge ".hooks.Stop | length")" == 1 && "$(judge ".hooks.Stop[0].hooks | length")" == 1 &&
-    "$(judge ".hooks.Stop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.Stop[0].hooks[0].timeout")" == 240 ]]'
+    "$(judge ".hooks.Stop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.Stop[0].hooks[0].asyncRewake")" == true &&
+    "$(judge ".hooks.Stop[0].hooks[0].timeout")" == 240 ]]'
+check "no SubagentStop entry" '[[ "$(judge ".hooks.SubagentStop | length")" == 0 ]]'
 check "SessionStart: the judge entry first, test-judge-start.sh, then the node-notice entry" \
   '[[ "$(judge ".hooks.SessionStart | length")" == 2 && "$(judge ".hooks.SessionStart[1].hooks[0].command | contains(\"node-notice /testing:check\")")" == true && "$(judge ".hooks.SessionStart[0].hooks[0].args[-1]")" == */test-judge-start.sh ]]'
 check "every judge row is gated on test_guards_enabled and test_judge_enabled" \

@@ -20,8 +20,8 @@ was single-sourced anyway while the report presented a two-source design.
 > **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** those six are built-in commands with no
 > model-invocable form; model invocation of built-ins has been *removed* upstream rather than added
 > to, `/verify` and `/deep-research` being the worked cases. **Basis:**
-> [slash commands](https://code.claude.com/docs/en/slash-commands) plus the installed binary's own
-> command surface. **Recheck trigger:** a release note or the slash-commands page granting any of
+> [commands](https://code.claude.com/docs/en/commands#all-commands) plus the installed binary's own
+> command surface. **Recheck trigger:** a release note or the commands page granting any of
 > those six a model-invocable or non-interactive form, at which point it returns as a source.
 
 ## The sources Phase 1 takes

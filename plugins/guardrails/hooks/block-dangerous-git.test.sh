@@ -111,8 +111,11 @@ run_stderr_in() {
 }
 
 err="$(run_stderr_in "$NOT_A_REPO" "width-undeterminable block names the git failure, not abbreviation" "git push --force-with-lease=main:$SHA1_OID origin main" 2)"
-assert_contains "width-undeterminable: cites object format" "$err" "hash format could not be determined"
+assert_contains "width-undeterminable: cites object format" "$err" "hash format, which could not be read"
 assert_absent "width-undeterminable: does not blame abbreviation" "$err" "abbreviated object id"
+assert_contains "width-undeterminable: hints git -C" "$err" "git -C <repo> push --force-with-lease=<ref>:<full-sha>"
+assert_absent "width-undeterminable: does not prescribe a cd" "$err" "cd <repo>"
+run_in "$NOT_A_REPO" "git -C <sha1-repo> push --force-with-lease=main:<40-hex> outside a repository (the hint's form, allowed)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA1_OID origin main" 0
 run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
 # git's repository-locating globals move the push off the invoking directory, so
 # the width follows them. `-C` takes its value as a separate word — git rejects
@@ -1909,7 +1912,7 @@ run_pwsh "PS budget: five distinct sink triggers fill the budget and git status 
 run_pwsh "PS budget: five distinct sink triggers then reset --hard are blocked by the reset check" \
   "$(ps_budget_five 'reset --hard')" 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-assert_absent "PS budget: and that refusal is not the budget's" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_absent "PS budget: and that refusal is not the budget's" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 run_pwsh "PS budget: and with no token they are blocked by the sink as before" \
   "$(ps_budget_five 'reset --hard')" 2
 # A sixth round cannot follow those five: an opener stacked on the hanging one
@@ -1923,9 +1926,9 @@ PS_BUDGET_EXHAUSTED="$(printf '%s\n%s' "Write-Host {a}; iex b; \$o=pwsh x; git r
 run_pwsh "PS budget: four distinct triggers, the last one stuck, are blocked under all five sink tokens" \
   "$PS_BUDGET_EXHAUSTED" 2 \
   "CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=$PS_SINK_TOKENS_5"
-assert_contains "PS budget: the refusal names the exhausted budget (four triggers)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: the refusal names the exhausted budget (four triggers)" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 assert_contains "PS budget: and says no allow token clears it (four triggers)" "$GUARD_ERR" "No allow token clears this"
-assert_absent "PS budget: it does not point at an allow token (four triggers)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+assert_absent "PS budget: it does not point at an allow token (four triggers)" "$GUARD_ERR" "False positive: the user adds"
 # Without the launcher token the same payload stops at the fourth round, on the
 # launcher. That the refusal names it, and not the budget, shows the three rounds
 # before it were spent on three different triggers.
@@ -1933,15 +1936,15 @@ run_pwsh "PS budget: without the launcher token the same payload is refused at t
   "$PS_BUDGET_EXHAUSTED" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-herestring-unbalanced,ps-unparsable-special-construct,ps-unparsable-dynamic-invocation
 assert_contains "PS budget: the refusal names the launcher" "$GUARD_ERR" "process launcher or nested shell"
-assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 # The same no-progress round from a call operator whose quoted target stays
 # opaque: the differential found it allowed under its one token.
 run_pwsh "PS budget: a quoted call target carrying reset --hard is blocked under its token" \
   "\$a=& 'git reset --hard'" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-assert_contains "PS budget: the refusal names the exhausted budget (quoted call)" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_contains "PS budget: the refusal names the exhausted budget (quoted call)" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 assert_contains "PS budget: and says no allow token clears it (quoted call)" "$GUARD_ERR" "No allow token clears this"
-assert_absent "PS budget: it does not point at an allow token (quoted call)" "$GUARD_ERR" "allow it via the block_dangerous_git_allow option"
+assert_absent "PS budget: it does not point at an allow token (quoted call)" "$GUARD_ERR" "False positive: the user adds"
 # A command that settles inside the budget is still read, not refused.
 run_pwsh "PS budget: three granted triggers then git status are still allowed" \
   'Write-Host {a}; iex b; pwsh -File c.ps1; git status' 0 \
@@ -1957,7 +1960,7 @@ run_pwsh "PS budget: a trailing-space opener beside reset --hard is refused as a
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'git reset --hard')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
 assert_contains "PS budget: the refusal names the orphan closer" "$GUARD_ERR" "closer ('@ or \"@) at column zero"
-assert_absent "PS budget: and not the budget" "$GUARD_ERR" "sink-attempt budget is exhausted"
+assert_absent "PS budget: and not the budget" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 run_pwsh "PS budget: a trailing-space opener beside a harmless line is refused as an orphan closer (git-free)" \
   "$(printf '%s\n%s\n%s\n%s' 'Write-Output @" ' "\$(y)" '"@' 'Write-Output ok')" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
@@ -1991,16 +1994,16 @@ assert_contains "PS hs: the hook names the comment-char trigger when the flag ho
   "on a line that also contains a '#'"
 assert_contains "PS hs: and it says the shape has no allow token rather than naming one" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
-  "This sink shape has NO allow token"
+  "No allow token exists for this shape"
 # The shared token-list line is SUPPRESSED for this trigger. Leaving it in would
 # send an operator to set a value the guard never consults on this path.
 assert_absent "PS hs: the shared allow-token line is suppressed for this trigger" \
   "$(pwsh_stderr "$PS_HS_COMMENT_PLUS_CONSTRUCT" || true)" \
-  "allow it via the block_dangerous_git_allow option"
+  "False positive: the user adds"
 # And it is still printed for a trigger that does have a token.
 assert_contains "PS hs: the shared allow-token line still prints for a tokened trigger" \
   "$(pwsh_stderr "$ps_hs_body" || true)" \
-  "allow it via the block_dangerous_git_allow option"
+  "False positive: the user adds"
 
 # --- #4683: opener-untrusted / comment-span / bare-cr / shape 9 ---------------
 # Same no-token flag as herestring-comment-char. Prefix test is a plain substring
@@ -2070,7 +2073,7 @@ assert_contains "PS hs: the hook names bare-cr when a CR holds the command" \
   "carriage return that is not part of a CRLF pair"
 assert_contains "PS hs: opener-untrusted says the shape has no allow token" \
   "$(pwsh_stderr "$ps_hs_backslash_prefix" || true)" \
-  "This sink shape has NO allow token"
+  "No allow token exists for this shape"
 
 # Exact payloads from the #4683 table. Class-level refusals must catch each
 # phantom opener / bare CR that hid git on main (rc 0), and the CRLF canonical
@@ -2114,7 +2117,7 @@ assert_contains "PS #4683 N2 names the orphan closer in the refusal" \
   "closer ('@ or \"@) at column zero"
 assert_contains "PS #4683 N2 says the shape has no allow token" \
   "$(pwsh_stderr "$ps_4683_n2" || true)" \
-  "This sink shape has NO allow token"
+  "No allow token exists for this shape"
 
 # RECORDED RESIDUAL, not an endorsement: `-MemberName` dispatch calls a METHOD on
 # the filtered object rather than running a program named by the compared value,
@@ -2176,7 +2179,7 @@ nul_stderr() {
 }
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git reset --hard' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git reset --hard' 'x')" \
-  "reissue the tool call without the embedded NUL"
+  "Reissue the call without it"
 
 # The all-NUL command reaches the flag BEFORE the empty-COMMAND skip — its block
 # must carry the NUL reason, and an empty command with no NUL must still take

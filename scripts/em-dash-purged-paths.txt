@@ -197,15 +197,9 @@ plugins/context-budget/README.md
 plugins/context-budget/CHANGELOG.md
 plugins/context-budget/skills/*/SKILL.md
 plugins/context-budget/skills/audit/reference/*.md
-# The context-guard plugin was purged whole. Its legacy-statusline reference is generated from
-# lib/legacy-statusline-detect.md by scripts/sync-shared-copies.sh, which also generates the
-# rate-limit-guard carrier, so the canonical and the carrier are declared.
-lib/legacy-statusline-detect.md
 plugins/context-guard/*.md
 plugins/context-guard/reference/*.md
 plugins/context-guard/skills/*/SKILL.md
-plugins/context-guard/skills/*/reference/*.md
-plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
 plugins/context7/README.md
 plugins/context7/CHANGELOG.md
 plugins/context7/skills/*/SKILL.md

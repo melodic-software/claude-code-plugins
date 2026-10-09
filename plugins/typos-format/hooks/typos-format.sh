@@ -25,7 +25,8 @@
 # both channels — additionalContext for the agent, systemMessage for the person
 # whose file was rewritten — and the autocorrect has no memory: repairing a
 # word by hand gets it re-corrected on the next save unless the repo
-# allow-lists it, so the disclosure carries the allow-list remediation with it.
+# allow-lists it, so the first disclosure per file carries the allow-list
+# pointer.
 #
 # Unconditional: typos ships a built-in spelling dictionary and runs with zero
 # configuration, so this hook runs on every edit regardless of whether the
@@ -85,6 +86,13 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq gate, the
 # parsed path with its basename and directory, the repo root (the CWD typos
 # runs in), and the telemetry-only TOOL behind the sink opt-in. Exits 0 itself
@@ -139,12 +147,12 @@ if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
   fi
 fi
 
-# No binary available → visible once-per-session skip notice, not a silent gap
-# (dim-9 doctrine).
+# No binary available: a skip notice once per channel, composed from
+# prerequisites.json, not a silent gap.
 if [[ -z "$TYPOS_BIN" ]]; then
-  if hook::notice_once "typos-format-typos" "$INPUT" prerequisite; then
-    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; this notice latches once per session, shared by every agent, and is renewed every eighth skip with the install route kept). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Run /typos-format:check. It does not install. Install: cargo install typos-cli, a host package or a release binary, https://github.com/crate-ci/typos#install
-PATH probed: ${PATH:-<unset>}"
+  TYPOS_MODEL="" TYPOS_USER=""
+  if hook::prereq_notice_to TYPOS_MODEL TYPOS_USER typos "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "$TYPOS_MODEL" "$TYPOS_USER"
   fi
   emit_skipped
 fi
@@ -171,11 +179,13 @@ fi
 # `typos_format_write_changes` userConfig to true. Read from the
 # CLAUDE_PLUGIN_OPTION_<KEY> environment mirror rather than a
 # `${user_config.*}` placeholder: shell-form hook commands REJECT
-# `${user_config.*}` substitution outright — "substituting a configured value
-# into a shell command would let the shell run whatever that value contains, so
-# the component fails" — and every option is exported to hook processes as
-# CLAUDE_PLUGIN_OPTION_<KEY> anyway (Plugins reference, "User configuration",
-# https://code.claude.com/docs/en/plugins-reference, re-fetched 2026-08-10).
+# `${user_config.*}` substitution outright — "because the field's value is
+# passed to a shell that would re-parse the substituted value" — and every
+# option is exported to hook processes as CLAUDE_PLUGIN_OPTION_<KEY> anyway
+# (plugin manifest reference, https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell,
+# re-fetched 2026-10-07). Recheck when the manifest reference changes how
+# `${user_config.*}` is handled in shell-form hook commands, or stops exporting
+# every option as CLAUDE_PLUGIN_OPTION_<KEY>.
 # Same idiom as the hoisted kill switch at the top. Only the literal "true"
 # means write — the mutating direction must be the one that needs the exact
 # opt-in spelling, so a typo'd or half-set option value stays report-only.
@@ -237,9 +247,9 @@ typos_write_ext_allowed() {
 
 # Opt-in write mode that lands on a denied extension degrades to report-only
 # for THIS file. Flipping WRITE_CHANGES keeps the disclosure composer on the
-# report-only path (mode statement, no residual-after-write phrasing) without
-# a second messaging branch. WRITE_SKIP_REASON records why, for a one-line
-# note on the agent channel when findings exist.
+# report-only path (no residual-after-write phrasing) without a second
+# messaging branch. WRITE_SKIP_REASON records why, for a note in the report
+# heading.
 WRITE_SKIP_REASON=""
 if [[ "$WRITE_CHANGES" == "true" ]]; then
   if typos_write_lockfile_denied "$FILE"; then
@@ -295,22 +305,23 @@ SCAN_RC=$?
 # via additionalContext (NOT stderr — an advisory hook's exit-0 stderr can trip
 # a false "Hook Error" label). Recorded as "skipped" (typos never ran to
 # judgment), the same status as the no-binary path.
+# The break is sent once per distinct output per (session, agent, file).
 emit_tool_break() {
-  hook::ctx_reset
-  hook::ctx_append "typos-format: typos failed for $FILE_BASE (no diagnostics; tool break, not a finding):"
-  local line ctx=""
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    hook::ctx_append "  $line"
-  done <<<"$1"
-  hook::ctx_take_to ctx
+  local ctx="" out="$1"
+  [[ -n "$out" ]] || out="typos exited non-zero with no output"
+  hook::findings_to ctx "typos-format: typos failed on $FILE_BASE:" "$out" \
+    --max 10 --delta "$INPUT" "$FILE"
   hook::finish --context "$ctx" skipped findings array '[]' applied array '[]'
 }
 
 if [[ $SCAN_RC -eq 0 ]]; then
   # Clean, or excluded by the repo's own typos config. Nothing was changed and
   # there is nothing to disclose; typos ran, so the rewrite verdict is a
-  # known false rather than an omitted key.
+  # known false rather than an omitted key. The empty set clears the delta
+  # record, so typos that come back are reported again.
+  # shellcheck disable=SC2034 # a clean run has no report; the call clears the record
+  CLEAN_CTX=""
+  hook::findings_to CLEAN_CTX "" "" --delta "$INPUT" "$FILE"
   hook::finish --changed false ok findings array '[]' applied array '[]'
 fi
 
@@ -531,11 +542,8 @@ if [[ -z "$CLASSIFIED" ]]; then
   # near-unreachable. It still must not degrade into silence: the file may
   # already have been rewritten, and "changed, details unavailable" is a far
   # better answer than nothing.
-  hook::ctx_reset
-  hook::ctx_append "typos-format ran on $FILE_BASE and its findings could not be summarized (internal parse failure). If the file was rewritten, review it — this run cannot say what changed."
-  UNSUMMARIZED_CTX=""
-  hook::ctx_take_to UNSUMMARIZED_CTX
-  hook::finish --context "$UNSUMMARIZED_CTX" skipped findings array '[]' applied array '[]'
+  hook::finish --context "typos-format: results for $FILE_BASE could not be summarized; it may have been rewritten." \
+    skipped findings array '[]' applied array '[]'
 fi
 
 # Unpack the classification in ONE jq process (hook::jq_fields), not seven. The
@@ -589,51 +597,63 @@ SYSMSG=""
 BASE="$FILE_BASE"
 
 if ((APPLIED_COUNT > 0)); then
-  CTX+="typos-format REWROTE $APPLIED_COUNT word(s) in $BASE after your edit:"$'\n'
+  CTX+="typos-format REWROTE $APPLIED_COUNT word(s) in $BASE:"$'\n'
   CTX+="$APPLIED_LINES"
   if ((APPLIED_COUNT > MAX_REPORT)); then
     CTX+="  ... and $((APPLIED_COUNT - MAX_REPORT)) more."$'\n'
   fi
-  CTX+="  Corrections come from typos' built-in dictionary; the autocorrect has no memory, so a hand repair alone is re-corrected on the next edit. A wrong rewrite is allow-listed via extend-words / extend-identifiers (or an extend-ignore-re pattern) in the repo's typos config."$'\n'
   # The person whose file was just changed is the one who has to judge whether
   # the change was correct, and they never asked for it. This is a content
-  # mutation, not a lint finding, so it goes to the user channel too.
+  # mutation, not a lint finding, so it goes to the user channel too, with the
+  # allow-list pointer once per file.
   SYSMSG="typos-format rewrote $APPLIED_COUNT word(s) in $BASE: $APPLIED_INLINE"
   if ((APPLIED_COUNT > MAX_REPORT)); then
     SYSMSG+="; ... and $((APPLIED_COUNT - MAX_REPORT)) more"
   fi
-  SYSMSG+=". Add any wrong rewrite to extend-words / extend-identifiers in the repo's typos config, or set the typos_format_write_changes option back to false (the default) for report-only mode."
-elif [[ "$WRITE_CHANGES" != "true" ]]; then
-  if [[ -n "$WRITE_SKIP_REASON" ]]; then
-    case "$WRITE_SKIP_REASON" in
-    lockfile)
-      skip_why="this path is a generated lockfile basename, so the file was NOT modified"
-      ;;
-    extensionless)
-      skip_why="this path has no extension and is outside the write allowlist, so the file was NOT modified"
-      ;;
-    *)
-      skip_why="this extension is outside the write allowlist, so the file was NOT modified"
-      ;;
-    esac
-    CTX+="typos-format is report-only for $BASE — write mode is on, but ${skip_why}. Findings:"$'\n'
-  else
-    CTX+="typos-format is report-only — $BASE was NOT modified. Findings:"$'\n'
-  fi
+  SYSMSG+="."
+  hook::once_per_file typos-format-hint-user "$INPUT" "$FILE" &&
+    SYSMSG+=" Allow-list wrong ones in the typos config."
 fi
 
+# The residual list goes through --delta: an unchanged set on a re-edit sends
+# nothing, and a clean run clears the record. Its lines arrive indented, which
+# hook::findings_to adds itself, and the cap's remainder joins the record so a
+# grown set is sent again.
+RESIDUAL_CTX=""
 if ((RESIDUAL_COUNT > 0)); then
   if ((APPLIED_COUNT > 0)); then
-    CTX+="typos-format: $BASE also has $RESIDUAL_COUNT finding(s) it did not rewrite (advisory):"$'\n'
-  elif [[ "$WRITE_CHANGES" == "true" ]]; then
-    CTX+="typos-format: $BASE has residual typos findings (advisory):"$'\n'
+    RESIDUAL_HEAD="typos-format: $BASE also has $RESIDUAL_COUNT typo(s) it did not rewrite:"
+  else
+    case "$WRITE_SKIP_REASON" in
+    lockfile) skip_note=" (not rewritten: generated lockfile)" ;;
+    extensionless) skip_note=" (not rewritten: no extension, outside the write allowlist)" ;;
+    extension) skip_note=" (not rewritten: extension outside the write allowlist)" ;;
+    *) skip_note="" ;;
+    esac
+    RESIDUAL_HEAD="typos-format: $BASE has $RESIDUAL_COUNT typo(s)${skip_note}:"
   fi
-  CTX+="$RESIDUAL_LINES"
+  RESIDUAL_IN=$'\n'"$RESIDUAL_LINES"
+  RESIDUAL_IN="${RESIDUAL_IN//$'\n'  /$'\n'}"
   if ((RESIDUAL_COUNT > MAX_REPORT)); then
-    CTX+="  ... and $((RESIDUAL_COUNT - MAX_REPORT)) more."$'\n'
+    RESIDUAL_IN+="... and $((RESIDUAL_COUNT - MAX_REPORT)) more."
   fi
-  # One remediation pointer for the whole list.
-  CTX+="  Intentional terms are allow-listed via extend-words / extend-identifiers (or an extend-ignore-re pattern) in the repo's typos config."$'\n'
+else
+  RESIDUAL_HEAD=""
+  RESIDUAL_IN=""
+fi
+# --max covers the classifier's MAX_REPORT lines plus its remainder line, which
+# stays in the record so a grown set is sent again.
+hook::findings_to RESIDUAL_CTX "$RESIDUAL_HEAD" "$RESIDUAL_IN" --max "$((MAX_REPORT + 1))" --delta "$INPUT" "$FILE"
+[[ -n "$RESIDUAL_CTX" ]] && CTX+="$RESIDUAL_CTX"$'\n'
+
+# The allow-list pointer, once per file: the autocorrect has no memory, so on
+# the rewrite path a hand revert alone is re-corrected on the next edit.
+if [[ -n "$CTX" ]] && hook::once_per_file typos-format-hint "$INPUT" "$FILE"; then
+  if ((APPLIED_COUNT > 0)); then
+    CTX+="  Allow-list intended words in the repo's typos config (extend-words); a hand revert is re-corrected on the next edit."
+  else
+    CTX+="  Allow-list intended words in the repo's typos config (extend-words)."
+  fi
 fi
 
 # Trim the trailing newline the same way hook::ctx_flush does.

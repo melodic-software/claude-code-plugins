@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Release history\n\nThis log is append-only. Do not edit historical entries; add a new one instead.\n\n- 0.1.0: introduced `say_hello`.\n- 0.2.0: greeting function reworked.\n",
+      "why": "byte-identical to the seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Release history\n\nThis log is append-only. Do not edit historical entries; add a new one instead.\n\n- 0.1.0: introduced `greet`.\n- 0.2.0: greeting function reworked.\n",
+      "why": "historical entry rewritten"
+    },
+    {
+      "answer": "# Release history\n\nThis log is append-only. Do not edit historical entries; add a new one instead.\n\n- 0.1.0: introduced `say_hello`.\n- 0.2.0: greeting function reworked.\n\n",
+      "why": "trailing byte appended"
+    }
+  ]
+}

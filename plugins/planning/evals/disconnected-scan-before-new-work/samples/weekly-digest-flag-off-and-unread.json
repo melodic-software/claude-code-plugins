@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I read the five files under evals/fixtures/disconnected-scan/. Before any new build, three pieces are already built but not connected:\n\n1. **Wire up the existing digest builder** (cheapest). `app/notifier.py` imports `build_digest` from `app/digest.py` but never calls it; `send_pending` sends each row on its own. Calling `build_digest` over a week of pending rows gives the weekly summary with no new module.\n2. **Turn on the `weekly_digest` flag.** `app/config.py` sets `FEATURES[\"weekly_digest\"]` to `False`, and no code ever reads it. Checking it in `send_pending` gates candidate 1 for a safe rollout.\n3. **Use the `delivery_receipts` table.** `db/schema.sql` defines it with an `opened_at` column, but no code writes to it or reads from it. An open-tracking endpoint that inserts a row, plus a query in `app/store.py`, answers \"was it opened\".\n4. **A scheduled digest job** (new build). A cron entry that groups the week's notifications per recipient and sends one email.\n5. **An event pipeline with an analytics store** (most ambitious). Emit sent and opened events and report on them.\n\nWhich of these resonate? Mark the numbers and I will propose a scope and the next step.",
+      "why": "flag set to False and no code ever reads it"
+    },
+    {
+      "answer": "Already built, not yet connected (cheapest first):\n\n1. `build_digest` is imported in `app/notifier.py` but unused; the builder in `app/digest.py` is ready to call.\n2. The `weekly_digest` feature flag defaults to False in `app/config.py` and is never read anywhere.\n3. The `delivery_receipts` table in `db/schema.sql` has no reader and no writer: nothing reads or writes it.\n\nNew work, after those:\n\n4. A weekly scheduler that batches notifications per recipient.\n5. A tracking pixel service with its own store.\n\nTell me which of these stand out, and I will scope the ones that do.",
+      "why": "flag defaults to False and is never read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here are some approaches, cheapest first:\n\n1. Add a weekly cron job that collects each recipient's notifications and emails one summary.\n2. Add an open-tracking pixel and a new table to record opens.\n3. Build an event pipeline with an analytics dashboard.\n\nWhich of these resonate?",
+      "why": "the flag is never mentioned"
+    },
+    {
+      "answer": "1. Add a `weekly_digest` flag to `app/config.py` so the summary can roll out gradually.\n\nWhich of these resonate?",
+      "why": "proposes the flag as new work, missing that it exists, is off and is unread"
+    }
+  ]
+}

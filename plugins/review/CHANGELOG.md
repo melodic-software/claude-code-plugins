@@ -3,6 +3,101 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.2] - 2026-10-09
+
+### Changed
+
+- **`/review:fanout` pilots one surface before a fan-out wider than about 4.** In either review mode it dispatches one surface alone and confirms plan usage remains before dispatching the rest, because a usage limit reached mid-fan-out halts the rest of the roster. Run-everything mode pilots one slice on the main thread before the workflow launch, since the workflow dispatches its roster in one call. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+
+## [0.43.1] - 2026-10-07
+
+### Fixed
+
+- The `explain-change` test suite loads on Windows: it imports its modules by `file://` URL, which the ESM loader requires there for an absolute path. The hosted-publish cases that run the fake `pages-publish` skip on Windows, since `publish-hosted.mjs` spawns it with no shell and Windows then finds only a `.exe` or `.com` on `PATH`.
+
+## [0.43.0] - 2026-10-07
+
+### Added
+
+- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts, keeping its id under `stale` until a delete succeeds. A page the gate sent private that `pages-publish` reports on the public host exits 1 and names the URL to take down. A tracked team layer cannot select `hosted`, and an overlay selects it only once gitignored. The contract is in the rendered-views convention, "The `hosted` medium".
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: new credential shapes (an R2 key pair, an Azure client secret, Cloudflare's prefixed tokens, upload tokens) also keep an `artifact` page local.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+- The skill's `allowed-tools` gains `Write`, which the connected-page step already used for `ops.json`.
+
+## [0.42.5] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.42.4] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.42.3] - 2026-10-04
+
+### Fixed
+
+- `/review:fanout` fix-pass eval cases: the scoped-to-fixed-hunks prompt names `/review:fanout`, asks what the fix action says, no longer tells the agent not to run anything, and lists `Bash` (run with `--allow-tools Bash`), so the with-arm loads the skill. Both cases drop their `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call and the grader read false even when the skill loaded.
+
+## [0.42.2] - 2026-10-04
+
+### Added
+
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill. The stop case also lists `Bash` and needs `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load.
+
+### Changed
+
+- `/review:fanout` fix pass: the required post-fix re-review covers only the hunks the pass changed and runs once; a finding it raises is reported to the operator, not fixed in another automatic round.
+
+## [0.42.1] - 2026-10-04
+
+### Added
+
+- **`review` ships a `claude plugin eval` suite with three cases for `/review:quality-gate` (tag `row37`).** Each case scaffolds a git branch whose commit removes a guard as a "simplification": an empty-list early return, a null-user check, and a length check that returned short titles unchanged. A case passes when the review names the input the removed guard handled and the behavior that now breaks for it. Each case has a regex grader for the input and a judge rubric for the regression, all with pass and fail samples. The cases need `--scaffold` and `--allow-tools Bash,Write`. No skill text changes.
+
+## [0.42.0] - 2026-10-04
+
+### Added
+
+- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills. `maxTurns` is 60 because a restatement batch hands it 40 to 50 files.
+- `stage-normalizer` agent: runs fanout's Stage 0 extraction and Stage 3 dedup with Read only. It inherits the model and pins no effort, so role routing still sets both.
+- `lane-verifier` agent: the hunter and verifier subagent for the CI lanes. Read, Grep, Glob and Bash only; it inherits the model and pins no effort so the lane's model holds within its step timeout.
+
+### Changed
+
+- `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`; the `/review:code-review` and `/review:security-review` CI lanes dispatch their hunters and verifiers as `lane-verifier`. No path in these skills dispatches a general-purpose or `Explore` subagent now, so a reviewer cannot rediscover a review skill and fan out; the README records the basis with an upstream pointer. The three agents carry the untrusted-content spine with a tail that keeps review criteria refining the lens.
+- `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow reads only `roles.retrieval.single` and returns only `extract` in `roles`.
+
+## [0.41.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.41.0] - 2026-10-04
+
+### Added
+
+- **`/review:explain-change` names the bundled `artifact-pr-review` skill in a Boundary section ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  Use that skill for a verdict on a pull request and this one to understand the change; the native-surfaces record now rules the pair `complementary`.
+
+### Removed
+
+- **The `/review:pr-explainer` rename stub ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It pointed at `/review:explain-change` for one release; run `/review:explain-change` directly.
+
+## [0.40.4] - 2026-10-04
+
+### Changed
+
+- The `architecture-guardian` agent's pattern-compliance check also verifies that a pattern matches its canonical definition and serves the principle it exists for; a shape copied from a popular template that defeats that principle is a violation.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed

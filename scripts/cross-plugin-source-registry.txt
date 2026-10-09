@@ -41,6 +41,14 @@ reference/standards-contract.md
 docs/conventions/standards/README.md -> plugins/*/reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/conventions/pr-scope-budget/README.md.
+reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical convention and the copies.
+docs/conventions/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 
@@ -105,20 +113,6 @@ lib/check-retirements.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
-
-# Dedicated check: scripts/sync-shared-copies.sh --check
-skills/setup/reference/legacy-statusline-detect.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: the root canonical and the copies.
-lib/legacy-statusline-detect.md -> plugins/*/skills/setup/reference/legacy-statusline-detect.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check
-skills/setup/reference/unwrap-before-compose.md
-
-# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
-# duplication audit: the root canonical and the copies.
-lib/unwrap-before-compose.md -> plugins/*/skills/setup/reference/unwrap-before-compose.md
 
 # No dedicated check: worktree-root resolver. Canonical copy:
 # plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
@@ -295,13 +289,59 @@ lib/prerequisites.ps1
 lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/fetch-docs.sh. The harness-config and harness-ops plugins each carry a copy
+# lib/fetch-docs.sh. Every plugin that adopts the docs lookup carries a copy
 # because a plugin cache cannot see the repo-root canonical.
 scripts/fetch-docs.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-cache.sh, carried beside each copy of fetch-docs.sh, which sources it
+# for --cache.
+scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to
+# convert a page no markdown channel serves.
+scripts/html2md.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html2md.py -> plugins/*/scripts/html2md.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-raw.sh, carried beside the copies of fetch-docs.sh and docs-cache.sh
+# in each plugin whose docs-fetcher agent runs it (discovery, multi-agent).
+scripts/docs-raw.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-raw.sh -> plugins/*/scripts/docs-raw.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-fetcher-gate.mjs. The discovery and multi-agent plugins carry the
+# generated copies, each registered on Bash for its own docs-fetcher agent.
+lib/docs-fetcher-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-fetcher-gate.mjs -> plugins/*/lib/docs-fetcher-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-lookup-procedure.md, the reading procedure for the docs lookup,
+# carried by discovery (/discovery:read-docs) and by each plugin that teaches
+# section reads through the lookup.
+reference/docs-lookup-procedure.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill

@@ -61,6 +61,9 @@ command_not_found_handle() {
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; rm -f "${UNKNOWN_COMMANDS:-}"' EXIT
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export DOCS_CACHE_DIR="$TMP/cache" XDG_CONFIG_HOME="$TMP/config"
 cd "$TMP" || exit 1
 
 make_repo() {
@@ -311,6 +314,27 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
 assert_contains "a bullet that moved elsewhere is not a bullet that left" "$OUT" \
   "still ties AGENTS.md to a flag elsewhere"
 assert_not_contains "and is never MET" "$OUT" "ties AGENTS.md to no flag anywhere"
+
+# Without --env-vars-file the page comes through the plugin's docs fetcher,
+# fixture-fed here. Each variant gets its own docs cache, so no cached copy or
+# quarantine from one reaches the next.
+FX="$TMP/fx-delisted"
+mkdir -p "$FX"
+printf -- '- [Environment variables](https://code.claude.com/docs/en/env-vars.md): x\n' >"$FX/llms.txt"
+cp "$ENVVARS_DELISTED" "$FX/env-vars.md"
+OUT=$(DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --repo "$CLEAN" \
+  --sources "$REAL_SOURCES" --bundle "$TMP/bundle-false" --skip-canary)
+assert_contains "a fetched page without the bullet is MET" "$OUT" \
+  "no longer carries the AGENTS.md bullet"
+
+FX="$TMP/fx-missing"
+mkdir -p "$FX"
+printf -- '- [Environment variables](https://code.claude.com/docs/en/env-vars.md): x\n' >"$FX/llms.txt"
+OUT=$(DOCS_CACHE_DIR="$FX.cache" FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --repo "$CLEAN" \
+  --sources "$REAL_SOURCES" --bundle "$TMP/bundle-false" --skip-canary)
+assert_contains "an unread page names the manifest's reason" "$OUT" \
+  "env-vars: fetch failed (unread fixture-missing)"
+assert_contains "and condition 1 is UNREACH" "$OUT" "[UNREACH] neither probe could answer"
 
 # A bundle with no readable window is UNREACH too, not a default of true.
 printf 'tengu_agents_md_mod appears with no export beside it\n' >"$TMP/bundle-opaque"

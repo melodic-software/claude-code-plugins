@@ -9,7 +9,8 @@ deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
 exit code 1 as a non-blocking error and proceeds with the action... If your
 hook is meant to enforce a policy, use exit 2") — every internal failure path
 that could once fall through to the interpreter's default (uncaught exception
--> exit 1, no diagnostic) now denies instead (#1423).
+-> exit 1, no diagnostic) now denies instead (#1423). Recheck when the hooks reference states that a
+PreToolUse exit code 1 blocks the action.
 
 Investigation note for the one observed #1423 occurrence (engine-gate mode,
 ``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
@@ -1281,7 +1282,9 @@ def resolve_disk_hygiene_enabled() -> bool:
     reader it shares with the report-only probe) — never the process environment.
     Since Claude Code 2.1.207 that key is honored only from user, managed, and
     ``--settings`` scope, never a project or local ``settings.json``
-    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    (https://code.claude.com/docs/en/settings-reference#pluginconfigs and
+    https://code.claude.com/docs/en/settings#change-a-setting-for-one-session,
+    as of 2026-10-07), so a hostile repo cannot flip the
     switch. Managed settings are the highest-precedence, non-overridable scope, so
     a value configured there wins over the user file — that is how an organization
     enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
@@ -1361,10 +1364,9 @@ def _display_data_root(authority: str | None) -> str | None:
 def launch_disclosure(plugin_root: str | None) -> dict[str, str | None]:
     """The interpreter and ``--data-root`` the denial guidance names, as data.
 
-    Spelled by the same two helpers ``_bash_allowlist_disclosure`` uses, so a
-    caller that reports these values (the kill-switch probe) and a denial issued
-    under the same interpreter and install root cannot disagree. ``data_root``
-    is ``None`` exactly when that guidance says no authority resolved.
+    Spelled by the same helpers ``engine_context`` uses, so the kill-switch
+    probe and the guard-values note cannot disagree. ``data_root`` is ``None``
+    exactly when the guard resolved no authority.
     """
     return {
         "hook_python": _display_python(),
@@ -1944,7 +1946,8 @@ _POWERSHELL_SHELL_APP_BIN_ACTION = re.compile(
 # .Name` in turn only "Contains the verb's name"
 # (https://learn.microsoft.com/en-us/windows/win32/shell/folderitemverb-name,
 # fetched 2026-08-16) — so a verb named anything other than the enumerated
-# spellings below (a localized name, for instance) is NOT covered.
+# spellings below (a localized name, for instance) is NOT covered. Recheck when
+# either page documents a fixed verb-name set for `InvokeVerb`.
 #
 # Deliberately outside this rule, each still deferring:
 #   - `MoveHere` into an ordinary (non-bin) folder — that is a MOVE, not a
@@ -2157,51 +2160,6 @@ def _powershell_mutation_verdict(
     )
 
 
-def _bash_allowlist_disclosure(authority: str | None) -> str:
-    """The classifier allow-list both denial bodies teach, named once.
-
-    ``_bash_denial_guidance`` prefixes this with each surface's own scope. The
-    shapes, paths, and supporting heads stay here so a subcommand added to one
-    body and not the other cannot drift (#1806).
-    """
-    data_root = _display_data_root(authority)
-    data_sentence = (
-        f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
-        if data_root
-        else (
-            " The guard did not receive an authorized data root (neither the"
-            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments"
-            " nor a local-directory marketplace install resolved from"
-            f" {_KNOWN_MARKETPLACES_FILENAME} resolved one; the"
-            f" {_CLAUDE_PLUGIN_DATA_ENV} environment variable is never trusted),"
-            " so --data-root cannot be validated and engine calls fail closed."
-            " To supply one, run this plugin from a marketplace install, or"
-            " register the checkout that contains it as a local-directory"
-            " marketplace (claude plugin marketplace add <checkout>) so a"
-            " --plugin-dir session inside it derives that marketplace's data"
-            " root."
-        )
-    )
-    subcommands = ", ".join(_ALLOWED_ENGINE_SUBCOMMANDS[:-1])
-    supporting = ", ".join(sorted(_READONLY_SUPPORTING_BASH_HEADS | {"["}))
-    return (
-        f"exact bundled {subcommands}, and {_ALLOWED_ENGINE_SUBCOMMANDS[-1]} "
-        f'invocations of "{_display_path(_engine_script_path())}", plus the '
-        "argument-free read-only kill-switch probe "
-        f'"{_display_path(_probe_script_path())}", plus literal-form read-only '
-        f"supporting commands ({supporting}; find without "
-        "-delete/-exec/-ok/-fprint side-effect primaries; [ only as an "
-        "absolute-path complete /usr/bin/[ ... ] expression with the closing ] "
-        "bookend; every head, [ included, only as an absolute path under a "
-        "trusted system directory — bare names are denied because exported "
-        "shell functions shadow them) — "
-        "all of them using the hook's absolute Python interpreter "
-        f'"{_display_python()}" for engine/probe shapes. Bare python/python3 '
-        "commands are denied because shell functions and aliases can replace them."
-        + data_sentence
-    )
-
-
 _OPERATOR_LABELS = {
     char: label
     for chars, label in (
@@ -2236,6 +2194,13 @@ def _unparsable_reason(command: str) -> str:
 def _resolves_to_engine(word: str) -> bool:
     key = _script_path_key(word)
     return key is not None and key == _script_path_key(str(_engine_script_path()))
+
+
+def _wrong_python_reason(word: str) -> str:
+    return (
+        f"{engine_grammar.clip_token(word)} is not this hook's Python; "
+        f'the interpreter must be "{_display_python()}".'
+    )
 
 
 def _engine_mismatch_reason(command: str, authority: str | None) -> str:
@@ -2273,10 +2238,15 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
             if os.path.isabs(operand)
             else "resolves to the engine from the current directory"
         )
+        read = (
+            ""
+            if _is_interpreter(tokens[0])
+            else " The Read and Grep tools can read it."
+        )
         return (
             f"{engine_grammar.clip_token(operand)} {named}, and only a call "
             f'through "{_display_python()}" may name it; '
-            f"{engine_grammar.clip_token(tokens[0])} is not that interpreter."
+            f"{engine_grammar.clip_token(tokens[0])} is not that interpreter.{read}"
         )
     if len(tokens) < 3:
         return (
@@ -2284,10 +2254,7 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
             "<hook python> <engine script> <subcommand> <flags>."
         )
     if not python_ok:
-        return (
-            f"{engine_grammar.clip_token(tokens[0])} is not this hook's Python; "
-            f'the interpreter must be "{_display_python()}".'
-        )
+        return _wrong_python_reason(tokens[0])
     if not _resolves_to_engine(tokens[1]):
         return (
             f"{engine_grammar.clip_token(tokens[1])} is not the bundled engine "
@@ -2313,26 +2280,41 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
     )
 
 
-def _engine_flag_order_rule() -> str:
-    heads = "; ".join(
-        f"{spec.name}: {engine_grammar.required_order(spec)}"
-        for spec in engine_grammar.SUBCOMMANDS
-        if spec.required
-    )
-    return (
-        "Flag order: required flags come first, in declared order "
-        f"({heads}), then optional flags in any order."
-    )
-
-
-_ENGINE_GATE_SCOPE = (
-    "Any command that contains the engine filename together with a pipe, "
-    "redirect, ;, substitution, or an absolute engine-path operand is gated. "
-    "The read-only forms that work name the engine by a relative path or bare "
-    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;. "
-    "A relative path or bare name that resolves to the installed engine from "
-    "the current directory is still gated."
+_NO_DATA_ROOT_REASON = (
+    "No authorized data root resolved, so every engine call is denied. "
+    "Recovery: run this plugin from a marketplace install, or register its "
+    "checkout with claude plugin marketplace add <checkout>."
 )
+
+
+def _bash_denial_reason(command: str | None, authority: str | None) -> str:
+    """What the denied command got wrong, for either surface's deny body.
+
+    An engine-shaped command gets the classifier's mismatch; any other command
+    whose head is a Python other than this hook's gets the interpreter the guard
+    admits, which is how a skill without the guard-values note learns it. Both,
+    and a command-less denial, carry the no-data-root recovery when there is no
+    authority, since the interpreter fallback is the skill's only other source.
+    """
+    engine = command is not None and _engine_gate_relevant(command)
+    wrong_python = False
+    if command is None:
+        reason = "Not an allowed shape."
+    elif engine:
+        reason = _engine_mismatch_reason(command, authority)
+    else:
+        tokens = _literal_shell_words(command)
+        wrong_python = (
+            bool(tokens)
+            and _is_interpreter(tokens[0])
+            and not _is_current_python(tokens[0])
+        )
+        reason = (
+            _wrong_python_reason(tokens[0]) if wrong_python else "Not an allowed shape."
+        )
+    if authority is None and (command is None or engine or wrong_python):
+        reason += " " + _NO_DATA_ROOT_REASON
+    return reason
 
 
 def _bash_denial_guidance(
@@ -2340,45 +2322,19 @@ def _bash_denial_guidance(
 ) -> str:
     """Explain a Bash deny in the words of the surface that issued it.
 
-    ``engine-gate`` (the plugin-level always-on hook) gates this engine
-    invocation only: the rest of the Bash lane is unaffected, and
-    ``/disk-hygiene:clean`` need not have been invoked. ``belt`` (the
-    skill-frontmatter registration, and the default) is session-wide after
-    that skill is invoked, and names how it clears. Both bodies disclose the
-    same classifier allow-list so the denial cannot teach a grammar the
-    classifier does not implement. Unrecognized ``mode`` values fall back to
-    ``belt``, matching ``resolve_mode``. ``command`` is read only by the
-    ``engine-gate`` body, to name what failed in the denied command.
+    ``engine-gate`` (the plugin-level always-on hook) denies this call only;
+    ``belt`` (the skill-frontmatter registration, and the default) lasts the
+    session. Both name what failed and point at ``/disk-hygiene:clean``, whose
+    body is the one prose copy of the allowed shapes. Unrecognized ``mode``
+    values fall back to ``belt``, matching ``resolve_mode``.
     """
     resolved = resolve_mode() if mode is None else mode
-    grammar = _bash_allowlist_disclosure(authority)
+    reason = _bash_denial_reason(command, authority)
     if resolved == _MODE_ENGINE_GATE:
-        reason = (
-            f"{_engine_mismatch_reason(command, authority)} "
-            if command is not None
-            else ""
-        )
-        return (
-            "Disk-hygiene engine gate: this specific engine invocation is "
-            "gated. " + reason + "The rest of the Bash lane is unaffected, and "
-            "/disk-hygiene:clean need not have been invoked for this to fire. "
-            + _engine_flag_order_rule()
-            + " "
-            + _ENGINE_GATE_SCOPE
-            + " Allowed shapes for this invocation are "
-            + grammar
-            + " Supporting inspection of this invocation may use that small "
-            "Bash allowlist or non-Bash read-only tools; any other shape of "
-            "this engine invocation stays denied."
-        )
+        return f"disk-hygiene: denied: {reason} Allowed shapes: /disk-hygiene:clean."
     return (
-        "Disk-hygiene session belt: /disk-hygiene:clean was invoked in this "
-        "session, and this belt persists until the session ends. Bash is "
-        "restricted to "
-        + grammar
-        + " Supporting inspection may use that small Bash allowlist or "
-        "non-Bash read-only tools; everything else stays denied. Recovery: "
-        "start a new session."
+        f"disk-hygiene: denied by the /disk-hygiene:clean session belt: {reason} "
+        "Allowed shapes: /disk-hygiene:clean. The belt lasts until the session ends."
     )
 
 
@@ -2656,8 +2612,8 @@ def _watchdog_fire(deadline: float) -> None:
       outcome the guard would have reached (a defer emits no decision at all
       and lets the command run) and strictly less blocking than ``exit 2``;
     * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
-      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
-      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      where Bash is deny-by-default and ``_engine_gate_relevant`` never
+      decides the verdict — a marker-free ``rm -rf`` would have been DENIED there, not
       deferred, so downgrading it to a prompt on "the host was slow" would
       convert a deny-by-default guard into one the operator is invited to
       wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
@@ -2793,7 +2749,7 @@ def _watchdog_fire(deadline: float) -> None:
         # have been the plugin-level defer", and that holds ONLY in engine-gate
         # mode. The skill-frontmatter registration passes no `--mode` and
         # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
-        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # `_engine_gate_relevant` never decides the verdict — so in belt mode a
         # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
         # Downgrading that to `ask` would turn a deny-by-default guard into a
         # prompt the operator is invited to approve, on nothing more than "the
@@ -2816,12 +2772,9 @@ def _watchdog_fire(deadline: float) -> None:
                     decision(
                         "ask",
                         f"disk-hygiene could not finish checking this command "
-                        f"within {deadline:g}s and is asking rather than "
-                        f"deciding. It names no disk-hygiene engine script, so "
-                        f"it is not a disk-hygiene invocation this plugin-level "
-                        f"gate governs. Raise {_WATCHDOG_ENV_VAR} (up to "
-                        f"{_WATCHDOG_MAX_SECONDS:g}s) if this host is "
-                        f"legitimately slow.",
+                        f"within {deadline:g}s; it names no disk-hygiene engine "
+                        f"script. Raise {_WATCHDOG_ENV_VAR} (up to "
+                        f"{_WATCHDOG_MAX_SECONDS:g}s) if this host is slow.",
                     )
                 )
             )

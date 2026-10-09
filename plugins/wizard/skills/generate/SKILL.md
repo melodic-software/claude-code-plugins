@@ -19,7 +19,7 @@ how many stages are left.
 The UX and the security hardening are already solved by [template.sh](template.sh).
 Stage-by-stage progress, fail-closed TTY-only prompts, https-only URL opening
 (cross-platform incl. WSL and Git Bash), hidden secret entry, quoted `0600`
-`.env` upserts with a gitignore check, repo-confirmed `gh secret`/`gh variable`
+`.env` upserts (written through a symlinked `.env`) with a gitignore check, repo-confirmed `gh secret`/`gh variable`
 writes over stdin, and a closing names-only summary. **Your job is only to scope
 the procedure and author its stages.** The library above the `STAGES` marker is
 identical in every wizard; that consistency is the point. Never hand-edit it.

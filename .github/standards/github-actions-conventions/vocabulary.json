@@ -1,0 +1,231 @@
+{
+  "$schema": "./vocabulary.schema.json",
+  "schemaVersion": 1,
+  "stages": [
+    { "name": "intake", "purpose": "Classify and label incoming issues and requests." },
+    { "name": "plan", "purpose": "Turn accepted work into a plan before implementation starts." },
+    {
+      "name": "work",
+      "purpose": "Do the work outside a pull request, such as answering a mention."
+    },
+    { "name": "pr", "purpose": "Run on a pull request until it merges." },
+    { "name": "post-merge", "purpose": "Check the default branch after a merge." },
+    { "name": "release", "purpose": "Tag, publish and deploy." },
+    { "name": "maintenance", "purpose": "Scheduled upkeep: sync, repin, audits and scans." },
+    { "name": "upstream", "purpose": "Track and take in changes from upstream sources." }
+  ],
+  "functions": {
+    "intake": [
+      { "name": "label", "status": "in-use" },
+      { "name": "label-needs-triage", "status": "in-use" },
+      { "name": "triage", "status": "in-use" }
+    ],
+    "plan": [],
+    "work": [{ "name": "respond-mention", "status": "in-use" }],
+    "pr": [
+      {
+        "name": "address-feedback",
+        "status": "reserved",
+        "purpose": "Respond to pull request review threads."
+      },
+      { "name": "audit-workflows", "status": "in-use" },
+      { "name": "automerge", "status": "in-use" },
+      { "name": "bump-plugin-version", "status": "in-use" },
+      { "name": "check-managed-files", "status": "in-use" },
+      { "name": "check-spelling", "status": "in-use" },
+      {
+        "name": "explain",
+        "status": "reserved",
+        "purpose": "Explain the pull request for human readers; runs alongside verify."
+      },
+      { "name": "fix-ci", "status": "reserved", "purpose": "Repair failing CI." },
+      { "name": "lint-dockerfile", "status": "in-use" },
+      { "name": "merge", "status": "reserved", "purpose": "Merge the pull request." },
+      {
+        "name": "refine",
+        "status": "reserved",
+        "purpose": "Make behavior-preserving changes that leave a ready pull request review-ready, then dispatch the review lanes."
+      },
+      { "name": "regenerate-nuget-lockfiles", "status": "in-use" },
+      { "name": "require-checks", "status": "in-use" },
+      { "name": "review", "status": "in-use" },
+      { "name": "review-security", "status": "in-use" },
+      { "name": "run-activity", "status": "in-use" },
+      { "name": "run-checks", "status": "in-use" },
+      { "name": "scan-dependencies", "status": "in-use" },
+      { "name": "test-windows", "status": "in-use" },
+      {
+        "name": "update",
+        "status": "reserved",
+        "purpose": "Bring the pull request branch up to date."
+      },
+      { "name": "validate-onboard-catalog", "status": "in-use" },
+      {
+        "name": "verify",
+        "status": "reserved",
+        "purpose": "Host the non-review verify activities: check-intent, test-e2e and release-readiness."
+      }
+    ],
+    "post-merge": [
+      { "name": "detect-silent-revert", "status": "in-use" },
+      {
+        "name": "sweep-comments",
+        "status": "reserved",
+        "purpose": "File late review comments as issues."
+      },
+      {
+        "name": "verify",
+        "status": "reserved",
+        "purpose": "Check the default branch after a lane merges."
+      }
+    ],
+    "release": [
+      { "name": "deploy", "status": "in-use" },
+      { "name": "publish-binaries", "status": "in-use" },
+      { "name": "publish-image", "status": "in-use" },
+      { "name": "publish-packages", "status": "in-use" },
+      {
+        "name": "publish-plugins",
+        "status": "reserved",
+        "purpose": "Publish Claude Code plugins to their marketplace."
+      },
+      { "name": "tag", "status": "in-use" }
+    ],
+    "maintenance": [
+      { "name": "audit-code-review-rules", "status": "in-use" },
+      { "name": "audit-link-check-excludes", "status": "in-use" },
+      { "name": "audit-pr-convention-pins", "status": "in-use" },
+      { "name": "audit-test-selection", "status": "in-use" },
+      { "name": "reconcile-pr-creation-policy", "status": "in-use" },
+      { "name": "repin-account-rotation", "status": "in-use" },
+      { "name": "repin-ci-workflows", "status": "in-use" },
+      { "name": "scan-secrets", "status": "in-use" },
+      { "name": "sync-standards", "status": "in-use" },
+      { "name": "verify-governance", "status": "in-use" }
+    ],
+    "upstream": []
+  },
+  "verbs": [
+    "address",
+    "aggregate",
+    "apply",
+    "attest",
+    "audit",
+    "automerge",
+    "build",
+    "bump",
+    "check",
+    "clean",
+    "collect",
+    "compare",
+    "deploy",
+    "detect",
+    "download",
+    "enable",
+    "explain",
+    "fix",
+    "format",
+    "fuzz",
+    "generate",
+    "install",
+    "label",
+    "lint",
+    "measure",
+    "merge",
+    "notify",
+    "prune",
+    "publish",
+    "reconcile",
+    "refine",
+    "regenerate",
+    "repin",
+    "report",
+    "require",
+    "resolve",
+    "respond",
+    "review",
+    "run",
+    "scan",
+    "select",
+    "setup",
+    "sign",
+    "simplify",
+    "sweep",
+    "sync",
+    "tag",
+    "test",
+    "tidy",
+    "triage",
+    "update",
+    "upload",
+    "validate",
+    "verify"
+  ],
+  "toolNames": [
+    "actionlint",
+    "biome",
+    "check-jsonschema",
+    "dotnet-build",
+    "dotnet-format",
+    "editorconfig-checker",
+    "gitleaks",
+    "golangci-lint",
+    "govulncheck",
+    "hadolint",
+    "jsonschema",
+    "lychee",
+    "lychee-offline",
+    "markdownlint",
+    "osv-scanner",
+    "psscriptanalyzer",
+    "pyright",
+    "ruff",
+    "shellcheck",
+    "shfmt",
+    "tsc",
+    "typos",
+    "zizmor"
+  ],
+  "engines": ["bugbot", "claude", "codex"],
+  "reservedJobIds": ["ci-status"],
+  "activityGrammar": {
+    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*(#[a-z]+)?$",
+    "modes": [["diff", "tree"], ["report", "fix"], ["baseline", "compare"]],
+    "rules": [
+      "Verb-first and literal: the name says what the activity does.",
+      "No stage word at the start of an activity name: the slot already carries the stage.",
+      "Exception: a review-engine unit is named for the engine only (`engines`), with no slot word."
+    ],
+    "examples": [
+      "simplify",
+      "tidy",
+      "fix-docs",
+      "check-intent",
+      "test-e2e",
+      "explain",
+      "measure-coverage",
+      "measure-complexity",
+      "test-mutation",
+      "simplify#diff",
+      "fix-docs#report"
+    ]
+  },
+  "exemptions": [
+    {
+      "path": ".github/workflows/release-deploy-oidc-negative-test.yml",
+      "repository": "melodic-software/github-iac",
+      "rules": ["workflow-name"],
+      "expectedName": "release-deployx",
+      "reason": "OIDC negative test: its name is the deploy workflow's name plus one character, so the Pulumi issuer policy that trusts `release-deploy` must reject it."
+    }
+  ],
+  "apps": {
+    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+    "names": [
+      {
+        "name": "melodic-automation-lanes",
+        "purpose": "Mints short-lived, per-job scoped tokens for agent lanes."
+      }
+    ]
+  }
+}

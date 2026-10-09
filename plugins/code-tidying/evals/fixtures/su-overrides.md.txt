@@ -1,0 +1,15 @@
+# Tidy exclusion overrides
+
+The team hand-reviews lint-config diffs, so tidying may reach these.
+
+## Overrides
+
+```text
+# lint configuration
+.editorconfig
+ruff.toml
+# tidy machinery
+.claude/code-tidying/*
+# shared config one level up
+../shared/lint.toml
+```

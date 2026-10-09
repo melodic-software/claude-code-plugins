@@ -1,0 +1,38 @@
+# Sub-issues of #300 Map: partner shipment feed
+
+## #301 Pick the change source
+
+State: closed. Labels: wayfind: research.
+
+Resolution comment: Change source is Debezium reading Postgres 16 logical replication from the
+shipments database. Polling the table was rejected for lag and load.
+
+## #302 Decide event granularity
+
+State: closed. Labels: wayfind: interview, needs-human.
+
+Resolution comment: One event per shipment status change, never one per row write.
+
+## #305 Should we ship partner SDKs?
+
+State: closed (out of scope). Labels: wayfind: interview, needs-human.
+
+## #306 Pick the change-feed wire format
+
+State: open. Labels: wayfind: research. Assignee: none. Blocked by: none open.
+
+Which wire format should feed events use? Candidates: JSON lines, Avro with a schema registry,
+CloudEvents in JSON.
+
+## #307 Choose how partners receive the feed
+
+State: open. Labels: wayfind: design, needs-human. Assignee: none. Blocked by: none open.
+
+Webhook push to each partner, or a partner-pulled cursor endpoint?
+
+## #308 Survey how partners will integrate the feed
+
+State: open. Labels: wayfind: research. Assignee: none. Blocked by: none open.
+
+Find out what each partner needs to start consuming the feed: what tooling, libraries, or
+integration help would make adoption easiest for them?

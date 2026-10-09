@@ -35,7 +35,7 @@ fail() {
 }
 
 has_format_disclosure() {
-  printf '%s' "$1" | jq -e '.systemMessage | contains("reformatted") and contains("Invoke-Formatter")' >/dev/null 2>&1
+  printf '%s' "$1" | jq -e '.systemMessage | test("^powershell-format: reformatted [^ ]+\\.ps(m|d)?1\\.$")' >/dev/null 2>&1
 }
 ok() {
   echo "ok: $*"
@@ -190,7 +190,7 @@ RC=$?
 if [[ $RC -eq 0 ]]; then ok "tool break (pwsh exit 4) -> exit 0 (advisory)"; else fail "tool break exit $RC (must be advisory)"; fi
 if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
   CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
-  if printf '%s' "$CTX" | grep -qi 'tool break' && printf '%s' "$CTX" | grep -q 'boom'; then
+  if printf '%s' "$CTX" | grep -q '^powershell-format: pwsh failed on s.ps1:$' && printf '%s' "$CTX" | grep -q 'boom'; then
     ok "tool break -> surfaced as advisory (not a finding)"
   else
     fail "tool break -> not in tool-break branch: $CTX"
@@ -293,7 +293,7 @@ if has_format_disclosure "$ARM_OUT"; then
 else
   fail "tool-break arm -> rewrite went undisclosed: $ARM_OUT"
 fi
-if printf '%s' "$ARM_OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("tool break")' >/dev/null 2>&1; then
+if printf '%s' "$ARM_OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("pwsh failed on")' >/dev/null 2>&1; then
   ok "tool-break arm -> still surfaces the advisory tool-break context alongside the disclosure"
 else
   fail "tool-break arm -> tool-break context lost: $ARM_OUT"
@@ -370,7 +370,7 @@ else
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != pwsh && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      ln -s "$exe" "$PG_WORK/sysbin/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
   PG_ARGS=()
@@ -485,8 +485,56 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   else
     fail "lint ctx missing the finding: $CTX"
   fi
+  if [[ "$CTX" == "powershell-format: lint.ps1 has findings:"$'\n'"  L1 ["*"] PSAvoidGlobalVars: "* ]]; then
+    ok "lint finding -> one line per finding, no per-line tool prefix"
+  else
+    fail "lint finding -> report shape: $CTX"
+  fi
 else
   fail "lint finding -> no additionalContext JSON: $OUT"
+fi
+
+# --- Case 4a: an unchanged finding set is sent once --------------------------
+# With a data directory the set is sent on the first edit and not on the next;
+# telemetry still records it. A SessionStart compact resets the record, and a
+# clean run clears it, so the set is sent again when it returns.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+D1=$(run_delta "$REPO/lib/lint.ps1")
+TELD="$(mktemp "$WORK/teld.XXXXXX")"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/lib/lint.ps1" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *PSAvoidGlobalVars* && -z "$D2" ]]; then
+  ok "delta: an unchanged finding set is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | map(test("PSAvoidGlobalVars")) | any' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/lib/lint.ps1")
+if [[ "$(delta_ctx "$D3")" == *PSAvoidGlobalVars* ]]; then
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D3'"
+fi
+printf '%s\n' "Get-ChildItem -Path '.'" >"$REPO/lib/lint.ps1"
+run_delta "$REPO/lib/lint.ps1" >/dev/null
+# SC2016: literal PowerShell variable syntax — single quotes are intentional.
+# shellcheck disable=SC2016
+printf '%s\n' '$global:foo = 1' >"$REPO/lib/lint.ps1"
+D4=$(run_delta "$REPO/lib/lint.ps1")
+if [[ "$(delta_ctx "$D4")" == *PSAvoidGlobalVars* ]]; then
+  ok "delta: a finding that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D4'"
 fi
 
 # --- Case 4b: findings AND a formatter rewrite compose into ONE document -----
@@ -610,10 +658,17 @@ CRP_DATA="$WORK/crp-plugin-data"
 OUT_GATE_1=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
 RC_GATE_1=$?
 if [[ $RC_GATE_1 -eq 0 ]]; then ok "unapproved CustomRulePath -> exit 0 (advisory)"; else fail "unapproved CustomRulePath exit $RC_GATE_1"; fi
-if printf '%s' "$OUT_GATE_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains("CustomRulePath")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
+if printf '%s' "$OUT_GATE_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains("is not approved. Approval is the user'"'"'s.")) and (.systemMessage | contains("trust gate") and contains("CustomRulePath"))' >/dev/null 2>&1; then
   ok "unapproved CustomRulePath -> trust-gate notice on both channels"
 else
   fail "trust-gate notice absent: $OUT_GATE_1"
+fi
+# The approval is the user's call: the model's copy never carries the command
+# that grants it.
+if printf '%s' "$OUT_GATE_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("mkdir -p") | not) and (.systemMessage | contains("mkdir -p"))' >/dev/null 2>&1; then
+  ok "unapproved CustomRulePath -> the mkdir approval command reaches the user only"
+else
+  fail "trust gate: mkdir approval command on the model channel or missing for the user: $OUT_GATE_1"
 fi
 if grep -q 'get-childitem' "$REPO_CRP/crp.ps1"; then
   ok "unapproved CustomRulePath -> analyzer blocked (file untouched)"
@@ -848,7 +903,8 @@ printf '%s\n' 'not-a-real-assembly' >"$REPO_CRP/rules/deps/UsingAsm.dll"
 printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-asm.ps1"
 OUT_ASM="$(run_hook_session using-assembly "$REPO_CRP/crp-asm.ps1" \
   CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_ASM" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+if printf '%s' "$OUT_ASM" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)
+    and (.hookSpecificOutput.additionalContext | contains("cannot be verified") and contains("cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
   grep -q 'get-childitem' "$REPO_CRP/crp-asm.ps1"; then
   ok "using assembly naming an unloadable DLL refuses approval"
 else
@@ -932,7 +988,8 @@ EOF
   # first and the assertion would read an empty payload as a missing gate.
   OUT_UNPIN="$(run_hook_session "unpin-$form" "$REPO_CRP/crp-$form.ps1" \
     CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)"
-  if printf '%s' "$OUT_UNPIN" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  if printf '%s' "$OUT_UNPIN" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)
+      and (.hookSpecificOutput.additionalContext | contains("cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
     grep -q 'get-childitem' "$REPO_CRP/crp-$form.ps1"; then
     ok "unpinnable load target ($form) gates and refuses approval"
   else
@@ -947,7 +1004,8 @@ rm -rf "$REPO_CRP/rules/deps"
 # notice every time — the once-per-session gate fails open toward visibility
 # when it has no marker store).
 OUT_GATE_5=$(run_hook_env "$REPO_CRP/crp2.ps1" -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
-if printf '%s' "$OUT_GATE_5" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+if printf '%s' "$OUT_GATE_5" | jq -e '(.systemMessage | contains("trust gate"))
+    and (.hookSpecificOutput.additionalContext | contains("so it cannot be approved; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
   grep -q 'get-childitem' "$REPO_CRP/crp2.ps1"; then
   ok "CustomRulePath without a plugin-data store fails closed"
 else
@@ -1096,6 +1154,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   fi
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list in the script (begin='$BEGIN_LINE' globs=(${SCRIPT_EXTS//$'\n'/ }))"
+fi
+# The SessionStart compact|clear row that resets the findings delta gate.
+if [[ "$(jq '[.hooks.SessionStart[] | select(.matcher == "compact|clear") | .hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh", "--reset-digests"])] | length' "$HOOKS_JSON")" == "1" ]]; then
+  ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+else
+  fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
 fi
 
 # --- Gitignored path (#4671): neither rewritten nor analyzed by default ------

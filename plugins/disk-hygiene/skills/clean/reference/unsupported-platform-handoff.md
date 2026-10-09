@@ -76,7 +76,7 @@ engine plan:
    [protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
    ("`permissions.allow` rules in settings files do not pre-approve protected-path writes"; the
    per-mode table; "`.claude`, except for `.claude/worktrees`") and
-   [environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+   [environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
    ("`~/.claude/plugins/data/<id>/`"). **As of:** 2026-09-28. **Recheck:** when the protected-paths
    section changes its directory list, its per-mode table, or its session-scoped options, or when
    the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.

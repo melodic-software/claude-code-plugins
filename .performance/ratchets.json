@@ -51,7 +51,7 @@
     },
     {
       "name": "guardrails-posttooluse-run-guards-spawns",
-      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"repo:\\n  docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 20,
       "goal": "The PostToolUse Edit(*.md) verify bundle (cli-flag-verify, skill-reference-verify, stale-path-verify through run-guards.sh) spends at most this many process creations and execs on an Edit whose new text cites a path the repository deleted. #4390 measured 87 processes per PostToolUse:Edit fire on Windows. The count includes every process git starts itself, so a runner image that changes git can move it. Parsing the payload once brought a Linux census to 38. Reusing the deleted-path set brought the cold finding fire to 25. Counting a non-word anchor in-process and reading the skip-worktree tag without tr or cut brought it to 19: the shell, the dispatcher, and five git processes. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 20. The ratchet step prints the current versions. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
@@ -72,7 +72,7 @@
     },
     {
       "name": "guardrails-posttooluse-run-guards-warm-spawns",
-      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --seed --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"STALE_PATH: docs/old.md\" \"$HOOK_STDOUT\"'",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --seed --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"repo:\\n  docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",
       "ceiling": 14,
       "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run, and the anchor count and skip-worktree tag start no awk, tr, or cut. The cold fire of the same edit is ceiling 20. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 14. Measured on the CI runner (ubuntu-24.04) with bash 5.2.21, dash as sh, strace 6.8; the ratchet step prints the current versions. #4390. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
@@ -90,6 +90,20 @@
       "field": "spawns",
       "ceiling": 3,
       "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "multi-agent-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh multi-agent PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a multi-agent:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+    },
+    {
+      "name": "discovery-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh discovery PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
     }
   ]
 }

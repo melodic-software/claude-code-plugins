@@ -17,7 +17,9 @@
 # WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree
 # differs from <base-ref> — an edit, an addition, or a deletion, since each is
 # a source change installed consumers must receive — the plugin's
-# .claude-plugin/plugin.json `version` must also differ from <base-ref>.
+# .claude-plugin/plugin.json `version` must also differ from <base-ref>, or, for
+# a plugin in fragment mode, the change set must add a changelog fragment whose
+# bump is not none (the shared predicate in scripts/lib/changelog-fragments.sh).
 # General over plugins/*/vendor/ by construction, not a per-plugin list: a
 # future plugin adopting the ADR's intra-plugin shape is covered the moment its
 # vendor/ directory lands. A plugin absent at the base ref is new in this
@@ -40,6 +42,8 @@ self="$(basename "$0")"
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
+# shellcheck source=lib/changelog-fragments.sh
+. "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 
 # jq is how every manifest version is read below; without it the per-plugin
 # reads all come back empty, which the loop would misread as "new plugin,
@@ -126,6 +130,7 @@ base_manifest_file="$(mktemp)" || {
 trap 'rm -f "$base_manifest_file"' EXIT
 
 stale=0
+stale_fragment=0
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
@@ -159,15 +164,33 @@ for plugin in "${changed_plugins[@]}"; do
   head_version=$(jq -r '.version // empty' "$manifest" 2>/dev/null || true)
   # A manifest gone (or versionless) at head while vendor/ files still changed
   # is not a bump either; fail rather than skip, so deleting the manifest can
-  # never double as this gate's off switch.
-  if [[ "$head_version" == "$base_version" || -z "$head_version" ]]; then
+  # never double as this gate's off switch. A fragment-mode plugin may carry the
+  # bump as a changelog fragment instead (the shared predicate's other branch).
+  rc=1
+  if [[ -n "$head_version" ]]; then
+    rc=0
+    changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
+  fi
+  # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
+  if ((rc == 1)) && [[ -n "$head_version" ]] && changelog_fragments::in_mode "$plugin"; then
+    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+    echo "  Run scripts/new-changelog-fragment.sh $plugin patch and describe the vendored change." >&2
+    stale_fragment=1
+  elif ((rc == 1)); then
     echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
     stale=1
+  elif ((rc != 0)); then
+    exit 2
   fi
 done
 
 if [[ "$stale" -ne 0 ]]; then
   echo "Bump the version of every plugin whose vendor/ source changed — the version is the update cache key, so an unbumped plugin never delivers the change to consumers (ADR 0019, intra-plugin sharing)." >&2
+fi
+if [[ "$stale_fragment" -ne 0 ]]; then
+  echo "Add a patch fragment for every plugin in fragment mode whose vendor/ source changed; the release pull request bumps its version, which delivers the change to consumers (ADR 0048)." >&2
+fi
+if [[ "$stale" -ne 0 || "$stale_fragment" -ne 0 ]]; then
   gate_entry::finish 1
 fi
 

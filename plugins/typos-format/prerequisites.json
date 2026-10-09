@@ -12,7 +12,7 @@
           "typos"
         ]
       },
-      "degrade": "Without typos, the hook cannot spell-check edited files; edits still go through.",
+      "degrade": "Without typos, the hook cannot spell-check edited files.",
       "install": {
         "cargo": "cargo install typos-cli",
         "docs": "https://github.com/crate-ci/typos#install"
@@ -31,7 +31,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the typos-format hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the typos-format hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

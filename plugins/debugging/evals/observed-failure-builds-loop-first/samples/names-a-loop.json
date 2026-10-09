@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 1: build the loop. I'll write a failing integration test that submits a $1,200 order and asserts checkout completes within 5 seconds.",
+      "why": "failing test"
+    },
+    {
+      "answer": "First a repro script: a curl against the dev server posting a $1,050 cart, timing the response. That's our feedback loop.",
+      "why": "curl script"
+    },
+    {
+      "answer": "Before guessing anything I need a reproduction loop, a small harness that drives checkout with a large order.",
+      "why": "harness"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "It's probably the fraud check on large orders. Increase its timeout to 30 seconds.",
+      "why": "jumps to a fix, names no loop"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
