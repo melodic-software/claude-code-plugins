@@ -251,8 +251,10 @@ change to any of them is a change to every lane's powers:
 The trust-root ruleset makes a change to a trust-root path that `.github/CODEOWNERS` assigns need
 an approving review from a human code owner, which the lanes App cannot give, with no App bypass;
 no lane goes live before it is in force. The exceptions are the eight synced data files
-`.github/CODEOWNERS` lists with no owner (the vocabulary, pyright and runner-policy data files):
-the required `check-managed-files` job in `ci-status` guards them instead, failing any hand edit.
+and the three synced hosted caller workflows (`pr-check-managed-files-hosted.yml`,
+`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) `.github/CODEOWNERS` lists with no owner (the
+vocabulary, pyright and runner-policy data files): the required `check-managed-files` job in
+`ci-status` guards them instead, failing any hand edit or deletion.
 The runner-policy script and both trusted-actors files stay owned. `pr-merge` never merges a PR that
 touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
 here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when

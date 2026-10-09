@@ -2489,7 +2489,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@ab6d4048f3ca4fb9c855cc088003f0499fcc5cdb # v0.39.4
 
   ci-status:
     needs:
