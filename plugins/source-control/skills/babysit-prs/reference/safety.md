@@ -830,6 +830,23 @@ with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns o
 `-status` job, which re-reads the cached rate-limit output of the `review` job that succeeded and
 fails again.
 
+A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its JSON), only when all
+of these hold: the failed check is an AI review check on the pinned live head of an open, non-draft
+PR; its check run carries a `class=rate-limit` annotation; its job finished at least five hours ago;
+and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
+has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
+failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
+other failure class is never rerun, and a check-only run never reruns. The rerun only restarts the
+review; auto-merge still arms only on SUCCESS.
+
+- **Pointer**: the `class=<token>` contract in ci-workflows
+  [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
+  and the session window under "What happens when you hit usage limits" in
+  [Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+- **As of**: 2026-10-09
+- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token, or a
+  change to the plan's session-limit window.
+
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
 auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges in
 the same run, through §Async Merge Path. A base that requires a merge queue, and a stack layer, are
