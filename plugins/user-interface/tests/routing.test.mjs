@@ -7,41 +7,81 @@ import { fileURLToPath } from "node:url";
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = join(PLUGIN, "../..");
 const read = (p) => JSON.parse(readFileSync(join(PLUGIN, p), "utf8"));
+const readRepo = (p) => JSON.parse(readFileSync(join(REPO, p), "utf8"));
 const routing = read("reference/routing.json");
 const schema = read("reference/routing.schema.json");
-const REPO_SKILL = /^https:\/\/github\.com\/melodic-software\/claude-code-plugins\/tree\/main\/plugins\/([^/]+)\/skills\/([^/]+)$/;
+const SLASH_ID = /^\/[a-z0-9-]+(:[a-z0-9-]+)?$/;
+const PLUGIN_SKILL_ID = /^\/([a-z0-9-]+):([a-z0-9-]+)$/;
+const repoSkillExists = (plugin, skill) => existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md"));
+/** A row for one of this marketplace's own plugin skills: a bare detect and a `/<plugin>:<skill>` id. */
+const isOwn = (r) => r.kind === "skill" && !r.detect.includes("@") && PLUGIN_SKILL_ID.test(r.id);
 
-/** Errors for `value` against the schema keywords routing.schema.json uses. */
+/** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
+ * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
 function validate(s, value, at = "$") {
   const errors = [];
   const fail = (msg) => errors.push(`${at}: ${msg}`);
+  const isObject = typeof value === "object" && value !== null && !Array.isArray(value);
   if ("const" in s && value !== s.const) fail(`must be ${s.const}`);
   if (s.enum && !s.enum.includes(value)) fail(`must be one of ${s.enum.join(", ")}`);
-  if (s.type === "object") {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return [`${at}: must be an object`];
+  if (s.type === "object" && !isObject) return [`${at}: must be an object`];
+  if (s.type === "array" && !Array.isArray(value)) return [`${at}: must be an array`];
+  if (s.type === "string" && typeof value !== "string") return [`${at}: must be a string`];
+  if (isObject) {
     for (const k of s.required ?? []) if (!(k in value)) fail(`missing ${k}`);
     for (const [k, v] of Object.entries(value)) {
       if (s.properties?.[k]) errors.push(...validate(s.properties[k], v, `${at}.${k}`));
       else if (s.additionalProperties === false) fail(`unknown key ${k}`);
     }
   }
-  if (s.type === "array") {
-    if (!Array.isArray(value)) return [`${at}: must be an array`];
+  if (Array.isArray(value)) {
     if (value.length < (s.minItems ?? 0)) fail(`needs at least ${s.minItems} items`);
     if (s.uniqueItems && new Set(value).size !== value.length) fail("items must be unique");
-    value.forEach((v, i) => errors.push(...validate(s.items, v, `${at}[${i}]`)));
+    if (s.items) value.forEach((v, i) => errors.push(...validate(s.items, v, `${at}[${i}]`)));
   }
-  if (s.type === "string") {
-    if (typeof value !== "string") return [`${at}: must be a string`];
+  if (typeof value === "string") {
     if (value.length < (s.minLength ?? 0)) fail("too short");
     if (s.pattern && !new RegExp(s.pattern).test(value)) fail(`must match ${s.pattern}`);
   }
   if (s.type === "integer" && (!Number.isInteger(value) || value < (s.minimum ?? -Infinity))) fail(`must be an integer >= ${s.minimum}`);
+  for (const sub of s.allOf ?? []) errors.push(...validate(sub, value, at));
+  if (s.if) {
+    const branch = validate(s.if, value, at).length === 0 ? s.then : s.else;
+    if (branch) errors.push(...validate(branch, value, at));
+  }
+  if (s.not && validate(s.not, value, at).length === 0) fail("must not match a forbidden shape");
   return errors;
 }
 
+/** Schema errors for routing.json holding one row: the first row's shared fields plus `fields`. */
+function rowErrors(fields) {
+  const { concern, rank, account, status, platforms, as_of } = routing.rows[0];
+  return validate(schema, { ...routing, rows: [{ concern, rank, account, status, platforms, as_of, ...fields }] });
+}
+
+test("the validator handles allOf, if/then/else and not", () => {
+  const s = {
+    type: "object",
+    allOf: [
+      { if: { required: ["k"], properties: { k: { const: "a" } } }, then: { required: ["x"] }, else: { not: { required: ["x"] } } },
+      { properties: { y: { pattern: "^z", minLength: 2 } } },
+    ],
+  };
+  assert.deepEqual(validate(s, { k: "a", x: 1 }), []);
+  assert.deepEqual(validate(s, { k: "a" }), ["$: missing x"]);
+  assert.deepEqual(validate(s, { k: "b" }), []);
+  assert.deepEqual(validate(s, { k: "b", x: 1 }), ["$: must not match a forbidden shape"]);
+  assert.deepEqual(validate(s, { x: 1 }), ["$: must not match a forbidden shape"], "a missing key fails the if");
+  assert.deepEqual(validate(s, { y: "q" }), ["$.y: too short", "$.y: must match ^z"]);
+  assert.deepEqual(validate(s, { y: "zz" }), []);
+});
+
 test("routing.json matches its schema", () => {
   assert.deepEqual(validate(schema, routing), []);
+});
+
+test("routing.json version is 2", () => {
+  assert.equal(routing.version, 2);
 });
 
 test("the schema check rejects a bad row", () => {
@@ -51,6 +91,44 @@ test("the schema check rejects a bad row", () => {
   assert.match(errors, /rank: must be an integer >= 1/);
   assert.match(errors, /account: must be one of/);
   assert.match(errors, /unknown key extra/);
+});
+
+test("kind: skill ids are slash invocations", () => {
+  const skills = routing.rows.filter((r) => r.kind === "skill");
+  assert.ok(skills.length > 0);
+  for (const r of skills) assert.match(r.id, SLASH_ID, `${r.concern}/${r.id}`);
+});
+
+test("the schema rejects a skill id without a slash", () => {
+  const external = { kind: "skill", detect: "pixel-art@fixture-market", pointer: "https://example.com/pixel-art" };
+  assert.deepEqual(rowErrors({ ...external, id: "/pixel-art:ui" }), []);
+  assert.match(rowErrors({ ...external, id: "pixel-art:ui" }).join("\n"), /\.id: must match/);
+});
+
+test("the schema rejects a pointer on an own-skill row", () => {
+  const own = { kind: "skill", id: "/pixel-art:ui", detect: "pixel-art" };
+  assert.deepEqual(rowErrors(own), []);
+  assert.notDeepEqual(rowErrors({ ...own, pointer: "https://example.com/pixel-art" }), []);
+});
+
+test("the schema rejects an external row with no pointer", () => {
+  for (const row of [
+    { kind: "skill", id: "/design:ux-copy", detect: "design@knowledge-work-plugins" },
+    { kind: "skill", id: "/animate", detect: "animate" },
+    { kind: "plugin", id: "figma@claude-plugins-official", detect: "figma@claude-plugins-official" },
+  ]) {
+    assert.match(rowErrors(row).join("\n"), /missing pointer/, row.id);
+  }
+});
+
+test("the schema accepts a standalone /animate row with a pointer", () => {
+  assert.deepEqual(rowErrors({ kind: "skill", id: "/animate", detect: "animate", pointer: "https://skills.sh/emilkowalski/skills" }), []);
+});
+
+test("only id, detect and pointer route-row fields carry @", () => {
+  const fields = routing.rows.flatMap((r) => Object.entries(r).map(([k, v]) => [`${r.concern}/${r.id} ${k}`, k, JSON.stringify(v)]));
+  assert.ok(fields.length > 0);
+  assert.deepEqual(fields.filter(([, k, v]) => !["id", "detect", "pointer"].includes(k) && v.includes("@")).map(([at]) => at), []);
 });
 
 const byConcern = Map.groupBy(routing.rows, (r) => r.concern);
@@ -69,20 +147,33 @@ test("ranks in each concern run 1..n", () => {
   }
 });
 
-test("every repo-skill row names a skill that exists here, by its own id", () => {
-  const repoRows = routing.rows.filter((r) => REPO_SKILL.test(r.pointer));
-  assert.ok(repoRows.length > 0);
-  for (const r of repoRows) {
-    const [, plugin, skill] = r.pointer.match(REPO_SKILL);
-    assert.equal(r.id, `${plugin}:${skill}`);
-    assert.equal(r.detect, `${plugin}@melodic-software`);
-    assert.ok(existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md")), `${r.id} not found`);
+test("own rows have a bare detect, no pointer, a repo skill and matching entry and manifest names", () => {
+  const ownRows = routing.rows.filter(isOwn);
+  assert.ok(ownRows.length > 0);
+  const entries = readRepo(".claude-plugin/marketplace.json").plugins;
+  for (const r of ownRows) {
+    const [, plugin, skill] = r.id.match(PLUGIN_SKILL_ID);
+    assert.equal(r.detect, plugin, r.id);
+    assert.ok(!("pointer" in r), `${r.id} has a pointer`);
+    assert.ok(repoSkillExists(plugin, skill), `${r.id} not found`);
+    const manifest = readRepo(`plugins/${plugin}/.claude-plugin/plugin.json`);
+    assert.equal(manifest.name, plugin, `${r.id} manifest name`);
+    assert.equal(entries.find((e) => e.source === `./plugins/${plugin}`)?.name, manifest.name, `${r.id} marketplace entry name`);
   }
+});
+
+test("colon-id rows for repo skills have a bare detect", () => {
+  const repoRows = routing.rows.filter((r) => {
+    const m = r.kind === "skill" && r.id.match(/^\/?([a-z0-9-]+):([a-z0-9-]+)$/);
+    return m && repoSkillExists(m[1], m[2]);
+  });
+  assert.ok(repoRows.length > 0);
+  for (const r of repoRows) assert.ok(!r.detect.includes("@"), `${r.concern}/${r.id} detect ${r.detect}`);
 });
 
 test("this repo's skills rank ahead of third parties in each concern", () => {
   for (const [concern, rows] of byConcern) {
-    const ordered = rows.toSorted((a, b) => a.rank - b.rank).map((r) => REPO_SKILL.test(r.pointer));
+    const ordered = rows.toSorted((a, b) => a.rank - b.rank).map(isOwn);
     assert.deepEqual(ordered, ordered.toSorted((a, b) => b - a), `order in ${concern}`);
   }
 });
