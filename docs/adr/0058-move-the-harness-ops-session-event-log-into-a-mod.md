@@ -37,7 +37,10 @@ the same change.** The hooks module `plugins/harness-ops/hooks/register.ts`:
   plugin's options as `CLAUDE_PLUGIN_OPTION_*` and, as `CLAUDE_PROJECT_DIR`, the project dir Claude
   Code exports (the session root only where none is exported), the environment the settings rows
   had, so the log stays where they wrote it after the session's root moves;
-- on `SessionEnd`, also runs the unchanged `session-retention.sh`.
+- on `SessionEnd`, also runs the unchanged `session-retention.sh`;
+- runs each write on a `$.clock` timer, so no event waits on it, as none waited on the `async`
+  settings rows (#6628); `SessionEnd` awaits both scripts, as its row stayed synchronous, because
+  its hooks share the teardown budget.
 
 The record writer stays one script, so the records are the ones the settings rows wrote, and no
 second formatter exists. `scripts/gen-hook-event-registry.sh` writes the module's `classic.<Event>`

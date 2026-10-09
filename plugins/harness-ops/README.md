@@ -298,7 +298,8 @@ processes for every event). On, a mod cannot append to a file, so each event
 starts one process: the module hands the event's payload to
 `hooks/session-event-log.sh` through `node hooks/exec-bash.mjs`, the same script
 and launcher the settings rows ran, and `SessionEnd` starts a second for
-retention. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
+retention. No event waits on the write, which runs on a timer after the event
+goes on; `SessionEnd` waits for both, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
 script time on the Linux CI host. The parallel wall, the 4 KB and 16 KB appends,
 `ls -t`, and the late-EOF stall are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and

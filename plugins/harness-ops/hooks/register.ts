@@ -48,10 +48,16 @@ async function run($: EngineInterface, script: string, stdin?: string) {
   }
 }
 
+// The write only records, so no event waits on it: it runs on a timer, outside the event, as the
+// async settings rows did. SessionEnd's stays awaited, as its row stayed synchronous: its hooks
+// share the 1.5-second teardown budget.
 async function record($: EngineInterface, e: ClassicEvent, next: Next) {
-  const writes = [run($, 'session-event-log.sh', JSON.stringify(e))]
-  if (e.hook_event_name === 'SessionEnd') writes.push(run($, 'session-retention.sh'))
-  const [result] = await Promise.all([next(e as never), ...writes])
+  const payload = JSON.stringify(e)
+  if (e.hook_event_name !== 'SessionEnd') {
+    $.clock.after(0, () => void run($, 'session-event-log.sh', payload))
+    return next(e as never)
+  }
+  const [result] = await Promise.all([next(e as never), run($, 'session-event-log.sh', payload), run($, 'session-retention.sh')])
   return result
 }
 

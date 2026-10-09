@@ -21,7 +21,7 @@ const world = (
   events: readonly string[] = [...PER_TURN, 'SessionEnd'],
   env: Record<string, string> = {},
 ) => {
-  const w = { runs: [] as Run[], logs: [] as { text: string; to: string }[] }
+  const w = { runs: [] as Run[], logs: [] as { text: string; to: string }[], clock: mock.clock(stub) }
   for (const event of events) stub(`classic.${event}`, () => answer)
   stub('session.root', () => ({ value: ROOT }))
   mock.env(stub, env)
@@ -38,21 +38,40 @@ const world = (
 }
 
 const raise = ($: any, event: string, fields: Record<string, unknown> = {}) => $.classic[event]({ session_id: 'sess-1', ...fields })
+// Raises the event, then runs the write its hook left on the clock.
+const fire = async ($: any, w: { clock: { settle: () => Promise<void> } }, event: string, fields: Record<string, unknown> = {}) => {
+  const answer = await raise($, event, fields)
+  await w.clock.settle()
+  return answer
+}
 const script = (run: Run) => run.argv[2].replace(/^.*\/hooks\//, '')
 
 test('budget: with the log off (the default) no classic event starts a process', async ($, on) => {
   const every = Object.keys($.classic)
   expect(every).toEqual(expect.arrayContaining([...PER_TURN, 'SessionEnd', 'SessionStart', 'PostCompact']))
   const w = world(on, { code: 0 }, {}, every)
-  for (const event of every) await raise($, event)
+  for (const event of every) await fire($, w, event)
   expect(w.runs).toEqual([])
 })
 
 test('budget: with the log on a per-turn event starts one process, SessionEnd two', ON, async ($, on) => {
   const w = world(on)
   for (const event of PER_TURN) {
-    await raise($, event)
+    await fire($, w, event)
     expect(w.runs.length).toBe(1)
+    w.runs.length = 0
+  }
+  await raise($, 'SessionEnd', { reason: 'clear' })
+  expect(w.runs.map(script).sort()).toEqual(['session-event-log.sh', 'session-retention.sh'])
+})
+
+test('on: a per-turn event resolves before its write starts; SessionEnd waits for both scripts', ON, async ($, on) => {
+  const w = world(on, { code: 0 }, { block: 'keep going' })
+  for (const event of PER_TURN) {
+    expect(await raise($, event)).toEqual(expect.objectContaining({ block: 'keep going' }))
+    expect(w.runs).toEqual([])
+    await w.clock.settle()
+    expect(w.runs.map(script)).toEqual(['session-event-log.sh'])
     w.runs.length = 0
   }
   await raise($, 'SessionEnd', { reason: 'clear' })
@@ -61,7 +80,7 @@ test('budget: with the log on a per-turn event starts one process, SessionEnd tw
 
 test('on: each event hands its own payload to session-event-log.sh through the bash launcher', ON, async ($, on) => {
   const w = world(on)
-  for (const event of PER_TURN) await raise($, event)
+  for (const event of PER_TURN) await fire($, w, event)
   expect(w.runs.map(run => JSON.parse(run.stdin ?? '{}').hook_event_name)).toEqual([...PER_TURN])
   for (const run of w.runs) {
     expect(run.argv[0]).toBe('node')
@@ -74,7 +93,7 @@ test('on: each event hands its own payload to session-event-log.sh through the b
 
 test('on: the payload reaches the script as the event carried it', ON, async ($, on) => {
   const w = world(on)
-  await raise($, 'Stop', {
+  await fire($, w, 'Stop', {
     transcript_path: '/srv/t/sess-1.jsonl',
     cwd: '/srv/project/sub',
     permission_mode: 'default',
@@ -104,7 +123,7 @@ test('on: the script gets the options a settings hook got, the project root, and
   },
 }, async ($, on) => {
   const w = world(on)
-  await raise($, 'PostToolBatch')
+  await fire($, w, 'PostToolBatch')
   expect(w.runs[0].env).toEqual(expect.objectContaining({
     CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED: 'true',
     CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR: 'logs/claude',
@@ -129,7 +148,7 @@ test('on: an exported CLAUDE_PROJECT_DIR wins over the session root, for the log
 
 test('on: with no CLAUDE_PROJECT_DIR exported the session root is the project dir', ON, async ($, on) => {
   const w = world(on)
-  await raise($, 'Stop')
+  await fire($, w, 'Stop')
   expect(w.runs[0].cwd).toBe(ROOT)
   expect(w.runs[0].env?.CLAUDE_PROJECT_DIR).toBe(ROOT)
 })
@@ -157,15 +176,15 @@ test('on: the event resolves with the answer beneath it', ON, async ($, on) => {
 
 test('on: a failing script passes the event through and is logged once to the debug log', ON, async ($, on) => {
   const w = world(on, { code: 1 }, { block: 'keep going' })
-  expect(await raise($, 'Stop')).toEqual(expect.objectContaining({ block: 'keep going' }))
-  await raise($, 'Stop')
+  expect(await fire($, w, 'Stop')).toEqual(expect.objectContaining({ block: 'keep going' }))
+  await fire($, w, 'Stop')
   expect(w.logs).toEqual([{ text: 'harness-ops: session-event-log.sh exited 1: boom', to: 'debug' }])
 })
 
 test('on: a process that cannot start passes the event through and is logged once', ON, async ($, on) => {
   const w = world(on, { code: 0, throws: true })
-  await raise($, 'UserPromptSubmit', { prompt: 'hi' })
-  await raise($, 'UserPromptSubmit', { prompt: 'again' })
+  await fire($, w, 'UserPromptSubmit', { prompt: 'hi' })
+  await fire($, w, 'UserPromptSubmit', { prompt: 'again' })
   expect(w.runs.length).toBe(2)
   expect(w.logs.length).toBe(1)
   expect(w.logs[0].text).toContain('session-event-log.sh did not run')
