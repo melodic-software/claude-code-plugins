@@ -3,6 +3,24 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-10-09
+
+### Changed
+
+- Skill route ids are slash invocations (`/plugin:skill`), and `design` drops the leading slash
+  before calling the Skill tool.
+- Bare sibling plugin detects resolve to `<name>@<own marketplace>`.
+- The own-row pointers are removed from the routing data, which moves to schema `version` 2 (see
+  docs/conventions/routing-as-data).
+
+### Added
+
+- Detect resolves its own marketplace. When it cannot, it matches siblings by name and sets `reason`
+  (`own marketplace unresolved (<origin>); matched by name`) beside the `installed` list.
+- `uncertain`: a per-row map of ids that a same-named third-party plugin may hold. `design` treats
+  them as not installed and names them to the user.
+- `axe-accessibility` must be qualified with its marketplace before it is confirmed.
+
 ## [0.1.3] - 2026-10-07
 
 ### Changed
