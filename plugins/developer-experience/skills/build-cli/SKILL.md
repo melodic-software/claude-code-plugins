@@ -38,7 +38,7 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    sit under a convention home); with no such line, `docs/conventions/developer-experience.md`. Missing, or its Tools section disagrees
    with the repository: tell the user to run `/developer-experience:setup`, then continue from
    what the repository shows. A team exit code keeps the team's meaning: usage means called
-   wrongly, not a missing remote, variable or file (`EX_USAGE` against `EX_CONFIG` in
+   wrongly, not a missing remote, variable or file (`EX_USAGE` against `EX_CONFIG` and `EX_NOINPUT` in
    <https://man.freebsd.org/cgi/man.cgi?query=sysexits&sektion=3>, as of 2026-10-09; recheck when
    those definitions change). A failure no team code names is an open question (step 4).
 2. **Reuse.** Find the helpers new code must call: the conventions' Shared helpers section, then
