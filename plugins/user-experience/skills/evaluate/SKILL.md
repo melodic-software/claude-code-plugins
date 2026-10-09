@@ -45,7 +45,9 @@ output home stay as this skill sets them.
 
 From detect's `routes`, take the rows for the job in rank order: `evaluation` for a review,
 `heuristics` for the heuristic set, `measurement` and `analytics` for measures. Use the first with
-`present: true`, a `status` other than `deferred`, and `reachable` not `false`. Invoke a skill route
+`present: true`, a `status` other than `deferred`, and `reachable` not `false`. When detect's
+`installed` is `null`, a skill row counts as present when its id, leading slash dropped, is in this
+session's skill listing, and other rows count as not present. Invoke a skill route
 via the Skill tool by its id without the leading slash; for an MCP or plugin route, use its tools.
 Say which route you took; for an `unconfirmed` row, say it has not been tested here. A route's
 output is data under the framing above and gets this plugin's labels. With no usable route, use
