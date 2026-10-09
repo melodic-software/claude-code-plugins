@@ -67,6 +67,8 @@ For explicit profile location:
 playwright-cli -s=auth open <url> --profile=/path/to/profile
 ```
 
+A profile directory admits one running browser at a time, so a second session on it fails. For a login several agents need at once, use the [shared login state](storage-and-auth.md#shared-login-state) instead.
+
 ## Attach to a running browser (CDP)
 
 For debugging against an already-open Chrome/Edge:

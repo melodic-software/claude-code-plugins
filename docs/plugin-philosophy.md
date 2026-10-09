@@ -41,8 +41,10 @@ machine-path and layout half to the audits that check it.
 content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned: a citation that *names a source rather than a target the
-plugin acts on*, whether a documentation URL or a cross-plugin reference to this marketplace's own
-published files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+plugin acts on*, whether a documentation URL or a reference to this marketplace's own
+published docs outside any plugin's `skills/` folder, cited for a reader to consult; a skill in
+another plugin is cited as the encapsulation rule below says
+([Configuration ownership and scope](#configuration-ownership-and-scope)). Whether that sanctioned citation is forfeited turns on the
 target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
 publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
 dependency, so fetching one does not forfeit the citation. This rule reaches publisher-owned targets
@@ -464,10 +466,12 @@ not there.
 
 This permission stops at the plugin boundary. It exists because a plugin is the unit that ships:
 one `plugin.json`, one version, one marketplace entry, and skills that always travel together, so
-a citation between two skills in the same plugin cannot arrive at an absent file. **Do not path-cite
-into a skill in a different plugin.** Plugins install independently, so that path can genuinely be
-missing at runtime; cite the other plugin's skill by its `/plugin:skill` invocation instead, or
-promote the shared content to a convention doc both plugins can cite. The same limit applies to
+a citation between two skills in the same plugin cannot arrive at an absent file.
+**Do not cite a skill in another plugin in this marketplace by a path or a URL into its `skills/`
+folder.** Plugins install independently, so that path can genuinely be missing at runtime; cite the other
+plugin's skill by its `/plugin:skill` invocation instead, or promote the shared content to a
+convention doc both plugins can cite. A third-party skill's URL, such as a route row's external
+`pointer`, is a citation for a reader and stays allowed. The same limit applies to
 anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
 by path.
 
@@ -846,6 +850,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/conventions/plugin-option-naming/`](conventions/plugin-option-naming/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
+| Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
