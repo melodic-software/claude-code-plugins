@@ -12,7 +12,7 @@ metadata:
 
 ## Purpose
 
-Run the read-only check, report it, and stop. This skill is the model-invocable check;
+Run the read-only check, report it, and offer the fixes. This skill is the model-invocable check;
 `/speech:setup` stays manual because its `apply` downloads files.
 
 ## Check
@@ -24,7 +24,17 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DAT
 Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
 
 Report the `PASS`/`FAIL` rows and the summary as printed. Each `FAIL` row carries its remedy.
-Do not run the remedies.
+The check installs nothing. After the report, offer each failed row's fix and run it only on the
+user's yes in this session; with no one to answer (an unattended run), report and stop.
+
+- `python-packages`: the row's repair line is the plugin's own hash-pinned install, the command
+  the SessionStart hook runs. Name it and run it as printed on a yes.
+- `espeak-ng`, Python or Node.js: a system install, often with `sudo`. Write the commands from the
+  row's install hints to a script file, show it, and run it on a yes with its output going to a
+  log file, then read the log. When it needs a password, the user runs the script and the log is
+  read afterwards.
+- `kokoro-model`: state the size the row prints and that `/speech:setup apply install-model`
+  downloads the pinned files; the user types that command.
 
 ## Next
 
@@ -35,5 +45,7 @@ successor.
 
 ## Gotchas
 
-- Never install espeak-ng, Python or Node.js, and never run the Python package repair command
-  yourself. The user runs them.
+- A failed row or a session-start notice is not consent. Run no fix before the user says yes, and
+  run only the fix the row names, never another installer.
+- `/speech:setup` is manual-only, so its `apply install-model` cannot be invoked from here; the
+  user types it.
