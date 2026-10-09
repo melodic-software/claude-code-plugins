@@ -1,0 +1,40 @@
+{
+  "skill_name": "shape",
+  "evals": [
+    {
+      "id": 1,
+      "name": "idea-stage-states-assumptions",
+      "prompt": "We have an idea for a habit-tracking app and no code yet. Help me plan user research for it.",
+      "expected_output": "The skill states the stage as idea, with the signal that there is no manifest or code, says that everything about the users is an assumption to test, and hands research planning to plan-user-research via the Skill tool.",
+      "files": [],
+      "expectations": [
+        "The response states the app's stage as idea and names the signal behind it",
+        "The response labels claims about the users as assumptions to test",
+        "A Skill call to user-experience:plan-user-research follows the stage statement"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "existing-app-uses-project-evidence",
+      "prompt": "Our app already ships and the repo has a research/ folder with onboarding interview notes and mixpanel in package.json. Who are our users and what do they need from onboarding?",
+      "expected_output": "The skill runs detect, states the stage as existing with the analytics SDK and research folder as signals, lists the research folder and the analytics SDK as evidence, and works from that evidence before proposing new research.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The response states the stage as existing and cites the analytics SDK or the research folder as a signal",
+        "The response lists the project's research folder as evidence before recommending any new research"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "not-a-ux-question",
+      "prompt": "Rename the variable `cnt` to `count` across src/utils.ts.",
+      "expected_output": "The skill does not fire: this is a code edit with no user-experience question.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No Skill call reaches user-experience:shape"
+      ]
+    }
+  ]
+}

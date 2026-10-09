@@ -1,0 +1,40 @@
+{
+  "skill_name": "plan-user-research",
+  "evals": [
+    {
+      "id": 1,
+      "name": "discussion-guide-in-envelope",
+      "prompt": "Write a discussion guide for interviews with people who have tried and quit habit-tracking apps.",
+      "expected_output": "A discussion guide with goals, participant criteria (no names), warm-up, open questions about past behavior, probes and a wrap-up. It opens with the header block (Evidence: assumption-based, since no project evidence is given), carries the AI-use disclosure in its methods note, and ends with an Assumptions to test list.",
+      "files": [],
+      "expectations": [
+        "The guide opens with an Evidence: line labeled assumption-based or mixed",
+        "The guide includes a methods note disclosing that it was AI-drafted and who reviews it",
+        "The questions ask about past behavior rather than hypothetical future use",
+        "The guide ends with an Assumptions to test section"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-to-recruit",
+      "prompt": "Write the screener questions and then go email ten of our customers to book interview slots.",
+      "expected_output": "The skill writes the screener but does not contact anyone or book sessions; it says it writes instruments only and hands the screener to the person who will recruit.",
+      "files": [],
+      "expectations": [
+        "The response provides screener questions",
+        "The response does not send email or claim to have contacted or booked anyone, and says recruiting is left to a person"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "method-has-basis",
+      "prompt": "Should we run a survey or interviews to learn why trial users drop off in week one?",
+      "expected_output": "The skill states the research question and the decision it informs, picks a method with a Basis: line, and explains the choice in plain words.",
+      "files": [],
+      "expectations": [
+        "The response recommends a method and gives a Basis: line for it",
+        "The response states the research question and the decision its answer changes"
+      ]
+    }
+  ]
+}

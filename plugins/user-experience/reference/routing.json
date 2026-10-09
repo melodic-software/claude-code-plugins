@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "note": "Rows rank the routes for each user-experience job, starting at 1. Rank 0, the project's own research, personas, analytics and tools, is one rule in the skills and never a row. A kind skill id is its slash invocation without arguments: /plugin:skill, or /skill for a standalone skill. On a kind plugin row or a /plugin:skill row, a bare detect means this plugin's own marketplace; on any other row it names a skill directory, an MCP server or a tool; any other plugin detect names its marketplace as name@marketplace. A row for one of this marketplace's own skills carries no pointer; every other row does. The routing-as-data convention (docs/conventions/routing-as-data) defines these rules.",
+  "rows": [
+    {"job": "heuristics", "rank": 1, "id": "/user-interface:design", "kind": "skill", "detect": "user-interface", "account": "none", "status": "confirmed", "as_of": "2026-10-09"},
+
+    {"job": "handoff-ui", "rank": 1, "id": "/user-interface:design", "kind": "skill", "detect": "user-interface", "account": "none", "status": "confirmed", "as_of": "2026-10-09"}
+  ]
+}

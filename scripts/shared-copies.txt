@@ -365,6 +365,9 @@ lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/user-interface/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/user-interface/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/user-interface/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/user-experience/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/user-experience/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/user-experience/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
@@ -400,3 +403,4 @@ lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
+lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
