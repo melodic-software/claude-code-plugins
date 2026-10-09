@@ -4,7 +4,7 @@ description: "Scope-fenced implementation worker dispatched per phase by /implem
 skills:
   - implementation:report
   - testing:test-value
-tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, WebFetch, WebSearch, Skill, Agent"
+tools: "Read, Edit, Write, Grep, Glob, Bash, PowerShell, Monitor, WebFetch, WebSearch, Skill, Agent"
 model: opus
 effort: medium
 ---
@@ -38,7 +38,8 @@ guardrail; that absence alone is not a STOP.
 
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
-directly rather than launching pwsh through Bash), web research (so a consuming project's
+directly rather than launching pwsh through Bash), Monitor (so a wait on CI or a long command runs
+in the background, never as a foreground poll), web research (so a consuming project's
 fresh-docs obligations stay satisfiable), skill invocation, and nested dispatch for skills that fan
 out their own workers. Nothing else is granted.
 

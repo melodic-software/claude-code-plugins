@@ -3,6 +3,17 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-10-09
+
+### Added
+
+- **`/implementation:implement-dispatch` pilots one row before a wave wider than about 4.** It dispatches that row alone and confirms plan usage remains before sending the rest, because a usage limit hit mid-wave stops every worker at once. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+- **Both worker agents can use Monitor.** `implementer` and `scoped-implementer` list `Monitor` in `tools`, and the push-early brief clause tells a worker to wait on CI with `run_in_background` or Monitor, never a foreground `sleep` or `until` loop or `--watch`. Evidence: foreground CI waits cost about 41, 21-25 and 19 agent-hours a week on three fleet lanes.
+
+### Changed
+
+- **Worktree briefs anchor on the literal path, one plain command per call.** Brief item 8 and the cwd gotcha now require `git -C <literal path>` and forbid `VAR=` prefixes, loops, `$( )` and `cd` into the shared clone; "or a re-`cd` per call" is gone. Those shapes leave the permission fast path, where a headless worker is blocked. Evidence: 1,933, 670 and 270 such blocks on three fleet lanes.
+
 ## [0.23.1] - 2026-10-07
 
 ### Changed
