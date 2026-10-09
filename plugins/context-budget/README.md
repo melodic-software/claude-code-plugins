@@ -39,8 +39,12 @@ saving.
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
 (`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
-edits prompt even in auto mode. The files it matches are `settings.json` and `settings.local.json`
-under any `.claude` directory (project or user-global), plus `managed-settings.json`. It is a
+edits prompt even in auto mode. It matches only the settings files Claude Code reads:
+`settings.json` and `settings.local.json` in the user settings directory (`CLAUDE_CONFIG_DIR`,
+else `~/.claude`) or in `.claude/` under the project directory, the session's working directory
+or its git toplevel, plus `managed-settings.json` and `managed-settings.d/` drop-ins in the
+managed system directory. A fixture or example named `.claude/settings.json` elsewhere does not
+prompt. It is a
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
 removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
