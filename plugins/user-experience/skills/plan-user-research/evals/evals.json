@@ -35,6 +35,41 @@
         "The response recommends a method and gives a Basis: line for it",
         "The response states the research question and the decision its answer changes"
       ]
+    },
+    {
+      "id": 4,
+      "name": "facilitator-guide-for-usability-test",
+      "prompt": "Write a facilitator guide for a moderated usability test of our new checkout prototype.",
+      "expected_output": "A usability test script: tasks written as scenarios with a success criterion each, think-aloud instructions, neutral facilitator prompts and post-task questions, in the deliverable envelope with the AI-use disclosure in its methods note.",
+      "files": [],
+      "expectations": [
+        "Each task is a scenario with a stated success criterion",
+        "The script includes think-aloud instructions and neutral prompts that do not lead the participant",
+        "The script carries an AI-use disclosure in a methods note"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "inclusive-research-plan",
+      "prompt": "We want to include people with disabilities in our next round of user research. Plan it.",
+      "expected_output": "An inclusive-research plan with participant criteria stated as needs and assistive technologies (never names), session accommodations, and how sessions adapt, opening with an Evidence: line and ending with an Assumptions to test list. It does not recruit anyone.",
+      "files": [],
+      "expectations": [
+        "The plan states participant criteria by need or assistive technology, with no names",
+        "The plan names accommodations for sessions",
+        "The response does not claim to recruit or contact participants"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "not-a-research-ask",
+      "prompt": "Fix the null reference in the cart total calculation when the cart is empty.",
+      "expected_output": "The skill does not fire: this is a code fix with no user research question.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No Skill call reaches user-experience:plan-user-research"
+      ]
     }
   ]
 }

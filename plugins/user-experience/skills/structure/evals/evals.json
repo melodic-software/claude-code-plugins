@@ -1,0 +1,51 @@
+{
+  "skill_name": "structure",
+  "evals": [
+    {
+      "id": 1,
+      "name": "signup-flow-with-states",
+      "prompt": "Map the sign-up to first-success flow for our habit-tracking app.",
+      "expected_output": "A mermaid flowchart user flow from sign-up to first successful use, each step naming the states it handles and every exit, in the deliverable envelope with an Evidence: line and an Assumptions to test list.",
+      "files": [],
+      "expectations": [
+        "The flow is a mermaid flowchart",
+        "Each step names the states it handles, such as error or empty",
+        "The record opens with an Evidence: line"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tree-test-plan",
+      "prompt": "Structure the navigation for our B2B admin console and plan a tree test for it.",
+      "expected_output": "A draft IA tree and a tree-test plan with tasks, the tree, success criteria and participant criteria (no names); the plan does not recruit or run sessions.",
+      "files": [],
+      "expectations": [
+        "The response gives a draft navigation tree",
+        "The tree-test plan has tasks with success criteria",
+        "The response does not claim to recruit or run sessions"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "hands-off-screens",
+      "prompt": "Map the onboarding flow, then pick the colors and button styles for each screen.",
+      "expected_output": "The skill maps the flow and leaves colors and button styles to the UI skill, naming user-interface:design as the hand-off rather than choosing a palette itself.",
+      "files": [],
+      "expectations": [
+        "The response maps the onboarding flow",
+        "The response does not choose colors or button styles and names user-interface:design for them"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "not-a-structure-ask",
+      "prompt": "Write a unit test for the parseDate helper.",
+      "expected_output": "The skill does not fire: this is a testing task with no flow or information architecture question.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No Skill call reaches user-experience:structure"
+      ]
+    }
+  ]
+}
