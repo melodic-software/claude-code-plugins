@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "playwright-cli -s=cart click e42", "why": "ref"},
+    {"answer": "playwright-cli -s=cart click <ref>", "why": "placeholder"}
+  ],
+  "fail": [
+    {"answer": "playwright-cli -s=cart click \"text=Add to cart\"", "why": "text selector"},
+    {"answer": "playwright-cli -s=cart click '#add-to-cart'", "why": "quoted id selector"},
+    {"answer": "playwright-cli -s=cart click .btn-primary", "why": "class selector"},
+    {"answer": "playwright-cli -s=cart click [data-testid=add]", "why": "attribute selector"}
+  ]
+}
