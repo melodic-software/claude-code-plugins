@@ -1,118 +1,43 @@
 {
   "pass": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "BASE=$(git merge-base HEAD MERGE_HEAD); git log -p \"$BASE\"..MERGE_HEAD -- a.py"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/w/a.py",
-            "content": "y\n"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git add a.py && GIT_EDITOR=true git merge --continue"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"BASE=$(git merge-base HEAD MERGE_HEAD); git log -p \\\"$BASE\\\"..MERGE_HEAD -- a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/w/a.py\",\"content\":\"y\\n\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git add a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":\"ok\"}]}}"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git status"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git show abc123"
-          }
-        },
-        {
-          "tool": "Edit",
-          "input": {
-            "file_path": "/w/a.py",
-            "old_string": "x",
-            "new_string": "y"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git -C /w add a.py"
-          }
-        }
-      ]
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git status\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show abc123\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/w/a.py\",\"old_string\":\"x\",\"new_string\":\"y\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_3\",\"name\":\"Bash\",\"input\":{\"command\":\"git -C /w add a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_3\",\"content\":\"ok\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git --no-pager log --oneline -5 -- a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}",
+      "why": "history read; nothing edited yet"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git add a.py"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git log --oneline"
-          }
-        }
-      ],
-      "why": "staged the resolution before reading history"
+      "answer": ""
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git diff"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/w/a.py",
-            "content": "y\n"
-          }
-        },
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git add a.py"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Write\",\"input\":{\"file_path\":\"/w/a.py\",\"content\":\"y\\n\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --oneline\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git add a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":\"ok\"}]}}",
+      "why": "rewrote the file before reading history"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/w/a.py\",\"old_string\":\"x\",\"new_string\":\"y\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git show abc123\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
+      "why": "edited before reading history"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i s/x/y/ a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log -p -- a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
+      "why": "rewrote the file with Bash before reading history"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git checkout --theirs a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --oneline\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
+      "why": "took a side before reading history"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git diff\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/w/a.py\",\"content\":\"y\\n\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git add a.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\",\"content\":\"ok\"}]}}",
       "why": "diff only, no history"
     },
     {
-      "answer": [
-        {
-          "tool": "Bash",
-          "input": {
-            "command": "git log --oneline"
-          }
-        },
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "/w/a.py",
-            "content": "y\n"
-          }
-        }
-      ],
-      "why": "never staged a resolution"
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git status\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_9\",\"content\":\"try git log next\"}]}}",
+      "why": "git log only in tool output"
     }
   ]
 }
