@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.2] - 2026-10-09
+
+### Changed
+
+- The task-end test judge's Stop hook runs with `asyncRewake`, so a turn ends without waiting for it. Only an attended FLAG (or an UNKNOWN that started as a FLAG) wakes Claude, with the relay on stderr and exit 2; every other result reaches Claude on its next turn. A `claude -p` or Agent SDK session ends before the judge finishes and gets no task-end verdict; CI is its gate.
+- The SubagentStop hook is removed: a subagent's tests are judged at the parent's Stop with the parent's own.
+
 ## [0.23.1] - 2026-10-08
 
 ### Changed
