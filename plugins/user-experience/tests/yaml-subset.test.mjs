@@ -179,3 +179,21 @@ describe("nesting deeper than the limit is rejected with its line", () => {
     assert.throws(() => parse("-\n".repeat(200_000)), nestingError(66));
   });
 });
+
+describe("quotes and comments in plain values", () => {
+  test("an apostrophe inside a plain value does not open a quote, so a trailing comment is stripped", () => {
+    assert.deepEqual(parse("title: it's fine # comment\n"), { title: "it's fine" });
+  });
+
+  test("a quote that starts a value, a sequence item or a flow item still protects a #", () => {
+    assert.deepEqual(parse("a: 'x # y'\nb:\n  - \"z # w\"\nc: [a, \"v # u\"]\n"), { a: "x # y", b: ["z # w"], c: ["a", "v # u"] });
+  });
+
+  test("an escaped quote inside a quoted value does not end it", () => {
+    assert.deepEqual(parse("a: 'it''s # here'\nb: \"say \\\"hi # there\\\"\"\n"), { a: "it's # here", b: 'say "hi # there"' });
+  });
+});
+
+test("a duplicate key in a sequence-item mapping is reported on its own line", () => {
+  assert.throws(() => parse("- job: a\n  id: x\n  job: b\n"), (e) => e instanceof YamlSubsetError && e.line === 3 && /duplicate key/.test(e.message));
+});

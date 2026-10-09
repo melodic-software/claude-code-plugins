@@ -10,17 +10,6 @@
         }
       ],
       "why": "the front door fired"
-    },
-    {
-      "answer": [
-        {
-          "tool": "Skill",
-          "input": {
-            "skill": "user-experience:evaluate"
-          }
-        }
-      ],
-      "why": "a job skill fired"
     }
   ],
   "fail": [
@@ -38,6 +27,17 @@
         }
       ],
       "why": "the same leaf name from another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:plan-user-research"
+          }
+        }
+      ],
+      "why": "a job skill, not shape, whose degraded path this case grades"
     },
     {
       "answer": [

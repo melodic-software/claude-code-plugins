@@ -408,3 +408,89 @@ describe("team surface", () => {
     assert.match(team.skipped_reason, /outside the project/);
   });
 });
+
+describe("team rows cannot repoint a route", () => {
+  const EXISTING = join(FIX, "existing");
+  let n = 0;
+  const run = (text, mcp = MCP) => {
+    const file = join(scratch, `repoint-${++n}.yaml`);
+    writeFileSync(file, text);
+    return detect(["--project", EXISTING, "--home", HOME, "--plugin-list-json", PLUGINS, "--mcp-list", mcp, "--team", file]);
+  };
+  const row = (fields) =>
+    `    - ${Object.entries(fields)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n      ")}\n`;
+  const rows = (...list) => `version: 1\nrouting:\n  version: 1\n  rows:\n${list.map(row).join("")}`;
+  const full = { account: "none", status: "unconfirmed", as_of: "2026-10-09", pointer: "https://example.com/p", recheck: "it moves" };
+
+  test("a bundled job and id whose detect is changed to a connected server is dropped, and the bundled row stands", () => {
+    const { routes, team } = run(rows({ job: "synthesis", id: "dovetail", detect: "slack", status: "confirmed", rank: 1 }), join(FIX, "mcp-list-slack.txt"));
+    const r = routes.find((x) => x.job === "synthesis" && x.id === "dovetail");
+    assert.equal(r.detect, "dovetail");
+    assert.equal(r.status, "deferred");
+    assert.equal(r.present, false);
+    assert.ok(team.warnings.some((w) => w.includes('"dovetail"') && w.includes("bundled-id-keeps-kind-detect-account")), team.warnings.join("\n"));
+  });
+
+  test("a bundled id reused under another job with another kind and detect is dropped", () => {
+    const { routes, team } = run(rows({ job: "analytics", rank: 1, id: "dovetail", kind: "plugin", detect: "not-installed@nowhere", ...full }));
+    assert.ok(!routes.some((x) => x.job === "analytics" && x.id === "dovetail"));
+    assert.ok(team.warnings.some((w) => w.includes("bundled-id-keeps-kind-detect-account")), team.warnings.join("\n"));
+  });
+
+  test("a row is admitted and marked present by its own detect, not by another row with its id", () => {
+    const id = "/product-management:write-spec";
+    const { routes, team } = run(
+      rows(
+        { job: "flows-ia", rank: 1, id, kind: "skill", detect: "product-management@knowledge-work-plugins", ...full },
+        { job: "journeys", rank: 1, id, kind: "skill", detect: "product-management@other-market", ...full },
+      ),
+    );
+    assert.equal(routes.find((x) => x.job === "flows-ia" && x.id === id).present, true);
+    assert.ok(!routes.some((x) => x.job === "journeys" && x.id === id && x.present !== false), JSON.stringify(routes.filter((x) => x.id === id)));
+    assert.ok(team.warnings.some((w) => w.includes("routing.rows[1]") && w.includes("id-matches-bundled-or-installed")), team.warnings.join("\n"));
+  });
+});
+
+describe("team paths may not point into .claude or .git", () => {
+  const EXISTING = join(FIX, "existing");
+  let n = 0;
+  const run = (text) => {
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, text);
+    return detect(["--project", EXISTING, ...seams, "--team", file]).team;
+  };
+
+  for (const value of [".claude/rules", ".git/hooks", "./.claude"]) {
+    test(`output_home ${value} falls back to the default with a warning`, () => {
+      const team = run(`version: 1\noutput_home: ${value}\n`);
+      assert.equal(team.output_home, null);
+      assert.ok(team.warnings.some((w) => w.includes(JSON.stringify(value)) && w.includes("output_home")), team.warnings.join("\n"));
+    });
+  }
+
+  test("research_paths and persona_paths entries under .claude or .git are dropped with a warning each, others kept", () => {
+    const team = run("version: 1\nresearch_paths:\n  - .claude\n  - research\npersona_paths:\n  - .git\n  - .claude/agents\n");
+    assert.deepEqual(team.research_paths, ["research"]);
+    assert.deepEqual(team.persona_paths, []);
+    for (const value of [".claude", ".git", ".claude/agents"]) {
+      assert.ok(team.warnings.some((w) => w.includes(JSON.stringify(value))), `${value}: ${team.warnings}`);
+    }
+  });
+
+  test("a path whose first segment only starts with .claude is kept", () => {
+    assert.equal(run("version: 1\noutput_home: .claude-notes/ux\n").output_home, ".claude-notes/ux");
+  });
+
+  test("a symlink inside the project that points at .claude cannot carry a path there", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+    const project = mkdtempSync(join(scratch, "reserved-link-"));
+    mkdirSync(join(project, ".claude"));
+    symlinkSync(join(project, ".claude"), join(project, "ux"));
+    const file = join(scratch, `reserved-${++n}.yaml`);
+    writeFileSync(file, "version: 1\noutput_home: ux/rules\nresearch_paths:\n  - ux\n");
+    const { team } = detect(["--project", project, ...seams, "--team", file]);
+    assert.equal(team.output_home, null);
+    assert.deepEqual(team.research_paths, []);
+  });
+});

@@ -97,3 +97,44 @@ describe("rejections", () => {
     assert.deepEqual(rejections({ ...bundled[0], rank: 2 }, ctx), []);
   });
 });
+
+describe("bundled-id-keeps-kind-detect-account", () => {
+  const dovetail = { ...bundled[1], account: "login", status: "deferred" };
+  const local = { bundled: [bundled[0], dovetail, bundled[2]], installed: ctx.installed };
+  const check = (row) => rule("bundled-id-keeps-kind-detect-account").test(row, local);
+
+  test("admits a re-rank and a status change of a bundled row", () => {
+    assert.equal(check({ ...dovetail, rank: 1, status: "confirmed" }).admit, true);
+  });
+
+  test("admits a pointer, recheck and as_of override", () => {
+    assert.equal(check({ ...dovetail, pointer: "https://example.com/p", recheck: "r", as_of: "2026-10-10" }).admit, true);
+  });
+
+  test("admits a row whose id matches no bundled row", () => {
+    assert.equal(check({ job: "synthesis", id: "/team-notes", kind: "skill", detect: "team-notes" }).admit, true);
+  });
+
+  test("rejects a bundled row whose detect changes, naming the rule", () => {
+    const r = check({ ...dovetail, detect: "slack", status: "confirmed", rank: 1 });
+    assert.equal(r.admit, false);
+    assert.equal(r.rule, "bundled-id-keeps-kind-detect-account");
+    assert.match(r.reason, /detect/);
+  });
+
+  test("rejects a bundled row whose kind changes", () => {
+    const r = check({ ...dovetail, kind: "plugin" });
+    assert.equal(r.admit, false);
+    assert.match(r.reason, /kind/);
+  });
+
+  test("rejects a bundled row whose account changes", () => {
+    const r = check({ ...dovetail, account: "none" });
+    assert.equal(r.admit, false);
+    assert.match(r.reason, /account/);
+  });
+
+  test("rejects a bundled id reused under another job with a different kind and detect", () => {
+    assert.equal(check({ ...dovetail, job: "analytics", kind: "plugin", detect: "not-installed@nowhere" }).admit, false);
+  });
+});

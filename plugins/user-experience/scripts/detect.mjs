@@ -7,7 +7,7 @@
 //    "routes": [bundled rows merged with the team file's, in rank order, each with "present": true | false | null],
 //    "team": {"path", "loaded", "warnings": [...], "skipped_reason"?, "jtbd_school", "research_paths",
 //             "persona_paths", "output_home"}}
-// `present` is null when installed is null. Detection rules live in lib/installed.mjs; which team
+// `present` comes from the row's own kind and detect, and is null when installed is null. Detection rules live in lib/installed.mjs; which team
 // rows are admitted lives in lib/team-policy.mjs. A team file that is missing, malformed, unreadable
 // or of an unknown version leaves the built-in routes and default settings, with skipped_reason
 // naming the file and the cause. Team-file text appears in warnings only as JSON-quoted data.
@@ -233,8 +233,8 @@ const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 
 /** Bundled rows with the team's routing applied: `rows` re-rank or add (each admitted by
  * team-policy), `disable` and `deny` skip. Returns the rows and the set the team changed, which win
- * rank ties. `detectRows` is installed() over a row list. */
-function mergeRoutes(bundled, teamRouting, path, warn, detectRows) {
+ * rank ties. `presence` maps a row list to each row's own presence. */
+function mergeRoutes(bundled, teamRouting, path, warn, presence) {
   const key = (r) => `${r.job}\u0000${r.id}`;
   const routingProps = TEAM_SCHEMA.properties.routing.properties;
   const routing = knownKeys(teamRouting, Object.keys(routingProps), "routing", warn);
@@ -255,8 +255,9 @@ function mergeRoutes(bundled, teamRouting, path, warn, detectRows) {
   const byKey = new Map(bundled.map((r) => [key(r), r]));
   const touched = new Set();
   if (candidates.length) {
-    const ctx = { bundled, installed: detectRows([...bundled, ...candidates.map((c) => c.merged)]).installed ?? null };
-    for (const { label, merged } of candidates) {
+    const present = presence([...bundled, ...candidates.map((c) => c.merged)]).slice(bundled.length);
+    for (const [i, { label, merged }] of candidates.entries()) {
+      const ctx = { bundled, installed: present[i] === null ? null : present[i] ? [merged.id] : [] };
       const failed = rejections(merged, ctx);
       for (const f of failed) warn(`${label} ${quote(merged.id)} dropped by ${f.rule}: ${f.reason}`);
       if (!failed.length) {
@@ -289,6 +290,7 @@ function mergeRoutes(bundled, teamRouting, path, warn, detectRows) {
   return { rows, touched };
 }
 
+const RESERVED = [".claude", ".git"];
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
 /** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
@@ -300,16 +302,31 @@ function teamSettings(doc, warn) {
     warn(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
+  // A project path outside .claude and .git: a deliverable there would become a standing project
+  // rule, and research read from there is configuration, not research.
+  const reserved = (rel) => RESERVED.includes(rel.split(/[\\/]/)[0].toLowerCase());
+  // Checked as written and as resolved, so a symlink inside the project that points at .claude
+  // or .git cannot carry a path there.
+  const resolvesReserved = (rel) => {
+    const root = realpathSync(resolve(opts.project));
+    let at = resolve(opts.project, rel);
+    while (!existsSync(at)) at = dirname(at);
+    return reserved(relative(root, realpathSync(at)));
+  };
+  const usable = (p) => {
+    const rel = inside(p);
+    return rel === null || reserved(rel) || resolvesReserved(rel) ? null : rel;
+  };
   const paths = (k) =>
     listAt(doc[k], k, warn).flatMap((p) => {
-      const rel = inside(p);
-      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project or not a path; dropped`);
+      const rel = usable(p);
+      if (rel === null) warn(`${k} entry ${quote(p)} is outside the project, under .claude or .git, or not a path; dropped`);
       return rel === null ? [] : [rel];
     });
   let home = DEFAULTS.output_home;
   if (doc.output_home != null) {
-    home = inside(doc.output_home);
-    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project or not a path; default used`);
+    home = usable(doc.output_home);
+    if (home === null) warn(`output_home ${quote(doc.output_home)} is outside the project, under .claude or .git, or not a path; default used`);
   }
   return { jtbd_school: school, research_paths: paths("research_paths"), persona_paths: paths("persona_paths"), output_home: home };
 }
@@ -321,6 +338,12 @@ const lists = {
   mcpList: once(fromFileOr(opts["mcp-list"], ["mcp", "list"])),
 };
 const detectRows = (rows) => installed(rows, { pluginRoot: ROOT, home: opts.home, projectDir: opts.project, projectMcpServers: project.mcp_servers, ...lists });
+/** Each row's presence (true, false, or null when unknown) from its own kind and detect: installed()
+ * answers by id, so each row gets an id no other row shares, keeping its prefix for the skill shape. */
+const presence = (rows) => {
+  const { installed: ids } = detectRows(rows.map((r, i) => ({ ...r, id: `${r.id}\u0000${i}` })));
+  return rows.map((r, i) => (ids ? ids.includes(`${r.id}\u0000${i}`) : null));
+};
 
 const source = readTeam(teamSurface());
 let rows = bundled;
@@ -329,7 +352,7 @@ let team;
 if (source.doc) {
   const warnings = [];
   const warn = (w) => warnings.push(w);
-  ({ rows, touched } = mergeRoutes(bundled, source.doc.routing ?? {}, source.path, warn, detectRows));
+  ({ rows, touched } = mergeRoutes(bundled, source.doc.routing ?? {}, source.path, warn, presence));
   team = { path: source.path, loaded: true, warnings, ...teamSettings(source.doc, warn) };
 } else {
   const named = source.path ?? `the ${TEAM_FILE} team file`;
@@ -338,9 +361,10 @@ if (source.doc) {
 }
 
 const found = detectRows(rows);
+const own = new Map(presence(rows).map((p, i) => [rows[i], p]));
 const jobs = [...new Set(bundled.map((r) => r.job))];
 const jobOrder = (r) => (jobs.includes(r.job) ? jobs.indexOf(r.job) : jobs.length);
 const routes = [...rows]
   .sort((a, b) => jobOrder(a) - jobOrder(b) || a.rank - b.rank || touched.has(b) - touched.has(a))
-  .map((r) => ({ ...r, present: found.installed ? found.installed.includes(r.id) : null }));
+  .map((r) => ({ ...r, present: own.get(r) }));
 console.log(JSON.stringify({ project, ...found, routes, team }));

@@ -53,7 +53,8 @@ output_home: null
 Write it in block style. A flow mapping such as `- {job: synthesis, id: dovetail}` is outside the
 YAML subset the plugin reads, so the whole file is skipped. When the file is missing, malformed or
 unreadable, the skills use the built-in routes, name the skipped file, say that team overrides and
-the deny floor were not applied, and suggest `/user-experience:setup`. The schema is
+the deny floor were not applied, and suggest `/user-experience:setup`. A path key that leaves the
+project or points under `.claude/` or `.git/` is dropped with a warning. The schema is
 [`reference/team.schema.json`](reference/team.schema.json).
 
 ## Prerequisites
@@ -74,6 +75,7 @@ The plugin adopts the routing-as-data convention (`docs/conventions/routing-as-d
 the marketplace repository). Routes live in [`reference/routing.json`](reference/routing.json),
 grouped by `job` and validated by [`reference/routing.schema.json`](reference/routing.schema.json).
 `scripts/detect.mjs` marks each row present or not and applies the team file's `routing` changes:
-an added row's id must match a bundled row or an installed plugin or skill, and a team file may not
-add a `kind: tool` row. Untested account-free routes ship `unconfirmed`, and untested account-bound
+an added row's id must match a bundled row or an installed plugin or skill, a row with a bundled id
+may not change that row's `kind`, `detect` or `account`, and a team file may not add a
+`kind: tool` row. Untested account-free routes ship `unconfirmed`, and untested account-bound
 ones `deferred`.

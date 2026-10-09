@@ -2,5 +2,5 @@
 type: regex
 flags: i
 arm: both
-pattern: "white|#fff(?:fff)?\\b"
+pattern: "(?:use|choose|pick)\\s+white|white\\s+(?:text|label)|#fff(?:fff)?\\b"
 ---

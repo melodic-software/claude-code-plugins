@@ -17,6 +17,10 @@
     {
       "answer": "Use black #000000 for the label.",
       "why": "black fails AA here (about 4.1:1)"
+    },
+    {
+      "answer": "Use black rather than white for the label.",
+      "why": "names white only to reject it"
     }
   ]
 }

@@ -29,13 +29,17 @@ const quote = (text) => JSON.stringify(text.length > 60 ? `${text.slice(0, 60)}.
 const isItem = (content) => content === "-" || content.startsWith("- ");
 const put = (object, key, value) => Object.defineProperty(object, key, { value, enumerable: true, writable: true, configurable: true });
 
+/** The text before `#` as a comment ends it. A quote opens only where a value starts (line start,
+ * after `: `, `- `, `[` or `,`), so an apostrophe inside a plain value is just a character. */
 function stripComment(text) {
   let q = null;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (q) {
-      if (ch === q) q = null;
-    } else if (ch === "'" || ch === '"') {
+      if (q === '"' && ch === "\\") i++;
+      else if (q === "'" && ch === "'" && text[i + 1] === "'") i++;
+      else if (ch === q) q = null;
+    } else if ((ch === "'" || ch === '"') && /(?:^|:\s|(?:^|\s)-\s|[[,])\s*$/.test(text.slice(0, i))) {
       q = ch;
     } else if (ch === "#" && (i === 0 || text[i - 1] === " " || text[i - 1] === "\t")) {
       return text.slice(0, i).trimEnd();
@@ -179,8 +183,9 @@ class Parser {
     return this.mapping(indent);
   }
 
-  mapping(indent) {
-    const result = {};
+  /** The block mapping at `indent`, its entries put into `result` (a sequence item's dash-line entry
+   * arrives already in it, so a duplicate is reported on its own line). */
+  mapping(indent, result = {}) {
     while (this.pos < this.lines.length) {
       const [lineIndent, number, content] = this.lines[this.pos];
       if (lineIndent < indent) break;
@@ -233,12 +238,7 @@ class Parser {
       const itemIndent = indent + 2;
       const [key, rest] = split;
       const mapping = put({}, key, rest === "" ? this.nested(itemIndent) : scalar(rest, number));
-      if (this.pos < this.lines.length && this.lines[this.pos][0] === itemIndent) {
-        for (const [extra, value] of Object.entries(this.mapping(itemIndent))) {
-          if (Object.hasOwn(mapping, extra)) throw new YamlSubsetError(number, `duplicate key ${quote(extra)}`);
-          put(mapping, extra, value);
-        }
-      }
+      if (this.pos < this.lines.length && this.lines[this.pos][0] === itemIndent) this.mapping(itemIndent, mapping);
       result.push(mapping);
     }
     return result;

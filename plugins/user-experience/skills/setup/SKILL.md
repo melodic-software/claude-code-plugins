@@ -39,7 +39,10 @@ FAIL. Write nothing.
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "<project root>"`. Exit 0:
    the printed home (PASS). Exit 1: no pointer, so the default `docs/conventions` (INFO). Exit 2 or
    3: FAIL with its stderr line; the team file has no home until the pointer is fixed. A home under
-   `.claude/` is FAIL: the team file never lives there.
+   `.claude/` is FAIL: the team file never lives there. So is a home that leaves the project
+   through a symlink on it or any parent folder, so `apply` never writes through one: compare
+   `realpath -m "<project root>/<home>"` with `realpath "<project root>"`, and FAIL when the first
+   is not the second or under it (`-m` covers a home that does not exist yet).
 3. **Team file.** Run
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --team "<project root>/<home>/user-experience.yaml"`
    (`--team` resolves against the current directory, hence the absolute path) and read its `team`
@@ -71,7 +74,7 @@ FAIL. Write nothing.
    - `output_home=<path>`, repository-relative, or `null` for the default.
    - `routing.disable=<job>:<id>` and `routing.deny=<name>`, appended once each.
    `routing.rows` is edited by hand; `check` validates it. Refuse a path outside the repository or
-   under `.claude/`, and any key the schema does not have.
+   under `.claude/` or `.git/`, and any key the schema does not have.
 3. **Write.** Create the file when absent with `version: 1` first, and `routing:` with
    `version: 1` when a routing key is set. Change only the keys asked for and keep every other key,
    comment and blank line. Block style only: one list item per line, and each `routing.disable`
