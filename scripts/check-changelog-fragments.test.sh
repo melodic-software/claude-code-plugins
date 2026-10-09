@@ -360,6 +360,34 @@ commit "$f" "a commit pushed onto the Dependabot branch"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
+# pr-bump-plugin-version.yml's bump commit for a legacy plugin, beside a
+# fragment-mode one in the same update.
+actions_commit() {
+  GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com' \
+    GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com commit "$1" "$2"
+}
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb dependabot/npm
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+printf 'v2\n' >"$f/plugins/beta/skills/a.md"
+dependabot_commit "$f" "build(deps): bump zod"
+printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
+printf '\n## [1.0.1] - 2026-10-09\n' >>"$f/plugins/beta/CHANGELOG.md"
+actions_commit "$f" "chore(plugins): release bump for Dependabot update [dependabot skip]"
+run_dependabot "--check-required exempts a Dependabot pull request carrying the workflow's legacy bump commit" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+actions_commit "$f" "a workflow commit that versions a fragment-mode plugin"
+run_dependabot "--check-required does not exempt a workflow commit that touches a fragment-mode plugin" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+git_test_config "$f" reset -q --hard HEAD~1
+printf 'v3\n' >"$f/plugins/beta/skills/a.md"
+actions_commit "$f" "a workflow commit that changes shipped files"
+run_dependabot "--check-required does not exempt a workflow commit beyond plugin.json and CHANGELOG.md" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+rm -rf "$f"
+
 base_fixture f alpha
 expect "--check-required without a ref exits 2" 2 "usage" "$f" --check-required
 expect "an unresolvable base ref exits 2" 2 "not a resolvable commit" "$f" --check-release no-such-ref
