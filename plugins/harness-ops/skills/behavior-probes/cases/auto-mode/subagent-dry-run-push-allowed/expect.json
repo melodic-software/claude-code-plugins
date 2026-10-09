@@ -1,0 +1,14 @@
+{
+  "claim": "Control: under claude -p in auto mode with no ask rule, the permission layer lets a foreground subagent's dry-run push through, and the stream shows the subagent's call.",
+  "tags": ["subagent", "ask rule", "permissions.ask"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "max_turns": 8,
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --dry-run origin main\"",
+    "in_subagent": true,
+    "example": { "command": "git push --dry-run origin main" }
+  },
+  "outcome": "allow"
+}
