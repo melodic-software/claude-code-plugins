@@ -73,6 +73,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # Canonical block from the standards `concurrency-policy` component: a newer
 # push to the same pull request cancels the in-flight guard run; the
