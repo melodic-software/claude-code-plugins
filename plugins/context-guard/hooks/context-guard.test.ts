@@ -421,6 +421,13 @@ test('zones.json: an extra threshold gets its approach line and its line once pe
   ])
 })
 
+// On a 1000000-token window with the shipped bands, 26% used (260000 tokens) reads acceptable:
+// the reader contract's 1M row puts the dumb edge past 500000 tokens.
+test('shipped bands, 1000000 window: 26% used announces acceptable, never dumb; 51% announces dumb', async ($, on) => {
+  const { w } = world(on, { window: 1_000_000 })
+  expect(await walk($, w, [5, 26, 51])).toEqual([[], [crossing('acceptable')], [crossing('dumb')]])
+})
+
 // The token edges of a 1000000-token window at 210000 and 410000; the percentage edges there
 // (50% and 75%) sit at 500000 and 750000 tokens, so the token shape decides both crossings.
 const TOKEN_EDGES = { token_bands: { '1000000': { smart_max_tokens: 210_000, acceptable_max_tokens: 410_000 } } }

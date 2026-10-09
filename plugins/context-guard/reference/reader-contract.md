@@ -59,7 +59,7 @@ same triggers. These stamps are probe results with a date, not standing facts.
 - **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
   inclusive, selected by window class as described under "Occupancy and combination rule"):**
   window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **150000** < `dumb`;
-  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **250000** < `dumb`.
+  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **500000** < `dumb`.
 - **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
   `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
   token fields mean current occupancy rather than cumulative session totals.
@@ -226,13 +226,19 @@ a version field cannot (there is no writer authentication, so `cli_version` is u
 every other snapshot value). The bundled resolver implements both gates.
 
 **Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
-constants. No per-length long-context data is published for Claude Opus 5.5, Sonnet 5.5 or Fable
-5.1; their system cards report only an aggregate ProgramBench score. The 1M row's edges, 128000
-and 250000, are anchored on the nearest published data: on Context Arena's 8-needle MRCR (max
-effort, Google tokenizer) Claude Opus 5 scores 0.913 at 128K, 0.656 at 256K and 0.425 at 512K, and
-Claude Sonnet 5 a median of at least 0.957 through 256K and 0.041 at 512K; on GraphWalks BFS, run
-by Google at max reasoning and published with Gemini 4 Argon on 2026-09-30, Fable 5.1 scores 91.4%
-up to 128K and 65.0% from 256K to 1M. The 200k row's `acceptable` edge, 150000, sits at
+constants. Anthropic publishes no per-length long-context scores for Claude Opus 5.5, Sonnet 5.5
+or Fable 5.1: their system cards report one aggregate ProgramBench score each, an agentic task
+whose episodes run up to the full 1M window. The published per-length data is retrieval and graph
+traversal, not agentic work, and no study we found links those scores to agentic task quality. On
+GraphWalks BFS, run by Google at max reasoning and published with Gemini 4 Argon, Opus 5.5 scores
+90.6% up to 128K and 66.8% from 256K to 1M, and Fable 5.1 91.4% and 65.0%. On Context Arena's
+8-needle MRCR (max effort), Claude Opus 5 scores 0.913 at 128K, 0.656 at 256K and 0.425 at 512K,
+and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M row's `smart` edge, 128000, is the last length
+at which those current-model scores are still near their best. Its `acceptable` edge, 500000,
+sits below 512K, the first MRCR length at which both Claude rows score under one half. Between
+the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
+`acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
+or agentic work (#6644). The 200k row's `acceptable` edge, 150000, sits at
 the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
 the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
 defaults is coincidence, not validation.
@@ -240,14 +246,15 @@ defaults is coincidence, not validation.
 - **Pointer**: when re-deriving a 1M band edge, fetch live:
   [Context Arena, 8 needles](https://contextarena.ai/api/needle-summary?needles=8), the Claude
   Opus 5 and Claude Sonnet 5 rows; [Gemini models](https://deepmind.google/models/gemini), the
-  Gemini 4 Argon table's GraphWalks BFS rows; the absence of per-length data, the
+  Gemini 4 Argon table's Opus 5.5 and Fable 5.1 GraphWalks BFS rows; the absence of per-length data, the
   [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
   section 8.10 and the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
   section 8.11. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
   and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
   degrades on a 200K window as of 2026-10-04.
-- **As of**: 2026-10-07
-- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; a new or revised
+- **As of**: 2026-10-09
+- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; Google's table
+  splits the 256K-1M GraphWalks bin; a new or revised
   Anthropic system card publishes per-length scores; or a docs page starts covering where quality degrades on a 200K window, at which point the
   200k row's pointer moves there.
 
@@ -382,7 +389,7 @@ session itself can know.
 compaction fires at or near the model's context limit; the cases that fire earlier depend on the
 model, the window it runs with, and the environment. For the current thresholds, see
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-09-30, the one number that section publishes, for native 1M windows, sits above
+**As of:** 2026-10-09, the one number that section publishes for native 1M windows, about 967K tokens, sits above
 the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
 protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
 or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
@@ -451,8 +458,8 @@ hook, so a firing is best read diagnostically: **it means the boundary was misse
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
 with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
 trigger at **40% of the full window**, which is *inside* the shipped percentage `smart` band
-(≤ 50), so the percentage shape still reads smart when auto-compact fires (the token shape decides
-the zone there). Keeping the percentage bands below that trigger means pulling them under 40, not
+(≤ 50), so the percentage shape still reads smart when auto-compact fires, and the token shape,
+which decides the zone there, reads `acceptable`: neither shipped shape reaches `dumb` first. Keeping the percentage bands below that trigger means pulling them under 40, not
 comparing 400000 against the token bands' occupancy edges, which measure a different quantity.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
@@ -500,7 +507,7 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
   "acceptable_max_used_percentage": 75,
   "token_bands": {
     "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
-    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
+    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 500000 }
   }
 }
 ```
