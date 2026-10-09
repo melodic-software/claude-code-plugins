@@ -144,16 +144,27 @@ export function gitStatus(root) {
 }
 
 // The commit-only HEAD moves since `from`, read from the HEAD reflog: true
-// when every entry between them is a commit (`commit:`, `commit (amend):`, ...),
-// so a checkout, pull, merge or reset, which bring in others' content, is not
-// judged as this command's writing.
+// when every entry between them that moved HEAD is a commit (`commit:`,
+// `commit (amend):`, ...), so a checkout, pull, merge or reset, which bring in
+// others' content, is not judged as this command's writing. An entry that left
+// HEAD where it was (`git reset --soft HEAD`) moved nothing and is skipped. A
+// command can still write its own reflog subject (`git update-ref -m`); like
+// block-hook-bypass, this is friction for an agent, not a sandbox.
 export function committedSince(root, from) {
   const out = git(root, ["reflog", "show", "-n", "50", "--format=%H %gs", "HEAD", "--"]);
   if (out === null) return false;
-  for (const line of out.split("\n")) {
-    const [sha, ...subject] = line.split(" ");
+  const entries = out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const at = line.indexOf(" ");
+      return { sha: line.slice(0, at), subject: line.slice(at + 1) };
+    });
+  for (let i = 0; i < entries.length; i++) {
+    const { sha, subject } = entries[i];
     if (sha === from) return true;
-    if (!subject.join(" ").startsWith("commit")) return false;
+    const noop = i + 1 < entries.length && entries[i + 1].sha === sha;
+    if (!noop && !subject.startsWith("commit")) return false;
   }
   return false;
 }

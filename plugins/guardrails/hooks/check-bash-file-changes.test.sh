@@ -166,6 +166,14 @@ EXPECTED=$(edit_path Edit "$REPO/tracked.txt" "dir = $LINUX_HOME")
 assert_contains "committed new file: checked" "$(jq -r .reason <<<"$OUT")" 'changed "config.txt"'
 assert_contains "committed tracked file: the Edit path's own message" "$(jq -r .reason <<<"$OUT")" "$EXPECTED"
 
+# 5d2. A no-op HEAD update after the commit does not hide it.
+new_repo
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+g add config.txt && g commit -qm write && g reset -q --soft HEAD
+assert_contains "commit then no-op reset: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
+  'changed "config.txt"'
+
 # ========================== MUST STAY QUIET =================================
 
 # 5e. A checkout that brings in a branch with a flagged file is not this
