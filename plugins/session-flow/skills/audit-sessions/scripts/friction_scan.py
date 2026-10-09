@@ -60,6 +60,8 @@ FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "Read"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
+# Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
+SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type")
 
 
 def _epoch(value: object) -> float | None:
@@ -211,7 +213,9 @@ class FrictionScan:
             elif block.get("type") == "tool_use" and isinstance(block.get("id"), str):
                 self.last_text = None
                 name = str(block.get("name", "?"))
-                tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
+                tool_input = block.get("input")
+                if not isinstance(tool_input, dict):
+                    tool_input = {}
                 self.calls.setdefault(block["id"], (name, tool_input, ts, self.side))
                 command = tool_input.get("command") if name in SHELL_TOOLS else None
                 if isinstance(command, str):
@@ -289,7 +293,7 @@ class FrictionScan:
         events = []
         for event in self.events:
             stored = {k: v for k, v in event.items() if k != "target"}
-            for key in ("reason", "hook", "shape"):
+            for key in SCRUBBED_FIELDS:
                 if isinstance(stored.get(key), str):
                     stored[key] = scrub.key(stored[key])
             target = event.get("target")

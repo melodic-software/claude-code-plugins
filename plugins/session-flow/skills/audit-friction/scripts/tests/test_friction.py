@@ -192,9 +192,35 @@ def test_estimate_sizes_each_mode(tmp_path):
     inventory.write_text(json.dumps({"claims": claims}), encoding="utf-8")
     data = data_of(friction("estimate", "--inventory", str(inventory), "--probes", "3"))
     assert (data["claims"], data["consequential"]) == (25, 13)
-    assert data["modes"]["probes"] == {"claims_checked": 0, "verifier_agents": 0, "waves": 0, "probe_cases": 3}
-    assert data["modes"]["consequential"] == {"claims_checked": 13, "verifier_agents": 4, "waves": 1, "probe_cases": 3}
-    assert data["modes"]["full"] == {"claims_checked": 25, "verifier_agents": 5, "waves": 1, "probe_cases": 3}
+    # Hand-computed from the constants: tokens = agents x (100K, 125K) + 320K + probes x (6K, 9K); minutes = the
+    # larger of (waves + 2) x (12, 18) and probes x (3, 5).
+    assert data["modes"]["probes"] == {
+        "claims_checked": 0, "verifier_agents": 0, "waves": 0, "probe_cases": 3, "tokens": [18_000, 27_000], "minutes": [9, 15],
+    }
+    assert data["modes"]["consequential"] == {
+        "claims_checked": 13, "verifier_agents": 4, "waves": 1, "probe_cases": 3, "tokens": [738_000, 847_000], "minutes": [36, 54],
+    }
+    assert data["modes"]["full"] == {
+        "claims_checked": 25, "verifier_agents": 5, "waves": 1, "probe_cases": 3, "tokens": [838_000, 972_000], "minutes": [36, 54],
+    }
+    md = friction("estimate", "--inventory", str(inventory), "--probes", "3", "--format", "md").stdout
+    assert "| consequential | 13 | 4 | 1 | 3 | 0.74M-0.85M | 36-54 min |" in md
+
+
+def test_estimate_ranges_hold_the_measured_run(tmp_path):
+    # The measured fact-check: 32 verify batches of 12 claims and 16 challenge agents of 3 recommendations,
+    # 5.53M tokens in 119 min; the probe agent: 17 cases, 0.12M tokens in 64 min.
+    claims = [{"id": f"c{i}", "type": "fact"} for i in range(32 * 12 - 16 * 3)]
+    claims += [{"id": f"r{i}", "type": "recommendation"} for i in range(16 * 3)]
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text(json.dumps({"claims": claims}), encoding="utf-8")
+    full = data_of(friction("estimate", "--inventory", str(inventory)))["modes"]["full"]
+    assert (full["verifier_agents"], full["waves"]) == (48, 6)
+    assert full["tokens"][0] <= 5_530_000 <= full["tokens"][1]
+    assert full["minutes"][0] <= 119 <= full["minutes"][1]
+    probes = data_of(friction("estimate", "--inventory", str(inventory), "--probes", "17"))["modes"]["probes"]
+    assert probes["tokens"][0] <= 120_000 <= probes["tokens"][1]
+    assert probes["minutes"][0] <= 64 <= probes["minutes"][1]
 
 
 def payload(rows: list[tuple[str, str, float]], sessions: int, since: str) -> dict:

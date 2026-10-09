@@ -97,13 +97,14 @@ which are consequential: a claim whose being wrong would change a recommended ed
 
 ### 5. Verify
 
-Run `F estimate --inventory "<R>/inventory.json" --probes <n>` for the agent and wave counts of
-each mode:
+Run `F estimate --inventory "<R>/inventory.json" --probes <n> --format md` for each mode's agent and
+wave counts and its estimated token and wall-clock ranges:
 
 - `consequential` (default): behavior probes plus a blind fact-check of the consequential claims.
 - `full`: every claim. `probes`: behavior probes only.
 
-When `--verify` was not given and the person is present, show the three with those counts, point
+When `--verify` was not given and the person is present, show that table (tokens and time are
+ranges from one measured run, not quotes), point
 at [Manage costs](https://code.claude.com/docs/en/costs#track-your-costs) for what agents use, and
 ask once, defaulting to `consequential`. An unattended run uses `consequential` and says so.
 

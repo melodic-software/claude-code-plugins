@@ -5,7 +5,7 @@
     friction.py mine --data-dir D [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--days N] [--project TEXT]
                      [--session ID ...] [--source DIR ...] [--save-baseline] [--out FILE] [--format json|md]
     friction.py cause --friction FILE [--merge FILE] [--out FILE] [--format json|md]
-    friction.py estimate --inventory FILE [--probes N]
+    friction.py estimate --inventory FILE [--probes N] [--format json|md]
     friction.py diff --current FILE (--baseline FILE | --data-dir D) [--format json|md]
 
 `mine` filters stored session records (default: the last 7 days, every project) and aggregates their
@@ -14,7 +14,7 @@ secondary performance signals and the events themselves. `--source DIR` first ru
 collector over DIR (laid out like `~/.claude/projects`) into its own store under
 `D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions.
 `cause` maps each denial and approved prompt to the permission rules that could match it, read from
-`permission-merge.sh` output. `estimate` sizes each verification mode from a claim inventory.
+`permission-merge.sh` output. `estimate` sizes each verification mode from a claim inventory, with token and wall-clock ranges.
 `diff` compares a run with a baseline, per session and per active hour.
 
 Reads the store only, never a transcript. Prints one JSON envelope (or markdown with --format md) on
@@ -51,6 +51,18 @@ TOP = 25
 BATCH = 12
 CHALLENGE_BATCH = 3
 WAVE = 8
+# Verification usage as (low, high) ranges around one measured run of this audit (2026-10-09, Claude
+# Code 2.1.296): a fact-check workflow of 50 agents, 5.53M tokens and 1 h 59 m, and one probe agent
+# running 17 headless cases in 0.12M tokens and 64 min. Verify spent 3.26M over 32 batch agents (0.10M
+# each) and Challenge 1.95M over 16 (0.12M each); pilot and ledger took 0.32M together. The run was 8
+# sequential steps (pilot, 6 waves of 8, ledger), about 15 min each. Probes took 7K tokens and 3.8 min
+# per case. The range widths are judgment. Recheck: remeasure from a run's workflow totals when the
+# verifier agents, their model, or the batch sizes above change.
+AGENT_TOKENS = (100_000, 125_000)
+FIXED_TOKENS = 320_000
+STEP_MINUTES = (12, 18)
+PROBE_TOKENS = (6_000, 9_000)
+PROBE_MINUTES = (3, 5)
 CLASS_HINTS = (
     ("denied/", "D"),
     ("prompt-approved", "D"),
@@ -113,7 +125,9 @@ def collect_source(data_dir: Path, source: Path, since: str) -> tuple[Path, dict
 def selected(record: dict, since: float, until: float, project: str | None, sessions: set[str]) -> bool:
     if sessions and record.get("session_id") not in sessions:
         return False
-    block = record.get("time") if isinstance(record.get("time"), dict) else {}
+    block = record.get("time")
+    if not isinstance(block, dict):
+        block = {}
     start, end = _ts(block.get("start")), _ts(block.get("end"))
     if end is None or end < since or (start is not None and start >= until):
         return False
@@ -240,7 +254,7 @@ def cmd_mine(args: argparse.Namespace) -> int:
             continue
         records += found
         skipped += bad
-    wanted = set(args.session or ())
+    wanted: set[str] = set(args.session or ())
     chosen = [r for r in records if selected(r, since.timestamp(), until.timestamp(), args.project, wanted)]
     unmined = sum(1 for r in chosen if not isinstance(r.get("friction"), dict))
     data = {
@@ -381,8 +395,15 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
     def mode(verify: list, challenge: list, probes: int) -> dict:
         agents = math.ceil(len(verify) / BATCH) + math.ceil(len(challenge) / CHALLENGE_BATCH)
-        return {"claims_checked": len(verify), "verifier_agents": agents, "waves": math.ceil(agents / WAVE) if agents else 0,
-                "probe_cases": probes}
+        waves = math.ceil(agents / WAVE) if agents else 0
+        steps = waves + 2 if agents else 0  # the pilot and the ledger run alone, before and after the waves
+        fixed = FIXED_TOKENS if agents else 0
+        return {
+            "claims_checked": len(verify), "verifier_agents": agents, "waves": waves, "probe_cases": probes,
+            "tokens": [agents * a + fixed + probes * p for a, p in zip(AGENT_TOKENS, PROBE_TOKENS)],
+            # Probes run beside the fact-check, so the longer of the two sets the wall-clock time.
+            "minutes": [max(steps * s, probes * p) for s, p in zip(STEP_MINUTES, PROBE_MINUTES)],
+        }
 
     all_recs = [c for c in claims if isinstance(c, dict) and c.get("type") == "recommendation"]
     data = {
@@ -395,7 +416,12 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         },
         "batch": BATCH, "challenge_batch": CHALLENGE_BATCH, "wave": WAVE,
     }
-    return emit(ESTIMATE_SCHEMA, "pass", f"{len(claims)} claims, {len(consequential)} consequential", data, 0)
+    md = ["| Mode | Claims checked | Agents | Waves | Probe cases | Tokens | Wall-clock |", "|---|---|---|---|---|---|---|"]
+    for name, m in data["modes"].items():
+        md.append(f"| {name} | {m['claims_checked']} | {m['verifier_agents']} | {m['waves']} | {m['probe_cases']} | "
+                  f"{m['tokens'][0] / 1e6:.2f}M-{m['tokens'][1] / 1e6:.2f}M | {m['minutes'][0]}-{m['minutes'][1]} min |")
+    summary = f"{len(claims)} claims, {len(consequential)} consequential"
+    return emit(ESTIMATE_SCHEMA, "pass", summary, data, 0, args.format, "\n".join(md))
 
 
 def cmd_diff(args: argparse.Namespace) -> int:
@@ -452,7 +478,7 @@ def _positive(value: str) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
     mine = sub.add_parser("mine")
     mine.add_argument("--data-dir", required=True)
@@ -475,6 +501,7 @@ def main(argv: list[str] | None = None) -> int:
     estimate = sub.add_parser("estimate")
     estimate.add_argument("--inventory", required=True)
     estimate.add_argument("--probes", type=int, default=0)
+    estimate.add_argument("--format", choices=("json", "md"), default="json")
     estimate.set_defaults(func=cmd_estimate)
     diff = sub.add_parser("diff")
     diff.add_argument("--current", required=True)

@@ -6,8 +6,10 @@ Records are synthetic, written from the transcript shapes the reader documents. 
 
 from __future__ import annotations
 
+import collect
 import friction_scan
 import pytest
+import redact
 import transcript_reader
 
 
@@ -22,6 +24,12 @@ def denial_record(text: str, *, kind: str | None, decision: dict | None, use_id:
     if decision is not None:
         record["permissionDecision"] = decision
     return record
+
+
+def denied_event(record: dict) -> dict:
+    event = transcript_reader.permission_event(record)
+    assert event is not None
+    return event
 
 
 CLASSIFIER_TEXT = (
@@ -52,7 +60,7 @@ def test_classifier_denial_without_a_category_reads_unexplained():
         "Error: Permission for this action was denied by the Claude Code auto mode classifier. "
         "Reason: The server-side auto mode classifier judged this action dangerous (it gave no explanation)."
     )
-    event = transcript_reader.permission_event(denial_record(text, kind="automode-blocked", decision=None))
+    event = denied_event(denial_record(text, kind="automode-blocked", decision=None))
     assert (event["cause"], event["reason"]) == ("classifier", "unexplained")
 
 
@@ -62,7 +70,7 @@ def test_hook_denial_names_the_plugin_and_drops_the_command_line():
         "the shell. Use the Write tool.\n\nThis hook comes from the shellguard@example-market plugin."
     )
     record = denial_record(text, kind="permission-rule", decision={"decision": "reject", "source": "hook", "reasonType": "hook"})
-    event = transcript_reader.permission_event(record)
+    event = denied_event(record)
     assert (event["cause"], event["hook"], event["reason"]) == (
         "hook",
         "shellguard",
@@ -73,26 +81,26 @@ def test_hook_denial_names_the_plugin_and_drops_the_command_line():
 def test_hook_denial_without_a_plugin_line_takes_the_leading_label():
     text = "Error: PreToolUse:Bash hook error: disk-tidy: denied: the command contains an '&'."
     record = denial_record(text, kind="permission-rule", decision={"decision": "reject", "source": "hook", "reasonType": "hook"})
-    event = transcript_reader.permission_event(record)
+    event = denied_event(record)
     assert (event["hook"], event["reason"]) == ("disk-tidy", "disk-tidy: denied: the command contains an '&'.")
 
 
 def test_hook_denial_with_no_label_is_unattributed():
     text = "Error: PreToolUse:Bash hook error: Blocked: the command sets an arming variable."
     record = denial_record(text, kind="permission-rule", decision={"decision": "reject", "source": "hook", "reasonType": "hook"})
-    assert transcript_reader.permission_event(record)["hook"] == "unattributed"
+    assert denied_event(record)["hook"] == "unattributed"
 
 
 def test_rule_denial_reports_its_reason_type():
     text = "Error: Permission to use Bash with command git branch -D old has been denied."
     record = denial_record(text, kind="permission-rule", decision={"decision": "reject", "source": "config", "reasonType": "rule"})
-    event = transcript_reader.permission_event(record)
+    event = denied_event(record)
     assert (event["cause"], event["reason"], event["hook"]) == ("rule", "rule", None)
 
 
 def test_user_rejection_is_its_own_cause():
     record = denial_record("User rejected tool use", kind="user-rejected", decision=None)
-    assert transcript_reader.permission_event(record)["cause"] == "user-rejected"
+    assert denied_event(record)["cause"] == "user-rejected"
 
 
 def test_a_prompt_the_person_approved_is_an_allowed_event():
@@ -174,3 +182,23 @@ def test_tool_shape_flags_claude_config_and_paths_outside_the_working_directory(
 def test_event_key_skips_empty_parts():
     assert friction_scan.event_key({"kind": "denied", "cause": "hook", "hook": "g", "reason": "BLOCKED: x"}) == "denied/hook/g/BLOCKED: x"
     assert friction_scan.event_key({"kind": "agent-ask", "reply": "approve"}) == "agent-ask/approve"
+
+
+def test_block_redacts_tool_agent_source_and_reason_type_and_keeps_plain_values():
+    secret = "dev@example.com"
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("sub", secret)
+    for use_id, name, source, reason_type in (("t1", secret, secret, secret), ("t2", "Bash", "config", "rule")):
+        scan.add({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": use_id, "name": name, "input": {"command": "git status"}}
+        ]}})
+        scan.add(denial_record(
+            "Permission denied by rule.", kind=None, use_id=use_id,
+            decision={"decision": "reject", "source": source, "reasonType": reason_type},
+        ))
+    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    redacted, plain = block["events"]
+    assert {k: redacted[k] for k in ("kind", "side", "tool", "agent", "source", "reason_type")} == {
+        "kind": "denied", "side": "sub", "tool": "<email>", "agent": "<email>", "source": "<email>", "reason_type": "<email>",
+    }
+    assert {k: plain[k] for k in ("tool", "source", "reason_type")} == {"tool": "Bash", "source": "config", "reason_type": "rule"}
