@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "lib/util.sh"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "lib/util.sh",
+            "content": "print_header() {}\n"
+          }
+        }
+      ]
+    }
+  ]
+}

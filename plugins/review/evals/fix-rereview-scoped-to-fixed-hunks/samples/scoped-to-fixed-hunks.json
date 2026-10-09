@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "The two correctness fixes need a re-review by reviewers that did not write them; the cleanup fix's simplify check stands on its own.\n\nScope: only the fixed hunks, src/auth/session.ts lines 84-95 and src/billing/invoice.ts lines 208-215. The rest of the 2,400-line branch diff was already reviewed and is not re-fanned-out.\n\n- code-reviewer reads both hunks.\n- security-reviewer reads the session.ts hunk, since it is an auth path.\n\nThen run your build and tests before committing.",
+      "why": "P-canonical: keeps the re-review and limits it to the two fixed hunks, naming both line ranges."
+    },
+    {
+      "answer": "Re-review just the lines the two fixes touched, nothing else. That is session.ts 84-95 and invoice.ts 208-215. Send those two hunks to the code reviewer, and the session one to the security reviewer as well, each reading a few lines on either side for context. Don't send the whole branch back through the fan-out: those 37 files were already reviewed. Simplify already verified the cleanup fix.",
+      "why": "P-alt: same scope in other words, with surrounding context lines allowed by the rubric."
+    },
+    {
+      "answer": "Plan:\n1. Re-review limited to the fixed findings' hunks (src/auth/session.ts:84-95, src/billing/invoice.ts:208-215).\n2. Reviewers: code-reviewer on both, security-reviewer on the auth hunk.\n3. Build and test.\n\nIf you want a fresh full-branch review later, that is a separate review run you start yourself, not part of this fix pass.",
+      "why": "P-caveat: scope is the hunks; mentioning an optional separate full review the user may start does not widen this re-review."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Re-run the full fanout review on the branch. The fix pass requires a fresh re-review by reviewers that did not apply the fixes, so re-dispatch every reviewer over the whole branch diff (all 37 files) and compare the new findings with the old set. Then build and test before committing.",
+      "why": "F-wrong: re-fans-out over the whole branch diff."
+    },
+    {
+      "answer": "Have reviewers that did not write the fixes re-review them. code-reviewer and security-reviewer should each take a fresh pass, and you should build and test before committing.",
+      "why": "F-unscoped: keeps the re-review but never says what code it covers."
+    },
+    {
+      "answer": "No re-review is needed. The fixer already confirmed both correctness findings are resolved, and simplify verified the cleanup one. Just build and test, then commit.",
+      "why": "F-dropped: drops the required re-review for correctness fixes."
+    },
+    {
+      "answer": "Start with the fixed hunks: session.ts 84-95 and invoice.ts 208-215, reviewed by code-reviewer and security-reviewer. Because a fix can break something elsewhere, though, the re-review should really cover the full branch diff, so dispatch every reviewer across all 37 files as well.",
+      "why": "F-retract: names the hunks, then widens the re-review to the whole branch diff."
+    }
+  ]
+}

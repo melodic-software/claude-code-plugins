@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add scripts/build-report.sh",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .claude-free/x.sh",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no matching call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add -A",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bulk staging"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add .",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bulk staging"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add . && git status",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bulk staging"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add --all scripts",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bulk staging"
+    }
+  ]
+}

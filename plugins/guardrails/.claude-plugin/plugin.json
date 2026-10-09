@@ -99,7 +99,7 @@
     "block_root_delete_target_allowed_roots": {
       "type": "string",
       "title": "Block-root-delete-target allowed roots",
-      "description": "Comma-separated absolute directories block-root-delete-target lets a recursive delete through when the target's real path sits strictly under one (e.g. /srv/build-cache,/data/scratch). Empty by default; adds to the temp roots and scratchpad. Limits are in the README's Option details.",
+      "description": "Comma-separated absolute directories; a recursive delete passes when its real path is strictly under one. An entry like D:/worktrees/.tmp-* allows only direct children whose name extends that prefix. Empty by default; adds to the temp roots and scratchpad. Limits: README Option details.",
       "default": ""
     },
     "block_noncanonical_commit_enabled": {
@@ -170,5 +170,5 @@
       "min": 1
     }
   },
-  "version": "0.48.0"
+  "version": "0.49.1"
 }

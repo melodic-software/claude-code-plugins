@@ -3,6 +3,24 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.32] - 2026-10-07
+
+### Changed
+
+- **Upstream records (#6498).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.3.31] - 2026-10-07
+
+### Changed
+
+- **Docs links (#6498).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.3.30] - 2026-10-04
+
+### Changed
+
+- The browser-automation offer's preference order points at the browser-tool rubric in `/testing:run-e2e` and applies its logged-in-browser row; Claude in Chrome's WSL status is read from that row, or from the upstream WSL note when the testing plugin is not installed.
+
 ## [0.3.29] - 2026-10-04
 
 ### Changed

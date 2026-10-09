@@ -3,6 +3,42 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.14] - 2026-10-09
+
+### Fixed
+
+- **No reformat of pre-existing drift.** The safe-fix pass and the format pass each run only when the file was already clean for that pass before the edit, judged by running Ruff on the Write/Edit `tool_response.originalFile` under the repo's own config. A file that drifted from the config is left as written, so a small edit no longer lands as a whole-file rewrite. A new file is fixed and formatted as before.
+
+## [0.9.13] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The shared `hook-utils.sh` copy picks up recheck triggers on its upstream records.
+
+## [0.9.12] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The hook test removes its delta telemetry temp file on exit; it left one `tmp.*` file per run.
+
+## [0.9.11] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.9.10] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The hook test's PATH probe forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
+## [0.9.9] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
 ## [0.9.8] - 2026-10-04
 
 ### Changed

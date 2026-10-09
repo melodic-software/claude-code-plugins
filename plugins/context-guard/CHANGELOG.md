@@ -5,6 +5,50 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-09
+
+### Changed
+
+- **The 1M-window token band reads `dumb` past 500000 tokens, not 250000 ([#6644](https://github.com/melodic-software/claude-code-plugins/issues/6644)).** At 26% of a 1M window the shipped bands read `dumb (3 of 3)` and sessions stopped work on it. The `smart` edge stays at 128000. The reader contract records the new basis: Google's GraphWalks BFS figures for Opus 5.5 and Fable 5.1, and Context Arena's 8-needle MRCR, where both Claude rows first score under one half at 512K. The 200k row and the percentage bands are unchanged; `zones.json` still overrides.
+
+### Fixed
+
+- **Band provenance figures.** The reader contract gave Claude Sonnet 5's 8-needle MRCR as at least 0.957 through 256K; the live table reads 0.529 at 128K and 0.522 at 256K. It also said no per-length data exists for Opus 5.5, but Google publishes its GraphWalks BFS scores (90.6% up to 128K, 66.8% from 256K to 1M).
+
+## [0.15.1] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.15.0] - 2026-10-07
+
+### Changed
+
+- **Every line context-guard sends Claude states facts only.** The dumb zone no longer carries a default save-state note (`zones.json` actions now default to `none` in every zone), a line with figures no longer ends "Continuing is the user's call.", a `save-state` or `handoff` action without `text` names the action instead of advising one, the blocking gate's denial no longer points at `/session-flow:handoff`, and the `status` tool's description no longer says when to call it or not to poll it. Zone computation, bands, the gate's default (advisory) and the post-compaction dumb verdict are unchanged.
+
+### Fixed
+
+- **The band provenance no longer claims measured per-length data for current models.** The reader contract and the 0.13.0 entry said 128K was the last length at which a current Claude model was measured strong on long-context retrieval and cited AUC figures; no per-length data is published for Opus 5.5, Sonnet 5.5 or Fable 5.1. The reader contract now gives the published figures the edges are anchored on: Context Arena 8-needle MRCR for Claude Opus 5 and Sonnet 5, and Google's GraphWalks BFS run of Fable 5.1.
+
+## [0.14.0] - 2026-10-04
+
+### Removed
+
+- **`/context-guard:setup check` no longer looks for a retired statusline tee or shim.** The detector and unwire references (`skills/setup/reference/legacy-statusline-detect.md` and `unwrap-before-compose.md`), the check step that ran them, the uninstall ordering note and the evals that tested unwiring are gone, as is the README's upgrade section. Installs that still wire a tee from before 0.11.0 are no longer supported: remove the shim from your `statusLine` by hand.
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.13.5] - 2026-10-04
+
+### Fixed
+
+- **The resolver test's shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** `context-zone.test.sh` pins the clock it lays the cases out with and the clock the resolver reads to the same instant, the one the TypeScript fixture run uses. Before, the seconds spent resolving earlier cases could carry `captured_at @now+62` and `@now-598` across their 60 s and 600 s edges on a slow runner. No change to the resolver.
+
 ## [0.13.4] - 2026-10-04
 
 ### Fixed
@@ -34,7 +78,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. 128K is the last length at which a current Claude model was measured strong on long-context retrieval; the reader contract records the basis. Set `token_bands` in `zones.json` to keep the old edges.
+- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. The edges are judgment: no per-length long-context data is published for the current Claude models, so they are anchored on Claude Opus 5's and Sonnet 5's Context Arena MRCR scores and Google's GraphWalks run of Fable 5.1; the reader contract records the figures. Set `token_bands` in `zones.json` to keep the old edges.
 
 ## [0.12.3] - 2026-10-04
 

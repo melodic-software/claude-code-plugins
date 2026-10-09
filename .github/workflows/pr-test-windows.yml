@@ -21,15 +21,17 @@ name: pr-test-windows
 # diff, and a Windows step runs only when the change selects its suite: each
 # step's key and the suites that start it are lines of
 # scripts/test-windows-plan.txt, and a job runs when one of its steps does. A
-# change to this file or to .github/actions/, a schedule run and a dispatch run
-# every step. A push diffs against the push before it.
+# change to this file or to .github/actions/download-full-history/, a schedule run
+# and a dispatch run every step. A push to main starts no run: the pull request
+# run already ran its Windows steps, every commit reaches main through the
+# merge queue, and the scheduled run covers what landed together.
 #
 # `on.paths` still decides whether a run starts at all, because being outside
 # the required closure is also what makes it legal here: a workflow a path
 # filter never starts leaves no pending required check behind. The `paths`
-# lists below are the union of the `shell`, `python` and `powershell` groups of
+# list below is the union of the `shell`, `python` and `powershell` groups of
 # pr-require-checks.yml's detect-changes filter table, so a diff that touches none of them
-# (docs only, say) starts no run. Keep them in step with those three groups.
+# (docs only, say) starts no run. Keep it in step with those three groups.
 # GitHub reads at most the first 300 changed files for a `paths` filter, so a
 # larger diff whose matching files fall past that point starts no run; accepted
 # for an informational lane, and the scheduled run covers it.
@@ -48,29 +50,6 @@ on:
   # suite a change reaches through something the selector does not see.
   schedule:
     - cron: '17 9,16 * * *'
-  push:
-    branches: [main]
-    paths:
-      - .github/**
-      - scripts/**
-      - lib/**
-      - package.json
-      - package-lock.json
-      - pyproject.toml
-      - uv.lock
-      - requirements*.txt
-      - .node-version
-      - .python-version
-      - .shellcheckrc
-      - ruff.toml
-      - plugins/docs-naming/skills/generate-file-name-gate/**
-      - .claude/docs-naming.json
-      - "**/*.sh"
-      - "**/*.bash"
-      - "**/*.py"
-      - "**/*.ps1"
-      - "**/*.psm1"
-      - "**/*.psd1"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -108,7 +87,7 @@ jobs:
   # Which Windows jobs and steps this change runs, on a Linux runner: the
   # selector takes about 20 s there and several times that under Git Bash.
   select-tests-windows:
-    # Not on a draft; always on push, schedule and dispatch, where the flag is absent.
+    # Not on a draft; always on schedule and dispatch, where the flag is absent.
     if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
@@ -126,12 +105,10 @@ jobs:
         id: plan
         env:
           BASE_REF: ${{ github.base_ref }}
-          BEFORE: ${{ github.event.before }}
         run: |
           base=''
           case "$GITHUB_EVENT_NAME" in
           pull_request) base="origin/$BASE_REF" ;;
-          push) git merge-base --is-ancestor "$BEFORE" HEAD 2>/dev/null && base="$BEFORE" ;;
           *) ;;
           esac
           [ -n "$base" ] || echo "::notice::A $GITHUB_EVENT_NAME run with no usable base runs every Windows step."
@@ -408,6 +385,9 @@ jobs:
       - name: Test the guards' snapshot writer on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/write-snapshot.test.mjs')
         run: node --test lib/write-snapshot.test.mjs
+      - name: Test the developer-experience pointer-line helper on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh')
+        run: bash plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh
 
   test-windows-lib:
     needs: [select-tests-windows]

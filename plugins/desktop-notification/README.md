@@ -21,7 +21,9 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 Platform facts verified 2026-07-18: hook `terminalSequence` output landed in Claude Code
 v2.1.141 per the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md);
-channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks).
+channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks). Recheck when
+the hooks reference changes how `terminalSequence` output is written or documents a Windows toast
+path.
 
 ### Per-OS `os_toast` behavior
 
@@ -160,7 +162,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

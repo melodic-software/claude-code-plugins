@@ -1,6 +1,6 @@
 {
   "name": "rate-limit-guard",
-  "version": "0.15.3",
+  "version": "0.17.2",
   "description": "Shared rate-limit guard for loop lanes and Claude: a hooks module writes the subscription rate-limit windows to a fixed machine-scope file and tells Claude where they stand at boundaries, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",
@@ -52,8 +52,8 @@
     "rate_limit_line_data": {
       "type": "string",
       "title": "Rate-limit line data",
-      "description": "Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset; a list with an unknown item reads as the default. Never the account email or the session name.",
-      "default": "verdict,window,reset"
+      "description": "Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name.",
+      "default": "verdict,percent,window,reset"
     },
     "rate_limit_guard_band": {
       "type": "boolean",

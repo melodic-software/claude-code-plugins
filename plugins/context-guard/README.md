@@ -14,7 +14,7 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
   smart ≤ 50 < acceptable ≤ 75 < dumb) and window-class token bands over occupancy
   (`total_input_tokens + total_output_tokens`; shipped defaults 100k/150k on a 200k window,
-  128k/250k on a 1M window). Bands come from the machine-scope
+  128k/500k on a 1M window). Bands come from the machine-scope
   `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
   Zones say *where you are*; consumers decide *what to do*.
 - **PostCompact marker hook** (`hooks/post-compact-mark.sh`), a settings hook, so it runs where
@@ -59,13 +59,14 @@ options and `zones.json`:
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
-`unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
+`unknown` reading sends nothing and changes nothing. Lines state facts only and never tell Claude
+what to do; that is Claude's and the user's call. Every line carries only the verdict: the zone
 word and its rank of three. A crossing or restatement inside the
 approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
-it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
+it is not sent. Lines due at
 one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
 crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
-window) and then "Continuing is the user's call."; by default a line carries neither, and it never carries a session id. A configured action's sentence
+window); by default a line carries none, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
 appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
 gate denial, is also written as sent to the debug log (`claude --debug`).
@@ -229,7 +230,7 @@ what holds their budget now:
 |---|---|---|
 | The statusline tee's suite | The snapshot body, atomic write, rename retry, prune and the processes per render | The `snapshot:` cases and the `budget:` case in `hooks/context-guard.test.ts`; the helper's own suite, [`lib/write-snapshot.test.mjs`](../../lib/write-snapshot.test.mjs), for the atomic write, rename retry, prune and temp files |
 | The statusline shim's suite | The shim finding the installed tee | Nothing: no shim ships |
-| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing is composed now; the setup skill's evals hold the rule for removing a shim with the renderer kept |
+| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing: nothing is composed now |
 | The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line, gate and `budget:` cases in `hooks/context-guard.test.ts` |
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
@@ -253,24 +254,6 @@ Install at user scope (the default), so every session on the machine writes its 
 needs wiring. `/context-guard:setup check` reports whether the mod runs and what each option is set
 to; `/context-guard:setup apply` seeds `~/.claude/context-guard/zones.json` from the shipped bands
 when you want a file to tune.
-
-### Upgrading from a version with the statusline tee
-
-Versions before 0.11.0 wrote the snapshot through a statusline tee wired into your `statusLine`,
-usually through a shim installed under `~/.claude/context-guard/bin/`. The mod replaces it,
-and a tee left running is a second writer of the same files. After updating:
-
-1. Run `/context-guard:setup check`. It looks for a tee still writing, cached plugin versions that
-   still carry one, and each route that can reach one: the `statusLine` command, a wrapper script
-   such as a dotfiles status line entrypoint, and the installed shim copy.
-2. Follow the unwire steps it prints: the `statusLine` value with every guard shim removed and your
-   own renderer kept byte for byte (or the key removed when the shim was the whole status line),
-   the wrapper-script lines to remove, and the leftover files to delete. The skill never edits your
-   settings itself.
-3. Restart every session and lane started before the update: each keeps running what it loaded.
-   Then run the check again; it passes once no tee writes.
-
-Your own status line keeps working throughout.
 
 ## Requirements
 
@@ -402,7 +385,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

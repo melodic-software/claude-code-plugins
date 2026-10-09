@@ -1,0 +1,72 @@
+schema_version: "1.1"
+name: su-check-overrides
+description: check validates an untracked exclusion-overrides file, FAILing a glob that collides with a CLAUDE.md protection, a self-lifting glob, and a dot-dot entry, reporting it untracked, and editing nothing
+tags: [setup, check, read-only, overrides, hard]
+expected_outcome: The overrides file is reported FAIL on ruff.toml (it collides with the CLAUDE.md protected-path declaration, naming both, and the protection wins), on .claude/code-tidying/* (it matches the overrides file itself), and on ../shared/lint.toml (contains ..). .editorconfig is reported as a glob the file lifts, not as a FAIL. The file is reported untracked (it only counts once committed). No file is created or edited.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:setup check
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: collision-fails
+    type: regex
+    pattern: 'FAIL[^\n]{0,400}ruff\.toml|ruff\.toml[^\n]{0,400}FAIL'
+  - name: collision-names-both-declarations
+    type: regex
+    pattern: 'ruff\.toml[^\n]{0,300}CLAUDE\.md|CLAUDE\.md[^\n]{0,300}ruff\.toml'
+  - name: self-lift-fails
+    type: regex
+    pattern: 'FAIL[^\n]{0,400}code-tidying/\*|code-tidying/\*[^\n]{0,400}FAIL'
+  - name: dotdot-fails
+    type: regex
+    pattern: 'FAIL[^\n]{0,400}\.\./shared|\.\./shared[^\n]{0,400}FAIL'
+  - name: untracked-reported
+    type: regex
+    pattern: '(?:exclusion[- ]overrides|overrides file)[^\n]{0,300}(?:untracked|not (?:yet )?tracked|not (?:yet )?committed|uncommitted|never committed|isn''t (?:tracked|committed)|commit it|once (?:it is |it''s )?committed|until (?:it is |it''s )?committed|needs? (?:to be )?committed)|(?:untracked|not (?:yet )?tracked|not (?:yet )?committed|uncommitted|never committed|isn''t (?:tracked|committed))[^\n]{0,300}(?:exclusion[- ]overrides|overrides file)'
+    flags: i
+  - name: valid-glob-reported-as-lifted
+    type: regex
+    pattern: '^[^\n]*\.editorconfig[^\n]*\b(PASS|valid|accept|allow|lift|loosen|works|takes effect|in effect|editable|(may|can) (edit|touch|change))'
+    flags: im
+  - name: valid-glob-not-failed
+    type: regex
+    pattern: '^[^\n]*\.editorconfig[^\n]*\bFAIL\b|^[^\n]*\bFAIL\b[^\n]*\.editorconfig'
+    flags: m
+    match: not_contains
+  - name: overrides-file-unchanged
+    type: regex
+    pattern: '(?=[\s\S]*^\.editorconfig$)(?=[\s\S]*^ruff\.toml$)(?=[\s\S]*^\.claude/code-tidying/\*$)(?=[\s\S]*^\.\./shared/lint\.toml$)'
+    flags: m
+    target: { source: file, path: .claude/code-tidying/exclusion-overrides.md }
+  - name: protection-unchanged
+    type: regex
+    pattern: '^- `ruff\.toml`'
+    flags: m
+    target: { source: file, path: CLAUDE.md }
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: tracked-probe-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'ls-files|check-ignore'
+    arm: both
+  - name: nothing-staged
+    type: tool_used
+    tool: Bash
+    input_match: 'git\s+(-C\s+\S+\s+)?(add|commit|rm|update-index)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

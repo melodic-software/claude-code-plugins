@@ -2133,6 +2133,7 @@
               "TEST_JUDGE_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge.sh"
             ],
+            "asyncRewake": true,
             "timeout": 240,
             "statusMessage": "Collecting the test judge's verdicts..."
           }

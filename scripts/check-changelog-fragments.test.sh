@@ -45,8 +45,10 @@ fragment() {
 
 commit() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
 
+# HEAD_REF, when set, is the CHANGELOG_HEAD_REF the gate sees, as CI passes it.
+HEAD_REF=""
 run_gate() (
-  cd "$1" && shift && bash scripts/check-changelog-fragments.sh "$@"
+  cd "$1" && shift && CHANGELOG_HEAD_REF="$HEAD_REF" bash scripts/check-changelog-fragments.sh "$@"
 )
 
 # expect <label> <rc> <needle> <fixture> <args...>
@@ -143,6 +145,38 @@ fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"
 
+# --- em dash in a fragment for a plugin whose CHANGELOG.md is em-dash purged ---
+ed=$'\xe2\x80\x94'
+base_fixture f alpha beta
+printf '%s\n' '# purged' 'plugins/alpha/CHANGELOG.md' 'docs/*.md' >"$f/scripts/em-dash-purged-paths.txt"
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- A fix ${ed} with an aside."
+expect "--check rejects an em dash for a plugin whose CHANGELOG.md is listed" 1 "FRAGMENT EM DASH: .changes/alpha/feat-x-0123abcd.md: - A fix" "$f" --check
+expect "--check names the list and the fix" 1 "is listed in scripts/em-dash-purged-paths.txt" "$f" --check
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- A fix for \`a ${ed} b\`.
+
+\`\`\`text
+x ${ed} y
+\`\`\`"
+expect "--check rejects an em dash inside inline code and a fenced block too" 1 "FRAGMENT EM DASH: .changes/alpha/feat-x-0123abcd.md: x " "$f" --check
+rm -f "$f/.changes/alpha/feat-x-0123abcd.md"
+fragment "$f" beta feat-x-0123abcd patch "### Fixed
+
+- A fix ${ed} with an aside."
+expect "--check accepts an em dash for a plugin whose CHANGELOG.md is not listed" 0 "All 1 changelog fragment(s)" "$f" --check
+printf '%s\n' 'plugins/*/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check matches a glob entry in the purged list" 1 "FRAGMENT EM DASH: .changes/beta/" "$f" --check
+printf '%s\n' 'plugins/*' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check keeps a glob's * inside one path component" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -f "$f/.changes/beta/feat-x-0123abcd.md"
+fragment "$f" beta feat-x-0123abcd none "Reason ${ed} never copied into the CHANGELOG."
+printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check accepts an em dash in a bump: none reason, which no release copies" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -rf "$f"
+
 # --- --check-required -----------------------------------------------------------
 base_fixture f alpha
 git_test_config "$f" checkout -qb feat/x
@@ -176,7 +210,31 @@ git_test_config "$f" checkout -qb feat/x
 printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.0.1] - 2026-10-02\n\n### Fixed\n\n- x\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
 commit "$f" release
-expect "--check-required exempts a version-only manifest edit and CHANGELOG.md (the release shape)" 0 "has a fragment" "$f" --check-required main
+expect "--check-required asks a non-release change set that bumps by hand for a fragment" 1 "MISSING FRAGMENT: this change set changes files under plugins/alpha/" "$f" --check-required main
+HEAD_REF=release/plugins
+expect "--check-required exempts the release pull request's version-only manifest edit and CHANGELOG.md" 0 "has a fragment" "$f" --check-required main
+HEAD_REF=release/plugins-fork
+expect "--check-required grants the exemption to the exact release branch only" 1 "MISSING FRAGMENT" "$f" --check-required main
+HEAD_REF=""
+rm -rf "$f"
+
+base_fixture f alpha
+git_test_config "$f" checkout -qb feat/x
+printf '# Changelog\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First, reworded.\n' >"$f/plugins/alpha/CHANGELOG.md"
+commit "$f" reword
+expect "--check-required asks for a fragment when a non-release change set edits CHANGELOG.md" 1 "MISSING FRAGMENT" "$f" --check-required main
+fragment "$f" alpha feat-x-0123abcd none "Changelog wording only."
+commit "$f" fragment
+expect "--check-required accepts a bump: none fragment for a CHANGELOG.md edit" 0 "has a fragment" "$f" --check-required main
+rm -rf "$f"
+
+base_fixture f alpha
+git_test_config "$f" checkout -qb release/plugins
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+commit "$f" smuggled
+HEAD_REF=release/plugins
+expect "--check-required still asks the release pull request for a fragment for a shipped file" 1 "MISSING FRAGMENT" "$f" --check-required main
+HEAD_REF=""
 rm -rf "$f"
 
 base_fixture f alpha
@@ -235,6 +293,26 @@ fragment "$f" alpha feat-x-0123abcd minor "### Added
 commit "$f" edit-consumed
 git_test_config "$f" checkout -q release/plugins
 expect "--check-release fails when a consumed fragment was edited on the base after the cut" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
+# The merge queue: each queued pull request is one squash commit on top of main
+# and the entries ahead of it, and the gate reads HEAD^1 as the landing base.
+base_fixture f alpha
+release_branch "$f"
+release_commit="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -qb queue-alone main
+git_test_config "$f" cherry-pick "$release_commit" >/dev/null
+expect "--check-release HEAD^1 passes a queued release that lands on the base it was cut from" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
+git_test_config "$f" checkout -qb queue-behind main
+fragment "$f" alpha queued-a-0badc0de patch
+commit "$f" "fragment pull request ahead in the queue"
+git_test_config "$f" cherry-pick "$release_commit" >/dev/null
+expect "--check-release HEAD^1 ejects a queued release behind a fragment for a plugin it bumps" 1 "UNCONSUMED FRAGMENT: .changes/alpha/queued-a-0badc0de.md" "$f" --check-release 'HEAD^1'
+git_test_config "$f" checkout -qb queue-other main
+printf 'v2\n' >"$f/plugins/beta/skills/a.md"
+printf '{\n  "name": "beta",\n  "version": "1.0.1"\n}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
+commit "$f" "legacy pull request"
+expect "--check-release HEAD^1 passes a queued pull request that bumps a plugin with no fragments" 0 "for the 1 plugin(s) it bumps" "$f" --check-release 'HEAD^1'
 rm -rf "$f"
 
 # --- usage ------------------------------------------------------------------------

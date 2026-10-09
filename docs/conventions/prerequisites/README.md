@@ -25,7 +25,7 @@ Three needs use a native surface instead, so the file never declares them:
 The `env` kind is for a variable a command run through the Bash tool reads, such as a CLI's API
 key. `userConfig` values do not reach that environment.
 
-As of 2026-10-02 the [plugin manifest reference](https://code.claude.com/docs/en/plugins-reference)
+As of 2026-10-07 the [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference)
 has no field for external binaries, runtimes, environment variables or system libraries, and
 the Bash tool's environment carries no plugin variables. Recheck when that page adds such a
 field; a native field replaces this file.

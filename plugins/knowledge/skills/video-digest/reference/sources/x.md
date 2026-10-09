@@ -192,7 +192,7 @@ committed) or accept the login-required failure.
 
 **Auth is not a precondition.** A public status acquires media, captions, and metadata
 **anonymously**, with no cookies, no account, and no extractor args (verified 2026-08-15 against yt-dlp
-2026.07.04). Cookies buy exactly the three login-required cases above and nothing else, so do not
+2026.07.04; recheck when a yt-dlp release changes X extraction or an anonymous fetch of a public status fails). Cookies buy exactly the three login-required cases above and nothing else, so do not
 demand them up front.
 
 **Auth volatility.** X auth-fallback windows measure in **weeks to months**, not days: an

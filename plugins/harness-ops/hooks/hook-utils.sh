@@ -46,12 +46,8 @@ readonly _HOOK_UTILS_LOADED=1
 
 # hook::is_enabled <NAME> — the same check as a PREDICATE. Returns 0 when the
 # plugin should run, 1 when it should not. For callers that must not terminate
-# the process on a "disabled" answer.
-#
-# The statusline tee is exactly that caller: it is a TRANSPARENT WRAPPER around
-# the user's real statusline, so exiting 0 on "disabled" would suppress the
-# wrapped command's output and blank the status line. It needs to skip its own
-# side effect and still pass through.
+# the process on a "disabled" answer, such as a wrapper that must skip its own
+# side effect and still pass the wrapped command's output through.
 hook::is_enabled() {
   local var_name="CLAUDE_PLUGIN_OPTION_${1}_ENABLED"
   [[ "${!var_name:-true}" == "true" ]]
@@ -1018,7 +1014,8 @@ hook::in_git_working_tree() {
 # TRACKED file matching an ignore pattern reads as not ignored: a file under
 # version control is part of the reviewable artifact whatever the patterns say.
 # Exit 0 = ignored, 1 = not ignored, 128 = error; only 0 answers true.
-# https://git-scm.com/docs/git-check-ignore (fetched 2026-09-28)
+# https://git-scm.com/docs/git-check-ignore (fetched 2026-09-28; recheck when
+# that page changes the exit codes or the tracked-file behavior without --no-index)
 #
 # FAILS TOWARD ACTING. Git absent, the directory gone, no repository, or a
 # check-ignore error all answer false, so the hook runs as before. A skip that
@@ -2157,8 +2154,7 @@ hook::repo_relative_path_to() {
 #
 # `read -N` is Bash 4.1+; macOS ships Bash 3.2 and these hooks document 3.2+
 # support, so the pre-4.1 branch falls back to the delimiter read, which already
-# reads to EOF and is fast enough on native POSIX pipes. Same guard and same
-# rationale as plugins/context-guard/scripts/statusline-tee.sh. The re-arming
+# reads to EOF and is fast enough on native POSIX pipes. The re-arming
 # loop wraps both forms, so 3.2 gets the progress semantics too — just in
 # byte-at-a-time-sized steps.
 #   hook::buffer_stdin_to INPUT || exit 0
@@ -4259,6 +4255,8 @@ hook::git_invocation() {
 # `alias.bugreport = commit` cannot slip through. git 2.51+ honors
 # `alias.whatchanged = commit` (t/t0014-alias.sh). A name not listed here is
 # still probed: skipping a non-builtin would miss a real alias.
+# Recheck when the git-config page stops saying aliases that hide builtins are
+# ignored, or git.c marks another command DEPRECATED.
 hook::git_subcommand_ignores_alias() {
   case "$1" in
   add | am | annotate | apply | archive | bisect | blame | branch | bundle | \

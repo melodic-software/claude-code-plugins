@@ -23,7 +23,7 @@ Three facts constrain who may write that check:
 ## Decision
 
 One reusable workflow,
-[`pr-run-activity.yml`](../../.github/workflows/pr-run-activity.yml), runs one activity of one
+[`pr-run-activity-write.yml`](../../.github/workflows/pr-run-activity-write.yml), runs one activity of one
 lane in two jobs. Its contract is
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md).
 
@@ -53,7 +53,8 @@ lane in two jobs. Its contract is
 5. **Lanes chain by `workflow_dispatch`.** A check run written with `GITHUB_TOKEN` starts no workflow
    run; only `workflow_dispatch` and `repository_dispatch` are exempt
    ([triggering a workflow from a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow#triggering-a-workflow-from-a-workflow),
-   fetched 2026-10-04). No lane starts on a `check_run` event from another lane.
+   fetched 2026-10-04; recheck when that section stops exempting only `workflow_dispatch` and
+   `repository_dispatch`). No lane starts on a `check_run` event from another lane.
 
 ## Alternatives considered
 

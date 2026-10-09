@@ -28,7 +28,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the StopFailure event..."
+            "statusMessage": "Logging the StopFailure event...",
+            "async": true
           }
         ]
       }
@@ -61,7 +62,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the ConfigChange event..."
+            "statusMessage": "Logging the ConfigChange event...",
+            "async": true
           }
         ]
       }
@@ -93,7 +95,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the InstructionsLoaded event..."
+            "statusMessage": "Logging the InstructionsLoaded event...",
+            "async": true
           }
         ]
       }
@@ -125,7 +128,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PermissionDenied event..."
+            "statusMessage": "Logging the PermissionDenied event...",
+            "async": true
           }
         ]
       }
@@ -157,7 +161,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PreCompact event..."
+            "statusMessage": "Logging the PreCompact event...",
+            "async": true
           }
         ]
       }
@@ -206,7 +211,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the UserPromptExpansion event..."
+            "statusMessage": "Logging the UserPromptExpansion event...",
+            "async": true
           }
         ]
       }
@@ -239,7 +245,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PostToolUseFailure event..."
+            "statusMessage": "Logging the PostToolUseFailure event...",
+            "async": true
           }
         ]
       }
@@ -268,7 +275,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the Stop event..."
+            "statusMessage": "Logging the Stop event...",
+            "async": true
           }
         ]
       }
@@ -286,7 +294,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the CwdChanged event..."
+            "statusMessage": "Logging the CwdChanged event...",
+            "async": true
           }
         ]
       }
@@ -304,7 +313,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the DirectoryAdded event..."
+            "statusMessage": "Logging the DirectoryAdded event...",
+            "async": true
           }
         ]
       }
@@ -322,7 +332,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the Elicitation event..."
+            "statusMessage": "Logging the Elicitation event...",
+            "async": true
           }
         ]
       }
@@ -340,7 +351,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the ElicitationResult event..."
+            "statusMessage": "Logging the ElicitationResult event...",
+            "async": true
           }
         ]
       }
@@ -358,7 +370,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the Notification event..."
+            "statusMessage": "Logging the Notification event...",
+            "async": true
           }
         ]
       }
@@ -376,7 +389,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PermissionRequest event..."
+            "statusMessage": "Logging the PermissionRequest event...",
+            "async": true
           }
         ]
       }
@@ -394,7 +408,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PostCompact event..."
+            "statusMessage": "Logging the PostCompact event...",
+            "async": true
           }
         ]
       }
@@ -412,7 +427,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PostModelSwitch event..."
+            "statusMessage": "Logging the PostModelSwitch event...",
+            "async": true
           }
         ]
       }
@@ -430,7 +446,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PostToolBatch event..."
+            "statusMessage": "Logging the PostToolBatch event...",
+            "async": true
           }
         ]
       }
@@ -448,7 +465,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the PreModelSwitch event..."
+            "statusMessage": "Logging the PreModelSwitch event...",
+            "async": true
           }
         ]
       }
@@ -499,7 +517,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the SessionStart event..."
+            "statusMessage": "Logging the SessionStart event...",
+            "async": true
           }
         ]
       },
@@ -528,7 +547,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the Setup event..."
+            "statusMessage": "Logging the Setup event...",
+            "async": true
           }
         ]
       }
@@ -546,7 +566,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the SubagentStart event..."
+            "statusMessage": "Logging the SubagentStart event...",
+            "async": true
           }
         ]
       }
@@ -564,7 +585,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the SubagentStop event..."
+            "statusMessage": "Logging the SubagentStop event...",
+            "async": true
           }
         ]
       }
@@ -582,7 +604,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the TaskCompleted event..."
+            "statusMessage": "Logging the TaskCompleted event...",
+            "async": true
           }
         ]
       }
@@ -600,7 +623,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the TaskCreated event..."
+            "statusMessage": "Logging the TaskCreated event...",
+            "async": true
           }
         ]
       }
@@ -618,7 +642,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the TeammateIdle event..."
+            "statusMessage": "Logging the TeammateIdle event...",
+            "async": true
           }
         ]
       }
@@ -636,7 +661,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the UserPromptSubmit event..."
+            "statusMessage": "Logging the UserPromptSubmit event...",
+            "async": true
           }
         ]
       }
@@ -654,7 +680,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
             ],
             "timeout": 5,
-            "statusMessage": "Logging the WorktreeRemove event..."
+            "statusMessage": "Logging the WorktreeRemove event...",
+            "async": true
           }
         ]
       }

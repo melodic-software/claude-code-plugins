@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "| Project lanes present | INFO | none in .claude/tidy-lanes/ |\n| hard_exclusions | PASS | enforce |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Project lanes present | FAIL | none in .claude/tidy-lanes/ |",
+      "why": "absence graded FAIL"
+    },
+    {
+      "answer": "FAIL - no project lanes configured",
+      "why": "absence graded FAIL"
+    }
+  ]
+}

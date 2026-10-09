@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A unit test at that seam would pass even if the bug came back through the caller chain, so it gives false confidence. Skip it and file an architectural finding in Phase 6: the code has no seam where the multi-caller path can be tested, which is what stops this bug from being locked down.",
+      "why": "refuses and files the finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Add the shallow unit test now and maybe refactor later if you have time.",
+      "why": "forces the test, finding optional"
+    }
+  ]
+}

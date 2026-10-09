@@ -10,8 +10,9 @@ Per-run output (per-condition tables, graded commit SHAs) is posted as a comment
 issue. This file holds only the current grade of each fact: per the convention's "When a trigger
 fires", refreshing a date with no verdict change is no entry and no version bump.
 
-Every page below was fetched by the convention's rung-1 route (`curl` the `.md` to a file, search
-the file locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and read from
+A refresh reads each page with the plugin's `scripts/fetch-docs.sh --cache` (the
+convention's rung 1). Every page below was fetched by that rung-1 route (the `.md` read to a file,
+searched locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and read from
 the bytes. No page text is stored here.
 
 Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) ·
@@ -323,10 +324,15 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   subdirectory's `CLAUDE.md` and `.claude/rules/` files, and path-scoped rules, still load when
   Claude reads a file there"). The value is read from `pluginConfigs` in "`~/.claude/settings.json`,
   a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
-  files." The option's first key, `projectInstructions` (`claude`, `agents-fallback`, `both`,
-  `none`), is still honored while `instructionFiles` reads as its default, so an operator's mode
-  can come from either key; like `instructionFiles`, it is a user, `--settings` or managed value a
-  repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
+  files." (The settings guide says `--settings` "can set any key your user settings file can set",
+  and the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry
+  gives the scope "User or managed"; see
+  [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+  as of 2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys,
+  or the `pluginConfigs` scope changes.) The option's first key, `projectInstructions` (`claude`,
+  `agents-fallback`, `both`, `none`), is still honored while `instructionFiles` reads as its
+  default, so an operator's mode can come from either key; like `instructionFiles`, it is a user,
+  `--settings` or managed value a repository cannot rely on. Condition A: the files that "Count, so Claude reads them instead of `AGENTS.md`" are "a
   `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` in your working directory or any
   directory above it", the walk to the filesystem root, while "Don't count, and keep loading
   alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's managed `CLAUDE.md`, and

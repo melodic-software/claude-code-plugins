@@ -19,6 +19,8 @@ trigger, leaving an Owner to pick once, every push, or manual per repository
 (<https://code.claude.com/docs/en/code-review>, fetched 2026-09-24); and Boris Cherny's Steps of
 AI Adoption says "Automated code review and security review are on by default"
 (<https://claude.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf>, fetched 2026-09-24).
+Recheck these three when the Code Review docs name a default trigger or Anthropic states review on
+every pull request as a requirement.
 What Anthropic does document is that its reviews do not gate a merge:
 
 - The managed Code Review check run "always completes with a neutral conclusion so it never
@@ -32,7 +34,8 @@ What Anthropic does document is that its reviews do not gate a merge:
 Both lanes authenticate with the org-shared `CLAUDE_CODE_OAUTH_TOKEN`. Anthropic's GitHub Actions
 doc recommends an API key from the Claude Console, or workload identity federation, for a secret
 shared across repositories, because an OAuth token is tied to the subscription of the person who
-minted it (<https://code.claude.com/docs/en/github-actions>, fetched 2026-09-24). The operator
+minted it (<https://code.claude.com/docs/en/github-actions>, fetched 2026-09-24; recheck when that
+page stops recommending an API key or workload identity federation for a shared secret). The operator
 keeps the shared OAuth secret on purpose. The account that holds it is tracked in
 melodic-software/claude-code-account-rotation#145.
 
@@ -40,7 +43,8 @@ ADR 0037 measured the lanes' coverage (14 of the last 40 merged pull requests ha
 code-review run; 1 was reviewed on the commit that merged) and retired them. The cause of that gap
 was trigger timing, not the lanes existing: both callers ran on `opened`, `ready_for_review` and
 `reopened` only, and "Workflows will not run on `pull_request` activity if the pull request has a
-merge conflict" (GitHub, events that trigger workflows, fetched 2026-09-24). An agent branch opened
+merge conflict" (GitHub, events that trigger workflows, fetched 2026-09-24; recheck when that page
+stops saying so). An agent branch opened
 while main had moved lost its one trigger, and no later push re-triggered it.
 
 The seat layer ADR 0037 put in place reaches only pull requests that pass through the
@@ -198,8 +202,8 @@ Every push to a ready pull request started 4 jobs, a review job and a status job
 3. **Decision 4 is narrowed.** Each lane is one job, which goes red, naming the cause, when no
    review happened; a review that was not needed is green. The code-review check keeps its name,
    `review / claude-review-status`. The security-review check is `security-review /
-   security-review`, the context the disabled `security-review-gate` org ruleset in
-   melodic-software/github-iac names (`OrgRulesets.cs`); `security-review /
+   security-review`, the context the `security-review-gate` org ruleset named until
+   melodic-software/github-iac#614 retired it on 2026-10-04; `security-review /
    claude-security-review-status` and `review / review` no longer report. The babysit merge gate
    accepts either security check name (melodic-software/claude-code-plugins#5995). Decision 5 still
    holds: only `ci-status` is required.

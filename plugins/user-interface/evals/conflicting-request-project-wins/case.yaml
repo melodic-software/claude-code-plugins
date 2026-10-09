@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: conflicting-request-project-wins
+description: "Hard (the request itself asks for what the project's design system forbids): the project's rules win, and the conflict is named"
+tags: [project-first, hard]
+runs: 3
+expected_outcome: "The answer names the conflict with docs/design-system.md (no illustration on empty states, no gradients), designs within the system, and offers the user's idea as a proposed change to the system instead of silently applying it"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Add a friendly illustration and a gradient 'Create invoice' button to the Invoices empty state in this app. Give the layout and the exact styling values. This run cannot write files, so put the design in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600

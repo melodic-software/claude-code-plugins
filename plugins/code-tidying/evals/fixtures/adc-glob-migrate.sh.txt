@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+migrate_schema_v1() {
+  printf 'migrating schema to v1\n'
+}
+
+migrate_schema_v1

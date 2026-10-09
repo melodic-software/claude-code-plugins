@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Lane: web\n\nWeb request handlers and their tests.\n\n## Scope\n\n```text\nsrc/web/**\ntests/test_app.py\n```\n\n## Watch-for patterns\n\n- **Beck #1, Guard Clauses**: early returns in request handlers\n- **Beck #2, Dead Code**: unused helpers beside the handlers\n\n## Lane-specific extra exclusions\n\n- **HTTP route signatures** and response shapes are behavioral, never tidy\n\n## Verification commands\n\n```bash\npython3 -m pytest tests\n```\n\n## Conventional Commits type\n\n`refactor:`. Example title: `refactor(web): extract not-found response helper`.\n\n## Preferred research sources\n\n- https://docs.python.org/3/\n",
+      "why": "fixture as seeded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Lane: web\n\nWeb request handlers and their tests.\n\n## Scope\n\n```text\nsrc/web/**\ntests/test_app.py\n```\n\n## Watch-for patterns\n\n- **Beck #1, Guard Clauses**: early returns in request handlers\n- **Beck #2, Dead Code**: unused helpers beside the handlers\n\n## Lane-specific extra exclusions\n\n- **HTTP route signatures** and response shapes are behavioral, never tidy\n\n## Verification commands\n\n```bash\npython3 -m pytest tests\n```\n\n## Conventional Commits type\n\n`refactor:`. Example title: `refactor(web): extract not-found response helper`.\n\n## Preferred research sources\n\n- https://docs.python.org/3/\n\n## Merge semantics\n\nx\n",
+      "why": "section added"
+    }
+  ]
+}

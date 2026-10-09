@@ -172,6 +172,9 @@ gh issue close <item#> --reason completed
 # Wrongly scoped — Out-of-scope line on the map first (no Decisions-so-far
 # pointer), then close only after that map update succeeds:
 gh issue close <item#> --reason "not planned"
+
+# Moot (another resolution invalidated its premise) — no line in either index:
+gh issue close <item#> --reason "not planned" --comment "Moot: <link to the resolution comment>"
 ```
 
 ## Close the map (frontier empty ∧ all items closed)

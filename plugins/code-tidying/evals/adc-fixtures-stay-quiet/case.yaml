@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: adc-fixtures-stay-quiet
+description: Stay-quiet case. A natural-language sweep of a repo whose only unreferenced function sits in an evals/fixtures planted corpus reports no candidate, and backs the clean result with the lane roster
+tags: [audit-dead-code, stay-quiet, natural-language, lane-roster]
+expected_outcome: The skill fires; the scan returns zero candidates because evals/fixtures is never scanning input and scripts/build.sh is referenced from the CI workflow. The report does not name the planted helper as dead or unused, and it presents the lane roster (knip and gopls no-manifest, vulture scanned-zero-files, grep ran) so the clean result is a claim about what ran.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Is anything in this repository no longer called? Do a dead code sweep and tell me what is unused."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: planted-corpus-not-reported
+    type: regex
+    pattern: 'orphan_planted_helper'
+    match: not_contains
+    arm: both
+  - name: lane-roster-reported
+    type: regex
+    pattern: '\b(?:knip|vulture|gopls|JavaScript|TypeScript|JS(?:/TS)?|Python|Golang)\b[^\n]{0,120}\b(?:no-manifest|no manifest|scanned-zero-files|zero files|skipped|not installed|degraded|nothing to (?:check|scan)|no `?(?:package\.json|go\.mod|\.py\b|(?:Python|Go|JS|TS|JavaScript|TypeScript) (?:source )?files))'
+    flags: i
+    arm: both
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:code-tidying:)?audit-dead-code"'

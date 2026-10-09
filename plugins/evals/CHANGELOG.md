@@ -1,5 +1,50 @@
 # Changelog: evals
 
+## [0.7.0] - 2026-10-08
+
+### Added
+
+- `noise-report.py --baseline <before.json> [--margin M]` compares two results of the same suite, paired by case name: the with-arm change with its interval, the without-arm change as a drift check, each case that fell by a third or more, and a non-inferiority verdict at the margin. `/evals:plugin-eval` reads it beside the noise report's other lines.
+
+## [0.6.3] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.6.2] - 2026-10-07
+
+### Fixed
+
+- **`plugin-eval` run-validity classifies a driveless rooted denial path on Windows ([#6499](https://github.com/melodic-software/claude-code-plugins/issues/6499)).** On Python 3.13 and later, `os.path.isabs` on Windows calls `/tmp/x` relative, so a with-arm denial outside the plugin counted as inside it and the run came out INVALID. The inside-the-plugin check now treats any rooted path as anchored and skips a plugin root on another drive instead of raising; behavior on Linux and macOS is unchanged.
+
+## [0.6.1] - 2026-10-07
+
+### Changed
+
+- **`plugin-eval` case-authoring checklist points at the upstream grader table for `tool_order` ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** That row restated the pass condition on the plugin-evals page closely enough for the attribution audit's fingerprint check to confirm a copy; its "Passes when" cell now links the page's "Grader types" section instead. The `file_exists` common mistake now says it applies with the default `exists`, since `exists: false` passes when nothing is created. The `file_exists` row and the "Precedence" checks now link the same page, as of 2026-10-07 with a recheck trigger, and keep only the local rules: scaffold output and edited files do not count, and author each field in one file.
+
+## [0.6.0] - 2026-10-06
+
+### Added
+
+- `/evals:methodology` adds an "Agent evals: grader hygiene" section pointing at Anthropic's agent-evals post: grade the outcome rather than the transcript's claim, keep graders out of the agent's reach, and sample transcripts to catch gaming.
+
+## [0.5.7] - 2026-10-04
+
+### Changed
+
+- **`plugin-eval` documents the CLI's linked-worktree refusal ([#6374](https://github.com/melodic-software/claude-code-plugins/issues/6374)).** `claude plugin eval` refuses a plugin inside a git repository that "registers more linked worktrees than can be screened"; a new record row in the worktree table gives the cause and the workaround (copy the plugin into a new empty directory outside git, excluding `.git` and results, run against the copy, write `--json` back to the plugin's gitignored results directory), with a dated basis and recheck trigger. The description gains a trigger phrase for it.
+
+## [0.5.6] - 2026-10-04
+
+### Fixed
+
+- **`plugin-eval` preflight no longer reports WSL2's sandbox as present from `/proc/version` alone.** WSL2 now takes the Linux check, so `bwrap` and `socat` must both resolve, and the report names whichever is missing. The WSL generation comes from `wsl.exe -l -v`, not the kernel release string, which a custom WSL2 kernel can change; WSL1 reports `absent`. The package list points at the sandboxing page's "Set up Linux and WSL2" section instead of restating it. New eval case `sandbox-wsl2-missing-socat` covers the bwrap-present, socat-missing machine.
+- **`plugin-eval` preflight checks the Docker credential store for symlinks.** When the backend is otherwise present and a case requests `Bash` or `PowerShell`, a symbolic link inside `$DOCKER_CONFIG` or `~/.docker` now reports `sandbox_backend: not-ready` with the paths, and the refusal names the links rather than a missing backend: Claude Code 2.1.289 refused every run of a `Bash`-granting pass on such a host (Docker Desktop's WSL integration creates the links) after the preflight had passed it. The route is to resolve the links or use another host, never to repoint `DOCKER_CONFIG`. New eval case `sandbox-docker-symlink`.
+- **`plugin-eval`'s spoke-read record no longer says the with-arm cannot read spoke files.** At 2.1.289 with-arm `Read` calls of `context/`, `reference/`, `actions/` and `templates/` files all succeeded across three plugins' suites, which fired the record's recheck trigger; the denial is now recorded for 2.1.270 and 2.1.287 only. Eval case `reference-read-denied` now names 2.1.287, and its `cause` grader accepts the 2.1.289 result.
+- **`plugin-eval` case authoring notes that a slash-command prompt skips the `Skill` tool call.** A `tool_used: Skill` grader then fails and the validity gate marks the run INVALID; drop the grader on slash-invoked cases or phrase the prompt in natural language. The note carries a recheck trigger.
+
 ## [0.5.5] - 2026-10-04
 
 ### Changed

@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: What quality bar is this for: a throwaway prototype, an internal tool, or production?\nMy recommendation: **prototype** - it is a personal tool.",
+      "why": "names the low and high ends of the bar in one question"
+    },
+    {
+      "answer": "Q1: Is this a quick proof-of-concept or something you will run long-lived and rely on daily?",
+      "why": "proof-of-concept versus long-lived"
+    },
+    {
+      "answer": "Q2: Who will use it - only you as an internal tool, or is this a spike to test the idea first?",
+      "why": "high end first, low end after"
+    },
+    {
+      "answer": "Before scoping, what quality level are you aiming for?",
+      "why": "names the quality level directly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q1: Which browsers must it support?\nQ2: Should sync run on a schedule or on every change?\nQ3: Where should conflicts resolve?",
+      "why": "a real round with no quality-bar question"
+    },
+    {
+      "answer": "Q1: Which database should store the data?\nMy recommendation: **Postgres**, the production default here.",
+      "why": "mentions production but no low end of the bar"
+    },
+    {
+      "answer": "I will assume a production quality bar.\nQ1: Which browsers must it support?\nQ2: Should sync run on a schedule or on every change?",
+      "why": "states a quality bar but never asks it"
+    },
+    {
+      "answer": "This reads like a prototype, not production. Q1: Where should conflicts resolve?",
+      "why": "names both ends in a statement, then asks something else"
+    }
+  ]
+}

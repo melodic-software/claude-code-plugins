@@ -154,6 +154,24 @@ if [[ $? -eq 1 && "$out" == *"plugins/review/.claude-plugin/plugin.json is still
 else
   fail "expected only review reported stale, got: $out"
 fi
+if [[ "$out" == *"and bump every carrying plugin."* && "$out" != *"new-changelog-fragment.sh"* ]]; then
+  ok "a legacy carrier alone gets the unchanged bump message"
+else
+  fail "expected the legacy bump message and no fragment command, got: $out"
+fi
+# A fragment-mode carrier with no fragment is told to add one, not to bump.
+git -C "$f" rm -q --cached .changes/planning/sync-0123abcd.md
+rm "$f/.changes/planning/sync-0123abcd.md"
+out="$(run_gate "$f" "$base" 2>&1)"
+if [[ $? -eq 1 && "$out" == *"STALE VERSION: $CANONICAL changed vs $base but planning, in fragment mode, has no fragment for it"* &&
+  "$out" == *"Run scripts/new-changelog-fragment.sh planning patch."* &&
+  "$out" == *"bump every carrying plugin not in fragment mode."* &&
+  "$out" == *"A carrying plugin in fragment mode takes a patch fragment instead"* &&
+  "$out" != *"plugins/planning/.claude-plugin/plugin.json is still"* ]]; then
+  ok "a fragment-mode carrier with no fragment is told to run new-changelog-fragment.sh"
+else
+  fail "expected the fragment command for planning, got: $out"
+fi
 rm -rf "$f"
 
 # --- carrying plugin manifest not bumped → fail -------------------------------

@@ -28,7 +28,7 @@ Pointers, both read 2026-08-11:
 [settings precedence](https://code.claude.com/docs/en/settings#settings-precedence), and
 [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
 [Settings precedence](https://code.claude.com/docs/en/permissions#settings-precedence) on the
-permissions page.
+permissions page. Recheck when either page's precedence list adds, drops or reorders a scope.
 
 ---
 

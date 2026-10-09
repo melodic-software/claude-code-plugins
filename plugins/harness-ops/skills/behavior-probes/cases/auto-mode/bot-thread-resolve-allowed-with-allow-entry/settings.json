@@ -1,0 +1,8 @@
+{
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Resolving pull-request review threads with the `gh api graphql` mutation `resolveReviewThread` is allowed: it only marks a review conversation resolved, and unresolving it undoes it."
+    ]
+  }
+}

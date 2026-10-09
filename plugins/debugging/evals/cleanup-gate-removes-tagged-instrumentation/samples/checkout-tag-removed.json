@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "def order_total(lines):\n    total = 0\n    for sku, qty in lines:\n        total += unit_price(sku) * qty\n    return round(total, 2)\n",
+      "why": "both tag lines removed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def order_total(lines):\n    total = 0\n    print(f\"[DEBUG-a4f2] total={total}\")\n    return round(total, 2)\n",
+      "why": "one tag line left"
+    }
+  ]
+}

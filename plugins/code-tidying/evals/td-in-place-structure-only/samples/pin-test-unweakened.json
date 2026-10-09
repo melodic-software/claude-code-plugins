@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Behavior pin for scripts/build-report.sh: output format, error path, and the\n# two function names other scripts source and call.\nset -euo pipefail\n\nhere=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/..\" && pwd)\"\ntmp=\"$(mktemp -d)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nprintf 'a\\nb\\nc\\n' >\"$tmp/app.log\"\nprintf 'x\\n' >\"$tmp/db.log\"\n\nout=\"$(bash \"$here/scripts/build-report.sh\" \"$tmp\")\"\nexpected=$'REPORT app.log 3\\nREPORT db.log 1'\n[[ \"$out\" == \"$expected\" ]] || { echo \"FAIL: report output: $out\"; exit 1; }\n\nif bash \"$here/scripts/build-report.sh\" \"$tmp/missing\" 2>/dev/null; then\n  echo \"FAIL: a missing directory was accepted\"\n  exit 1\nfi\n\n# shellcheck source=../scripts/build-report.sh\nsource \"$here/scripts/build-report.sh\"\n[[ \"$(count_lines \"$tmp/app.log\")\" == 3 ]] || { echo \"FAIL: count_lines\"; exit 1; }\n[[ \"$(render_report \"$tmp\" | head -n 1)\" == \"REPORT app.log 3\" ]] || { echo \"FAIL: render_report\"; exit 1; }\necho PASS\n",
+      "why": "expected file state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Behavior pin for scripts/build-report.sh: output format, error path, and the\n# two function names other scripts source and call.\nset -euo pipefail\n\nhere=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/..\" && pwd)\"\ntmp=\"$(mktemp -d)\"\ntrap 'rm -rf \"$tmp\"' EXIT\nprintf 'a\\nb\\nc\\n' >\"$tmp/app.log\"\nprintf 'x\\n' >\"$tmp/db.log\"\n\nout=\"$(bash \"$here/scripts/build-report.sh\" \"$tmp\")\"\nexpected=$'REPORT app.log 3\\nREPORT db.log 1'\n\nif bash \"$here/scripts/build-report.sh\" \"$tmp/missing\" 2>/dev/null; then\n  echo \"FAIL: a missing directory was accepted\"\n  exit 1\nfi\n\n# shellcheck source=../scripts/build-report.sh\nsource \"$here/scripts/build-report.sh\"\n[[ \"$(count_lines \"$tmp/app.log\")\" == 3 ]] || { echo \"FAIL: count_lines\"; exit 1; }\n[[ \"$(render_report \"$tmp\" | head -n 1)\" == \"REPORT app.log 3\" ]] || { echo \"FAIL: render_report\"; exit 1; }\necho PASS\n",
+      "why": "violating file state"
+    }
+  ]
+}

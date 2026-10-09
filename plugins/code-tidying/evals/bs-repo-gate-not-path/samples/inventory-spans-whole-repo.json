@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Groups: src (3 files), lib (2 files), repo (1 file), tests (1 file)",
+      "why": "whole tree"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sweep narrowed to repo/: 1 file (repo/tool.sh). Confirm?",
+      "why": "narrowed to the repo/ directory"
+    }
+  ]
+}

@@ -142,6 +142,50 @@ if [[ "$out" != *"plugins/alpha/lib/esc.mjs changed"* ]]; then
 else
   bad "--check-bump accepts a fragment-mode carrier's patch fragment as its bump" "$out"
 fi
+if [[ "$out" == *"Bump the version of every carrying plugin"* && "$out" != *"new-changelog-fragment.sh"* ]]; then
+  pass "--check-bump tells only a legacy carrier to bump its version"
+else
+  bad "--check-bump tells only a legacy carrier to bump its version" "$out"
+fi
+
+# A fragment-mode carrier with no fragment is told to add one, not to bump.
+git -C "$root" rm -q --cached .changes/alpha/sync-esc-0123abcd.md
+rm "$root/.changes/alpha/sync-esc-0123abcd.md"
+out="$(run --check-bump "$base")"
+expect "--check-bump fails for a fragment-mode carrier with no fragment" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump names the fragment-mode carrier" "plugins/alpha/lib/esc.mjs changed vs $base but alpha, in fragment mode, has no fragment for it"
+assert_output_contains "--check-bump gives one --carriers-of command when every fragment-mode carrier is stale" "scripts/new-changelog-fragment.sh --stdin --carriers-of lib/esc.mjs patch <<'EOF'"
+assert_output_contains "--check-bump gives the fragment body" "- Shared \`esc.mjs\` synced where this plugin carries it (<link to the change>); no other change to this plugin."
+assert_output_contains "--check-bump closes with the fragment instruction" "Add a patch fragment for every carrying plugin in fragment mode"
+if [[ "$out" != *"plugins/alpha/.claude-plugin/plugin.json is still"* ]]; then
+  pass "--check-bump does not tell a fragment-mode carrier to bump its manifest"
+else
+  bad "--check-bump does not tell a fragment-mode carrier to bump its manifest" "$out"
+fi
+
+# A fragment-mode carrier that already has its fragment is left out of the command.
+printf 'alpha\nbeta\n' >"$root/scripts/fragment-plugins.txt"
+out="$(run --check-bump "$base")"
+expect "--check-bump fails while one fragment-mode carrier lacks a fragment" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump lists only the stale carrier" "scripts/new-changelog-fragment.sh --stdin alpha patch <<'EOF'"
+if [[ "$out" != *"--carriers-of"* && "$out" != *"but beta, in fragment mode"* ]]; then
+  pass "--check-bump does not ask the carrier with a fragment for another"
+else
+  bad "--check-bump does not ask the carrier with a fragment for another" "$out"
+fi
+
+# Only one copy changed: --carriers-of would also write a fragment for the
+# untouched fragment-mode carrier, so the stale plugin is listed instead.
+git -C "$root" checkout -q -- lib/esc.mjs plugins
+git -C "$root" rm -q -r --cached .changes
+rm -rf "$root/.changes"
+printf '// new header line\n' >>"$root/plugins/alpha/lib/esc.mjs"
+out="$(run --check-bump "$base")"
+expect "--check-bump fails when only a fragment-mode carrier's copy changed" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump lists the one carrier whose copy changed" "scripts/new-changelog-fragment.sh --stdin alpha patch <<'EOF'"
 
 # --- the executable bit follows the canonical, on regen and in --check ----------
 fixture

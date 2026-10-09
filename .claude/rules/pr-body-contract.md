@@ -1,30 +1,11 @@
----
-description: "The body contract every pull request is expected to meet"
----
-
 # PR body contract
 
-`ci-status` is the single required check on every pull request. It fails on a
-title that is not Conventional Commits and on a `do-not-merge` label. A body
-missing the closing keyword or a section does NOT turn it red: the gate leaves
-an advisory comment and the `needs-issue-linkage` label instead. The body
-contract below is still expected on every pull request; it is reported, not
-gating.
-
-Every pull request body:
-
-- Opens with a native closing-keyword line: `Closes #<issue>` (`Fixes`/`Resolves`
-  also accepted, one keyword per issue), or, when the PR closes nothing, the
-  literal `No related issue: <reason>`.
-- Carries a non-empty section for each of `## Summary`, `## Fix`,
-  `## Verification`, and `## Related`.
-
-Draft the body to this contract BEFORE creating the PR (`gh pr create`, MCP, or
-web); the advisory comment and label are noise this rule exists to prevent.
-
-The canonical machine-readable convention is
-`components/pr-convention-policy/policy.json` in `melodic-software/standards`;
-the SHA-pinned ci-workflows `pr-contract` composite (moved to
-`pr-require-checks/check-contract` at ci-workflows v0.34.0) that runs as a step
-inside `ci-status` is the enforcement authority, and its step output is the
-statement of record.
+The `pr-contract` step inside `ci-status` fails a pull request only on a
+non-Conventional-Commits title or a `do-not-merge` label. The body contract is
+advisory, reported by comment and the `needs-issue-linkage` label, but
+expected: open with `Closes #<issue>` (or `Fixes`/`Resolves`), a
+`Refs: #<issue>` line to link without closing (never "does not close", which
+still closes), or `No related issue: <reason>`, then fill `## Summary`,
+`## Fix`, `## Verification`, and `## Related`. Draft from the repo's PR
+template (else the `melodic-software/.github` default); canonical record:
+`components/pr-convention-policy/policy.json` in `melodic-software/standards`.

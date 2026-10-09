@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Beck #2 Dead Code | scripts/build-report.sh | 5 | legacy_mode is never read |",
+      "why": "states it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Dry run complete. I found a few candidates in the lane.",
+      "why": "does not state it"
+    }
+  ]
+}

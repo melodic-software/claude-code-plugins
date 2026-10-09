@@ -5,6 +5,90 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.7] - 2026-10-09
+
+### Changed
+
+- **The bundled zone resolver's 1M-window token band reads `dumb` past 500000 tokens, not 250000 ([#6644](https://github.com/melodic-software/claude-code-plugins/issues/6644)),** synced from context-guard's reader contract.
+
+## [0.14.6] - 2026-10-08
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.14.5] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.14.4] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.14.3] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.14.2] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md`, synced from the shared copy, now has the reader
+  slice the sections for any part of the question none of its slices covers, and the section of
+  every item when the question asks the same thing for each of many events, options or keys.
+
+## [0.14.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.14.0] - 2026-10-07
+
+### Changed
+
+- **The `auditor` reads docs through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** Step 3's rung-1 route is now `scripts/fetch-docs.sh --cache` in place of a hand-written `curl` and `llms.txt` check. The auditor reads the manifest: only `state: read` grounds a claim, an `unread` page with reason `not-in-index` sends it to the successor slug, any other unread reason falls back to rung-2 `WebFetch`, and `stale: true` bytes are stated and never ground an absence. Citations name the channel as "rung-1 `fetch-docs.sh` read (cached, validated <time>)" in both the agent and the audit skill. The tool-honesty note says the script also writes the page into the shared user-scope docs cache, its own store; step 3 says the auditor writes no summaries or notes there.
+- **Prerequisites:** `python3` is declared optional for pages served only as HTML, and the `curl` and `jq` entries describe the fetcher's fallback ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
+## [0.13.9] - 2026-10-04
+
+### Fixed
+
+- **Resolver test copy synced from context-guard: its shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** No change to the resolver.
+
 ## [0.13.8] - 2026-10-04
 
 ### Changed
