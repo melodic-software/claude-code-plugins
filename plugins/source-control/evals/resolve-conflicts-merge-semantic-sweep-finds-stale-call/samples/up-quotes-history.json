@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "main renamed it because users now render as HTML (UI-12)"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"main renamed it because users now render as HTML (UI-12)\"},{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git add -- x\"}}]}}"
     }
   ],
   "fail": [
@@ -9,7 +9,19 @@
       "answer": ""
     },
     {
-      "answer": "Fixed the call and concluded the merge."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Fixed the call and concluded the merge.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor: rename format_user to render_user\\n\\n    The UI now renders users as HTML, so format was misleading. Refs UI-12.\\n\"}]}}",
+      "why": "the history is only in tool output; the agent never quoted it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --grep=UI-12\"}}]}}",
+      "why": "the ref is in a tool call after a text block, not quoted to the user"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor: rename format_user to render_user\\n\\n    The UI now renders users as HTML, so format was misleading. Refs UI-12.\\n\"}]}}",
+      "why": "an assistant line, then the history only in the next line's tool output"
     }
   ]
 }

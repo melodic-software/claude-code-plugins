@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "main removed legacy_token because /orders now returns 400 for token query auth (SEC-12)."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"main removed legacy_token because /orders now returns 400 for token query auth (SEC-12).\"},{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git add -- x\"}}]}}"
     }
   ],
   "fail": [
@@ -9,10 +9,22 @@
       "answer": ""
     },
     {
-      "answer": "Kept both sides and finished the merge."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Kept both sides and finished the merge.\"}]}}"
     },
     {
-      "answer": "Merged; region filter added."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Merged; region filter added.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor(api): drop legacy_token from fetch_orders\\n\\n    The /orders endpoint stopped accepting token query auth on 2026-03-01; sending it now returns 400. Refs SEC-12.\\n\"}]}}",
+      "why": "the history is only in tool output; the agent never quoted it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --grep=SEC-12\"}}]}}",
+      "why": "the ref is in a tool call after a text block, not quoted to the user"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor(api): drop legacy_token from fetch_orders\\n\\n    The /orders endpoint stopped accepting token query auth on 2026-03-01; sending it now returns 400. Refs SEC-12.\\n\"}]}}",
+      "why": "an assistant line, then the history only in the next line's tool output"
     }
   ]
 }

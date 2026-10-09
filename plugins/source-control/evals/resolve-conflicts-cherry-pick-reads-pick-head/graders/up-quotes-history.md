@@ -1,5 +1,6 @@
 ---
 type: regex
-pattern: 'BILL-203|regulator|refunded'
-flags: i
+pattern: '^\{"type":"assistant".*"type":"text","text":"(?:[^"\\]|\\.)*?(?:BILL-203|regulator|refunded)'
+flags: mi
+target: trace
 ---

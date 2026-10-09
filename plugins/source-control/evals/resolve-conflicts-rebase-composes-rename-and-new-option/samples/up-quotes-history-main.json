@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "main renamed it because the count includes the first call (RET-41)"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"main renamed it because the count includes the first call (RET-41)\"},{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git add -- x\"}}]}}"
     },
     {
-      "answer": "Per RET-41 the old name was off by one"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Per RET-41 the old name was off by one\"}]}}"
     }
   ],
   "fail": [
@@ -12,10 +12,22 @@
       "answer": ""
     },
     {
-      "answer": "Resolved the conflict and finished the rebase."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Resolved the conflict and finished the rebase.\"}]}}"
     },
     {
-      "answer": "Kept both max_attempts and backoff_jitter."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Kept both max_attempts and backoff_jitter.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor(retry): rename max_retries to max_attempts\\n\\n    The count includes the first call, so every caller read max_retries as one more call than it makes. Refs RET-41.\\n\"}]}}",
+      "why": "the history is only in tool output; the agent never quoted it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --grep=RET-41\"}}]}}",
+      "why": "the ref is in a tool call after a text block, not quoted to the user"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    refactor(retry): rename max_retries to max_attempts\\n\\n    The count includes the first call, so every caller read max_retries as one more call than it makes. Refs RET-41.\\n\"}]}}",
+      "why": "an assistant line, then the history only in the next line's tool output"
     }
   ]
 }

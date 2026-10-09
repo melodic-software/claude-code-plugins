@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The picked commit caps the fee at 50 because regulators require it (BILL-203)."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"The picked commit caps the fee at 50 because regulators require it (BILL-203).\"},{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git add -- x\"}}]}}"
     }
   ],
   "fail": [
@@ -9,7 +9,19 @@
       "answer": ""
     },
     {
-      "answer": "Resolved billing/rules.py and continued the cherry-pick."
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Resolved billing/rules.py and continued the cherry-pick.\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    fix(billing): cap the late fee at 50\\n\\n    Regulators cap late fees at 50 per invoice; uncapped fees on large balances were being refunded by hand. Refs BILL-203.\\n\"}]}}",
+      "why": "the history is only in tool output; the agent never quoted it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"},{\"type\":\"tool_use\",\"id\":\"toolu_2\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --grep=BILL-203\"}}]}}",
+      "why": "the ref is in a tool call after a text block, not quoted to the user"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the history first.\"}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"commit 1a2b3c4\\n\\n    fix(billing): cap the late fee at 50\\n\\n    Regulators cap late fees at 50 per invoice; uncapped fees on large balances were being refunded by hand. Refs BILL-203.\\n\"}]}}",
+      "why": "an assistant line, then the history only in the next line's tool output"
     }
   ]
 }

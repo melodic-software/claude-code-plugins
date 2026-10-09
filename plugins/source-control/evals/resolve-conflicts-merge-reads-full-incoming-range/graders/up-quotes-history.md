@@ -1,5 +1,6 @@
 ---
 type: regex
-pattern: 'OPS-311|failover|1 in 40'
-flags: i
+pattern: '^\{"type":"assistant".*"type":"text","text":"(?:[^"\\]|\\.)*?(?:OPS-311|failover|1 in 40)'
+flags: mi
+target: trace
 ---
