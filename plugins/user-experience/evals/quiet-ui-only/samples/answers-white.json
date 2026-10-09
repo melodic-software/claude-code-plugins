@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Use white text: about 5.2:1 on #2563EB, which passes AA.",
+      "why": "named"
+    },
+    {
+      "answer": "#FFFFFF passes AA for normal text.",
+      "why": "hex, upper case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Use black #000000 for the label.",
+      "why": "black fails AA here (about 4.1:1)"
+    }
+  ]
+}

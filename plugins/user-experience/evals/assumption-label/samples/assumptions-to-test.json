@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Assumptions to test\n- Owners want a photo at drop-off too (ask in interviews).",
+      "why": "heading"
+    },
+    {
+      "answer": "Assumptions To Test: the walker match matters more than price.",
+      "why": "inline, other case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "## Open questions\n- Pricing",
+      "why": "a different closing list"
+    }
+  ]
+}
