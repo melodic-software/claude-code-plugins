@@ -196,6 +196,9 @@ export function committedFiles(root, commits) {
   const out = git(root, [
     "log",
     "--no-walk=unsorted",
+    // A merge commit lists the paths whose result differs from every parent,
+    // the ones the command resolved, not what the merge brought in.
+    "--cc",
     "--format=",
     "--name-only",
     "-z",

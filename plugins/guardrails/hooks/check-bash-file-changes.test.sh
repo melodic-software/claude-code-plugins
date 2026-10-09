@@ -145,7 +145,7 @@ assert_contains "space in name: checked" "$OUT" 'changed "sp ace.txt"'
 assert_contains "forged header: checked" "$OUT" 'changed "forged.txt"'
 
 # 5c. The command writes and stages: a new file and a tracked file.
-g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid "$@"; }
+g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid -c rerere.enabled=false "$@"; }
 new_repo
 pre "$REPO"
 scratch write "$REPO/config.txt" "root = $LINUX_HOME"
@@ -203,6 +203,21 @@ scratch write "$REPO/config.txt" "root = $LINUX_HOME"
 g add config.txt && g commit -qm write
 assert_contains "linked worktree commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
   'changed "config.txt"'
+
+# 5d6. A conflicted merge the command resolves and commits.
+new_repo
+g checkout -qb side
+scratch append "$REPO/tracked.txt" "side"
+g commit -qam side
+g checkout -q -
+scratch append "$REPO/tracked.txt" "main"
+g commit -qam main
+pre "$REPO"
+g merge -q side >/dev/null 2>&1
+printf 'hello\ndir = %s\n' "$LINUX_HOME" >"$REPO/tracked.txt"
+g add tracked.txt && g commit -qm merged
+assert_contains "resolved merge commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
+  'changed "tracked.txt"'
 
 # ========================== MUST STAY QUIET =================================
 
