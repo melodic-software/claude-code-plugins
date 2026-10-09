@@ -671,6 +671,7 @@ def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
         rollup.append(
             {
                 "__typename": "CheckRun",
+                "databaseId": run.get("id"),
                 "name": str(run.get("name") or ""),
                 "status": str(run.get("status") or ""),
                 "conclusion": str(run.get("conclusion") or ""),

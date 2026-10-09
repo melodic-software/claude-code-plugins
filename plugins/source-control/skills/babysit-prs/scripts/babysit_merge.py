@@ -222,6 +222,27 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def job_backs_check(job: dict[str, Any], job_id: str, check: dict[str, Any]) -> bool:
+    """Whether the Actions job a check's `details_url` names is the job that
+    emitted that check.
+
+    `details_url` is set by whoever creates the check run, so it alone does not
+    tie the job to the check. An Actions job's own check run shares its id, and
+    its `name` and `workflow_name` are the rollup's check `name` and
+    `workflowName`. The rollup's own check-run id is compared when the rollup
+    carried one (the REST re-source does; `gh pr view` does not).
+    """
+    own_check_run = str(job.get("check_run_url") or "").rsplit("/", 1)[-1]
+    if str(job.get("id")) != job_id or own_check_run != job_id:
+        return False
+    if check.get("id") and str(check["id"]) != job_id:
+        return False
+    if job.get("name") != check["name"]:
+        return False
+    workflow = check.get("workflow_name")
+    return not workflow or job.get("workflow_name") == workflow
+
+
 def rerun_rate_limited_review(
     repo: str, head: str, check: dict[str, Any]
 ) -> dict[str, Any]:
@@ -238,11 +259,13 @@ def rerun_rate_limited_review(
     if not match:
         report["reason"] = "not a GitHub Actions job"
         return report
+    job_id = match.group(1)
     try:
-        job = json_object(
-            gh_json(["api", f"repos/{repo}/actions/jobs/{match.group(1)}"])
-        )
+        job = json_object(gh_json(["api", f"repos/{repo}/actions/jobs/{job_id}"]))
         report["runId"] = run_id = job.get("run_id")
+        if not job_backs_check(job, job_id, check):
+            report["reason"] = "the job named by details_url did not emit this check"
+            return report
         if job.get("head_sha") != head:
             report["reason"] = "the job ran on another head"
             return report
@@ -263,15 +286,11 @@ def rerun_rate_limited_review(
                 + due.isoformat().replace("+00:00", "Z")
             )
             return report
-        check_run_id = str(job.get("check_run_url") or "").rsplit("/", 1)[-1]
-        if not check_run_id.isdigit():
-            report["reason"] = "job carries no check run id"
-            return report
         annotations = json_array(
             gh_json(
                 [
                     "api",
-                    f"repos/{repo}/check-runs/{check_run_id}/annotations?per_page=100",
+                    f"repos/{repo}/check-runs/{job_id}/annotations?per_page=100",
                 ]
             )
         )
@@ -1667,6 +1686,8 @@ def evaluate(
     ai_review_checks = [
         {
             "name": c["name"],
+            "id": c["id"],
+            "workflow_name": c["workflow_name"],
             "effective_state": c["effective_state"],
             "details_url": c["details_url"],
         }

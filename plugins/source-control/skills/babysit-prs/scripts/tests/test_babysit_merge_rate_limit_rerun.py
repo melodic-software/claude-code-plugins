@@ -29,8 +29,13 @@ REPO = "owner/repo"
 RUN_ID = 111
 JOB_ID = 222
 FAILED_AT = "2026-10-09T10:00:00Z"
+# Shapes follow live payloads (2026-10-09): `gh pr view --json
+# statusCheckRollup` gives a CheckRun no id, and an Actions job's `id`, its
+# `check_run_url` tail and its check run's id are one number.
 CHECK = {
     "name": "pr-review / claude-review-status",
+    "id": "",
+    "workflow_name": "pr-review-hosted",
     "effective_state": "FAILURE",
     "details_url": f"https://github.com/{REPO}/actions/runs/{RUN_ID}/job/{JOB_ID}",
 }
@@ -42,7 +47,10 @@ RATE_LIMITED = (
 
 def _job(**overrides: Any) -> dict[str, Any]:
     job = {
+        "id": JOB_ID,
         "run_id": RUN_ID,
+        "name": "pr-review / claude-review-status",
+        "workflow_name": "pr-review-hosted",
         "head_sha": HEAD,
         "conclusion": "failure",
         "run_attempt": 1,
@@ -118,6 +126,24 @@ class RerunRateLimitedReview(unittest.TestCase):
         report, posts = self._run(job=_job(head_sha=base.STALE))
         self.assertFalse(report["rerun"])
         self.assertEqual(posts, [])
+
+    def test_a_rollup_check_id_matching_the_job_reruns(self) -> None:
+        report, _ = self._run(check={**CHECK, "id": str(JOB_ID)})
+        self.assertTrue(report["rerun"], report)
+
+    def test_a_job_that_did_not_emit_the_check_is_left_alone(self) -> None:
+        other_run = f"https://api.github.com/repos/{REPO}/check-runs/999"
+        for job, check in (
+            (_job(id=999), CHECK),
+            (_job(check_run_url=other_run), CHECK),
+            (_job(name="other / claude-review-status"), CHECK),
+            (_job(workflow_name="other-workflow"), CHECK),
+            (_job(), {**CHECK, "id": "999"}),
+        ):
+            report, posts = self._run(job=job, check=check)
+            self.assertFalse(report["rerun"], (job, check))
+            self.assertIn("did not emit this check", report["reason"])
+            self.assertEqual((posts, len(self.reads)), ([], 1))
 
     def test_a_non_actions_check_is_left_alone(self) -> None:
         report, posts = self._run(check={**CHECK, "details_url": "https://example"})

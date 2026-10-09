@@ -7,7 +7,8 @@ bump: minor
 - **The babysit merge gate re-runs an AI review that hit the usage limit.** A `--merge`
   run held on a failed `claude-review-status` or security-review check re-runs that
   check's workflow run when its check run carries a `class=rate-limit` annotation, five
-  hours after the failure, on the pinned live head, and only on the run's first attempt.
+  hours after the failure, on the pinned live head, and only on the run's first attempt,
+  and only when the job its `details_url` names emitted that check.
   Every other failure class is left alone, a check-only run never re-runs, and auto-merge
   still arms only on SUCCESS. The JSON reports each decision under `aiReviewReruns`.
 
