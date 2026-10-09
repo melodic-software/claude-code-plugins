@@ -7,13 +7,15 @@
 // block-hook-bypass.sh judges a command by its shape, so a script FILE run by
 // an interpreter (`node x.js`, `python3 x.py`) writes repository files that no
 // Write/Edit guard sees (#6674). This gates the outcome instead: `snapshot`
-// records `git status` and the size and mtime of every dirty path before the
-// command, and `check` lists the paths that are new to `git status` or whose
-// size or mtime moved. Each one goes through the guards of the PreToolUse
-// Write|Edit row of hooks.json, read from that row so the two cannot drift, as
-// the Write or Edit Claude would have made: a new file as a Write of its whole
-// content, a tracked file as an Edit whose new text is the lines `git diff`
-// adds against the index (hook-precision rule 1). A guard that blocks reports
+// records `git status`, the HEAD commit, and the size and mtime of every dirty
+// path before the command, and `check` lists the paths that are new to
+// `git status` or whose size or mtime moved, plus, when the command only made
+// commits, the paths those commits added or modified. Each one goes through
+// the guards of the PreToolUse Write|Edit row of hooks.json, read from that row
+// so the two cannot drift, as the Write or Edit Claude would have made: a new
+// file as a Write of its whole content, a tracked file as an Edit whose new
+// text is the lines it adds against the HEAD commit from before the command,
+// staged or not (hook-precision rule 1). A guard that blocks reports
 // its own message to Claude, naming the file. The command already ran, so this
 // reports rather than denies.
 //
@@ -34,7 +36,9 @@
 // the first MAX_FILES in path order, a repository with more than
 // MAX_STATUS_ENTRIES dirty paths, and what a run_in_background command writes
 // after the call returns are not checked. A file dirty before the command is
-// judged on every line it adds against the index, not only this command's.
+// judged on every line it adds against that HEAD, not only this command's. A
+// HEAD moved by a checkout, pull, merge or reset brings in others' content and
+// adds no paths; the first commit on an unborn branch is not seen.
 //
 // Kill switch: the bash_file_change_check_enabled userConfig option set to
 // false.
@@ -106,10 +110,13 @@ function git(root, args) {
 
 // git status as {relativePath: code}, or null when git fails or the list is
 // too long to be worth snapshotting.
+// With porcelain v2 the same call also names the HEAD commit, so a commit made
+// inside the command is seen without a second git process.
 export function gitStatus(root) {
   const out = git(root, [
     "status",
-    "--porcelain=v1",
+    "--porcelain=v2",
+    "--branch",
     "-z",
     "--untracked-files=all",
     "--no-renames",
@@ -117,13 +124,53 @@ export function gitStatus(root) {
   ]);
   if (out === null) return null;
   const entries = {};
+  let head = null;
   let count = 0;
   for (const record of out.split("\0")) {
-    if (record.length < 4) continue;
+    if (record.startsWith("# branch.oid ")) {
+      const oid = record.slice(13);
+      head = /^[0-9a-f]{40,64}$/.test(oid) ? oid : null;
+      continue;
+    }
+    // `1 XY sub mH mI mW hH hI path`, `u XY sub m1 m2 m3 mW h1 h2 h3 path`, `? path`
+    const fields = { 1: 8, u: 10, "?": 1 }[record[0]];
+    if (fields === undefined) continue;
     if (++count > MAX_STATUS_ENTRIES) return null;
-    entries[record.slice(3)] = record.slice(0, 2);
+    const parts = record.split(" ");
+    const rel = parts.slice(fields).join(" ");
+    if (rel) entries[rel] = record[0] === "?" ? "??" : parts[1];
   }
-  return entries;
+  return { head, entries };
+}
+
+// The commit-only HEAD moves since `from`, read from the HEAD reflog: true
+// when every entry between them is a commit (`commit:`, `commit (amend):`, ...),
+// so a checkout, pull, merge or reset, which bring in others' content, is not
+// judged as this command's writing.
+export function committedSince(root, from) {
+  const out = git(root, ["reflog", "show", "-n", "50", "--format=%H %gs", "HEAD", "--"]);
+  if (out === null) return false;
+  for (const line of out.split("\n")) {
+    const [sha, ...subject] = line.split(" ");
+    if (sha === from) return true;
+    if (!subject.join(" ").startsWith("commit")) return false;
+  }
+  return false;
+}
+
+// Paths added or modified between two commits.
+export function committedFiles(root, from, to) {
+  const out = git(root, [
+    "diff",
+    "--name-only",
+    "-z",
+    "--no-renames",
+    "--diff-filter=AM",
+    from,
+    to,
+    "--",
+  ]);
+  return out === null ? [] : out.split("\0").filter(Boolean);
 }
 
 function stamp(file) {
@@ -165,33 +212,45 @@ export function snapshot(payload, env) {
   const status = gitStatus(root);
   if (!status) return;
   const stamps = {};
-  for (const rel of Object.keys(status)) stamps[rel] = stamp(path.join(root, rel));
+  for (const rel of Object.keys(status.entries)) stamps[rel] = stamp(path.join(root, rel));
   const dir = snapshotDir(env);
   mkdirSync(dir, { recursive: true });
   pruneStale(dir, Date.now());
-  writeFileSync(snapshotFile(env, payload), JSON.stringify({ root, status, stamps }));
+  writeFileSync(
+    snapshotFile(env, payload),
+    JSON.stringify({ root, head: status.head, status: status.entries, stamps }),
+  );
 }
 
 // The paths that are dirty now and were clean before, or whose size or mtime
-// moved, as [{rel, abs, untracked}].
-export function changedFiles(before, after) {
-  const changed = [];
+// moved, plus the paths commits made inside the command added or modified, as
+// [{rel, abs, untracked}].
+export function changedFiles(before, after, committed = []) {
+  const changed = new Map();
   for (const [rel, code] of Object.entries(after.status)) {
     const abs = path.join(before.root, rel);
     const now = stamp(abs);
     if (!now) continue;
     const then = before.stamps[rel];
     if (rel in before.status && then && then[0] === now[0] && then[1] === now[1]) continue;
-    changed.push({ rel, abs, untracked: code === "??", size: now[0] });
+    changed.set(rel, { rel, abs, untracked: code === "??", size: now[0] });
   }
-  return changed.sort((a, b) => a.rel.localeCompare(b.rel));
+  for (const rel of committed) {
+    const abs = path.join(before.root, rel);
+    const now = stamp(abs);
+    if (now && !changed.has(rel)) changed.set(rel, { rel, abs, untracked: false, size: now[0] });
+  }
+  return [...changed.values()].sort((a, b) => a.rel.localeCompare(b.rel));
 }
 
-// The lines `git diff` adds against the index to one relative path. One diff
+// The lines one tracked path adds against `base`, the HEAD commit before the
+// command, so a write the command also staged or committed is still judged
+// (hook-precision rule 1). null when there is no base to diff against. One diff
 // per file, keyed by the name asked for, so no header is parsed for a name: a
 // quoted, tab-suffixed or content-forged `+++` header cannot redirect lines.
 // A `+` line counts only after the first `@@`.
-export function addedLines(root, rel) {
+export function addedLines(root, rel, base) {
+  if (!base) return null;
   const out = git(root, [
     "--literal-pathspecs",
     "diff",
@@ -200,10 +259,11 @@ export function addedLines(root, rel) {
     "--no-textconv",
     "--no-renames",
     "-U0",
+    base,
     "--",
     rel,
   ]);
-  if (out === null) return [];
+  if (out === null) return null;
   const added = [];
   let inHunk = false;
   for (const line of out.split("\n")) {
@@ -272,7 +332,12 @@ export function check(payload, env) {
   } catch {}
   const status = gitStatus(before.root);
   if (!status) return [];
-  const changed = changedFiles(before, { status }).slice(0, MAX_FILES);
+  const moved = before.head && status.head && status.head !== before.head;
+  const committed =
+    moved && committedSince(before.root, before.head)
+      ? committedFiles(before.root, before.head, status.head)
+      : [];
+  const changed = changedFiles(before, { status: status.entries }, committed).slice(0, MAX_FILES);
   if (changed.length === 0) return [];
   const guards = writeGuards();
   const bash = resolveBash(env, process.platform, isFile);
@@ -283,10 +348,14 @@ export function check(payload, env) {
     if (Date.now() > deadline) return;
     const content = readContent(f.abs, f.size);
     if (content === null) return;
-    const toolInput = f.untracked
+    // A tracked file with no commit to diff against (an unborn branch) is
+    // judged whole, like a new file.
+    const added = f.untracked ? null : addedLines(before.root, f.rel, before.head);
+    const whole = added === null;
+    if (!whole && added.length === 0) return;
+    const toolInput = whole
       ? { file_path: f.abs, content }
-      : { file_path: f.abs, old_string: "", new_string: addedLines(before.root, f.rel).join("\n") };
-    if (!f.untracked && toolInput.new_string === "") return;
+      : { file_path: f.abs, old_string: "", new_string: added.join("\n") };
     const message = runGuards(
       bash,
       guards,
@@ -295,7 +364,7 @@ export function check(payload, env) {
         transcript_path: payload.transcript_path,
         cwd: payload.cwd,
         hook_event_name: "PreToolUse",
-        tool_name: f.untracked ? "Write" : "Edit",
+        tool_name: whole ? "Write" : "Edit",
         tool_input: toolInput,
         tool_use_id: `${payload.tool_use_id}-${n}`,
       },

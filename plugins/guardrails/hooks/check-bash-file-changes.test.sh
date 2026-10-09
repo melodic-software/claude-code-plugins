@@ -144,7 +144,40 @@ OUT=$(jq -r .reason <<<"$(post "$REPO")")
 assert_contains "space in name: checked" "$OUT" 'changed "sp ace.txt"'
 assert_contains "forged header: checked" "$OUT" 'changed "forged.txt"'
 
+# 5c. The command writes and stages: a new file and a tracked file.
+g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid "$@"; }
+new_repo
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+scratch append "$REPO/tracked.txt" "dir = $LINUX_HOME"
+g add config.txt tracked.txt
+OUT=$(jq -r .reason <<<"$(post "$REPO")")
+assert_contains "staged new file: checked" "$OUT" 'changed "config.txt"'
+assert_contains "staged tracked file: checked" "$OUT" 'changed "tracked.txt"'
+
+# 5d. The command writes and commits, leaving git status clean.
+new_repo
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+scratch append "$REPO/tracked.txt" "dir = $LINUX_HOME"
+g add config.txt tracked.txt && g commit -qm write
+OUT=$(post "$REPO")
+EXPECTED=$(edit_path Edit "$REPO/tracked.txt" "dir = $LINUX_HOME")
+assert_contains "committed new file: checked" "$(jq -r .reason <<<"$OUT")" 'changed "config.txt"'
+assert_contains "committed tracked file: the Edit path's own message" "$(jq -r .reason <<<"$OUT")" "$EXPECTED"
+
 # ========================== MUST STAY QUIET =================================
+
+# 5e. A checkout that brings in a branch with a flagged file is not this
+#     command's writing.
+new_repo
+g checkout -qb other
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+g add config.txt && g commit -qm other
+g checkout -q -
+pre "$REPO"
+g checkout -q other
+assert_silent "checkout of a branch: silent" "$(post "$REPO")"
 
 # 6. A command that changes nothing.
 new_repo
