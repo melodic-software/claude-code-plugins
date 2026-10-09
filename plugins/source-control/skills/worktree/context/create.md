@@ -48,6 +48,7 @@ Creating worktree (shared helper, external root, outside every repository):
   Directory: <root>/<owner>-<repo>-<slug>   (root = the worktree_root config key)
   Branch: <name>                            (kept verbatim; slug derived for the dir)
   Local files: .worktreeinclude matches copied in (gitignored ones only)
+  Dependencies: npm ci when package-lock.json exists (non-fatal on failure)
   Entering: EnterWorktree(path:) switches the session in. Because the path is
             OUTSIDE .claude/worktrees/, Claude Code asks you to APPROVE the move
             (not suppressible except in bypassPermissions mode). Approve it.
@@ -82,7 +83,7 @@ Optional renames after creation:
 
 Two steps: the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, arms the `git worktree lock` liveness guard with a reason naming the helper, host, and start time, so a cleanup sweep sees the worktree as claimed and plain `git worktree remove` refuses it, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, arms the `git worktree lock` liveness guard with a reason naming the helper, host, and start time, so a cleanup sweep sees the worktree as claimed and plain `git worktree remove` refuses it, copies `.worktreeinclude` files, and runs `npm ci` when the new tree has a `package-lock.json`; a missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`) only warns on stderr and leaves the exit code alone). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
 
    Treat `${user_config.worktree_root}` substitution into skill content as **raw text, not shell-escaped**. That is this plugin's reading, not a quoted doc span: [plugin manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value) (fetched 2026-10-07, quoted with link markup removed; recheck when that section documents escaping for `${user_config.*}` in skill content) says `${user_config.KEY}` is "substituted in MCP server config, LSP server config, exec-form hook `args`, and skill and agent content" and documents no escaping for it, and [§ Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell) has shell-form hook commands, monitor commands, and `headersHelper` reject `${user_config.*}` "because the field's value is passed to a shell that would re-parse the substituted value". Skill content gets no such guard. A configured value containing a single quote (e.g. `~/worktrees/O'Connor`), `$`, or a backtick breaks out of any shell literal we write around it, and **no heredoc delimiter is safe either**: a value whose own body contains a line equal to the delimiter ends the heredoc early and the shell parses the remainder as commands. The value must therefore never reach a shell parser at all. Write it with the **`Write` tool**: the content travels as a JSON string parameter, so every byte lands verbatim and no delimiter, quote, or metacharacter can terminate anything. Then hand the file to `--fallback-root-file` (the machine-global plugin-option rung). Never inline the substitution in a `--root` / `--fallback-root` shell literal or a heredoc body. Explicit `--root`/`--root-file` remains for per-invocation overrides; the skill's plugin option must not use that rung, or it would outrank `worktreeroot.path` ([reference/worktree-root-convention.md](../../../reference/worktree-root-convention.md)).
 
@@ -136,7 +137,7 @@ If the project has session-start setup hooks, they run on the next SessionStart;
 | Ecosystem | Trigger glob | Check | Command |
 |-----------|--------------|-------|---------|
 | .NET | `*.sln`, `*.slnx` | dependencies restored | `dotnet restore` |
-| Node | `package.json` | dependencies installed | `npm install` (or the project's package manager) |
+| Node | `package.json` | dependencies installed | the helper already ran `npm ci` for a `package-lock.json` (check its stderr warning); otherwise the project's package manager install |
 | Python | `pyproject.toml` | environment synced | `uv sync` / `pip install -e .` |
 
 Gitignored files (secrets, `.venv/`, `node_modules/`, build output) do NOT propagate to a fresh worktree. That is what these checks catch.
