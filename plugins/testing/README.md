@@ -89,21 +89,22 @@ A separate headless `claude -p` run asks one question of each test block the ses
 changed: where did its expected value come from? It answers FLAG (the value restates the
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
-waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), and writes a review-findings file (under `.work/reviews/<branch>/`). In an
-interactive session, when a verdict is a FLAG, or an UNKNOWN that started as a FLAG and failed the
-checks below, it asks Claude once to show you each verdict and proposed diff and wait. Every
-other UNKNOWN (no repository, no judge class, the judge's own UNKNOWN, a PASS that failed the
-checks) carries no finding. Otherwise there is nothing to decide and the stop is not blocked: when
-every verdict is a PASS you get one line with the count, and in the other cases, or in an
-unattended session, the counts and the file. Each UNKNOWN records its reason kind and the verdict
-it started as. Tests left for a later task end are counted, never named. Tests a subagent wrote
-are judged when that subagent finishes (SubagentStop), by the same rules: a FLAG asks the
-subagent, not you, to fix the test or say why it stands, you still get the counts and the file,
-and the parent's Stop does not show those verdicts again. The parent's Stop leaves a file a
-subagent still running in the background wrote to that subagent's end, and shows a finished
-subagent's verdicts that no SubagentStop showed. A session that ended before a FLAG or UNKNOWN
-verdict was shown gets it named at the next session start. The writing agent never supplies the
+runs in the background, so the turn ends without waiting for it. It waits for any run still going,
+judges what is left (10 tests per task end, the rest at the next one), and writes a review-findings
+file (under `.work/reviews/<branch>/`). In an interactive session, when a verdict is a FLAG, or an
+UNKNOWN that started as a FLAG and failed the checks below, it wakes Claude once to show you each
+verdict and proposed diff and wait; nothing else wakes Claude. Every other UNKNOWN (no repository,
+no judge class, the judge's own UNKNOWN, a PASS that failed the checks) carries no finding.
+Otherwise there is nothing to decide: when every verdict is a PASS, Claude gets one line with the
+count on its next turn, and in the other cases, or in an unattended session, the counts and the
+file. The hook uses `asyncRewake` ([hooks reference: run hooks in the
+background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background), as of 2026-10-09;
+recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes). Each
+UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
+counted, never named. Tests a subagent wrote are judged at the parent's Stop with the parent's own,
+by the same rules; a file a subagent still running in the background wrote waits for a later Stop.
+A session that ended before a FLAG or UNKNOWN verdict was shown gets it named at the next session
+start. The writing agent never supplies the
 judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
