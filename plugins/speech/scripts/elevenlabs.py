@@ -37,6 +37,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -308,14 +309,24 @@ def read_cache(entry):
         return None
 
 
-def write_cache(entry, reply, meta):
-    entry.parent.mkdir(parents=True, exist_ok=True)
-    tmp = entry.with_name(entry.name + '.tmp')
+def write_cache(entry, reply, meta, say=print):
+    """Store a paid reply. Best effort: the narration is already written, so a cache that cannot be written is a
+    warning, never a failed run that invites a second paid call. Each writer gets its own temp file, so two sessions
+    filling the same key never share one."""
+    tmp = None
     try:
-        tmp.write_text(json.dumps({'reply': reply, 'meta': meta}), encoding='utf-8')
+        entry.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=entry.name + '.', suffix='.tmp', dir=entry.parent)
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            json.dump({'reply': reply, 'meta': meta}, f)
         os.replace(tmp, entry)
+        tmp = None
+    except OSError as e:
+        say(f'speech: the narration is written, but the cache could not store it ({e}); a repeat of this request '
+            'will call the API again.')
     finally:
-        tmp.unlink(missing_ok=True)
+        if tmp:
+            Path(tmp).unlink(missing_ok=True)
 
 
 def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, env=None, send=None, quota=None,
@@ -355,7 +366,7 @@ def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, 
     reply, meta = send(text, voice, model, settings, key)
     record = write_outputs(text, out, reply, meta, voice, model, settings, cached=False)
     if entry:
-        write_cache(entry, reply, meta)
+        write_cache(entry, reply, meta, say)
     return record
 
 

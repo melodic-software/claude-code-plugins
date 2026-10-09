@@ -277,6 +277,33 @@ class Cache(unittest.TestCase):
         self.assertTrue(stored)
         self.assertNotIn(KEY, stored)
 
+    def test_a_cache_that_cannot_be_written_warns_and_keeps_the_paid_narration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / 'cache'
+            cache.write_text('a file where the cache folder should be', encoding='utf-8')
+            record, events = run(Path(tmp) / 'out', cache=cache)
+            self.assertIsNotNone(record)
+            self.assertTrue((Path(tmp) / 'out' / 'narration.wav').is_file())
+            self.assertEqual(sum(e[0] == 'send' for e in events), 1)
+            self.assertTrue(any(e[0] == 'say' and 'cache could not store it' in e[1] for e in events), events)
+
+    def test_each_cache_writer_uses_its_own_temp_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = Path(tmp) / 'cache' / 'k.json'
+            seen = []
+            real = os.replace
+
+            def replace(src, dst):
+                seen.append(Path(src).name)
+                real(src, dst)
+
+            with mock.patch.object(elevenlabs.os, 'replace', replace):
+                elevenlabs.write_cache(entry, reply(), META)
+                elevenlabs.write_cache(entry, reply(), META)
+            self.assertEqual(len(set(seen)), 2, seen)
+            self.assertEqual(elevenlabs.read_cache(entry)[1], META)
+            self.assertEqual(sorted(p.name for p in entry.parent.iterdir()), ['k.json'])
+
     def test_a_failed_response_is_not_cached(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache = Path(tmp) / 'cache'
