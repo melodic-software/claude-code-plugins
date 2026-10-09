@@ -100,7 +100,9 @@ count on its next turn, and in the other cases, or in an unattended session, the
 file. The hook uses `asyncRewake` ([hooks reference: run hooks in the
 background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background), as of 2026-10-09;
 recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes). Each
-UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
+A `claude -p` or Agent SDK session ends before the async Stop judge finishes (Claude Code kills
+unfinished async hooks at print-mode teardown), so it gets no task-end verdict; CI is its gate.
+Each UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
 counted, never named. Tests a subagent wrote are judged at the parent's Stop with the parent's own,
 by the same rules; a file a subagent still running in the background wrote waits for a later Stop.
 A session that ended before a FLAG or UNKNOWN verdict was shown gets it named at the next session
