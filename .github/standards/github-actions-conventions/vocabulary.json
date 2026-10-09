@@ -84,11 +84,17 @@
       { "name": "publish-binaries", "status": "in-use" },
       { "name": "publish-image", "status": "in-use" },
       { "name": "publish-packages", "status": "in-use" },
+      {
+        "name": "publish-plugins",
+        "status": "reserved",
+        "purpose": "Publish Claude Code plugins to their marketplace."
+      },
       { "name": "tag", "status": "in-use" }
     ],
     "maintenance": [
       { "name": "audit-code-review-rules", "status": "in-use" },
       { "name": "audit-link-check-excludes", "status": "in-use" },
+      { "name": "audit-pr-convention-pins", "status": "in-use" },
       { "name": "audit-test-selection", "status": "in-use" },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },

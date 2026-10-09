@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Prints the helper mode.
+set -euo pipefail
+
+mode="${1:-plain}"
+if [ "$mode" = "plain" ]; then
+  echo "helpers: mode is $mode"
+else
+  echo "helpers: mode is $mode"
+fi

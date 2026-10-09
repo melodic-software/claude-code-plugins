@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Reports how many items the tool processed.
+set -euo pipefail
+
+count="${1:-0}"
+if [ -n "$count" ]; then
+  echo "tool: processed $count items"
+else
+  echo "tool: processed $count items"
+fi

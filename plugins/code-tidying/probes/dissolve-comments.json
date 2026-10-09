@@ -1,0 +1,128 @@
+{
+  "skill": "code-tidying:dissolve-comments",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/dissolve-comments",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
+  "competitors": [
+    "code-tidying:audit-comment-residue",
+    "code-tidying:audit-dead-code",
+    "code-tidying:batch-simplify",
+    "code-tidying:tidy"
+  ],
+  "competitor_dirs": {
+    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "code-tidying:batch-simplify": "plugins/code-tidying/skills/batch-simplify",
+    "code-tidying:tidy": "plugins/code-tidying/skills/tidy"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This file is drowning in comments; get rid of the pointless ones and fold the rest into better names."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Remove all the comments the agent sprinkled through handlers.go."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want the code to explain itself, so rename things until we can drop these explanatory comments."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Strip every comment from scripts/deploy.sh, no exceptions."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through utils.py and keep only comments that explain a real why; delete the rest."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Be ruthless about the comments in this module and cut anything that does not pull its weight."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Replace the comments in this function with well-named variables and helpers."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our style is no comments unless essential, so enforce that on the src/api folder."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Get rid of the obvious comments in this class and let the method names carry the meaning."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Flag comments that reference our earlier conversation, but do not change anything."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write comments explaining what each step of this algorithm does."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find unused functions in this codebase."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify all files changed on this branch."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Generate API documentation from the JSDoc in this package."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the dead branches and unused imports from config.ts."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Report which comments in the diff mention ticket numbers or PRs."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Do a gradual cleanup pass on the parsing code and ship it as a structure-only PR."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find TODO comments and turn them into tracker issues."
+    }
+  ]
+}

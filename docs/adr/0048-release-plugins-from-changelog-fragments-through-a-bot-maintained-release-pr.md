@@ -185,26 +185,31 @@ still carries its last released version.
   (<https://github.com/changesets/action>, fetched 2026-10-03). Rejected as a dependency: it reads
   versions from `package.json` workspaces, and these plugins are not npm packages. Its model is the
   one adopted here: per-change fragment files carrying a bump level, and a single release pull
-  request.
+  request. Recheck when changesets/action reads versions from something other than `package.json`
+  workspaces.
 - **Towncrier.** Fragments named `<id>.<type>` in a news directory; `towncrier build` writes them
   into the changelog and runs `git rm` on them, with a documented monorepo layout
   (<https://towncrier.readthedocs.io/en/stable/tutorial.html>, fetched 2026-10-03). Rejected as a
   dependency: a fragment declares a change type, not a semver bump level, and it needs a Python
-  toolchain in the release job. The fragment-per-change layout is the same idea.
+  toolchain in the release job. The fragment-per-change layout is the same idea. Recheck when the
+  towncrier tutorial documents a fragment type that carries a semver bump level.
 - **release-please (manifest mode).** Tracks per-package versions in
   `.release-please-manifest.json` and computes the bump from Conventional Commits since the last
   release, with one combined release pull request or one per package
   (<https://github.com/googleapis/release-please/blob/main/docs/manifest-releaser.md>, fetched
   2026-10-03). Rejected: this repository squash-merges and writes one Conventional Commits title
   per pull request, often spanning several plugins, so the title cannot carry a per-plugin bump
-  level or per-plugin release notes, and the hand-written CHANGELOG prose would be lost.
+  level or per-plugin release notes, and the hand-written CHANGELOG prose would be lost. Recheck
+  when the release-please manifest docs describe per-package bump levels taken from outside
+  Conventional Commits titles.
 - **Omit `version`.** With `version` absent from both the manifest and the marketplace entry, a
   relative-path plugin in a Git-hosted marketplace takes "the commit SHA of the installed
   directory" as its version (<https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version>,
   fetched 2026-10-03). Deferred: it removes the race entirely, but the docs do not say whether that
   SHA is the last commit touching the plugin directory or the marketplace HEAD. If it is HEAD,
   every merge to main would refresh all 85 plugins for every user. The probe under Resolved
-  decisions settles it before phase 2.
+  decisions settles it before phase 2. Recheck when the loading page states which commit the SHA
+  version comes from.
 - **Compute the version at merge time.** A post-merge job bumps on main. Rejected: main requires a
   pull request for every change, so a direct push needs a ruleset bypass for the bot, which widens
   who can write to main without review.
@@ -258,11 +263,22 @@ proven.
    to fragments for listed plugins, because `harness-ops` takes Dependabot updates. Convert
    open pull requests that hand-bump a newly listed plugin with
    `plugins/source-control/scripts/convert-bump-to-fragment.sh`. Legacy plugins keep the per-PR
-   bump and the resolver. Rollback: as in phase 2, per plugin.
+   bump and the resolver. Rollback: as in phase 2, per plugin. On 2026-10-07 eight more joined,
+   because their `plugin.json` and `CHANGELOG.md` caused every merge conflict among that night's
+   parallel pull requests while no listed plugin conflicted. Their `plugin.json` changes in the 7
+   days to 2026-10-07: `discovery` (37), `harness-config` (35), `knowledge` (32),
+   `plugin-quality` (23), `evals` (19), `multi-agent` (19), `discipline` (13) and
+   `harness-memory` (11).
 4. **Fleet.** Add every remaining plugin, let `new-changelog-fragment.sh` write one fragment for
    every plugin that carries an edited shared library, update `docs/migration-playbook.md` and
    ADR 0019, and update the contributor instructions listed under Consequences. Rollback: empty
-   the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins.
+   the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins. On
+   2026-10-09 the remaining 68 plugins joined, so the list names all 87. In the 7 days to
+   2026-10-09 their `plugin.json` changed 845 times on main, led by `review` (34), `work-items`
+   (33), `rate-limit-guard` (27) and `animation` (22). The carrier fragments
+   (`new-changelog-fragment.sh --carriers-of`), the ADR 0019 amendment, `docs/migration-playbook.md`
+   and `AGENTS.md` already key on the list, so they needed no change; phase 5 rewords them for
+   "all plugins".
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4.

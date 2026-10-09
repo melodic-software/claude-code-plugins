@@ -1,0 +1,8 @@
+{
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Resolving pull-request review threads opened by review bots (GitHub Bot accounts, such as chatgpt-codex-connector) with the `gh api graphql` mutation `resolveReviewThread`, on a pull request this session opened, after a commit pushed to the pull request's head branch fixed the thread's finding."
+    ]
+  }
+}

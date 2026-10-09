@@ -125,9 +125,9 @@ The engine records the installed Claude Code version itself (`claude --version`,
 `claude_version`); version-gated rows are evaluated against it, and Phase 3.2 compares issue-fix
 versions against it. An unreadable version turns those rows into `skip`, never clean.
 
-It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
+It also reads the upstream pages its rows rest on, every run, so a default run needs the network (`--max-age 0` asks the server every time, so a failed fetch is `unread`, never a stale cached copy).
 It hands the docs index (`llms.txt`) and each page it needs to the plugin's shared fetcher,
-`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh`, which resolves the page from a link there and reads it verbatim to a file.
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh --cache --max-age 0`, which resolves the page from a link there and reads it verbatim to a file.
 The `docs` object in the document is the coverage record, built from the fetcher's manifest: the
 index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
 and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
@@ -222,8 +222,8 @@ names, model configuration, permission syntax, and known issues.
 **Read every page in this phase verbatim, not through a summarizer.** These pages are long, with
 `settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
 then reports the rows past the cutoff as *absent*. So for each page,
-run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --out <dir> <page>...` to fetch the pages
-into one directory and grep the files, per the
+run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> <page>...` to fetch
+fresh bytes into one directory and grep the files, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 **A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
@@ -470,8 +470,8 @@ Put that path in place of the placeholder before running a command or writing it
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

@@ -60,6 +60,8 @@ Classify each changed file:
 | Project file / build infrastructure changes | Architecture tests (when the project has an architecture-test project) |
 | UI components (Blazor, HTML, JS frameworks) | E2E testing via browser automation (see `/testing:run-e2e`) |
 | Analyzer / lint rules | Analyzer tests (verify diagnostic output) |
+| Parser, serializer, pure transform, collection or stateful class | Property tests beside examples (invariants from the spec, a model or metamorphic relation; see `/testing:write`) |
+| Replace, rewrite, migrate or port of existing behavior | Characterization or differential tests first (old output as a pin, intentional differences in a ledger; see `/testing:write`), then the usual rows for the new code |
 
 ### 2. Generate the test plan
 
@@ -78,6 +80,12 @@ For each change area, produce (test-name forms follow the project's documented p
 
 ### Architecture tests
 - [ ] {Rule}_Should{Constraint} — {if project structure changed}
+
+### Property tests (if parsers, serializers, transforms or stateful classes changed)
+- [ ] {Property stated from the spec} — {pattern: model, metamorphic, round trip}
+
+### Pins (if replacing or migrating behavior)
+- [ ] {Behavior pinned} — {recorded corpus, comparator, intentional-differences ledger}
 
 ### E2E verification (if UI/API changes)
 - [ ] Navigate to {endpoint}, verify {behavior}

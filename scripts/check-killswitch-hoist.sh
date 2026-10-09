@@ -190,6 +190,8 @@ done
 # async row on those four is still scanned. SessionStart is scanned: that page
 # says only that "Exit code 2 isn't honored for this event", and nowhere that a
 # SessionStart hook runs in the background or does not delay the session.
+# Recheck when that section changes the list of events that ignore `async: true`
+# or says a SessionStart hook can run without delaying the session.
 SYNC_ONLY_EVENTS=" UserPromptSubmit UserPromptExpansion PreModelSwitch MessageDisplay "
 blocking=()
 unreadable=()

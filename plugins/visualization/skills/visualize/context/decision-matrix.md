@@ -232,7 +232,8 @@ owned by the plugin README's future-change section.
 ## Sources and verification
 
 Verified 2026-07-22 via a research fan-out over official documentation; re-fetch
-before relying on a time-sensitive detail.
+before relying on a time-sensitive detail, and recheck when the interactive-mode page changes
+what terminal Markdown rendering covers.
 
 - Terminal Markdown rendering (code-block syntax highlighting, hyperlinks):
   `https://code.claude.com/docs/en/interactive-mode.md`.
@@ -257,9 +258,11 @@ before relying on a time-sensitive detail.
   page).
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
-- Plugin manifest / `userConfig` schema (no native enum type):
-  `https://code.claude.com/docs/en/plugins-reference` (fetched this session).
-- Third-party survey: `https://code.claude.com/docs/en/discover-plugins`, the
+- Plugin manifest / `userConfig` schema (a `string` field takes a fixed value list through `options`,
+  Claude Code v2.1.271 or later; as of 2026-10-07, recheck when `options` is renamed, extends to
+  other field types, or its version floor moves):
+  `https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options`.
+- Third-party survey: `https://code.claude.com/docs/en/plugins/install`, the
   community catalog at
   `https://raw.githubusercontent.com/anthropics/claude-plugins-community/main/.claude-plugin/marketplace.json`,
   and the candidate repos `antvis/mcp-server-chart`, `veelenga/claude-mermaid`,

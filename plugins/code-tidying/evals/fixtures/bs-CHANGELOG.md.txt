@@ -1,0 +1,7 @@
+# Changelog
+
+## 0.2.0
+- Renamed the greeting function.
+
+## 0.1.0
+- Added `say_hello` greeting script.

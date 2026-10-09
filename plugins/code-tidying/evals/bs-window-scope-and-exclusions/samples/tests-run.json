@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tests/run.sh"
+          }
+        }
+      ],
+      "why": "ran the project's test command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n src/greet.sh"
+          }
+        }
+      ],
+      "why": "syntax check only"
+    }
+  ]
+}

@@ -13,7 +13,7 @@ prerequisites. `library_dir` is a personal `userConfig` option. Claude Code prom
 the plugin is enabled, stores non-sensitive options in user settings, and ignores project/local
 `pluginConfigs` entries on current releases.
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and

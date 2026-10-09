@@ -18,8 +18,9 @@ handles built-in commands.
 1. **A running session keeps its launch-time plugin versions.** Merging to the
    marketplace source does nothing to a live session until the local install is
    updated; Claude Code's post-start auto-update runs once (random delay ≤ 10 min)
-   and "the running session keeps using the versions it loaded at launch"
-   ([discover-plugins](https://code.claude.com/docs/en/discover-plugins)).
+   and "The running session keeps the versions it loaded"
+   ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs), read 2026-10-07; recheck when that section says a running session picks
+   up an updated plugin).
 
 2. **`/loop` does not re-read the skill each cycle.** A rendered `SKILL.md` enters
    the conversation once and "stays there for the rest of the session … Claude Code
@@ -77,11 +78,11 @@ lane_launch_commit="$(cat "$data_dir/lanes/$repo_key/<lane>-launch-commit" 2>/de
 ```
 
 **`data_dir` comes from SKILL.md, not from the environment.** Per current
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
 `${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
 processes and MCP/LSP server subprocesses; for a plugin's **skill and agent
-content** it instead resolves by inline substitution "anywhere the placeholder
-appears". The dated record for that export claim is SKILL.md, the `--data-dir`
+content** it instead resolves by inline substitution "Anywhere in the Markdown
+body". The dated record for that export claim is SKILL.md, the `--data-dir`
 note under "Action Router". Both facts cut against resolving it here: this reference file is read
 raw rather than rendered as skill content (so a placeholder written here would
 not substitute), and the probe runs through the Bash tool (so the env var is

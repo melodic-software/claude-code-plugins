@@ -13,7 +13,9 @@ name: pr-bump-plugin-version
 #
 # Commit messages include [dependabot skip] so Dependabot may force-push over
 # the bot commit when rebasing (GitHub docs: Managing pull requests for
-# dependency updates; verified 2026-09-27). The bump is created through the
+# dependency updates; verified 2026-09-27; recheck when that page stops
+# naming `[dependabot skip]` as the way to let Dependabot rebase over a
+# commit). The bump is created through the
 # GraphQL createCommitOnBranch mutation, not a local git commit and push, so
 # GitHub signs the commit and marks it Verified, which a required_signatures
 # ruleset accepts. A local commit pushed with GITHUB_TOKEN is unsigned.

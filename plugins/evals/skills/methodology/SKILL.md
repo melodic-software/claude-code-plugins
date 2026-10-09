@@ -56,6 +56,8 @@ the source page is the place to check.
   never easier cases.
 - "Can I trust my LLM grader?" → Only after reading samples of its verdicts against your own
   judgment; and grade with a different model than the one that generated the output.
+- "How do I grade an agent?" → On the environment state it left, with a grader it cannot reach;
+  see [Agent evals: grader hygiene](#agent-evals-grader-hygiene).
 - "One metric or several?" → Several. Most use cases need multidimensional criteria (fidelity +
   safety + latency + cost); a single headline metric hides regressions.
 
@@ -65,6 +67,27 @@ The target-number rule is this repository's reading of the achievable property:
   <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria>.
 - **As of**: 2026-10-02
 - **Recheck trigger**: that section changes what it names as grounds for a target.
+
+## Agent evals: grader hygiene
+
+When the thing under test is an agent that acts over many turns and changes an environment, three
+rules hold in this repository:
+
+- Grade the outcome, the state the agent left the environment in, not the transcript's claim that
+  the work is done. An agent saying the record exists is not evidence that it does; the grader
+  checks the record.
+- Keep graders out of the agent's reach. A check the agent can read, edit or special-case is one
+  it can pass without doing the task, so graders and their expected values sit where the agent
+  under test cannot change them.
+- Read transcripts anyway, in samples, to catch an agent gaming a grader that passed it.
+
+- **Pointer**: for the transcript and outcome distinction, grader robustness and transcript
+  reading, see Anthropic's "Demystifying evals for AI agents" (2026-01-09)
+  <https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents>. Read through a fetch
+  summary with quoted sentences, not a raw-text check.
+- **As of**: 2026-10-06
+- **Recheck trigger**: the post is revised, or the develop-tests page above starts covering agent
+  evals; then the pointer moves there.
 
 ## Maintainer `update` action
 

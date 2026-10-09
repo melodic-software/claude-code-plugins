@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "ratelimit.py: 0 finding(s) \u2014 T1=0, T2=0\n\nNo residue found.\n\nTotal: 1 file(s) audited, 0 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "Total: 1 file(s) audited, 0 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "ratelimit.py: 0 findings."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "ratelimit.py: 1 finding(s) \u2014 T1=1, T2=0\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | origin-note | 2 | \"# Licensed under the MIT License; adapted from the tokenbucket project.\" | Delete |\n\nTotal: 1 file(s) audited, 1 Tier 1, 0 Tier 2 findings.",
+      "why": "license line flagged"
+    },
+    {
+      "answer": "The comments in ratelimit.py look fine to me.",
+      "why": "no count"
+    }
+  ]
+}

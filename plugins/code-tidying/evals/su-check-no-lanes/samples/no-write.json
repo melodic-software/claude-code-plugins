@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/README.md"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.claude/tidy-lanes/apps.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a write"
+    }
+  ]
+}

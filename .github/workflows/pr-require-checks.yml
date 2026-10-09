@@ -49,11 +49,13 @@ on:
   # required check that never reports on it leaves the queued pull request
   # unmergeable. A merge-group run carries no `github.event.pull_request`, so
   # every expression below that reads one takes its non-PR branch: the
-  # contract-only and draft gates are false, so every lane runs in full; the
+  # contract-only and draft gates are false, so no lane is gated off; the
   # concurrency group falls back to `github.run_id`, so no queued run cancels
-  # another; the docs-only detector does not run, the detect-changes action
-  # fails open and `select-tests` resolves no diff base, so the whole tree is
-  # tested; the base-diff gates decline as on a schedule run; `check-contract` finds no pull
+  # another; `select-tests` diffs against the queue's base
+  # (`github.event.merge_group.base_sha`), so the test lanes run the suites
+  # the group's own diff selects, as its pull request did, while the
+  # detect-changes action, which reads only a pull request's files, fails
+  # open; the base-branch gates decline as on a schedule run; `check-contract` finds no pull
   # request number and reports `skipped`, because the title and linkage were
   # already checked on the pull request before it could enter the queue, and a
   # label can land after enqueue, so a step of its own re-reads `do-not-merge`
@@ -102,9 +104,9 @@ concurrency:
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One resolver, `select-tests`, seven working jobs,
+# (`bash`, `python`, `node`). One resolver, `select-tests`, eight working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
-# `test-python` and `test-node`, and one aggregate, `ci-status`, whose name,
+# `test-python`, `test-node` and `check-managed-files`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
 # for a portable lane, and no job name another workflow here also uses. A gate
@@ -136,6 +138,14 @@ concurrency:
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
 # ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
 # not given a longer one.
+#
+# CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
+# actions/cache/restore, and its save step runs only on refs/heads/main (the
+# scheduled and dispatch runs) after a miss. A pull-request or merge-group ref
+# can restore main's caches but no other ref's, so an entry such a ref saves
+# serves that ref alone: on 2026-10-09, 169 of 190 entries were, with the
+# repository at 10.67 GB against the 10 GB cap. The setup-node and setup-python
+# `cache:` input always saves, so neither step sets it.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
@@ -156,8 +166,8 @@ jobs:
   # non-zero exit, or an output file it could not write — leaves
   # `steps.detect.outputs.docs_only` unset, which every expression below
   # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a run with no diff base (a schedule or dispatch run, or a
-  # merge group), where the detect step does not run at all. The
+  # path covers a run with no diff base (a schedule or dispatch run), where
+  # the detect step does not run at all. The
   # narrowing clauses read the detect-changes action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
@@ -261,12 +271,16 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. Every other run gets no base: the whole tree.
-      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
+      # branch, and a merge group against the queue's base commit, unless its
+      # diff touches a plugin or marketplace manifest, as a release does. A schedule
+      # or dispatch run gets no base: the whole tree, the net for what a diff
+      # cannot show. scripts/resolve-diff-base.sh holds the rules and logs why
+      # it chose.
       - name: Resolve the diff base
         id: base
         env:
           BASE_REF: ${{ github.base_ref }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
@@ -307,7 +321,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           filters: |
             shell:
@@ -524,18 +538,28 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # Actions security lint, previously the `zizmor` reusable-workflow job.
       # It is a hash-pinned wheel from .github/requirements-ci.txt now, at the
       # same 1.27.0 the reusable takes by default at its pinned SHA, run with
       # the reusable's own persona so this is a like-for-like replacement and
-      # no security-lane behaviour changes inside a performance change. The
+      # no security-lane behavior changes inside a performance change. The
       # reusable ran in SARIF mode and gated on `fail-on-severity: low`; the
       # github format exits non-zero on any finding, which is the same
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
@@ -752,24 +776,33 @@ jobs:
       # the package on every run; the npx cache keeps it. Keyed on the
       # composite pin, which fixes the version.
       - name: Restore the markdownlint download
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: npx_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-fb56986808750d6856c27de78df15e150027b8dc
+          key: npx-markdownlint-cli2-${{ runner.os }}-ab83b01273026ab5c23c6f3b40e946d97a863fa2
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
+      - name: Save the markdownlint download
+        if: github.ref == 'refs/heads/main' && steps.npx_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm/_npx
+            ~/.npm/_cacache
+          key: ${{ steps.npx_cache.outputs.cache-primary-key }}
 
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           config: _typos.toml
           # A pack's vendored baseline is replaced verbatim from upstream by its
@@ -789,7 +822,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -797,7 +830,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           config: .editorconfig-checker.json
 
@@ -811,13 +844,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -825,7 +858,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -833,17 +866,17 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
-            .github/workflows/release-plugins.yml
+            .github/workflows/release-publish-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -876,12 +909,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -967,11 +1000,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: .github/standards/runner-policy/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json') }}
       - name: Install pinned runner-policy dependencies
         if: needs.select-tests.outputs.run_workflows == 'true'
         run: npm ci --prefix .github/standards/runner-policy
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
       - name: Enforce runner policy
         id: runner_policy
         if: needs.select-tests.outputs.run_workflows == 'true'
@@ -1080,12 +1124,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # Every guard ships a `<name>_enabled` switch, and an operator who turns
       # one off is entitled to stop paying for it. Reading that switch through
@@ -1273,7 +1327,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1335,12 +1389,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
@@ -1557,7 +1621,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1565,7 +1629,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -1593,13 +1657,24 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
       - name: Install the locked root toolchain
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           npm ci
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
 
       # The html-assets gate needs the root npm ci above (its linter is the
       # exact-pinned htmlhint in node_modules/.bin): a tracked rendered-view
@@ -1760,12 +1835,22 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: .github/requirements-ci.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt') }}
       - name: Install the pinned YAML reader
         run: |
           python -m pip install --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
 
       - name: Check every crosswalk row argues its disposition from a stated test
         id: detector_findings_crosswalk
@@ -1780,7 +1865,8 @@ jobs:
       # A missing or older binary is exit 2, so this job cannot skip the tool.
       # The download is cached by version, as in `test-bash`.
       - name: Restore the pinned tool downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tools_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1
@@ -1800,6 +1886,12 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
+      - name: Save the pinned tool downloads
+        if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools
+          key: ${{ steps.tools_cache.outputs.cache-primary-key }}
 
       # Both directions of the detector/eval check-id crosswalk: every id a
       # detector emits must be named by an eval case, and every id an eval case
@@ -1871,15 +1963,33 @@ jobs:
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
-      # and on every other run. Elsewhere an unchanged skill's check-25
+      # on a merge group only when its diff touched the same inputs, and on
+      # every schedule or dispatch run. Elsewhere an unchanged skill's check-25
       # verdict cannot have moved, because nothing it reads changed, and a
       # changed skill is checked by the next step, which fails it on check 25
       # like any other FAIL. The one verdict a diff can no longer see is a stale
       # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
       # the list has no active rows, and the scheduled run still reports one.
+      #
+      # detect-changes reads only a pull request's files, so on a merge group
+      # every group reports true and the diff is checked here instead, against
+      # the `skill_checker` group's paths.
       - name: Gate every skill on description/verb-contract polarity (check 25)
         if: needs.select-tests.outputs.run_skill_checker == 'true'
-        run: bash scripts/check-all-skills-verb-contract.sh
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ] && [ -n "$DIFF_BASE" ]; then
+            touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
+              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt \
+              scripts/lib .github/workflows/pr-require-checks.yml) ||
+              touched="(git diff failed)"
+            if [ -z "$touched" ]; then
+              echo "::notice::No check-25 input changed since $DIFF_BASE; the scheduled run checks every skill."
+              exit 0
+            fi
+          fi
+          bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1894,7 +2004,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -1940,8 +2050,17 @@ jobs:
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
       - name: Test the invocation-probe harness
         run: bash plugins/skill-quality/scripts/measure-invocation.test.sh
+      # One validate per plugins/<plugin>/probes directory; any failing
+      # directory fails the step after every directory has reported.
       - name: Validate invocation probes
-        run: bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/skill-quality/probes
+        run: |
+          status=0
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            bash plugins/skill-quality/scripts/measure-invocation.sh validate "$dir" || status=1
+            echo "::endgroup::"
+          done < <(find plugins -mindepth 2 -maxdepth 2 -name probes -type d | sort)
+          exit "$status"
       # Report-only (always exit 0 — see the script's own header): pools every
       # plugin's skills root into ONE shared aggregate, the shape a consumer who
       # installs the whole marketplace actually experiences.
@@ -2039,7 +2158,7 @@ jobs:
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
   # that wrapper in `test-bash`, and a Pester suite in pr-test-windows.yml. The
-  # whole tree (a schedule, a dispatch, a merge group, or a change
+  # whole tree (a schedule, a dispatch, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
@@ -2094,25 +2213,28 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            .github/standards/runner-policy/package-lock.json
-            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            .github/requirements-ci.txt
-            .github/requirements-ci-animation.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
       - name: Install and verify ShellCheck toolchain
         # This canonical action also makes the exact ShellCheck version
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2124,7 +2246,8 @@ jobs:
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
       # too.
       - name: Restore the pinned tool downloads
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: tools_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5
@@ -2176,6 +2299,18 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
@@ -2197,6 +2332,12 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      - name: Save the pinned tool downloads
+        if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools
+          key: ${{ steps.tools_cache.outputs.cache-primary-key }}
       # A leg with no suites is a broken plan, never "nothing to do": the plan
       # makes no more legs than it has suites.
       - name: Run this leg's shell suites
@@ -2252,18 +2393,22 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
-          cache: pip
-          cache-dependency-path: |
-            .github/requirements-ci.txt
-            .github/requirements-ci-animation.txt
+      - name: Restore the pip cache
+        id: pip_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', '.github/requirements-ci-animation.txt') }}
       - name: Install locked plugin test toolchains
         run: |
           # The same pin-equality check test-bash makes: a Python pin change runs this lane.
@@ -2285,6 +2430,18 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+      - name: Save the pip cache
+        if: github.ref == 'refs/heads/main' && steps.pip_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip_cache.outputs.cache-primary-key }}
       - name: Run this leg's Python suites
         env:
           ANIMATION_REQUIRE_DEPS: '1'
@@ -2329,13 +2486,12 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            plugins/miro/server/package-lock.json
-            plugins/ai-briefing/skills/generate/output/build/package-lock.json
-            plugins/knowledge/skills/video-digest/extraction/package-lock.json
-            plugins/knowledge/skills/course-digest/extraction/package-lock.json
-            .github/actions/resolve-config/package-lock.json
+      - name: Restore the npm cache
+        id: npm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'plugins/miro/server/package-lock.json', 'plugins/ai-briefing/skills/generate/output/build/package-lock.json', 'plugins/knowledge/skills/video-digest/extraction/package-lock.json', 'plugins/knowledge/skills/course-digest/extraction/package-lock.json', '.github/actions/resolve-config/package-lock.json') }}
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -2454,6 +2610,43 @@ jobs:
             exit 0
           fi
           scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
+      - name: Save the npm cache
+        if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ steps.npm_cache.outputs.cache-primary-key }}
+
+  # A pull request that hand-edits a file the standards sync-manifest manages
+  # fails. A standards-sync pull request (melodic-standards-sync[bot], head
+  # `chore/standards-sync`, same repository) passes only when every commit is
+  # the sync App's and its content equals sync-manifest apply at standards main
+  # HEAD. That replaces code-owner review of sync pull requests, so the job is a
+  # trust boundary only while all of this holds: the action pinned by full SHA,
+  # called from this code-owned file, exactly the permissions below, full
+  # history, and no paths filter. A merge group, schedule or dispatch run has
+  # no pull request diff and passes. The synced
+  # pr-check-managed-files-hosted.yml runs the same guard advisory and
+  # paths-filtered; this job is the gate.
+  check-managed-files:
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Sync mode lists the pull request's commits to verify their identity.
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The guard diffs base...head; both commits must be present.
+          fetch-depth: 0
+      - name: Guard managed files
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@ab6d4048f3ca4fb9c855cc088003f0499fcc5cdb # v0.39.4
 
   ci-status:
     needs:
@@ -2465,6 +2658,7 @@ jobs:
       - test-bash
       - test-python
       - test-node
+      - check-managed-files
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the aggregation below
     # turns it red. A success-guard would skip the job, and a skipped required
@@ -2493,7 +2687,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -2578,7 +2772,7 @@ jobs:
       # (HEADGREEN would need every entry read), so failing on an earlier
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
-      # dequeue the pull request as well. An unparseable ref or an unreadable
+      # dequeue the pull request as well. An unparsable ref or an unreadable
       # label list fails closed. Pinned by scripts/ci-hold-merge-group.test.sh,
       # which runs this body.
       - name: Fail a queued pull request labeled do-not-merge
@@ -2638,7 +2832,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

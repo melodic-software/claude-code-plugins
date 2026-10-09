@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: bash tests/run.sh\n      - run: bash tests/run.sh\n",
+      "why": "duplicate step still there"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "name: ci\non: [push]\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: bash tests/run.sh\n",
+      "why": "duplicate step removed"
+    }
+  ]
+}

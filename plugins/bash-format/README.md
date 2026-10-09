@@ -28,6 +28,14 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
   and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
   vendored scripts) is honored even on a single edited file.
+- **Pre-existing drift is left alone.** shfmt runs only when the file was already
+  shfmt-clean under your `.editorconfig` before the edit: the hook checks the
+  pre-edit bytes (the Write/Edit `tool_response.originalFile`) with
+  `shfmt -d --filename`. A file that drifted from your style, for example
+  flush-left `case` arms written before `switch_case_indent = true` was added,
+  keeps its existing layout, so a small edit stays a small diff. A new file is
+  formatted. The check costs one `jq` and one `shfmt` on an edit to an existing
+  file under the opt-in.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an
   unquoted subscript as arithmetic and spaces it, because it cannot know the
   array is associative, so `${m[a-b]}` would become the different key
@@ -245,7 +253,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

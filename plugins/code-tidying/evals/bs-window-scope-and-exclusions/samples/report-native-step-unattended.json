@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Batch Simplify Results\n\nNative step: simplify\nState: skipped (unattended)\nScope: none\nOutside-scope changes: none\n",
+      "why": "block present"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Native step: simplify\nState: ran\n",
+      "why": "wrong state"
+    },
+    {
+      "answer": "Simplified 2 files.",
+      "why": "no block"
+    }
+  ]
+}

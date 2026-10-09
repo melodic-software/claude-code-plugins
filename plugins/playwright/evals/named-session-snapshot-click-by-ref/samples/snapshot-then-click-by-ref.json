@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "```bash\nplaywright-cli -s=cart open http://localhost:3000\nplaywright-cli -s=cart snapshot\n# find the Add to cart ref in the YAML, e.g. e42\nplaywright-cli -s=cart click e42\n```", "why": "concrete ref"},
+    {"answer": "playwright-cli -s=cart snapshot\nplaywright-cli -s=cart click eNN   # ref from the snapshot", "why": "placeholder ref"},
+    {"answer": "playwright-cli -s=cart snapshot\nplaywright-cli -s=cart click <ref-from-snapshot>", "why": "angle-bracket ref placeholder"},
+    {"answer": "REF=$(playwright-cli -s=cart --raw snapshot | grep -m1 'Add to cart' | sed -E 's/.*ref=(e[0-9]+).*/\\1/')\nplaywright-cli -s=cart click \"$REF\"", "why": "quoted variable ref from a snapshot"},
+    {"answer": "playwright-cli -s=cart find \"Add to cart\"\nplaywright-cli -s=cart click <ref>", "why": "ref from find"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "playwright-cli -s=cart open http://localhost:3000\nplaywright-cli -s=cart click e42", "why": "click by ref with no snapshot first"},
+    {"answer": "playwright-cli -s=cart snapshot\nplaywright-cli -s=cart click \"button:has-text('Add to cart')\"", "why": "snapshot then CSS selector"},
+    {"answer": "Here is how to write a Jest unit test for the cart reducer.", "why": "answer to a different question"}
+  ]
+}

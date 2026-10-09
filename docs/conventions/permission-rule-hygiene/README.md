@@ -30,7 +30,8 @@ Read every "under auto mode" clause below as the **default** condition on the pl
 operators use, not as a conditional one. The upstream page no longer dates the rollout. It states a
 version floor. Per
 [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-(fetched 2026-08-17):
+(fetched 2026-08-17; recheck when that section changes the version floors or the default-mode
+prompt):
 
 > The built-in `auto` default requires Claude Code v2.1.228 or later on macOS, Linux, and WSL, and
 > v2.1.233 or later on native Windows. On earlier versions, the built-in default is Manual.
@@ -84,7 +85,8 @@ order:
 >
 > [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
 > ("How the classifier evaluates actions"; re-fetched 2026-08-26. The `Monitor` category was
-> added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode)
+> added upstream in v2.1.236, which before then left Monitor allow rules in effect in auto mode;
+> recheck when that dropped-rules list changes)
 
 The [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
 restates it and adds that `autoMode.classifyAllShell: true` suspends even the narrow shell allow rules:
@@ -135,7 +137,7 @@ anchors for the file tools, not shell-command expansion). A rule like
 
 Four substitutions *are* expanded in `allowed-tools`, and two of them only inside a plugin. Per
 [skills](https://code.claude.com/docs/en/skills#available-string-substitutions) (fetched
-2026-09-12): *"Claude Code substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in two
+2026-10-07; recheck when that section changes which tokens it substitutes in `allowed-tools`): *"Claude Code substitutes `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PROJECT_DIR}` in two
 places: the skill's markdown content, and Bash rules in the `allowed-tools` frontmatter. In a plugin
 skill, Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` in the same two
 places."* The `${CLAUDE_PROJECT_DIR}` substitution requires Claude Code v2.1.196 or later; below that
@@ -176,9 +178,9 @@ Three official constraints mean the operative allow-rule cannot be shipped by th
   (quotes re-verified 2026-08-31; recheck trigger: a fetch of that section no longer carrying
   these spans re-derives this bullet). Even so, auto mode still drops the broad/interpreter
   shapes.
-- **A plugin cannot ship permission rules.** A plugin's `settings.json` supports "Only the `agent` and
-  `subagentStatusLine` keys", per
-  [plugins-reference](https://code.claude.com/docs/en/plugins-reference) (Settings row). A
+- **A plugin cannot ship permission rules.** In a plugin's `settings.json`, "Only `agent` and
+  `subagentStatusLine` take effect", per
+  [`settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings). A
   `permissions` block placed there is inert.
 - **An agent editing its own settings to self-grant is blocked.** `defaultMode: "auto"` and
   `defaultMode: "bypassPermissions"` are ignored from project and local settings, so a repository
@@ -199,9 +201,9 @@ name narrowly:
 1. **Put the helper on PATH under a stable bare name.**
    - Pre-plugin: a small PATH shim in a directory already on your PATH (e.g. `~/.local/bin`, if it is
      on your PATH) that delegates through `$HOME` to the skill's self-locating wrapper.
-   - Post-migration: the plugin's `bin/` directory. "Executables added to the Bash tool's `PATH` …
-     as bare commands in any Bash tool call while the plugin is enabled", per
-     [plugins-reference](https://code.claude.com/docs/en/plugins-reference) (Executables row).
+   - Post-migration: the plugin's `bin/` directory. Files in `bin/` "are on the `PATH` of the Bash
+     tool's shell while the plugin is enabled, so Claude can run them as bare commands", per
+     [Executables](https://code.claude.com/docs/en/plugins/components#executables).
    - Wrappers self-locate their real directory (e.g. `readlink -f`) so they work via direct, shim, or
      symlink invocation.
 2. **Allow the bare name, narrowly.** `Bash(babysit_merge.sh:*)` is a narrow rule that carries over
@@ -250,10 +252,10 @@ Two consequences for anyone writing a guarded helper today:
 - **Invoke it by its bundled path**, the same form the sibling `scripts/` use. That is deterministic
   and works now. Resolve `${CLAUDE_PLUGIN_ROOT}` in skill or agent content, where it is substituted.
   It is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
-  empty string ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), Environment
-  variables).
-- **Do not assume the operator can pre-approve the helper.** `bash` is not one of the wrappers Claude
-  Code strips before matching, so a rule for a `bash <path> …` command has to name `bash`, making it
+  empty string ([Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)).
+- **Do not assume the operator can pre-approve the helper.** `bash` is not one of the
+  [wrappers Claude Code strips](https://code.claude.com/docs/en/permissions#process-wrappers)
+  before matching (as of 2026-10-07; recheck when that section's wrapper list changes), so a rule for a `bash <path> …` command has to name `bash`, making it
   interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
   wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
   (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
@@ -288,10 +290,39 @@ building on it.
 Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
 unvetted copy.
 
+## Probed behaviors
+
+These are observations, not upstream statements: each was measured by a case of
+`/harness-ops:behavior-probes` (case ids below; the outcome tables are in that skill's
+`records.md`). As of 2026-10-08, Claude Code 2.1.295, Linux (WSL2). Recheck trigger for each: the
+case fails, or `/harness-ops:changelog apply` lists it for a release range.
+
+- **A narrow allow rule is the operative grant in auto mode.** `Bash(git push --force origin main)`
+  let that exact command run where the classifier denied it without the rule. The rule matched only
+  the literal string: a `git -C <dir> push …` rewrite of the same push missed it and went to the
+  classifier. This is the correct pattern's premise, so write the rule for the exact command
+  operators are told to run. Pointer: `auto-mode/narrow-allow-rule-passes-classifier`, paired with
+  `auto-mode/classifier-denies-file-sourced-force-push`.
+- **A PreToolUse hook `allow` also skips the classifier**, so a plugin hook can pre-approve a
+  call where a plugin cannot ship an allow rule (anti-pattern 3). It is a hook, with the hook's
+  own review and failure modes, not a permission rule. Pointer: `hooks/pretooluse-allow-skips-classifier`.
+- **An ask rule never prompts under `claude -p`.** With no prompt host it becomes a denial
+  (`decision_reason_type: "rule"`), in the main agent and in a foreground subagent. Never document a
+  prompt for a headless or lane session. Pointer: `auto-mode/ask-rule-denies-in-print-mode`,
+  `auto-mode/subagent-ask-rule-denies`.
+- **`autoMode` rules in project settings are not applied; from `--settings` they are.** A repository
+  cannot steer the classifier through its own `.claude/settings.json`. A custom `soft_deny` list
+  without `"$defaults"` still kept the default rules, and a custom rule's denial carried a default
+  category label, not the rule's text. Pointer: `auto-mode/project-automode-rule-ignored`,
+  `auto-mode/flag-automode-rule-denies`, `auto-mode/soft-deny-without-defaults-keeps-defaults`.
+
 ## Sources
 
 - Auto-mode drop behavior and decision order: [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
 - `classifyAllShell`, narrow-rule carryover: [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
-- Literal matching, wildcard / `:*` semantics, process-wrapper stripping: [permissions](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
+- Literal matching, wildcard / `:*` semantics: [permissions](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
+- Process-wrapper and leading env-assignment stripping, and how allow rules differ from deny and ask
+  rules past an assignment: [permissions](https://code.claude.com/docs/en/permissions#process-wrappers),
+  as of 2026-10-07; recheck when that section's env-assignment paragraph changes
 - `allowed-tools` scope and `${CLAUDE_PROJECT_DIR}` substitution: [skills](https://code.claude.com/docs/en/skills)
-- Plugin `bin/` on PATH and the `agent`/`subagentStatusLine`-only `settings.json`: [plugins-reference](https://code.claude.com/docs/en/plugins-reference)
+- Plugin `bin/` on PATH and the `agent`/`subagentStatusLine`-only `settings.json`: [Executables](https://code.claude.com/docs/en/plugins/components#executables), [`settings`](https://code.claude.com/docs/en/plugins/manifest-reference#settings)

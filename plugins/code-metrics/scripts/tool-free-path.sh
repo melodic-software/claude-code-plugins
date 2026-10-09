@@ -135,7 +135,7 @@ cm_fill_tool_free_path() {
       if _cm_is_python_interp "$name"; then
         resolved="$(_cm_nonmutating_python "$exe")" && target="$resolved"
       fi
-      ln -s "$target" "$dest/$name"
+      MSYS=winsymlinks:nativestrict ln -s "$target" "$dest/$name"
     done
   done
 }
