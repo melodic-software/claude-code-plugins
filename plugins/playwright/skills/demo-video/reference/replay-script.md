@@ -21,7 +21,7 @@ export default async (demo) => {
 | `demo.type(step, target, text, { modal })` | `type`, `key`, `typed` | One key at a time, two captures per key. `modal`: the panel the shot frames while typing |
 | `demo.settle(step, { box, modal })` | `settled` | Waits for network idle and four identical captures. `box`/`modal`: the results area the typing shot frames |
 | `demo.style(css)` | | Injects CSS for the rest of the run; returns a remover. Hide flashing partial states with it |
-| `demo.moveTo(step, target)` | `move` | Cursor travel without a click |
+| `demo.moveTo(step, target)` | `move` | Cursor travel without a click. An id used only by `moveTo` is not a step: its travel plays inside the hold around it |
 | `demo.wait(ms)`, `demo.page` | | The Playwright page for anything else (`waitForURL`, `keyboard`) |
 
 Rules the edit relies on:

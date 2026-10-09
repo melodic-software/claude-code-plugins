@@ -235,6 +235,29 @@ class DemoPipelineSmoke(unittest.TestCase):
         layers = json.loads(edl_path.read_text())['layers']
         self.assertEqual({k for k, v in layers.items() if v}, {'cursor', 'ripple'})
 
+    def variant_capture(self, name, edit):
+        """A copy of the fixture capture whose events pass through edit(events)."""
+        dst = self.tmp / name
+        shutil.copytree(self.tmp / 'capture', dst)
+        tl = json.loads((dst / 'timeline.json').read_text())
+        edit(tl['events'])
+        (dst / 'timeline.json').write_text(json.dumps(tl))
+        return dst
+
+    def test_move_only_step_is_cursor_travel(self):
+        def edit(ev):
+            k = next(i for i, e in enumerate(ev) if e['name'] == 'move' and e['step'] == 'search')
+            ev[k]['from'] = {'x': 700, 'y': 60}
+            ev.insert(k, {'name': 'move', 'step': 'point-at-nav', 't': 1005.4, 't1': 1006.2,
+                          'from': {'x': 200, 'y': 331}, 'to': {'x': 700, 'y': 60}})
+        capture = self.variant_capture('capture-move-only', edit)
+        edl_path = self.tmp / 'edl-move-only.json'
+        r = run('build_edl.py', capture, self.tmp / 'script.json', edl_path)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        self.assertEqual([s['id'] for s in edl['steps']], ['get-started', 'search', 'open-result'])
+        self.assertIn({'x': 700, 'y': 60}, [m['to'] for m in edl['cursor']['moves']])
+
     def test_edl_plan_keeps_navigation_cuts_at_one_x(self):
         edl = json.loads(self.edl.read_text())
         self.assertEqual(len(edl['nav_cuts']), 2)   # two navigating steps in the fixture flow

@@ -195,9 +195,11 @@ def main(argv=None):
     def capture_at(t):
         return cap / frames[max(0, bisect.bisect_right(ftimes, t) - 1)]['file']
 
+    # a step id logged only by demo.moveTo is cursor travel, not a step: the cursor layer draws it
+    # inside whichever segment its source time falls in
     order = []
     for e in ev:
-        if e.get('step') and e['step'] not in order:
+        if e.get('step') and e['name'] != 'move' and e['step'] not in order:
             order.append(e['step'])
     by = {s: [e for e in ev if e.get('step') == s] for s in order}
 
@@ -221,7 +223,9 @@ def main(argv=None):
     infos = {s: script.get('steps', {}).get(s, {}) for s in order}
     steps = []
     for i, s in enumerate(order):
-        mv, ck, st, typ = first(s, 'move'), first(s, 'click'), last(s, 'settled'), first(s, 'type')
+        ck, st, typ = first(s, 'click'), last(s, 'settled'), first(s, 'type')
+        # the travel that ends at the click; an earlier demo.moveTo under the same id plays before it
+        mv = next((e for e in reversed(by[s]) if e['name'] == 'move' and e['t'] <= ck['t']), first(s, 'move'))
         nav = (ck.get('url') or '') != (st.get('url') or ck.get('url') or '')
         steps.append({'id': s, 'mv': mv, 'ck': ck, 'st': st, 'typ': typ, 'navigates': nav and not typ,
                       'caption': infos[s].get('caption', s), 'outcome': infos[s].get('outcome'),
