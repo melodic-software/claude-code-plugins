@@ -62,10 +62,10 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
 | `create` | Phase 2 | Branch-name check + commit + changelog fragments where the repo releases from them ([reference/create.md](reference/create.md) §2.3.3) + push + `gh pr create --draft`. Reports the PR URL and stops |
 | `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow**, the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --draft --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
-| `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run the code and security reviews over the PR diff in fresh-context subagents and the verify gate on the merged head, then flip the draft with `gh pr ready`. Refuses on a branch with no PR. See [reference/ready-for-review.md](reference/ready-for-review.md) |
+| `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run the code and security reviews over the PR diff in fresh-context subagents and the verify gate on the merged head, then flip the draft with `gh pr ready`. Never arms auto-merge: ready starts the AI reviews. Refuses on a branch with no PR. See [reference/ready-for-review.md](reference/ready-for-review.md) |
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a GitHub-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (30s `gh` poll); **(3) plain `gh` polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
-| `merge` | Phase 4 | Squash merge + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
+| `merge` | Phase 4 | Squash merge, or auto-merge armed with `--match-head-commit` once the AI review checks finish on that head (no strategy flag behind a merge queue; [reference/merge.md](reference/merge.md) §4.2.1) + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
@@ -226,7 +226,7 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 
 ## Important notes
 
-- **Side effects**, this skill commits, pushes, creates PRs, and merges. User approval gates at each dangerous step (commit message, CI fix, merge) provide safety, the skill itself enforces human checkpoints
+- **Side effects**, this skill commits, pushes, creates PRs, and merges. User approval gates at each dangerous step (commit message, CI fix, merge outside the [reference/merge.md](reference/merge.md) §4.2.1 auto-merge) provide safety, the skill itself enforces human checkpoints
 - **Finding verification is non-negotiable**. Agent recommendations have demonstrated error rates. Skipping verification presents potentially wrong advice
 - **Research-driven fixes** are the entire point of the monitor phase. The cost of a short research burst is near-zero; the cost of an unresearched fix is high
 - **Max 3 CI fix iterations**. Prevents infinite fix-push-fail loops
