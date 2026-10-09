@@ -258,6 +258,24 @@ class DemoPipelineSmoke(unittest.TestCase):
         self.assertEqual([s['id'] for s in edl['steps']], ['get-started', 'search', 'open-result'])
         self.assertIn({'x': 700, 'y': 60}, [m['to'] for m in edl['cursor']['moves']])
 
+    def test_typed_step_that_changes_url_is_a_navigation(self):
+        def edit(ev):
+            for e in ev:
+                if e['name'] == 'settled' and e['step'] == 'search' or e['name'] == 'click' and e['step'] == 'open-result':
+                    e['url'] = 'file:///docs.html?q=abc'
+        capture = self.variant_capture('capture-typed-nav', edit)
+        edl_path = self.tmp / 'edl-typed-nav.json'
+        r = run('build_edl.py', capture, self.tmp / 'script.json', edl_path)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        self.assertTrue(next(s for s in edl['steps'] if s['id'] == 'search')['navigates'])
+        self.assertEqual(len(edl['nav_cuts']), 3)
+        self.assertNotIn(('search', 'results'), {(sg['step'], sg['kind']) for sg in edl['segments']})
+        self.assertIn([1010.551, 1011.2], edl['forbidden_source'])   # typed + 0.05 s press through the settled page
+        for c in edl['nav_cuts']:
+            before = [k for k in edl['camera'] if k['t'] <= c]
+            self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
+
     def test_edl_plan_keeps_navigation_cuts_at_one_x(self):
         edl = json.loads(self.edl.read_text())
         self.assertEqual(len(edl['nav_cuts']), 2)   # two navigating steps in the fixture flow

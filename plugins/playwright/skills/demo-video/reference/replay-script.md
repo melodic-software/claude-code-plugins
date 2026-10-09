@@ -27,12 +27,13 @@ export default async (demo) => {
 Rules the edit relies on:
 
 - Every step is one `click` followed by one `settle` with the same step id; a typing step adds a
-  `type` between them. A click whose URL changes by `settle` is a navigation: the camera eases to
-  1.0x and cuts.
+  `type` between them. A step whose URL changes by `settle` is a navigation: the camera eases to
+  1.0x and cuts. In a typing step the cut starts when `type` returns, so submit after it (for
+  example `demo.page.keyboard.press('Enter')`), not with a newline inside the typed text.
 - A `block` must hug visible content. A block-level element's box spans its container, so build
   it with `demo.union` from elements that hug their text, or pass explicit coordinates.
-- Settle after every state change you want shown; anything between a navigating click and its
-  settled frame never reaches the video.
+- Settle after every state change you want shown; anything between a navigating click (or the
+  end of a navigating step's typing) and its settled frame never reaches the video.
 - Keep holds short with `demo.wait`: the edit sets output pacing, the replay only needs the page
   to have reached each state.
 

@@ -8,11 +8,12 @@ Camera rules (produced style):
     is not the page boundary lies in a gutter (no text line or block crosses it), and one caption
     anchor (primary, else the one fixed fallback) is empty page;
   - every zoom change is an eased move inside the motion limits (defaults.json "motion");
-  - a navigating click eases back to 1.0x and the camera is still across the hard cut; on the
-    landed page it pushes in on the next action or the content;
+  - a navigating step (a click, or typing that submits) eases back to 1.0x and the camera is still
+    across the hard cut; on the landed page it pushes in on the next action or the content;
   - a still stretch longer than the QC limit gets a slow gutter-snapped push-in.
-Other rules: nothing between a navigating click and the settled page reaches the output, nor any
-logged loading state; no transition other than the title dip (no crossfades).
+Other rules: nothing between a navigating click (or the end of a navigating step's typing) and the
+settled page reaches the output, nor any logged loading state; no transition other than the title
+dip (no crossfades).
 
 Narration (--audio-dir DIR): per caption one clip, DIR/<step>[.outcome|.results]/narration.wav with
 its words.json (the /speech:narrate output layout) or DIR/<step>[...].wav|.m4a. Leading silence is
@@ -119,7 +120,7 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origi
         ok &= (left <= limit) & (right <= limit) & (top <= limit) & (bottom <= limit)
         if budget is not None and origin is not None:
             ok &= move_seconds(origin, z, X, Y, W, H, cfg['motion']) <= budget
-        if exit_budget is not None:   # a navigating click's shot eases back to 1.0x before the cut
+        if exit_budget is not None:   # a navigating step's last shot eases back to 1.0x before the cut
             ok &= move_seconds([0.0, 0.0, W, H], z, X, Y, W, H, cfg['motion']) <= exit_budget
         if not ok.any():
             continue
@@ -227,7 +228,7 @@ def main(argv=None):
         # the travel that ends at the click; an earlier demo.moveTo under the same id plays before it
         mv = next((e for e in reversed(by[s]) if e['name'] == 'move' and e['t'] <= ck['t']), first(s, 'move'))
         nav = (ck.get('url') or '') != (st.get('url') or ck.get('url') or '')
-        steps.append({'id': s, 'mv': mv, 'ck': ck, 'st': st, 'typ': typ, 'navigates': nav and not typ,
+        steps.append({'id': s, 'mv': mv, 'ck': ck, 'st': st, 'typ': typ, 'navigates': nav,
                       'caption': infos[s].get('caption', s), 'outcome': infos[s].get('outcome'),
                       'target_box': ck['box'], 'block': ck.get('block')})
 
@@ -261,9 +262,14 @@ def main(argv=None):
         cur = shot or full
         stp['type_rect'] = stp['land_rect'] = None
         if typ and layers['camera']:
-            res_box = st.get('modal') or st.get('box') or typ.get('modal') or typ['box']
-            ink_r = Ink(capture_at(st['t']), W, H, CAM['word_gap'], st.get('modal'))
-            r = focus_rect(ink_r, res_box, typ['box'], W, H, cfg, pw, zr_shot, origin=cur, budget=P['open_modal'] + 0.35)[0]
+            if stp['navigates']:   # the settled frame is the next page: frame the field on the page typed into
+                res_box, modal = typ.get('modal') or typ['box'], typ.get('modal')
+                ink_r = Ink(capture_at(first(stp['id'], 'typed')['t']), W, H, CAM['word_gap'], modal)
+            else:
+                res_box = st.get('modal') or st.get('box') or typ.get('modal') or typ['box']
+                ink_r = Ink(capture_at(st['t']), W, H, CAM['word_gap'], st.get('modal'))
+            r = focus_rect(ink_r, res_box, typ['box'], W, H, cfg, pw, zr_shot, origin=cur, budget=P['open_modal'] + 0.35,
+                           exit_budget=1.0 if stp['navigates'] else None)[0]
             stp['type_rect'] = r
             cur = r or cur
         if stp['navigates']:
@@ -298,15 +304,17 @@ def main(argv=None):
             bounds = [typ['t']] + keys[1:] + [typed['t']]
             for k0, k1 in zip(bounds, bounds[1:]):
                 seg(k0, k1, 1 / P['type_cps'], s, 'type')
-            seg(typed['t'], st['t'], P['typed_to_settle'], s, 'results')
-        elif stp['navigates']:
-            press = ck['t'] + 0.05
-            seg(ck['t'], press, P['nav_press'], s, 'press')
-            r = stp['click_shot']
+        if stp['navigates']:   # from the click, or from the end of typing (the submit), to the landed page
+            t_act = typed['t'] if typ else ck['t']
+            press = t_act + 0.05
+            seg(t_act, press, P['nav_press'], s, 'press')
+            r = stp['type_rect'] or stp['click_shot']
             out_d = move_duration(r, full, 0.0, W, MOT) if r else 0.0
             seg(press, press, out_d + P['cam_clear'], s, 'exit')   # frozen page while the camera eases out
             stp['exit_ease'] = out_d
             forbidden.append((press + 1e-3, st['t']))
+        elif typ:
+            seg(typed['t'], st['t'], P['typed_to_settle'], s, 'results')
         else:
             seg(ck['t'], st['t'], P['typed_to_settle'], s, 'settle')
         nxt_mv = steps[k + 1]['mv']['t'] if k + 1 < len(steps) else None
@@ -450,7 +458,7 @@ def main(argv=None):
             plan.append((segments[seg_idx(stp['id'], 'open')[0]]['out0'], stp['type_rect'], 'type'))
         if stp['navigates']:
             ex = seg_idx(stp['id'], 'exit')
-            if ex and stp['click_shot']:
+            if ex and (stp['type_rect'] or stp['click_shot']):
                 plan.append((segments[ex[0]]['out0'], full, 'exit'))
             if stp.get('land_rect'):
                 plan.append((hold_seg(k)['out0'] + P['after_cut'], stp['land_rect'], 'land'))
@@ -587,7 +595,7 @@ def main(argv=None):
             r = stp.get(key)
             if r:
                 ink = Ink(capture_at(stp['st']['t'] if key == 'land_rect' else stp['ck']['t']), W, H, CAM['word_gap'],
-                          stp['st'].get('modal') if key == 'type_rect' else None)
+                          (stp['typ'].get('modal') if stp['navigates'] else stp['st'].get('modal')) if key == 'type_rect' else None)
                 bad = {e: v for e, v in edge_ink(ink, r, CAM['gutter_band'], W, H).items() if v > CAM['edge_ink']}
                 if bad:
                     errs.append(f"{stp['id']} {key} cuts content at {bad}")
@@ -608,7 +616,10 @@ def main(argv=None):
         'forbidden_source': [[round(x, 4), round(y, 4)] for x, y in forbidden],
         # while a modal is open only the modal is content; its dimmed backdrop is not
         'content_masks': [{'src0': s['typ']['t'], 'src1': steps[k + 1]['ck']['t'] + 0.05 if k + 1 < len(steps) else end_t,
-                           'box': s['st']['modal']} for k, s in enumerate(steps) if s['typ'] and s['st'].get('modal')],
+                           'box': s['st']['modal']} for k, s in enumerate(steps)
+                          if s['typ'] and not s['navigates'] and s['st'].get('modal')]
+                         + [{'src0': s['typ']['t'], 'src1': first(s['id'], 'typed')['t'] + 0.05, 'box': s['typ']['modal']}
+                            for s in steps if s['typ'] and s['navigates'] and s['typ'].get('modal')],
         'title': {'text': script.get('title', ''), 'subtitle': script.get('subtitle', ''), 'duration': P['title'] if layers['title'] else 0.0},
         'caption_style': {'height': CAP['pill_h'], 'fade': CAP['fade'], 'font_size': CAP['font_size'], 'font': a.font,
                           'background': [17, 20, 28], 'text': [255, 255, 255], 'margin': CAP['margin']},
