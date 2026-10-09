@@ -1,5 +1,5 @@
 ---
-description: "Audit permission and autonomy friction in your Claude Code sessions: denials, approval prompts, hook blocks, asks and hand-offs, traced to their cause and ending in one decision brief. Use when: 'audit my permission friction', 'why do I keep getting prompted', 'what is auto mode blocking', 'why does the agent keep asking me', 'did the permission fixes help'."
+description: "Permission and autonomy friction audit for Claude Code sessions: denials, approval prompts, hook blocks, asks and hand-offs, traced to their cause and ending in one decision brief. Use when auditing permission prompts, auto-mode denials or hook blocks, finding why the agent keeps asking or handing off, or re-measuring friction after permission fixes."
 argument-hint: "[remeasure] [--days <n>] [--project <text>] [--source <dir>] [--verify consequential|full|probes]"
 user-invocable: true
 disable-model-invocation: false
@@ -54,16 +54,34 @@ Apply this policy unless the person states another, and say once that it is in f
 - Read before step 2: [reference/outputs.md](reference/outputs.md) (each output file, and the brief
   and script templates) and [reference/classes.md](reference/classes.md) (the classes and routes).
 
+## Collaborators
+
+These skills belong to other plugins and are optional. Before the step that uses one, check that it
+is installed; when it is not, say so once in the report and take its fallback:
+
+- `/harness-config:audit-permission-state` (step 3): run `F cause` without `--merge`. It exits 1
+  and matches no rule, so the brief marks rule causes unmapped.
+- `/harness-config:audit-permission-grants` and `/harness-config:audit-automation-gaps` (step 3):
+  skip them and name each check not run.
+- `/harness-ops:behavior-probes` (step 5 and the Gotchas): mark platform-behavior claims unprobed.
+- `/discipline:do-your-research-deep` (step 5): one agent checks the selected claims against their
+  primary sources, citing each.
+- `/harness-config:draft-auto-mode-rules` (step 7): list the `classifier` groups in
+  `R/PR-DRAFTS.md` instead.
+- `/implementation:implement` and `/source-control:pull-request` (step 7): the drafts stand alone
+  for the person to apply.
+
 ## Pipeline
 
 ### 1. Collect and scope (script)
 
 Run `C collect --data-dir "<D>"` with the retention and excerpt options `/session-flow:audit-sessions`
-resolves (the same store; its Options section names them), then:
+resolves (the same store; its Options section names them), then pass the same three options
+(`<collector options>`) to `mine`, which forwards them to each `--source` collect:
 
 ```bash
-F mine --data-dir "<D>" <scope flags> --save-baseline --out "<R>/friction.json"
-F mine --data-dir "<D>" <scope flags> --format md
+F mine --data-dir "<D>" <scope flags> <collector options> --save-baseline --out "<R>/friction.json"
+F mine --data-dir "<D>" <scope flags> <collector options> --format md
 ```
 
 A first collect reads every transcript: give it a long timeout or run it in the background. Exit 1
@@ -139,7 +157,7 @@ every approval verbatim, with its date, in `R/DECISIONS.md`.
 
 ### Re-measure
 
-Once the fixes have seen some normal work, run `C collect`, then `F mine ... --out "<R>/friction.json"`
+Once the fixes have seen some normal work, run `C collect`, then `F mine ... <collector options> --out "<R>/friction.json"`
 over a window that starts after them, then `F diff --data-dir "<D>" --current "<R>/friction.json"
 --format md`, which compares events per session with the newest saved baseline. Exit 1 means a key
 is new or more frequent: report those first.

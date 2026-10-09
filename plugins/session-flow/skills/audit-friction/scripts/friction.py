@@ -4,6 +4,7 @@
 
     friction.py mine --data-dir D [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--days N] [--project TEXT]
                      [--session ID ...] [--source DIR ...] [--save-baseline] [--out FILE] [--format json|md]
+                     [--retention-days N] [--excerpt-chars N] [--excerpt-words N]
     friction.py cause --friction FILE [--merge FILE] [--out FILE] [--format json|md]
     friction.py estimate --inventory FILE [--probes N] [--format json|md]
     friction.py diff --current FILE (--baseline FILE | --data-dir D) [--format json|md]
@@ -12,7 +13,8 @@
 `friction` blocks into one file: counts per event key and side, a class hint per key, command shapes,
 secondary performance signals and the events themselves. `--source DIR` first runs the audit-sessions
 collector over DIR (laid out like `~/.claude/projects`) into its own store under
-`D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions.
+`D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions; the
+retention and excerpt options pass through to that collect.
 `cause` maps each denial and approved prompt to the permission rules that could match it, read from
 `permission-merge.sh` output. `estimate` sizes each verification mode from a claim inventory, with token and wall-clock ranges.
 `diff` compares a run with a baseline, per session and per active hour.
@@ -108,11 +110,11 @@ def source_store(data_dir: Path, source: Path) -> Path:
     return data_dir / "audit-friction" / "sources" / f"s-{digest}"
 
 
-def collect_source(data_dir: Path, source: Path, since: str) -> tuple[Path, dict]:
+def collect_source(data_dir: Path, source: Path, since: str, options: list[str]) -> tuple[Path, dict]:
     target = source_store(data_dir, source)
     done = subprocess.run(
         [sys.executable, str(COLLECTOR / "collect.py"), "collect", "--data-dir", str(target),
-         "--projects-root", str(source), "--since", since],
+         "--projects-root", str(source), "--since", since, *options],
         capture_output=True, text=True, encoding="utf-8", timeout=3600,
     )
     try:
@@ -234,10 +236,12 @@ def cmd_mine(args: argparse.Namespace) -> int:
     except ValueError:
         return emit(MINE_SCHEMA, "error", "--since and --until take YYYY-MM-DD", {}, 2)
     stores, sources, warnings = [data_dir], [], []
+    options = [part for flag in ("retention_days", "excerpt_chars", "excerpt_words") if getattr(args, flag) is not None
+               for part in ("--" + flag.replace("_", "-"), str(getattr(args, flag)))]
     for source in args.source or []:
         if not Path(source).is_dir():
             return emit(MINE_SCHEMA, "error", f"--source is not a directory: {source}", {"source": source}, 2)
-        store, envelope = collect_source(data_dir, Path(source), since.strftime("%Y-%m-%d"))
+        store, envelope = collect_source(data_dir, Path(source), since.strftime("%Y-%m-%d"), options)
         sources.append({"source": source, "store": str(store), "status": envelope.get("status"), "summary": envelope.get("summary")})
         if envelope.get("status") == "error":
             warnings.append(f"source {source}: {envelope.get('summary')}")
@@ -491,6 +495,9 @@ def main(argv: list[str] | None = None) -> int:
     mine.add_argument("--save-baseline", action="store_true")
     mine.add_argument("--out")
     mine.add_argument("--format", choices=("json", "md"), default="json")
+    # Passed to the collect --source runs, so a source store keeps the machine store's limits.
+    for flag in ("--retention-days", "--excerpt-chars", "--excerpt-words"):
+        mine.add_argument(flag, type=int)
     mine.set_defaults(func=cmd_mine)
     cause = sub.add_parser("cause")
     cause.add_argument("--friction", required=True)

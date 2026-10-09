@@ -389,7 +389,7 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other sixteen skills are zero-config.
+A check-centric setup for the **observer substrate only**. The other seventeen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;

@@ -142,6 +142,17 @@ def test_source_dirs_collect_into_their_own_store(tmp_path):
     assert len(list((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/*.json"))) == 1
 
 
+def test_source_collect_uses_the_given_excerpt_limits(tmp_path):
+    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
+    extra = copy_projects(tmp_path / "extra", tmp_path, "proj-f")
+    data_dir = tmp_path / "data"
+    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
+    data = data_of(friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(extra),
+                            "--excerpt-chars", "0", "--excerpt-words", "5"))
+    assert data["sources"][0]["status"] == "pass"
+    assert stored(Path(data["sources"][0]["store"]), "sess-f1")["excerpt_limits"] == {"chars": 0, "words": 5}
+
+
 MERGE = """CAVEAT: synthetic
 effective allow scopes=user precedence_basis=uncontested Bash(gh run watch *)
 effective ask scopes=project precedence_basis=uncontested Bash(rm -rf *)
