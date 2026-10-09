@@ -23,7 +23,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **Key principle: "no comments" ≠ "ready to merge."** An empty comment list may mean reviewers haven't posted yet, not that there are no issues. The readiness checklist includes a **cooldown period** (minimum 2 minutes after the last check-run completion or comment arrival) to prevent the race condition where monitor declares readiness before all actors post.
 
-**Bounded autonomy: monitor does not merge.** It evaluates, classifies, and recommends; merging is Phase 4. In `full` mode the readiness gates are checked automatically, never relaxed. Phase 4 arms auto-merge without asking only under [merge.md](merge.md) §4.2.1: after the AI review checks have finished on the head commit, pinned with `--match-head-commit`, and with no strategy flag behind a merge queue. Every other merge waits for the user's approval (`/source-control:pull-request merge` or a manual `gh pr merge`). Never arm `--auto` at `ready` or before those reviews report, and never pass `--admin`, `--merge` or `--rebase`.
+**Bounded autonomy: monitor does not merge.** It evaluates, classifies, and recommends; merging is Phase 4. In `full` mode the readiness gates are checked automatically, never relaxed. Phase 4 merges or enqueues without asking only under [merge.md](merge.md) §4.2.1: once the PR is `CLEAN` and the AI review checks have passed on the head commit, pinned with `--match-head-commit`, with no strategy flag behind a merge queue. Every other merge waits for the user's approval (`/source-control:pull-request merge` or a manual `gh pr merge`). Never arm auto-merge (`--auto`), and never pass `--admin`, `--merge` or `--rebase`.
 
 ## 3.0.0 Cloud session baseline poll
 
