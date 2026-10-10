@@ -61,9 +61,10 @@
 # writes (default .claude/skills/feature-map). It is a repository path, so only
 # the overlay and testing.yaml set it: no --user value, and the user-global
 # file is skipped with a warning. A value that is absolute, contains `..`, is
-# the repository root, holds a character outside A-Z a-z 0-9 . _ - /, or has a
-# segment starting with run- or ending in verify is refused the same way an
-# unknown value is.
+# the repository root (. or ./), is .claude/skills itself (the map needs its
+# own directory under it), holds a character outside A-Z a-z 0-9 . _ - /, or
+# has a segment starting with run- or ending in verify is refused the same way
+# an unknown value is.
 #
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
@@ -219,7 +220,12 @@ in_list() {
 # map_dir_refusal <value>: print why <value> cannot be the feature map's own
 # directory and return 0, or print nothing and return 1.
 map_dir_refusal() {
-  local v="$1" seg segs
+  local v="$1" seg segs low="${1,,}"
+  low="${low#./}" low="${low%/}"
+  if [[ "$low" == .claude/skills ]]; then
+    printf 'the skills root, not a directory of its own under .claude/skills/'
+    return 0
+  fi
   case "$v" in
   /* | \\* | '~'* | [A-Za-z]:*) printf 'an absolute path' ;;
   *..*) printf "it contains '..'" ;;
@@ -244,7 +250,7 @@ map_dir_refusal() {
 
 # e2e: print each run-e2e key's value and source (header, E2E). Exit 0.
 e2e() {
-  local key val src def f u raw lines allowed why files=() user_driver="" user_reuse=""
+  local key val shown src def f u raw lines allowed why files=() user_driver="" user_reuse=""
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
     # shellcheck disable=SC2016 # the literal an unrendered option leaves
@@ -288,11 +294,12 @@ e2e() {
       break
     done
     [[ -n "$src" || -z "$u" ]] || val="$u" src=userConfig
+    shown="$val"
     [[ "$key" != feature_map_dir ]] || val="${val#./}"
     # shellcheck disable=SC2086 # allowed is a fixed word list
     if [[ -n "$src" && "$key" == feature_map_dir && -n "$val" ]]; then
       if why="$(map_dir_refusal "$val")"; then
-        warn "$src: $key: refused value '$val' ($why); using the default, $def"
+        warn "$src: $key: refused value '$shown' ($why); using the default, $def"
         src=""
       fi
     elif [[ -n "$src" ]] && ! in_list "$val" $allowed; then

@@ -91,14 +91,20 @@ own. An attended pass may use `chrome`.
 Read the map's index and its feature files. Find the commit the index records as written at, and
 list what changed since then: `git diff --no-ext-diff --no-textconv --name-only <that commit> HEAD`.
 
-Then dispatch one subagent per feature file, each with Read, Grep and Glob only, so none can edit
-or run anything. Give each its feature file, the changed-file list and these questions: which
+Before dispatching, record `git status --porcelain` from the repository root. Then dispatch one
+subagent per feature file and tell each to use Read, Grep and Glob only, never to edit or run
+anything. That limit is an instruction in each subagent's prompt; no agent definition enforces it.
+Give each its feature file, the changed-file list and these questions: which
 parts, entry points, handles, routes or commands the file lists are gone, renamed or moved in the
 source; which entry points the source now has that the file does not list; and which traps no
 longer apply. Each answer cites `file:line`. Features with no changed file in their parts still go
 to a subagent; a rename can sit in a shared file.
 
 Collect the answers as candidate corrections. Nothing is edited yet.
+
+When every subagent has returned, run `git status --porcelain` again. When it differs from the
+record, a subagent changed the working tree: the outcome is **blocked**, and the report names each
+path that changed. The pass stops there; nothing is reverted, written or opened.
 
 ## Step 5: Live pass
 
@@ -108,13 +114,20 @@ every feature, with the source pass's candidate corrections as hints on where a 
 moved. The run must:
 
 - execute the index's doctor before the first drive, and once more whenever a drive fails, before
-  that failure counts against the app;
+  that failure counts against the app. When the index says the harness hosts its own instance, the
+  doctor checks the harness's build and the services it depends on, and a failed harness drive is
+  judged by the harness's own output plus that doctor;
 - close every process and browser session a drive opened when that drive finishes; none survives
   its drive;
 - check after that cleanup that every evidence path it reports still exists.
 
 When the app does not build or start, or the doctor still fails, the outcome is **blocked** with
 run-e2e's evidence.
+
+When the app is healthy but the driver cannot run on this host (run-e2e stops on a missing or
+unsupported driver with its gap report), the outcome is **blocked: driver unavailable**, with that
+gap report. A pass that could not drive cannot confirm the source pass's candidates, so none is
+written into the map: the report lists each with its `file:line`. Never switch drivers.
 
 ## Step 6: Sort the differences, then act
 
@@ -153,7 +166,8 @@ Then the outcome:
 
 ## Report
 
-- the outcome (clean, changed or blocked) and, for blocked, the blocker and what clears it;
+- the outcome (clean, changed or blocked) and, for blocked, the blocker and what clears it (the
+  changed paths, or the driver gap report and every unwritten candidate with its `file:line`);
 - the skip line from Step 2;
 - the driver and where it came from;
 - each correction made, with the source pass's `file:line` or run-e2e's evidence behind it;

@@ -104,6 +104,91 @@
         "Stops with a gap report naming the failing build command",
         "Writes no map file"
       ]
+    },
+    {
+      "id": 10,
+      "name": "long-slug-collision-stays-within-64",
+      "prompt": "/testing:map-features map these two features: 'Export every approved weekly timesheet for the finance team as a signed PDF archive' and 'Export every approved weekly timesheet for the finance team, as a signed PDF archive'.",
+      "expected_output": "Both titles give the same 83-character slug. The first file is cut to 64 characters: export-every-approved-weekly-timesheet-for-the-finance-team-as-a.md. The second needs the -2 suffix, so its slug is cut to 62 characters before the suffix is appended: export-every-approved-weekly-timesheet-for-the-finance-team-as-2.md. Neither name before .md is longer than 64 characters.",
+      "files": [],
+      "expectations": [
+        "Names the first file export-every-approved-weekly-timesheet-for-the-finance-team-as-a.md",
+        "Names the second file export-every-approved-weekly-timesheet-for-the-finance-team-as-2.md",
+        "Writes no file whose name before .md is longer than 64 characters"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "skills-root-refused",
+      "prompt": "/testing:map-features. docs/conventions/testing.yaml sets `feature_map_dir: ./.claude/skills/`, and no overlay exists.",
+      "expected_output": "The value is the skills root itself, so it is refused: the report names docs/conventions/testing.yaml, feature_map_dir and the value, and says the map must be its own directory under .claude/skills/, not the skills root. The run does not stop; the map goes to the default .claude/skills/feature-map/. No SKILL.md or feature file is written directly in .claude/skills/.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/testing.yaml, feature_map_dir and ./.claude/skills/ as refused",
+        "Writes the map under .claude/skills/feature-map/",
+        "Writes no file directly in .claude/skills/"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "second-app-gets-its-own-dir",
+      "prompt": "/testing:map-features Clockwork admin. The repository builds apps/web (Clockwork web) and apps/admin (Clockwork admin). .claude/skills/feature-map/SKILL.md already exists and its index names Clockwork web, built from apps/web. No feature_map_dir is set.",
+      "expected_output": "The default directory already holds a map, and its index covers Clockwork web, a different app. The skill stops and writes nothing, names Clockwork web as the app that map covers, and gives the location for this app: --dir .claude/skills/feature-map-clockwork-admin. It does not send the person to /testing:refresh-feature-map for this app.",
+      "files": [],
+      "expectations": [
+        "Writes nothing and leaves .claude/skills/feature-map/ unchanged",
+        "Names Clockwork web as the app the existing map covers",
+        "Gives --dir .claude/skills/feature-map-clockwork-admin for the admin app",
+        "Does not point at /testing:refresh-feature-map as the next step for the admin app"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "harness-hosting-own-instance-doctor",
+      "prompt": "/testing:map-features. e2e_driver resolves to harness from docs/conventions/testing.yaml. The repository's end-to-end suite in tests/Ledger.E2E starts the app in-process itself and needs a Postgres container from compose.test.yaml; nothing is launched separately.",
+      "expected_output": "The index records harness as the driver and says the harness hosts its own instance. Its doctor checks what the harness needs: that tests/Ledger.E2E builds and that the Postgres service from compose.test.yaml answers. It does not probe a separately launched app URL.",
+      "files": [],
+      "expectations": [
+        "The index says the harness hosts its own instance",
+        "The doctor checks the harness build and the Postgres service it depends on",
+        "The doctor does not probe a separately launched app instance"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "harness-drive-line-stays-user-side",
+      "prompt": "/testing:map-features the invoice approval feature. The recorded driver is harness; the suite selects that feature's tests with `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. The code lives in InvoiceApprovalController and posts to /internal/approvals/commit.",
+      "expected_output": "The feature file's ## Drive section lists the user's steps (what the approver clicks and sees) and adds one line giving the harness command `dotnet test tests/Ledger.E2E --filter Category=InvoiceApproval`. InvoiceApprovalController and /internal/approvals/commit appear nowhere in the feature file.",
+      "files": [],
+      "expectations": [
+        "## Drive holds user-side steps",
+        "## Drive adds one line with the dotnet test filter command",
+        "The feature file does not mention InvoiceApprovalController or /internal/approvals/commit"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "driver-unavailable-blocked",
+      "prompt": "/testing:map-features. The app builds and its doctor passes. The recorded driver is playwright, but when the proving run starts, /testing:run-e2e stops with a gap report: no Playwright browser is installed on this host.",
+      "expected_output": "The map is written but unproven, and the outcome is blocked: driver unavailable, reported with run-e2e's gap report. The skill does not edit the map after the failed run, does not switch the recorded driver to another one, and does not call the map done.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with run-e2e's gap report",
+        "Leaves the recorded driver as playwright",
+        "Does not report the map as done"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "build-not-exposed-doctor",
+      "prompt": "/testing:map-features. The app's only health check, GET /ping, returns the text `pong`; no endpoint, header or command shows a version or commit.",
+      "expected_output": "The app exposes no build identifier, so the index's doctor line says build: not exposed and checks the other two: that the app answers and that it uses the expected data. It does not claim to check the build.",
+      "files": [],
+      "expectations": [
+        "The doctor line says build: not exposed",
+        "The doctor still checks that the app answers and uses the expected data",
+        "The doctor does not claim a build check"
+      ]
     }
   ]
 }

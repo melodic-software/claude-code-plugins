@@ -308,13 +308,14 @@ assert_eq "and leaves the prose file as it was" "# Testing
 Prose only." "$(cat "$G/docs/conventions/testing.md")"
 block_md='# Testing\n\n```yaml config\npaths:\n  exclude: [old]\n```\n'
 printf '%b' "$block_md" >"$G/docs/conventions/testing.md"
-printf 'e2e_driver: run\npaths:\n  exclude: [old]\nreuse_running_instance: false\n' >"$G/docs/conventions/testing.yaml"
+printf 'e2e_driver: run\npaths:\n  exclude: [old]\nreuse_running_instance: false\nfeature_map_dir: docs/map\n' >"$G/docs/conventions/testing.yaml"
 run_g --exclude 'yaml/**'
 assert_eq "testing.yaml in use: apply rewrites it and keeps the run-e2e keys" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
 paths:
   exclude: ['yaml/**']
 e2e_driver: run
-reuse_running_instance: false" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+reuse_running_instance: false
+feature_map_dir: docs/map" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
 assert_eq "and the docs block it shadows is untouched" "$(printf '%b' "$block_md")" "$(cat "$G/docs/conventions/testing.md")"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"

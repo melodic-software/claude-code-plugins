@@ -13,12 +13,20 @@ The map is its own project skill directory in the consumer repository, at the re
 `skills/run-e2e/context/e2e-config.md`). Agents in that repository find a project skill without a
 pointer.
 
+One directory holds one map. A repository with several apps keeps one app's map in the default
+directory and each other app's in `.claude/skills/feature-map-<app slug>/` (the app's name through
+the slug rule under File names). `/testing:run-e2e` and `/testing:refresh-feature-map` reach such a
+map when the session prompt or their `--dir` names it, or when `feature_map_dir` in the overlay
+`.claude/testing.local.yaml` points at it.
+
 It never shares a directory with a launch recipe. `/run-skill-generator` owns
 `.claude/skills/run-<name>/` and may regenerate it whenever the build or launch changes, and a
 skill named `verify` at `.claude/skills/verify/SKILL.md` replaces the bundled `/verify` and can run
-before every commit. So a location that is absolute, contains `..`, is the repository root, holds a
-character outside `A-Z a-z 0-9 . _ - /`, or has a segment that starts with `run-` or ends in
-`verify` is refused.
+before every commit. So a location that is absolute, contains `..`, is the repository root (`.` or
+`./`), holds a character outside `A-Z a-z 0-9 . _ - /`, or has a segment that starts with `run-` or
+ends in `verify` is refused. So is `.claude/skills` itself (with or without a leading `./` or a
+trailing `/`, in any letter case): the map is a project skill and needs its own directory under
+`.claude/skills/`, not the skills root.
 
 ```text
 .claude/skills/feature-map/
@@ -38,8 +46,8 @@ repository showed, never a placeholder:
 |---|---|
 | Application | The app's name and the directory it is built from. |
 | Launch | The recipe that starts it: the repository's `run-<name>` skill by name, else the recorded `.claude/skills/verify/SKILL.md`, else the start path `/testing:run-e2e` uses (the documented start command or the orchestrator). The map points at the recipe; it never copies the recipe's steps. |
-| Driver | The driver resolved when the map was written (`harness`, `run`, `playwright` or `chrome`) and the layer that supplied it. `chrome` adds the line `Attended runs only.` |
-| Doctor | One read-only command that says whether a running instance is fit to drive: it answers, it is the expected build, it uses the data this run expects. A run executes it before its first drive and again after any failed drive. |
+| Driver | The driver resolved when the map was written (`harness`, `run`, `playwright` or `chrome`) and the layer that supplied it. `chrome` adds the line `Attended runs only.` A `harness` that starts the app itself adds `The harness hosts its own instance.` |
+| Doctor | One read-only command that says whether a running instance is fit to drive: it answers, it is the expected build, it uses the data this run expects. The build check applies when the app exposes a build identifier; when it does not, the line says `build: not exposed` and the doctor checks the other two. When the harness hosts its own instance, the doctor checks what the harness needs instead (its build, the services it depends on), and a failed harness drive is judged by the harness's own output plus this doctor. A run executes it before its first drive and again after any failed drive. |
 | Isolation | Whether two instances can run at once (ports, data directories, browser profiles), and what to do when they cannot. |
 | Written at | The commit the map was written or last refreshed at. |
 | Features | One line per feature file: its title, its file name, and how many entry points it lists. |
@@ -60,6 +68,13 @@ A minimal index body for a time-tracking web app:
 - Weekly timesheet export: `weekly-timesheet-export.md` (2 entry points)
 ```
 
+This app reports its build in the health response, so the doctor checks it. For an app that shows
+no build identifier, the doctor line names the other two checks and ends `build: not exposed`:
+
+```markdown
+- Doctor: `curl -fsS http://127.0.0.1:5180/healthz` answers and lists the project `Website refresh`; build: not exposed
+```
+
 ## Feature files
 
 Each feature file opens with an H1 naming the feature and one sentence on what the user gets from
@@ -77,7 +92,9 @@ it. Four H2 sections follow, always in this order:
    dry-run mode that still touches the network, a cache that hides a stale page.
 
 Write it from the user's side: no class names, no internal endpoints, no test-only hooks. The map
-names what a user does and what a user sees.
+names what a user does and what a user sees. Under the `harness` driver, `## Drive` may add one
+line with the harness command that drives the feature, for example the test filter that selects
+it; the steps above it stay written from the user's side.
 
 A feature file for the time-tracking app:
 
@@ -121,10 +138,10 @@ A feature file's name is its title through one slug rule, plus `.md`:
 3. Drop any `-` at the start or end; an empty result becomes `run`.
 4. Cut the result to 64 characters.
 
-The name before `.md` always matches `^[a-z0-9-]{1,64}$`. `Billing / Export!` becomes
-`billing-export.md`; `Start a timer` becomes `start-a-timer.md`. The same rule names run-e2e's
-browser sessions. When two titles give the same slug, the second gets `-2`, the third `-3`, after
-the cut.
+`Billing / Export!` becomes `billing-export.md`; `Start a timer` becomes `start-a-timer.md`. The
+same rule names run-e2e's browser sessions. When two titles give the same slug, the second gets
+`-2` and the third `-3`: cut the slug to 64 characters minus the suffix's length, drop a trailing
+`-`, then append the suffix. The name before `.md` always matches `^[a-z0-9-]{1,64}$`.
 
 ## Which driver drives
 

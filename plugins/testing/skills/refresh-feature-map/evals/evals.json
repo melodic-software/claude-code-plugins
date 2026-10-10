@@ -85,6 +85,31 @@
         "Runs upkeep-skip.sh record",
         "Creates no branch and opens no pull request"
       ]
+    },
+    {
+      "id": 8,
+      "name": "driver-unavailable-writes-no-candidate",
+      "prompt": "/testing:refresh-feature-map unattended. The source pass found that the `Export` button in weekly-timesheet-export.md is now labelled `Download` (src/timesheet/Toolbar.tsx:42). The app builds and the doctor passes, but /testing:run-e2e stops with a gap report: the recorded playwright driver has no browser installed on this host.",
+      "expected_output": "The outcome is blocked: driver unavailable, with run-e2e's gap report. The Export-to-Download candidate is not written into the map, because no drive confirmed it; the report lists it with src/timesheet/Toolbar.tsx:42. No branch is created, nothing is committed, no pull request is opened, and the driver is not switched.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with the gap report",
+        "Leaves weekly-timesheet-export.md unchanged",
+        "Lists the candidate with src/timesheet/Toolbar.tsx:42 in the report",
+        "Creates no branch and opens no pull request"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "working-tree-changed-during-source-pass",
+      "prompt": "/testing:refresh-feature-map. Before the source pass, git status --porcelain printed nothing. After the subagents returned, it prints ` M src/timesheet/Toolbar.tsx`.",
+      "expected_output": "The working tree changed during the source pass, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no map file is edited, nothing is reverted or committed, and no pull request is opened.",
+      "files": [],
+      "expectations": [
+        "Reports the outcome as blocked",
+        "Names src/timesheet/Toolbar.tsx as the changed path",
+        "Edits no map file and opens no pull request"
+      ]
     }
   ]
 }

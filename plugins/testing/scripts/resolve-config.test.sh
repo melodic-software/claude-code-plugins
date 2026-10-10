@@ -499,13 +499,27 @@ erun --user feature_map_dir=docs/map
 assert_eq "feature_map_dir has no userConfig level" 2 "$rc"
 # shellcheck disable=SC2088 # '~/map' is the literal value under test
 for bad in '.claude/skills/verify' 'tools/smoke-verify/' '.claude/skills/run-shop/features' 'run-shop' \
-  '/srv/map' '~/map' 'C:/map' '../map' 'docs/../../map' '.' 'docs/$(touch pwned)' 'docs/my map'; do
+  '/srv/map' '~/map' 'C:/map' '../map' 'docs/../../map' '.' './' 'docs/$(touch pwned)' 'docs/my map' \
+  '.claude/skills' './.claude/skills' '.claude/skills/' '.Claude/SKILLS'; do
   printf "feature_map_dir: '%s'\n" "$bad" >"$TY"
   erun
   assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
   assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '${bad%/}'"
 done
 assert_eq "and the other keys still resolve" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+printf 'feature_map_dir: .claude/skills\n' >"$TY"
+erun
+assert_contains "the skills root is refused as the skills root, not a map's own directory" "$err" \
+  "refused value '.claude/skills' (the skills root, not a directory of its own under .claude/skills/)"
+printf 'feature_map_dir: ./\n' >"$TY"
+erun
+assert_contains "./ is refused as the repository root" "$err" "$TY: feature_map_dir: refused value '.' (the repository root)"
+for good in .claude/skills/feature-map .claude/skills/my-map; do
+  printf 'feature_map_dir: %s\n' "$good" >"$TY"
+  erun
+  assert_eq "a directory under the skills root, '$good', still resolves" "0:feature_map_dir	$good	$TY" "$rc:$(fmd)"
+  assert_eq "with no warning for '$good'" "" "$err"
+done
 printf 'feature_map_dir: .claude/skills/run-shop\n' >"$TY"
 printf 'feature_map_dir: docs/map\n' >"$REPO/.claude/testing.local.yaml"
 erun
