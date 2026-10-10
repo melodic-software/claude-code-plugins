@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.8] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
 ## [0.14.7] - 2026-10-09
 
 ### Changed
