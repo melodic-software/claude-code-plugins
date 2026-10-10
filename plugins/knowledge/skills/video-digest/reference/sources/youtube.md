@@ -32,6 +32,9 @@ Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scop
 the caption ladder below deliberately falls through to them.
 
 **Caption ladder:** manual EN → auto EN → auto-translate EN → STOP and surface if exhausted.
+Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
+`manual-and-auto`. Declared transcript strategy: `captions`.
+
 This spoke's decision: a bare `.en.vtt` counts as manual only when info.json `subtitles` has an
 English key; otherwise `.en-orig.vtt` wins over it when both exist. The observed translated bare
 track behind the decision is [#6740](https://github.com/melodic-software/claude-code-plugins/issues/6740).
@@ -42,8 +45,6 @@ track behind the decision is [#6740](https://github.com/melodic-software/claude-
 - **As of**: 2026-10-10
 - **Recheck trigger**: a yt-dlp release note that renames subtitle output files or changes the
   `subtitles` / `automatic_captions` keys in info.json.
-Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
-`manual-and-auto`. Declared transcript strategy: `captions`.
 
 **Comments and extractor args** are adapter-declared capabilities, not pipeline defaults. Both
 flags are pushed only because this adapter declares them. Comment harvest is on (the pinned
