@@ -69,7 +69,7 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `replace`, `conf
 
 Before writing code, verify the knowledge base:
 
-- **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first. `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
+- **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the diff will not be quick to review or cheap to retry (a new project, a cross-cutting change), suggest locking the contract first: `/planning:interview` when the planning plugin is installed (it hands off to `/planning:plan`), otherwise whatever interview or plan skill the consuming setup provides (check what's actually available; never invent skill names). A change whose diff will be quick to review and cheap to retry proceeds without a formal plan (a diff that adds types, public contracts, or module boundaries is not cheap to retry and still takes the interview); review the diff and align on it afterward, and if the diff turns out not to be quick to review, stop and route back to the interview (`/planning:interview`)
 - **Is the branch correct?** Check the branch gathered above. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
 
@@ -92,7 +92,7 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 - **Build fails** → fix immediately. Don't add more code on top of broken code
 - **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
 - **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan. Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) rather than expanding scope silently
-- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:wayfind` to the user, it charts the fog as a decision map upstream of the plan. Guide, never auto-switch
+- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:interview` to the user; it escalates to `/planning:wayfind` when the effort outgrows one session. Guide, never auto-switch
 
 ### Commit discipline
 
