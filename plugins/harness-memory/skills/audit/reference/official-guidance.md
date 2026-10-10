@@ -166,7 +166,7 @@ CLAUDE.md files and `.claude/rules/`, since the model may pick either.
 ## Rules files
 
 The audit treats `.claude/rules/` as the place for modular instructions, and a path-scoped rule as
-loading only after Claude reads a file its globs match. Features it relies on:
+loading once Claude reads or writes a file its globs match. Features it relies on:
 
 - Symlinks in `.claude/rules/` share rules across projects.
 - User-level rules in `~/.claude/rules/` apply to every project and load before project rules.
@@ -214,8 +214,6 @@ Caveats that do survive, each verified:
   Claude Code minor version moves past 2.1.268, a release note names subagent context inheritance,
   memory loading, or path-scoped rule triggering, or a read of a covered path inside a subagent
   injects nothing.
-- Writing a NEW file does not trigger the rule. We treat a read, not any tool use, as the trigger
-  (pointer: [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)).
 - Excluding `project` from `--setting-sources` also drops the on-demand rules of both kinds:
   path-scoped ones, and those kept in a nested `.claude/rules/` (pointer:
   [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules)).
@@ -291,7 +289,7 @@ and prices a recommended move with that destination's row:
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
 | CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read, write or edit in that subdirectory |
-| Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
+| Path-scoped rules | Matching paths only | Re-injected when paths match again | File read, write or edit |
 | Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
 | Subagents | Name + description | Same as skills | Dispatch |
