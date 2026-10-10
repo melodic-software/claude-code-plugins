@@ -52,12 +52,12 @@
     },
     {
       "id": 5,
-      "name": "hill-climb-without-preconditions-routes-to-one-shot",
-      "prompt": "/planning:draft-goal-condition this is a one-time change: make Claude keep editing the iOS app's startup code until launch time drops. Only I can run the app on my phone and read the launch time, so Claude never sees the number.",
-      "expected_output": "Step 0 finds the build-and-check preconditions unmet (the task does not repeat, and the agent cannot run what it builds or see the score), so it recommends prompting once instead of a hill-climb or a /goal loop.",
+      "name": "hill-climb-agent-cannot-run-routes-to-one-shot",
+      "prompt": "/planning:draft-goal-condition make Claude keep editing the iOS app's startup code until launch time drops. Only I can run the app on my phone and read the launch time, so Claude never sees the number.",
+      "expected_output": "Step 0 finds a build-and-check precondition unmet (the agent cannot run what it builds or see the score), so it recommends prompting once instead of a hill-climb or a /goal loop.",
       "files": [],
       "expectations": [
-        "Output names the unmet preconditions: the task does not repeat and the agent cannot run the app or see the launch time",
+        "Output names the unmet precondition: the agent cannot run the app or see the launch time",
         "Output recommends a one-shot prompt rather than a looping lever",
         "Output does NOT emit a paste-ready /goal invocation for this intent",
         "Output does NOT route to the /performance chain as a hill-climb loop"
