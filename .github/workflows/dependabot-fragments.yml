@@ -1,0 +1,126 @@
+name: dependabot-fragments
+
+# Changelog fragments for merged Dependabot updates (ADR 0048). A Dependabot pull
+# request gets no commit for a plugin in fragment mode: a commit made with
+# GITHUB_TOKEN holds every run on it at action_required (#5786), and
+# check-changelog-fragments.sh --check-required exempts a pull request of
+# verified Dependabot commits. scripts/dependabot-fragments.sh finds each merged
+# Dependabot update of a fragment-mode plugin that has no fragment yet, and this
+# workflow lands those fragments through one pull request, release/dependabot-
+# fragments, armed to auto-merge. The release pull request then takes them.
+#
+# It runs as the release GitHub App, never GITHUB_TOKEN: a pull request that
+# GITHUB_TOKEN opens or updates starts no `pull_request` runs, and this one needs
+# `ci-status`. The commit goes through createCommitOnBranch, which GitHub signs,
+# so main's required_signatures rule accepts it (the pattern of
+# release-publish-plugins.yml). A fragment is named after its merge commit, so a rerun,
+# or the hourly schedule after a missed push, writes nothing twice.
+on:
+  push:
+    branches: [main]
+    paths: ['plugins/**']
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dependabot-fragments
+  cancel-in-progress: true
+
+jobs:
+  write:
+    if: github.ref == 'refs/heads/main'
+    # The App's private key is an environment secret; the environment admits
+    # only main (github-iac RepositoryEnvironments.cs).
+    environment: plugin-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find merged Dependabot updates with no fragment
+        id: find
+        run: |
+          list="$RUNNER_TEMP/fragments.txt"
+          scripts/dependabot-fragments.sh HEAD | tee "$list"
+          echo "count=$(grep -c . "$list" || true)" >>"$GITHUB_OUTPUT"
+          echo "main=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+      - name: Mint the release App token
+        id: app-token
+        if: steps.find.outputs.count != '0'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.PLUGIN_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PLUGIN_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      # The branch is rebuilt from main with every pending fragment, so an open
+      # pull request that already holds exactly them is left alone for its CI.
+      - name: Write the fragments and open the pull request
+        if: steps.find.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MAIN_SHA: ${{ steps.find.outputs.main }}
+        run: |
+          branch=release/dependabot-fragments
+          refs="repos/$GITHUB_REPOSITORY/git/refs"
+          git add -A -- .changes
+          want="$(git diff --cached --name-only | LC_ALL=C sort)"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
+          if [ -n "$number" ] && [ "$(gh pr diff "$number" --repo "$GITHUB_REPOSITORY" --name-only | LC_ALL=C sort)" = "$want" ]; then
+            echo "Pull request #$number already holds these fragments; leaving it alone."
+            exit 0
+          fi
+          adds="$RUNNER_TEMP/additions.jsonl"
+          payload="$RUNNER_TEMP/payload.json"
+          : >"$adds"
+          while IFS= read -r -d '' path; do
+            git show ":$path" | base64 -w0 | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
+          done < <(git diff --cached --name-only --diff-filter=A -z)
+          # Cut the branch from main, then write the one signed commit on it.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/$branch" -f sha="$MAIN_SHA" -F force=true --silent
+          else
+            gh api -X POST "$refs" -f ref="refs/heads/$branch" -f sha="$MAIN_SHA" --silent
+          fi
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg oid "$MAIN_SHA" \
+            --arg branch "$branch" \
+            --arg headline "chore(release): changelog fragments for merged Dependabot updates" \
+            --slurpfile additions "$adds" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $oid,
+                message: {headline: $headline},
+                fileChanges: {additions: $additions}
+              }}
+            }' >"$payload"
+          gh api graphql --input - <"$payload" | jq -er '.data.createCommitOnBranch.commit.oid'
+          body="$RUNNER_TEMP/body.md"
+          {
+            echo "Adds the changelog fragment for each merged Dependabot update of a plugin in fragment mode ([ADR 0048](https://github.com/$GITHUB_REPOSITORY/blob/main/docs/adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)). Dependabot pull requests carry no fragment, so their runs need no approval (#5786); \`scripts/dependabot-fragments.sh\` writes it after the merge, and the release pull request releases it."
+            echo
+            while IFS= read -r path; do echo "- \`$path\`"; done <<<"$want"
+            echo
+            echo "No linked issue: written by \`.github/workflows/dependabot-fragments.yml\`."
+          } >"$body"
+          title="chore(release): changelog fragments for merged Dependabot updates"
+          if [ -z "$number" ]; then
+            number="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "$title" --body-file "$body" | grep -o '[0-9]*$')"
+          else
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+          fi
+          gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
