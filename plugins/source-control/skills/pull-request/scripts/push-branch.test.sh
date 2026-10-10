@@ -184,7 +184,15 @@ git -C "$wc" worktree add -q -b feat/b "$wt_b" 2>/dev/null
 git -C "$wt_b" commit -q --allow-empty -m "merge base into b"
 stub="$WORKDIR/pr-worktree/bin"
 mkdir -p "$stub"
-printf '#!/usr/bin/env bash\n[[ "$*" == *" 42 "* ]] && echo feat/b && exit 0\n[[ "$*" == *" 43 "* ]] && echo feat/missing && exit 0\n[[ "$*" == "pr view  "* ]] && echo feat/x && exit 0\nexit 1\n' >"$stub/gh"
+cat >"$stub/gh" <<'STUB'
+#!/usr/bin/env bash
+[[ "$*" == *" 42 "* ]] && echo "feat/b pr-worktree/origin" && exit 0
+[[ "$*" == *" 43 "* ]] && echo "feat/missing pr-worktree/origin" && exit 0
+[[ "$*" == *" 44 "* ]] && echo "feat/b someone/fork" && exit 0
+[[ "$*" == *" 45 "* ]] && echo "--mirror pr-worktree/origin" && exit 0
+[[ "$*" == "pr view  "* ]] && echo "feat/x pr-worktree/origin" && exit 0
+exit 1
+STUB
 chmod +x "$stub/gh"
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1
 check "pr-worktree: --pr 42 exits 0" "$?" "0"
@@ -199,6 +207,16 @@ check "pr-worktree: head branch with no local branch exits non-zero" "$missing_e
 empty_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr "") >/dev/null 2>&1 || empty_exit=nonzero
 check "pr-worktree: --pr with no number exits non-zero" "$empty_exit" "nonzero"
+# A fork PR whose head name matches a local branch must not push that branch
+# to a remote that is not the PR's head repository.
+fork_exit=zero
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 44) >/dev/null 2>&1 || fork_exit=nonzero
+check "pr-worktree: head repository other than the push remote exits non-zero" "$fork_exit" "nonzero"
+# A head branch named like a git option never reaches git push.
+git -C "$wc" update-ref refs/heads/--mirror HEAD
+dash_exit=zero
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 45) >/dev/null 2>&1 || dash_exit=nonzero
+check "pr-worktree: head branch starting with '-' exits non-zero" "$dash_exit" "nonzero"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
