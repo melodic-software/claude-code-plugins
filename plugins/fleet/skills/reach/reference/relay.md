@@ -122,8 +122,8 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   the trust prompt, then retry.`` and exit 1.
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
-- We address `claude logs` and `claude attach` by the short `id` from `claude agents --json`, so a
-  lane on an older CLI behaves like a current one; a name is passed only after checking the lane's
+- We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`
+  (bare `--json` lists only active sessions), so a lane on an older CLI behaves like a current one; a name is passed only after checking the lane's
   version against the CLI reference. `claude logs` prints the raw ANSI TUI stream, so read a reply
   from the transcript with `--resume <id>` instead.
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch

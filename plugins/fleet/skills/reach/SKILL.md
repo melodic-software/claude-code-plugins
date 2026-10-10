@@ -101,8 +101,9 @@ context loading). When a script can do the job, run the script.
   `uuidgen` is missing.
 - **Background sessions** need a trusted working directory. Anywhere else the start fails with
   ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt`` and exit 1.
-  Address `claude logs` and `claude attach` by the `id` from `claude agents --json`, so a lane on
-  an older CLI behaves like a current one; pass a name only after checking the lane's version
+  Address `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare
+  `--json` lists only active sessions), so a lane on an older CLI behaves like a current one;
+  pass a name only after checking the lane's version
   against the CLI reference. `logs` prints raw TUI output, so read a reply from the transcript
   (`--resume <id>`), not from `logs`.
   - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
