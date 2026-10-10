@@ -1455,8 +1455,8 @@ it; `songwriting` `object-writer`, because creative generation is not verificati
 `ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
 work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
 scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
-that it is stuck. A frontmatter pin is what holds a named agent's lane, since an Agent-tool dispatch
-passes no effort.
+that it is stuck. A frontmatter pin is what holds a named agent's lane for any dispatch that
+passes no `effort` of its own.
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
