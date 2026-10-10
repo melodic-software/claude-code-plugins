@@ -125,7 +125,7 @@
       "title": "CLAUDE_CODE_DISABLE_WEB_FETCH",
       "mechanism": "Turns the WebFetch tool off while WebSearch stays. Probed: WebFetch leaves the tool list (removal, not refusal).",
       "category": "removes-weight",
-      "categoryBasis": "Env row documented (Claude Code 2.1.285 or later). The page does not say whether the definition leaves the request; removal was probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change.",
+      "categoryBasis": "Env row documented (Claude Code 2.1.285 or later). The page does not say whether the definition leaves the request; removal was probed on Claude Code 2.1.296, 2026-10-10: with the variable set, the session's init tool list dropped WebFetch (28 to 27 tools).",
       "conditions": "How much it moves depends on where WebFetch sits in the consumer's session. The probe (Claude Code 2.1.296, 2026-10-10) measured request-side input tokens (input plus cache creation plus cache read) and saw a negligible change with WebFetch removed, likely because WebFetch was deferred there. When it loads upfront, the prefix bucket should move. Price per bucket rather than assuming either.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable.",
@@ -135,7 +135,7 @@
       "caveats": [
         "Removes capability, not just weight: confirm the operator does not fetch pages through Claude. WebSearch is unaffected.",
         "A bare-name deny of WebFetch (deny-bare-tool) is the persistent permissions.deny route to the same removal; this variable is the switch for one environment.",
-        "Claim: the variable removes WebFetch's definition rather than refusing calls. Basis: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. Pointer: when deciding whether to offer this lever, fetch the CLAUDE_CODE_DISABLE_WEB_FETCH row at https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the env-vars row states removal or refusal, or a snapshot with the variable set still lists WebFetch."
+        "Claim: the variable removes WebFetch's definition rather than refusing calls. Basis: on Claude Code 2.1.296, 2026-10-10, a headless session with CLAUDE_CODE_DISABLE_WEB_FETCH=1 listed 27 tools in its init event against 28 without it, WebFetch the one missing (melodic-software/claude-code-plugins#6778). Pointer: when deciding whether to offer this lever, fetch the CLAUDE_CODE_DISABLE_WEB_FETCH row at https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the env-vars row states removal or refusal, or a snapshot with the variable set still lists WebFetch."
       ],
       "citations": [
         "https://code.claude.com/docs/en/env-vars",
