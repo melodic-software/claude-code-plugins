@@ -2,5 +2,6 @@
 # Stages one variant's screenshots as screens/ in the workspace.
 set -euo pipefail
 
+src="$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects/crops/7426b466c1f4/"
 mkdir -p screens
-cp "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects/crops/3a9fe1964f3c/"*.png screens/
+cp "${src}375-load.png" "${src}375-after-1s.png" "${src}1280-load.png" "${src}1280-after-1s.png" screens/
