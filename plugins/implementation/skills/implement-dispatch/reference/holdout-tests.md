@@ -50,7 +50,9 @@ special-case.
    in `DEVIATIONS.md` for review at PR time. Record a hash of every file in the phase's holdout
    directory, nested and dot files included
    (`find <holdout>/phase-N -type f -print0 | sort -z | xargs -0 sha256sum`), in the
-   orchestrator's notes.
+   orchestrator's notes. The directory holds regular files and directories only: an entry of any
+   other type, such as a symlink (`find <holdout>/phase-N ! -type f ! -type d` prints it), fails
+   the recheck.
 
    **Optional lock.** When the plan or the user opts in, launch each worker that runs as its own
    `claude` session with the deny rules `Read(//<memory-slice root>/**)` and

@@ -38,7 +38,9 @@ when the `planning` plugin is enabled).
    unit tests inside, and runs the acceptance tests as its target. If one looks wrong, it stops and
    raises it to the user or orchestrator with the criterion and the evidence; the change goes
    through the author or the user, recorded in its own commit. At the end, an empty diff of the
-   acceptance test files since their commit is the check that none were touched.
+   acceptance test directory since its commit, and no untracked or ignored file in it
+   (`git status --porcelain --untracked-files=all --ignored -- <dir>` prints nothing), is the
+   check that none were touched or added.
 
    **Optional lock.** When the user opts in, add the deny rule
    `Edit(//<absolute acceptance-test dir>/**)` for the implementer's run: through `--settings` or
@@ -46,8 +48,8 @@ when the `planning` plugin is enabled).
    `.claude/settings.local.json` when it is a subagent of this session (the rule then binds this
    session too, which is fine, since a test change goes through the user). Remove it when the run
    ends. The rule blocks Claude's file tools and the shell file commands Claude Code recognizes,
-   not a script that writes files itself (`python -c`, `node -e`), so the empty-diff check above
-   stays the gate.
+   not a script that writes files itself (`python -c`, `node -e`), so the check above stays the
+   gate.
 5. **Review for special-casing.** A frozen test stops test edits, not code that recognizes the
    tested inputs and returns the expected values for them. Read the implementation diff for
    branches keyed to test data before trusting the green run.
