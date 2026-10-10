@@ -1,4 +1,5 @@
 # test-scope: plugins/animation/requirements.in
+# test-scope: plugins/animation/.claude-plugin/plugin.json plugins/animation/skills/rotoscope/scripts/roto.js
 """regress.py --synthetic as a test: the render, encode and decode contracts and the regression cases.
 
 Standard library only at module level, so collection works without numpy; the test skips, naming what is missing,

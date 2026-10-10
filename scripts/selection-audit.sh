@@ -136,7 +136,8 @@ trace_one() {
   *) runner=(bash "$suite") ;;
   esac
   start="$(date +%s)"
-  timeout 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
+  # -k: a daemon a suite leaves behind stays traced, and strace outlives a TERM waiting for it.
+  timeout -k 10 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
     -o "$out/strace.$key" "${runner[@]}" >"$out/logs/$key.log" 2>&1 || rc=$?
   reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .gitignore |
     awk 'NR == FNR { t[$0] = 1; next } t[$0]' "$out/tracked" - >"$out/reads/$key"

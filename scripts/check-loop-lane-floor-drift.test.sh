@@ -354,9 +354,10 @@ else
   fail "missing source should exit 2 (rc=$rc): $out"
 fi
 
-# Cases 16 and 26 checked the live registry for stale consumers and data
-# carriers. `--check` fails on both, and lint-repo runs it on every pull
-# request; run here, they read every file of the live tree.
+# Cases 16, 26 and 28 checked the live registry for stale consumers and data
+# carriers and the live tree for an unregistered copy. `--check` fails on all
+# three, and lint-repo runs it on every pull request; run here, they read every
+# file of the live tree.
 
 # --- 17. An unregistered file carrying the floor fails ---------------------
 # The registry alone only ever looks where it is told, so a seventh consumer
@@ -494,18 +495,6 @@ if ((rc == 2)) && grep -q 'the scan is not working' <<<"$out"; then
   ok "a discovery pass that cannot see the source exits 2, never a clean run"
 else
   fail "discovery self-proof should exit 2 (rc=$rc): $out"
-fi
-
-# --- 28. The live repository carries no unregistered copy ------------------
-# Runs the scan against the real tree, which is where a new copy actually
-# appears. Case 17 proves the mechanism; this proves today's corpus is closed.
-
-live="$(bash "$SUT" --check 2>&1)"
-rc=$?
-if ((rc == 0)) && ! grep -q 'UNREGISTERED' <<<"$live"; then
-  ok "no unregistered copy of the floor exists in this checkout"
-else
-  fail "live repository carries an unregistered floor copy (rc=$rc): $live"
 fi
 
 # --- 29. Weakening the Account switch bullet in one lane body fails --------

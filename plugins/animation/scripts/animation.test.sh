@@ -6,6 +6,7 @@
 # instead: a lane that provisions the pinned requirements sets it, and missing dependencies then read as a
 # broken environment, not as passing coverage.
 # test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh plugins/animation/scripts/*
+# test-scope: plugins/animation/requirements.in plugins/animation/styles/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

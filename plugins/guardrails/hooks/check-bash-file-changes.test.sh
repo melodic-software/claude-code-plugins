@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/guardrails/hooks/hooks.json
 # Contract test for check-bash-file-changes.mjs (guardrails plugin).
 #
 # Black-box: fires the snapshot mode with a PreToolUse Bash payload, runs a real
