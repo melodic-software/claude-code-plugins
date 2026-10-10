@@ -1582,6 +1582,10 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          # A Dependabot-only pull request needs no fragment; the script checks
+          # each commit's GitHub-verified signature before it trusts this.
+          CHANGELOG_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
