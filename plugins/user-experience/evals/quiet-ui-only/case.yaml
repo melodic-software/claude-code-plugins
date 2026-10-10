@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: quiet-ui-only
+description: "A look-and-contrast question belongs to UI design, so no user-experience skill fires"
+tags: [quiet, control]
+runs: 3
+expected_outcome: "The answer recommends white text (about 5.2:1 on #2563EB, where black is about 4.1:1) and no Skill call reaches a user-experience skill"
+execution:
+  prompt: "What text color should I use on a #2563EB primary button so the label passes WCAG AA contrast? Answer in under 60 words."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10

@@ -68,9 +68,11 @@ A lane is one workflow with one model job; scripted jobs beside it report its ch
 name is its workflow file stem, and the lane never does another lane's job. Each activity runs
 through one of two shared runners:
 [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) for a `read`
-effect, with no App key in its run, and
+effect, with no App key and no OIDC token in its job, and
 [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) for any other
-effect. Their job contract is [`pr-run-activity.md`](pr-run-activity.md).
+effect, which gets its effect-scoped App token from the lanes token broker before any head
+checkout. No workflow holds the App key. Their job contract is
+[`pr-run-activity.md`](pr-run-activity.md).
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config

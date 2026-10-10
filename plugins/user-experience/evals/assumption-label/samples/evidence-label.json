@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Discussion guide: invoice reminders\n\nEvidence: assumption-based\nAI use: drafted by an agent",
+      "why": "plain header line"
+    },
+    {
+      "answer": "**Evidence:** mixed (notes N1-N5; the rest is assumption)",
+      "why": "bold markdown label"
+    },
+    {
+      "answer": "Evidence: `evidence-based`",
+      "why": "code-formatted value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "This rests partly on evidence and partly on assumptions.",
+      "why": "prose, no label"
+    },
+    {
+      "answer": "Evidence: none yet",
+      "why": "not one of the three values"
+    }
+  ]
+}

@@ -403,3 +403,11 @@ lib/publish-gate.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/installed.mjs, the routing-as-data install detector.
+scripts/lib/installed.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/installed.mjs -> plugins/*/scripts/lib/installed.mjs
