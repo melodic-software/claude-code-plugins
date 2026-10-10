@@ -35,6 +35,17 @@ the caption ladder below deliberately falls through to them.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.
 
+This spoke's decision: a bare `.en.vtt` counts as manual only when info.json `subtitles` has an
+English key; otherwise `.en-orig.vtt` wins over it when both exist. The observed translated bare
+track behind the decision is [#6740](https://github.com/melodic-software/claude-code-plugins/issues/6740).
+
+- **Pointer**: when caption files or info.json caption keys look different, fetch the probe in
+  [#6740](https://github.com/melodic-software/claude-code-plugins/issues/6740) and yt-dlp's subtitle
+  options at <https://github.com/yt-dlp/yt-dlp#subtitle-options> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a yt-dlp release note that renames subtitle output files or changes the
+  `subtitles` / `automatic_captions` keys in info.json.
+
 **Comments and extractor args** are adapter-declared capabilities, not pipeline defaults. Both
 flags are pushed only because this adapter declares them. Comment harvest is on (the pinned
 comment feeds link harvest) with `--extractor-args youtube:max_comments=20,all,top;comment_sort=top`.

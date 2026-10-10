@@ -448,7 +448,7 @@ declares_both_fixtures B "$CASE_B"
 # `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "84ce55eb64fbd8cd370911626647ed7f46999b9941a95698609117b3ae546f67"
+  "59dc90d3c755a7998db3fcabd0a8310725e29235df0542a52d540774e6f7de82"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -495,7 +495,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "232ef8ea04b6d8759c32ea0dcf35bd7ed5dd6a3ecd5a50f42284f8fa30e92d94"
+  "0c7b0a47cce5231389429ce4c3cca61f6560b7b0d8e999a0ab9d99d933ef0b8c"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -606,7 +606,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "3edbef2c4cf68a1adcaa6e44390cbc95a8285f7f18734ab76ecfc22fc5b6679d"
+  "388885092247a4f349330d3192845e5546b3efd58299cb7c250b201b593a98fb"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -671,7 +671,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "2497fa0d34c9ea62a25b788c6bfd35970e9974b5b2aa23ca6c2a32073476054e"
+  "ce373643629fb2678996c3069ab0bbe5a4408cc924a4a683b4a14c7080012eb1"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
