@@ -177,13 +177,20 @@ loading only after Claude reads a file its globs match. Features it relies on:
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
 
 **Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
-documented. A path-scoped rule is not in context at session start and loads when Claude reads a
-matching file. A first-party repro on 2.1.219 with `paths: ["**/*.tsx"]` found the rule absent at
-session start, present after reading a matching `.tsx` file, and absent again after reading a
-non-matching one: deferral works in both directions. No changelog entry or maintainer comment pins
-the version where this began working, so do not claim a version floor. Recheck trigger: a Claude
-Code release note or memory-doc change touching rule loading, or any session in which a path-scoped
-rule is present at session start.
+documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
+reads or writes a matching file, and prices a move into one on that basis; which tools and Bash
+commands count is read live, not restated here. A first-party repro on 2.1.219 with
+`paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching
+`.tsx` file, and absent again after reading a non-matching one: deferral works in both directions.
+No changelog entry or maintainer comment pins the version where this began working, so do not claim
+a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule
+loading, or any session in which a path-scoped rule is present at session start.
+
+- **Pointer**: when a finding depends on what loads a path-scoped rule or a nested CLAUDE.md, fetch
+  [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
+  [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: either section changes the tools or commands that load the file.
 
 Caveats that do survive, each verified:
 
@@ -283,7 +290,7 @@ and prices a recommended move with that destination's row:
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read in that subdirectory |
+| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read or edit in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
 | Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |

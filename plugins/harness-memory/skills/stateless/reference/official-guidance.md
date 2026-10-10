@@ -90,7 +90,7 @@ The directory holds a `MEMORY.md` index plus topic files; the layout is in the S
 
 This skill treats every file there as plain markdown a person may edit or delete. There is no
 auto-memory-only built-in command, so selective deletion is manual removal of these files.
-`claude project purge` deletes the store only as part of the full per-project wipe (see "Out of
+`claude purge` deletes the store only as part of the full per-project wipe (see "Out of
 scope" below).
 
 - **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location) and
@@ -127,7 +127,7 @@ settings file's `env` block, which applies to every session and the subprocesses
   snapshots as cleaned at startup by `cleanupPeriodDays` (default 30, minimum 1), and the other two
   as not: `history.jsonl` persists until deleted, and `sessions/` is cleared per session rather
   than by age. Purging any of them is a different concern. The official per-project wipe is
-  `claude project purge`; read its deletion plan and flags on the page.
+  `claude purge`; read its deletion plan and flags on the page.
 
   We read the age-based sweep as covering per-session data files (transcripts, `shell-snapshots/`,
   `debug/`, `tasks/`, `file-history/` and similar), not the `sessions/` directory, which holds one
@@ -141,19 +141,29 @@ settings file's `env` block, which applies to every session and the subprocesses
   - **Recheck trigger**: either claude-directory section moves a path between the cleaned and kept
     lists, or the `cleanupPeriodDays` default or minimum changes.
 
-  This skill treats `claude project purge` as deleting, for one project, the transcripts and auto
-  memory under `projects/`, its per-session `tasks/`, `debug/` and `file-history/` entries, its
-  prompt lines in `history.jsonl`, and its entry in `~/.claude.json`; as leaving `shell-snapshots/`
-  and `backups/` alone, with a warning, since they are not project-scoped; and as printing its full
-  deletion plan and asking for confirmation before removing anything. The docs give the command no
-  version requirement, so do not state a version floor for it. `sessions/` appears nowhere in the
-  deletion list. That is this plugin's reading of that list, not a separate upstream statement.
+  This skill names the command `claude purge` and treats it as deleting, for one project, the
+  transcripts and auto memory under `projects/`, its per-session `tasks/`, `debug/` and
+  `file-history/` entries, its prompt lines in `history.jsonl`, and its entry in `~/.claude.json`;
+  as leaving `shell-snapshots/` and `backups/` alone, with a warning, since they are not
+  project-scoped; and as printing its full deletion plan and asking for confirmation before
+  removing anything. `sessions/` appears nowhere in the deletion list. That is this plugin's reading
+  of that list, not a separate upstream statement. The command was renamed; when a user's Claude
+  Code rejects `claude purge`, give the former name the page records, never one from memory.
 
-  - **Pointer**: [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
-    and [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
-  - **As of**: 2026-08-10
-  - **Recheck trigger**: the Clear local data section changes what `claude project purge` deletes
-    or keeps, or the docs give the command a version requirement.
+  - **Pointer**: when stating the command's name, arguments or flags, fetch
+    [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live; for what it
+    deletes and its former name, fetch
+    [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: the Clear local data section changes what `claude purge` deletes or keeps,
+    or the CLI commands table renames or drops the command.
+
+  This skill never tells a user the former name is gone: the changelog says it still runs and
+  prints a notice, which the docs pages do not mention.
+
+  - **Pointer**: [changelog](https://code.claude.com/docs/en/changelog), v2.1.288.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: a release note removes the former command name.
 
   We record `CLAUDE_CODE_SKIP_PROMPT_HISTORY` as the true "no session persistence" lever, since it
   stops transcripts and prompt history being written, and the complement to deleting the files
