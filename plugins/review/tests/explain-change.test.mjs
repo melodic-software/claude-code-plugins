@@ -471,11 +471,14 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
-  // The fake gh records its argv and answers the visibility lookup with FAKE_GH_OUT and FAKE_GH_EXIT.
+  // The fake gh records its argv, passes `auth status --hostname <h>` only for a host in FAKE_GH_AUTHED,
+  // and answers the visibility lookup with FAKE_GH_OUT and FAKE_GH_EXIT.
   writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
-require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
+const argv = process.argv.slice(2);
+require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(argv) + "\\n");
+if (argv[0] === "auth") process.exit((process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
 process.stdout.write(process.env.FAKE_GH_OUT + "\\n");
 process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
 `,
@@ -505,7 +508,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
   /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
-  const publish = ({ page, data }, { gh = "public", ghExit = 0, repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0 } = {}) =>
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0 } = {}) =>
     spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
@@ -514,6 +517,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
         FAKE_GH_LOG: ghLog,
         FAKE_GH_OUT: gh,
         FAKE_GH_EXIT: String(ghExit),
+        FAKE_GH_AUTHED: authed,
         FAKE_LOG: log,
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
@@ -600,17 +604,27 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "repos/acme/app", "--jq", ".visibility"]]);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
   });
-  test("a host in --repo asks that host's API and keys the sidecar by host", runsFake, () => {
+  test("a host gh is logged in to in --repo asks that host's API and keys the sidecar by host", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
-    const out = publish(at, { repo: "ghe.example.com/acme/app", gh: "private", out: answer(idB, "private") });
+    const out = publish(at, { repo: "ghe.example.com/acme/app", authed: "ghe.example.com", gh: "private", out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
-    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [
+      ["auth", "status", "--hostname", "ghe.example.com"],
+      ["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"],
+    ]);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], "the github.com sidecar is not this repository's");
     assert.equal(JSON.parse(readFileSync(join(at.data, "hosted/ghe.example.com__acme__app__7.json"), "utf8")).id, idB);
     assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
   });
-  test("a malformed host in --repo is a usage error with no lookup and no upload", runsFake, () => {
-    for (const repo of ["ghe_example/acme/app", "-x/acme/app", "localhost/acme/app", "a.b/c/acme/app", "/acme/app"]) {
+  test("a host gh is not logged in to sends the page private with no API call, whatever it would answer", runsFake, () => {
+    const at = setup();
+    const out = publish(at, { repo: "evil.example.net/acme/app", authed: "ghe.example.com", gh: "public", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["auth", "status", "--hostname", "evil.example.net"]]);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("a malformed host or an IP address in --repo is a usage error with no lookup and no upload", runsFake, () => {
+    for (const repo of ["ghe_example/acme/app", "-x/acme/app", "localhost/acme/app", "a.b/c/acme/app", "/acme/app", "169.254.169.254/acme/app", "10.0.0.1/acme/app"]) {
       const at = setup();
       assert.equal(publish(at, { repo, out: answer(idB, "public") }).status, 2, repo);
       assert.ok(!existsSync(ghLog), repo);

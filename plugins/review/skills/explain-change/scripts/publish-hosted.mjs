@@ -11,7 +11,9 @@
 // The script looks up the --repo repository's visibility itself, on --repo's host
 // (gh's default host when it names none); no caller passes a visibility. The page
 // carries no repository identity, so --repo must name the pull request's
-// repository, host included when that is not github.com.
+// repository, host included when that is not github.com. A named host is asked only
+// when this machine's gh is already logged in to it; any other host sends the page
+// private, and an IP address is a usage error.
 // Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
 // 2 usage or not a builder page, 4 refused: credential-shaped content.
 
@@ -25,7 +27,7 @@ import { validateView } from "../../../lib/view-builder.mjs";
 
 const ID = /^[A-Za-z0-9_-]{22}$/;
 const NAME = /^[A-Za-z0-9_.-]+$/;
-const HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
+const HOST = /^(?=.{1,253}$)(?![\d.]+$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 const VISIBILITIES = ["public", "private"];
 
 /** The data block's strings, one per line, so a credential the JSON escaping split is still read whole. */
@@ -68,8 +70,16 @@ function writeSidecar(path, current, stale) {
 
 const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
+/** Logged in through gh's stored hosts; an enterprise token in the environment would vouch for any host, so it is left out. */
+function ghLoggedIn(host) {
+  const { GH_ENTERPRISE_TOKEN, GITHUB_ENTERPRISE_TOKEN, ...env } = process.env;
+  return spawnSync("gh", ["auth", "status", "--hostname", host], { env, stdio: "ignore", timeout: 30000 }).status === 0;
+}
+
 /** REST, not `gh repo view`: GraphQL is refused in some sessions. Anything but a clean answer is UNKNOWN, which the gate sends private. */
 function lookupVisibility(host, repo) {
+  // A host gh is not logged in to could be anyone's server, answering "public" for a private repository.
+  if (host && !ghLoggedIn(host)) return "UNKNOWN";
   const run = spawnSync("gh", ["api", ...(host ? ["--hostname", host] : []), `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
   const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
   return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
