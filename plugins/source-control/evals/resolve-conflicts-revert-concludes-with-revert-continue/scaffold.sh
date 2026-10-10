@@ -56,4 +56,4 @@ git commit -q -m "fix(auth): mark the session cookie secure and name it" -m "The
 
 git revert --no-edit "$REMEMBER" >/dev/null 2>&1 || true
 test -f .git/REVERT_HEAD
-git diff --name-only --diff-filter=U | grep -qx auth/session.py
+grep -qx auth/session.py < <(git diff --name-only --diff-filter=U)

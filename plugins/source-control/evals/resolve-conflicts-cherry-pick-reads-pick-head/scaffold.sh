@@ -81,4 +81,4 @@ git checkout -q release/1.4
 git cherry-pick "$CAP" >/dev/null 2>&1 || true
 test -f .git/CHERRY_PICK_HEAD
 test ! -f .git/MERGE_HEAD
-git diff --name-only --diff-filter=U | grep -qx billing/rules.py
+grep -qx billing/rules.py < <(git diff --name-only --diff-filter=U)

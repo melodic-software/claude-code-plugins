@@ -47,5 +47,5 @@ git commit -q -m "perf: double the retry backoff" -m "Cold starts stampeded the 
 
 git merge ops/tuning -q -m "Merge branch ops/tuning into feature" >/dev/null 2>&1 || true
 test -f .git/MERGE_HEAD
-git diff --name-only --diff-filter=U | grep -qx config/retry.yaml
+grep -qx config/retry.yaml < <(git diff --name-only --diff-filter=U)
 test -z "$(git show --format= MERGE_HEAD -- config/retry.yaml)"

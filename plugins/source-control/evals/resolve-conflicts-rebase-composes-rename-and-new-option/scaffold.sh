@@ -116,4 +116,4 @@ git commit -q -m "refactor(retry): rename max_retries to max_attempts" -m "The c
 git checkout -q feature
 git rebase main >/dev/null 2>&1 || true
 test -d .git/rebase-merge
-git diff --name-only --diff-filter=U | grep -qx retry.py
+grep -qx retry.py < <(git diff --name-only --diff-filter=U)

@@ -64,4 +64,4 @@ git commit -q -m "refactor(api): drop legacy_token from fetch_orders" -m "The /o
 git checkout -q feature
 git merge main -q -m "Merge branch main into feature" >/dev/null 2>&1 || true
 test -f .git/MERGE_HEAD
-git diff --name-only --diff-filter=U | grep -qx api/client.py
+grep -qx api/client.py < <(git diff --name-only --diff-filter=U)
