@@ -10,7 +10,9 @@ name: eval-browser-dispatch
 # (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
 # the dispatcher must be on the trusted-actor list, the org kill switch is
 # read before the model step, the job token can only read contents, and each
-# dispatch gets a fresh runner. No write token exists in this job.
+# dispatch gets a fresh runner. No write token exists in this job. The lane
+# runs only when dispatched on the default branch, so every eval case it runs
+# has merged through review.
 #
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
@@ -45,28 +47,18 @@ permissions: {}
 
 jobs:
   eval:
+    # Default branch only: a dispatch on any other ref, or an event that names
+    # no default branch, skips the job before any step runs.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read # check out the repository; nothing in this job writes
     steps:
-      # An empty default branch would make the checkout below fall back to
-      # the dispatched ref, so a branch could supply the list it is judged by.
-      - name: Assert the default branch is set
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          if [ -z "$DEFAULT_BRANCH" ]; then
-            echo "::error::the event names no default branch"
-            exit 1
-          fi
-
-      # The kill switch and the trusted-actor list come from the default
-      # branch tip, never from the dispatched ref.
-      - name: Check out the default branch tip
+      # The dispatched commit, which the job if: holds to the default branch.
+      - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.repository.default_branch }}
           path: .base
           persist-credentials: false
 
@@ -121,10 +113,9 @@ jobs:
             exit 1
           fi
 
-      # Every binary this job runs comes from the default branch tip's
-      # lockfile, installed outside the workspace: the dispatched ref is
-      # checked out only after isolation and adds nothing to PATH. /opt keeps
-      # the tools readable from the eval's Bash sandbox, which hides HOME.
+      # Every binary this job runs comes from the locked root toolchain,
+      # installed outside the workspace: /opt keeps the tools readable from
+      # the eval's Bash sandbox, which hides HOME.
       - name: Install the locked root toolchain
         run: |
           sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
@@ -150,14 +141,8 @@ jobs:
         with:
           install-subprocess-isolation: "true"
 
-      - name: Check out the dispatched ref
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: src
-          persist-credentials: false
-
       - name: Run the plugin eval
-        working-directory: src
+        working-directory: .base
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Strips credentials from Bash subprocesses inside each eval run.
