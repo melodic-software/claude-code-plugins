@@ -3048,5 +3048,76 @@ assert_contains "two blocking guards dispatched: this guard's reason survives" \
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
   "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
+# --- A non-ignored target in the cwd's repository is left to the shell check --
+# check-bash-file-changes runs the Write|Edit content guards on every
+# non-ignored file in the cwd's repository that a shell command changed, so a
+# cat/echo/printf or staged-move write landing there is checked after the fact
+# and blocking it here only duplicates that. What the shell check cannot see
+# still blocks: a git-ignored target, anything under .git/, a target outside the
+# cwd's repository or inside a nested one, and any target this guard cannot
+# place (quoted, variable-carried, relative after a cd). The python and
+# PowerShell lanes name no target and stay whole.
+NR_REPO="$TEST_TMPDIR/narrow-repo"
+NR_DATA="$TEST_TMPDIR/narrow-plugin-data"
+mkdir -p "$NR_REPO/docs" "$NR_REPO/src" "$NR_REPO/sub" "$NR_REPO/.work" "$NR_REPO/nested" "$NR_DATA"
+git -C "$NR_REPO" init -q
+git -C "$NR_REPO" config core.excludesFile /dev/null
+printf '.work/\nSecret.env\n' >"$NR_REPO/.gitignore"
+printf 'doc\n' >"$NR_REPO/docs/x.md"
+printf 'readme\n' >"$NR_REPO/README.md"
+printf 'f\n' >"$NR_REPO/src/f"
+git -C "$NR_REPO" add .gitignore docs/x.md README.md src/f
+git -C "$NR_REPO" -c user.name=t -c user.email=t@example.invalid -c core.hooksPath=/dev/null \
+  commit -q -m init
+git -C "$NR_REPO/nested" init -q
+
+# run_repo <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+# The cwd is the fixture repository and the shell check has its data directory,
+# which is the state the guard is installed in.
+run_repo() {
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  expect "$label" "$expected" --command "$command" --cwd "$NR_REPO" \
+    -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA" "$@"
+}
+
+# Stay quiet: the shell check sees each of these files.
+run_repo "repo: cat > tracked file (allowed)" "cat > docs/x.md" 0
+run_repo "repo: echo > untracked, not ignored file (allowed)" "echo x > newfile.txt" 0
+run_repo "repo: printf >> tracked file (allowed)" "printf a >> README.md" 0
+run_repo "repo: staged move onto a tracked destination (allowed)" "cat > tmp && mv tmp src/f" 0
+run_repo "repo: absolute target inside the repository (allowed)" "echo x > $NR_REPO/src/g" 0
+expect_both "repo: echo > untracked file, dispatched parity (allowed)" 0 \
+  --command "echo x > newfile.txt" --cwd "$NR_REPO" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+
+# Must fire: the shell check cannot see these.
+run_repo "repo: git-ignored target still blocks" "echo x > .work/notes.md" 2
+run_repo "repo: ignored target in its own case still blocks" "echo x > Secret.env" 2
+run_repo "repo: target under .git still blocks" "cat > .git/hooks/pre-commit" 2
+run_repo "repo: relative target after a cd still blocks" "cd sub && echo x > newfile.txt" 2
+run_repo "repo: quoted target still blocks" 'echo x > "newfile.txt"' 2
+# shellcheck disable=SC2016  # literal $F is the command under test, not for expansion
+run_repo "repo: variable-carried target still blocks" 'echo x > $F' 2
+run_repo "repo: target outside the repository still blocks" "echo x > /srv/elsewhere/f" 2
+run_repo "repo: target inside a nested repository still blocks" "echo x > nested/f" 2
+run_repo "repo: dot-dot escape out of the repository still blocks" "echo x > ../outside.txt" 2
+run_repo "repo: staged move onto an ignored destination still blocks" "cat > tmp && mv tmp .work/x" 2
+run_repo "repo: staged move onto a directory still blocks" "cat > tmp && mv tmp src/" 2
+run_repo "repo: python3 -c write still blocks" "python3 -c \"open('a','w')\"" 2
+run_repo "repo: shell check switched off still blocks" "echo x > newfile.txt" 2 \
+  CLAUDE_PLUGIN_OPTION_BASH_FILE_CHANGE_CHECK_ENABLED=false
+expect "repo: no plugin data directory still blocks" 2 \
+  --command "echo x > newfile.txt" --cwd "$NR_REPO" -- CLAUDE_PROJECT_DIR=
+expect "repo: PowerShell Set-Content still blocks" 2 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh \
+  --command "Set-Content -Path '$NR_REPO/a.txt' -Value x" --cwd "$NR_REPO" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+if make_link "$NR_REPO/.work" "$NR_REPO/worklink"; then
+  run_repo "repo: symlink into an ignored directory still blocks" "echo x > worklink/f" 2
+else
+  bhb_skip "repo: symlink into an ignored directory"
+fi
+
 echo "symlink-fixture groups skipped: $bhb_skips"
 report
