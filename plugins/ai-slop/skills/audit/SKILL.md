@@ -32,7 +32,7 @@ rules ran at all. A shell error in place of the config means the detector did no
 command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill.
 
 - **Pointer**: when changing this line or its grants, fetch
-  <https://code.claude.com/docs/en/skills#inject-dynamic-context> live; the probe that found a
+  <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a
   zero-turn run under dontAsk is in
   <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-10. **Recheck trigger**: a Claude
   Code release note that changes how pre-compute commands are permission-checked.
