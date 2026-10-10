@@ -28,7 +28,7 @@
     {
       "id": 3,
       "name": "chart-happy-path-creates-map-with-five-sections-and-typed-items",
-      "prompt": "/planning:wayfind chart migrating our monolith to a modular architecture. I know some pieces: we've agreed the database can't be split yet (that's out of scope for now), and we need to decide whether to go strangler-fig or big-bang (that's answerable, if painful). But I genuinely don't know yet how we'd handle cross-module transactions — I can't even phrase that as a real question.",
+      "prompt": "/planning:wayfind chart migrating our monolith to a modular architecture. We interviewed this earlier in the session and it outgrew one sitting. I know some pieces: we've agreed the database can't be split yet (that's out of scope for now), and we need to decide whether to go strangler-fig or big-bang (that's answerable, if painful). But I genuinely don't know yet how we'd handle cross-module transactions — I can't even phrase that as a real question.",
       "expected_output": "Chart mode surveys the effort and creates or extends a work-map issue whose body carries the five sections (Destination, Notes, Decisions-so-far, Not-yet-specified, Out-of-scope). The strangler-fig-vs-big-bang question becomes a typed decision sub-issue (sharp); the cross-module-transactions unknown stays fog prose under Not-yet-specified; the database-split exclusion is recorded under Out-of-scope. The session ends by handing off to /planning:wayfind work on the frontier rather than resolving decisions itself.",
       "files": [],
       "expectations": [

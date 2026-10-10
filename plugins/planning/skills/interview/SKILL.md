@@ -1,5 +1,5 @@
 ---
-description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before behavior-changing work with ambiguous intent. Skip mechanical work."
+description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or at the start of medium-large work. Skip a quick-to-review, cheap-to-retry diff."
 argument-hint: "[me|lock|scope] [topic]"
 user-invocable: true
 disable-model-invocation: false
@@ -454,6 +454,7 @@ the recommendation from this summary.
 ## What this skill does NOT do
 
 - `context/gotchas.md`. Failure patterns from real sessions
+
 - **Does not deep-dive the codebase**. Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
 - **Does not plan implementation**. The Brief says *what* and *what we are assuming*; `/planning:plan` says *how*. Resist drafting an approach mid-interview
 - **Does not write code or run tests**. Discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs (written through `/architecture:record-decision` when that plugin is enabled, else by hand into the declared convention) are first-class interview outputs alongside the Brief (a general session writes none)
