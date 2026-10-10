@@ -406,7 +406,10 @@ jobs:
               await github.rest.git.updateRef({ ...context.repo, ref: `heads/${HEAD_REF}`, sha: lane, force: false });
               core.info(`Moved ${HEAD_REF} from ${HEAD_SHA} to ${lane}`);
             } finally {
-              await github.rest.git.deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` });
+              // A failed cleanup must not fail an activity whose commits landed.
+              await github.rest.git
+                .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
+                .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
 
       # A script that gets GH_TOKEN must not execute code from the PR head.
