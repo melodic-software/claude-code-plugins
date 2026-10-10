@@ -797,6 +797,7 @@ assert_eq "unrecognized type prints transport unknown" "unknown" "$(cell file t-
 assert_eq "unrecognized type row is unparsed" "unparsed" "$(cell file t-unknown 7)"
 assert_eq "sdk transport" "sdk" "$(cell file t-sdk 4)"
 assert_eq "sdk launcher" "sdk" "$(cell file t-sdk 5)"
+assert_eq "file-configured sdk entry is skipped by the client" "skipped-by-client" "$(cell file t-sdk 3)"
 check_row q-key remote https://h.example.com n/a h.example.com
 check_row q-userinfo remote https://h.example.com n/a h.example.com
 
