@@ -37,6 +37,19 @@
         "The rejected key is reported from notes, with the reason that only aliases are accepted",
         "The skill does not edit the overlay file"
       ]
+    },
+    {
+      "id": 4,
+      "name": "agent-dispatch-applies-variant",
+      "prompt": "I'm spawning one worker subagent through the Agent tool, no named agent type. This session runs on Fable. What do I put on the Agent call?",
+      "narration": true,
+      "expected_output": "Runs route.sh worker with session=fable and takes the single-agent variant. Tells the caller to omit `model` on the Agent call when the variant's omit_model is true, otherwise to pass the variant's model as `model`, and in both cases to pass the variant's effort as `effort`.",
+      "expectations": [
+        "The bundled route.sh is run for the worker role with session=fable",
+        "The single-agent variant is applied, not the fan-out variant",
+        "The answer omits `model` when omit_model is true and otherwise passes the variant's model as `model`",
+        "The answer passes the variant's effort as `effort` on the Agent call"
+      ]
     }
   ]
 }
