@@ -78,6 +78,8 @@ const stayQuiet = {
   'the read-on note quoted mid-result, not on the last line':
     withResult(hooks, `Intro.\n\n${readOnNote}\n\nThe page goes on here.`),
   'a WebFetch note that names no offset': lastLineSwapped(hooks, '[WebFetch note: this page redirected to another host.]'),
+  'a redirect note whose target URL carries an offset query':
+    lastLineSwapped(hooks, '[WebFetch note: the page redirected from https://example.org/start to https://example.com/page?offset=10; fetch the new URL to read it.]'),
 }
 
 for (const [name, payload] of Object.entries(stayQuiet)) {

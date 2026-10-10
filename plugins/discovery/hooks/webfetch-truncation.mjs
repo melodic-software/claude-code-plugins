@@ -8,7 +8,9 @@
 // one bracketed line that starts "[Content truncated" or contains "continues"
 // (the phrasings seen in captured payloads and in the visible-text probe,
 // fixtures/ and the plugin README), or WebFetch's own read-on note: a
-// bracketed line that starts "[WebFetch note:" and names an offset. That note
+// bracketed line that starts "[WebFetch note:" and ends "to read on, ...
+// offset: N." (a note naming "offset" elsewhere, such as in a redirect
+// target's query, is not one). That note
 // comes with WebFetch's optional `offset` input, so for it the context line
 // names re-reading with that offset first. Probed on Claude Code 2.1.296,
 // 2026-10-10; evidence in the pull request that carries this change. For what
@@ -33,7 +35,7 @@ export const MAX_STDIN_BYTES = 2 * 1024 * 1024
 const IDLE_MS = 2000
 
 const MARKER_LINE = /^\[(?:Content truncated\b[^\]\n]*|[^\]\n]*\bcontinues\b[^\]\n]*)\]$/
-const READ_ON_NOTE = /^\[WebFetch note:[^\]\n]*\boffset\b[^\]\n]*\]$/
+const READ_ON_NOTE = /^\[WebFetch note:[^\]\n]*\bto read on\b[^\]\n]*\boffset: \d+\.?\]$/
 
 export const MAX_URL_CHARS = 200
 
