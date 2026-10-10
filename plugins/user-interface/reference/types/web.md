@@ -26,8 +26,7 @@ is not used for it; offer one only for a concern the project leaves open.
 - Type: the project's fonts; otherwise the platform's system font stack, a small modular scale, line
   length near 60-75 characters for body text.
 - States: design loading, empty, error and success for every view that fetches data.
-- Responsive: start narrow, add columns as width allows, test at phone and desktop widths, and
-  test each component at its smallest size and with its largest values.
+- Responsive: start narrow, add columns as width allows, test at phone and desktop widths.
 - Accessibility: the floor in `principles.md`, with WCAG contrast measured, labels on every input,
   and focus visible.
 
@@ -40,9 +39,12 @@ review checklist below checks only what was built.
   and velocity; never restart from zero. Sources:
   [post](https://x.com/gabriell_lab/status/2077366193766232092),
   [post](https://x.com/gabriell_lab/status/2108552959168573810).
-- **Expand to content height** by animating `grid-template-rows` from `0fr` to `1fr`, with the child
-  set to `min-height: 0` and `overflow: hidden`, never by animating `height: auto`. This is a
-  deliberate exception to the checklist's transform-and-opacity-only rule. Source:
+- **Expand to content height** by animating `grid-template-rows` from `0fr` to `1fr` on a wrapper
+  set to `display: grid`, with the child set to `min-height: 0` and `overflow: hidden`, never by
+  animating `height: auto`. Hidden overflow still leaves the content reachable by keyboard and
+  assistive technology, so expose the open or closed state on the trigger and make the content
+  `inert` once it has closed. This is a deliberate exception to the checklist's
+  transform-and-opacity-only rule. Source:
   [post](https://x.com/gabriell_lab/status/2071947977766117468).
 - **A change in appearance never changes the layout box.** Loading states reserve the final size: a
   fallback font tuned to the web font's metrics, skeletons sized to the final layout. Corner, clip
