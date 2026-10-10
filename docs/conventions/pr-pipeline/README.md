@@ -62,10 +62,6 @@ into `intake`.
 Pipeline lanes skip draft PRs; `ci-status` still reports on them. Converting a PR back to draft
 cancels every running pipeline lane for it.
 
-It's worth noting that `fix-docs` only acts on the markdown files a PR changes — it receives the
-`changed-paths` input and is skipped when no changed path matches `**/*.md`, so a code-only PR
-gets no `fix-docs` commit.
-
 ## Lanes
 
 A lane is one workflow with one model job; scripted jobs beside it report its check runs. The lane
