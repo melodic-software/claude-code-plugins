@@ -3,12 +3,12 @@
 #
 # Maintainer-facing: run against a working-tree checkout of this plugin (the
 # marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy — --apply rewrites UPSTREAM.md in the skill dir.
+# installed marketplace copy — --apply rewrites upstream.md in the skill dir.
 # Consumers receive updates through `/plugin marketplace update`.
 #
 # Modes:
 #   --check  (default) read-only: report CLI version delta + upstream SKILL.md drift
-#   --apply  run npm install -g firecrawl-cli@latest, then rewrite UPSTREAM.md
+#   --apply  run npm install -g firecrawl-cli@latest, then rewrite upstream.md
 #            WITHOUT touching SKILL.md (Claude integrates upstream changes under
 #            the skill body's Preservation rules; this script only owns the
 #            deterministic parts — npm + metadata)
@@ -30,7 +30,7 @@ NPM_PKG="firecrawl-cli"
 NPM_LATEST_URL="https://registry.npmjs.org/${NPM_PKG}/latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-UPSTREAM_MD="${SKILL_DIR}/UPSTREAM.md"
+UPSTREAM_MD="${SKILL_DIR}/upstream.md"
 TMPDIR_RUN=$(mktemp -d "${TMPDIR:-/tmp}/firecrawl-update-XXXXXX")
 
 cleanup() {
@@ -89,7 +89,7 @@ latest_cli_version() {
 }
 
 # `--fail` is critical: an HTTP error page would otherwise be hashed as the real
-# SKILL.md, poisoning UPSTREAM.md on --apply and masking drift on --check.
+# SKILL.md, poisoning upstream.md on --apply and masking drift on --check.
 fetch_upstream_sha() {
   local out="${TMPDIR_RUN}/upstream-skill.md"
   curl -sSL --fail --max-time 15 "$UPSTREAM_URL" -o "$out" 2>/dev/null || return 1
@@ -97,7 +97,7 @@ fetch_upstream_sha() {
   sha256 "$out" | awk '{print $1}'
 }
 
-# Read the last field of a `- <Label>: <value>` line from UPSTREAM.md
+# Read the last field of a `- <Label>: <value>` line from upstream.md
 # (empty if the file or the line is absent — i.e. never synced).
 recorded_field() {
   [[ -f "$UPSTREAM_MD" ]] || return 0
@@ -199,7 +199,7 @@ run_apply() {
   log "new upstream SHA256: $upstream_sha"
 
   rewrite_upstream_md "$upstream_sha" "$current" "$previous_ver"
-  log "UPSTREAM.md refreshed"
+  log "upstream.md refreshed"
 
   section "Next step"
   log "Now invoke the skill's Gate-2 integration: review the upstream SKILL.md"
@@ -244,7 +244,7 @@ facing: run in a working-tree checkout of the plugin, not an installed copy.
   --check  (default) Read-only drift report: CLI version delta + upstream SHA delta.
            Exit 0 if in sync, 1 if drift detected, 2 on prerequisite/network error.
 
-  --apply  Run npm install -g firecrawl-cli@latest and refresh UPSTREAM.md.
+  --apply  Run npm install -g firecrawl-cli@latest and refresh upstream.md.
            Does NOT rewrite SKILL.md — that's Claude's integration step, governed
            by SKILL.md Preservation rules.
 

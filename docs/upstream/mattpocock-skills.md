@@ -12,7 +12,9 @@ upstream PR #1120), 37 skills. At audit time it was untagged: the latest tag was
 `changeset-release/main`) that would cut 1.3.0 was open. Upstream tagged v1.3.0 and v1.3.1 on
 2026-10-04 (`main@24fe0ef`), after this audit. The only content past `d81f3a1` in those releases is
 upstream PR #1121 (one `ask-matt` paragraph and the `diagnosing-bugs` docs page now send post-bug
-reflection to `retro`), read and recorded in the `diagnosing-bugs` row. This repo's audit: the
+reflection to `retro`), read and recorded in the `diagnosing-bugs` row. The session-start flow
+and the `ask-matt` main flow were rechecked against v1.3.1, with `main@49dd158` ahead of it on
+unreleased changesets, and recorded in the map's "Session-start flow and main flow" section. This repo's audit: the
 `pocock-upstream-sync` topic. Git history of this file records *when*; this line records only *what
 was audited*.
 
