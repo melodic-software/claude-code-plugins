@@ -44,8 +44,30 @@ special-case.
 3. **Check the tests can fail.** Run them against the phase's base before dispatching, with the
    pinned command step 4 describes. A holdout test that passes before the phase is built checks
    nothing new; rewrite it or drop it and log a `DEVIATIONS.md` discovery.
+
+   Then show the user one plain-language line per test, what it asserts and which criterion it
+   checks, and keep only the tests they approve; in a run with no user present, record that list
+   in `DEVIATIONS.md` for review at PR time. Record a hash of the approved files
+   (`sha256sum <holdout>/phase-N/*`) in the orchestrator's notes.
+
+   **Optional lock.** When the plan or the user opts in, launch each worker that runs as its own
+   `claude` session with the deny rules `Read(//<memory-slice root>/**)` and
+   `Edit(//<memory-slice root>/**)`, through `--disallowedTools` or a `--settings` file outside the
+   worker's worktree. The root, not the holdout path, keeps the rule from pointing at the tests. A
+   worker dispatched as a subagent of the orchestrator's session gets no such rule: a session-wide
+   deny would also stop the orchestrator, which reads and writes the slice, and a subagent's
+   `disallowedTools` removes a whole tool rather than one path. The rules stop Claude's file tools
+   and the shell file commands Claude Code recognizes, not a script that reads or writes files
+   itself (`python -c`, `node -e`), so the hash recheck in step 4 stays the gate.
+
+   - **Pointer**: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) in
+     the permissions page, for the path syntax and what a deny does not cover.
+   - **As of**: 2026-10-10.
+   - **Recheck trigger**: that section changes `//` path anchoring or starts covering files a
+     script opens itself, or subagent definitions gain path-scoped deny rules.
 4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator
-   creates a detached throwaway worktree at the phase head, never reusing a worker's worktree, and
+   first rechecks the step 3 hash; a change it did not make itself (step 6, which records a new
+   hash) is a Major divergence and stops the run. It then creates a detached throwaway worktree at the phase head, never reusing a worker's worktree, and
    the `phase-verifier` dispatch carries that path, the holdout path, the exact run command, and
    the criterion each test maps to. When the ecosystem needs the tests inside the tree to build,
    the orchestrator copies them into the throwaway worktree, never into a worker's. It removes the
@@ -73,7 +95,8 @@ special-case.
    literals, which would turn the holdout into a visible target.
 6. **When the holdout test is wrong.** A holdout test written from criteria alone can misread
    them. When the failure traces to the test rather than the code, the orchestrator fixes the test
-   from the criteria, never from the code's output, and logs a `DEVIATIONS.md` entry. A disputed
+   from the criteria, never from the code's output, records its new hash, and logs a
+   `DEVIATIONS.md` entry. A disputed
    reading of a criterion is a human-decision entry, and Major divergence still stops the run.
 7. **After `[DONE]`.** The tests may be promoted into the repository's suite in a test-only commit.
    From then on they are existing tests, read-only to later phases' workers under item 1.12.
