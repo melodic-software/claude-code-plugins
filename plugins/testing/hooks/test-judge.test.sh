@@ -95,19 +95,22 @@ relay() { ((rc == 2)) && head -1 "$ERR"; }
 # judges, and wait until each job has exited, so none calls a stub during a
 # later case. A marker holds the job's own pid, the last command of the
 # Stop's pipeline: no process group has that id, and only the Stop's shell
-# could signal it as one. A job still alive after 10 s fails the run. A
-# zombie has exited: an orphan stays one under an init that does not reap.
-gone() { ! kill -0 "$1" 2>/dev/null || [[ "$(sed 's/.*) //' "/proc/$1/stat" 2>/dev/null | cut -c1)" == Z ]]; }
+# could signal it as one. A job still alive after 10 s fails the run. A job
+# has exited once its EXIT trap removed its marker and its pid is gone; Git
+# Bash cannot probe a pid from another process tree, so there the marker
+# decides. A zombie has exited: an orphan stays one under an init that does
+# not reap.
+gone() { [[ ! -e "$2" ]] && { ! kill -0 "$1" 2>/dev/null || [[ "$(sed 's/.*) //' "/proc/$1/stat" 2>/dev/null | cut -c1)" == Z ]]; }; }
 stop_jobs() {
-  local p pids=() pid live n
+  local p marks=() pids=() pid i live n
   for p in "$DATA/pending/$PKEY/$1"/*; do
-    [[ -f "$p" ]] && pids+=("$(cut -d' ' -f1 "$p" | head -1)")
+    [[ -f "$p" ]] && marks+=("$p") && pids+=("$(cut -d' ' -f1 "$p" | head -1)")
   done
   for pid in ${pids[@]+"${pids[@]}"}; do kill -TERM "$pid" 2>/dev/null; done
   tmp_kill TERM "$TMP/judge-stub.sh"
   for ((n = 0; n < 50; n++)); do
     live=""
-    for pid in ${pids[@]+"${pids[@]}"}; do gone "$pid" || live+=" $pid"; done
+    for i in "${!pids[@]}"; do gone "${pids[i]}" "${marks[i]}" || live+=" ${pids[i]}"; done
     [[ -z "$live" ]] && return 0
     sleep 0.2
   done
