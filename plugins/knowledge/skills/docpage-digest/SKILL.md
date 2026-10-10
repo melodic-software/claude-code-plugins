@@ -296,8 +296,9 @@ so nothing substitutes a token in them before it reaches the Bash tool.
   effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the
   route live before relying on a "high effort" verification claim, and record the effective effort
   and its source in verification records.
-  - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
-    record, in the marketplace repository; no docs page covers per-call Workflow effort.
+  - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
+    "Where per-task effort is set" record, in the marketplace repository; no docs page covers
+    per-call Workflow effort.
   - **As of**: 2026-10-02
   - **Recheck trigger**: a docs page starts covering it.
   - **Pointer**: when an Agent tool dispatch carries the effort, fetch

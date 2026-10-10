@@ -15,8 +15,9 @@ Two independent verifiers over the full digest set, fresh context, production ra
   on the same terms as the Workflow call. On either route the verdict header records the effective
   effort and where it came from. If the effective effort is below `medium`, stop Phase 4 and report
   it instead of verifying.
-  - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
-    record, in the marketplace repository; no docs page covers per-call Workflow effort.
+  - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
+    "Where per-task effort is set" record, in the marketplace repository; no docs page covers
+    per-call Workflow effort.
   - **As of**: 2026-10-02
   - **Recheck trigger**: a docs page starts covering it.
   - **Pointer**: when verifier A goes through the Agent tool, fetch
