@@ -67,12 +67,14 @@ VALUES_CONSUMERS=(
 # the fixture tree has to satisfy both registries. The paths are read back out
 # of the SUT rather than copied here: a second hand-maintained list would be
 # free to disagree with the one under test, which is the defect class this
-# whole gate is about.
-DATA_CARRIER_PATHS=()
-while read -r _kind _tag dc_path _rest; do
-  [[ -n "${dc_path:-}" ]] || continue
-  DATA_CARRIER_PATHS+=("$dc_path")
-done <<<"$(bash "$SUT" --list 2>/dev/null | grep '^carrier exempt' || true)"
+# whole gate is about. They come from the SUT's DATA_CARRIERS array, not from
+# its --list, which scans every file of the live tree to find the carriers.
+mapfile -t DATA_CARRIER_PATHS < <(awk '
+  /^DATA_CARRIERS=\(/ { f = 1; next }
+  f && /^\)/ { exit }
+  f { sub(/^[[:blank:]]*"/, ""); sub(/ .*/, ""); if ($0 != "") print }
+' "$SUT")
+((${#DATA_CARRIER_PATHS[@]})) || fail "no DATA_CARRIERS entry read from $SUT"
 
 # The floor block as the fixtures carry it. Short stand-ins for the real
 # bullets: this suite tests the gate's comparison, not the guard's values.
