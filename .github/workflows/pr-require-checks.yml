@@ -2680,9 +2680,10 @@ jobs:
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only.
     timeout-minutes: 3
     permissions:
-      # The full run re-runs this workflow's red contract-only runs on its head
-      # SHA once it records `success` (the last step). Under an explicit block
-      # the default is none, and the call would 403.
+      # `yield-to-full-run` lists this workflow's runs on the head SHA, and
+      # `rerun-contract-only-siblings` re-runs the red contract-only ones once
+      # the full run records `success`. Under an explicit permissions block every
+      # unlisted scope defaults to none; write covers the read.
       actions: write
       contents: read
       # check-contract upserts the advisory linkage comment and moves the linkage
@@ -2701,41 +2702,6 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A CONTRACT-ONLY RUN FAILS AT ONCE WHILE A FULL RUN ON THIS SHA IS QUEUED
-      # OR IN PROGRESS. A queued full run has not written its `ci-lanes=pending`
-      # marker yet, so the status read below could carry an older verdict across
-      # the run that is about to replace it. One listing, no wait. A sibling
-      # whose `select-tests` job was skipped is contract-only and does not count, and
-      # neither does one whose `ci-status` job has started: its verdict is being
-      # written, and the status read below sees the marker or the verdict. That
-      # is also what lets the re-run this full run's last step starts pass. A
-      # sibling with no jobs yet counts. An unreadable listing fails closed.
-      - name: Fail while a full run is in flight
-        if: github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          api="repos/$GITHUB_REPOSITORY/actions"
-          ids=""
-          for attempt in 1 2 3; do
-            if workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) &&
-              ids=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&per_page=100" \
-                --jq ".workflow_runs[] | select(.status != \"completed\" and .id != $GITHUB_RUN_ID) | .id"); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not list this workflow's runs on $HEAD_SHA; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
-          for id in $ids; do
-            jobs=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '([.jobs[] | select(.name == "select-tests") | .conclusion][0] // "") + " " + ([.jobs[] | select(.name == "ci-status") | .status][0] // "none")') || jobs=""
-            case "$jobs" in
-              "skipped "* | *" in_progress" | *" completed") continue ;;
-            esac
-            echo "::error::full run $id is in flight on $HEAD_SHA; it re-runs this run when it records success."
-            exit 1
-          done
       # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing. Between the flip to ready and the `ready_for_review`
       # run's own ci-status check run (minutes later), the draft's ci-status is
@@ -2743,22 +2709,23 @@ jobs:
       # nothing. The aggregate below fails on the skipped lanes and records
       # `ci-lanes=failure`; this step says why.
       #
-      # A contract-only run (`select-tests` skipped) reads the live draft state, not
-      # its payload. A re-run keeps the payload, and the last step re-runs the
-      # contract-only runs a body edit or label flip drew while this was a
-      # draft: on the payload they would fail here again and be the newest red
-      # ci-status. A contract-only run tests nothing either way; the `ci-lanes`
-      # status decides it. A full run's lanes skipped on this same payload, so
-      # it fails whatever the live state says. An unreadable state fails closed.
+      # A re-run keeps the payload of the event that started the run, so a
+      # contract-only run from the draft era that a full run re-runs after
+      # ready_for_review still carries draft: true; the live state decides.
+      # A contract-only run tests nothing either way; the `ci-lanes` status
+      # decides it. An unreadable state fails closed.
       # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
       - name: Fail a draft
         if: github.event.pull_request.draft == true
         env:
-          SCOPE: ${{ needs.select-tests.result }}
+          # Only a contract-only run reads its verdict from ci-lanes, so only it
+          # may pass on the live state. A re-run of a draft-era full run still
+          # skipped its lanes and is refused.
+          CONTRACT_ONLY: ${{ github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$SCOPE" = skipped ] &&
+          if [ "$CONTRACT_ONLY" = true ] &&
             [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
             echo "Marked ready since this run's event; the ci-lanes status decides."
             exit 0
@@ -2845,51 +2812,14 @@ jobs:
           results: ${{ steps.lanes.outputs.results }}
           # A `skipped` lane is red, a draft's included (see `Fail a draft`).
           treat-skipped-as: fail
-          # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
-          # `ci-lanes` status once and passes only on `success`. While a full
-          # run is in flight that status is the `pending` its `select-tests` job
-          # wrote, so the contract-only run goes red in seconds; the full run's
-          # own `ci-status` check run is newer and decides the merge gate, and
-          # the next step re-runs the red one so it does not linger. Waiting
-          # instead held a runner for the whole full run (mean 299 s, up to the
-          # ceiling) and still went red whenever the full run outlasted the
-          # ceiling (#5784). Operator remedy: docs/ci-runner-routing.md, section
-          # Contract-only ci-status.
+          # A contract-only run never waits: while a full run on the SHA is in
+          # flight it fails with "superseded by full run <url>", and that run's
+          # newer ci-status decides the gate. Once the full run records
+          # `success` it re-runs those red contract-only runs, which then read
+          # the `success` and replace their red check runs. A draft full run
+          # skips its lanes and re-runs nothing. Operator remedy:
+          # docs/ci-runner-routing.md, section Contract-only ci-status.
+          yield-to-full-run: 'true'
+          rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           token: ${{ github.token }}
-      # The full run's `success` is now on the SHA, so every red contract-only
-      # run beside it (a body edit or label flip that read `pending`) would read
-      # `success` on a re-run. Re-running the failed jobs keeps the run's
-      # original event, so the attempt is contract-only again and cannot reach
-      # this step. A red that is red for a contract reason stays red, and a
-      # contract-only run still in progress at this listing is not seen: re-run
-      # it by hand (the failure message says so). Never fails the job: the
-      # verdict above is already recorded, and a refused re-run must not turn
-      # the required check red over a check run that is no longer the newest.
-      - name: Re-run the red contract-only runs on this SHA
-        # Same repository by id, as in the in-flight marker step.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id && needs.select-tests.result == 'success' && success()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          api="repos/$GITHUB_REPOSITORY/actions"
-          workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) || {
-            echo "::warning::could not read this run; no contract-only run re-run."
-            exit 0
-          }
-          failed=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" \
-            --jq ".workflow_runs[] | select(.conclusion == \"failure\" and .id != $GITHUB_RUN_ID) | .id") || {
-            echo "::warning::could not list this workflow's runs on $HEAD_SHA; no contract-only run re-run."
-            exit 0
-          }
-          for id in $failed; do
-            scope=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '[.jobs[] | select(.name == "select-tests") | .conclusion][0] // ""') || continue
-            [ "$scope" = skipped ] || continue
-            if gh api --method POST "$api/runs/$id/rerun-failed-jobs" >/dev/null; then
-              echo "Re-ran contract-only run $id."
-            else
-              echo "::warning::could not re-run contract-only run $id; re-run it by hand."
-            fi
-          done
