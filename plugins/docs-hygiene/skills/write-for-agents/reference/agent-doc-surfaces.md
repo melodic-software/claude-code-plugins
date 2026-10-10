@@ -19,8 +19,8 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start; re-injected after `/compact` |
 | CLAUDE.local.md | `./CLAUDE.local.md` (also beside ancestor CLAUDE.md) | Session start, after same-level CLAUDE.md |
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start, root→cwd; excludable via `claudeMdExcludes` |
-| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when the agent reads files there; NOT re-injected after `/compact` until the next matching read |
-| Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand on matching file read |
+| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)); NOT re-injected after `/compact` until it loads again |
+| Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
 | User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
 | `--add-dir` CLAUDE.md/rules | `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md` in each added directory | Session start, ONLY when `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; off by default, and otherwise these files do not load at all |
 | `@` imports | `@path` inside CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
@@ -49,6 +49,18 @@ Load-semantics facts that change how you write:
   guidance is <200 lines per CLAUDE.md anyway.
 - These surfaces are context, not enforcement, so a rule that must be mechanically guaranteed
   belongs in a hook or permission policy, not prose.
+
+### Load triggers
+
+We describe nested CLAUDE.md and `paths:`-gated rules as loading when Claude works with a file they
+cover, not only when it reads one, and we keep the list of tools and commands that count out of this
+file.
+
+- **Pointer**: when a placement depends on exactly which tool calls or shell commands trigger the
+  load, fetch <https://code.claude.com/docs/en/memory#how-claude-md-files-load> (nested CLAUDE.md)
+  and <https://code.claude.com/docs/en/memory#path-specific-rules> (path-scoped rules) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the memory page changes the trigger list for either surface.
 
 ## CLI prompt appends
 
