@@ -124,9 +124,23 @@ Upstream is explicit: don't delete `~/.claude.json`, `~/.claude/settings.json`, 
 
 `~/.claude.json` lives in the home directory, **not** under `~/.claude`, and is not touched by the
 retention sweep at any value of `cleanupPeriodDays`. Its growth has one supported remedy:
-`claude project purge <path>`, which deletes that project's transcripts and auto memory, its
+`claude purge <path>`, which deletes that project's transcripts and auto memory, its
 per-session `tasks/`/`debug/`/`file-history/` entries, its matching `history.jsonl` lines, and its
 entry in `~/.claude.json`. It prints the full plan and asks for confirmation; `--dry-run` previews.
+
+We route to `claude purge` everywhere and never to its old name `claude project purge`.
+
+- **Pointer**: when routing a user to the purge command or checking its flags, fetch
+  [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) and
+  [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the cli-reference stops listing `claude purge`, or the claude-directory
+  section changes what it says about the old name.
+- **Source conflict**: the [changelog](https://code.claude.com/docs/en/changelog) entry for
+  2.1.288 says the old name still works and prints a notice; the claude-directory page says only
+  that it was the command's name before v2.1.288. Recheck when the page states the old name's
+  status.
 
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants. The leading number *looks*
 like a PID; that has not been verified, so the engine attempts no liveness lookup on it.
