@@ -5,6 +5,7 @@
 # contract), and every script the driver loads is named as a whole token so the
 # affected-tests mapping reaches this suite from any of them.
 # test-scope: plugins/testing/skills/audit/evals/fixtures/*
+# test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
