@@ -88,7 +88,7 @@ the user's ambient tool grants; `--allowedTools Read` keeps the authorized read 
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report
 `Not logged in · Please run /login` and fail on an **OAuth-login** install, because it drops the login
 credential state. Enable it only where auth is an env-var API key that survives it. The dominant cost
-lever is the **model** (`observer_analysis_model`, default the cheapest active tier); `--bare` is a
+lever is the **model** (`observer_analysis_model`, default a small, fast model); `--bare` is a
 secondary, environment-dependent one.
 
 ## Config surface (userConfig)
@@ -99,7 +99,7 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = zero-config unchanged; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: the distilled observations are retained under the plugin work dir for manual inspection; the observer does not itself analyze or write the ledger. There is no automatic in-session consumer of the observations today (deferred; see below). |
-| `observer_analysis_model` | `claude-haiku-4-5` | Analysis model (the cost lever). |
+| `observer_analysis_model` | `claude-haiku-5-5` | Analysis model (the cost lever). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits WITHOUT analysis. |

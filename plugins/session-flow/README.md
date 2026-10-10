@@ -436,7 +436,7 @@ two drift-check bounds; see the options reference below):
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
-| `observer_analysis_model` | `claude-haiku-4-5` | Analysis model, the dominant cost lever. |
+| `observer_analysis_model` | `claude-haiku-5-5` | Analysis model, the dominant cost lever. |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_poll_seconds` | `5` | How often the observer re-reads the transcript and re-checks the idle threshold. Minimum 1. |
@@ -490,7 +490,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
 | `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
-| `observer_analysis_model` | string | `"claude-haiku-4-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth. |
+| `observer_analysis_model` | string | `"claude-haiku-5-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-5-5, is a small, fast model; pin a different ID to trade cost for depth. |
 | `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
 | `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
 | `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |

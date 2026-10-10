@@ -83,7 +83,7 @@ def main() -> int:
     p.add_argument("--topic", default="")
     p.add_argument("--previous-running-retro", default="")
     p.add_argument("--previous-session-id", default="")
-    p.add_argument("--model", default="claude-haiku-4-5")
+    p.add_argument("--model", default="claude-haiku-5-5")
     p.add_argument("--analysis", action="store_true")
     p.add_argument("--bare", action="store_true")
     p.add_argument("--poll-seconds", default="5")

@@ -19,7 +19,7 @@
 # Config (consumer settings `env`, via userConfig; all optional):
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED           master opt-in (default false)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED  post-end analysis (default true)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (default claude-haiku-4-5)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (default claude-haiku-5-5)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE     pass --bare (default false; see reference/observer.md)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS      mtime-idle end threshold (default 900)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS      poll interval (default 5)
@@ -63,7 +63,7 @@ LEDGER_DIR="$MEMORY_DIR/running-retros"
 # Transient observations are machine-local plugin state, never the consumer repo.
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
-MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-4-5}"
+MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-5-5}"
 IDLE="${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
 POLL="${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
 MAX="${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}"

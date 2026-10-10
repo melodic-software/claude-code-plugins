@@ -1123,7 +1123,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="prior session id paired with --previous-running-retro",
     )
-    p.add_argument("--model", default="claude-haiku-4-5")
+    p.add_argument("--model", default="claude-haiku-5-5")
     p.add_argument(
         "--analysis",
         action="store_true",
