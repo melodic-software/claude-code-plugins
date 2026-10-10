@@ -995,14 +995,17 @@ function inert_scan(m, r,    s, d) {
 # ---------------------------------------------------------------------------
 
 # Record `const NAME = <static path>` (a literal, or a join or resolve over
-# literals) in SRC_CONST; a let or var counts too, so a redeclaration replaces
-# or forgets NAME. The declaration may span lines until its parentheses close;
-# one that never resolves forgets NAME, so a stale value never applies.
+# literals) in SRC_CONST, with or without a type annotation. A let or var of
+# the same name only forgets it: a mutable binding can be reassigned. The
+# declaration may span lines until its parentheses close; one that never
+# resolves forgets NAME, so a stale value never applies.
 function src_const(m, r,    k, p) {
   if (SRC_CN == "") {
-    if (!match(m, /^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=/)) return
+    if (!match(m, /^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?=/)) return
     k = substr(m, RSTART, RLENGTH)
-    sub(/^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+/, "", k); sub(/[[:space:]]*=$/, "", k)
+    p = k !~ /^[[:space:]]*(export[[:space:]]+)?const[[:space:]]/
+    sub(/^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+/, "", k); sub(/[[:space:]]*(:[^=]*)?=$/, "", k)
+    if (p) { delete SRC_CONST[k]; return }
     SRC_CN = k; SRC_CL = SRC_CD = 0
     SRC_CM = substr(m, RSTART + RLENGTH); SRC_CR = substr(r, RSTART + RLENGTH)
     m = SRC_CM
