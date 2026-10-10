@@ -8,4 +8,4 @@ bump: minor
 
 ### Fixed
 
-- **The `--bare` lever no longer understates what bare mode drops.** From Claude Code 2.1.286, `--bare` (and `CLAUDE_CODE_SIMPLE`) also connects only the MCP servers named on the command line, sends no system reminders and starts no background tasks. The `bare-simple-mode` lever now names those buckets, measures MCP tools and Skills as well as Memory files, and records that the CLI and env-var reference rows still lag the headless page.
+- **The `--bare` lever no longer understates what bare mode drops.** From Claude Code 2.1.286, `--bare` (and `CLAUDE_CODE_SIMPLE`) also connects only the MCP servers named on the command line, sends no system reminders and starts no background tasks. The `bare-simple-mode` lever now names those buckets, measures System prompt, System tools, MCP tools and Skills as well as Memory files, and records that the headless, CLI and env-var reference pages differ on what bare mode limits.
