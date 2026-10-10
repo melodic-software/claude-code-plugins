@@ -11,7 +11,11 @@ import { spawnAsync } from "@melodic/video-digestion/shared/process";
 import { fail, ok } from "@melodic/video-digestion/shared/result";
 
 import { resolveEnvWithLegacy } from "../lib/env-compat.js";
-import { CAPTION_ONLY_SLEEP_SUBTITLES_SEC, sleepMs } from "./acquire-retry-policy.js";
+import {
+  CAPTION_ONLY_SLEEP_SUBTITLES_SEC,
+  isRetryableAcquireError,
+  sleepMs,
+} from "./acquire-retry-policy.js";
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
 import { buildYtDlpArgs } from "./build-yt-dlp-args.js";
@@ -333,10 +337,16 @@ export async function acquireYouTubeMedia(
     const captionRetry = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(source)),
     );
-    if (captionRetry.spawnResult.success) {
-      artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);
-      captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
+    if (!captionRetry.spawnResult.success) {
+      // No caption file was fetched, so the ladder's "no captions" message would hide the cause.
+      return failVideo(
+        isRetryableAcquireError(captionRetry.detail)
+          ? `Caption download rate-limited or temporarily unavailable after retries; the captions may exist, so wait several minutes and retry. yt-dlp: ${captionRetry.detail}`
+          : `Caption download failed: ${captionRetry.detail || "yt-dlp failed"}`,
+      );
     }
+    artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);
+    captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
   }
 
   if (!captionResult.success) {
