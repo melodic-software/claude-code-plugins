@@ -448,7 +448,7 @@ declares_both_fixtures B "$CASE_B"
 # `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "84ce55eb64fbd8cd370911626647ed7f46999b9941a95698609117b3ae546f67"
+  "259cc128661cd6dfaa4e77f7114f49f1de32c75db4cb319a91c23ac3854ca7db"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -495,7 +495,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "232ef8ea04b6d8759c32ea0dcf35bd7ed5dd6a3ecd5a50f42284f8fa30e92d94"
+  "0c7b0a47cce5231389429ce4c3cca61f6560b7b0d8e999a0ab9d99d933ef0b8c"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -606,7 +606,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "3edbef2c4cf68a1adcaa6e44390cbc95a8285f7f18734ab76ecfc22fc5b6679d"
+  "388885092247a4f349330d3192845e5546b3efd58299cb7c250b201b593a98fb"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
