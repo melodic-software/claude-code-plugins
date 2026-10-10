@@ -182,13 +182,20 @@ read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sourc
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
-plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
+plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
+directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
+it the skill cannot read its own reference files. Commits go through the API, signed
 (`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
 when the grant can commit.
 
 A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
-`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`. Its
+`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
+scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
+its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
+directory, says no one can answer a question, and, when the grant can commit, tells it to commit
+every file it changed with that tool: the prompt is the slash command alone, so without this the
+skill leaves its edits uncommitted and the lane moves nothing. Its
 `Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
 (`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
