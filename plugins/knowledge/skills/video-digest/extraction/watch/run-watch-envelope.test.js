@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -181,6 +182,28 @@ describe("runWatchCli envelope consumption", () => {
     ).resolves.toContain("hello world");
   });
 
+  it("records a --target checkout path as its portable owner/repo name", async () => {
+    const checkout = path.join(fixtureDir, "widgets-checkout");
+    await fs.mkdir(checkout);
+    execFileSync("git", ["init", "-q", checkout]);
+    execFileSync("git", [
+      "-C",
+      checkout,
+      "remote",
+      "add",
+      "origin",
+      "git@github.com:acme/widgets.git",
+    ]);
+    vi.mocked(acquireMedia).mockResolvedValue({
+      success: true,
+      data: createAcquisitionEnvelope({ entries: [], metadata: METADATA, workDir: fixtureDir }),
+    });
+
+    const code = await runWatchCli(["node", "run-watch.js", URL, "--target", checkout]);
+    expect(code).toBe(0);
+    expect((await readWatchJson()).target).toBe("acme/widgets");
+  });
+
   it("consumes a 0-entry envelope as a well-formed text-only slice", async () => {
     vi.mocked(acquireMedia).mockResolvedValue({
       success: true,
@@ -283,8 +306,6 @@ describe("runWatchCli envelope consumption", () => {
     await expect(
       fs.readFile(path.join(sliceDir(), "source", "transcript-1.txt"), "utf8"),
     ).resolves.toContain("hello world");
-    await expect(
-      fs.access(path.join(sliceDir(), "source", "transcript-2.txt")),
-    ).rejects.toThrow();
+    await expect(fs.access(path.join(sliceDir(), "source", "transcript-2.txt"))).rejects.toThrow();
   });
 });

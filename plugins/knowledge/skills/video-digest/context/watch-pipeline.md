@@ -153,13 +153,22 @@ Before the research agenda, write `research/claim-inventory.md`:
 
 Template: `templates/deck-inventory.md`; contract: `synthesis-contract.md`.
 
-- **Pass A (before full vision fan-out):** type URLs in `harvested-links.json`
-  (`deck` | `repo` | `doc` | `other`); fetch deck candidates from metadata/chapters →
-  `source/decks/<session-slug>/` + `source/deck-inventory.md`
+- **Pass A (before full vision fan-out):** no script classifies links, so type them yourself: add
+  a `kind` (`deck` | `doc` | `attachment` | `repo` | `other`) to each entry in
+  `source/harvested-links.json`, plus a `sessionSlug` on each `deck`. Then fetch every `deck`,
+  `doc` and `attachment` entry (`--dry-run` lists destinations without fetching), and record the
+  result in `source/deck-inventory.md`:
+
+  ```bash
+  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" harvesting/fetch-deck-attachments.js "<slice-dir>" [--dry-run]
+  ```
+
+  Decks land in `source/decks/<session-slug>/`, the rest in `source/attachments/<kind>/`; the
+  JSON output lists `fetched` paths and `skipped` entries with reasons.
 - **Pass 1 triage** includes deck inventory: a static slide covered by a fetched deck → `skip`
-- **Pass B:** merge on-screen URLs from early sheets; fetch new decks; re-filter remaining sheets
-- Other downloads → `source/attachments/<kind>/`; citations → `research/sources.md` (template:
-  `templates/sources.md`)
+- **Pass B:** merge on-screen URLs from early sheets; type them and re-run the fetch; re-filter
+  remaining sheets
+- Citations → `research/sources.md` (template: `templates/sources.md`)
 
 ## Phase 4: vision absorption (three-pass)
 
