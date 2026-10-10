@@ -67,7 +67,7 @@ what attaches a subdirectory AGENTS.md.
 
 - **Pointer**: when a placement depends on what attaches a subdirectory AGENTS.md, fetch
   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and the v2.1.290 entry at
-  <https://code.claude.com/docs/en/changelog> live.
+  <https://code.claude.com/docs/en/changelog#2-1-290> live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the memory page's AGENTS.md section changes what it says attaches a
   subdirectory AGENTS.md.
