@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## 1.4.2 - 2026-10-10
+
+Docs only. `version` stays 1.
+
+- README: "Outside this repository" names where each external piece the lanes depend on is
+  documented (broker, Lanes App, org variables, rulesets, sandbox, standards, ci-workflows).
+
+## 1.4.1 - 2026-10-10
+
+A skill activity can read its own plugin and a write activity commits its edits. `version` stays 1.
+
+- Every skill gets `Read` on `$RUNNER_TEMP/base-marketplace`, where its plugin loads from.
+- A write skill gets a scratch directory (`--add-dir` plus an `Edit` rule) and an appended system
+  prompt naming it; when the grant can commit, the prompt tells it to commit every file it changed
+  with `mcp__github_file_ops__commit_files`. `collect-base-activity` takes a `can-commit` input.
+
 ## 1.4.0 - 2026-10-10
 
 Write activities get a narrower grant, the tools their skill needs and computed targets. `version`

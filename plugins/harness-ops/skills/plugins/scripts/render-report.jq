@@ -41,7 +41,7 @@ def scoped: "\(.id) (\(.scope))";
 def ids: map(.id) | join(", ");
 def auto_update_slot:
   if . == true then "on"
-  elif . == false then "off; enable it so the catalog refreshes at session start"
+  elif . == false then "off; enable it so the catalog refreshes automatically"
   else "unreadable" end;
 def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
 
