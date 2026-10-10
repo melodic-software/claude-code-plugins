@@ -47,9 +47,11 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
-# Asserts one line of output verbatim, which pins the numbers inside it.
+# Asserts one line of output verbatim, which pins the numbers inside it. A
+# here-string, not a pipe: grep -q exits on its first match, and under pipefail
+# the writer's SIGPIPE would fail the assertion.
 assert_line() {
-  if printf '%s\n' "$2" | grep -Fxq -- "$3"; then
+  if grep -Fxq -- "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "no line exactly equal to: $3"
