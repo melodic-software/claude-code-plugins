@@ -338,11 +338,12 @@ export function writeGuards() {
   return [];
 }
 
+// A NUL byte becomes a line break, so the text either side of it is still
+// scanned and none is joined across it (the guards refuse a NUL outright).
 function readContent(abs, size) {
   if (size > MAX_FILE_BYTES) return null;
   try {
-    const buffer = readFileSync(abs);
-    return buffer.includes(0) ? null : buffer.toString("utf8");
+    return readFileSync(abs).toString("utf8").replaceAll("\0", "\n");
   } catch {
     return null;
   }
@@ -467,7 +468,7 @@ export function check(payload, env) {
     );
     if (message) findings.push({ rel: f.rel, message });
   });
-  if (unread) notes.push(notExamined(unread, "a new file over 1 MiB or holding a NUL byte is not read"));
+  if (unread) notes.push(notExamined(unread, "a new file over 1 MiB is not read"));
   if (late) notes.push(notExamined(late, "the check ran out of time"));
   return result;
 }

@@ -270,12 +270,21 @@ for i in {01..20}; do g commit -q --allow-empty -m "c$i"; done
 assert_contains "commit cap: reported" "$(notes "$(post "$REPO")")" \
   "the command made 21 commits and the check reads only the last 20, so 1 earlier commit is not checked"
 
-# R1d. A new file holding a NUL byte is not read, and the check says so.
+# R1d. A new file holding a NUL byte is still read, each NUL as a line break,
+#      so its content is checked (third review X3).
 new_repo
 pre "$REPO"
 printf '\0root = %s\n' "$LINUX_HOME" >"$REPO/new.py"
-assert_contains "NUL in a new file: reported" "$(notes "$(post "$REPO")")" \
-  "1 changed file not examined: a new file over 1 MiB or holding a NUL byte is not read"
+OUT=$(post "$REPO")
+assert_eq "NUL in a new file: blocks" "block" "$(jq -r .decision <<<"$OUT")"
+assert_contains "NUL in a new file: content checked" "$(notes "$OUT")" 'changed "new.py"'
+
+# R1e. A new file over 1 MiB is not read, and the check says so.
+new_repo
+pre "$REPO"
+head -c 1100000 /dev/zero | tr '\0' 'x' >"$REPO/huge.txt"
+assert_contains "new file over 1 MiB: reported" "$(notes "$(post "$REPO")")" \
+  "1 changed file not examined: a new file over 1 MiB is not read"
 
 # R2. The command leaves more than 10000 paths in git status.
 new_repo

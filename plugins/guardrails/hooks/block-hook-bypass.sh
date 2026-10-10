@@ -1142,13 +1142,17 @@ scratch_target_exempt() {
 #     spaces from a name), or an existing directory;
 #   - a `.gitignore` or `.gitattributes` target, which decides what the check
 #     skips or how it reads a diff;
-#   - an agent, editor, hook or workflow config target (under `.claude/`,
-#     `.husky/`, `.vscode/`, `.idea/` or `.github/workflows/`, or a `.mcp.json`
-#     or `.envrc`), which other plugins' and the user's Write|Edit hooks and
-#     Claude Code's protected paths guard and the check does not re-run;
+#   - an agent, editor, hook, workflow or submodule config target (under
+#     `.claude/`, `.husky/`, `.vscode/`, `.idea/`, `.devcontainer/`, `.cursor/`,
+#     `.github/workflows/` or `.github/actions/`, or a `.mcp.json`, `.envrc` or
+#     `.gitmodules`, each name matched with trailing dots and spaces stripped),
+#     which other plugins' and the user's Write|Edit hooks and Claude Code's
+#     protected paths guard and the check does not re-run;
 #   - an existing target with more than one hard link, which may share its
 #     inode with a file outside the repository;
 #   - a target git ignores there, or any git error answering the question;
+#   - a target an earlier command hid from the check's git status and diff: an
+#     assume-unchanged or skip-worktree index bit, or a filter attribute;
 #   - no pre-command snapshot. The check's own snapshot hook runs in parallel
 #     with this one, so the grant takes the snapshot itself, through the same
 #     script, unless it is already on disk, and refuses when no file results.
@@ -1299,8 +1303,54 @@ _bbh_repo_root() {
   done
 }
 
+# git in <root>, with the environment that could point it elsewhere cleared and
+# no fsmonitor program started; stderr discarded. A granted target holds no
+# glob or pathspec-magic character (_BBH_TARGET_RE), so it is passed as is.
+_bbh_git() {
+  local root="$1"
+  shift
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_CONFIG \
+      GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
+    GIT_OPTIONAL_LOCKS=0 git -C "$root" -c core.fsmonitor=false "$@"
+  ) 2>/dev/null
+}
+
+# 0 when <relative path> is agent, editor, hook, workflow or submodule config.
+# Each component is case-folded with trailing dots and spaces stripped, as
+# Windows does, so `.claude./x` counts.
+_bbh_config_target() {
+  local rest="$1" comp prev="" final
+  while [[ -n "$rest" ]]; do
+    comp="${rest%%/*}"
+    final=0
+    if [[ "$comp" == "$rest" ]]; then
+      rest=""
+      final=1
+    else
+      rest="${rest#*/}"
+    fi
+    comp="${comp,,}"
+    while [[ "$comp" == *. || "$comp" == *' ' ]]; do comp="${comp%?}"; done
+    if ((final)); then
+      case "$comp" in
+      .mcp.json | .envrc | .gitmodules) return 0 ;;
+      *) ;; # an ordinary file name
+      esac
+    else
+      case "$comp" in
+      .claude | .husky | .vscode | .idea | .devcontainer | .cursor) return 0 ;;
+      workflows | actions) [[ "$prev" == .github ]] && return 0 ;;
+      *) ;; # an ordinary directory
+      esac
+    fi
+    prev="$comp"
+  done
+  return 1
+}
+
 repo_target_seen() {
-  local target="$1" tgt_quoted="$2" tgt_opaque="$3" abs phys root rel dir rc base
+  local target="$1" tgt_quoted="$2" tgt_opaque="$3" abs phys root rel dir rc base out
   _BBH_REPO_REFUSAL=""
   [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 1
   [[ "${CLAUDE_PLUGIN_OPTION_BASH_FILE_CHANGE_CHECK_ENABLED:-true}" != false ]] || return 1
@@ -1336,8 +1386,7 @@ repo_target_seen() {
   while [[ "$base" == *. || "$base" == *' ' ]]; do base="${base%?}"; done
   [[ "$base" == .gitignore || "$base" == .gitattributes ]] && return 1
   _BBH_REPO_REFUSAL=config
-  [[ "/${rel,,}" =~ /\.(claude|husky|vscode|idea)/ || "${rel,,}" == .github/workflows/* ||
-    "$base" == .mcp.json || "$base" == .envrc ]] && return 1
+  _bbh_config_target "$rel" && return 1
   _BBH_REPO_REFUSAL=outside
   [[ -d "$phys" ]] && return 1
   # A hard link may share its inode with a file outside the repository.
@@ -1349,13 +1398,17 @@ repo_target_seen() {
   done
   _BBH_REPO_REFUSAL=ignored
   command -v git >/dev/null 2>&1 || return 1
-  (
-    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_CONFIG \
-      GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
-    GIT_OPTIONAL_LOCKS=0 git -C "$root" -c core.fsmonitor=false check-ignore -q -- "$rel"
-  ) >/dev/null 2>&1
+  _bbh_git "$root" check-ignore -q -- "$rel" >/dev/null
   rc=$?
   ((rc == 1)) || return 1
+  # An earlier command can hide this file's change from the check's git status
+  # and diff: an assume-unchanged (lowercase tag) or skip-worktree (`S`) index
+  # bit, or a filter attribute whose clean side rewrites what git compares.
+  _BBH_REPO_REFUSAL=hidden
+  out=$(_bbh_git "$root" ls-files -v -- "$rel") || return 1
+  [[ "${out:0:1}" =~ [a-zS] ]] && return 1
+  out=$(_bbh_git "$root" check-attr filter -- "$rel") || return 1
+  [[ "$out" == *': filter: unspecified' ]] || return 1
   _BBH_REPO_REFUSAL=snapshot
   _bbh_snapshot_taken || return 1
   _BBH_REPO_REFUSAL=""
@@ -1738,7 +1791,8 @@ block_bypass() {
     ignored) echo "The $noun is git-ignored, which the shell file-change check does not inspect." >&2 ;;
     git-dir) echo "The $noun is under .git, which the shell file-change check does not inspect." >&2 ;;
     gitignore) echo "The $noun is a .gitignore or .gitattributes, which decides what the shell file-change check inspects." >&2 ;;
-    config) echo "The $noun is agent, editor, hook or workflow config, which other Write and Edit hooks guard and the shell file-change check does not re-run." >&2 ;;
+    config) echo "The $noun is agent, editor, hook, workflow or submodule config, which other Write and Edit hooks guard and the shell file-change check does not re-run." >&2 ;;
+    hidden) echo "The $noun is marked assume-unchanged or skip-worktree, or has a git filter attribute, which can hide its change from the shell file-change check." >&2 ;;
     outside) echo "The $noun is outside the cwd's repository, in a nested one, or hard-linked, which the shell file-change check does not inspect." >&2 ;;
     snapshot) echo "No pre-command snapshot could be recorded for the shell file-change check, so it would check nothing." >&2 ;;
     *) ;; # the check is off, or the scratch reason above already says why the target cannot be placed

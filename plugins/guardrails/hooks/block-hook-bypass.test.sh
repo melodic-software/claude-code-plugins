@@ -3200,6 +3200,31 @@ run_repo "repo: .mcp.json write still blocks" "echo x > .mcp.json" 2
 run_repo "repo: .envrc write still blocks" "echo x > .envrc" 2
 run_repo "repo: workflow write still blocks" "echo x > .github/workflows/evil.yml" 2
 run_repo "repo: husky hook write still blocks" "echo x > .husky/pre-commit" 2
+# X2 (third review): the rest of the config set, and Windows trailing-dot names.
+run_repo "repo X2: composite action write still blocks" "echo x > .github/actions/a/action.yml" 2
+run_repo "repo X2: .gitmodules write still blocks" "echo x > .gitmodules" 2
+run_repo "repo X2: devcontainer write still blocks" "echo x > .devcontainer/devcontainer.json" 2
+run_repo "repo X2: .cursor write still blocks" "echo x > .cursor/mcp.json" 2
+run_repo "repo X2: .claude. trailing-dot alias still blocks" "echo x > .claude./settings.json" 2
+run_repo "repo X2: .github./workflows. alias still blocks" "echo x > .github./workflows./w.yml" 2
+run_repo "repo X2: .mcp.json. trailing-dot alias still blocks" "echo x > .mcp.json." 2
+run_repo "repo X2: an ordinary actions directory (allowed)" "echo x > src/actions/a.yml" 0
+# X1 (third review): an earlier call hid a tracked file's change from the
+# check's git status or diff.
+printf 'a\n' >"$NR_REPO/src/au"
+printf 's\n' >"$NR_REPO/src/sw"
+printf 'f\n' >"$NR_REPO/src/flt"
+git -C "$NR_REPO" add src/au src/sw src/flt
+git -C "$NR_REPO" -c user.name=t -c user.email=t@example.invalid -c core.hooksPath=/dev/null \
+  commit -q -m hidden
+git -C "$NR_REPO" update-index --assume-unchanged src/au
+git -C "$NR_REPO" update-index --skip-worktree src/sw
+mkdir -p "$NR_REPO/.git/info"
+printf 'src/flt filter=strip\n' >>"$NR_REPO/.git/info/attributes"
+run_repo "repo X1: assume-unchanged target still blocks" "echo token >> src/au" 2
+run_repo "repo X1: skip-worktree target still blocks" "echo token >> src/sw" 2
+run_repo "repo X1: target with a filter attribute still blocks" "echo token >> src/flt" 2
+run_repo "repo X1: tracked target with no hiding bit (allowed)" "echo x >> src/f" 0
 # A hard link made in an earlier call may share its inode with a file outside.
 printf 'outside\n' >"$TEST_TMPDIR/hl-outside"
 if ln "$TEST_TMPDIR/hl-outside" "$NR_REPO/hl" 2>/dev/null; then
@@ -3331,7 +3356,8 @@ repo_reason "nested repository" "echo x > nested/f" "in a nested one"
 repo_reason "two segments" "cat > tmp && mv tmp .work/x" \
   "is left only a lone cat, echo or printf"
 repo_reason "a .gitignore target" "echo evil.sh >> .gitignore" "is a .gitignore"
-repo_reason "a config target" "echo x > .claude/settings.json" "is agent, editor, hook or workflow config"
+repo_reason "a config target" "echo x > .claude/settings.json" "is agent, editor, hook, workflow or submodule config"
+repo_reason "an assume-unchanged target" "echo x >> src/au" "is marked assume-unchanged or skip-worktree"
 repo_reason "no snapshot" "echo x > newfile.txt" "No pre-command snapshot could be recorded"
 if make_link "$NR_REPO/.work" "$NR_REPO/worklink"; then
   run_repo "repo: symlink into an ignored directory still blocks" "echo x > worklink/f" 2
