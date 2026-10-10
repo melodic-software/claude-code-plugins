@@ -221,6 +221,19 @@ g add tracked.txt && g commit -qm merged
 assert_contains "resolved merge commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
   'changed "tracked.txt"'
 
+# 5d7. A `-diff` attribute or a NUL byte does not hide a tracked file's added
+#      lines, and a tracked file over 1 MiB is judged by the lines it adds.
+new_repo
+printf '* -diff\n' >"$REPO/.gitattributes"
+head -c 1100000 /dev/zero | tr '\0' 'x' >"$REPO/big.txt"
+g add .gitattributes big.txt && g commit -qm attrs
+pre "$REPO"
+scratch append "$REPO/tracked.txt" "dir = $LINUX_HOME"
+printf 'k\0\ndir = %s\n' "$LINUX_HOME" >>"$REPO/big.txt"
+OUT=$(jq -r .reason <<<"$(post "$REPO")")
+assert_contains "-diff attribute: added lines still checked" "$OUT" 'changed "tracked.txt"'
+assert_contains "over 1 MiB with a NUL: added lines still checked" "$OUT" 'changed "big.txt"'
+
 # ===================== MUST REPORT A SKIP OR TRUNCATION ======================
 
 # R1. The #6709 repro: 20 benign files sort before the flagged one, so the
@@ -256,6 +269,13 @@ g add zz.sh && g commit -qm flagged
 for i in {01..20}; do g commit -q --allow-empty -m "c$i"; done
 assert_contains "commit cap: reported" "$(notes "$(post "$REPO")")" \
   "the command made 21 commits and the check reads only the last 20, so 1 earlier commit is not checked"
+
+# R1d. A new file holding a NUL byte is not read, and the check says so.
+new_repo
+pre "$REPO"
+printf '\0root = %s\n' "$LINUX_HOME" >"$REPO/new.py"
+assert_contains "NUL in a new file: reported" "$(notes "$(post "$REPO")")" \
+  "1 changed file not examined: a new file over 1 MiB or holding a NUL byte is not read"
 
 # R2. The command leaves more than 10000 paths in git status.
 new_repo

@@ -14,8 +14,9 @@
 # file-change check (check-bash-file-changes.mjs), which runs the Write/Edit
 # content guards on that file after the command. Every other write blocks: a
 # command with a second segment, an unusual redirect, git, ln, mkdir, mv or cp,
-# or run_in_background; a git-ignored, .git, .gitignore, outside or nested
-# target; one this guard cannot place; no pre-command snapshot; and every write
+# or run_in_background; a git-ignored, .git, .gitignore, .gitattributes,
+# agent or workflow config, hard-linked, outside or nested target; one this
+# guard cannot place; no pre-command snapshot; and every write
 # while that check is off. See "Repository axis" below. The staged-write,
 # python and PowerShell lanes block as before.
 #
@@ -1139,7 +1140,14 @@ scratch_target_exempt() {
 #     inside a nested repository or submodule below it, under any `.git`
 #     component (`.git.` and `.git ` count: Windows strips trailing dots and
 #     spaces from a name), or an existing directory;
-#   - a `.gitignore` target, which decides what the check skips;
+#   - a `.gitignore` or `.gitattributes` target, which decides what the check
+#     skips or how it reads a diff;
+#   - an agent, editor, hook or workflow config target (under `.claude/`,
+#     `.husky/`, `.vscode/`, `.idea/` or `.github/workflows/`, or a `.mcp.json`
+#     or `.envrc`), which other plugins' and the user's Write|Edit hooks and
+#     Claude Code's protected paths guard and the check does not re-run;
+#   - an existing target with more than one hard link, which may share its
+#     inode with a file outside the repository;
 #   - a target git ignores there, or any git error answering the question;
 #   - no pre-command snapshot. The check's own snapshot hook runs in parallel
 #     with this one, so the grant takes the snapshot itself, through the same
@@ -1326,9 +1334,14 @@ repo_target_seen() {
   base="${rel##*/}"
   base="${base,,}"
   while [[ "$base" == *. || "$base" == *' ' ]]; do base="${base%?}"; done
-  [[ "$base" == .gitignore ]] && return 1
+  [[ "$base" == .gitignore || "$base" == .gitattributes ]] && return 1
+  _BBH_REPO_REFUSAL=config
+  [[ "/${rel,,}" =~ /\.(claude|husky|vscode|idea)/ || "${rel,,}" == .github/workflows/* ||
+    "$base" == .mcp.json || "$base" == .envrc ]] && return 1
   _BBH_REPO_REFUSAL=outside
   [[ -d "$phys" ]] && return 1
+  # A hard link may share its inode with a file outside the repository.
+  [[ -e "$phys" && -n "$(find "$phys" -maxdepth 0 -links +1 2>/dev/null)" ]] && return 1
   dir="${phys%/*}"
   while [[ "$dir" == "$root"/* ]]; do
     [[ -e "$dir/.git" ]] && return 1
@@ -1724,8 +1737,9 @@ block_bypass() {
     background) echo "The command runs in the background, whose writes the shell file-change check does not see." >&2 ;;
     ignored) echo "The $noun is git-ignored, which the shell file-change check does not inspect." >&2 ;;
     git-dir) echo "The $noun is under .git, which the shell file-change check does not inspect." >&2 ;;
-    gitignore) echo "The $noun is a .gitignore, which decides what the shell file-change check inspects." >&2 ;;
-    outside) echo "The $noun is outside the cwd's repository or in a nested one, which the shell file-change check does not inspect." >&2 ;;
+    gitignore) echo "The $noun is a .gitignore or .gitattributes, which decides what the shell file-change check inspects." >&2 ;;
+    config) echo "The $noun is agent, editor, hook or workflow config, which other Write and Edit hooks guard and the shell file-change check does not re-run." >&2 ;;
+    outside) echo "The $noun is outside the cwd's repository, in a nested one, or hard-linked, which the shell file-change check does not inspect." >&2 ;;
     snapshot) echo "No pre-command snapshot could be recorded for the shell file-change check, so it would check nothing." >&2 ;;
     *) ;; # the check is off, or the scratch reason above already says why the target cannot be placed
     esac

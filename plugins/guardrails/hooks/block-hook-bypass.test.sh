@@ -3190,6 +3190,23 @@ run_repo "repo F4: .gitignore append then write still blocks" \
 run_repo "repo F4: .gitignore write alone still blocks" "echo evil.sh >> .gitignore" 2
 run_repo "repo F4: git init then write into the new repository still blocks" \
   "git init -q sub && echo x > sub/f" 2
+# A .gitattributes `-diff` would turn the check's diff of a later write into
+# "Binary files differ".
+run_repo "repo: .gitattributes write still blocks" "echo '* -diff' > .gitattributes" 2
+# Agent, editor, hook and workflow config: other Write|Edit hooks guard these.
+run_repo "repo: .claude settings write still blocks" "echo x > .claude/settings.json" 2
+run_repo "repo: nested .claude write still blocks" "echo x > docs/.claude/settings.json" 2
+run_repo "repo: .mcp.json write still blocks" "echo x > .mcp.json" 2
+run_repo "repo: .envrc write still blocks" "echo x > .envrc" 2
+run_repo "repo: workflow write still blocks" "echo x > .github/workflows/evil.yml" 2
+run_repo "repo: husky hook write still blocks" "echo x > .husky/pre-commit" 2
+# A hard link made in an earlier call may share its inode with a file outside.
+printf 'outside\n' >"$TEST_TMPDIR/hl-outside"
+if ln "$TEST_TMPDIR/hl-outside" "$NR_REPO/hl" 2>/dev/null; then
+  run_repo "repo: append to a hard-linked file still blocks" "echo x >> hl" 2
+else
+  bhb_skip "repo: hard-linked target"
+fi
 # F5: the check's limits: its file cap, a background run, write-then-delete.
 run_repo "repo F5: 20 files touched before the write still blocks" \
   "touch a{01..20} && echo P > zz.sh" 2
@@ -3310,10 +3327,11 @@ repo_reason "ignored" "echo x > .work/notes.md" \
   "The target is git-ignored, which the shell file-change check does not inspect."
 repo_reason "ignored in its own case" "echo x > Secret.env" "is git-ignored"
 repo_reason "under .git" "cat > .git/hooks/pre-commit" "is under .git"
-repo_reason "nested repository" "echo x > nested/f" "or in a nested one"
+repo_reason "nested repository" "echo x > nested/f" "in a nested one"
 repo_reason "two segments" "cat > tmp && mv tmp .work/x" \
   "is left only a lone cat, echo or printf"
 repo_reason "a .gitignore target" "echo evil.sh >> .gitignore" "is a .gitignore"
+repo_reason "a config target" "echo x > .claude/settings.json" "is agent, editor, hook or workflow config"
 repo_reason "no snapshot" "echo x > newfile.txt" "No pre-command snapshot could be recorded"
 if make_link "$NR_REPO/.work" "$NR_REPO/worklink"; then
   run_repo "repo: symlink into an ignored directory still blocks" "echo x > worklink/f" 2

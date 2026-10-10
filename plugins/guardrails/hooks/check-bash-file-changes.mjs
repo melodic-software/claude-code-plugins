@@ -305,6 +305,9 @@ export function addedLines(root, rel, base) {
     "--no-ext-diff",
     "--no-textconv",
     "--no-renames",
+    // --text: a .gitattributes `-diff` or a NUL byte would otherwise turn the
+    // diff into "Binary files differ" and hide every added line.
+    "--text",
     "-U0",
     base,
     "--",
@@ -428,18 +431,23 @@ export function check(payload, env) {
   }
   const deadline = Date.now() + CHECK_BUDGET_MS;
   let late = 0;
+  let unread = 0;
   changed.forEach((f, n) => {
     if (Date.now() > deadline) {
       late++;
       return;
     }
-    const content = readContent(f.abs, f.size);
-    if (content === null) return;
-    // A tracked file with no commit to diff against (an unborn branch) is
-    // judged whole, like a new file.
+    // A tracked file is judged by the lines it adds, whatever its size. One
+    // with no commit to diff against (an unborn branch) is judged whole, like
+    // a new file.
     const added = f.untracked ? null : addedLines(before.root, f.rel, before.head);
     const whole = added === null;
     if (!whole && added.length === 0) return;
+    const content = whole ? readContent(f.abs, f.size) : null;
+    if (whole && content === null) {
+      unread++;
+      return;
+    }
     const toolInput = whole
       ? { file_path: f.abs, content }
       : { file_path: f.abs, old_string: "", new_string: added.join("\n") };
@@ -459,6 +467,7 @@ export function check(payload, env) {
     );
     if (message) findings.push({ rel: f.rel, message });
   });
+  if (unread) notes.push(notExamined(unread, "a new file over 1 MiB or holding a NUL byte is not read"));
   if (late) notes.push(notExamined(late, "the check ran out of time"));
   return result;
 }
