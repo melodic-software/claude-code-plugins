@@ -5,10 +5,18 @@
 // blocks and never changes the result.
 //
 // Detection is structural: the last non-blank line of tool_response.result is
-// one bracketed line that starts "[Content truncated" or contains "continues".
-// Those are the phrasings seen in captured payloads and in the visible-text
-// probe (fixtures/ and the plugin README). There is no length rule, so a page
-// WebFetch summarized with no marker goes unflagged; the README says so.
+// one bracketed line that starts "[Content truncated" or contains "continues"
+// (the phrasings seen in captured payloads and in the visible-text probe,
+// fixtures/ and the plugin README), or WebFetch's own read-on note: a
+// bracketed line that starts "[WebFetch note:" and names an offset. That note
+// comes with WebFetch's optional `offset` input, so for it the context line
+// names re-reading with that offset first. Probed on Claude Code 2.1.296,
+// 2026-10-10; evidence in the pull request that carries this change. For what
+// WebFetch documents about pages over its read cap, fetch
+// https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior live
+// (as of 2026-10-10); recheck when that section documents the note text or the
+// `offset` input. There is no length rule, so a page WebFetch summarized with
+// no marker goes unflagged; the README says so.
 //
 // tool_response's shape for WebFetch is not documented on the hooks page
 // (https://code.claude.com/docs/en/hooks#posttooluse-input says it "depends on
@@ -25,6 +33,7 @@ export const MAX_STDIN_BYTES = 2 * 1024 * 1024
 const IDLE_MS = 2000
 
 const MARKER_LINE = /^\[(?:Content truncated\b[^\]\n]*|[^\]\n]*\bcontinues\b[^\]\n]*)\]$/
+const READ_ON_NOTE = /^\[WebFetch note:[^\]\n]*\boffset\b[^\]\n]*\]$/
 
 export const MAX_URL_CHARS = 200
 
@@ -46,9 +55,12 @@ export function decide(payload) {
   if (typeof result !== 'string') return null
   const lines = result.trimEnd().split('\n')
   const last = lines[lines.length - 1].trim()
-  if (!MARKER_LINE.test(last)) return null
+  const readOn = READ_ON_NOTE.test(last)
+  if (!readOn && !MARKER_LINE.test(last)) return null
   const url = pageName(payload.tool_input && payload.tool_input.url)
-  // The placeholder line itself is fetched text, so it is never echoed back.
+  // The placeholder line itself is fetched text, so it is never echoed back,
+  // not even the offset a read-on note names.
+  if (readOn) return `discovery: the WebFetch result for ${url} ends in WebFetch's read-on note, so it covers only part of the page. Call WebFetch again with the same url and the offset the note names to read on, or /discovery:read-docs reads the whole page, or the sections asked for, from the docs cache.`
   return `discovery: the WebFetch result for ${url} ends in a truncation placeholder, so it covers only part of the page. /discovery:read-docs reads the whole page, or the sections asked for, from the docs cache.`
 }
 

@@ -32,6 +32,19 @@ subagent by default**, so the reading stays out of the main conversation;
 |---|---|---|
 | `/discovery:research-sweep` (`workflows/research-sweep.js`) | `/discovery:research-deep` Tier 1 | Sweeps sources for one question by angle, deep-reads the best of them, has three independent skeptics try to refute each load-bearing claim (a claim survives on a majority; a skeptic that could not check counts as unverified, not refuted), runs a completeness critic, and returns findings with citations, source tier, date and consensus counts, plus dissent and unverified claims. `args`: `question` (required; without it nothing runs), `angles`, `sources`, `roles` (the map `/multi-agent:route all research` prints; without it, fan-out stages run on `opus`), `maxConcurrent` (default 4) and `artifactPath`. A fetch stage first reads each selected https page raw through `discovery:docs-fetcher`; readers and skeptics get those slices inline and may ask for sections they lack. Every other stage runs as `discovery:sweep-worker`, reads only public http(s) URLs, and receives page-derived text as fenced JSON. It writes no files: `research-deep` writes `RESEARCH.md` from the result. |
 
+The `docs-fetcher` and `sweep-worker` definitions set `omitClaudeMd: true`:
+each reads untrusted pages and follows only the prompt the workflow gives it,
+so it starts without the user and project instruction files. The pointer sits
+here, not in the agent bodies, so neither agent spends a fetch on it.
+
+- **Pointer**: when you need what the field drops and what still loads, fetch
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  and [sub-agents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the sub-agents `omitClaudeMd` row or the startup
+  section changes what the field drops or keeps.
+
 The three artifact-persisting skills (`/discovery:explore`, `/discovery:research`,
 `/discovery:trace-intent`) persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`
 / `INTENT.md`) so a fresh session can resume planning from the artifact alone.
@@ -52,6 +65,18 @@ the result's last line is a truncation marker or placeholder, such as `[Content 
 length...]` or `[... content continues ...]`: the result covers only part of the page, and
 `/discovery:read-docs` reads the rest. It never blocks a call or changes the result, and it does not
 echo the fetched line back.
+
+On current Claude Code, WebFetch ends a result for a page over its read cap with its own read-on
+note and takes an optional `offset` input. The hook flags that note too, and for it the context
+line says to call WebFetch again with the same URL and the offset the note names, with
+`/discovery:read-docs` as the other route. Probed on Claude Code 2.1.296, 2026-10-10; evidence in
+the pull request that carries this change.
+
+- **Pointer**: when you need what WebFetch documents about pages over its read cap, fetch
+  [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section documents the note text or the `offset` input.
 
 The hook is partial by design. It has no length rule, so a page WebFetch summarized with no marker
 or placeholder gets no note; the captured CHANGELOG fetch is one. The routing rule in the

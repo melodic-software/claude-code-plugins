@@ -23,6 +23,11 @@ const fired = (decideFn, payload) => decideFn(payload) !== null
 
 const hooks = fixture('hooks')
 
+// The read-on note WebFetch appends when a page is over its read cap, in the
+// form observed on Claude Code 2.1.296 (2026-10-10). Synthesized from that
+// probe onto the captured hooks payload, not a stdin capture.
+const readOnNote = '[WebFetch note: this page\'s text is 250017 characters long and the answer above covers only characters 0 to 100000; the final 150017 were not read — to read on, call WebFetch again with the same url and offset: 100000.]'
+
 // Every case the hook must flag. The captured hooks payload ends in
 // "[... content continues ...]". The visible-text probe recorded
 // "[Content truncated for length...]" and "[The variables table continues ...]";
@@ -34,6 +39,7 @@ const mustFire = {
   'placeholder: [The variables table continues ...]': lastLineSwapped(hooks, '[The variables table continues ...]'),
   'marker followed by trailing blank lines': withResult(hooks, hooks.tool_response.result + '\n\n  \n'),
   'a string tool_response': { ...hooks, tool_response: hooks.tool_response.result },
+  'read-on note: [WebFetch note: ... offset: N.]': lastLineSwapped(hooks, readOnNote),
 }
 
 for (const [name, payload] of Object.entries(mustFire)) {
@@ -69,6 +75,9 @@ const stayQuiet = {
     { ...hooks, tool_name: 'Bash', tool_response: { ...hooks.tool_response, result: 'x\n[Content truncated for length...]' } },
   'a WebFetch payload with no result': { ...hooks, tool_response: { bytes: 10, code: 404 } },
   'no payload': null,
+  'the read-on note quoted mid-result, not on the last line':
+    withResult(hooks, `Intro.\n\n${readOnNote}\n\nThe page goes on here.`),
+  'a WebFetch note that names no offset': lastLineSwapped(hooks, '[WebFetch note: this page redirected to another host.]'),
 }
 
 for (const [name, payload] of Object.entries(stayQuiet)) {
@@ -76,6 +85,11 @@ for (const [name, payload] of Object.entries(stayQuiet)) {
     assert.equal(decide(payload), null)
   })
 }
+
+test('the read-on note gets the offset re-read guidance; the older markers do not', () => {
+  assert.match(decide(lastLineSwapped(hooks, readOnNote)), /WebFetch again with the same url and the offset/)
+  assert.doesNotMatch(decide(hooks), /offset/)
+})
 
 const run = input => spawnSync(process.execPath, [hook], { input, encoding: 'utf8' })
 
