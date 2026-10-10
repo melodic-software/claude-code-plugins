@@ -57,6 +57,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Full history, as test-bash fetches it: a suite that proves against an
+          # old commit fails in a shallow clone, and a failed suite reads less.
+          fetch-depth: 0
       # The suites read what they read only when their tools are present, so
       # the toolchains match pr-require-checks.yml's test-bash and test-python lanes (Node,
       # Python, ShellCheck, shfmt, the inventory parser packages, DuckDB); a suite that skips for a
@@ -93,6 +96,8 @@ jobs:
       - name: Install locked test toolchains
         run: |
           npm ci
+          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          npm ci --prefix .github/standards/runner-policy
           python -m pip install --user --only-binary=:all: --require-hashes \
             --requirement .github/requirements-ci.txt \
             --requirement .github/requirements-ci-animation.txt
