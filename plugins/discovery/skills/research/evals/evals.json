@@ -499,6 +499,125 @@
         "Row 7 passes with the claim at HIGH (single source)",
         "The runtime behavior of the flag is named as a separate claim the single source flag does not cover"
       ]
+    },
+    {
+      "id": 35,
+      "name": "deep-tier-multi-topic-parallel-agents",
+      "prompt": "Research three separate things for me: (1) best practices for EF Core compiled queries, (2) whether we should adopt OpenTelemetry metrics, and (3) the current state of .NET native AOT for ASP.NET APIs.",
+      "expected_output": "Runs the multi-topic check first, recognizes three separable topics, and dispatches N parallel discovery:researcher agents (one per topic, each running the full /research discipline it arrives preloaded with) rather than feeding the combined blob to a single engine. Each agent is assigned its own sub-slice (<memory_dir>/<slug>/<topic-slug>/) by the dispatching session and writes the normal RESEARCH.md, sidecars, and research-checklist.md inside it. The main session then dispatches the sibling verifier per topic, applies project fit, writes both back into each topic index, and only then synthesizes the slice-root RESEARCH.md, which goes to a fresh verifier on every verifier-owned row before it is surfaced.",
+      "files": [],
+      "expectations": [
+        "Output identifies that the ask contains multiple separable topics",
+        "Output dispatches one discovery:researcher agent per topic in parallel rather than running one engine over the combined blob, and does not spawn a bare general-purpose agent carrying a hand-written copy of the research discipline",
+        "Each topic agent runs the full research discipline and writes a normal RESEARCH.md plus its sidecars and checklist inside its OWN sub-slice directory, not a sibling research-<topic>.md at the slice root",
+        "The sub-slice path for each topic is assigned by the dispatching session rather than chosen by the worker",
+        "Each dispatch carries a resolved envelope — the topic, the reason it is being researched, the assigned memory-slice path, the memory root as its own field, the authorized budget, the nested-spawning capability flag, and Source breadth from this session's caller effort",
+        "The main session dispatches the sibling verifier and applies project fit per topic, writing both results back into that topic's index before synthesizing",
+        "The main session synthesizes a combined slice-root RESEARCH.md from the per-topic indexes",
+        "The synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14 before it is surfaced, with an accepted: count for the root's own accepted claims"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "deep-tier-single-heavy-topic-dispatches-engine",
+      "prompt": "Do a deep, thorough research pass comparing Dapper vs EF Core vs raw ADO.NET for our data-access layer, covering performance, maintainability, and migration cost.",
+      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches a deep-research workflow engine when one is available and does NOT re-run the research inline in the main session. The engine's return is not surfaced as-is — the main session closes the post-dispatch boundary first (sibling verifier against the artifact, project fit, both written back into the index), because an engine is a producing context like any other.",
+      "files": [],
+      "expectations": [
+        "Output treats this single broad comparison as one heavy topic (not split into parallel agents)",
+        "Output dispatches the heaviest available tier (the discovery:research-sweep workflow when the Workflow tool is available), and writes RESEARCH.md from the workflow's result rather than expecting the workflow to write it",
+        "Output does NOT re-run the deep research inline in the main session after dispatching",
+        "Output does NOT treat dispatch as the end of its work — it states that the engine's return will go through the post-dispatch boundary (sibling verifier, project fit, write-back) before being surfaced, rather than promising to surface the summary and artifact path directly"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "deep-tier-researcher-fallback-no-engine",
+      "prompt": "Deep-research the tradeoffs between gRPC and REST for our internal service-to-service calls. Note: no Workflow tool / deep-research workflow is available this session.",
+      "expected_output": "With no workflow-engine path and a heavy task, falls back to dispatching one discovery:researcher — the plugin's purpose-built worker, which arrives with the /research discipline preloaded and its effort and turn budget calibrated to it — rather than a bare general-purpose spawn carrying a hand-written copy of that discipline. The dispatch prompt is the envelope only (topic, reason, memory-slice path, memory root, budget, capability flags, Source breadth). The main session then dispatches the sibling verifier against the written artifact and applies project fit, writing both back into the index before surfacing the result — the same post-dispatch boundary the multi-topic path owns.",
+      "files": [],
+      "expectations": [
+        "Output falls back to one discovery:researcher when the Workflow tool is not observed in this session's toolset",
+        "The subagent is discovery:researcher rather than a bare general-purpose spawn, and is not a read-only Explore agent",
+        "The dispatch prompt carries the resolved envelope (topic, reason, memory-slice path, memory root, budget, capability flags, Source breadth) rather than restating the research discipline, the citation rule, the outcome gate, or the return-payload shape the agent already carries",
+        "The main session dispatches the sibling verifier against the returned artifact and applies project fit rather than presenting the worker's summary and artifact path directly",
+        "The verifier and project-fit results are written back into the artifact index before the result is surfaced"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "deep-phrasing-small-task-takes-standard-dispatch",
+      "prompt": "Deep-research just one small thing: the current stable version number of Node.js LTS.",
+      "expected_output": "Recognizes a clearly-small single-fact task: one topic, no adversarial verification needed, and no leading deep token, so it does not take the deep tier (no workflow engine, no parallel agents) and takes the standard dispatch, while still applying the full /research discipline. Task size never reduces depth. The verifier-owned rows still go to a fresh context.",
+      "files": [],
+      "expectations": [
+        "Output routes a clearly-small single-fact task to the standard path (one researcher dispatch, or an inline run where an escape hatch applies) rather than the workflow engine or parallel agents",
+        "Output still applies the full /research discipline (phases, source tiers) despite the small task size",
+        "Output does NOT self-grade the verifier-owned outcome-gate rows — they go to a fresh context"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "deep-tier-dispatches-not-inline-deep-pass",
+      "prompt": "Deep-research the security implications of enabling CORS wildcard origins across our API gateway — this is a big one.",
+      "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or isolated subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
+      "files": [],
+      "expectations": [
+        "Output dispatches the heavy pass to an isolated tier rather than running it in the main context",
+        "The main-session output stays a dispatch/summary, not a full inline deep-research transcript",
+        "The main session still closes the post-dispatch boundary itself rather than treating dispatch as the end of its work"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "deep-tier-researches-does-not-decide-or-code",
+      "prompt": "Deep-research whether we should replace our custom auth with an OIDC provider, then implement the switch.",
+      "expected_output": "Dispatches the research but does not make the decision or write code — the planning step or user decides, and execution is a separate stage.",
+      "files": [],
+      "expectations": [
+        "Output performs/dispatches research about the decision rather than making it",
+        "Output does NOT write or modify code to implement the switch",
+        "Output leaves the decision and any implementation to a downstream step"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "deep-tier-wide-fan-out-pilots-one-researcher",
+      "prompt": "Research six separate things for me: (1) Postgres logical replication limits, (2) whether Redis 8 changed its license again, (3) the current state of WebGPU in Safari, (4) Rust async traits stabilization, (5) Kafka KRaft migration steps, and (6) how Terraform state locking works on S3 without DynamoDB.",
+      "expected_output": "Runs the multi-topic check, recognizes six separable topics, and because that is more than about four, spawns one discovery:researcher alone first. It waits for that researcher's return and confirms plan usage remains before spawning the other five, then closes the post-dispatch boundary per topic and synthesizes the slice-root RESEARCH.md.",
+      "files": [],
+      "expectations": [
+        "Output identifies six separable topics and dispatches one discovery:researcher per topic rather than one engine over the combined blob",
+        "Output spawns exactly one researcher first and waits for its return before spawning any of the others",
+        "Output checks the pilot's return for a usage-limit error, and any usage reading the session has, before spawning the remaining five",
+        "Output does NOT spawn all six researchers in a single parallel batch"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "dispatched-run-never-takes-deep-tier",
+      "prompt": "[You are a discovery:researcher subagent dispatched by a parent session; /discovery:research arrived preloaded. The dispatch prompt's Topic line reads: 'deep Compare Kafka, Pulsar and NATS JetStream for our event bus, with skeptics refuting each claim.']",
+      "expected_output": "Runs the research inline in its own context as the dispatched worker. It does not select the deep tier: it does not launch the discovery:research-sweep workflow, does not promise that the workflow engine will run, and does not split the ask across further per-topic researchers, because Workflow and a dependable Agent spawn belong to the main conversation. The leading deep token is stripped from the topic it echoes back.",
+      "files": [],
+      "expectations": [
+        "Output does NOT launch or promise the discovery:research-sweep workflow from the dispatched context",
+        "Output does NOT spawn per-topic discovery:researcher agents from the dispatched context",
+        "Output runs the research discipline inline in the dispatched context",
+        "The topic it works on does not carry the leading deep token"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "deep-token-without-workflow-observed-falls-back",
+      "prompt": "/discovery:research deep whether SQLite WAL mode is safe on network file systems [The Workflow tool does not appear in this session's toolset, though the user's settings.json has no workflow switch turned off.]",
+      "expected_output": "Strips the deep token and takes the deep tier for one topic. Because the Workflow tool is not observed in this session's toolset, it does not infer availability from the settings file and takes the researcher fallback: one discovery:researcher with the full envelope, then the post-dispatch boundary (acceptance gate, sibling verifier, project fit, write-back) before anything is surfaced.",
+      "files": [],
+      "expectations": [
+        "Output does not treat the settings file as evidence that the Workflow tool is available",
+        "Output dispatches one discovery:researcher rather than launching the research-sweep workflow",
+        "The Topic line in the dispatch does not carry the deep token",
+        "Output closes the post-dispatch boundary (verifier and project fit written back) before surfacing the result"
+      ]
     }
   ]
 }

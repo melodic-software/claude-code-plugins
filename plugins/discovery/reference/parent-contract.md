@@ -122,7 +122,7 @@ pull-request review reply, an issue, a design document, a message to a third par
 in the index and says so. What `publish` tightens, and why the value is copied into the index
 rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
 
-Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
+Those labels are the ones the research deep tier already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
 
 **`/discovery:trace-intent` keeps the `Topic:` label rather than adding a `Target:` one.** Its
@@ -268,7 +268,7 @@ than each carrying its own copy.
 Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it
 back. The `topic_as_received` / `scope_as_received` echo-back in the acceptance gate is what catches
 this whichever way the substitution actually runs, and it matters most under
-`/discovery:research-deep`, where one topic is copied into every envelope of an N-way fan-out, so
+the research deep tier, where one topic is copied into every envelope of an N-way fan-out, so
 check each dispatched agent's echo against the envelope it was sent, per topic, before synthesis.
 
 ## Credentials stay unread, stated once
@@ -361,8 +361,8 @@ stays here.
 
 **This is the single statement of where a dispatched agent may write.** All three agent definitions
 point here rather than restating it; three earlier restatements disagreed with each other about
-whether scratch was inside the boundary or outside it. The dispatched agents and a Tier-2
-`research-deep` subagent cannot ask, so any assumed destination is flagged in the return rather than
+whether scratch was inside the boundary or outside it. The dispatched agents, including a
+research deep-tier subagent, cannot ask, so any assumed destination is flagged in the return rather than
 silently adopted.
 
 A dispatched `discovery:explorer` / `discovery:researcher` / `discovery:intent-tracer` writes to
@@ -395,8 +395,8 @@ so it downloads nothing.
 ## Persistence by value
 
 The memory slice exists only in the checkout that wrote it. The by-value boundary is the checkout,
-not the process: the `-deep` dispatch resolves to `research-deep`, whose isolated subagent runs in
-the parent's checkout and writes `RESEARCH.md` there directly (already visible to the parent),
+not the process: a research deep-tier dispatch runs its isolated subagents in
+the parent's checkout, which write `RESEARCH.md` there directly (already visible to the parent),
 returning a summary by value; a worker dispatched into its **own** checkout (worktree or background
 session) returns findings by value instead, and the parent writes the memory slice.
 
@@ -458,7 +458,7 @@ same available-tools section.
 ### The `Workflow` tool is absent from every non-fork subagent
 
 *What we rely on.* Only the main conversation, or a fork of it, can dispatch a workflow engine,
-which is why the deep-research tier ladder runs from main context. *Pointer:* the same
+which is why the research deep tier is selected only in the main conversation. *Pointer:* the same
 available-tools section.
 
 ### Background is the default execution mode, and it narrows the tool set again
@@ -610,7 +610,7 @@ include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (th
 separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
 explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
 ceiling. Samples this small do not settle a number. Decision: `maxTurns` stays 40 as a
-checkpoint, and research-deep does not size its lanes to finish within one dispatch; a run that
+checkpoint, and the research deep tier does not size its lanes to finish within one dispatch; a run that
 reaches the limit completes through resume. The recheck triggers above still apply.
 
 ### A named `discovery:explorer` dispatch delivers its definition body and its `skills:` preload
@@ -706,7 +706,7 @@ allowed the same path as one plain command. The side-effect-free `--help` probes
 
 - **Pointer**: when a worktree-isolated Bash command is refused, fetch <https://code.claude.com/docs/en/worktrees> (isolation, command shape) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
 - **As of**: 2026-10-03
-- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in `/discovery:research-deep`.
+- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in the research deep tier (`skills/research/context/deep-tier.md`).
 
 The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
 `python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`

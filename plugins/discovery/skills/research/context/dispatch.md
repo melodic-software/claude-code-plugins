@@ -242,7 +242,7 @@ a header, and the research sidecar header is research's alone. The applicability
 check here that reads it, and `applicability: pass` in the payload is criterion 13's self-grade,
 re-run parent-side like the ledger. It ships as Python only; where `python3` does not resolve, run
 it as `python` from a lane that can, and a lane that can run neither halts. An engine artifact
-(research-deep Tier 1) that does not write the header fields fails it by design; route that topic
+(the research deep tier's workflow engine) that does not write the header fields fails it by design; route that topic
 to the researcher tier.
 
 Two limits are worth stating rather than discovering:

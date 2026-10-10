@@ -53,7 +53,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/context7:lookup`](../plugins/context7/skills/lookup/SKILL.md) | `context7` | Look up current library docs, API references, and examples via Context7 |
 | [`/discovery:read-docs`](../plugins/discovery/skills/read-docs/SKILL.md) | `discovery` | Read an upstream docs page through the shared lookup and cache |
 | [`/discovery:research`](../plugins/discovery/skills/research/SKILL.md) | `discovery` | Multi-source external research with source tiers and a coverage ledger |
-| [`/discovery:research-deep`](../plugins/discovery/skills/research-deep/SKILL.md) | `discovery` | Dispatch deep multi-topic research to the heaviest isolated tier |
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
