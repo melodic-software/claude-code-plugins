@@ -342,8 +342,9 @@ knows what they are looking at:
    is one of the criteria that selects prompt-only in the first place ("Choosing the path"). A
    session with a task list worth drawing was supposed to be on the full path. When prompt-only was
    FORCED by the explicit `prompt` argument, so that criterion was never tested, make the one
-   `TaskList` call rather than guessing from the conversation. A session without the task tools
-   has no live list on either path: skip to 5 (structure.md's tool-presence branch).
+   `TaskList` call rather than guessing from the conversation. A session with `TodoWrite` instead
+   reads the list from its latest `TodoWrite` call; one with neither has no live list on either
+   path: skip to 5 (structure.md's tool-presence branch).
 5. Completion criteria, as the units of last resort.
 6. **None of the above: emit no rail.** Give the three blocks as prose and say plainly that the
    work has no delineated units. **Never invent phases to have something to draw.** A fabricated

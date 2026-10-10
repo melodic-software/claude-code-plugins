@@ -149,7 +149,8 @@ the gather above are presence-gated pointers to the siblings that own them; the 
 
 For work expected to span 3+ stages, when this session has the task tools (`TaskCreate` is in its
 tool list; branch on that, never on the model), create a task per applicable stage via TaskCreate,
-mark completed stages `completed` and the current one `in_progress`. Without them, the checklist
+mark completed stages `completed` and the current one `in_progress`. With `TodoWrite` instead,
+keep the same stage list in `TodoWrite`. With neither, the checklist
 file below (or the plan artifact that replaces it) is the only progress tracker. For durable
 cross-`/clear` tracking,
 also copy `templates/checklist.md` into the artifact location (see "Consumer conventions") as
