@@ -374,6 +374,11 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
 
+[`scripts/check-app-key-references.sh`](../../../scripts/check-app-key-references.sh) fails
+`lint-repo` when any file under `.github/workflows/` or `.github/actions/` names
+`AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID`, so no
+workflow holds the lanes key or mints as the lanes App outside the broker.
+
 Step 14 revokes the token as soon as the activity is done. Residuals:
 
 - Any step of the write job can request an OIDC token for another audience, so whatever the

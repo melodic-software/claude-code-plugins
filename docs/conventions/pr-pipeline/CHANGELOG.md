@@ -18,6 +18,9 @@ write file must change.
 - Callers of the write file pass no App key and grant `id-token: write` on the calling job.
   `AUTOMATION_LANES_APP_CLIENT_ID` is no longer read.
 - With no App key in either runner, one lane may call both files.
+- `scripts/check-app-key-references.sh` fails `lint-repo` on `AUTOMATION_LANES_APP_PRIVATE_KEY`,
+  `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID` anywhere under `.github/workflows/` or
+  `.github/actions/`.
 
 ## 1.2.0 - 2026-10-04
 
