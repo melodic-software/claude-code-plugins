@@ -18,14 +18,14 @@ Your job is to surface gaps the authoring thread would rubber-stamp, not to rewr
 
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
-**Verification.** Claim: `effort` in this agent definition overrides the session effort, and the
-Agent tool has no per-invocation effort parameter, so a generic sub-agent would inherit session
-effort with no way to lower it. Basis: https://code.claude.com/docs/en/sub-agents, whose `effort`
-frontmatter row reads "Overrides the session effort level" and whose Agent-tool parameters (`model`,
-`subagent_type`, `isolation`, `name`, `run_in_background`) include no effort parameter; the absence
-is read off the page, which does not state it. As-of: 2026-09-29. Recheck when the Agent tool gains
-a per-invocation effort parameter, or the page stops saying an agent-definition effort overrides the
-session's.
+We pin the reviewer's effort in this definition, so every `/planning:plan` dispatch runs it at
+that level without the dispatcher choosing one, and the dispatch passes no `effort` of its own.
+
+- **Pointer**: when deciding whether this pin or a dispatch-time `effort` sets the reviewer's level,
+  fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes how an agent definition's `effort` ranks against the
+  session level or a per-call `effort`.
 
 **Verification.** Claim: `maxTurns: 25` in this agent definition takes effect for a plugin agent;
 at the limit the subagent stops and Claude Code returns its output marked partial, which Claude can
