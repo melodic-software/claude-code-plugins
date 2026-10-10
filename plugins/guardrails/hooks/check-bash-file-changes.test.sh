@@ -247,6 +247,16 @@ assert_contains "file cap with finding: names the file" "$(notes "$OUT")" 'chang
 assert_contains "file cap with finding: counts the rest" "$(notes "$OUT")" \
   "2 changed files not examined"
 
+# R1c. More than 20 commits in one command, the flagged file only in the first:
+#      the earlier commits go unread, and the check says so.
+new_repo
+pre "$REPO"
+scratch write "$REPO/zz.sh" "root = $LINUX_HOME"
+g add zz.sh && g commit -qm flagged
+for i in {01..20}; do g commit -q --allow-empty -m "c$i"; done
+assert_contains "commit cap: reported" "$(notes "$(post "$REPO")")" \
+  "the command made 21 commits and the check reads only the last 20, so 1 earlier commit is not checked"
+
 # R2. The command leaves more than 10000 paths in git status.
 new_repo
 pre "$REPO"

@@ -398,10 +398,17 @@ export function check(payload, env) {
     return result;
   }
   const log = headLog(before.root);
-  const committed =
-    log && fileSize(log) > before.log
-      ? committedFiles(before.root, commitsMade(log, before.log))
-      : [];
+  const commits = log && fileSize(log) > before.log ? commitsMade(log, before.log) : [];
+  if (commits.length > MAX_FILES) {
+    const dropped = commits.length - MAX_FILES;
+    notes.push(
+      notExamined(
+        null,
+        `the command made ${commits.length} commits and the check reads only the last ${MAX_FILES}, so ${dropped} earlier ${dropped === 1 ? "commit is" : "commits are"} not checked`,
+      ),
+    );
+  }
+  const committed = committedFiles(before.root, commits);
   const all = changedFiles(before, { status: status.entries }, committed);
   const links = all.filter((f) => f.link).length;
   if (links) notes.push(notExamined(links, "a symbolic link is not followed"));
