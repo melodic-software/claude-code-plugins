@@ -1,6 +1,6 @@
 Marketplace: market1: current (autoUpdate: on)
 In-repo: 0: <case> has no project/local installs
-Installed: 1 new catalog plugin(s): beta@market1 (policy install_new: all, meaning these reinstall on every sync unless you also disable them)
+Installed: 1 new catalog plugin(s): beta@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling)
 Divergences: 0 actionable
 Timing: <elided>
 Action needed:
