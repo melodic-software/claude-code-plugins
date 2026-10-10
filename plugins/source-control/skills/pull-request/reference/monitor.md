@@ -31,7 +31,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again. Always pass `timeout: 7200000` with that `run_in_background` call. An unattended session stops a background command at a time limit, and a quiet CI run can outlast the default. When the stop notice arrives in place of an emitted line, run one iteration and start the poll again with the same `timeout`.
+Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again. Always pass `timeout: 7200000` with that `run_in_background` call. When the stop notice arrives in place of an emitted line, run one iteration and start the poll again with the same `timeout`.
 
 We pass the background-command maximum on every fallback poll and treat the stop notice as a re-arm signal, so we never have to track which sessions carry the limit.
 
@@ -64,7 +64,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
 **Every monitor invocation ensures a live event watch exists, and every watch is re-armed at its deadline.** Runs immediately after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
 1. Resolve PR identity: `PR_NUMBER=$(gh pr view --json number -q '.number' | tr -d '\r')`, `OWNER=$(gh repo view --json owner -q .owner.login)`, `REPO=$(gh repo view --json name -q .name)`
-2. Check whether this session already holds a live watch for this PR: a task id it got back from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: current models do not get it by default (record below), and a watch armed before a `--resume` is gone even though the transcript still shows its id.
+2. Check whether this session already holds a live watch for this PR: a task id it got back from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: it is not offered in every session (record below), and a watch armed before a `--resume` is gone even though the transcript still shows its id.
 3. **If this session holds a live watch for the PR** → skip (watch already active). Proceed to 3.0.5
 4. **Otherwise** → arm the watch:
 
@@ -76,7 +76,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
    )
    ```
 
-   **Re-arm at the deadline.** Every watch ends at a deadline, and the session gets one notice when it does. On that notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), arm the watch again with this same call, then run one full iteration (step 5). That iteration covers anything that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the current checks and review-thread count without emitting them.
+   **Re-arm at the deadline.** On the deadline notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), arm the watch again with this same call, then run one full iteration (step 5). That iteration covers anything that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the current checks and review-thread count without emitting them.
 
    We pass the Monitor deadline maximum on every arming call and re-arm on the deadline notice for as long as the PR needs watching.
 
@@ -86,7 +86,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
 
    Source conflict: the Claude Code 2.1.271 changelog entry and the Monitor tool section disagree on which inputs a command watch accepts. We follow the live tool schema: no `persistent`, an explicit `timeout_ms`.
 
-   - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
+   - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://code.claude.com/docs/en/changelog) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section documents `timeout_ms` for command watches or mentions `persistent`.
 
