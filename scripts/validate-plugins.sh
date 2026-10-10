@@ -131,7 +131,7 @@ fi
 # renderer exits 2 when stdout is not that object, and this loop then falls
 # back to the text command so a CLI older than the flag still validates.
 # The renderer also prints each per-file gatingHooks entry with hasCatch:
-# false as a warning row; a warning never fails this gate.
+# false as a warning row; that row never changes this script's exit status.
 # Basis: https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate
 render_validate() {
   local dir="$1"

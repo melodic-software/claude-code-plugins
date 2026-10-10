@@ -56,9 +56,10 @@ Two consequences for this convention, and one non-consequence:
   opt-in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has
   no bare-command-on-PATH analog to re-scope to), never the first-resort fix. Re-scoping to the
   [correct pattern](#the-correct-pattern) is.
-- **Nothing about *which* rules get dropped changes**, and neither does the self-grant block: the same
-  page still records that Claude Code "ignore[s] `auto` from those files so a repository cannot grant
-  itself auto mode". A repository still cannot hand itself the mode; it now more often arrives anyway.
+- **Nothing about *which* rules get dropped changes**, and a repository still cannot grant itself
+  auto mode: we never ship a repository settings file that tries to, and treat the mode as arriving
+  with the session, not from the repository (for where a start mode can come from, fetch the
+  which-mode section in the pointer above live).
 
 Write rules for the auto-mode case in every session: a rule that is correct under auto mode is
 correct under Manual too, and the reverse does not hold.

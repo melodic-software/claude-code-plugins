@@ -1133,8 +1133,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 - **Decision:** this agent departs from three defaults on purpose. Bar: it has one dispatch site,
   `/planning:plan` Step 3, and its description says not to invoke it directly, so the
-  multiple-sites clause is unmet; the pin clause carries it, because a definition is the only way to bound
-  this one review's effort at every call (a generic Agent-tool dispatch passes no `effort` unless its call says so). For the same
+  multiple-sites clause is unmet; the pin clause carries it, because we keep this one review's level
+  in the definition: the pin sets it, and `/planning:plan` passes no per-call `effort`, so no call site can drift from it. For the same
   reason the Step 3 site names no generic fallback: the plugin ships the agent, so there is
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
@@ -1146,10 +1146,13 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   [#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256), which measured a
   nested plan review at 31.6 minutes and 277k tokens at session effort; the closing comment on
   [#4849](https://github.com/melodic-software/claude-code-plugins/pull/4849), which kept
-  `opus`.
-- **As of:** 2026-09-29.
-- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the Agent
-  tool gains a per-invocation `effort` parameter, or the agent's `model` or `effort` changes.
+  `opus`; when weighing a per-call level against the pin, fetch
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
+  live.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
+  Step 3 dispatch starts passing `effort`, that section changes how a per-call `effort` ranks against
+  the `effort` field, or the agent's `model` or `effort` changes.
 
 ### Model tiers
 
@@ -1510,7 +1513,7 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 **Override levers.** We name three levers for a user who wants a pinned agent at another level.
 `CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin. A Workflow
 script's `agent()` call passes `opts.effort`, and `opts.model`, for that call alone, and an
-Agent-tool call passes its own `effort` for that dispatch alone. A
+Agent-tool call that spawns a non-fork subagent passes its own `effort` for that dispatch alone. A
 `maxEffortLevel` setting or an organization effort cap also limits every pin.
 
 - **Pointer:** for the variable, see
