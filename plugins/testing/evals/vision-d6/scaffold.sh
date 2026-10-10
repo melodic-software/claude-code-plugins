@@ -3,4 +3,4 @@
 set -euo pipefail
 
 mkdir -p screens
-cp "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects/crops/ec1f54fe2711/"*.png screens/
+cp "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects/crops/a697085416c5/"*.png screens/
