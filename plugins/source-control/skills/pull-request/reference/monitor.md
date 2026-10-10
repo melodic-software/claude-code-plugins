@@ -31,7 +31,13 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again.
+Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s until all readiness gates pass. Run it in the background, never as a foreground `sleep` or `until` loop: arm the §3.0.1 Monitor watch at that interval, or, where the Monitor tool is unavailable, start the same poll script through the Bash tool with `run_in_background` and have it exit on the first line it would emit, which wakes the session; run the iteration, then start it again. Always pass `timeout: 7200000` with that `run_in_background` call. An unattended session stops a background command at a time limit, and a quiet CI run can outlast the default. When the stop notice arrives in place of an emitted line, run one iteration and start the poll again with the same `timeout`.
+
+We pass the background-command maximum on every fallback poll and treat the stop notice as a re-arm signal, so we never have to track which sessions carry the limit.
+
+- **Pointer**: when you need the background-command time limit, which sessions it applies to, its maximum, or the stop notice text, fetch [Time limit for background commands](https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes its maximum or the sessions it covers, or a release note names the background-command time limit.
 
 **If local CLI session (`CLAUDE_CODE_REMOTE` not set or `false`):** skip this section. Event delivery is handled by the push-channel primary path (§3.0.05) when available, otherwise by the Monitor watch (§3.0.1).
 
@@ -55,20 +61,39 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
 
 ## 3.0.1 Auto-watch setup (Monitor tool)
 
-**Every monitor invocation ensures a session-persistent event watch exists.** Runs immediately after 3.0.0, before terminal state checks, CI polling, and comment processing.
+**Every monitor invocation ensures a live event watch exists, and every watch is re-armed at its deadline.** Runs immediately after 3.0.0, before terminal state checks, CI polling, and comment processing.
 
 1. Resolve PR identity: `PR_NUMBER=$(gh pr view --json number -q '.number' | tr -d '\r')`, `OWNER=$(gh repo view --json owner -q .owner.login)`, `REPO=$(gh repo view --json name -q .name)`
-2. Check if a Monitor watch is already running for this PR: `TaskList` and look for a task whose description contains `PR #$PR_NUMBER CI + comments`
-3. **If a matching task exists** → skip (watch already active). Proceed to 3.0.5
-4. **If no matching task exists** → arm the watch:
+2. Check whether this session already holds a live watch for this PR: a task id it got back from its own step-4 arming call for `PR #$PR_NUMBER CI + comments`, with no exit line, deadline notice, stop, or `--resume` since. Do not look the watch up with `TaskList`: current models do not get it by default (record below), and a watch armed before a `--resume` is gone even though the transcript still shows its id.
+3. **If this session holds a live watch for the PR** → skip (watch already active). Proceed to 3.0.5
+4. **Otherwise** → arm the watch:
 
    ```text
    Monitor(
      description: "PR #<N> CI + comments",
-     persistent: true,
+     timeout_ms: 1800000,
      command: <poll script below>
    )
    ```
+
+   **Re-arm at the deadline.** Every watch ends at a deadline, and the session gets one notice when it does. On that notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), arm the watch again with this same call, then run one full iteration (step 5). That iteration covers anything that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the current checks without emitting them.
+
+   We pass the Monitor deadline maximum on every arming call and re-arm on the deadline notice for as long as the PR needs watching.
+
+   - **Pointer**: when you need the Monitor deadline's default, its maximum, the lower cap in a non-interactive run, or what happens at the deadline, fetch [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
+   - **As of**: 2026-10-10
+   - **Recheck trigger**: the Monitor tool section changes its deadline or its re-arm notice, or a release note names a Monitor input.
+
+   Source conflict: the [2.1.271 changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) removes the Monitor `persistent` option and adds the `timeout_ms` deadline, while [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) never mentions `persistent` and names `timeout_ms` only under its WebSocket source. We follow the changelog and the live tool schema: no `persistent`, an explicit `timeout_ms`.
+
+   - **As of**: 2026-10-10
+   - **Recheck trigger**: the Monitor tool section documents `timeout_ms` for command watches or mentions `persistent`.
+
+   The step-2 check rests on this session's own arming record, not on a task-list lookup, because the task-tracking tools are not offered on every model.
+
+   - **Pointer**: when you need which models and sessions get `TaskList` and how to opt in, fetch [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
+   - **As of**: 2026-10-10
+   - **Recheck trigger**: the Task tool availability section changes which sessions get the task tools, or a release note names task-tool gating.
 
    The poll script (inline in the `command` parameter):
 
@@ -106,9 +131,13 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
      } 2>/dev/null | tr -d '\r' | grep -v ': pending$' | sort || true)
      if [ "$cur_checks" != "$prev_checks" ]; then
        # Bucket values mirror gh pr checks: pass|fail|pending|skipping|cancel.
-       comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
-         grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
-         || true
+       # The first poll only records the checks, so a re-arm at the
+       # deadline does not re-emit every completed check.
+       if [ "$poll" -gt 0 ]; then
+         comm -13 <(echo "$prev_checks") <(echo "$cur_checks") | \
+           grep --line-buffered -E ': (pass|fail|skipping|cancel)$' \
+           || true
+       fi
        prev_checks="$cur_checks"
      fi
 
@@ -157,7 +186,7 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
    done
    ```
 
-   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session.`
+   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session; re-armed at each deadline.` Keep that task id: it is what step 2 and §3.0.5 check.
 
 5. Proceed with the current monitoring iteration normally
 
@@ -191,9 +220,9 @@ gh pr view <pr_number> --json state -q '.state'
    PR #N: MERGED. Monitoring complete. Stopping watch.
    ```
 
-2. Call `TaskList` to find the Monitor watch task for this PR (description contains `PR #<N> CI + comments`)
-3. If found, call `TaskStop <task_id>` to kill the background watch process
-4. If no matching task found (manual invocation, watch already stopped): skip steps 2-3, just output the completion message
+2. Take the task id this session recorded when it armed the watch for this PR (§3.0.1 step 4), not a `TaskList` lookup
+3. If this session holds a live watch for the PR, call `TaskStop <task_id>` to kill the background watch process, and do not re-arm it at the deadline notice
+4. If it holds none (manual invocation, or the watch already exited, stopped, or reached its deadline): skip steps 2-3, just output the completion message
 
 **Minimal output for no-change iterations.** When the Monitor watch emits nothing and there are no new CI state changes or comments since the last check, output a single status line:
 
@@ -542,7 +571,7 @@ When all readiness gates pass:
 
 ## 3.5 Monitor integration
 
-The monitor phase automatically arms a session-persistent background watch via §3.0.1. The user does NOT need to invoke `/loop` manually. The watch is self-configuring and event-driven.
+The monitor phase automatically arms a background watch via §3.0.1 and re-arms it at each deadline. The user does NOT need to invoke `/loop` manually. The watch is self-configuring and event-driven.
 
 **Where to run it: the same session that owns the branch.**
 
