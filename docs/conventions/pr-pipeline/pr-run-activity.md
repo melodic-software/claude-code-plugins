@@ -385,8 +385,8 @@ Residuals the split does not close:
 
 The write file's run job exchanges its GitHub OIDC token for the lane token at an Azure Function
 that holds the App key as a sign-only Key Vault key. Why:
-[ADR 0058](../../adr/0058-mint-lane-app-tokens-through-an-oidc-broker.md). Its code, Azure
-resources and operations live in `melodic-software/azure-iac`
+[ADR 0058](../../adr/0058-mint-lane-app-tokens-through-an-oidc-broker.md). Its code and Azure
+resources live in `melodic-software/azure-iac`; its operations are not yet documented there
 ([Outside this repository](README.md#outside-this-repository)).
 
 | Variable | Value |
