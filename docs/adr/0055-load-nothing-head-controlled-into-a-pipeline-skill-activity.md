@@ -186,6 +186,10 @@ The `mutate-branch` grant narrows to `contents: write`. Security comes from hard
 broker's scoped, hour-long token revoked when the job ends, base-SHA config and runner, the
 trusted-actor filter, the kill switch, `--setting-sources user`, an explicit `--permission-mode`
 and never `bypassPermissions`. Residuals: the model can read the token text (`GH_TOKEN`,
-`GITHUB_TOKEN`, `.git/config`) until it is revoked, and a lane commit can change instruction files
-the PR author's local session later loads. The contract is
+`GITHUB_TOKEN`, `.git/config`) until it is revoked; a skill's own `Bash` grant can exceed its job
+(`ai-slop:audit` allows `Bash(git:*)`), so with the token in the origin URL a run can push to any
+branch no ruleset protects, run any shell command through `git -c core.hooksPath` or a `!` alias,
+and push unsigned commits that bypass the signed-commit tool, as the convention's
+[Trust-root paths](../conventions/pr-pipeline/README.md#trust-root-paths) lists; and a lane commit
+can change instruction files the PR author's local session later loads. The contract is
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#skill-activities).
