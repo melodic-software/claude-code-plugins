@@ -13,7 +13,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { forbiddenSynthesisFileNameReason } from "../lib/synthesis-filename.js";
-import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import {
+  parseSessionsFromClaimInventory,
+  SESSION_FORMAT_HINT,
+} from "../lib/watch-slice-sessions.js";
 import {
   listSynthesisPngs,
   validateActionableArtifactsForSlice,
@@ -345,14 +348,19 @@ function pushSessionCoverageChecks(checks, slice) {
     };
   });
 
+  // Zero parsed sessions would make both checks below pass over nothing.
+  const noSessions = `no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`;
+
   const sessionsWithoutFrame = sessionFrameCounts.filter((s) => s.frameCount === 0);
   checks.push({
     id: "session-visual-coverage",
-    pass: sessionsWithoutFrame.length === 0,
+    pass: sessions.length > 0 && sessionsWithoutFrame.length === 0,
     actual:
-      sessionsWithoutFrame.length === 0
-        ? "all sessions covered"
-        : `missing: ${sessionsWithoutFrame.map((s) => s.name).join("; ")}`,
+      sessions.length === 0
+        ? noSessions
+        : sessionsWithoutFrame.length === 0
+          ? "all sessions covered"
+          : `missing: ${sessionsWithoutFrame.map((s) => s.name).join("; ")}`,
     expected: ">=1 synthesis frame per session segment",
     severity: "fail",
   });
@@ -360,11 +368,13 @@ function pushSessionCoverageChecks(checks, slice) {
   const sessionsBelowFloor = sessionFrameCounts.filter((s) => s.frameCount < floors.minPerSession);
   checks.push({
     id: "session-synthesis-depth",
-    pass: sessionsBelowFloor.length === 0,
+    pass: sessions.length > 0 && sessionsBelowFloor.length === 0,
     actual:
-      sessionsBelowFloor.length === 0
-        ? `>=${floors.minPerSession} per session`
-        : `thin: ${sessionsBelowFloor.map((s) => s.name).join("; ")}`,
+      sessions.length === 0
+        ? noSessions
+        : sessionsBelowFloor.length === 0
+          ? `>=${floors.minPerSession} per session`
+          : `thin: ${sessionsBelowFloor.map((s) => s.name).join("; ")}`,
     expected: `>=${floors.minPerSession} synthesis frames per session`,
     severity: "fail",
   });

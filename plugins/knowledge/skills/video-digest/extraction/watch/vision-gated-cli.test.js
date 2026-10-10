@@ -71,7 +71,7 @@ function makeVisionSliceDir(options = {}) {
   fs.mkdirSync(path.join(dir, "research"), { recursive: true });
   fs.writeFileSync(
     path.join(dir, "research", "claim-inventory.md"),
-    "[0:00] intro → [10:00] session one\n",
+    "## 1. Session one\n\n**Boundary:** [0:00] intro → [10:00] session one\n",
   );
 
   const cells = CELL_IDS.map((cell, index) => ({

@@ -65,7 +65,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | `triage-batch-files-present` | `key-frames/triage/batches/sheet_NNN.json` exists for every manifest sheet | Phase 4: write batch JSON before merge |
 | `heuristic-triage-forbidden` | markdown triage requires JSON manifest | Phase 4: do not PRNG/heuristic-fill triage log |
 | `densification-alignment` | windows with frame or gap ≥ ratio | Phase 6: pass 3 alignment |
-| `session-visual-coverage` | every claim-inventory session has in-window promotion | Phase 6: per-session frame |
+| `session-visual-coverage` | every claim-inventory session has in-window promotion; zero parsed sessions fails | Phase 6: per-session frame; Phase 2 session format in `watch-pipeline.md` |
 | `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6: vision pass before copy |
 | `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6: rename from on-screen content; content-class rejects stay agent vision |
 | `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8: copy `templates/recommendations/` |
