@@ -105,7 +105,7 @@ When `medium` is `hosted`, the page goes to the operator's shared page host thro
 "${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --repo <owner/repo> --pr <n> --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
-The script looks up the repository's visibility itself through `gh api`, and gates the built page, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` (a failed lookup included), or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
+When the pull request's URL names a host other than `github.com`, pass `--repo <host>/<owner>/<repo>`, so the lookup asks that host and not github.com. The script looks up the repository's visibility itself through `gh api`, and gates the built page, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` (a failed lookup included), or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
 
 - Exit 0: say "published to the <visibility> page host", give `url`, and report `old_copy` when present.
 - Exit 4: say "refused: credential-shaped content", give the path and the `reason`, and keep the file. No layer overrides this.

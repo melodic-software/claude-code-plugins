@@ -505,8 +505,8 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
   /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
-  const publish = ({ page, data }, { gh = "public", ghExit = 0, extra = [], out = "", exit = 0, deleteExit = 0 } = {}) =>
-    spawnSync(process.execPath, [PUBLISH, page, "--repo", "acme/app", "--pr", "7", "--data-dir", data, ...extra], {
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0 } = {}) =>
+    spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
         ...process.env,
@@ -599,6 +599,23 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "repos/acme/app", "--jq", ".visibility"]]);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("a host in --repo asks that host's API and keys the sidecar by host", runsFake, () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { repo: "ghe.example.com/acme/app", gh: "private", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], "the github.com sidecar is not this repository's");
+    assert.equal(JSON.parse(readFileSync(join(at.data, "hosted/ghe.example.com__acme__app__7.json"), "utf8")).id, idB);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+  });
+  test("a malformed host in --repo is a usage error with no lookup and no upload", runsFake, () => {
+    for (const repo of ["ghe_example/acme/app", "-x/acme/app", "localhost/acme/app", "a.b/c/acme/app", "/acme/app"]) {
+      const at = setup();
+      assert.equal(publish(at, { repo, out: answer(idB, "public") }).status, 2, repo);
+      assert.ok(!existsSync(ghLog), repo);
+      assert.deepEqual(calls(), [], repo);
+    }
   });
   test("a caller can no longer pass a visibility: --repo-visibility PUBLIC is a usage error with no upload", runsFake, () => {
     const at = setup();

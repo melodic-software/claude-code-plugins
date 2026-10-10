@@ -7,10 +7,11 @@
 // request, so a rebuild replaces the same page. When the page changes host, the
 // copy on the old host is deleted.
 //
-//   publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --data-dir <dir>
-// The script looks up the --repo repository's visibility itself; no caller passes
-// a visibility. The page carries no repository identity, so --repo must name the
-// pull request's repository.
+//   publish-hosted.mjs <page> --repo <[host/]owner/repo> --pr <n> --data-dir <dir>
+// The script looks up the --repo repository's visibility itself, on --repo's host
+// (gh's default host when it names none); no caller passes a visibility. The page
+// carries no repository identity, so --repo must name the pull request's
+// repository, host included when that is not github.com.
 // Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
 // 2 usage or not a builder page, 4 refused: credential-shaped content.
 
@@ -24,6 +25,7 @@ import { validateView } from "../../../lib/view-builder.mjs";
 
 const ID = /^[A-Za-z0-9_-]{22}$/;
 const NAME = /^[A-Za-z0-9_.-]+$/;
+const HOST = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 const VISIBILITIES = ["public", "private"];
 
 /** The data block's strings, one per line, so a credential the JSON escaping split is still read whole. */
@@ -67,26 +69,27 @@ function writeSidecar(path, current, stale) {
 const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
 /** REST, not `gh repo view`: GraphQL is refused in some sessions. Anything but a clean answer is UNKNOWN, which the gate sends private. */
-function lookupVisibility(repo) {
-  const run = spawnSync("gh", ["api", `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
+function lookupVisibility(host, repo) {
+  const run = spawnSync("gh", ["api", ...(host ? ["--hostname", host] : []), `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
   const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
   return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
 }
 
 /** @returns {{exit: number, result: object}} */
-export function publishHosted({ page, repo, pr, dataDir }) {
+export function publishHosted({ page, host, repo, pr, dataDir }) {
   const html = readFileSync(page, "utf8");
   // A connected page names the session bridge in its policy; it only works on this machine.
   if (!validateView(html).ok || /connect-src http:\/\/127\.0\.0\.1:\d{1,5}"/.test(html)) {
     return { exit: 2, result: { medium: "file", reason: "not a page the builder made for publishing" } };
   }
-  const visibility = lookupVisibility(repo);
+  const visibility = lookupVisibility(host, repo);
   const text = [html, ...dataStrings(html)].join("\n");
   const gate = publishGate({ explicit: false, visibility, text, subject: "page", medium: "hosted" });
   if (gate.medium !== "hosted") return { exit: 4, result: gate };
 
   const [owner, name] = repo.split("/");
-  const sidecar = join(dataDir, "hosted", `${owner}__${name}__${pr}.json`);
+  const key = host && host.toLowerCase() !== "github.com" ? `${host.toLowerCase()}__${owner}__${name}` : `${owner}__${name}`;
+  const sidecar = join(dataDir, "hosted", `${key}__${pr}.json`);
   const old = readSidecar(sidecar);
   const args = [page, "--visibility", gate.destination];
   if (old?.visibility === gate.destination) args.push("--id", old.id);
@@ -130,23 +133,27 @@ function main(argv) {
   const [page, ...rest] = argv;
   const flags = {};
   for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
-  const [owner, name, extra] = String(flags["--repo"] ?? "").split("/");
+  const parts = String(flags["--repo"] ?? "").split("/");
+  const host = parts.length === 3 ? parts.shift() : undefined;
+  const [owner, name] = parts;
   const ok =
     page &&
     !page.startsWith("--") &&
     rest.length === 6 &&
+    (host === undefined || HOST.test(host)) &&
+    parts.length === 2 &&
     NAME.test(owner ?? "") &&
     NAME.test(name ?? "") &&
-    extra === undefined &&
     /^\d{1,9}$/.test(flags["--pr"] ?? "") &&
     isAbsolute(flags["--data-dir"] ?? "");
   if (!ok || !existsSync(page)) {
-    process.stderr.write("usage: publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --data-dir <absolute dir>\n");
+    process.stderr.write("usage: publish-hosted.mjs <page> --repo <[host/]owner/repo> --pr <n> --data-dir <absolute dir>\n");
     return 2;
   }
   const { exit, result } = publishHosted({
     page: resolve(page),
-    repo: flags["--repo"],
+    host,
+    repo: `${owner}/${name}`,
     pr: flags["--pr"],
     dataDir: flags["--data-dir"],
   });
