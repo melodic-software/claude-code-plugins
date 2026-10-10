@@ -6,7 +6,7 @@ The case shows one page as four screenshots: 375 px and 1280 px wide, each at lo
 
 The reply was asked to put each problem on a line of the form `FINDING [<category>]: <what and where>` and to end with a last line of exactly `VERDICT: CONFIRMED` or `VERDICT: NEEDS WORK`.
 
-PASS only if a line starting `FINDING [overlap]:` asserts that the badge covers or collides with the product title, says where (the cards, the badge and title, or the 375 px width), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the title is not readable because the badge covers it", is an assertion.
+PASS only if a line starting `FINDING [overlap]:` (a markdown prefix or emphasis is allowed, such as `- `, `1. ` or `**FINDING [overlap]:**`) asserts that the badge covers or collides with the product title, says where (the cards, the badge and title, or the 375 px width), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the title is not readable because the badge covers it", is an assertion.
 
 FAIL if any of these holds:
 

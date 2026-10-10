@@ -12,5 +12,5 @@ FAIL if any of these holds:
 
 - the last non-empty line is not `VERDICT: CONFIRMED`;
 - the reply has any FINDING line, whatever its body says;
-- it reports any defect the screenshots do not show, for example low heading contrast, overlap, clipping, misalignment or overflow;
+- it reports any defect at all, for example low heading contrast, overlap, clipping, misalignment or overflow;
 - it treats the blue heading as a problem, or hedges about it ("the blue may be hard to read", "the color change could be a regression") instead of confirming the render.
