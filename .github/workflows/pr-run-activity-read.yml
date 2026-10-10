@@ -306,6 +306,8 @@ jobs:
           script: |
             const fs = require('fs');
             const { EXECUTION_FILE, REPLY_DIR } = process.env;
+            // Head code could have planted one; only this step's copy is uploaded.
+            fs.rmSync(`${REPLY_DIR}/act-turns.json`, { force: true });
             let messages = [];
             try {
               messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
@@ -333,9 +335,11 @@ jobs:
             fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
             await core.summary
               .addHeading('Skill run', 3)
-              .addCodeBlock(JSON.stringify(diag, null, 2), 'json')
+              // addCodeBlock does not escape its text.
+              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
               .write();
-            core.info(`subtype=${diag.subtype} is_error=${diag.is_error} num_turns=${diag.num_turns} models=${diag.models.length}`);
+            // JSON escapes newlines, so no field can start a workflow command.
+            core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
             if (!(diag.num_turns > 0) || diag.models.length === 0) {
               core.setFailed(
                 'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
@@ -348,7 +352,10 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-reply/
+          # Named files only: head code can write into this directory.
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
           retention-days: 7
           if-no-files-found: error
 
