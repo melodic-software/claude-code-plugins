@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.1] - 2026-10-10
+
+### Changed
+
+- **The interview page's deferred-work list is now `surface/deferred.md`**, renamed from `DEFERRED.md` so every markdown file in the repository is lower-kebab-case (ADR 0059).
+
 ## [0.71.0] - 2026-10-10
 
 ### Added

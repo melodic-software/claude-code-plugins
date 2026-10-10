@@ -22,7 +22,7 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
 - **A gated maintainer update skill**. `/firecrawl:update --check` reports CLI
   version drift and upstream skill-source drift read-only; the full update
   path puts `npm install` and any skill-content integration behind explicit
-  approval gates, with a recorded rollback version in `UPSTREAM.md`. It lives
+  approval gates, with a recorded rollback version in `upstream.md`. It lives
   as a sibling skill so the wrapper stays user-facing.
 
 ## Revisit condition
