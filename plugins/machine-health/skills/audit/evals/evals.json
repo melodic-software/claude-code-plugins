@@ -18,7 +18,7 @@
       "id": 2,
       "name": "unsupported-os-reports-unknown-and-stops",
       "prompt": "I'm on macOS. Run the machine-health audit.",
-      "expected_output": "macOS is a scaffolded NOT_IMPLEMENTED stub. The skill produces an UNKNOWN-severity report explaining the gap, points at the discovery-guide porting guidance, and stops. It never attempts to execute the Windows check scripts on macOS.",
+      "expected_output": "macOS is a scaffolded not-implemented.md stub. The skill produces an UNKNOWN-severity report explaining the gap, points at the discovery-guide porting guidance, and stops. It never attempts to execute the Windows check scripts on macOS.",
       "files": [],
       "expectations": [
         "Output reports UNKNOWN severity for the unsupported OS rather than fabricating check results",

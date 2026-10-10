@@ -1,6 +1,6 @@
 ---
 description: "Control C0, tagged regression-guard: the unmodified page; any finding is a false positive"
-tags: [testing, vision, ui-defects, regression-guard]
+tags: [testing, vision, ui-defects, regression-guard, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600

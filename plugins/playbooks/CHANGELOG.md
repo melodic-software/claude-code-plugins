@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.21.2] - 2026-10-10
+
+### Changed
+
+- The Opus 5.5 adaptation chapter's source stamps are refreshed against the pages as read on 2026-10-10; every pointed section still supports its decision.
+
 ## [0.21.1] - 2026-10-10
 
 ### Fixed
