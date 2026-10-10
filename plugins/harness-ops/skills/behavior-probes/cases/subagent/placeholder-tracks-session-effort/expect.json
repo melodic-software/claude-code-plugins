@@ -1,0 +1,22 @@
+{
+  "claim": "Instrument check: a subagent with no effort pin, spawned with no effort parameter, sees the session effort set by the effortLevel setting (low) in its preloaded skill's ${CLAUDE_EFFORT}.",
+  "tags": [
+    "effort",
+    "subagent",
+    "Agent tool",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "effortLevel"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "target": {
+    "tool": "Bash",
+    "input_match": "echo effort=",
+    "in_subagent": true,
+    "example": {
+      "command": "echo effort=${CLAUDE_EFFORT}"
+    }
+  },
+  "outcome": "ran",
+  "match": "effort=low"
+}

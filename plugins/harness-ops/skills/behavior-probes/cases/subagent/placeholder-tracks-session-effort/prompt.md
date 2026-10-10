@@ -1,0 +1,1 @@
+Make exactly one Agent tool call with run_in_background false, subagent_type effort-probe-unpinned, description "effort probe", prompt "Run the print-effort command once and report the tool result verbatim.", and no effort or model parameter. Do not run any command yourself. When the subagent returns, quote its answer verbatim.

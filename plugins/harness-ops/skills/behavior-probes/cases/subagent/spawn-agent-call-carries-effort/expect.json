@@ -1,0 +1,24 @@
+{
+  "claim": "The driver passes the per-spawn effort parameter on the Agent call, and the call runs rather than failing input validation.",
+  "tags": [
+    "effort",
+    "subagent",
+    "Agent tool",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "effortLevel"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "target": {
+    "tool": "Agent",
+    "input_match": "\"effort\": \"high\"",
+    "example": {
+      "description": "effort probe",
+      "prompt": "Run the print-effort command once and report the tool result verbatim.",
+      "subagent_type": "effort-probe",
+      "run_in_background": false,
+      "effort": "high"
+    }
+  },
+  "outcome": "ran"
+}
