@@ -1,6 +1,6 @@
 ---
 type: regex
 match: not_contains
-flags: im
-pattern: '^[^\w\n]*(?:\d+[.)][^\w\n]*)?FINDING(?:S(?![^\w\n]*(?:none|nil|n/a|no|zero)\b))?\b'
+flags: m
+pattern: '^[^\w\n]*(?:\d+[.)][^\w\n]*)?(?:[Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]?[ \t]*(?:\[|\(|\*\*)|FINDING[:\-–—])'
 ---

@@ -20,6 +20,9 @@
     },
     {
       "answer": "FINDING [layout-shift]: Notable layout-shift in the first card.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [layout-shift]: The first card's buttons are not where they were at load: a banner arriving after load pushes them down.\n\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -164,34 +167,6 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [layout-shift]: nothing\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Not applicable\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: absent\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Clean.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: OK\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: fine\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: nil\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [layout-shift]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -204,60 +179,8 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [layout-shift]: no issues\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [layout-shift]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
-      "why": "second clause on the FINDING line breaks one defect per line"
-    },
-    {
-      "answer": "FINDING [layout-shift]: I don't see any layout-shift.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: The badge does not show any layout-shift.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: There is no layout-shift at either width.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: No layout-shift found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Nothing to report.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Not present.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: N/A - nothing to report\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Zero layout-shift detected.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Looks fine.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     },
     {
       "answer": "FINDING [layout-shift]: (none)\nVERDICT: NEEDS WORK",
@@ -269,30 +192,6 @@
     },
     {
       "answer": "FINDING [layout-shift]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Text is not clipped.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: layout-shift ruled out at both widths.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: Renders without problems.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: It isn’t present.\nVERDICT: NEEDS WORK",
       "why": "denial anywhere in the body"
     }
   ]

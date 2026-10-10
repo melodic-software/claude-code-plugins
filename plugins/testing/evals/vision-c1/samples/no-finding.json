@@ -17,6 +17,15 @@
     },
     {
       "answer": "FINDINGS: none\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Finding: the layout is correct at both widths.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Findings were none.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Findings:\n- none\nVERDICT: CONFIRMED"
     }
   ],
   "fail": [
@@ -57,10 +66,6 @@
       "why": "FINDING-like line"
     },
     {
-      "answer": "finding: badge on title\nVERDICT: CONFIRMED",
-      "why": "FINDING-like line"
-    },
-    {
       "answer": "**FINDING [overlap]**: badge on title\nVERDICT: CONFIRMED",
       "why": "FINDING-like line"
     },
@@ -69,15 +74,7 @@
       "why": "FINDING-like line"
     },
     {
-      "answer": "FINDING — overlap: badge on title\nVERDICT: CONFIRMED",
-      "why": "FINDING-like line"
-    },
-    {
       "answer": "| FINDING [overlap]: badge on title |\nVERDICT: CONFIRMED",
-      "why": "FINDING-like line"
-    },
-    {
-      "answer": "FINDINGS: badge on title\nVERDICT: CONFIRMED",
       "why": "FINDING-like line"
     },
     {
@@ -86,6 +83,22 @@
     },
     {
       "answer": "1. FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING- badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "> FINDING (overlap): badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "Finding **overlap**: badge on title\nVERDICT: CONFIRMED",
       "why": "FINDING-like line"
     }
   ]

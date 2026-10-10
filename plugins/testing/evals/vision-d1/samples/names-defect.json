@@ -20,6 +20,18 @@
     },
     {
       "answer": "FINDING [overlap]: Notable overlap in the first card.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [overlap]: The \"Sale\" badge overlaps the product title in the first card at 375 px, covering its first word.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [overlap]: In card 2 the price tag sits on top of the \"Camp stove\" heading, so the heading and price collide.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [overlap]: The knot icon in the header overlaps the logo text.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [overlap]: The cookie banner overlaps the \"Buy\" button with no gap; the button can't be clicked.\n\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -164,34 +176,6 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [overlap]: nothing\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: Not applicable\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: absent\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: Clean.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: OK\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: fine\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: nil\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [overlap]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -204,60 +188,8 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [overlap]: no issues\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [overlap]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
-      "why": "second clause on the FINDING line breaks one defect per line"
-    },
-    {
-      "answer": "FINDING [overlap]: I don't see any overlap.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: The badge does not show any overlap.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: There is no overlap at either width.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: No overlap found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Nothing to report.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Not present.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: N/A - nothing to report\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Zero overlap detected.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Looks fine.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     },
     {
       "answer": "FINDING [overlap]: (none)\nVERDICT: NEEDS WORK",
@@ -269,30 +201,6 @@
     },
     {
       "answer": "FINDING [overlap]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Text is not clipped.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: overlap ruled out at both widths.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: Renders without problems.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: It isn’t present.\nVERDICT: NEEDS WORK",
       "why": "denial anywhere in the body"
     }
   ]

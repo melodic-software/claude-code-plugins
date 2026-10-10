@@ -20,6 +20,18 @@
     },
     {
       "answer": "FINDING [misalignment]: Notable misalignment in the first card.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [misalignment]: The third card's button sits about 8 px lower than the buttons in the other cards.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [misalignment]: Card titles are not aligned on a common baseline at 1280 px.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [misalignment]: Another card, \"Water filter\", is offset 6 px to the right of the grid column.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [misalignment]: The price in card 1 is right-aligned while cards 2 to 4 left-align it; looks fine at 1280 but breaks at 375 px.\n\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -164,34 +176,6 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [misalignment]: nothing\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: Not applicable\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: absent\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: Clean.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: OK\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: fine\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: nil\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [misalignment]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -204,60 +188,8 @@
       "why": "denial body, not a finding"
     },
     {
-      "answer": "FINDING [misalignment]: no issues\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [misalignment]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [misalignment]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
-      "why": "second clause on the FINDING line breaks one defect per line"
-    },
-    {
-      "answer": "FINDING [misalignment]: I don't see any misalignment.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: The badge does not show any misalignment.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: There is no misalignment at either width.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: No misalignment found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Nothing to report.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Not present.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: N/A - nothing to report\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Zero misalignment detected.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Looks fine.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     },
     {
       "answer": "FINDING [misalignment]: (none)\nVERDICT: NEEDS WORK",
@@ -269,30 +201,6 @@
     },
     {
       "answer": "FINDING [misalignment]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Text is not clipped.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: misalignment ruled out at both widths.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: Renders without problems.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [misalignment]: It isn’t present.\nVERDICT: NEEDS WORK",
       "why": "denial anywhere in the body"
     }
   ]
