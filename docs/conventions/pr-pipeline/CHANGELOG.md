@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## 1.3.0 - 2026-10-10
+
+The write runner gets its token from the lanes token broker. `version` stays 1; callers of the
+write file must change.
+
+- `pr-run-activity-write.yml` drops the `app-private-key` secret and the
+  `create-github-app-token` mint. Its run job holds `id-token: write` and, before
+  `select-trusted-text` and any head checkout, calls the new `request-lane-token` action, which
+  sends the job's OIDC token to `LANES_BROKER_URL` for audience `LANES_BROKER_AUDIENCE` once,
+  never retrying. Either variable empty fails red.
+- The step fails red on any answer but 200 (`lane-token-denied` with the broker's reason, or
+  `broker-unreachable`), and, after revoking the token, on a 200 whose effect, permissions, lane,
+  activity or repository differ from the job's own (`effect-mismatch`). The contract lists the
+  broker's reasons, `default-branch-not-main` included.
+- A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token and fails
+  red unless `DELETE /installation/token` returns 204 and a later
+  `GET /installation/repositories` with the token returns 401.
+- Callers of the write file pass no App key and grant `id-token: write` on the calling job.
+  `AUTOMATION_LANES_APP_CLIENT_ID` is no longer read.
+- With no App key in either runner, one lane may call both files.
+- `scripts/check-app-key-references.sh` fails `lint-repo` on `AUTOMATION_LANES_APP_PRIVATE_KEY`,
+  `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID` anywhere under `.github/workflows/` or
+  `.github/actions/`.
+
 ## 1.2.0 - 2026-10-04
 
 The runner splits in two. `version` stays 1; callers of the old file must move.

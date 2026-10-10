@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.2] - 2026-10-10
+
+### Changed
+
+- `implement-dispatch`: every worker brief now carries a clause to wrap each command that can block in a timeout, record a timeout as a FAIL, and never run an interactive command. Observed once, while implementing #6306 (PR #6669): a Phase 1 worker hung 2.5 hours on one unbounded Sanity Check command and had to be stopped; later briefs carried the clause and no phase hung again. Shipped on the maintainer's decision despite a single observation.
+
+## [0.24.1] - 2026-10-09
+
+### Fixed
+
+- **`/implementation:implement-dispatch` drops the `cd <worktree> && <command>` exception.** Brief item 8 and the worktree-cwd gotcha now send a working-directory-sensitive build, test or lint command through its own directory flag (`make -C`, `npm --prefix`) or the wrapper's absolute path, and leave a command with neither to the orchestrator's main-side gate. A `cd` into a worktree outside the session's working directories prompts, so the exception brought back the denial the literal-path rule avoids (#6666).
+
 ## [0.24.0] - 2026-10-09
 
 ### Added

@@ -50,6 +50,7 @@ if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 import census  # noqa: E402  (beside this script)
+import friction_scan  # noqa: E402  (beside this script)
 import redact  # noqa: E402  (beside this script)
 import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
@@ -63,6 +64,7 @@ STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
 COLLECTOR_INPUTS = (
     "skills/audit-sessions/scripts/collect.py",
     "skills/audit-sessions/scripts/census.py",
+    "skills/audit-sessions/scripts/friction_scan.py",
     "skills/audit-sessions/scripts/redact.py",
     "scripts/transcript_reader.py",
     "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
@@ -309,6 +311,7 @@ class SessionScan:
         self.bucket = ""
         self.usage_seen: dict[tuple[str, str], tuple] = {}
         self.usage_split: set[tuple[str, str]] = set()
+        self.friction = friction_scan.FrictionScan()
 
     def add(self, record: dict, side: str) -> None:
         self.bucket, keys = census_keys(record)
@@ -330,6 +333,7 @@ class SessionScan:
                     values.add(record[field])
             if isinstance(record.get("entrypoint"), str) and record["entrypoint"]:
                 self.entrypoints.add(_label(record["entrypoint"]))
+        self.friction.add(record)
         handler = getattr(self, "_" + kind.replace("-", "_"), None)
         if handler is not None:
             handler(record, side, ts)
@@ -419,9 +423,11 @@ class SessionScan:
         if ts is not None:
             self.human_timestamps.append(ts)
         words = len(text.split())
+        correction = bool(CORRECTION_RE.search(text)) and not CORRECTION_NEG.search(text)
+        self.friction.typed_turn(text, ts, correction and words <= self.excerpt_words)
         if self.last_kind == "assistant" and words <= self.excerpt_words:
             flags = ["short-after-assistant"]
-            if CORRECTION_RE.search(text) and not CORRECTION_NEG.search(text):
+            if correction:
                 flags.append("lexicon-correction")
             if FRUSTRATION_RE.search(text):
                 flags.append("frustration")
@@ -650,8 +656,10 @@ def build_record(
 ) -> dict:
     scan = SessionScan(excerpt_words)
     stats: dict[str, int] = {"files": 0}
-    for path, side in [(main, "main"), *((s.path, "sub") for s in subagents)]:
+    for path, side, meta in [(main, "main", None), *((s.path, "sub", s.meta) for s in subagents)]:
         stats["files"] += 1
+        agent = (meta or {}).get("agentType")
+        scan.friction.start_file(side, agent if isinstance(agent, str) else None)
         for record in transcript_reader.iter_records(path, stats):
             scan.add(record, side)
     repo_identity, worktree = identity.lookup(scan.cwd)
@@ -725,6 +733,7 @@ def build_record(
         "branches": sorted({scrub.key(branch) for branch in scan.branches}),
         "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],
         "permission": {"modes": dict(scan.permission_modes), "changes": scan.permission_changes},
+        "friction": scan.friction.block(scrub, excerpt_chars),
         "commands": {"slash": scrub.keys(scan.slash), "skills_model_invoked": scrub.keys(scan.skills)},
         "human": {
             "turns": scan.human_turns,

@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "a skill from another plugin"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "the UX front door fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "structure"
+          }
+        }
+      ],
+      "why": "a UX job skill by its bare name"
+    }
+  ]
+}
