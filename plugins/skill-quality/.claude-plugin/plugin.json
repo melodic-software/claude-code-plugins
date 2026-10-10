@@ -1,6 +1,6 @@
 {
   "name": "skill-quality",
-  "version": "0.29.1",
+  "version": "0.29.2",
   "description": "Skill-authoring QA tooling (skill-quality:check): a static contract checker running twenty-nine deterministic checks over a Claude Code skill (frontmatter, invocation mode, description, listing cap, trigger keywords, line caps, broken refs, markdownlint, gotchas, evals), a shared skill-listing budget reporter, an evals.json schema with an eval-quality lint, and a measure-invocation harness that scores description auto-invocation probes on train and validation splits.",
   "author": {
     "name": "Melodic Software",
