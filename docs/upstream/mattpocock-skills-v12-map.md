@@ -17,6 +17,46 @@
 > `CONTEXT.md` / `CONTEXT-MAP.md` are `GLOSSARY.md` / `GLOSSARY-MAP.md` upstream from v1.3
 > (`006a52b`, no fallback for the old names).
 
+## Session-start flow and main flow (v1.3.1, rechecked 2026-10-10)
+
+Aligned to the v1.3.1 release (2026-10-04). Upstream `main` is ahead of it at `49dd158` with
+unreleased changesets (grilling's yes-accepts wording, wayfinder label and cross-reference fixes,
+a handoff temp directory, to-tickets sub-issues); none of them changes the flow below. Since v1.3.0
+his skills read and write `GLOSSARY.md` / `GLOSSARY-MAP.md` in place of `CONTEXT.md` /
+`CONTEXT-MAP.md`, and `implement-spec`, `pr` and `retro` graduated (rows 36-38).
+
+His session-start rule (X post, 2026-10-08): a change whose diff is quick to review and cheap to
+retry is built in one shot and aligned after the diff is read; medium-large work starts with
+`grill-with-docs`; `wayfinder` is reached only when a grilling session outgrows itself, never as
+the first step. His main flow, as `ask-matt` routes it: `grill-with-docs` → `to-spec` →
+`to-tickets` → `implement` (or `implement-spec`) → `code-review` → `pr` → `retro`, with triage,
+bug diagnosis and wayfinder as on-ramps.
+
+Our decisions, owned by `/session-flow:workflow` and the skills it routes to:
+
+- A quick-to-review, cheap-to-retry change goes straight to implement, then review and verify; the
+  two tests decide, not size, and verification rigor stays size-independent. A diff that turns out
+  not to be quick to review goes back to the interview.
+- New medium-large work starts with `/planning:interview`; explore and research are detours the
+  interview triggers.
+- `/planning:wayfind` is an escalation from an interview that outgrew one session, and charting
+  seeds from that interview's ledger. A brand-new effort is sent to the interview first.
+- Our chain: `/planning:interview` → `/planning:prd` or `/planning:plan` (after `/planning:design`
+  when design-significant) → `/work-items:decompose` → `/implementation:implement` → review →
+  `/source-control:pull-request` → `/session-flow:retro`. Test and verify stay as their own
+  stages.
+
+- **Pointer**: when checking the main flow or the on-ramps, fetch
+  <https://github.com/mattpocock/skills/blob/main/skills/engineering/ask-matt/SKILL.md> live; when
+  checking where wayfinder sits, fetch
+  <https://github.com/mattpocock/skills/blob/main/docs/engineering/wayfinder.md> live; correlate
+  the session-start rule with <https://x.com/mattpocockuk/status/2108216899439894574>. No docs page
+  covers the tiny-diff one-shot rule as of 2026-10-10.
+- **As of**: 2026-10-10 (v1.3.1; `main@49dd158`)
+- **Recheck trigger**: either recheck event in `mattpocock-skills.md` that touches `ask-matt`,
+  `grill-with-docs` or `wayfinder`, or a docs page starting to cover the tiny-diff rule, at which
+  point the pointer moves there.
+
 Sources: his-repo full inventory (35 skills, every SKILL.md read), our-repo provenance sweep (git log + grep + docs), v1.2.0 release notes, v1.2 changelog article, video transcript. As-of 2026-08-08.
 
 Legend — **Relation**: DERIVED (attributed port), PARTIAL (specific ideas taken, attributed), CONVERGENT (same territory, no provenance), NONE (no counterpart). **v1.2+ delta**: what changed upstream since our port / what's new.
