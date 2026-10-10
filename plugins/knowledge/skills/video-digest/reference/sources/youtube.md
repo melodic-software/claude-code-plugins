@@ -32,6 +32,9 @@ Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scop
 the caption ladder below deliberately falls through to them.
 
 **Caption ladder:** manual EN → auto EN → auto-translate EN → STOP and surface if exhausted.
+A bare `.en.vtt` counts as manual only when info.json `subtitles` has an English key. Otherwise it
+is auto-generated and may be YouTube's machine translation, so `.en-orig.vtt`, the original speech
+recognition, wins over it.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.
 
