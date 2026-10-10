@@ -13,6 +13,10 @@
     {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git status 2>&1 >/dev/null\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --oneline 2>&1\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
       "why": "stderr and null redirects are not file writes"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 -m unittest > /tmp/test-output.txt 2>&1\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --oneline\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
+      "why": "test output captured to /tmp is not a rewrite of the conflicted file"
     }
   ],
   "fail": [
