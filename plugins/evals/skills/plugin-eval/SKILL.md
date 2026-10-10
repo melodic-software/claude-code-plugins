@@ -369,9 +369,9 @@ What the number means:
 
 ## Calibrating a judge
 
-Trust an `llm` grader's scores only after its judge agrees with labeled answers on at least 90% of
-runs. The labels are the must-pass and must-fail answers in the case's `samples/<grader>.json`;
-three agents label them independently and the user settles every disagreement. Then:
+Trust an `llm` grader's scores only after its judge agrees with labeled answers on at least 90% of runs, and calibrate
+every one before the suite's first full run: the default judge counts as uncalibrated until it passes. The labels are the
+must-pass and must-fail answers in the case's `samples/<grader>.json`; three agents label them independently and the user settles every disagreement. Then:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>
@@ -392,7 +392,7 @@ meant to score 0. Calibrate with the judge model the real suite uses; the result
 about another.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
-to a stronger judge, and calibrate again before reading its scores. Its false positives and
+the whole suite to a stronger judge, and calibrate again before reading its scores. Its false positives and
 negatives name the samples to read first. A run whose reply was not the sample is left out of the
 agreement, and so is one with neither a kept trace nor judge evidence, which is also reported
 unchecked. A sample with no reproduced run is listed as `untested`, counts toward no agreement,
