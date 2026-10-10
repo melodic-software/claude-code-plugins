@@ -44,7 +44,6 @@ plugins/guardrails/lib/verification/verify-cli-flag.sh
 plugins/harness-config/lib/check-retirements.sh
 plugins/harness-config/lib/permission-patterns.test.sh
 plugins/harness-config/lib/state-key.sh
-plugins/harness-config/skills/audit-automation-gaps/scripts/inventory.test.sh
 plugins/harness-config/skills/audit-instructions/scripts/emit-findings.test.sh
 plugins/harness-config/skills/audit-instructions/scripts/finding-ids.test.sh
 plugins/harness-config/skills/audit-pass/scripts/state-digest.test.sh
