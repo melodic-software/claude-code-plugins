@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D6, tagged hard: the count line says 5 results but the list renders 4 items; no generic layer (axe, geometry, pixel) catches it, so only reading the content does"
-tags: [testing, vision, ui-defects, hard]
+tags: [testing, vision, ui-defects, hard, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600
