@@ -25,9 +25,13 @@ on:
 
 permissions: {}
 
+# A running run is never cancelled: one cancelled after it force-resets
+# release/dependabot-fragments can leave an empty pull request with auto-merge
+# armed. A newer run may still replace a pending one; each run starts from main,
+# so the run that does go sees every merge.
 concurrency:
   group: dependabot-fragments
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   write:

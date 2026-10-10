@@ -1384,6 +1384,11 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
+    # pull-requests: read lets "Resolve the queued pull request" read the
+    # queued pull request in a merge group.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1527,6 +1532,39 @@ jobs:
         id: changelog_parity_check
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check
+      # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
+      # hand bump the queue never checked), against HEAD^1: the queued squash
+      # commit is this pull request's own change on top of main and every entry
+      # ahead of it. The group event names no pull request, so this step reads
+      # the queued one from the group's head ref
+      # (gh-readonly-queue/<base>/pr-<number>-<head sha>): its author and its
+      # head branch, which the release and Dependabot exemptions read on
+      # pull_request, and its head commit, fetched so the Dependabot exemption
+      # reads the pull request's own commits rather than the queue's squash.
+      - name: Resolve the queued pull request
+        id: queued_pr
+        if: github.event_name == 'merge_group'
+        continue-on-error: true
+        env:
+          QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-([0-9a-f]{40})$ ]]; then
+            echo "::error::Cannot read a pull request number and head SHA from the merge group's head ref '$QUEUE_HEAD_REF'."
+            exit 1
+          fi
+          number="${BASH_REMATCH[1]}" head_sha="${BASH_REMATCH[2]}"
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
+          author="$(jq -r '.user.login' <<<"$pr")"
+          # A fork's branch name is not this repository's release branch.
+          head_ref="$(jq -r --arg repo "$GITHUB_REPOSITORY" 'if .head.repo.full_name == $repo then .head.ref else "" end' <<<"$pr")"
+          git fetch --no-tags origin "$head_sha"
+          echo "Queued pull request #$number by $author, head ${head_sha:0:9}${head_ref:+ on $head_ref}."
+          {
+            echo "author=$author"
+            echo "head_ref=$head_ref"
+            echo "head_sha=$head_sha"
+          } >>"$GITHUB_OUTPUT"
       - name: Verify a version bump updates the plugin's CHANGELOG.md
         id: changelog_parity_bump
         continue-on-error: true
@@ -1535,13 +1573,20 @@ jobs:
           # The head branch of a pull request from this repository, never a
           # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
           # here as the release pull request.
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the bump gate without knowing whether it is the release."
+              exit 1
+            fi
+            scripts/check-changelog-parity.sh --check-bump 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
       # The other half of the same discipline: the bump gate polices what a
       # change set ADDS and never what it REMOVES, so a merge-forward that
       # writes the new release under the PREVIOUS release's heading deletes a
@@ -1583,17 +1628,25 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
           # A Dependabot-only pull request needs no fragment; the script checks
           # each commit's GitHub-verified signature before it trusts this.
-          CHANGELOG_PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the fragment gate without knowing its author and branch."
+              exit 1
+            fi
+            scripts/check-changelog-fragments.sh --check-required 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
       - name: Verify a release consumes every pending fragment for the plugins it bumps
         id: changelog_fragments_release
         continue-on-error: true
@@ -1621,12 +1674,23 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The Dependabot exemption, read as changelog_fragments_required reads it.
+          CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the vendor gate without knowing its author."
+              exit 1
+            fi
+            scripts/check-vendor-version-bump.sh --check-bump 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
       - name: Validate marketplace manifest
         id: marketplace_schema
@@ -1801,6 +1865,7 @@ jobs:
             plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
             plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
             changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
