@@ -106,13 +106,14 @@ Dispatch rules:
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
    fleet both multiply, but only one of them changes the writing. A bare agent spawn takes
    `effort` as a workflow's per-agent call does, so a fan-out that needs the lever no longer moves
-   to a workflow for it; a spawn that passes no `effort` keeps the `object-writer` pin.
+   to a workflow for it. Which level a spawn runs at, with or without a per-call `effort`, against
+   the `effort` field in the `object-writer` agent's frontmatter, comes from the pointer below.
 
-   - **Pointer**: when setting effort on a bare agent spawn, fetch
-     <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
+   - **Pointer**: before relying on the effort of a bare agent spawn, whether or not it passes
+     `effort`, fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
    - **As of**: 2026-10-10
-   - **Recheck trigger**: that section changes which spawns take a per-call `effort` or what it
-     overrides.
+   - **Recheck trigger**: that section changes which spawns take a per-call `effort` or how it
+     ranks against an agent definition's `effort`.
 
    **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, meaning rhyme-field enumeration, word-pool merge, syllable counting, and dedup, are reading-heavy and
    low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the
