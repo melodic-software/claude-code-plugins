@@ -110,7 +110,7 @@ Unattended approval is the Gates rule under Planning Process, above.
 1. The structured plan (from Step 2, updated by Steps 3-4 if applicable)
 2. Blast-radius assessment (from Step 3b)
 3. Stress-test summary (from Step 4, if run). Or "Skipped: blast radius LOW, no triggers matched"
-4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table. Skipped for single-phase plans
+4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table, with each `multi-shape` phase's attempt constraints and selection rule. Skipped for single-phase plans
 5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
 6. **Decisions made (gate-passed)** (from Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here. They were interviewed before the plan locked. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is also valid output
 7. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion. Flag any you want changed."
@@ -300,6 +300,8 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 After the phase plan is locked but before Step 5 approval, compute the execution shape: which phases can run in parallel and which surface each phase runs on. **Default ON** for any plan with ≥2 phases; emits a one-line "fully sequential. Phase X gates phase Y" note when no parallelism opportunity exists. Skip entirely for single-phase plans or trivial fixes. Skipped = all-main-session execution, stated in one line.
 
 The analysis steps, the file-overlap matrix, and the composition risks: [context/plan-template.md](context/plan-template.md) "Execution-shape analysis". Each routing row also carries a `Model` (`sonnet`, `opus` or `frontier`) that decides which implementer agent dispatch uses; the eligibility rules are in that file's "Per-phase routing table".
+
+Each routing row also carries an `Attempts` cell. Mark a phase `multi-shape` when this step finds more than one plausible shape the design left open for it; leave the cell blank otherwise, which means one attempt. A marked phase's body lists one stated constraint per attempt and the selection rule (`first pass`, `rank all`, or `best-of` with its criteria), both written now, before any dispatch. The mark reads no setting: whether a marked phase gets several attempts is decided at dispatch. The format is in that file's "Per-phase routing table".
 
 ### Step 4.6: Tag unilateral decisions
 

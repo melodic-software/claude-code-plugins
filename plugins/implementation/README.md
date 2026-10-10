@@ -156,6 +156,11 @@ refactor never changes behavior under any value. A repository's
 published package) depend on. A repository's `docs/conventions/implementation.yaml`
 `refactor_compat` key overrides this option.
 
+**`competing_attempts` and `competing_attempt_count`.** They act only on a phase `/planning:plan`
+marks `multi-shape`; every other phase gets one attempt. Attempts count against the dispatch wave
+cap. A repository's `docs/conventions/implementation.yaml` keys of the same names override these
+options. Resolution and the root rule: [`reference/config.md`](reference/config.md).
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -173,6 +178,8 @@ reads it from.
 | `per_unit_check` | string | `"pilot"` | `CLAUDE_PLUGIN_OPTION_PER_UNIT_CHECK` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
 | `integration_posture` | string | `"by-kind"` | `CLAUDE_PLUGIN_OPTION_INTEGRATION_POSTURE` | How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal. |
 | `refactor_compat` | string | `"same-wave"` | `CLAUDE_PLUGIN_OPTION_REFACTOR_COMPAT` | What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it. |
+| `competing_attempts` | string | `"suggest"` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPTS` | What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it. |
+| `competing_attempt_count` | number<br>*min 2, max 5* | `3` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPT_COUNT` | How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it. |
 
 ### How to set these
 

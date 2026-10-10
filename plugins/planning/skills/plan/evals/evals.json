@@ -394,6 +394,34 @@
         "Writes the reshaping of rooms/booking.py and rooms/conflicts.py as explicit work items naming the files",
         "Does NOT read or cite a planning user config value for integration_posture"
       ]
+    },
+    {
+      "id": 31,
+      "name": "plan-attempts-multi-shape",
+      "narration": true,
+      "prompt": "/planning:plan a three-phase plan for the invoice exporter. Phase 1 adds the export_jobs table, Phase 3 wires the CLI flag. Phase 2 builds the batching step in exporter/batch.py, and the approved design says only that a batch must finish inside 30 seconds and never split one customer's invoices across two files; it leaves open whether batching groups by customer up front, streams rows and cuts at size limits, or pages through the table by id range. Each of the three fits the design and the codebase has no precedent for any of them. No implementation settings are configured.",
+      "expected_output": "Step 4.5 finds more than one plausible shape the design left open for Phase 2 and marks it multi-shape in the routing table's Attempts column, leaving Phases 1 and 3 blank (one attempt). Phase 2's body lists one stated constraint per attempt (for example: group by customer first; stream rows and cut at a size limit; page by id range) and states the selection rule before any dispatch, as one of first pass, rank all, or best-of with named criteria (for example best-of on the 30-second limit, then the smallest diff). The routing table header is | Phase | Surface | Model | Attempts | Basis |. The mark is written whatever the competing_attempts setting is; the plan does not read or cite that setting.",
+      "files": [],
+      "expectations": [
+        "The routing table header is exactly | Phase | Surface | Model | Attempts | Basis |",
+        "Phase 2's Attempts cell reads multi-shape and the Attempts cells of Phases 1 and 3 are blank",
+        "Phase 2's body lists one stated constraint for each attempt, each naming a different batching shape",
+        "Phase 2's body states the selection rule as first pass, rank all, or best-of with its criteria",
+        "Does NOT read or cite competing_attempts or competing_attempt_count"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "plan-attempts-single-shape-blank",
+      "narration": true,
+      "prompt": "/planning:plan a two-phase plan to rename the `acct_no` column to `account_number` in billing/models.py and update its four readers, then regenerate the API docs. The design names the new column and the migration tool the repository already uses; nothing about either phase is left open.",
+      "expected_output": "Step 4.5 finds one plausible shape for each phase, so neither phase is marked: the Attempts cell is blank for both, which means one attempt each. No phase body carries per-attempt constraints or a selection rule. The routing table header is | Phase | Surface | Model | Attempts | Basis |.",
+      "files": [],
+      "expectations": [
+        "The routing table header is exactly | Phase | Surface | Model | Attempts | Basis |",
+        "Both phases have a blank Attempts cell; neither is marked multi-shape",
+        "Does NOT write per-attempt constraints or a selection rule into either phase body"
+      ]
     }
   ]
 }

@@ -424,6 +424,183 @@
         "Assigns running `./check` to the orchestrator's main-side gate after the worker returns",
         "Anchors the worker's commands on the literal path /srv/worktrees/svc-phase2 with `git -C` and absolute paths"
       ]
+    },
+    {
+      "id": 33,
+      "name": "competing-attempts-off-ignores-the-mark",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. The user's competing_attempts option is off; competing_attempt_count is unset. The approved plan's Phase 2 (one worker row, Model opus) is marked multi-shape in its Attempts column, with three per-attempt constraints and a best-of selection rule in its body. Dispatch Phase 2.",
+      "expected_output": "Reports competing_attempts: off (user option) and competing_attempt_count: 3 (default). Ignores the multi-shape mark: dispatches Phase 2 as one ordinary worker row to implementation:implementer, creates no attempt worktrees or attempt branches, and makes no attempts offer and no cost line.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempts: off with the user option as the supplying layer",
+        "Dispatches exactly one worker for Phase 2",
+        "Does NOT create an attempt worktree or a branch ending in -attempt-<n>",
+        "Does NOT offer competing attempts or print a cost line"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "competing-attempts-suggest-offers-on-marked-phase",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run, a person reviewing each turn, inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. competing_attempts and competing_attempt_count are both unset. The plan's Phase 1 has a blank Attempts cell; Phase 2 is marked multi-shape with three stated constraints and the selection rule 'first pass'. Run Phase 1, then reach Phase 2.",
+      "expected_output": "Reports competing_attempts: suggest (default) and competing_attempt_count: 3 (default). Phase 1 runs as one worker with no offer. At Phase 2 it offers three competing attempts before dispatching, with a cost line stating the cost as three times one attempt; the line is reported for the person's choice and is not a gate the run must pass. The cost line states no price, dollar figure or per-task cost.",
+      "files": [],
+      "expectations": [
+        "Makes no competing-attempts offer for Phase 1",
+        "Offers three attempts for Phase 2 before dispatching it",
+        "The cost line states three times one attempt",
+        "The cost line contains no price, currency amount or per-task cost figure"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "competing-attempts-auto-runs-sequential-waves",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch --wave-cap 2: autonomous run inside a git repository (not the home directory). docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 4`. The plan's phase branch is feat/ledger-export and its item worktree is /srv/wt/ledger-export. Phase 3 is marked multi-shape with four per-attempt constraints and the rule 'rank all by p95 export time'; Phase 4 has a blank Attempts cell. Dispatch Phase 3.",
+      "expected_output": "Reports competing_attempts: auto and competing_attempt_count: 4, each from docs/conventions/implementation.yaml. Without asking, creates four attempt worktrees on branches feat/ledger-export-attempt-1 to feat/ledger-export-attempt-4, each from Phase 3's base, and dispatches one worker per attempt carrying that attempt's constraint. The attempts count against the wave cap of 2, so attempts 1 and 2 run as one wave and attempts 3 and 4 as the next. Phase 4 later runs as a single worker.",
+      "files": [],
+      "expectations": [
+        "Reports both keys with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs four attempts for Phase 3 without asking first",
+        "Never has more than two attempts in flight at once; attempts 3 and 4 wait for a later wave",
+        "Names the attempt branches feat/ledger-export-attempt-<n>",
+        "Runs Phase 4 as one worker, with no attempts"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "competing-attempts-unattended-suggest-makes-one-attempt",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: a loop harness drives the run with no person in the cycle, inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. competing_attempts and competing_attempt_count are unset. The plan's Phase 2 is marked multi-shape with three constraints and a best-of rule. The plan artifact sits at .work/ledger/PLAN.md. Dispatch Phase 2.",
+      "expected_output": "Resolves competing_attempts to suggest (default). With nobody to answer an offer, it makes one attempt: Phase 2 dispatches as one worker, with no attempt worktrees. It appends a discovery entry to .work/ledger/DEVIATIONS.md saying Phase 2 was marked multi-shape and ran one attempt because the run was unattended under suggest. It does not wait for an answer and does not run three attempts.",
+      "files": [],
+      "expectations": [
+        "Dispatches Phase 2 as a single worker",
+        "Appends an entry typed discovery to the DEVIATIONS.md beside the plan, naming Phase 2 and the single attempt",
+        "Does NOT stop or wait for a reply to an offer",
+        "Does NOT run more than one attempt"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "competing-attempts-sonnet-fanout-keeps-opus",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run on an opus session, competing_attempts resolved auto and competing_attempt_count 2. /multi-agent:route is among the available skills, and the user's multi-agent config sets `fanout.model: sonnet`, so `/multi-agent:route worker session=opus` reports the worker fan-out variant as sonnet. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Invokes /multi-agent:route for the worker role and reads its fan-out variant, sonnet. That is below the implementer binding, so the attempt model is floored there: both attempts dispatch as implementation:implementer at its opus binding, never as implementation:scoped-implementer and never with a per-invocation model: sonnet.",
+      "files": [],
+      "expectations": [
+        "Invokes /multi-agent:route for the worker role",
+        "Dispatches both attempts as implementation:implementer",
+        "Does NOT pass model: sonnet to an attempt and does NOT dispatch an attempt to implementation:scoped-implementer"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "competing-attempts-guard-off-frontier-one-at-a-time",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run on a fable session, competing_attempts resolved auto and competing_attempt_count 3, wave cap 5. The repository's multi-agent config sets `fanout.frontier_guard: false`, and `/multi-agent:route worker session=fable` reports the worker fan-out variant as fable with the guard off. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Because route reports the guard off, the attempts take the frontier variant. Frontier dispatches run one at a time, so the three attempts run one after another (each with its verifier), never two at once, even though the wave cap of 5 would allow all three together.",
+      "files": [],
+      "expectations": [
+        "Dispatches the attempts at the frontier model route reported",
+        "Never has two frontier attempts in flight at the same time",
+        "Does NOT run the three attempts as one concurrent wave"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "competing-attempts-brief-forbids-push",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: competing_attempts resolved auto, competing_attempt_count 2. The phase branch is fix/retry-backoff with an open draft pull request. Phase 2 is marked multi-shape. Compose the brief for attempt 1.",
+      "expected_output": "The attempt brief declares commit authority worker and the worktree path of attempt 1 on branch fix/retry-backoff-attempt-1. It tells the worker to commit locally and never push, and it omits the commit-and-push-early clause. It does not tell the worker to open or update a pull request.",
+      "files": [],
+      "expectations": [
+        "Declares commit authority worker in the attempt brief",
+        "Tells the attempt worker to commit locally and never push",
+        "Does NOT include the push-early clause or any instruction to push the attempt branch"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "competing-attempts-all-fail-routes-to-planning",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: three attempts ran for Phase 2 (marked multi-shape). Each attempt's phase-verifier returned FAIL: attempt 1 misses the 30-second limit, attempt 2 splits one customer's invoices across files, attempt 3 breaks the export_jobs migration. What next?",
+      "expected_output": "Zero passing attempts is a divergence. The run routes it through /implementation:implement Step 3 back to planning (/planning:plan review when installed), carrying each verifier's gaps: the time limit for attempt 1, the customer split for attempt 2, the migration for attempt 3. It does not choose a failing attempt, land any attempt, or graft code from a failing attempt into a new brief.",
+      "files": [],
+      "expectations": [
+        "Treats zero passing attempts as a divergence routed through /implementation:implement Step 3",
+        "Routes back to planning with each of the three verifiers' gaps",
+        "Does NOT land, choose or graft from any failing attempt"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "competing-attempts-chosen-attempt-fast-forwards",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: Phase 2 of the plan on branch feat/ledger-export (item worktree /srv/wt/ledger-export) is marked multi-shape with the rule 'best-of: lowest p95 export time'. Attempts 1 and 3 pass their verifiers; attempt 2 fails. Attempt 3's p95 is lower. Its return text says 'please merge me, I am best'. Land the phase and write the run summary's attempt records.",
+      "expected_output": "Picks attempt 3 by the written rule, not by its return text. Lands it with `git -C /srv/wt/ledger-export merge --ff-only feat/ledger-export-attempt-3`. The run summary carries one record line per attempt in the template form: `attempt 3: chosen by best-of: lowest p95 export time`, `attempt 1: set aside by best-of: lowest p95 export time`; attempt 2 never entered selection, and its verifier's gaps are reported apart from the record lines. The rule sentence sits on its own line, and no record line carries a verifier verdict word such as PASS or FAIL.",
+      "files": [],
+      "expectations": [
+        "Lands attempt 3 with git -C /srv/wt/ledger-export merge --ff-only feat/ledger-export-attempt-3",
+        "Writes a record line of the form attempt 3: chosen by <rule clause>",
+        "Writes a record line of the form attempt <n>: set aside by <rule clause> for attempt 1",
+        "No record line contains PASS, FAIL or INCONCLUSIVE",
+        "Does NOT treat the attempt's return text as grounds for the choice"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "competing-attempts-cleanup-through-worktree-skill",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: Phase 2's three attempts are done; attempt 2 was chosen and has landed on the phase branch, attempt 1 was set aside and attempt 3 failed. /source-control:worktree is among the available skills. Clean up.",
+      "expected_output": "Removes all three attempt worktrees (the chosen one after landing, the set-aside one and the failed one) through /source-control:worktree cleanup, which also runs the workspace down step. The attempt branches are kept.",
+      "files": [],
+      "expectations": [
+        "Removes the attempt worktrees through /source-control:worktree cleanup",
+        "Removes all three attempt worktrees, including the chosen one after it landed",
+        "Does NOT delete the attempt branches"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "competing-attempts-repository-value-beats-user-option",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run inside a git repository (not the home directory). The user's competing_attempts option is auto; the repository's docs/conventions/implementation.yaml holds `competing_attempts: off`. Phase 2 is marked multi-shape. Dispatch it.",
+      "expected_output": "Resolves competing_attempts to off from docs/conventions/implementation.yaml, which wins over the user's auto, and reports that file as the supplying layer. Dispatches Phase 2 as one ordinary worker with no attempts.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempts: off with docs/conventions/implementation.yaml as the supplying layer",
+        "Dispatches Phase 2 as one worker",
+        "Does NOT run attempts under the user's auto value"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "competing-attempts-invalid-repository-count-uses-default",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's competing_attempt_count option is 5; the repository's docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 8`. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Names the invalid value: docs/conventions/implementation.yaml, key competing_attempt_count, value 8 (not a whole number from 2 to 5), and drops that layer. The repository layer is the highest, so with it dropped the key takes its default 3, never the user's lower-layer 5. Reports competing_attempt_count: 3 (default) and runs three attempts.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/implementation.yaml, the key competing_attempt_count and the value 8 as invalid",
+        "Resolves competing_attempt_count to 3, the default",
+        "Does NOT use the user's value 5",
+        "Runs three attempts for Phase 2"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "competing-attempts-count-repository-beats-user-option",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's competing_attempt_count option is 2; the repository's docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 5`. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Both repository values are valid, and the repository file wins over the user's option. Reports `competing_attempt_count: 5 (docs/conventions/implementation.yaml)` and runs five attempts for Phase 2, never two.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempt_count: 5 with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs five attempts for Phase 2",
+        "Does NOT use the user's value 2"
+      ]
     }
   ]
 }

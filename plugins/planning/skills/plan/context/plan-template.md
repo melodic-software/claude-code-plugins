@@ -263,12 +263,28 @@ Document a one-line fallback path if parallel orchestration fails:
 
 ### Per-phase routing table
 
-Assign each phase an execution surface and a model:
+Assign each phase an execution surface, a model and an attempts mark:
 
-| Phase | Surface | Model | Basis |
-|---|---|---|---|
-| <N> | <main-session / sub-agent worker> | <sonnet / opus / frontier> | <one-line task-shape rationale> |
-| 2 (example) | sub-agent worker | sonnet | Closed file list, grep checks |
+| Phase | Surface | Model | Attempts | Basis |
+|---|---|---|---|---|
+| <N> | <main-session / sub-agent worker> | <sonnet / opus / frontier> | <blank / multi-shape> | <one-line task-shape rationale> |
+| 2 (example) | sub-agent worker | sonnet | | Closed file list, grep checks |
+
+The `Attempts` column is blank for a phase with one plausible shape, which means one attempt. Write
+`multi-shape` when Step 4.5 finds more than one plausible shape the design left open for the phase:
+two or more ways to build it that each meet the design and the acceptance criteria, with nothing in
+the design or the codebase to choose between them. A marked phase's body carries two more lines,
+written before any dispatch:
+
+- **Attempt constraints:** one stated constraint per attempt, each steering that attempt toward a
+  different shape (for example "attempt 1: compute in one SQL query; attempt 2: compute in the
+  service layer from cached rows").
+- **Selection rule:** how a passing attempt is picked, as one of `first pass` (the first attempt
+  whose verifier passes), `rank all` (every passing attempt ranked on named criteria) or `best-of`
+  with its criteria (the passing attempt that scores best on them).
+
+The mark records what the plan found and reads no setting; whether marked phases get several
+attempts is decided at dispatch, by `/implementation:implement-dispatch`.
 
 - **Main-session:** judgment-heavy, tightly coupled to conversation context, or requires user interaction
 - **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
@@ -416,7 +432,7 @@ Load this section from Step 4.5. The hub states the agent-team routing rule and 
 6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" above
 7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
+9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" above: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
 
 **Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
 

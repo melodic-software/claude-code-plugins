@@ -78,6 +78,25 @@
         "same-wave",
         "deprecate"
       ]
+    },
+    "competing_attempts": {
+      "type": "string",
+      "title": "Competing attempts",
+      "description": "What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it.",
+      "default": "suggest",
+      "options": [
+        "off",
+        "suggest",
+        "auto"
+      ]
+    },
+    "competing_attempt_count": {
+      "type": "number",
+      "title": "Competing attempt count",
+      "description": "How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it.",
+      "default": 3,
+      "min": 2,
+      "max": 5
     }
   }
 }

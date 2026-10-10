@@ -98,3 +98,21 @@ bump: minor
   orders, and ends with the choices made and the open decisions; feature mode deletes dead code
   first, names a domain structure before growing a conditional, and sweeps for a changed contract.
   Five skill eval cases and three plugin eval cases cover them.
+- **Competing attempts for a phase the plan marks `multi-shape`.** `/implementation:implement-dispatch`
+  gains a "Competing attempts" section: for a marked phase it creates one local worktree per attempt
+  on `<branch>-attempt-<n>`, briefs each attempt with its own constraint from the plan, gives each a
+  phase-verifier, picks among the passing ones by the plan's written selection rule (recorded as
+  `attempt <n>: chosen by <rule clause>` or `attempt <n>: set aside by <rule clause>`), lands the
+  chosen one with `merge --ff-only`, and removes the attempt worktrees through
+  `/source-control:worktree cleanup` when it is available, keeping the branches. Attempts commit
+  locally and never push, count against the wave cap, and run on `/multi-agent:route`'s worker
+  fan-out model floored at the implementer binding (frontier attempts one at a time). When every
+  attempt fails, the run routes back to planning with each verifier's gaps. `competing_attempts`
+  sets the mode: `suggest` (the default) offers attempts on a marked phase with a cost line, and an
+  unattended run makes one attempt and logs a `discovery` entry; `auto` runs them without asking;
+  `off` ignores the mark. `competing_attempt_count` sets how many, a whole number from 2 to 5
+  (default 3). Both are set per user in new user config options and per repository in
+  `docs/conventions/implementation.yaml` (schema `schemas/implementation.schema.json`), which wins;
+  an invalid value is named and that layer dropped. An older release has no option for either key
+  and ignores the repository keys. Thirteen eval cases cover the modes, the layers, the model floor,
+  the frontier limit, no push, the all-fail route, the fast-forward landing and the cleanup.
