@@ -141,6 +141,7 @@
     "regenerate",
     "repin",
     "report",
+    "request",
     "require",
     "resolve",
     "respond",
