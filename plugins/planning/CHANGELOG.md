@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.1] - 2026-10-10
+
+### Changed
+
+- **The interview page's deferred-work list is now `surface/deferred.md`**, renamed from `DEFERRED.md` so every markdown file in the repository is lower-kebab-case (ADR 0059).
+
+## [0.71.0] - 2026-10-10
+
+### Added
+
+- `/planning:draft-goal-condition` Step 0 adds a metric hill-climb row, routed to the `/performance:*` chain or, through `/evals:methodology`, the bundled `claude-api` hillclimb, and two preconditions for a lever that repeats build-and-check rounds: the task repeats, and the agent can run what it builds.
+
 ## [0.70.2] - 2026-10-10
 
 ### Fixed

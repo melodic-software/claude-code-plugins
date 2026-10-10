@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D9: the specs table is 420 px wide, so at 375 px it runs past the viewport's right edge"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600
