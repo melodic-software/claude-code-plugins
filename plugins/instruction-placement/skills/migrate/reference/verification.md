@@ -14,9 +14,9 @@ directory does not survive between tool calls.
   --root <repo> --trigger README.md --expect AGENTS.md
 
 # A nested surface: the trigger has to be a NON-INSTRUCTION file in that
-# directory or below it. The attach fires on a Read there and nowhere else, and
-# reading the nested AGENTS.md itself lets the model quote the token out of the
-# Read result, which proves nothing about loading.
+# directory or below it. The nested AGENTS.md attaches when Claude works with a
+# file there, and reading the nested AGENTS.md itself lets the model quote the
+# token out of the Read result, which proves nothing about loading.
 <plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger src/billing/service.ts \
   --expect AGENTS.md --expect src/billing/AGENTS.md
@@ -25,6 +25,17 @@ directory does not survive between tool calls.
 <plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger src/api/handler.ts --expect .claude/rules/api.md
 ```
+
+We trigger a nested surface with a Read of an ordinary file there, the one trigger every source
+agrees on. Source conflict: the changelog and the memory docs differ on what attaches a
+subdirectory `AGENTS.md`.
+
+- **Pointer**: when choosing a nested-surface trigger, fetch
+  <https://code.claude.com/docs/en/changelog> (v2.1.290) and
+  <https://code.claude.com/docs/en/memory#agents-md> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the memory page's AGENTS.md section changes, or a release note changes what
+  attaches a subdirectory `AGENTS.md`.
 
 It drives one real `claude -p` turn with an `InstructionsLoaded` hook and prints
 `VERDICT PASS|FAIL|UNKNOWN`. **`UNKNOWN` (exit 3) is a third outcome, never a pass**: the probe
