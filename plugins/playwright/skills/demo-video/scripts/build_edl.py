@@ -145,6 +145,16 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origi
     return rect, z, anchor
 
 
+def union_ink(keys, W, H, word_gap):
+    """One Ink holding the content of every (capture, content box) in keys, duplicates skipped."""
+    keys = list(dict.fromkeys((str(p), tuple(m) if m else None) for p, m in keys))
+    ink = Ink(keys[0][0], W, H, word_gap, keys[0][1])
+    for path, mb in keys[1:]:
+        ink.mask |= Ink(path, W, H, word_gap, mb).mask
+    ink.integ = np.pad(ink.mask.astype(np.float64).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+    return ink
+
+
 def in_shot(r, tb, W, H, margin):
     """qc.py's target-headroom test: the box is inside rect r with `margin` on every side that is
     not the page boundary."""
@@ -229,6 +239,7 @@ def main(argv=None):
             if first(s, need) is None:
                 errs.append(f'step {s}: no {need} event (each step is a demo.click ... demo.settle)')
     if errs:
+        Path(a.out).unlink(missing_ok=True)   # an earlier plan must not be rendered in its place
         raise SystemExit('capture is not a demo replay:\n  ' + '\n  '.join(errs))
 
     infos = {s: script.get('steps', {}).get(s, {}) for s in order}
@@ -281,25 +292,33 @@ def main(argv=None):
     zr_shot = (CAM['zmin_shot'], CAM['zmax'])
     zr_land = (CAM['zmin_shot'], CAM['landing_zoom'] + 0.1)
 
-    def pad_block(box):
-        return [box[0] - 120, box[1] - 80, box[2] + 240, box[3] + 160]
+    def pad_block(box):   # kept on the page: a target at the page edge is framed against that edge
+        x0, y0 = max(box[0] - 120, 0.0), max(box[1] - 80, 0.0)
+        return [x0, y0, min(box[0] + box[2] + 120, W) - x0, min(box[1] + box[3] + 80, H) - y0]
     cur = full
     for k, stp in enumerate(steps):
         ck, st, typ = stp['ck'], stp['st'], stp['typ']
         pw = max(pill_width(stp['caption'], cfg, a.font), pill_width(stp['outcome'] or '', cfg, a.font))
         tb = ck['box']
-        edge = CAM['edge_min']
-        at_edge = tb[0] < edge or tb[1] < edge or tb[0] + tb[2] > W - edge or tb[1] + tb[3] > H - edge
         held = layers['camera'] and cur != full and contains(cur, tb, CAM['safe_margin'] * cur[2] / W)
         budget = P['move'] + P['pre_click'] + (P['lead_in'] if k == 0 else 0.0)
         if held:   # the target is already in shot with headroom: keep the shot
             shot = cur
-        elif at_edge or not layers['camera']:
+        elif not layers['camera']:
             shot = None
         else:
-            ink = Ink(capture_at(ck['t']), W, H, CAM['word_gap'], mask_at(ck['t']))
-            shot = focus_rect(ink, stp['block'] or pad_block(tb), tb, W, H, cfg, pw, zr_shot, origin=cur, budget=budget,
-                              exit_budget=1.0 if stp['navigates'] else None)[0]
+            # the click shot holds still while a modal opens (a state cut QC allows zoomed only with
+            # clean edges), so its edges clear every capture up to the modal's settled one
+            t_end = stp['modal_at'] or ck['t']
+            ink = union_ink([(capture_at(ck['t']), mask_at(ck['t']))] +
+                            [(cap / f['file'], mask_at(f['t'])) for f in frames if ck['t'] < f['t'] <= t_end], W, H, CAM['word_gap'])
+            fr = [ink, stp['block'] or pad_block(tb), tb, W, H, cfg, pw, zr_shot]
+            exit_b = 1.0 if stp['navigates'] else None
+            shot = focus_rect(*fr, origin=cur, budget=budget, exit_budget=exit_b)[0]
+            if shot is None:   # a shot the travel is too short to reach (a target far across the page): travel longer
+                shot = focus_rect(*fr, origin=cur, exit_budget=exit_b)[0]
+                if shot:
+                    stp['travel'] = move_duration(cur, shot, 0.0, W, MOT) - budget + P['move']
         stp['click_held'], stp['click_shot'] = held, shot
         cur = shot or full
         stp['type_rect'] = stp['land_rect'] = None
@@ -338,7 +357,7 @@ def main(argv=None):
     seg(start_t, steps[0]['mv']['t'], P['lead_in'], steps[0]['id'], 'lead')
     for k, stp in enumerate(steps):
         s, mv, ck, st, typ = stp['id'], stp['mv'], stp['ck'], stp['st'], stp['typ']
-        seg(mv['t'], mv['t1'], P['move'], s, 'move')
+        seg(mv['t'], mv['t1'], max(P['move'], stp.get('travel', 0.0)), s, 'move')
         seg(mv['t1'], ck['t'], P['pre_click'], s, 'pre-click')
         if typ:
             typed = first(s, 'typed')
@@ -523,15 +542,9 @@ def main(argv=None):
         keys, t = [], a0
         while t <= a1 + 1e-9:
             s_t = src_of(t)
-            key = (capture_at(s_t), tuple(mask_at(s_t) or ()) or None)
-            if key not in keys:
-                keys.append(key)
+            keys.append((capture_at(s_t), mask_at(s_t)))
             t += step
-        ink = Ink(keys[0][0], W, H, CAM['word_gap'], keys[0][1])
-        for path, mb in keys[1:]:
-            ink.mask |= Ink(path, W, H, CAM['word_gap'], mb).mask
-        ink.integ = np.pad(ink.mask.astype(np.float64).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
-        return ink
+        return union_ink(keys, W, H, CAM['word_gap'])
 
     inks = {}
 
@@ -583,9 +596,11 @@ def main(argv=None):
                 t0 = s + still
         cam += [{'t': round(t0, 4), 'rect': cur}, {'t': round(t0 + d, 4), 'rect': rect}]
         cur, t_free = rect, t0 + d
+
     def breathe(r, a0, a1, ranges, center):
-        """When no drift can hold until the next move (a wider caption arrives meanwhile, say), push in
-        and ease back to r before the next caption starts, so the following shots are unchanged."""
+        """A hold no move leads into (it starts at a cut, so a push-in reverses nothing) where no drift
+        can hold until the next move (a wider caption arrives meanwhile, say): push in, and ease back
+        to r before the next caption starts, so the following shots are unchanged."""
         b = min([c['span'][0] for c in captions if a0 + still < c['span'][0] < a1] or [a1])
         pw = max([pill_width(c['text'], cfg, a.font) for c in captions if c['span'][0] < b and c['span'][1] > a0] or [0])
         ink = ink_over(a0, b)
@@ -606,18 +621,43 @@ def main(argv=None):
     # a still stretch longer than the QC limit gets a slow push-in toward a tighter gutter-snapped shot
     still_max = cfg['qc']['still_max']
     keys = sorted(cam, key=lambda c: c['t'])
-    moves_t = [(p['t'], q['t'], q['rect']) for p, q in zip(keys, keys[1:]) if p['rect'] != q['rect']]
-    gaps, prev_end, prev_rect = [], 0.0, full
-    for m0, m1, r in moves_t + [(total, total, None)]:
-        gaps.append((prev_end, m0, prev_rect))
-        prev_end, prev_rect = m1, r if r else prev_rect
-    for g0, g1, r in gaps:
+    moves_t = [(p['t'], q['t'], p['rect'], q['rect']) for p, q in zip(keys, keys[1:]) if p['rect'] != q['rect']]
+    gaps, prev_end, prev_rect, before = [], 0.0, full, None
+    for m0, m1, r0, r in moves_t + [(total, total, None, None)]:
+        gaps.append((prev_end, m0, prev_rect, before))
+        prev_end, prev_rect, before = m1, r if r else prev_rect, r0
+    moves_t = [(m0, m1, r) for m0, m1, _, r in moves_t]
+    travel = []   # drawn-cursor travel: frames change, so it breaks a still stretch
+    for m in moves:
+        try:
+            if m['from'] != m['to']:
+                travel.append((out_of(m['t']), out_of(m['t1'])))
+        except ValueError:
+            continue
+
+    def longest_still(a0, a1):
+        t, best = a0, 0.0
+        for m0, m1 in sorted(travel):
+            if m1 > a0 and m0 < a1:
+                best, t = max(best, m0 - t), max(t, m1)
+        return max(best, a1 - t)
+
+    def keeps_direction(rb, r, cand):
+        """A drift continues the move that brought the camera to r (rb -> r): it never reverses
+        its zoom or its pan within one hold."""
+        def c(q):
+            return q[0] + q[2] / 2, q[1] + q[3] / 2
+        dz0, dz1 = math.log(rb[2] / r[2]), math.log(r[2] / cand[2])
+        (x0, y0), (x1, y1), (x2, y2) = c(rb), c(r), c(cand)
+        return dz0 * dz1 >= 0 and (x1 - x0) * (x2 - x1) + (y1 - y0) * (y2 - y1) >= 0
+
+    for g0, g1, r, rb in gaps:
         if g0 < segments[0]['out0'] - 1e-6:
             g0 = segments[0]['out0']
         bounds = [g0] + sorted(c for c in cuts + state_cuts if g0 < c < g1) + [g1]
         for a0, a1 in zip(bounds, bounds[1:]):
-            if a1 - a0 <= still_max - 0.1 or not layers['camera'] or any(abs(a1 - c) < 1e-3 for c in nav_cuts):
-                continue   # short enough, no camera, or it ends at a navigation cut, which is taken at 1.0x
+            if longest_still(a0, a1) <= still_max - 0.1 or not layers['camera'] or any(abs(a1 - c) < 1e-3 for c in nav_cuts):
+                continue   # still enough (cursor travel moves the frame too), no camera, or it ends at a navigation cut
             ink = ink_over(a0, a1)   # every capture the span shows, not one frame: the caption check samples them all
             z = W / r[2]
             center = (r[0] + r[2] / 2, r[1] + r[3] / 2)
@@ -636,7 +676,7 @@ def main(argv=None):
             # a click while the drifted rect holds keeps its target in shot with headroom
             hold_end = nxt[0] if nxt else total
             targets = [s['ck']['box'] for s in steps if a0 <= out_of(s['ck']['t']) <= hold_end]
-            tgt = None
+            cands = []
             for zr in ranges:
                 cand, _, _ = focus_rect(ink, None, None, W, H, cfg, pw, zr, prefer=center)
                 if not cand or abs(W / cand[2] - z) < 0.02 or t_e - t_s < move_duration(r, cand, 0.0, W, MOT):
@@ -647,10 +687,14 @@ def main(argv=None):
                 if nxt and move_duration(cand, nxt[2], 0.0, W, MOT) > nxt[1] - nxt[0] + 1e-3:
                     continue
                 if anchor_clear(r, cand, t_s, t_e, a0, a1, pw):
-                    tgt = cand
-                    break
+                    cands.append(cand)
+            # a drift that keeps the direction of the move into the hold first; reversing it only
+            # when nothing else keeps the stretch under the stillness limit
+            onward = [c for c in cands if rb is None or a0 != g0 or keeps_direction(rb, r, c)]
+            tgt = (onward or cands or [None])[0]
             if not tgt:
-                breathe(r, a0, a1, ranges, center)
+                if rb is None or a0 != g0:
+                    breathe(r, a0, a1, ranges, center)
                 continue
             cam += [{'t': round(t_s, 4), 'rect': r}, {'t': round(t_e, 4), 'rect': tgt}]
             for c in cam:   # the hold until the next move starts is at the drifted rect

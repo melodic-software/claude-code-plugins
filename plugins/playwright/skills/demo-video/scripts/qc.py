@@ -10,7 +10,7 @@ Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
                   boundary lies in a gutter of the capture under it
   target-headroom each click target is in shot with safe-margin headroom at its click
   caption-anchor  captions sit only at the primary anchor or the one fixed fallback
-  stillness       no still stretch (caption band masked) longer than still_max
+  stillness       no still stretch (caption band masked) longer than still_max plus one frame
   motion          every camera move within the zoom/pan speed and acceleration caps
   nav-cuts        each page cut is taken with the camera still; one that changes the URL (the EDL's
                   nav_cuts say where) at 1.0x, an in-page state cut at 1.0x or with clean edges
@@ -364,7 +364,9 @@ def main(argv=None):
         j = pos[i]
         cuts.append(i)
         url_frames -= {i - 1, i, i + 1}
-        still = not moving[max(0, j - 2):j + 3].any()
+        # moving[j] compares registrations against two different captures, so a zoomed cut shows a
+        # small jump there with the camera still; the frames on each side say whether it moved
+        still = not (moving[max(0, j - 2):j].any() or moving[j + 1:j + 3].any())
         at_one = zf[j - 1] <= Q['nav_zoom_max'] and zf[j] <= Q['nav_zoom_max']
         clean = (i not in clipped) and ((i - 1) not in clipped)
         if not (still and (at_one or (clean and not url))):
@@ -413,8 +415,8 @@ def main(argv=None):
     for stale in out.glob('sheet-fail-*.png'):
         stale.unlink()
     for name, idx in fail_frames.items():
-        if idx:
-            sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
+        idx = [min(i, n - 1) for i in idx] or [runtime[0]]   # a check with no frame of its own shows the first page frame
+        sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
     report = {'video': str(a.video), 'runtime_s': round(len(runtime) / fps, 3), 'checks': results,
               'zoom_series': [[round(runtime[j] / fps, 3), round(float(zf[j]), 3)] for j in range(len(runtime))]}
     (out / 'qc.json').write_text(json.dumps(report, indent=1))

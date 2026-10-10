@@ -9,7 +9,7 @@
 //
 // Capture: Chromium's screencast delivers frames at CSS-pixel size whatever the deviceScaleFactor, so
 // frames come from CDP Page.captureScreenshot with clip.scale = DSF (3840x2160 at DSF 2). That is slow
-// (3.6-4.0 fps measured), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
+// (about 4 fps), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
 import { createRequire } from 'node:module';
 import crypto from 'node:crypto';
 import fs from 'node:fs';

@@ -30,9 +30,9 @@ last two.
 
 ## Settings
 
-The plugin's options set the defaults; a `--style` argument overrides the style for one run.
-Claude Code substitutes only a value the user has saved; an option never set shows its literal
-`${user_config...}` placeholder in the Saved value column, and then its default applies.
+The plugin's options set the defaults; a `--style` argument overrides the style for one run. When
+the Saved value column shows a literal `${user_config...}` placeholder, nothing is saved for that
+option: use its Default.
 
 | Option | Saved value | Default | Effect |
 |---|---|---|---|
@@ -44,10 +44,8 @@ Claude Code substitutes only a value the user has saved; an option never set sho
 | `demo_captions` | `${user_config.demo_captions}` | `true` | step and outcome captions |
 | `demo_narration` | `${user_config.demo_narration}` | `false` | voice-over |
 
-Substitution in skill content:
-[Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value);
-as of 2026-10-10; recheck when that section says a manifest `default` is substituted for an unset
-option.
+Pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value);
+as of 2026-10-10; recheck when that section changes what an unset option renders as.
 
 `plain` removes the title, camera and captions whatever their toggles say; a toggle set to `false`
 removes its layer in either style. Pass them to `build_edl.py` as
@@ -68,7 +66,7 @@ removes its layer in either style. Pass them to `build_edl.py` as
    `node ${CLAUDE_SKILL_DIR}/scripts/record.mjs [--playwright-core DIR] replay.mjs <work>/capture`.
    The viewport is 1920x1080 at device scale 2, so every frame is a 3840x2160 PNG; cursor travel and
    typing run three times slower than real time and are retimed in post, because device-pixel
-   screenshots arrive at 3.6-4.0 fps (measured over eight recordings with blur disabled). Chromium's screencast stays at CSS-pixel size whatever the
+   screenshots arrive at about 4 fps (`record.mjs` prints the rate of each recording). Chromium's screencast stays at CSS-pixel size whatever the
    device scale, so it is not used.
 4. **Narration (only when `demo_narration` is true).** When the speech plugin is installed, run
    `/speech:narrate` once per line into `<work>/audio/<step>/`, `<work>/audio/<step>.outcome/` and,

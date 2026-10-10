@@ -349,6 +349,24 @@ class DemoPipelineSmoke(unittest.TestCase):
         r, report = self.qc(out, edl=edl_path, name='qc-modal')
         self.assertEqual(self.failed(report), set(), r.stdout)
 
+    def test_click_at_the_page_edge_gets_a_zoomed_shot(self):
+        # A target touching the page edge (a header button at y 8) is framed against that edge, not
+        # left at 1.0x; QC's target-headroom treats the page boundary as headroom.
+        def edit(ev):
+            for e in ev:
+                if e['name'] == 'move' and e['step'] == 'search':
+                    e['to'] = {'x': 868, 'y': 22}
+                elif e['name'] == 'click' and e['step'] == 'search':
+                    e.update(x=868, y=22, box=[830, 8, 76, 28], block=None)
+        capture = self.variant_capture('capture-edge-target', edit)
+        edl_path = self.tmp / 'edl-edge-target.json'
+        r = run('build_edl.py', capture, self.tmp / 'script.json', edl_path)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        click = next(s['click_out'] for s in edl['steps'] if s['id'] == 'search')
+        rect = [k['rect'] for k in edl['camera'] if k['t'] <= click][-1]
+        self.assertLess(rect[2], W / 1.2, rect)   # zoomed in at the click
+
     def test_refused_plan_removes_the_earlier_edl(self):
         # An edge_ink limit below zero leaves no caption anchor empty, so the plan is refused; the
         # earlier approved plan at the same path must not survive for produce.py to render.
