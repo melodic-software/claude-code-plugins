@@ -193,14 +193,14 @@
     {
       "id": "bare-simple-mode",
       "title": "CLAUDE_CODE_SIMPLE / --bare (the confusion guard)",
-      "mechanism": "Simple mode: a stripped-down startup with a smaller tool set and a minimal system prompt. It skips auto-discovery (CLAUDE.md, fetches, keychain reads), and from Claude Code 2.1.286 it also connects only the MCP servers named on the command line, sends the model no system reminders (the skill listing among them) and starts no background tasks. Its prompt trim is a side effect of that behavior change; the prompt-only lever is the sibling variable above.",
+      "mechanism": "Simple mode: a stripped-down startup with a smaller tool set and a minimal system prompt. It skips auto-discovery of local configuration (the cited headless bare-mode section lists what it skips), and from Claude Code 2.1.286 it also connects only the MCP servers named on the command line, sends the model no system reminders (the skill listing among them) and starts no background tasks. Its prompt trim is a side effect of that behavior change; the prompt-only lever is the sibling variable above.",
       "category": "removes-weight",
       "categoryBasis": "Documented on the headless page's bare-mode section; the env var and the flag are the same switch (the flag sets the variable). Its payload effect is a side effect of a behavior change, unmeasured here.",
-      "conditions": "Several buckets can move, each only where it was contributing: System prompt and System tools (the minimal prompt and smaller tool set), Memory files (CLAUDE.md auto-discovery), MCP tools from any server not named on the command line, and reminder-borne weight such as the skill listing. The MCP and reminder limits need Claude Code 2.1.286 or later; before that they held only partly, so measure rather than assume. The behavior cost usually dominates every one of these.",
+      "conditions": "Several buckets can move, each only where it was contributing: System prompt and System tools (the minimal prompt and smaller tool set), every bucket that discovered configuration fills (Memory files, Skills, Custom agents), MCP tools from any server not named on the command line, and reminder-borne weight such as the skill listing. The MCP and reminder limits need Claude Code 2.1.286 or later; before that they held only partly, so measure rather than assume. The behavior cost usually dominates every one of these.",
       "posture": "disclose-only",
       "scope": "Environment variable; --bare CLI flag.",
       "detection": "CLAUDE_CODE_SIMPLE in the environment; --bare on the invocation.",
-      "measurement": "snapshot with and without; compare System prompt, System tools (and both deferred buckets), Memory files, MCP tools and Skills.",
+      "measurement": "snapshot with and without; compare System prompt, System tools (and both deferred buckets), Memory files, Skills (skipped discovery and the dropped listing reminder both land there), Custom agents and MCP tools.",
       "emittedConfig": null,
       "caveats": [
         "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior.",
