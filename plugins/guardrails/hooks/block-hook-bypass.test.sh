@@ -3113,6 +3113,19 @@ expect "repo: PowerShell Set-Content still blocks" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "Set-Content -Path '$NR_REPO/a.txt' -Value x" --cwd "$NR_REPO" \
   -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+# The block says which part of the shell check's scope the target falls outside.
+repo_reason() { # <label> <command> <expected stderr fragment>
+  guard_invoke --command "$2" --cwd "$NR_REPO" -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+  assert_exit "repo reason: $1 blocks" 2 "$GUARD_RC"
+  assert_contains "repo reason: $1" "$GUARD_ERR" "$3"
+}
+repo_reason "ignored" "echo x > .work/notes.md" \
+  "The target is git-ignored, which the shell file-change check does not inspect."
+repo_reason "ignored in its own case" "echo x > Secret.env" "is git-ignored"
+repo_reason "under .git" "cat > .git/hooks/pre-commit" "is under .git"
+repo_reason "nested repository" "echo x > nested/f" "or in a nested one"
+repo_reason "staged move onto an ignored destination" "cat > tmp && mv tmp .work/x" \
+  "The move destination is git-ignored"
 if make_link "$NR_REPO/.work" "$NR_REPO/worklink"; then
   run_repo "repo: symlink into an ignored directory still blocks" "echo x > worklink/f" 2
 else

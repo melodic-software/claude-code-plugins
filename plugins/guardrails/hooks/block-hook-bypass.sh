@@ -9,6 +9,15 @@
 #   same-command staged write: <producer> > tmp && mv|cp tmp dest
 #     (effective redirect target reused as mv/cp source; #2731)
 #
+# SCOPE: the cat, echo/printf and staged-write lanes block only a target the
+# shell file-change check (check-bash-file-changes.mjs) does not see. That check
+# runs the Write/Edit content guards, after the command, on every non-ignored
+# file it changed in the cwd's repository, so a write there is left to it. A
+# git-ignored target, one under .git, one outside the cwd's repository or in a
+# nested one, and any target this guard cannot place still block, and so does
+# every write while that check is off. See "Repository axis" below. The python
+# and PowerShell lanes name no single target and block as before.
+#
 # Detection runs over the PARSED command — one pass of the shared tokenizer
 # (hook::bash_parse_segments), which gives every simple command its argv words
 # AND its redirections, so the command word and the write's destination are both
@@ -215,10 +224,12 @@ emit_tel() {
 # form for.
 SEG_COUNT=0
 SEG_W=()       # every segment's argv words, lowercased, concatenated
+SEG_WR=()      # the same words in their original case
 SEG_WQ=()      # parallel quoting provenance: 0 literal, 1 partly quoted, 2 wholly quoted
 SEG_WOFF=()    # index into SEG_W where segment i's words start
 SEG_WLEN=()    # how many words segment i has
 SEG_TGT=()     # segment i's EFFECTIVE stdout target, lowercased
+SEG_TGT_RAW=() # the same target in its original case
 SEG_TGT_Q=()   # 1 when quoting or an escape produced that target text
 SEG_TGT_OPQ=() # 1 when the target is not resolvable from this command string
 SEG_TGT_SET=() # 1 when segment i redirects stdout to a file at all
@@ -248,9 +259,12 @@ collect_segment() {
   local w j
   SEG_WOFF+=("${#SEG_W[@]}")
   SEG_WLEN+=("$#")
-  for w in "$@"; do SEG_W+=("${w,,}"); done
+  for w in "$@"; do
+    SEG_W+=("${w,,}")
+    SEG_WR+=("$w")
+  done
   for j in "${HOOK_SEG_WORD_QUOTED[@]}"; do SEG_WQ+=("$j"); done
-  local tgt="" tset=0 tq=0 topq=0
+  local tgt="" traw="" tset=0 tq=0 topq=0
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
     case "${HOOK_SEG_REDIR_OP[j]}" in
     '>' | '>>') ;;
@@ -260,12 +274,14 @@ collect_segment() {
     '' | 1) ;;
     *) continue ;;
     esac
-    tgt="${HOOK_SEG_REDIR_TARGET[j],,}"
+    traw="${HOOK_SEG_REDIR_TARGET[j]}"
+    tgt="${traw,,}"
     tset=1
     tq="${HOOK_SEG_REDIR_QUOTED[j]}"
     topq="${HOOK_SEG_REDIR_OPAQUE[j]}"
   done
   SEG_TGT+=("$tgt")
+  SEG_TGT_RAW+=("$traw")
   SEG_TGT_SET+=("$tset")
   SEG_TGT_Q+=("$tq")
   SEG_TGT_OPQ+=("$topq")
@@ -1021,6 +1037,110 @@ scratch_target_exempt() {
   return 1
 }
 
+# --- Repository axis: what the shell file-change check already covers ---------
+#
+# check-bash-file-changes runs the PreToolUse Write|Edit content guards on every
+# file a Bash or PowerShell command changed in the repository holding the call's
+# cwd, except a gitignored one. A write this guard would block that lands on
+# such a file is therefore checked anyway, after the command, and blocking it
+# here duplicates that check. Leaving it to that check gives up no protection,
+# the same argument the temp default above rests on, so the axis grants only
+# what the check demonstrably sees and refuses everything else:
+#
+#   - the check is off: its switch is false, or no plugin data directory holds
+#     its snapshots, in which state it does nothing;
+#   - a target this guard cannot place: opaque, quoted or escaped, carrying `$`,
+#     a backtick, `~` or a glob character, relative after a directory change or
+#     with no absolute cwd in the payload;
+#   - no repository at or above the cwd, found by the same walk to a `.git`
+#     entry the check makes;
+#   - a target outside that repository once both are resolved through symlinks,
+#     inside a nested repository or submodule below it, under any `.git`
+#     component, or an existing directory;
+#   - a target git ignores there, or any git error answering the question.
+#
+# The target keeps its original case for the ignore test and the resolver: git
+# matches patterns case-sensitively, so a folded spelling could miss an ignored
+# file. The check's own residuals carry over unchanged, since its scope is this
+# axis's scope: a command that changes more files than it examines, a repository
+# with more dirty paths than it reads, and a background command's later writes.
+# PowerShell writes are not routed here; that lane keeps its own block.
+#
+# Called only after a lane matched a write and the scratch axis refused it, so a
+# command that was going to pass spends nothing. _BBH_REPO_REFUSAL names why a
+# check-on refusal happened, for the block message; empty after a grant or
+# when the check is off.
+_BBH_REPO_REFUSAL=""
+_BBH_REPO_ROOT=""
+_BBH_REPO_ROOT_DONE=0
+
+# The repository root for the payload cwd, normalized, in _BBH_REPO_ROOT; empty
+# when there is none. Walked once per hook run.
+_bbh_repo_root() {
+  local dir
+  ((_BBH_REPO_ROOT_DONE)) && return 0
+  _BBH_REPO_ROOT_DONE=1
+  _norm_path "$HOOK_CWD" || return 0
+  dir="$_NORM_PATH"
+  while [[ -n "$dir" ]]; do
+    if [[ -e "$dir/.git" ]]; then
+      _BBH_REPO_ROOT="$dir"
+      return 0
+    fi
+    dir="${dir%/*}"
+  done
+}
+
+repo_target_seen() {
+  local target="$1" tgt_quoted="$2" tgt_opaque="$3" abs phys root rel dir rc
+  _BBH_REPO_REFUSAL=""
+  [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 1
+  [[ "${CLAUDE_PLUGIN_OPTION_BASH_FILE_CHANGE_CHECK_ENABLED:-true}" != false ]] || return 1
+  _BBH_REPO_REFUSAL=unplaced
+  ((tgt_opaque || tgt_quoted)) && return 1
+  [[ -n "$target" && "$target" != *\\* ]] || return 1
+  _bbh_repo_root
+  if [[ -z "$_BBH_REPO_ROOT" ]]; then
+    _BBH_REPO_REFUSAL=outside
+    return 1
+  fi
+  abs="$target"
+  if [[ "$target" != /* && ! "$target" =~ ^[A-Za-z]:/ ]]; then
+    ((_BBH_CWD_MOVED)) && return 1
+    _norm_path "$HOOK_CWD" || return 1
+    abs="$_NORM_PATH/$target"
+  fi
+  _norm_path "$abs" || return 1
+  [[ -n "$_NORM_PATH" ]] || return 1
+  _BBH_REPO_REFUSAL=outside
+  _bbh_physical_path "$_NORM_PATH" || return 1
+  phys="$_BBH_PHYS"
+  _bbh_physical_path "$_BBH_REPO_ROOT" || return 1
+  root="${_BBH_PHYS%/}"
+  [[ -n "$root" && "$phys" == "$root"/* ]] || return 1
+  rel="${phys#"$root"/}"
+  _BBH_REPO_REFUSAL=git-dir
+  [[ "/${rel,,}/" == */.git/* ]] && return 1
+  _BBH_REPO_REFUSAL=outside
+  [[ -d "$phys" ]] && return 1
+  dir="${phys%/*}"
+  while [[ "$dir" == "$root"/* ]]; do
+    [[ -e "$dir/.git" ]] && return 1
+    dir="${dir%/*}"
+  done
+  _BBH_REPO_REFUSAL=ignored
+  command -v git >/dev/null 2>&1 || return 1
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_CONFIG \
+      GIT_CEILING_DIRECTORIES GIT_DISCOVERY_ACROSS_FILESYSTEM
+    GIT_OPTIONAL_LOCKS=0 git -C "$root" -c core.fsmonitor=false check-ignore -q -- "$rel"
+  ) >/dev/null 2>&1
+  rc=$?
+  ((rc == 1)) || return 1
+  _BBH_REPO_REFUSAL=""
+  return 0
+}
+
 # --- Same-command staged-write move (#2731) ----------------------------------
 #
 # Narrow detector for `<producer> > <tmp> && mv|cp <tmp> <dest>` when the
@@ -1041,9 +1161,8 @@ scratch_target_exempt() {
 # A broad any-redirect-into-repo lane was assessed and rejected (blocks
 # legitimate data-processing redirects).
 #
-# Destination outside configured scratch roots: with no roots configured
-# (shipped default), every destination is outside, so any matched staged move
-# blocks. A dest under a configured scratch root is exempt — still staging.
+# A matched staged move blocks unless its destination is scratch-exempt or a
+# file the shell file-change check sees (the repository axis above).
 
 # 0 when $1 and $2 name the same path under the same lexical rules as the
 # scratch-root axis. Absolute paths go through _norm_path; relative or
@@ -1100,20 +1219,26 @@ _bbh_paths_physically_identical() {
   [[ -n "$pa" && "$pa" == "$pb" ]]
 }
 
-# Parse segment $1 (offset) / $2 (length) into MOVE_SOURCES (array), MOVE_DEST
-# and MOVE_DEST_Q (the destination's quoting provenance).
+# Parse segment $1 (offset) / $2 (length) into MOVE_SOURCES (array), MOVE_DEST,
+# MOVE_DEST_RAW (the same in its original case), MOVE_DEST_Q (the destination's
+# quoting provenance) and MOVE_DEST_DIR (1 when the option form names a
+# directory the file lands in, not the file).
 # Supports GNU `-t DIR` / `--target-directory=DIR` (dest in the option; remaining
 # non-options are sources) and the common `sources… dest` form. Returns 1 when
 # the segment is not an mv|cp simple command or operands are incomplete.
 MOVE_SOURCES=()
 MOVE_DEST=""
+MOVE_DEST_RAW=""
 MOVE_DEST_Q=0
+MOVE_DEST_DIR=0
 parse_mv_cp_operands() {
   local off="$1" len="$2" k tok expect_t=0
-  local -a srcs=() srcq=()
+  local -a srcs=() srcq=() srcr=()
   MOVE_SOURCES=()
   MOVE_DEST=""
+  MOVE_DEST_RAW=""
   MOVE_DEST_Q=0
+  MOVE_DEST_DIR=0
   # The same prefix peel the producer lane uses, so `env mv /tmp/x dest` still
   # classifies.
   peel_command_word "$off" "$len" || return 1
@@ -1127,7 +1252,9 @@ parse_mv_cp_operands() {
     tok="${SEG_W[off + k]}"
     if ((expect_t)); then
       MOVE_DEST="$tok"
+      MOVE_DEST_RAW="${SEG_WR[off + k]}"
       MOVE_DEST_Q="${SEG_WQ[off + k]}"
+      MOVE_DEST_DIR=1
       expect_t=0
       ((k++))
       continue
@@ -1138,13 +1265,16 @@ parse_mv_cp_operands() {
       while ((k < len)); do
         srcs+=("${SEG_W[off + k]}")
         srcq+=("${SEG_WQ[off + k]}")
+        srcr+=("${SEG_WR[off + k]}")
         ((k++))
       done
       break
       ;;
     --target-directory=* | -t=*)
       MOVE_DEST="${tok#*=}"
+      MOVE_DEST_RAW="${SEG_WR[off + k]#*=}"
       MOVE_DEST_Q="${SEG_WQ[off + k]}"
+      MOVE_DEST_DIR=1
       ;;
     -t | --target-directory)
       expect_t=1
@@ -1154,6 +1284,7 @@ parse_mv_cp_operands() {
     *)
       srcs+=("$tok")
       srcq+=("${SEG_WQ[off + k]}")
+      srcr+=("${SEG_WR[off + k]}")
       ;;
     esac
     ((k++))
@@ -1167,6 +1298,7 @@ parse_mv_cp_operands() {
   # Classic form (including after `--`): last operand is dest, earlier are sources.
   ((${#srcs[@]} >= 2)) || return 1
   MOVE_DEST="${srcs[-1]}"
+  MOVE_DEST_RAW="${srcr[-1]}"
   MOVE_DEST_Q="${srcq[-1]}"
   unset 'srcs[-1]'
   ((${#srcs[@]} >= 1)) || return 1
@@ -1174,32 +1306,42 @@ parse_mv_cp_operands() {
   return 0
 }
 
+# 0 when one of MOVE_SOURCES is a path in the newline-joined list <$1>.
+_bbh_move_source_staged() {
+  local src prior rest
+  for src in "${MOVE_SOURCES[@]}"; do
+    [[ -n "$src" ]] || continue
+    rest="$1"
+    while [[ -n "$rest" ]]; do
+      prior="${rest%%$'\n'*}"
+      if [[ "$prior" == "$rest" ]]; then rest=""; else rest="${rest#*$'\n'}"; fi
+      [[ -n "$prior" ]] || continue
+      paths_identical "$src" "$prior" && return 0
+    done
+  done
+  return 1
+}
+
 # 0 when a prior effective stdout target is reused as an mv|cp SOURCE with a
-# destination that is not scratch-exempt.
+# destination that is neither scratch-exempt nor seen by the shell file-change
+# check. The exemptions are consulted only once a source matched, so an
+# ordinary rename spends no git process.
 staged_write_move_bypass() {
-  local s off len src seen="" prior rest dq
+  local s off len seen="" dq
   for ((s = 0; s < SEG_COUNT; s++)); do
     off="${SEG_WOFF[s]}"
     len="${SEG_WLEN[s]}"
-    if parse_mv_cp_operands "$off" "$len"; then
+    if parse_mv_cp_operands "$off" "$len" && _bbh_move_source_staged "$seen"; then
       # A destination whose written text is not the path that gets written
-      # cannot prove scratch containment, so it reads as outside scratch (fail
-      # closed toward blocking a staged move).
+      # cannot prove containment, so it reads as outside every exempt root
+      # (fail closed toward blocking a staged move). A directory destination
+      # names where the file lands, not the file, so the repository axis
+      # refuses it.
       dq=0
       ((MOVE_DEST_Q)) && dq=1
       if ! scratch_target_exempt "$MOVE_DEST" "$dq" 0; then
-        for src in "${MOVE_SOURCES[@]}"; do
-          [[ -n "$src" ]] || continue
-          rest="$seen"
-          while [[ -n "$rest" ]]; do
-            prior="${rest%%$'\n'*}"
-            if [[ "$prior" == "$rest" ]]; then rest=""; else rest="${rest#*$'\n'}"; fi
-            [[ -n "$prior" ]] || continue
-            if paths_identical "$src" "$prior"; then
-              return 0
-            fi
-          done
-        done
+        ((MOVE_DEST_DIR)) && return 0
+        repo_target_seen "$MOVE_DEST_RAW" "$dq" 0 || return 0
       fi
     fi
     # Record this segment's effective stdout target for later segments.
@@ -1214,12 +1356,13 @@ staged_write_move_bypass() {
   return 1
 }
 
-# 0 when segment $1's stdout write is exempt: the DISCARD, or a scratch root.
-# Both are decided on the EFFECTIVE target, so `> /allowed/tmp/f > real.txt`
-# still blocks.
+# 0 when segment $1's stdout write is exempt: the DISCARD, a scratch root, or a
+# file the shell file-change check sees. All are decided on the EFFECTIVE
+# target, so `> /allowed/tmp/f > real.txt` still blocks.
 target_exempt() {
   devnull_target_exempt "$1" && return 0
-  scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}"
+  scratch_target_exempt "${SEG_TGT[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}" && return 0
+  repo_target_seen "${SEG_TGT_RAW[$1]}" "${SEG_TGT_Q[$1]}" "${SEG_TGT_OPQ[$1]}"
 }
 
 # `cat >` with no input file is content authoring redirected into a file — the
@@ -1388,6 +1531,12 @@ block_bypass() {
         echo "Exempt: an unquoted literal $noun under $_BBH_EXEMPT_ROOTS$never." >&2
       fi
     fi
+    case "$_BBH_REPO_REFUSAL" in
+    ignored) echo "The $noun is git-ignored, which the shell file-change check does not inspect." >&2 ;;
+    git-dir) echo "The $noun is under .git, which the shell file-change check does not inspect." >&2 ;;
+    outside) echo "The $noun is outside the cwd's repository or in a nested one, which the shell file-change check does not inspect." >&2 ;;
+    *) ;; # the check is off, or the scratch reason above already says why the target cannot be placed
+    esac
     echo "If Write or Edit is refused for this path, stop and tell the user; the user can add a root to block_hook_bypass_scratch_roots." >&2
     ;;
   *)
