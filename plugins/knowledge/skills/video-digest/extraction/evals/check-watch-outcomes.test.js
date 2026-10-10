@@ -114,3 +114,59 @@ describe("checkWatchOutcomes warn-only count floors", () => {
     expect(withBlocking.every((c) => c.pass || c.severity === "warn")).toBe(false);
   });
 });
+
+describe("checkWatchOutcomes research gate", () => {
+  /**
+   * A slice with watch.json and a research lane whose one agenda row has the given status.
+   *
+   * @param {{ skipResearch?: boolean, agendaStatus: string, findings?: number }} options
+   */
+  function sliceWithResearch({ skipResearch, agendaStatus, findings = 0 }) {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "watch-outcomes-research-"));
+    onTestFinished(() => fs.rmSync(tmp, { recursive: true, force: true }));
+    fs.mkdirSync(path.join(tmp, "run-state"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tmp, "run-state", "watch.json"),
+      JSON.stringify(skipResearch === undefined ? {} : { skipResearch }),
+    );
+    fs.mkdirSync(path.join(tmp, "research", "findings"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, "RESEARCH.md"), "R".repeat(250));
+    fs.writeFileSync(path.join(tmp, "research", "claim-inventory.md"), "# claims\n");
+    fs.writeFileSync(
+      path.join(tmp, "research", "research-agenda.md"),
+      `| claim | T1 | ${agendaStatus} |\n`,
+    );
+    for (let i = 0; i < findings; i++) {
+      fs.writeFileSync(path.join(tmp, "research", "findings", `finding-${i}.md`), "# f\n");
+    }
+    return tmp;
+  }
+
+  /** @param {string} sliceDir */
+  const researchCheck = (sliceDir) =>
+    checkWatchOutcomes(sliceDir).checks.find((c) => c.id === "research-complete");
+
+  it("fails as blocking when an agenda row is still pending", () => {
+    const check = researchCheck(sliceWithResearch({ agendaStatus: "pending" }));
+    expect(check?.pass).toBe(false);
+    expect(check?.severity).toBe("fail");
+    expect(check?.actual).toContain("1 research-agenda rows still pending");
+  });
+
+  it("fails when a done row has no research/findings file", () => {
+    const check = researchCheck(sliceWithResearch({ agendaStatus: "done" }));
+    expect(check?.pass).toBe(false);
+    expect(check?.actual).toContain("research-findings count (0) < done agenda rows (1)");
+  });
+
+  it("passes when every row is resolved and backed by a finding", () => {
+    const check = researchCheck(sliceWithResearch({ agendaStatus: "done", findings: 1 }));
+    expect(check?.pass).toBe(true);
+  });
+
+  it("does not block a watch that ran with --skip-research", () => {
+    const check = researchCheck(sliceWithResearch({ skipResearch: true, agendaStatus: "pending" }));
+    expect(check?.pass).toBe(true);
+    expect(check?.actual).toBe("skipped (--skip-research)");
+  });
+});

@@ -25,6 +25,7 @@ import {
   validateWatchChecklistForCompleteSlice,
 } from "../lib/watch-vision-validation.js";
 import { readPromotionMap, resolveSourceFile } from "../watch/rebuild-visual-frames.js";
+import { researchGateFailure } from "./check-research-complete.js";
 
 /** @typedef {{ id: string, pass: boolean, actual: string, expected: string, severity: 'fail'|'warn' }} OutcomeCheck */
 
@@ -610,6 +611,24 @@ function pushQualityAuditChecks(checks, slice) {
 }
 
 /**
+ * The research gate, unless the watch ran with `--skip-research`.
+ *
+ * @param {OutcomeCheck[]} checks
+ * @param {WatchOutcomeSlice} slice
+ */
+function pushResearchCheck(checks, slice) {
+  const skipped = slice.watch.skipResearch === true;
+  const failure = skipped ? null : researchGateFailure(slice.sliceDir, { warn: () => {} });
+  checks.push({
+    id: "research-complete",
+    pass: failure === null,
+    actual: skipped ? "skipped (--skip-research)" : (failure ?? "pass"),
+    expected: "check-research-complete.js passes",
+    severity: "fail",
+  });
+}
+
+/**
  * @param {OutcomeCheck[]} checks
  * @param {string} sliceDir
  */
@@ -704,6 +723,7 @@ export function checkWatchOutcomes(sliceDir, { writeReport = false } = {}) {
   pushTriageManifestChecks(checks, slice);
   pushPromotionChecks(checks, slice);
   pushQualityAuditChecks(checks, slice);
+  pushResearchCheck(checks, slice);
   pushSynthesisCloseoutChecks(checks, sliceDir);
 
   const pass = checks.every((c) => c.pass || c.severity === "warn");

@@ -467,6 +467,32 @@ describe("closing the slice (close, and mark-phase synthesis)", () => {
     expect(persisted(store).status).toBe("complete");
   });
 
+  const readmePath = path.join(sliceDir, "README.md");
+  const readmeAt = (/** @type {string} */ status) =>
+    `---\r\nstatus: ${status}\r\ncreated: 2026-10-01T00:00:00Z\r\nupdated: 2026-10-02T00:00:00Z\r\n---\r\n\r\n# Talk\r\n\r\nstatus: in-progress\r\n`;
+
+  it("close sets the README frontmatter status to complete and changes nothing else", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("a failed close leaves the README status in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 1);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(1);
+    expect(store.get(readmePath)).toBe(readmeAt("in-progress"));
+  });
+
   it("close returns 1 without running the checks when watch.json is missing", async () => {
     const { readFile, writeFile } = memoryStore();
     const verifyOutcomes = vi.fn(async () => 0);
