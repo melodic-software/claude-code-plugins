@@ -221,12 +221,14 @@ case handling.
 
 ### SDK entries
 
-The inventory reads every `"type": "sdk"` entry it finds in a config file, in any scope including
-`--config` files, as `skipped-by-client`: Claude Code does not load an in-process server from a
-file, so the row is dead config, not a running server. A skipped row shadows no same-name row in a
-lower scope; the page does not say whether the lower row then loads, and scoring it is the safer
-reading for a posture audit. A `managedMcpServers` sdk entry still reads `rejected-by-client`,
-because it fails the entry checks first.
+The inventory reads a `"type": "sdk"` entry as `skipped-by-client`, and the audit treats that row
+as dead config, not a running server, so it gets no findings. This covers the sources the pointers
+below name (`.mcp.json`, `~/.claude.json`, settings, plugins, and agent files; a plugin's
+`.mcp.json` arrives as a `--config` file). By this skill's own decision it also covers an sdk entry
+in `managed-mcp.json` or in any other `--config` file. Shadowing is unchanged: an sdk row still
+shadows a same-name row in a lower scope exactly as any other row does, and whether that lower row
+loads is read at the pointers, not decided here. A `managedMcpServers` sdk entry still reads
+`rejected-by-client`, because it fails the entry checks first.
 
 - **Pointer**: when an sdk row appears, fetch
   <https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server> (the note on `sdk`

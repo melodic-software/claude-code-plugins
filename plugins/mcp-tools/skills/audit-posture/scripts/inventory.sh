@@ -605,12 +605,11 @@ def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
 | $rows[]
 | . as $r
 | ($r.scope | rank) as $rk
-# Claude Code skips a file-configured "type": "sdk" entry (reference/checklist.md,
-# "SDK entries"), so like a rejected entry it is never effective and shadows nothing.
 | (if $r.scope == "file" then null
-   else [$rows[] | select((.rejected | not) and (is_sdk | not) and .name == $r.name and (.scope | rank) > $rk)]
-        | max_by(.scope | rank)
+   else [$rows[] | select((.rejected | not) and .name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank)
    end) as $w
+# A "type": "sdk" row reads skipped-by-client; its shadowing is unchanged
+# (reference/checklist.md, "SDK entries").
 | (if $r.rejected then "rejected-by-client"
    elif ($r | is_sdk) then "skipped-by-client"
    elif $managed and ($r.scope | overridable) then "suppressed-by-managed"

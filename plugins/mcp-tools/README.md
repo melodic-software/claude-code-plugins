@@ -23,7 +23,7 @@ SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from
 OPINION is the skill's own judgment, including the criteria built on Claude-Code-specific client
 behavior, which the Claude Code page documents rather than mandates:
 
-- **Description**. States what / when / returns, fits within the length every Claude Code client keeps whole for tool descriptions and server instructions alike (the checklist's "Description length record" names it and why), leaks no implementation detail.
+- **Description**. States what / when / returns, fits within the skill's length floor for tool descriptions and server instructions alike (the number sits in the checklist's C4 row; its "Description length record" points at where Claude Code states the length), leaks no implementation detail.
 - **Parameters**. Every parameter described, guidance and format examples, documented optional defaults.
 - **Naming**. Valid name charset/length (spec), outcome-driven, service-namespaced.
 - **Annotations**. `readOnlyHint`, `destructiveHint`, `idempotentHint`. These are OPTIONAL in the spec, so a missing annotation is WARN, never FAIL.

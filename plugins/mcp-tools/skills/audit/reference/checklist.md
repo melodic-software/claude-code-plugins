@@ -30,10 +30,11 @@ names.
   per-tool `false`, or a release note names MCP `_meta` annotations.
 
 **Description length record.** C4 holds each tool description and each server `instructions` field
-to a length every Claude Code client keeps whole; the number sits in the C4 row as this skill's own
-rule. Newer clients keep more, so text over it is at risk rather than certainly cut, which is why
-C4 warns instead of failing. C4 grades against the client default and ignores the session-level
-override `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the server author does not control.
+to a floor this skill chose so that no client version it supports cuts the text; the number sits in
+the C4 row as this skill's own rule. C4 warns rather than fails past that floor, because whether a
+given client cuts there is read at the pointer, not decided here. C4 grades against the client
+default and ignores the session-level override `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the
+server author does not control.
 
 - **Pointer**: when grading C4 or revisiting its number, fetch
   <https://code.claude.com/docs/en/changelog> (versions 2.1.295 and 2.1.296) and
@@ -86,7 +87,7 @@ Severity levels:
 | C1 | **Has "what"**. The description states what the tool does | ANTHROPIC | FAIL | First sentence should clearly describe the action. Missing or generic ("handles X") fails |
 | C2 | **Has "when"**. The description states when to use the tool | ANTHROPIC | WARN | Look for usage context: "Use this when...", "Call this before...", "Useful for...". Absent = warn |
 | C3 | **Has "returns"**. The description states what the tool returns | ANTHROPIC | WARN | Look for return documentation: "Returns the board id and...", "Returns a list of...". Absent = warn |
-| C4 | **Within the length every client keeps**. A tool description, and a server `instructions` field, fits within the length this skill holds as the floor every Claude Code client keeps whole (Description length record) | OPINION | WARN | Count characters, per tool description and once per server for the server `instructions` field. Over 2,048 characters warns: an older client cuts the rest, so text past that point may never reach the model. Critical details belong near the start, where truncation cannot reach them. The floor is this skill's rule built on client behavior, not a spec rule |
+| C4 | **Within the length floor**. A tool description, and a server `instructions` field, fits within the floor this skill holds (Description length record) | OPINION | WARN | Count characters, per tool description and once per server for the server `instructions` field. Over 2,048 characters warns: text past this floor may be cut before it reaches the model, depending on the client (read at the record's pointer). Critical details belong near the start, where truncation cannot reach them. The floor is this skill's rule built on client behavior, not a spec rule |
 | C5 | **No implementation-detail leak**. No database types, API names, partition keys, or internal structure | ANTHROPIC | WARN | Prefer semantic names over technical identifiers. Scan for terms that belong to the implementation, not the domain |
 
 ## 2. Parameter quality (C6-C8)

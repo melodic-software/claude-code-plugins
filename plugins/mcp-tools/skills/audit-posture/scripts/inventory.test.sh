@@ -489,6 +489,17 @@ assert_eq "file row with a user/local/project name stays effective" "yes" "$(cel
 assert_eq "colliding file row still classified" "floating-unversioned" "$(cell file shared 7)"
 assert_eq "user row unaffected by a same-named file row" "shadowed-by:local" "$(cell user shared 3)"
 
+# --- Run 2e: an sdk entry reads skipped-by-client and still shadows as before ----
+
+mkdir -p "$FIX/sdk shadow"
+printf '%s\n' '{"mcpServers": {"dup": {"command": "npx", "args": ["pkg@1.0.0"]}}}' >"$FIX/sdk shadow/claude.json"
+printf '%s\n' '{"mcpServers": {"dup": {"type": "sdk"}}}' >"$FIX/sdk shadow/.mcp.json"
+run_inv --claude-json "$FIX/sdk shadow/claude.json" --project "$FIX/sdk shadow" \
+  --mcp-json "$FIX/sdk shadow/.mcp.json" --managed-dir "$FIX/no managed" --date 2026-01-02
+assert_eq "project sdk entry is skipped by the client" "skipped-by-client" "$(cell project dup 3)"
+assert_eq "user row under a same-named project sdk entry stays shadowed" "shadowed-by:" \
+  "$(cell user dup 3 | cut -c1-12)"
+
 # --- Run 2c: enableAllProjectMcpServers approves every project server ----------
 
 run_inv --claude-json "$FIX/claude.json" --project "d:/all" --mcp-json "$FIX/proj/.mcp.json" \
