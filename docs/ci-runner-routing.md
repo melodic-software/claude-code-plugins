@@ -149,10 +149,12 @@ are in the header of `scripts/affected-tests.sh`.
 
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
-the `ci-lanes` commit status on the head SHA once, with no wait
+the `ci-lanes` commit status on the head SHA, with no carry-forward wait
 (`yield-to-full-run: 'true'` and `carry-forward-wait-seconds: '0'` on the
-`aggregate-results` composite, a 3-minute job). It passes only when the
-newest status the Actions bot wrote is `success`.
+`aggregate-results` composite, a 3-minute job). The one exception is a re-read
+of up to 30 s (`YIELD_WRITER_WAIT_SECONDS`), only when the in-flight full run
+has already written `success` and its aggregate step is finishing. It passes
+only when the newest status the Actions bot wrote is `success`.
 
 No run waits on another run:
 
