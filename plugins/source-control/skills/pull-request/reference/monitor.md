@@ -76,7 +76,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
    )
    ```
 
-   **Re-arm at the deadline.** Every watch ends at a deadline, and the session gets one notice when it does. On that notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), arm the watch again with this same call, then run one full iteration (step 5). That iteration covers anything that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the current checks without emitting them.
+   **Re-arm at the deadline.** Every watch ends at a deadline, and the session gets one notice when it does. On that notice, if the PR is still `OPEN` and readiness has not passed (§3.0.5), arm the watch again with this same call, then run one full iteration (step 5). That iteration covers anything that landed between the deadline and the new watch: the new watch only reports comments posted after it starts, and its first poll records the current checks and review-thread count without emitting them.
 
    We pass the Monitor deadline maximum on every arming call and re-arm on the deadline notice for as long as the PR needs watching.
 
@@ -84,8 +84,9 @@ We pass the background-command maximum on every fallback poll and treat the stop
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section changes its deadline or its re-arm notice, or a release note names a Monitor input.
 
-   Source conflict: the [2.1.271 changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) removes the Monitor `persistent` option and adds the `timeout_ms` deadline, while [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) never mentions `persistent` and names `timeout_ms` only under its WebSocket source. We follow the changelog and the live tool schema: no `persistent`, an explicit `timeout_ms`.
+   Source conflict: the Claude Code 2.1.271 changelog entry and the Monitor tool section disagree on which inputs a command watch accepts. We follow the live tool schema: no `persistent`, an explicit `timeout_ms`.
 
+   - **Pointer**: when you need the inputs a command watch accepts, fetch the 2.1.271 entry of the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) and [Monitor tool](https://code.claude.com/docs/en/tools-reference#monitor-tool) live.
    - **As of**: 2026-10-10
    - **Recheck trigger**: the Monitor tool section documents `timeout_ms` for command watches or mentions `persistent`.
 
@@ -176,7 +177,7 @@ We pass the background-command maximum on every fallback poll and treat the stop
          | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
        cur_threads=${cur_threads:-THREADS_UNPROVEN}
        if [ "$cur_threads" != "$prev_threads" ]; then
-         echo "REVIEW-THREADS unresolved=$cur_threads"
+         [ "$poll" -gt 0 ] && echo "REVIEW-THREADS unresolved=$cur_threads"
          prev_threads="$cur_threads"
        fi
      fi
