@@ -260,8 +260,25 @@ was running, the exact command that restores it, and the observable that confirm
 Covers branch and worktree, services and ports, environment variables, background tasks, and the
 in-memory task list, which `/clear` destroys completely.
 
-**TaskList.** Call `TaskList` before writing this section and render live state, not remembered
-state:
+**TaskList.** Branch on whether this session has the task tools (`TaskList` is in its tool list),
+never on the model name:
+
+- **Present:** call `TaskList` before writing this section and render live state, not remembered
+  state, in the format below.
+- **Absent:** there is no live task list to capture. Write one line saying this session has no task
+  tools, and point at the stage state the session already keeps (the `workflow-checklist.md` or the
+  plan artifact) when there is one. Never rebuild a list from memory.
+
+Which sessions get the task tools is an upstream default we do not restate.
+
+- **Pointer**: when deciding whether a session (interactive, background, cloud, or a subagent) will
+  have the task tools, fetch
+  [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions, models, or opt-ins get the task tools.
+
+Format when the tools are present:
 
 | Glyph | Status |
 |-------|--------|
@@ -283,6 +300,10 @@ TaskCreate(subject="Full scan", description="...")         → status=in_progres
 TaskCreate(subject="Full pipeline run", description="...") → status=pending (default)
 ```
 ````
+
+The writer cannot know whether the resuming session has the task tools, so the recreate calls are
+for a reader that does. A reader without them runs no calls: the glyph list is its record of the
+work, tracked in the handoff file or a checklist file it already writes.
 
 With 0 active tasks, or all `completed`, say so. There is nothing to recreate.
 
@@ -701,7 +722,7 @@ Rebuilding the goal from the conversation is the drift vector itself: the conver
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
 until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
-`TaskList` call: the check is that the read happened, not that the result looks right. The
+`TaskList` call in a session that has the task tools: the check is that the read happened, not that the result looks right. The
 validator checks the copy: the predecessor's `chain:`, its `## Prior sessions` rows, and every
 cumulative entry must survive in the successor (in place or under `Superseded:`).
 

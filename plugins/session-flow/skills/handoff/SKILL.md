@@ -276,8 +276,10 @@ ticked. Emit the rails block before ending the turn, always.
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
-- [ ] TaskList captured with literal recreate calls in the environment section, from a live
-  `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Task list handled per the structure doc's tool-presence branch: with the task tools, captured
+  with literal recreate calls in the environment section from a live `TaskList` call this turn;
+  without them, a line saying this session has no task tools (OR, either way, an explicit
+  statement that there is nothing to recreate)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -333,7 +335,8 @@ ticked. Emit the rails block before ending the turn, always.
   saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
   4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
-  is made rather than the list being guessed from the conversation
+  is made rather than the list being guessed from the conversation (a session without the task
+  tools makes no call and falls through to rung 5)
 - [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
   and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
   when the goal has recorded amendments, the original dated quote travels with EVERY dated
