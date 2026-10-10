@@ -27,16 +27,18 @@
 // so it never takes the index lock a concurrent git command needs, and with
 // fsmonitor and textconv off, so a repository config the command wrote starts
 // no program outside the sandbox. Snapshots live only under CLAUDE_PLUGIN_DATA;
-// without it both modes do nothing. Every error, a missing snapshot, a timeout,
-// an oversized or binary file, exits 0 with nothing reported.
+// without it both modes do nothing. Every error exits 0. A skip that leaves a
+// change unexamined is reported as a note, never a block: a missing snapshot, a
+// failed or oversized git status, a symbolic link, files past the first
+// MAX_FILES in path order or past the time budget, and a run_in_background
+// command, whose later writes are not checked.
 //
-// Scope residuals: a file outside the cwd's repository, a gitignored file
-// (hook-precision rule 6), a symbolic link, a change inside a submodule, a file
-// that was already dirty and whose size and mtime did not change, files past
-// the first MAX_FILES in path order, a repository with more than
-// MAX_STATUS_ENTRIES dirty paths, and what a run_in_background command writes
-// after the call returns are not checked. A file dirty before the command is
-// judged on every line it adds against that HEAD, not only this command's. A
+// Scope residuals, not reported: a file outside the cwd's repository, a
+// gitignored file (hook-precision rule 6), a change inside a submodule, a file
+// that was already dirty and whose size and mtime did not change, an oversized
+// or binary file, and a file the command wrote and then deleted. A file dirty
+// before the command is judged on every line it adds against that HEAD, not
+// only this command's. A
 // HEAD moved by a checkout, pull, merge or reset brings in others' content and
 // adds no paths, and with the HEAD reflog off (core.logAllRefUpdates=false)
 // a commit is not seen.
@@ -210,12 +212,13 @@ export function committedFiles(root, commits) {
   return out === null ? [] : [...new Set(out.split("\0").map((p) => p.trim()).filter(Boolean))];
 }
 
+// [size, mtime, isLink] of a file or symbolic link, or null.
 function stamp(file) {
   try {
     // lstat: a symbolic link is not followed, so a link to a file outside the
     // repository never has that file's content read and quoted back.
     const s = lstatSync(file);
-    return s.isFile() ? [s.size, s.mtimeMs] : null;
+    return s.isFile() || s.isSymbolicLink() ? [s.size, s.mtimeMs, s.isSymbolicLink()] : null;
   } catch {
     return null;
   }
@@ -247,27 +250,26 @@ export function snapshot(payload, env) {
   const root = repoRoot(payload.cwd);
   if (!root) return;
   const status = gitStatus(root);
-  if (!status) return;
   const stamps = {};
-  for (const rel of Object.keys(status.entries)) stamps[rel] = stamp(path.join(root, rel));
+  for (const rel of Object.keys(status?.entries ?? {})) stamps[rel] = stamp(path.join(root, rel));
   const dir = snapshotDir(env);
   mkdirSync(dir, { recursive: true });
   pruneStale(dir, Date.now());
+  // A failed git status still leaves a snapshot, so the check can say why it
+  // examined nothing.
   writeFileSync(
     snapshotFile(env, payload),
-    JSON.stringify({
-      root,
-      head: status.head,
-      log: fileSize(headLog(root)),
-      status: status.entries,
-      stamps,
-    }),
+    JSON.stringify(
+      status
+        ? { root, head: status.head, log: fileSize(headLog(root)), status: status.entries, stamps }
+        : { root, failed: true },
+    ),
   );
 }
 
 // The paths that are dirty now and were clean before, or whose size or mtime
 // moved, plus the paths commits made inside the command added or modified, as
-// [{rel, abs, untracked}].
+// [{rel, abs, untracked, size, link}].
 export function changedFiles(before, after, committed = []) {
   const changed = new Map();
   for (const [rel, code] of Object.entries(after.status)) {
@@ -276,12 +278,14 @@ export function changedFiles(before, after, committed = []) {
     if (!now) continue;
     const then = before.stamps[rel];
     if (rel in before.status && then && then[0] === now[0] && then[1] === now[1]) continue;
-    changed.set(rel, { rel, abs, untracked: code === "??", size: now[0] });
+    changed.set(rel, { rel, abs, untracked: code === "??", size: now[0], link: now[2] });
   }
   for (const rel of committed) {
     const abs = path.join(before.root, rel);
     const now = stamp(abs);
-    if (now && !changed.has(rel)) changed.set(rel, { rel, abs, untracked: false, size: now[0] });
+    if (now && !changed.has(rel)) {
+      changed.set(rel, { rel, abs, untracked: false, size: now[0], link: now[2] });
+    }
   }
   return [...changed.values()].sort((a, b) => a.rel.localeCompare(b.rel));
 }
@@ -361,34 +365,67 @@ function isFile(p) {
   }
 }
 
-// The findings for one call, as {rel, message} rows.
+function notExamined(count, reason) {
+  const files = count === null ? "" : `${count} changed ${count === 1 ? "file" : "files"}`;
+  return `guardrails: ${files || "changed files"} not examined: ${reason}.`;
+}
+
+// The findings for one call, as {rel, message} rows, and a note for each
+// skip or truncation, so an unexamined change is never read as a clean one.
 export function check(payload, env) {
+  const findings = [];
+  const notes = [];
+  const result = { findings, notes };
   const file = snapshotFile(env, payload);
   let before;
   try {
     before = JSON.parse(readFileSync(file, "utf8"));
   } catch {
-    return [];
+    if (repoRoot(payload.cwd)) {
+      notes.push(notExamined(null, "no git status snapshot was recorded before the command"));
+    }
+    return result;
   }
   try {
     unlinkSync(file);
   } catch {}
-  const status = gitStatus(before.root);
-  if (!status) return [];
+  if (payload.tool_input?.run_in_background === true) {
+    notes.push(notExamined(null, "the command runs in the background, so what it writes later is not checked"));
+  }
+  const status = before.failed ? null : gitStatus(before.root);
+  if (!status) {
+    notes.push(notExamined(null, `git status failed or listed more than ${MAX_STATUS_ENTRIES} paths`));
+    return result;
+  }
   const log = headLog(before.root);
   const committed =
     log && fileSize(log) > before.log
       ? committedFiles(before.root, commitsMade(log, before.log))
       : [];
-  const changed = changedFiles(before, { status: status.entries }, committed).slice(0, MAX_FILES);
-  if (changed.length === 0) return [];
+  const all = changedFiles(before, { status: status.entries }, committed);
+  const links = all.filter((f) => f.link).length;
+  if (links) notes.push(notExamined(links, "a symbolic link is not followed"));
+  const files = all.filter((f) => !f.link);
+  if (files.length > MAX_FILES) {
+    notes.push(
+      notExamined(files.length - MAX_FILES, `the check stops after the first ${MAX_FILES} in path order`),
+    );
+  }
+  const changed = files.slice(0, MAX_FILES);
+  if (changed.length === 0) return result;
   const guards = writeGuards();
   const bash = resolveBash(env, process.platform, isFile);
-  if (guards.length === 0 || !bash) return [];
-  const findings = [];
+  if (guards.length === 0 || !bash) {
+    notes.push(notExamined(changed.length, "no bash was found to run the guards"));
+    return result;
+  }
   const deadline = Date.now() + CHECK_BUDGET_MS;
+  let late = 0;
   changed.forEach((f, n) => {
-    if (Date.now() > deadline) return;
+    if (Date.now() > deadline) {
+      late++;
+      return;
+    }
     const content = readContent(f.abs, f.size);
     if (content === null) return;
     // A tracked file with no commit to diff against (an unborn branch) is
@@ -415,19 +452,22 @@ export function check(payload, env) {
     );
     if (message) findings.push({ rel: f.rel, message });
   });
-  return findings;
+  if (late) notes.push(notExamined(late, "the check ran out of time"));
+  return result;
 }
 
-export function report(event, tool, findings) {
-  const reason = findings
-    .map(
+// A finding blocks; notes alone reach Claude as context.
+export function report(event, tool, { findings, notes }) {
+  const reason = [
+    ...findings.map(
       (f) =>
         `guardrails: this ${tool} command changed ${JSON.stringify(f.rel)}, and the check a Write or Edit of ` +
         `that file runs reports:\n${f.message}\nThe change is already on disk: fix the file ` +
         "with Edit, or revert it.",
-    )
-    .join("\n\n");
-  if (event === "PostToolUseFailure") {
+    ),
+    ...notes,
+  ].join("\n\n");
+  if (event === "PostToolUseFailure" || findings.length === 0) {
     return { hookSpecificOutput: { hookEventName: event, additionalContext: reason } };
   }
   return { decision: "block", reason };
@@ -450,10 +490,10 @@ async function main() {
     snapshot(payload, process.env);
     return;
   }
-  const findings = check(payload, process.env);
-  if (findings.length === 0) return;
+  const result = check(payload, process.env);
+  if (result.findings.length === 0 && result.notes.length === 0) return;
   const event = payload.hook_event_name ?? "PostToolUse";
-  process.stdout.write(`${JSON.stringify(report(event, payload.tool_name ?? "Bash", findings))}\n`);
+  process.stdout.write(`${JSON.stringify(report(event, payload.tool_name ?? "Bash", result))}\n`);
 }
 
 // Node realpaths the main entry, so compare real paths (see exec-bash.mjs).
