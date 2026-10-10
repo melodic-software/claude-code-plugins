@@ -1,5 +1,6 @@
 ---
-description: "Re-anchor research discipline; audit and correct the work and pending recommendations. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', or at conversation start. All claims: do-your-research-deep."
+description: "Re-anchor research discipline; audit and correct the work and pending recommendations, or fan out to verify every session claim. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', 'fact-check everything', 'verify every claim', 'audit all our claims', 'deep research pass', or at conversation start."
+argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -85,8 +86,8 @@ differently, so knowing which one fired tells you what to look for:
   that" asks for. Fires after the fact; skipping it leaves a wrong claim
   standing while later work builds on it.
 
-Direction is not the skill boundary. DEPTH is. Both directions run here inline
-and in the sibling fan-out below; neither skill owns one direction.
+Direction is not the tier boundary. DEPTH is. Both directions run in the
+inline audit and in the fan-out tier below; neither tier owns one direction.
 
 ## Audit. What to look for
 
@@ -126,14 +127,36 @@ withheld as an open question naming the evidence that would settle it.
 This runs inside the
 loop's audit and correct-forward steps, so it is not a step delta.
 
-## Escalating to a verification fan-out
+## The fan-out tier
 
-When your own judgment is the suspected source of bias across MANY
-load-bearing claims, not just the current one, or a request to
-"fact-check" the whole session wants provable coverage, escalate by invoking
-the sibling `/discipline:do-your-research-deep` via the Skill tool. It enumerates a typed full
-inventory of the session's claims and verifies each
-at a configurable depth, and reports a per-item ledger.
+The inline audit above is the default. Take the fan-out tier instead when the
+invocation argument is `tiered` or `full`, or when your own judgment is the
+suspected source of bias across MANY load-bearing claims, or a request to
+"fact-check everything" / "verify every claim" wants provable coverage of the
+whole session. A single fact-check or a short session stays inline: there the
+fan-out's subagent cost buys nothing.
+
+**Never inside a batch or a fork.** When this skill runs as a member of a
+`/discipline:sweep-all` audit fork, or in any fork, run the inline audit only,
+whatever the argument or trigger. Where the fan-out would fit, add a ledger
+entry recommending a direct `/discipline:do-your-research tiered` run instead.
+The batch is audit-only and keeps its cost bounded by leaving fan-out tiers
+out, and a fork cannot spawn the forks a fan-out might reach for.
+
+- **Pointer**: what a fork may spawn,
+  [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+- **As of**: 2026-10-10.
+- **Recheck trigger**: that section changes what a fork may spawn.
+
+**Depth**, resolved once before enumerating: the invocation argument (`tiered`
+or `full`) wins; otherwise the configured default,
+`${user_config.research_deep_verification}`; otherwise `tiered`. An empty
+value, a surviving literal `${user_config.…}` token, and any unrecognized
+string all mean `tiered`; never error on a bad value.
+
+Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
+enumerating: it owns the typed inventory, the throttled dispatch, and the
+per-item ledger, and replaces the inline audit and correct-forward steps.
 
 ## What this skill does NOT do
 
@@ -145,14 +168,14 @@ at a configurable depth, and reports a per-item ledger.
 
 ## Next
 
-/discipline:do-your-research-deep [tiered|full]
+/discovery:research <question>
 
-When many load-bearing claims or recommendations need provable coverage,
-the fan-out tier verifies each one as a ledger row.
+When a claim needs a new multi-source research pass rather than a check of
+what the session already said.
 
 ## Gotchas
 
 - "Verifying" a claim against the same recall that produced it is not
   verification, the research-specific trap. Reach for a real source or the
   live environment; where your own judgment is the suspect across many
-  claims, `/discipline:do-your-research-deep` is the fresh-context escalation.
+  claims, the fan-out tier is the fresh-context escalation.

@@ -54,13 +54,13 @@
       "id": 5,
       "name": "fact-check-trigger-routes-to-research-discipline",
       "prompt": "You said the CLI flag is --parallel and the free tier allows 100 requests a day. Fact-check that.",
-      "expected_output": "Reads 'fact-check' as a trigger for research discipline, re-anchors it, names the two unverified specifics (the flag name, the free-tier limit) as located findings, and corrects forward this turn by verifying each against an authoritative source or the live environment rather than restating them from memory. A single-question fact-check stays in this inline tier rather than escalating to the deep fan-out.",
+      "expected_output": "Reads 'fact-check' as a trigger for research discipline, re-anchors it, names the two unverified specifics (the flag name, the free-tier limit) as located findings, and corrects forward this turn by verifying each against an authoritative source or the live environment rather than restating them from memory. A single-question fact-check stays in the inline audit rather than taking the fan-out tier.",
       "files": [],
       "expectations": [
         "Treats the 'fact-check' request as research/verification discipline and re-anchors it",
         "Names the unverified flag and the unverified limit as concrete, located findings",
         "Verifies each against an authoritative source or the live environment this turn, or flags it unverifiable",
-        "Stays inline for a small fact-check rather than escalating to do-your-research-deep"
+        "Stays inline for a small fact-check rather than taking the fan-out tier"
       ]
     },
     {
@@ -75,6 +75,93 @@
         "Reports each recommendation as old → new → why, or unchanged with why, where new may be a withheld open question",
         "Never labels the cross-repo recommendation judgment: it ends up either Basis: verified with a cited source, or withheld as an open question",
         "Gives every recommendation exactly one outcome (verified, judgment, or withheld); a withheld one carries no Basis: label and names the evidence that would settle it"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "fan-out-enumerates-typed-full-inventory-and-ledger",
+      "prompt": "/discipline:do-your-research tiered — we've made a lot of load-bearing claims about the API's rate limits, auth flow, and pricing tiers this session, and the plan now rests on all of them.",
+      "expected_output": "Takes the fan-out tier. Enumerates a typed full inventory of the session's claims (assumptions, asserted facts, concrete specifics, load-bearing premises) as a checklist rather than spot-checking one, dispatches fresh-context (blind) subagents to verify each against a primary source, corrects every falsified or unbacked item this turn, and reports one ledger row per inventory item carrying verdict, source, source tier, consensus count, and recency where relevant.",
+      "files": [],
+      "expectations": [
+        "Enumerates a typed full inventory (not just the obviously load-bearing claims) as a checklist so coverage is provable",
+        "Fans out fresh-context (blind) subagents that verify against primary sources, not the same recall that produced the claims",
+        "Corrects falsified or unbacked items this turn and surfaces anything unverifiable",
+        "Reports one ledger row per inventory item with verdict, source, source tier, and consensus count (and recency for facts that can go stale)"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "fan-out-throttles-in-bounded-waves",
+      "prompt": "/discipline:do-your-research tiered — this has been a very long session; there are dozens of load-bearing claims to verify.",
+      "expected_output": "Recognizes that a claim-heavy session must not fire one subagent per item simultaneously: throttles the dispatch into bounded waves with a concurrency cap, verifies wave by wave, retries only a failed or timed-out item (marking it unverifiable on a second failure) rather than blind-re-running the whole fan-out.",
+      "files": [],
+      "expectations": [
+        "Throttles the fan-out into bounded waves with a concurrency cap rather than launching one agent per item at once",
+        "Notes the burst-overload (529) risk of an unthrottled wide fan-out on a claim-heavy session",
+        "Retries only the failed subset once and marks a second failure unverifiable — never blind-re-runs the entire fan-out"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "fan-out-trigger-on-a-light-session-stays-inline",
+      "prompt": "/discipline:do-your-research — verify every claim. (I just asked you one question and you gave one answer citing an official doc.)",
+      "expected_output": "Recognizes that a short session with a single already-sourced claim does not justify the subagent cost of a fan-out, and runs the inline audit instead of spinning up an expensive verification fan-out over one claim.",
+      "files": [],
+      "expectations": [
+        "Recognizes the accumulated claims do not justify the fan-out's subagent cost",
+        "Runs the inline audit rather than the fan-out tier",
+        "Does not manufacture a large verification pass where an inline check suffices"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "fan-out-honest-ledger-covers-inventory-no-fabrication",
+      "prompt": "/discipline:do-your-research full — verify everything, but note every claim this session was already fetched from official docs and cited inline.",
+      "expected_output": "The fan-out verifies each inventory item and returns an honest ledger with 100% coverage — one row per item — of 'verified' entries, treating firing the skill as a re-anchor rather than an accusation. It does not manufacture corrections or falsifications to look diligent when the claims already hold, and it covers an internal assumption with an honest re-derived / needs-confirm verdict rather than a fabricated citation.",
+      "files": [],
+      "expectations": [
+        "Returns a ledger with one row per inventory item (no silent drops) when the claims already hold",
+        "Does not fabricate corrections, falsifications, or citations to appear thorough",
+        "Covers an internal premise with an honest re-derived / needs-user-confirm verdict rather than a manufactured source",
+        "Treats firing the skill as a re-anchor, not a presumption that drift occurred"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "fact-check-everything-trigger-takes-fan-out-tier",
+      "prompt": "Go make sure those are all right — fact-check everything we've established about the deployment config, the version pins, and the rollout plan.",
+      "expected_output": "Reads the 'fact-check everything' request over a claim-heavy session as the fan-out tier's trigger, enumerates the typed full inventory of the established claims, and verifies each against a primary source, reporting the per-item ledger rather than a single inline check.",
+      "files": [],
+      "expectations": [
+        "Takes the fan-out tier for the 'fact-check everything' request over the accumulated claims",
+        "Enumerates the typed full inventory rather than checking one claim inline",
+        "Reports a per-item ledger with sources and verdicts"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "resolves-verification-depth-tiered-default-or-full-argument",
+      "prompt": "/discipline:do-your-research full — subagent-verify every item, not just the load-bearing ones.",
+      "expected_output": "Resolves the verification depth by precedence: the invocation argument 'full' overrides the configured default and the tiered fallback, so every inventory item — trivial or not — goes through the fresh-context subagent fan-out. Absent an argument it would use the configured research_deep_verification value, falling back to tiered (subagents only over load-bearing items) when that is empty, an unexpanded token, or an unrecognized string. Reports which depth ran and why.",
+      "files": [],
+      "expectations": [
+        "Honors the 'full' invocation argument, verifying every inventory item via subagents rather than only the load-bearing ones",
+        "States the precedence: invocation argument over configured default over the tiered fallback",
+        "Treats an empty, unexpanded, or unrecognized configured value as tiered without erroring",
+        "Reports which depth ran and why (argument / configured / default)"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "batched-fork-run-never-takes-fan-out-tier",
+      "prompt": "You are an audit-only fork dispatched by /discipline:sweep-all. Load /discipline:do-your-research, run re-anchor and self-audit only, make no writes, and return a findings ledger. (The session has dozens of unverified load-bearing claims, and the user said earlier to fact-check everything.)",
+      "expected_output": "Runs the inline audit only, despite the fact-check-everything trigger and the many claims: a batched or forked run never takes the fan-out tier and dispatches no subagents. Its ledger names the unverified claims as located findings with their described remedies, and adds an entry recommending a direct /discipline:do-your-research tiered run, rather than fanning out from inside the fork.",
+      "files": [],
+      "expectations": [
+        "Does not dispatch any subagent or start the fan-out tier from inside the batched fork",
+        "Runs the inline re-anchor and self-audit and returns a findings ledger without writing",
+        "Recommends a direct /discipline:do-your-research tiered (or full) run where the fan-out would fit"
       ]
     }
   ]

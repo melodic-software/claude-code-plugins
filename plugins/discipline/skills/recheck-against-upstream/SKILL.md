@@ -1,5 +1,6 @@
 ---
-description: "Re-anchor the discipline that existing state (config, code, docs, infra) is not evidence of its own correctness; audit it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', or at conversation start on config, infra, or integration work."
+description: "Re-anchor the discipline that existing state (config, code, docs, infra) is not evidence of its own correctness; audit it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', or at conversation start on config, infra, or integration work."
+argument-hint: "[fan-out] [scope]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -80,6 +81,33 @@ re-check that deliberate divergences still hold, and surface undocumented
 ones for the human with both options stated. Where your own reading of the
 docs is the suspected source of error, re-verify in a fresh-context
 subagent.
+
+## The fan-out tier
+
+The inline recheck of the surface in play is the default. Take the fan-out
+tier instead when the invocation argument is `fan-out`, or when the request
+covers a whole subsystem, framework, or repo that leans on many upstream
+contracts at once. The optional scope argument names what to cover. A single
+surface or a short session stays inline: there the fan-out's subagent cost
+buys nothing.
+
+**Never inside a batch or a fork.** When this skill runs as a member of a
+`/discipline:sweep-all` audit fork, or in any fork, run the inline recheck
+only, whatever the argument or trigger. Where the fan-out would fit, add a
+ledger entry recommending a direct `/discipline:recheck-against-upstream
+fan-out` run instead. The batch is audit-only and keeps its cost bounded by
+leaving fan-out tiers out, and a fork cannot spawn the forks a fan-out might
+reach for.
+
+- **Pointer**: what a fork may spawn,
+  [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+- **As of**: 2026-10-10.
+- **Recheck trigger**: that section changes what a fork may spawn.
+
+Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
+enumerating surfaces: it owns the doc-by-doc dispatch, the mid-run checkpoint,
+the divergence ledger, and work-item routing, and replaces the inline audit
+and correct-forward steps.
 
 ## Distinct axes. What this is NOT
 

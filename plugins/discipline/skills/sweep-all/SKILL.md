@@ -46,10 +46,17 @@ Glob the sibling corrector directories and read each one's
   situational correctors were included and which were skipped and why. A
   skip is always reported, never silent.
 - **never**. Excluded from the batch by execution or interaction class
-  (heavier fan-out tiers; correctors that need a non-fork fresh context or
-  stop to remediate with the user). Membership is whichever correctors
-  declare `discipline-batch: never`. Report that they exist (from the glob)
-  and are invoked directly, not batched.
+  (correctors that need a non-fork fresh context or stop to remediate with
+  the user). Membership is whichever correctors declare
+  `discipline-batch: never`. Report that they exist (from the glob) and are
+  invoked directly, not batched.
+
+**A batched member never runs its fan-out tier.** A corrector that carries a
+subagent fan-out tier behind an argument or trigger (`do-your-research`,
+`recheck-against-upstream`) runs only its inline audit inside an audit fork,
+and its ledger recommends a direct fan-out run where one would fit. The fork
+brief says so (step 1 of the batched pass), and each such corrector states the
+same rule in its own body.
 
 The **userConfig overlay** (see Configuration below) applies after tier
 resolution and can change the resolved set; report the net effect when it does.
@@ -162,8 +169,9 @@ never/core/unknown promote warning in that report, never silently drop them.
 - **Forks run at the parent model's cost.** An Agent-tool fork ignores a model
   override and inherits the whole conversation, so each in-scope corrector's
   audit runs at the parent model over the full transcript; the wave cap bounds
-  burst, not per-fork cost. Keeping the `never` tier out and relevance-gating
-  the situational tier are what hold the fan-out small. Order of magnitude from
+  burst, not per-fork cost. Keeping the `never` tier and every member's
+  fan-out tier out, and relevance-gating the situational tier, are what hold
+  the fan-out small. Order of magnitude from
   a real full-batch run on a mid-length session: each fork consumed
   ~170K tokens (inherited transcript), so an 8-in-scope pass ran ~1.4M tokens
   for the audit phase alone, plus one more fork for the proof-only canary.

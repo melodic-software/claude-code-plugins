@@ -48,6 +48,66 @@
         "States an explicit list of what was compared versus skipped",
         "Treats unverified conformance as unaudited rather than as a green result"
       ]
+    },
+    {
+      "id": 5,
+      "name": "fan-out-doc-by-doc-over-the-subsystem",
+      "prompt": "/discipline:recheck-against-upstream fan-out — our whole payments integration leans on a dozen of the vendor's API surfaces and config blocks, and none of it has been checked against the docs in months.",
+      "expected_output": "Takes the fan-out tier. Enumerates every upstream-dependent surface in the subsystem rather than spot-checking one, dispatches fresh-context (blind) subagents to fetch the CURRENT official upstream docs for each surface and classify its divergence per the gap/deliberate/undocumented taxonomy, then merges the returns into an inline divergence ledger keyed by surface with the resolving source.",
+      "files": [],
+      "expectations": [
+        "Enumerates all upstream-dependent surfaces rather than checking one",
+        "Fans out fresh-context subagents that fetch current upstream docs per surface, not recall",
+        "Reports an inline divergence ledger keyed by surface, category, and resolving source"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "fan-out-throttles-and-checkpoints-for-crash-safety",
+      "prompt": "Recheck the whole framework config against upstream — this is a big framework with dozens of config surfaces to compare.",
+      "expected_output": "Takes the fan-out tier. Throttles the dispatch into bounded waves with a concurrency cap rather than firing one agent per surface at once, notes the burst-overload (529) risk, retries only a failed surface once (marking a second failure unverifiable), and checkpoints the partial ledger to a durable topic-memory slice mid-run when one exists — proceeding without it when the session has no durable store rather than asserting a persistence surface.",
+      "files": [],
+      "expectations": [
+        "Throttles into bounded waves with a concurrency cap and notes the 529 burst-overload risk",
+        "Retries only the failed subset once and marks a second failure unverifiable rather than blind-re-running",
+        "Checkpoints the partial ledger mid-run only when a durable slice exists, degrading gracefully when absent"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "fan-out-offers-work-items-routing-and-degrades",
+      "prompt": "/discipline:recheck-against-upstream fan-out — audit the framework against upstream and help me turn what you find into trackable work.",
+      "expected_output": "After the fan-out, OFFERS to route category-1 (gap) and category-3 (undocumented) findings into tracked work items when a work-item capability is installed, degrading to a prose offer (a listed set of would-be items) when none is present. Category-2 (deliberate, still-valid) findings are report-only and are not routed unless the current docs have obsoleted them.",
+      "files": [],
+      "expectations": [
+        "Offers to route gap and undocumented findings to a work-item capability when installed",
+        "Degrades to a prose offer when no work-item capability is present rather than assuming a tracker",
+        "Keeps still-valid deliberate divergences report-only rather than routing them"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "single-surface-stays-inline",
+      "prompt": "/discipline:recheck-against-upstream — I just changed one setting in one config file; check it against the docs.",
+      "expected_output": "Recognizes that a single surface does not justify the subagent cost of a fan-out and runs the inline recheck instead of spinning up a broad verification pass over one surface.",
+      "files": [],
+      "expectations": [
+        "Recognizes a single surface does not justify the fan-out's subagent cost",
+        "Runs the inline recheck rather than the fan-out tier",
+        "Does not manufacture a broad fan-out where an inline recheck suffices"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "batched-fork-run-never-takes-fan-out-tier",
+      "prompt": "You are an audit-only fork dispatched by /discipline:sweep-all. Load /discipline:recheck-against-upstream, run re-anchor and self-audit only, make no writes, and return a findings ledger. (This session reworked a whole framework's configuration across dozens of upstream-dependent surfaces.)",
+      "expected_output": "Runs the inline recheck only, despite the whole-framework scope: a batched or forked run never takes the fan-out tier and dispatches no subagents. Its ledger names the surfaces it compared and those it skipped, and adds an entry recommending a direct /discipline:recheck-against-upstream fan-out run, rather than fanning out from inside the fork.",
+      "files": [],
+      "expectations": [
+        "Does not dispatch any subagent or start the fan-out tier from inside the batched fork",
+        "Runs the inline re-anchor and self-audit and returns a findings ledger without writing, with an explicit compared-versus-skipped list",
+        "Recommends a direct /discipline:recheck-against-upstream fan-out run where the fan-out would fit"
+      ]
     }
   ]
 }

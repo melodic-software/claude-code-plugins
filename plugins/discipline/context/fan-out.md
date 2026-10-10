@@ -1,7 +1,7 @@
 # Fresh-context fan-out
 
-Shared by the plugin's `-deep` tiers. Each one enumerates its own inventory
-(the base skill says what counts as an item) and hands every item to a
+Shared by the fan-out tiers of `do-your-research` and `recheck-against-upstream`.
+Each one enumerates its own inventory (the skill says what counts as an item) and hands every item to a
 fresh-context subagent; this file owns how that dispatch runs.
 
 - **Blind subagents, or it is not fresh context.** Hand each subagent the item

@@ -17,13 +17,11 @@ first-class use, and the audit may honestly return clean.
 
 - [What each skill does](#what-each-skill-does)
   - [do-your-research](#do-your-research)
-  - [do-your-research-deep](#do-your-research-deep)
   - [follow-our-standards](#follow-our-standards)
   - [point-dont-copy](#point-dont-copy)
   - [reason-dont-recite](#reason-dont-recite)
   - [tighten-your-output](#tighten-your-output)
   - [recheck-against-upstream](#recheck-against-upstream)
-  - [recheck-against-upstream-deep](#recheck-against-upstream-deep)
   - [pick-for-the-problem](#pick-for-the-problem)
   - [mind-your-maxims](#mind-your-maxims)
   - [script-the-deterministic-work](#script-the-deterministic-work)
@@ -42,14 +40,12 @@ first-class use, and the audit may honestly return clean.
 
 | Skill | Discipline it re-anchors |
 |---|---|
-| `/discipline:do-your-research` | Research and no-assumptions before assertion |
-| `/discipline:do-your-research-deep` | The verification-fan-out tier of do-your-research, a typed full inventory of the session's claims, verified at a configurable depth |
+| `/discipline:do-your-research` | Research and no-assumptions before assertion; its fan-out tier verifies a typed full inventory of the session's claims |
 | `/discipline:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/discipline:point-dont-copy` | Pointer over copy. Cite the living source, don't duplicate it |
 | `/discipline:reason-dont-recite` | Interrogate inherited content. Precedent describes, it doesn't justify |
 | `/discipline:tighten-your-output` | Terseness. Fewer words or lines with no loss of meaning or correctness |
-| `/discipline:recheck-against-upstream` | Existing state is not self-justifying. Audit config, code, and infra against current official upstream docs |
-| `/discipline:recheck-against-upstream-deep` | The fan-out tier of recheck-against-upstream. Subagents compare a whole subsystem against upstream, doc-by-doc |
+| `/discipline:recheck-against-upstream` | Existing state is not self-justifying. Audit config, code, and infra against current official upstream docs; its fan-out tier compares a whole subsystem doc-by-doc |
 | `/discipline:pick-for-the-problem` | Selection fitted to the problem, not reached for out of habit, availability, incumbency, or preconception |
 | `/discipline:mind-your-maxims` | Cooperative communication. Grice's maxims plus the AI-augmented transparency maxim |
 | `/discipline:script-the-deterministic-work` | Script deterministic sub-work. Run it, then reason over the output |
@@ -84,32 +80,25 @@ Pending recommendations are audited too: each is grounded per the
 and reported old → new → why, or unchanged with why; a consequential one that
 cannot be settled is withheld as an open question.
 
+Its **fan-out tier** takes over when the accumulated claims justify the
+subagent cost ("fact-check everything", "verify every claim", or a `tiered` /
+`full` argument). It enumerates a **typed full inventory** of the session's
+claims: assumptions, asserted facts, concrete specifics, load-bearing
+premises, and pending recommendations, as a checklist so coverage is
+provable, and has fresh-context subagents verify each against a primary
+source, throttled in bounded waves so a claim-heavy session does not trip a
+burst overload. It reports one ledger row per inventory item (no silent
+drops), each carrying verdict, source, source tier, consensus count, and
+recency. Depth is **configurable**: `tiered` by default (fan subagents out
+only over load-bearing items, resolve the rest inline) or `full`
+(subagent-verify every item), set via the `research_deep_verification`
+`userConfig` option and overridable by the invocation argument. Inside a
+`sweep-all` batch the skill never takes this tier.
+
 ```shell
 /discipline:do-your-research        # re-anchor + audit + correct
-```
-
-### do-your-research-deep
-
-The verification-fan-out tier of `do-your-research`. Same research
-discipline, heavier execution. Enumerates a **typed full inventory** of the
-session's claims: assumptions, asserted facts, concrete specifics,
-load-bearing premises, and pending recommendations, as a checklist so coverage is provable, and verifies
-each against a primary source, throttled in bounded waves so a claim-heavy
-session does not trip a burst overload. Reports one ledger row per inventory
-item (no silent drops), each carrying verdict, source, source tier, consensus
-count, and recency. Verification depth is **configurable** (this is the
-expensive tier by design): `tiered` by default (fan subagents out only over
-load-bearing items, resolve the rest inline) or `full` (subagent-verify every
-item), set via the `research_deep_verification` `userConfig` option and
-overridable by an invocation argument. Reserved for when the accumulated
-claims justify the subagent cost; for a single inline re-anchor + audit, use
-`do-your-research`. It is a sibling skill rather than a `deep` argument because
-the subagent fan-out is a heavier execution tier (mirrors the
-`/discovery:research-deep` precedent).
-
-```shell
-/discipline:do-your-research-deep         # typed inventory, verified at the configured depth
-/discipline:do-your-research-deep full    # override the default: subagent-verify every item
+/discipline:do-your-research tiered # fan-out tier: typed inventory, subagents over load-bearing items
+/discipline:do-your-research full   # fan-out tier: subagent-verify every item
 ```
 
 ### follow-our-standards
@@ -185,27 +174,19 @@ conformance is not "clean". A distinct axis from `reason-dont-recite`
 (internal precedent) and `follow-our-standards` (the org's own standards):
 this measures against the external vendor's docs.
 
-```shell
-/discipline:recheck-against-upstream        # re-anchor + audit + correct
-```
-
-### recheck-against-upstream-deep
-
-The fan-out tier of `recheck-against-upstream`. Same discipline, heavier
-execution. Enumerates every upstream-dependent surface in a subsystem,
-framework, or repo and dispatches fresh-context subagents doc-by-doc,
-throttled in bounded waves, to compare each against its current upstream
-docs, then reports an inline divergence ledger. Offers to route gap and
-undocumented findings to a work-items capability when one is installed
-(degrading to a prose offer); deliberate, still-valid divergences stay
-report-only. Checkpoints the partial ledger to a durable topic-memory slice
-mid-run when one exists, for crash safety, the only persistence it performs.
-It is a sibling skill rather than a `deep` argument because the subagent
-fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
-`/discovery:research-deep` precedent).
+Its **fan-out tier** covers a whole subsystem, framework, or repo: it
+enumerates every upstream-dependent surface and dispatches fresh-context
+subagents doc-by-doc, throttled in bounded waves, to compare each against its
+current upstream docs, then reports an inline divergence ledger. It offers to
+route gap and undocumented findings to a work-items capability when one is
+installed (degrading to a prose offer); deliberate, still-valid divergences
+stay report-only. It checkpoints the partial ledger to a durable topic-memory
+slice mid-run when one exists, for crash safety, the only persistence it
+performs. Inside a `sweep-all` batch the skill never takes this tier.
 
 ```shell
-/discipline:recheck-against-upstream-deep   # fan out subagents doc-by-doc over a subsystem
+/discipline:recheck-against-upstream                  # re-anchor + audit + correct
+/discipline:recheck-against-upstream fan-out <scope>  # fan out subagents doc-by-doc over a subsystem
 ```
 
 ### pick-for-the-problem
@@ -423,14 +404,14 @@ The correctors themselves are zero-config. Two skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that
 overlay batch membership without editing any corrector, each a comma-separated
 list of corrector names, empty by default (tiers run exactly as declared). And
-`do-your-research-deep` adds one that sets its verification depth:
+`do-your-research` adds one that sets its fan-out tier's verification depth:
 
 | Option | Effect |
 |---|---|
 | `batch_exclude` | Drop these correctors from the batch |
 | `batch_promote` | Run these situational correctors every session instead of gating them on relevance (situational-only; never/core/unknown warn and are not promoted) |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
-| `research_deep_verification` | `do-your-research-deep` verification depth. `tiered` is the default and fans subagents out only over load-bearing items; `full` subagent-verifies every item. An invocation argument overrides it |
+| `research_deep_verification` | `do-your-research` fan-out verification depth. `tiered` is the default and fans subagents out only over load-bearing items; `full` subagent-verifies every item. An invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
 (`/plugin configure discipline@<marketplace>`); they are personal scalars, not repository
@@ -458,7 +439,7 @@ reads it from.
 | `batch_exclude` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_EXCLUDE` | Comma-separated corrector skill names to drop from the posture batch (for example: point-dont-copy). Overrides the corrector's own declared tier. Empty runs the tiers exactly as the correctors declare them. |
 | `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. Situational-only: a never-tier, core, or unknown name draws a visible warning and is not promoted. |
 | `batch_demote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_DEMOTE` | Comma-separated core corrector skill names to run only when relevant to the conversation instead of every session. |
-| `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this. |
+| `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research's fan-out tier. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this. |
 
 ### How to set these
 
