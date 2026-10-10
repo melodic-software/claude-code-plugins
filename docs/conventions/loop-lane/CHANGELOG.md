@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.2.1] - 2026-10-10
+
+Patch. Rationale only; no tier binding, topology or invariant changed.
+
+- **Capability-tier re-audit for a new Haiku release (§3, Alias binding).** The `haiku` alias now
+  resolves, on some providers, to a model with the context window and knowledge cutoff the lanes
+  need, so the stated reason for excluding it holds only on the others. The exclusion stands; the
+  binding decision is open in
+  [#6856](https://github.com/melodic-software/claude-code-plugins/issues/6856).
+
 ## [10.2.0] - 2026-10-04
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

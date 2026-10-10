@@ -91,6 +91,32 @@
         "Does not apply the Sonnet 5 chapter, sonnet-5.md, or an Opus chapter in place of the Sonnet 5.5 file",
         "Does not treat the request as a /playbooks:update drift check"
       ]
+    },
+    {
+      "id": 8,
+      "name": "route-haiku-5-5-session-at-arm-time",
+      "prompt": "You are running as Claude Haiku 5.5. Load the playbook before you start this file sweep.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads the Haiku 5.5 model-adaptation chapter, haiku-5-5.md, at arm time. Does not read a Sonnet, Opus, or Fable chapter in its place or beside it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads haiku-5-5.md from the model-adaptation directory before continuing work",
+        "Does not read sonnet-5-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to haiku-5-5.md",
+        "Does not load every adaptation chapter in the directory"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "trigger-haiku-5-5-adaptation-chapter",
+      "prompt": "haiku 5.5 adaptation",
+      "expected_output": "Loads the Haiku 5.5 model-adaptation chapter for the current session rather than the whole playbook or another family's chapter.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Routes to the Haiku 5.5 adaptation chapter, haiku-5-5.md, not a generic 'read every adaptation file' dump",
+        "Does not apply a Sonnet or Opus chapter in place of the Haiku 5.5 file",
+        "Does not treat the request as a /playbooks:update drift check"
+      ]
     }
   ]
 }

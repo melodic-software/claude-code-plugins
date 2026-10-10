@@ -88,7 +88,7 @@ the user's ambient tool grants; `--allowedTools Read` keeps the authorized read 
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report
 `Not logged in · Please run /login` and fail on an **OAuth-login** install, because it drops the login
 credential state. Enable it only where auth is an env-var API key that survives it. The dominant cost
-lever is the **model** (`observer_analysis_model`, default the cheapest active tier); `--bare` is a
+lever is the **model** (`observer_analysis_model`, default the dated pin `claude-haiku-4-5`); `--bare` is a
 secondary, environment-dependent one.
 
 ## Config surface (userConfig)

@@ -48,7 +48,7 @@
     "observer_analysis_model": {
       "type": "string",
       "title": "Observer analysis model",
-      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth.",
+      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default is the dated pin claude-haiku-4-5; pin a different ID to change cost and depth.",
       "default": "claude-haiku-4-5"
     },
     "observer_analysis_bare": {
