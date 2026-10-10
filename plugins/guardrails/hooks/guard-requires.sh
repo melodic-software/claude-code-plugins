@@ -81,9 +81,13 @@ declare -A GUARD_FIELDS=(
 # the two Edit verifiers on the PostToolUse lane. `.scratchpad_dir` is read by
 # block-root-delete-target in its own call, only when a recursive delete has a
 # target to judge, so the Bash lane does not pay for it on every command.
+# block-hook-bypass reads `.tool_input.run_in_background`, `.session_id` and
+# `.tool_use_id` in its own call, only when a write is about to be left to the
+# shell file-change check, for the same reason.
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS_UNPRIMED=(
+  ["block-hook-bypass.sh"]=$'.tool_input.run_in_background\n.session_id\n.tool_use_id'
   ["block-root-delete-target.sh"]='.scratchpad_dir'
   ["hardcoded-path-check.sh"]='.tool_input.files | length'
   ["secret-pattern-detection.sh"]='.tool_input.files | length'
