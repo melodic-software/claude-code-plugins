@@ -28,6 +28,9 @@ cat >"$JIRA_FIX/1.body" <<'JSON'
 {"key":"SW2-12345","fields":{"summary":"Do the thing","status":{"statusCategory":{"key":"indeterminate"}},"assignee":{"accountId":"acc-1"},"labels":["backend","urgent"],"issuetype":{"name":"Task"},"parent":{"key":"SW2-100"},"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-9","fields":{"status":{"statusCategory":{"key":"new"}}}}},{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-8","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}}
 JSON
 printf '200' >"$JIRA_FIX/1.status"
+# Call 2 is the resolution lookup for the done blocker SW2-8: resolved as Done.
+printf '{"issues":[{"key":"SW2-8","fields":{"resolution":{"name":"Done"}}}]}' >"$JIRA_FIX/2.body"
+printf '200' >"$JIRA_FIX/2.status"
 
 jira_run "$S" "jira:test.atlassian.net/SW2#12345"
 assert_eq "get-item happy path exit 0" "0" "$RC"
@@ -38,11 +41,68 @@ assert_eq "state open (indeterminate)" "open" "$(jq -r '.state' <<<"$OUT")"
 assert_eq "assignee accountId" "acc-1" "$(jq -r '.assignees[0]' <<<"$OUT")"
 assert_eq "labels verbatim" "backend,urgent" "$(jq -r '.labels | join(",")' <<<"$OUT")"
 assert_eq "type name" "Task" "$(jq -r '.type' <<<"$OUT")"
-assert_eq "blocked_by_count OPEN-only" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
-assert_eq "blocked_by_wont_do_count is 0 (resolution unreadable)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+assert_eq "blocked_by_count: a Done-resolved blocker is resolved" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+assert_eq "blocked_by_wont_do_count 0 for a Done resolution" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 assert_eq "parent_id qualified" "jira:test.atlassian.net/SW2#100" "$(jq -r '.parent_id' <<<"$OUT")"
 assert_eq "url is browse link" "https://test.atlassian.net/browse/SW2-12345" "$(jq -r '.url' <<<"$OUT")"
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac
+lookup="$(awk '/^--data$/{getline; print; exit}' "$JIRA_FIX/2.args")"
+assert_eq "resolution lookup JQL names only the done blocker" 'key in ("SW2-8")' "$(jq -r '.jql' <<<"$lookup")"
+assert_eq "resolution lookup asks for the resolution field" '["resolution"]' "$(jq -c '.fields' <<<"$lookup")"
+
+# --- won't-do: a done blocker whose resolution is in wont_do_resolutions ---
+# with_lookup <resolution-lookup-body> <status> — run the happy-path issue with
+# call 2 answered by the given body and status; sets OUT.
+with_lookup() {
+  printf '%s' "$1" >"$JIRA_FIX/2.body"
+  printf '%s' "$2" >"$JIRA_FIX/2.status"
+  jira_run "$S" "jira:test.atlassian.net/SW2#12345"
+}
+with_lookup '{"issues":[{"key":"SW2-8","fields":{"resolution":{"name":"Won\u0027t Do"}}}]}' 200
+assert_eq "Won't Do blocker keeps blocking" "2" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+assert_eq "Won't Do blocker is counted as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+with_lookup '{"issues":[{"key":"SW2-8","fields":{"resolution":{"name":"duplicate"}}}]}' 200
+assert_eq "Duplicate matches case-insensitively" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+with_lookup '{"issues":[{"key":"SW2-8","fields":{"resolution":null}}]}' 200
+assert_eq "a done blocker with no resolution is resolved" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+
+# A failed lookup, or one that does not return the blocker, fails closed: the done
+# blocker keeps blocking without counting as won't-do, and the item still emits.
+with_lookup '{"errorMessages":["boom"]}' 500
+assert_eq "failed lookup still exits 0" "0" "$RC"
+assert_eq "failed lookup keeps the done blocker blocking" "2" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+assert_eq "failed lookup counts no won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+with_lookup '{"issues":[]}' 200
+assert_eq "a blocker the lookup did not return keeps blocking" "2" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+
+# A binding override names the instance's own resolutions; an empty list turns the
+# lookup off, so the done blocker is resolved with no second request.
+jira_write_binding '["SW2"]' '{"wont_do_resolutions":["Abandoned"]}'
+with_lookup '{"issues":[{"key":"SW2-8","fields":{"resolution":{"name":"Abandoned"}}}]}' 200
+assert_eq "an overridden resolution name counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+with_lookup '{"issues":[{"key":"SW2-8","fields":{"resolution":{"name":"Won\u0027t Do"}}}]}' 200
+assert_eq "the override replaces the default list" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+jira_write_binding '["SW2"]' '{"wont_do_resolutions":[]}'
+jira_run "$S" "jira:test.atlassian.net/SW2#12345"
+assert_eq "empty wont_do_resolutions makes one request" "1" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "empty wont_do_resolutions leaves the done blocker resolved" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+jira_write_binding '["SW2"]' '{"wont_do_resolutions":"Won\u0027t Do"}'
+jira_run "$S" "jira:test.atlassian.net/SW2#12345"
+assert_eq "non-array wont_do_resolutions → config (3)" "3" "$RC"
+jira_write_binding '["SW2"]' '{"wont_do_resolutions":[""]}'
+jira_run "$S" "jira:test.atlassian.net/SW2#12345"
+assert_eq "empty-string wont_do_resolutions element → config (3)" "3" "$RC"
+
+# A done blocker outside project_keys is never looked up (the declared read scope) and
+# stays resolved.
+jira_write_binding '["SW2"]'
+cat >"$JIRA_FIX/1.body" <<'JSON'
+{"key":"SW2-12346","fields":{"summary":"Cross-project","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"OTHER-3","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}}
+JSON
+jira_run "$S" "jira:test.atlassian.net/SW2#12346"
+assert_eq "out-of-scope done blocker makes no lookup" "1" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "out-of-scope done blocker is resolved" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status"
 
 # --- state mapping: a done-category issue normalizes to closed ---
 cat >"$JIRA_FIX/1.body" <<'JSON'

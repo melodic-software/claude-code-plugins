@@ -65,6 +65,12 @@ readonly WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE="Blocks"
 # does not flow into an exported variable as shell-quoted text (would trip SC2089/2090).
 WIT_JIRA_DEFAULT_DONE_KEYS="$(jq -cn '["done","completed"]')"
 readonly WIT_JIRA_DEFAULT_DONE_KEYS
+# Resolutions that mark a done blocker as won't-do, matched case-insensitively. Jira
+# admins can rename or add resolutions, so the binding may override the list; an empty
+# list turns won't-do detection off. "Duplicate" is in the default because the GitHub
+# adapter counts a DUPLICATE close as won't-do.
+WIT_JIRA_DEFAULT_WONT_DO_RESOLUTIONS="$(jq -cn '["Won\u0027t Do","Duplicate"]')"
+readonly WIT_JIRA_DEFAULT_WONT_DO_RESOLUTIONS
 
 # Values interpolated into a JQL query (project keys, statusCategory keys) are
 # constrained to a strict allowlist BEFORE interpolation — the seam builds JQL by
@@ -75,6 +81,9 @@ readonly WIT_JIRA_DEFAULT_DONE_KEYS
 # letter-led alphanumerics plus hyphen (e.g. `in-flight`). Anything else is refused.
 readonly WIT_JIRA_PROJECT_KEY_RE='^[A-Za-z][A-Za-z0-9_]*$'
 readonly WIT_JIRA_CATEGORY_KEY_RE='^[A-Za-z][A-Za-z0-9-]*$'
+# Blocker issue keys go into the resolution lookup's `key in (...)` clause, so they get
+# the same allowlist treatment.
+readonly WIT_JIRA_ISSUE_KEY_RE='^[A-Za-z][A-Za-z0-9_]*-[0-9]+$'
 
 # config.jira.site becomes the request host that receives the Basic-auth token, so it
 # must be a BARE hostname — no scheme, path, userinfo (`@`), port, or control chars —
@@ -136,7 +145,8 @@ wit_require_jira_id() {
 # config-free (mirrors local-markdown's wit_need_storage). Exits 3 when the binding
 # or a required key (site, non-empty project_keys, auth_email, auth_env) is missing.
 # Exports WIT_JIRA_SITE, WIT_JIRA_PROJECT_KEYS (JSON array), WIT_JIRA_AUTH_EMAIL,
-# WIT_JIRA_AUTH_ENV, WIT_JIRA_BLOCKED_BY_LINK_TYPE, WIT_JIRA_DONE_KEYS (JSON array).
+# WIT_JIRA_AUTH_ENV, WIT_JIRA_BLOCKED_BY_LINK_TYPE, WIT_JIRA_DONE_KEYS (JSON array),
+# WIT_JIRA_WONT_DO_RESOLUTIONS (JSON array).
 wit_need_jira_config() {
   local name binding ejson
   name="$(basename "${BASH_SOURCE[1]}")"
@@ -166,6 +176,12 @@ wit_need_jira_config() {
     WIT_JIRA_DONE_KEYS="$(jq -c '.config.jira.done_category_keys' <<<"$ejson")"
   else
     WIT_JIRA_DONE_KEYS="$WIT_JIRA_DEFAULT_DONE_KEYS"
+  fi
+  # Same presence read: a present value is judged below, never collapsed to the default.
+  if [[ "$(jq -r '.config.jira | has("wont_do_resolutions")' <<<"$ejson")" == "true" ]]; then
+    WIT_JIRA_WONT_DO_RESOLUTIONS="$(jq -c '.config.jira.wont_do_resolutions' <<<"$ejson")"
+  else
+    WIT_JIRA_WONT_DO_RESOLUTIONS="$WIT_JIRA_DEFAULT_WONT_DO_RESOLUTIONS"
   fi
   local allow_custom_domain
   allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' <<<"$ejson")"
@@ -212,6 +228,10 @@ wit_need_jira_config() {
   # already collapsed null into the default string).
   [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' <<<"$ejson")" != "bad" ]] ||
     bad+=" blocked_by_link_type(must be a non-empty string)"
+  # wont_do_resolutions is matched in jq, never interpolated into JQL, so any non-empty
+  # string is a valid name; an empty array is the explicit opt-out.
+  [[ "$(jq -r 'if type == "array" and all(.[]; type == "string" and length > 0) then "ok" else "bad" end' <<<"$WIT_JIRA_WONT_DO_RESOLUTIONS")" == "ok" ]] ||
+    bad+=" wont_do_resolutions(must be an array of non-empty strings)"
   # Every element (each project key, each done key) is checked IN jq so an empty or
   # non-string element cannot slip through — a bash line-loop loses trailing empty
   # elements to command-substitution newline stripping, so `[""]` would evade it.
@@ -235,7 +255,7 @@ wit_need_jira_config() {
       exit "$EX_CONFIG"
     }
   export WIT_JIRA_SITE WIT_JIRA_AUTH_EMAIL WIT_JIRA_AUTH_ENV WIT_JIRA_PROJECT_KEYS \
-    WIT_JIRA_BLOCKED_BY_LINK_TYPE WIT_JIRA_DONE_KEYS
+    WIT_JIRA_BLOCKED_BY_LINK_TYPE WIT_JIRA_DONE_KEYS WIT_JIRA_WONT_DO_RESOLUTIONS
 }
 
 # wit_jira_project_in_scope <project-key> — 0 when the key is in the binding's
@@ -334,22 +354,73 @@ readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,sum
 # file sees them as intentionally external.
 export WIT_JIRA_FIELDS
 
+# wit_jira_blocker_resolutions — stdin: one raw Jira IssueBean or an array of them;
+# stdout: a JSON object keyed by done inward-blocker key, each {read: true, name:
+# <resolution name or null>} or {read: false}. An issue link carries the blocker's
+# status but not its resolution, so the resolutions come from POST /search/jql with
+# fields=resolution, one query per 100 keys and none when there is no done blocker or
+# config.jira.wont_do_resolutions is empty. Only blockers in config.jira.project_keys
+# are looked up (the declared read scope); others are left out and stay resolved. A
+# failed query, or a key the search did not return, leaves {read: false}, which the
+# normalizer keeps blocking (fail closed); a warning goes to stderr.
+wit_jira_blocker_resolutions() {
+  local json keys n i chunk jql body out page res
+  json="$(cat)"
+  if [[ "$(jq 'length' <<<"$WIT_JIRA_WONT_DO_RESOLUTIONS")" == "0" ]]; then
+    printf '{}'
+    return 0
+  fi
+  keys="$(jq -c --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" --argjson dk "$WIT_JIRA_DONE_KEYS" \
+    --argjson pk "$WIT_JIRA_PROJECT_KEYS" --arg re "$WIT_JIRA_ISSUE_KEY_RE" '
+    [(if type == "array" then .[] else . end) | (.fields.issuelinks // [])[]
+      | select(.type.name == $blk and .inwardIssue != null) | .inwardIssue
+      | select(.fields.status.statusCategory.key as $bk | ($dk | index($bk)) != null) | .key
+      | select(type == "string" and test($re)) | select(split("-")[0] as $p | ($pk | index($p)) != null)]
+    | unique' <<<"$json")"
+  res="$(jq -c 'map({key: ., value: {read: false}}) | from_entries' <<<"$keys")"
+  n="$(jq 'length' <<<"$keys")"
+  for ((i = 0; i < n; i += 100)); do
+    chunk="$(jq -c --argjson i "$i" '.[$i:$i + 100]' <<<"$keys")"
+    jql="key in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$chunk"))"
+    body="$(jq -cn --arg jql "$jql" --argjson mr "$(jq 'length' <<<"$chunk")" \
+      '{jql: $jql, fields: ["resolution"], maxResults: $mr}')"
+    if out="$(wit_jira_http POST "/search/jql" "$body" 2>/dev/null && [[ "$WIT_JIRA_STATUS" == 2* ]] &&
+      printf '%s' "$WIT_JIRA_BODY")" &&
+      page="$(jq -ce 'if (.issues | type) == "array"
+        then [.issues[] | {key: .key, value: {read: true, name: (.fields.resolution.name // null)}}] | from_entries
+        else error("no issues array") end' <<<"$out" 2>/dev/null)"; then
+      res="$(jq -cn --argjson acc "$res" --argjson page "$page" \
+        '$acc + ($page | with_entries(select(.key as $k | $acc | has($k))))')"
+    else
+      echo "wit_jira_blocker_resolutions: resolution query failed; done blockers keep blocking" >&2
+    fi
+  done
+  printf '%s' "$res"
+}
+
 # wit_jira_normalize_program — a jq program that maps one raw Jira IssueBean into the
 # seam's normalized item object (CONTRACT.md "JSON output contract"). Expects jq args
 # $sv (schema version), $site (Cloud host), $dk (JSON array of done statusCategory
-# keys), $blk (blocker link-type name). blocked_by_count counts only OPEN inward
-# blockers. An issue link carries the blocker's status but not its resolution, so a
-# done blocker counts as resolved and won't-do detection is unsupported:
-# blocked_by_wont_do_count is always 0.
+# keys), $blk (blocker link-type name), $wd (config.jira.wont_do_resolutions), $res
+# (wit_jira_blocker_resolutions output). blocked_by_count counts OPEN inward blockers,
+# done blockers whose resolution is in $wd, and done blockers whose resolution lookup
+# failed; blocked_by_wont_do_count counts the ones whose resolution is in $wd.
 # WIT_JIRA_NORMALIZE_PROGRAM is consumed by the sourcing verb scripts (get-item,
 # list-items), not within this file — SC2034 is a false positive on a sourced-only
 # lib. It is a jq program string, so it is not exported (an exported quoted program
 # trips SC2089/2090); the disable marks it intentionally external instead.
-# shellcheck disable=SC2016,SC2034  # jq program — $sv/$site/$dk/$blk are jq args, not bash; used by verb scripts
+# shellcheck disable=SC2016,SC2034  # jq program — $sv/$site/$dk/$blk/$wd/$res are jq args, not bash; used by verb scripts
 readonly WIT_JIRA_NORMALIZE_PROGRAM='
   def keyparts: (capture("^(?<p>[A-Za-z][A-Za-z0-9_]*)-(?<n>[0-9]+)$")
     // error("jira: unparsable issue key: " + (. | tostring)));
   def qualify: (keyparts | "jira:" + $site + "/" + .p + "#" + .n);
+  def blockers: [(.fields.issuelinks // [])[]
+    | select(.type.name == $blk and (.inwardIssue != null)) | .inwardIssue];
+  def done: (.fields.status.statusCategory.key) as $bk | ($dk | index($bk)) != null;
+  def lookup: .key as $k | ($res[$k] // {read: true, name: null});
+  def wontdo: lookup as $l | $l.read and ($l.name | type) == "string"
+    and ([$wd[] | ascii_downcase] | index($l.name | ascii_downcase)) != null;
+  def unread: lookup | .read | not;
   {
     schema_version: $sv,
     id: (.key | qualify),
@@ -359,11 +430,8 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM='
     assignees: [ .fields.assignee.accountId // empty ],
     labels: (.fields.labels // []),
     type: (.fields.issuetype.name // null),
-    blocked_by_count: ([ (.fields.issuelinks // [])[]
-      | select(.type.name == $blk and (.inwardIssue != null))
-      | (.inwardIssue.fields.status.statusCategory.key) as $bk
-      | select( ($dk | index($bk)) | not ) ] | length),
-    blocked_by_wont_do_count: 0,
+    blocked_by_count: ([blockers[] | select((done | not) or unread or wontdo)] | length),
+    blocked_by_wont_do_count: ([blockers[] | select(done and wontdo)] | length),
     parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
     url: ("https://" + $site + "/browse/" + .key)
   }'

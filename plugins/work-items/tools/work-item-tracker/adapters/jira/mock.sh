@@ -31,14 +31,16 @@ MOCK
   chmod +x "$JIRA_FIX/curl"
 }
 
-# jira_write_binding <project-keys-json>: a valid jira binding declaring those keys as
-# the read scope.
+# jira_write_binding <project-keys-json> [<extra-jira-config-json>]: a valid jira
+# binding declaring those keys as the read scope, with any extra config.jira keys merged.
 jira_write_binding() {
-  jq -cn --argjson pk "$1" \
+  local extra="${2:-}"
+  [[ -n "$extra" ]] || extra='{}'
+  jq -cn --argjson pk "$1" --argjson extra "$extra" \
     '{schema_version:"1.0", provider:"jira",
       config:{lease_ttl_hours:24,
-        jira:{site:"test.atlassian.net", project_keys:$pk,
-          auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' \
+        jira:({site:"test.atlassian.net", project_keys:$pk,
+          auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"} + $extra)}}' \
     >"$JIRA_FIX/binding.json"
 }
 

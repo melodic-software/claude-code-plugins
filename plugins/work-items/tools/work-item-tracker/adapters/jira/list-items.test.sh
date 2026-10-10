@@ -162,6 +162,23 @@ printf '200' >"$JIRA_FIX/1.status"
 rc_for_jira "valid blocked_by_link_type accepted" "0" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:"Blocked By"}'
 
+# Won't-do blockers: one resolution lookup per page (call 2) covers every done blocker on
+# it. ABC-7 was closed Won't Do and keeps blocking SW2-2; SW2-4 was closed Done.
+cat >"$JIRA_FIX/1.body" <<'JSON'
+{"issues":[{"key":"SW2-2","fields":{"summary":"Dependent","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"ABC-7","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}},{"key":"SW2-3","fields":{"summary":"Unblocked","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-4","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}}],"nextPageToken":null,"isLast":true}
+JSON
+printf '200' >"$JIRA_FIX/1.status"
+printf '{"issues":[{"key":"ABC-7","fields":{"resolution":{"name":"Won\u0027t Do"}}},{"key":"SW2-4","fields":{"resolution":{"name":"Done"}}}]}' >"$JIRA_FIX/2.body"
+printf '200' >"$JIRA_FIX/2.status"
+jira_run "$S" --state open
+assert_eq "won't-do page exit 0" "0" "$RC"
+assert_eq "one search plus one resolution lookup" "2" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "lookup names both done blockers" 'key in ("ABC-7","SW2-4")' \
+  "$(jq -r '.jql' <<<"$(awk '/^--data$/{getline; print; exit}' "$JIRA_FIX/2.args")")"
+assert_eq "Won't Do blocker keeps its dependent blocked" "1/1" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+assert_eq "Done blocker resolves its dependent" "0/0" "$(jq -r '.items[1] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status"
+
 # A single empty page (no token) terminates cleanly with an empty envelope.
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"

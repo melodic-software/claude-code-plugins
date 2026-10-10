@@ -43,11 +43,16 @@ wit_jira_require_ok "get-item $id"
   exit "$EX_UNAVAILABLE"
 }
 
+# Done blockers' resolutions decide which of them are won't-do (a second request only
+# when the issue has a done blocker; a failed lookup keeps those blockers blocking).
+res="$(wit_jira_blocker_resolutions <<<"$WIT_JIRA_BODY")"
+
 # Normalize with an explicit exit check: a body whose key the parser rejects makes jq
 # fail, which would otherwise surface as a bare non-zero exit — map it to exit 8 (the
 # provider returned an issue we cannot represent) with a clear message.
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
   --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
+  --argjson wd "$WIT_JIRA_WONT_DO_RESOLUTIONS" --argjson res "$res" \
   "$WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY" || {
   printf 'get-item: %s response could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
   exit "$EX_UNAVAILABLE"

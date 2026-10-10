@@ -333,14 +333,16 @@ Normalized item object:
   | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
   | Linear | state type `completed`, while `done_state_types` lists it | other done types (`canceled`, `duplicate`) |
   | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
-  | Jira, Gitea | any closed blocker (won't-do detection unsupported) | none |
+  | Jira | done-category blocker whose resolution is not in `wont_do_resolutions` | resolution in `wont_do_resolutions` (default `Won't Do`, `Duplicate`) |
+  | Gitea | any closed blocker (won't-do detection unsupported) | none |
 
   GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
   blockedBy` projection has no `stateReason`, so the adapter reads each closed blocker's
   `stateReason` through `gh api graphql`. When that query fails, or returns no node for a
   blocker, the closed blocker keeps blocking (fail closed) without counting as won't-do,
   and a warning goes to stderr. A `null` reason is an issue closed before GitHub recorded
-  reasons.
+  reasons. Jira reads done blockers' resolutions the same way and fails closed the same
+  way ("jira adapter" below).
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
@@ -701,7 +703,8 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
         "auth_email": "ci@company.com",
         "auth_env": "JIRA_API_TOKEN",
         "blocked_by_link_type": "Blocks",
-        "done_category_keys": ["done", "completed"]
+        "done_category_keys": ["done", "completed"],
+        "wont_do_resolutions": ["Won't Do", "Duplicate"]
       }
     }
   }
@@ -721,16 +724,28 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
   with real instances, and both known keys are defaulted so the adapter is independent of that
-  deferred fact).
+  deferred fact). `wont_do_resolutions` (default `["Won't Do", "Duplicate"]`, matched
+  case-insensitively; a present value must be an array of non-empty strings, exit `3`; `[]`
+  turns won't-do detection off) names the resolutions that mark a done blocker as won't-do.
+  Jira admins can rename and add resolutions
+  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
+  as of 2026-10-10; recheck when an instance's resolution names change), so the names are a
+  team binding key, not plugin config. `Duplicate` is in the default because the GitHub
+  adapter counts a `DUPLICATE` close as won't-do.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
   them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
-  `blocked_by_link_type` links only (the linked issue's status is inlined in `issuelinks`, so
-  no second round-trip); won't-do detection is unsupported, because `issuelinks` carries no
-  resolution, so `blocked_by_wont_do_count` is `0` (a follow-up could fetch done blockers'
-  resolutions under a binding key naming the completed ones); `parent_id` comes from
+  `blocked_by_link_type` links (the linked issue's status is inlined in `issuelinks`) plus
+  done ones whose resolution is in `wont_do_resolutions`, and `blocked_by_wont_do_count`
+  counts those won't-do ones. `issuelinks` carries no resolution, so after normalizing a
+  page (or one issue) the adapter reads every done blocker's resolution in one
+  `POST /search/jql` (`key in (...)`, `fields: ["resolution"]`, up to 100 keys per query),
+  skipped when there is no done blocker or the list is empty. Only blockers in
+  `project_keys` are looked up; a done blocker in another project stays resolved. When the
+  lookup fails, or does not return a blocker, that done blocker keeps blocking (fail closed)
+  without counting as won't-do, and a warning goes to stderr; `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.

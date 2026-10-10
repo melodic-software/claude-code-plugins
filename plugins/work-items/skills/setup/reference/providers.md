@@ -108,7 +108,7 @@ than starting from a blank file.
 |---|---|---|
 | `lease_ttl_hours` | every provider | Claim-lease lifetime in hours. RECOMMENDED `24`. |
 | `storage_dir` | `local-markdown` | The item-store directory. |
-| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults. |
+| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults; optional `wont_do_resolutions` (default `["Won't Do","Duplicate"]`) names the resolutions that make a done blocker won't-do. |
 | `gitea` | `gitea` | `host` (bare hostname), non-empty `scopes[]` (each `owner/repo`, the declared read scope **and** the authorization boundary), `auth_env`. Optional `page_size` (default 50, which you lower if the instance sets `api.MAX_RESPONSE_ITEMS` below that), `host_suffix` (your own egress pin; Gitea is self-hosted, so there is no vendor-domain default), `allow_custom_domain`. |
 | `linear` | `linear` | `host` (`api.linear.app`), non-empty `scopes[]` (each `<workspace>/<TEAMKEY>`, all sharing one workspace), `auth_env`. Optional `done_state_types` (which `WorkflowState.type` values count as closed; default `completed`/`canceled`/`duplicate`), `page_size`, `host_suffix`, `allow_custom_domain`. |
 
