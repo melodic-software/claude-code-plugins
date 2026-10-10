@@ -66,12 +66,12 @@
     },
     {
       "id": 6,
-      "name": "skips-truly-mechanical-work",
+      "name": "skips-quick-change-typo",
       "prompt": "/planning:interview I need to fix a single spelling typo in a code comment in utils.ts — no behavior change, just correcting one misspelled word.",
-      "expected_output": "The skill recognizes this as truly mechanical (a comment typo, no behavior change) and declines to gate it with an interview, telling the user it needs no brief.",
+      "expected_output": "The skill recognizes the diff as quick to review and cheap to retry (a comment typo) and declines to gate it with an interview, telling the user it needs no brief.",
       "files": [],
       "expectations": [
-        "Output identifies the task as mechanical / non-behavioral (a comment typo)",
+        "Output identifies the diff as quick to review and cheap to retry",
         "Output does NOT run a Q&A loop or produce a Brief for it",
         "Output tells the user the task does not warrant an interview"
       ]
@@ -400,6 +400,18 @@
         "The offer lets the user connect Teams or answer by hand, and the on-call channel question is registered open, not answered or assumed",
         "The digest-scope question (every open incident or only SEV1 and SEV2) is asked with a recommendation and is not resolved by the agent",
         "No lookup calls a write tool on the Linear MCP server or posts anything to Teams"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "skips-quick-behavior-change",
+      "prompt": "/planning:interview Change the default page size in listUsers() from 20 to 50. It is one constant in one file, and we can flip it back in a minute if anyone complains.",
+      "expected_output": "The change alters behavior but its diff is quick to review and cheap to retry, so the skill does not gate it: it says to build it, review the diff, and align there, and runs no Q&A loop and writes no Brief.",
+      "files": [],
+      "expectations": [
+        "Output does NOT run a Q&A loop or produce a Brief",
+        "Output says the change can be built directly and aligned on after the diff is reviewed",
+        "Output does not treat the behavior change alone as a reason to interview"
       ]
     }
   ]

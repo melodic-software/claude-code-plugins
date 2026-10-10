@@ -1,0 +1,19 @@
+// good-for: rule-source-text-read
+// reads: routes/_app.pitches.$pitchId.tsx
+// A const-held route path that is never read as text: the test imports the
+// module through it and checks what its loader returns.
+import path from "node:path";
+import { expect, it } from "vitest";
+
+const PITCH_DETAIL_PATH = path.join(
+  __dirname,
+  "..",
+  "routes",
+  "_app.pitches.$pitchId.tsx",
+);
+
+it("loads the pitch for the route param", async () => {
+  const route = await import(PITCH_DETAIL_PATH);
+  const data = await route.loader({ params: { pitchId: "p1" } });
+  expect(data.pitch.id).toBe("p1");
+});

@@ -30,7 +30,7 @@ and has no corpus file.
 | Id | Source | Rule or judge | Phase | Fixture |
 |---|---|---|---|---|
 | T1 | talk | rule-constant-restatement | 4a | `js-vitest/bad/vitest-post-limit-restated.test.ts.fixture` |
-| T2 | talk | rule-source-text-read | 4a | `js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture` |
+| T2 | talk | rule-source-text-read | 4a | `js-vitest/bad/vitest-pitch-detail-source-order-verbatim.test.ts.fixture` (verbatim, imports added), `js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture` (simplified) |
 | T3 | talk | judge: Release 2 judge calibration candidate | Release 2 | none |
 | M1 | tests.md | rule-mock-only-oracle | 4a | `js-jest/bad/jest-checkout-calls-payment-verbatim.test.ts.fixture` (verbatim, invalid Jest), `js-jest/bad/jest-checkout-calls-payment.test.ts.fixture` (corrected) |
 | M2 | tests.md | judge: Release 2 judge calibration candidate | Release 2 | none |
