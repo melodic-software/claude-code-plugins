@@ -160,22 +160,6 @@
       "why": "brief probe in prose"
     },
     {
-      "answer": "FINDING [clipping]: none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [clipping]: None.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [clipping]: N/A\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [clipping]: na\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [clipping]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -186,22 +170,6 @@
     {
       "answer": "FINDING [clipping]: –\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [clipping]: - none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [clipping]: (none)\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [clipping]: \"none\"\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [clipping]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     }
   ]
 }

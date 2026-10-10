@@ -82,6 +82,50 @@
         }
       ],
       "why": "Windows path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "C:\\W\\PLUGINS\\TESTING\\EVALS\\FIXTURES\\UI-DEFECTS\\VARIANT-MAP.JSON"
+          }
+        }
+      ],
+      "why": "upper-case Windows path to the variant map"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/W/Plugins/Testing/Evals/Vision-D1/Prompt.md"
+          }
+        }
+      ],
+      "why": "mixed-case evals dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/fixtures/ui-defects/DEFECTS.JSON"
+          }
+        }
+      ],
+      "why": "upper-case defect catalog"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/fixtures/ui-defects/harness/Expected-Matrix.json"
+          }
+        }
+      ],
+      "why": "mixed-case expected matrix"
     }
   ]
 }

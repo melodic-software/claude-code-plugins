@@ -154,22 +154,6 @@
       "why": "brief probe in prose"
     },
     {
-      "answer": "FINDING [overflow]: none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overflow]: None.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overflow]: N/A\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overflow]: na\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [overflow]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -180,22 +164,6 @@
     {
       "answer": "FINDING [overflow]: –\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overflow]: - none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overflow]: (none)\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overflow]: \"none\"\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overflow]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     }
   ]
 }

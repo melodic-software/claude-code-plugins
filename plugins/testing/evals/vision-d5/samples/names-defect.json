@@ -151,22 +151,6 @@
       "why": "brief probe in prose"
     },
     {
-      "answer": "FINDING [layout-shift]: none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: None.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: N/A\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: na\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [layout-shift]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -177,22 +161,6 @@
     {
       "answer": "FINDING [layout-shift]: –\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: - none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [layout-shift]: (none)\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: \"none\"\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [layout-shift]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     }
   ]
 }

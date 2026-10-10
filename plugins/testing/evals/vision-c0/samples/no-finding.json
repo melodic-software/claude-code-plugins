@@ -1,6 +1,14 @@
 {
   "pass": [
     {
+      "answer": "**Findings**\nNone.\nVERDICT: CONFIRMED",
+      "why": "plural Findings heading"
+    },
+    {
+      "answer": "## Findings (none)\nVERDICT: CONFIRMED",
+      "why": "plural Findings heading with a parenthesis"
+    },
+    {
       "answer": "VERDICT: CONFIRMED"
     },
     {

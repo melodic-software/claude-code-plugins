@@ -160,22 +160,6 @@
       "why": "brief probe in prose"
     },
     {
-      "answer": "FINDING [overlap]: none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: None.\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: N/A\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: na\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
       "answer": "FINDING [overlap]: -\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
     },
@@ -186,22 +170,6 @@
     {
       "answer": "FINDING [overlap]: –\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: - none\nVERDICT: NEEDS WORK",
-      "why": "denial body, not a finding"
-    },
-    {
-      "answer": "FINDING [overlap]: (none)\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: \"none\"\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
-    },
-    {
-      "answer": "FINDING [overlap]: n/a.\nVERDICT: NEEDS WORK",
-      "why": "denial anywhere in the body"
     }
   ]
 }

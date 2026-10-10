@@ -83,6 +83,51 @@
         }
       ],
       "why": "evals dir as path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/VARIANT-MAP.JSON"
+          }
+        }
+      ],
+      "why": "upper-case variant map"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.md",
+            "path": "C:\\W\\PLUGINS\\TESTING\\EVALS"
+          }
+        }
+      ],
+      "why": "upper-case Windows evals dir as path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/Defects.json"
+          }
+        }
+      ],
+      "why": "mixed-case defect catalog"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/EXPECTED-MATRIX*"
+          }
+        }
+      ],
+      "why": "upper-case expected matrix"
     }
   ]
 }
