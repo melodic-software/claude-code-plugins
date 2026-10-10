@@ -10,6 +10,15 @@ import {
 const NO_PATTERNS = { retryable: [], fatal: [], loginRequired: [] };
 
 describe("isCookieProfileRetryableError", () => {
+  it("matches yt-dlp's locked Chrome cookie database error (issue #6816)", () => {
+    expect(
+      isCookieProfileRetryableError(
+        "ERROR: Could not copy Chrome cookie database. See  https://github.com/yt-dlp/yt-dlp/issues/7271  for more info",
+        NO_PATTERNS,
+      ),
+    ).toBe(true);
+  });
+
   it("matches unsupported browser cookie extraction regardless of source patterns", () => {
     expect(isCookieProfileRetryableError("ERROR: unsupported browser: phantom", NO_PATTERNS)).toBe(
       true,

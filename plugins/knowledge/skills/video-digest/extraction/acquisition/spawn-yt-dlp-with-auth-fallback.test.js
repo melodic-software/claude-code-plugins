@@ -84,6 +84,45 @@ describe("spawnYtDlpWithAuthFallback", () => {
     expect(spawn).toHaveBeenCalledTimes(1);
   });
 
+  it("advances past Edge and Chrome cookie-extraction failures to Firefox on Windows", async () => {
+    // stderr lines as yt-dlp printed them in the session reported in issue #6816.
+    const stderrByBrowser = {
+      edge: "ERROR: Failed to decrypt with DPAPI. See  https://github.com/yt-dlp/yt-dlp/issues/10927  for more info",
+      chrome:
+        "ERROR: Could not copy Chrome cookie database. See  https://github.com/yt-dlp/yt-dlp/issues/7271  for more info",
+    };
+    const spawn = vi.fn(async (_command, args) => {
+      const index = args.indexOf("--cookies-from-browser");
+      if (index === -1) return failedSpawn(BOT_ERROR);
+      const stderr = stderrByBrowser[args[index + 1]];
+      return stderr
+        ? failedSpawn(stderr)
+        : { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false };
+    });
+    const buildArgs = (override = {}) =>
+      override.cookiesFromBrowser
+        ? ["--cookies-from-browser", override.cookiesFromBrowser, "https://example.com"]
+        : ["https://example.com"];
+
+    const platform = Object.getOwnPropertyDescriptor(process, "platform");
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      const result = await spawnYtDlpWithAuthFallback(spawn, buildArgs, {
+        env: {},
+        source: FALLBACK_SOURCE,
+      });
+
+      expect(result.success).toBe(true);
+      const browsersTried = spawn.mock.calls
+        .map((call) => call[1])
+        .filter((args) => args.includes("--cookies-from-browser"))
+        .map((args) => args[args.indexOf("--cookies-from-browser") + 1]);
+      expect(browsersTried).toEqual(["edge", "chrome", "firefox"]);
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
+  });
+
   it("returns non-bot failures without cookie fallback", async () => {
     const spawn = vi.fn().mockResolvedValue(failedSpawn("video unavailable"));
 

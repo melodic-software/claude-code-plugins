@@ -4,7 +4,9 @@ Observed failure modes and their recovery behavior. Terse operational directives
 
 ## YouTube bot / sign-in check
 
-Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (platform order: Edge/Chrome on Windows). No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (on Windows: Edge, Chrome, Firefox, Brave, Chromium), moving to the next browser when one's cookies cannot be read. No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+
+On Windows, Edge and Chrome cookie extraction commonly fails (`Failed to decrypt with DPAPI`, or `Could not copy Chrome cookie database` while the browser is running), so the fallback usually lands on Firefox. When forcing one browser, Firefox or a cookies file is the reliable choice there.
 
 ## HTTP 429 throttling
 
