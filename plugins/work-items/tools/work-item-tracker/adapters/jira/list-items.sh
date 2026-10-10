@@ -112,7 +112,7 @@ emitted=0
     res="$(jq -c '.issues' <<<"$WIT_JIRA_BODY" | wit_jira_blocker_resolutions)"
     page_items="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
       --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
-      --argjson wd "$WIT_JIRA_WONT_DO_RESOLUTIONS" --argjson res "$res" \
+      --argjson res "$res" \
       ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY")" || {
       printf 'jira: list-items — an issue in a %s page could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
       exit "$EX_UNAVAILABLE"

@@ -146,7 +146,8 @@ user-global layer.
   credential from the merged view), and the self-describing `docs`
   pointer. Everything else is shared coordination state and team-layer-only: `provider`,
   `config.role_labels`, `config.container_label`, `config.storage_dir`,
-  `config.jira.site`/`project_keys` and the JQL-shaping keys. An overlay value for any such key is a
+  `config.jira.site`/`project_keys`, the JQL-shaping keys, and the won't-do classifiers
+  `config.jira.resolutions` and `config.github.wont_do_labels`. An overlay value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge, including a
   non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
   `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
@@ -330,19 +331,30 @@ Normalized item object:
 
   | Adapter | Resolved | Won't-do (blocks, counted) |
   |---|---|---|
-  | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
+  | GitHub | `stateReason` `COMPLETED` or `null`, carrying no `wont_do_labels` label | `NOT_PLANNED`, `DUPLICATE`, or any close carrying a `wont_do_labels` label |
   | Linear | state type `completed`, while `done_state_types` lists it | other done types (`canceled`, `duplicate`) |
   | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
-  | Jira | done-category blocker whose resolution is not in `wont_do_resolutions` | resolution in `wont_do_resolutions` (default `Won't Do`, `Duplicate`) |
+  | Jira | done-category blocker with no resolution, a resolution id in `resolutions.completed`, or any resolution when `resolutions` is absent | resolution id in `resolutions.wont_do` |
   | Gitea | any closed blocker (won't-do detection unsupported) | none |
 
+  No adapter carries a built-in list of a consumer's won't-do markers: Jira resolutions
+  and GitHub labels are named per tracker, so the team binding classifies them
+  (`config.jira.resolutions`, `config.github.wont_do_labels`, both optional and
+  written by `/work-items:setup`).
+
   GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
-  blockedBy` projection has no `stateReason`, so the adapter reads each closed blocker's
-  `stateReason` through `gh api graphql`. When that query fails, or returns no node for a
-  blocker, the closed blocker keeps blocking (fail closed) without counting as won't-do,
-  and a warning goes to stderr. A `null` reason is an issue closed before GitHub recorded
-  reasons. Jira reads done blockers' resolutions the same way and fails closed the same
-  way ("jira adapter" below).
+  blockedBy` projection has no `stateReason` or labels, so the adapter reads each closed
+  blocker's `stateReason` and labels through `gh api graphql`. The optional team binding
+  key `config.github.wont_do_labels` (an array of label names, no default, matched
+  case-insensitively; a present value must be an array of non-empty strings, exit `3`)
+  makes a closed blocker carrying any listed label won't-do whatever its `stateReason`,
+  for repos that mark won't-do with a label; absent, only the reasons above count. When
+  that query fails, or returns no node for a blocker, the closed blocker keeps blocking
+  (fail closed) without counting as won't-do, and a warning goes to stderr. A `null`
+  reason is an issue closed before GitHub recorded reasons. Jira reads done blockers'
+  resolutions with one extra search and fails closed the same way ("jira adapter"
+  below); it also keeps a done blocker blocking, without counting it as won't-do, when
+  its resolution id is in neither list.
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
@@ -704,7 +716,7 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
         "auth_env": "JIRA_API_TOKEN",
         "blocked_by_link_type": "Blocks",
         "done_category_keys": ["done", "completed"],
-        "wont_do_resolutions": ["Won't Do", "Duplicate"]
+        "resolutions": { "completed": ["10000"], "wont_do": ["10001", "10002"] }
       }
     }
   }
@@ -724,28 +736,38 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
   with real instances, and both known keys are defaulted so the adapter is independent of that
-  deferred fact). `wont_do_resolutions` (default `["Won't Do", "Duplicate"]`, matched
-  case-insensitively; a present value must be an array of non-empty strings, exit `3`; `[]`
-  turns won't-do detection off) names the resolutions that mark a done blocker as won't-do.
-  Jira admins can rename and add resolutions
+  deferred fact). `resolutions` classifies the instance's resolutions by **id**:
+  `completed` lists the ids that resolve a done blocker, `wont_do` the ids that make it
+  won't-do. It has no default and is team-binding only: absent, won't-do detection is off,
+  no resolution lookup is made, and every done blocker is resolved. A present value must
+  be an object with exactly those two keys, each an array of non-empty string ids, with no
+  id in both (exit `3` otherwise). Ids, not names, because Jira admins can rename, add,
+  and delete resolutions
   ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
-  as of 2026-10-10; recheck when an instance's resolution names change), so the names are a
-  team binding key, not plugin config. `Duplicate` is in the default because the GitHub
-  adapter counts a `DUPLICATE` close as won't-do.
+  as of 2026-10-10; recheck when that page changes how resolutions are identified), so no
+  name list fits every instance and a rename must not reclassify a resolution.
+  `/work-items:setup apply` writes the key from the instance's own resolution list.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
   them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
   `blocked_by_link_type` links (the linked issue's status is inlined in `issuelinks`) plus
-  done ones whose resolution is in `wont_do_resolutions`, and `blocked_by_wont_do_count`
-  counts those won't-do ones. `issuelinks` carries no resolution, so after normalizing a
-  page (or one issue) the adapter reads every done blocker's resolution in one
-  `POST /search/jql` (`key in (...)`, `fields: ["resolution"]`, up to 100 keys per query),
-  skipped when there is no done blocker or the list is empty. Only blockers in
-  `project_keys` are looked up; a done blocker in another project stays resolved. When the
-  lookup fails, or does not return a blocker, that done blocker keeps blocking (fail closed)
-  without counting as won't-do, and a warning goes to stderr; `parent_id` comes from
+  done ones that are not resolved, and `blocked_by_wont_do_count` counts the done ones whose
+  resolution id is in `resolutions.wont_do`. `issuelinks` carries no resolution, so when
+  `resolutions` is present the adapter reads every done blocker's resolution (`id` and
+  `name`) in one `POST /search/jql` per page, or per issue for `get-item` (`key in (...)`,
+  `fields: ["resolution"]`, up to 100 keys per query), skipped when there is no done
+  blocker. Only blockers in `project_keys` are looked up; a done blocker in another project
+  stays resolved. A done blocker with no resolution, or a resolution id in `completed`, is
+  resolved. One whose id is in neither list (a resolution added after setup) keeps
+  blocking (fail closed), is not counted as won't-do, and a stderr warning names the
+  resolution and its id. When a lookup query fails, every blocker in that query keeps
+  blocking without counting as won't-do: Jira answers a `key in (...)` naming one key it
+  cannot resolve (a deleted issue, say) with a `400` for the whole query, so one bad key
+  fails its whole chunk of up to 100 closed, with no retry. A blocker the search did not
+  return keeps blocking the same way. Both warn on stderr, and the second names the
+  missing keys; `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.

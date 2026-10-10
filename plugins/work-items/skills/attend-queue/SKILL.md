@@ -65,8 +65,13 @@ Build a single merged view, oldest first, each row tagged by kind:
 2. **`[ratify]`**, the subset of escalated items whose marker carries `kind=ratify-c3`: C3
    bug-fix-shaped admissions the worker loop queued for first-drain ratification (earn-trust
    posture; see `/work-items:work-loop`'s admission gate).
-3. **`[intake]`**. Untriaged raw intake, exactly the buckets `/work-items:triage`'s attention
-   view defines. Compose that view; do not re-derive its buckets here.
+3. **`[intake]`**. Untriaged raw intake: buckets 1-3 of `/work-items:triage`'s attention view
+   (unlabeled, raw marker, needs-info with a reporter reply). Compose that view; do not re-derive
+   its buckets here.
+4. **`[won't-do]`**, report-only. Bucket 4 of the same view (blocked by won't-do): items, often
+   already triaged, that wait on a blocker closed as won't-do. List them so the operator sees
+   them, but take no claim and make no change from this lane; the operator decides (drop the
+   edge, re-scope, or close) outside it.
 
 Lane-infrastructure items never enter the view, and this lane re-derives nothing to keep them out:
 the composed triage view already excludes the per-lane telemetry tracking issues (`/work-items:triage`,
@@ -74,7 +79,8 @@ the composed triage view already excludes the per-lane telemetry tracking issues
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,
-ratifications unblock the waiting worker loop).
+ratifications unblock the waiting worker loop). `[won't-do]` rows are listed after the worked
+rows and are never worked or claimed here.
 
 ## Row claim (before any mutation)
 

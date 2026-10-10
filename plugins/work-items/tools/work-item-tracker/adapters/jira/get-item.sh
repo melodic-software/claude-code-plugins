@@ -52,7 +52,7 @@ res="$(wit_jira_blocker_resolutions <<<"$WIT_JIRA_BODY")"
 # provider returned an issue we cannot represent) with a clear message.
 jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
   --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
-  --argjson wd "$WIT_JIRA_WONT_DO_RESOLUTIONS" --argjson res "$res" \
+  --argjson res "$res" \
   "$WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY" || {
   printf 'get-item: %s response could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
   exit "$EX_UNAVAILABLE"
