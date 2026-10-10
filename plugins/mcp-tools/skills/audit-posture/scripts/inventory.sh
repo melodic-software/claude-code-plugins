@@ -596,6 +596,7 @@ def ms_valid:
     and (any(.cfg | keys[]; IN(.; "command", "args", "env", "headersHelper")) | not)
     and (any(.cfg | .. | strings; contains("${")) | not)
   end;
+def is_sdk: (.cfg | if type == "object" then .type else null end) == "sdk";
 def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
 
 ([.[] | select(.scope != "managed-settings")]
@@ -604,10 +605,14 @@ def approved: . as $n | $meta.enableAll or any($meta.enabledJson[]; . == $n);
 | $rows[]
 | . as $r
 | ($r.scope | rank) as $rk
+# Claude Code skips a file-configured "type": "sdk" entry (reference/checklist.md,
+# "SDK entries"), so like a rejected entry it is never effective and shadows nothing.
 | (if $r.scope == "file" then null
-   else [$rows[] | select((.rejected | not) and .name == $r.name and (.scope | rank) > $rk)] | max_by(.scope | rank)
+   else [$rows[] | select((.rejected | not) and (is_sdk | not) and .name == $r.name and (.scope | rank) > $rk)]
+        | max_by(.scope | rank)
    end) as $w
 | (if $r.rejected then "rejected-by-client"
+   elif ($r | is_sdk) then "skipped-by-client"
    elif $managed and ($r.scope | overridable) then "suppressed-by-managed"
    elif ($r.scope | opt_out) and any($meta.disabled[]; . == $r.name) then "disabled"
    elif $r.scope == "project" and any($meta.disabledJson[]; . == $r.name) then "disabled"
