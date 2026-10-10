@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "chart-triggers-on-too-big-and-foggy-effort",
-      "prompt": "/planning:wayfind I want to overhaul our entire notification system — it's way too big to hold in my head, and honestly I don't even know all the questions yet, let alone the answers. Where do I even start?",
-      "expected_output": "No open work-map exists yet for this topic, so the empty/default action auto-detects chart mode. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) stays Not-yet-specified prose — rather than answering everything itself or refusing outright.",
+      "prompt": "/planning:wayfind We started interviewing the overhaul of our entire notification system earlier in this session, but every round opened more branches than it closed. It's way too big to hold in my head, and honestly I don't even know all the questions yet, let alone the answers. Turn this into a map.",
+      "expected_output": "No open work-map exists yet for this topic, so the empty/default action auto-detects chart mode. The effort was already interviewed, so the new-effort gate does not stop it. The skill surveys the effort and runs every uncertainty through the fog test — sharp (phraseable, even if unanswered) becomes a candidate decision item; foggy (can't yet be phrased) stays Not-yet-specified prose — rather than answering everything itself or refusing outright.",
       "files": [],
       "expectations": [
         "Output recognizes the effort as too-big-and-foggy and enters chart mode rather than work mode, since no open map exists yet for this topic",
@@ -111,6 +111,18 @@
         "Output does not add a Decisions-so-far line for the moot #47",
         "Output opens a new decision item that links #39 rather than reopening #39 or editing its resolution comment",
         "Output says #39's Decisions-so-far line is rewritten to point at the superseding decision when that decision resolves, instead of leaving two live answers to the same question"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "new-effort-goes-to-interview-first",
+      "prompt": "/planning:wayfind map out a rewrite of our search indexing pipeline. We haven't talked about it at all yet, it just feels big.",
+      "expected_output": "Nothing in the topic's memory slice or the conversation shows an interview of this effort, so the new-effort gate stops before charting and recommends /planning:interview first, saying the interview names /planning:wayfind if the effort outgrows one session. It creates no map issue and no decision items, and leaves the user free to ask for a map anyway.",
+      "files": [],
+      "expectations": [
+        "Output recommends /planning:interview as the first step for this effort",
+        "Output creates no map issue and no decision items",
+        "Output says wayfind is reached from the interview when the effort outgrows one session"
       ]
     }
   ]

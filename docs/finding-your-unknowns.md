@@ -76,29 +76,30 @@ metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
 The corpus composes its pre-implementation demos into one ordered flow, and this repo adds the
 design, PRD, and decompose passes its own stage ladder (`/session-flow:workflow`) carries. This
-repo ships a skill per pass; the composition itself is judgment, not a gate. Run the passes whose
-unknowns you actually have, in this order when you run several:
+repo ships a skill per pass; the composition itself is judgment, not a gate. New medium-large
+work starts at the interview; the passes before it run only when their unknown is present. Run
+the passes whose unknowns you actually have, in this order when you run several:
 
 1. **Blindspot pass**, `/discovery:blindspot`: surface unknown unknowns in the task's
    blast radius.
-2. **Wayfind** (conditional), `/planning:wayfind`: only when the effort is too big to hold at
-   once and still too foggy to phrase as decisions; it charts the fog until one of the later
-   passes can start.
-3. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
+2. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
-4. **PRD** (conditional), `/planning:prd`: only when the change is user-facing,
+3. **PRD** (conditional), `/planning:prd`: only when the change is user-facing,
    business-driven, and needs alignment on the problem, the users, and the success metrics.
-5. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
-   record.
-6. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
+4. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
+   record. When an interview outgrows one session because the effort is too big to hold at
+   once and still too foggy to phrase as decisions, escalate to **wayfind**,
+   `/planning:wayfind`, which charts a decision map from the interview's ledger and hands
+   back once the fog clears. Wayfind is never the first pass.
+5. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.
-7. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
+6. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
    contracts, and variation verdicts when the work adds types, contracts, modules, or a
    topology or data-model change; the handoff writes them into PLAN.md's `## Design`, which is
    how they reach the implementer. Work with no design question records a one-line early exit.
-8. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
-9. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
+7. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
+8. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
    independently shippable ticket; each ticket quotes its part of the design.
 
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
