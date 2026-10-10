@@ -36,13 +36,16 @@ GATE = Path(__file__).resolve().parent / "check-line-citations.py"
 TEN_LINES = "".join(f"line {n}\n" for n in range(1, 11))
 
 
-def run_gate(citing: str, citing_path: str = "docs/guide.md"):
+def run_gate(citing: str, citing_path: str = "docs/guide.md", extra=None):
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "scripts").mkdir()
         shutil.copy(GATE, root / "scripts" / GATE.name)
         (root / "src").mkdir()
         (root / "src" / "ten.py").write_text(TEN_LINES)
+        for rel, body in (extra or {}).items():
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text(body)
         doc = root / citing_path
         doc.parent.mkdir(parents=True, exist_ok=True)
         doc.write_text(citing)
@@ -74,6 +77,13 @@ class Fires(unittest.TestCase):
 
     def test_path_relative_to_citing_file(self):
         self.assert_fires("See `../ten.py:99`.\n", "src/docs/guide.md")
+
+    def test_past_end_of_every_candidate_names_the_longest(self):
+        code, out = run_gate(
+            "See `ten.py:11`.\n", extra={"ten.py": "a\nb\n", "docs/ten.py": TEN_LINES}
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("but docs/ten.py has 10 lines", out)
 
     def test_sentence_end_punctuation(self):
         self.assert_fires("The loop is at src/ten.py:11.\n")
@@ -110,6 +120,15 @@ class StaysQuiet(unittest.TestCase):
     def test_point_in_time_record(self):
         self.assert_quiet("Cut `src/ten.py:13-30`.\n", "docs/adr/0001-cut.md")
         self.assert_quiet("- Fixed `src/ten.py:99`.\n", "plugins/x/CHANGELOG.md")
+        self.assert_quiet("Cut `src/ten.py:99`.\n", "docs/upstream/x.md")
+        self.assert_quiet("- Fixed `src/ten.py:99`.\n", ".changes/testing/x.md")
+
+    def test_line_inside_the_longer_of_two_candidates(self):
+        # `ten.py` resolves at the root (2 lines) and beside the citing file (10).
+        code, out = run_gate(
+            "See `ten.py:9`.\n", extra={"ten.py": "a\nb\n", "docs/ten.py": TEN_LINES}
+        )
+        self.assertEqual(code, 0, out)
 
     def test_citation_after_a_closed_fence_still_fires(self):
         code, out = run_gate("```\nsrc/ten.py:99\n```\n\nSee `src/ten.py:99`.\n")

@@ -117,11 +117,12 @@ def scan(citing: Path, tracked: set, cache: dict) -> list:
             if not targets:
                 continue
             highest = max(int(n) for n in re.split(r"[-,]", match["spec"]))
-            longest = max(line_count(t, cache) for t in targets)
+            best = max(targets, key=lambda t: line_count(t, cache))
+            longest = line_count(best, cache)
             if highest > longest:
                 findings.append(
                     f"{citing.as_posix()}:{lineno}: `{match[0]}` cites line {highest}, "
-                    f"but {targets[0].relative_to(REPO_ROOT).as_posix()} has {longest} lines"
+                    f"but {best.relative_to(REPO_ROOT).as_posix()} has {longest} lines"
                 )
     return findings
 
