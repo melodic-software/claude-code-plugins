@@ -57,20 +57,15 @@ carries its own record.
 
 ### Grant every injected command
 
-An injected command runs only if the consumer's permission rules allow it, and injection never
-prompts, so a command the rules do not allow stops the skill from loading. We therefore:
+We design every injected command for the default permission mode, where a command the permission
+check refuses aborts the skill load. We therefore:
 
 - **Pre-approve every injected line in the skill's own `allowed-tools`**, with a rule narrow enough
-  to name that command. The grant has to cover each subcommand the rule matcher splits out of the
-  line, the fallback and any output cap included, not only the probe.
-- **Design for the default permission mode.** A skill must load for a consumer who is not in auto
-  mode; never rely on a mode where an unapproved command is handed to Claude instead of aborting.
+  to name that command, covering every subcommand on the line, the fallback and any output cap
+  included, not only the probe.
 - **Move a command out of `!` injection** into a body instruction Claude runs as a normal tool call
-  when a consumer's deny or ask rule could still match it, since those override the skill's grant,
-  or when no narrow rule covers it. A tool call can prompt; an injected command cannot.
-
-The `|| echo` fallback below does not help here: it handles a command that ran and failed, and a
-refused command never runs.
+  when a consumer's deny or ask rule could plausibly match it, or when no narrow rule covers it.
+- **Never treat the `|| echo` fallback below as the permission guard.** The grant is that guard.
 
 - **Pointer**: when deciding whether an injected command will load under a consumer's rules or
   permission mode, fetch
@@ -94,8 +89,7 @@ injected text
 read 2026-09-02; recheck when that section changes what counts as a failed injected command).
 Every injected command must therefore carry an explicit fallback, so a probe that
 runs and fails degrades the rendered skill to a known string instead of preventing the skill from
-loading at all. A command the permission check refuses never runs, so no fallback reaches it; the
-grant above covers that case:
+loading at all. Permission refusals are the grant's job, not the fallback's (see above):
 
 ```
 - Working tree: !`git status --short || echo "(git status unavailable)"`
