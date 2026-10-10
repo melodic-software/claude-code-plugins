@@ -24,7 +24,7 @@ against <https://code.claude.com/docs/en/memory> before relying on it.
 | User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
 | `--add-dir` CLAUDE.md/rules | `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md` in each added directory | Session start, ONLY when `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; off by default, and otherwise these files do not load at all |
 | `@` imports | `@path` inside CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | `./AGENTS.md`, `./.claude/AGENTS.md`, the same names in ancestor dirs; nested when Claude works with a file there (see [load triggers](#load-triggers)) | Session start, native since v2.1.277, but ONLY where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in cwd or above it, and only where support is available: the availability set is remote-flag gated and moves, so read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where either condition fails: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| AGENTS.md | `./AGENTS.md`, `./.claude/AGENTS.md`, the same names in ancestor dirs; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, native since v2.1.277, but ONLY where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in cwd or above it, and only where support is available: the availability set is remote-flag gated and moves, so read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where either condition fails: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `~/.claude/projects/<project>/memory/MEMORY.md` | Session start: first 200 lines or 25KB, whichever first |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
@@ -66,7 +66,7 @@ Source conflict: the changelog for v2.1.290 and the memory page's AGENTS.md sect
 what attaches a subdirectory AGENTS.md.
 
 - **Pointer**: when a placement depends on what attaches a subdirectory AGENTS.md, fetch
-  <https://code.claude.com/docs/en/memory#agents-md> and the v2.1.290 entry at
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agentsmd> and the v2.1.290 entry at
   <https://code.claude.com/docs/en/changelog> live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the memory page's AGENTS.md section changes what it says attaches a
