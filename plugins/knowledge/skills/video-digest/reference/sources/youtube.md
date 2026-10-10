@@ -31,13 +31,19 @@ Captions (transcript action and the caption leg of watch) use:
 Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scope for YouTube, and
 the caption ladder below deliberately falls through to them.
 
-**Caption ladder:** manual EN → auto EN → auto-translate EN → STOP and surface if exhausted.
+**Caption ladder:** manual EN → auto EN (the original `en-orig` before a bare auto `en`) →
+auto-translate EN → STOP and surface if exhausted. A track is manual only when info.json
+`subtitles` lists its key.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.
 
 **Comments and extractor args** are adapter-declared capabilities, not pipeline defaults. Both
 flags are pushed only because this adapter declares them. Comment harvest is on (the pinned
-comment feeds link harvest) with `--extractor-args youtube:max_comments=20,all,top;comment_sort=top`.
+comment feeds link harvest) with `--extractor-args youtube:max_comments=20,all,top;comment_sort=top;skip=translated_subs`.
+`skip=translated_subs` keeps translations of manual tracks (`en-de`, `en-en`) out of the caption
+download; the captions-only retry after an empty ladder lifts it so auto-translate EN stays reachable.
+A caption pass that exits non-zero still selects from the tracks already written, and the failed
+track's `ERROR:` line lands in `transcriptDegradation`.
 No extractor allow-list is declared: the youtube extractor resolves claimed URLs in-family, with
 no foreign delegation on the single-video path.
 

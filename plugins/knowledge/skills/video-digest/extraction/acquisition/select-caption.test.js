@@ -108,12 +108,22 @@ describe("selectCaptionFile", () => {
     }
   });
 
+  it("prefers the original en-orig track over a bare auto .en.vtt when no manual English exists (#6740)", () => {
+    const result = selectCaptionFile(["x.en.vtt", "x.en-orig.vtt"], "manual-and-auto", {
+      manualLanguages: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.path).toBe("x.en-orig.vtt");
+      expect(result.selection.rung).toBe("auto-en");
+      expect(result.selection.isAutoCaption).toBe(true);
+    }
+  });
+
   it("classifies a bare .en.vtt as auto-en when info.json lists no manual English subtitles", () => {
-    const result = selectCaptionFile(
-      ["/w/_U-O5lYhJ7Q.en.vtt", "/w/_U-O5lYhJ7Q.en-orig.vtt"],
-      "manual-and-auto",
-      { manualLanguages: [] },
-    );
+    const result = selectCaptionFile(["/w/_U-O5lYhJ7Q.en.vtt"], "manual-and-auto", {
+      manualLanguages: [],
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.selection.rung).toBe("auto-en");
@@ -122,15 +132,43 @@ describe("selectCaptionFile", () => {
     }
   });
 
+  it("picks the manual en track over translations of manual tracks listed before it (#6812)", () => {
+    // yt-dlp keys a translation of manual track <lang> as en-<lang>; info.json `subtitles` holds en and de.
+    const result = selectCaptionFile(
+      ["/w/jNQXAC9IVRw.en-en.vtt", "/w/jNQXAC9IVRw.en-de.vtt", "/w/jNQXAC9IVRw.en.vtt"],
+      "manual-and-auto",
+      { manualLanguages: ["en", "de"] },
+    );
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.path).toBe("/w/jNQXAC9IVRw.en.vtt");
+      expect(result.selection.rung).toBe("manual-en");
+    }
+  });
+
+  it("classifies a translation of a non-English manual track as auto-translate-en", () => {
+    const result = selectCaptionFile(["/w/a.en-de.vtt"], "manual-and-auto", {
+      manualLanguages: ["de"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.rung).toBe("auto-translate-en");
+      expect(result.selection.isAutoCaption).toBe(true);
+    }
+  });
+
   it("keeps manual-en when info.json lists manual English subtitles", () => {
-    for (const manualLanguages of [["en"], ["fr", "en-US"]]) {
-      const result = selectCaptionFile(
-        ["/w/a.en.vtt", "/w/a.en-orig.vtt"],
-        "manual-and-auto",
-        { manualLanguages },
-      );
+    // yt-dlp names a manual track's file by its info.json `subtitles` key.
+    /** @type {Array<[string[], string[], string]>} */
+    const cases = [
+      [["en"], ["/w/a.en.vtt", "/w/a.en-orig.vtt"], "/w/a.en.vtt"],
+      [["fr", "en-US"], ["/w/a.en.vtt", "/w/a.en-orig.vtt", "/w/a.en-US.vtt"], "/w/a.en-US.vtt"],
+    ];
+    for (const [manualLanguages, files, manualFile] of cases) {
+      const result = selectCaptionFile(files, "manual-and-auto", { manualLanguages });
       expect(result.success).toBe(true);
       if (result.success) {
+        expect(result.selection.path).toBe(manualFile);
         expect(result.selection.rung).toBe("manual-en");
         expect(result.selection.isAutoCaption).toBe(false);
         expect(result.selection.provenanceNote).toBeUndefined();
