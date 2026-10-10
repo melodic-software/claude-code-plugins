@@ -1,5 +1,5 @@
 {
-  "description": "Installs the demo-video skill's hash-locked Python packages (numpy, Pillow) into the plugin data directory at session start, and reports a failed install.",
+  "description": "Installs the demo-video skill's hash-locked Python packages (numpy, Pillow) into the plugin data directory at session start, reports a failed install, and notices a missing node.",
   "hooks": {
     "SessionStart": [
       {
@@ -13,6 +13,17 @@
             ],
             "timeout": 300,
             "statusMessage": "Installing playwright demo-video Python packages..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /playwright:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /playwright:check",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }
