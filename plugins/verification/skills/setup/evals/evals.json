@@ -18,7 +18,7 @@
       "id": 2,
       "name": "apply-does-not-configure-artifact-placement",
       "prompt": "/verification:setup apply\n\nPersist my artifact directory settings.",
-      "expected_output": "Says artifact placement is not configurable: manifests, baselines and raw captures land in the memory slice <memory_dir>/<slug>/ and are never committed. The only setting apply writes is proof_level in docs/conventions/verification.yaml, so with no proof_level named it writes nothing, creates no .claude/ concern file, and does not edit any ignore file.",
+      "expected_output": "Says artifact placement is not configurable: manifests, baselines and raw captures land in the memory slice <memory_dir>/<slug>/ and are never committed. The only settings apply writes are proof_level and live_workers in docs/conventions/verification.yaml, so with neither key named it writes nothing, creates no .claude/ concern file, and does not edit any ignore file.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -63,6 +63,32 @@
         "Refuses the value and names the allowed levels path, live and strict",
         "Writes no file",
         "Does not add a key or level the schema does not list"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-writes-live-workers",
+      "prompt": "/verification:setup apply live_workers=3\n\nThe repository has no docs/conventions/verification.yaml yet.",
+      "expected_output": "Takes live_workers=3 from the argument without asking and runs setup-apply.mjs with that argument, which creates docs/conventions/verification.yaml holding live_workers: 3. It does not also write or ask for proof_level. It re-runs the check row and reports the live_workers value read back, notes that /verification:confirm reads the default branch copy, and reports whether the file is tracked.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs setup-apply.mjs with the argument live_workers=3",
+        "Does not ask for a value or write a proof_level key",
+        "Reports the live_workers value the check reads back and whether the file is tracked"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "apply-refuses-zero-live-workers",
+      "prompt": "/verification:setup apply live_workers=0\n\nThe repository already has docs/conventions/verification.yaml with `live_workers: 2`.",
+      "expected_output": "Runs setup-apply.mjs live_workers=0, which refuses with one line (0 is not a whole number of at least 1), exits 1 and writes nothing. The skill reports the refusal and that live_workers must be a whole number of at least 1, leaves the existing file with live_workers: 2, and does not substitute another value or pass --yes.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports that live_workers=0 was refused because it is not a whole number of at least 1",
+        "Leaves docs/conventions/verification.yaml unchanged, still live_workers: 2",
+        "Does not write a different value in place of 0"
       ]
     }
   ]

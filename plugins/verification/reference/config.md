@@ -45,9 +45,12 @@ result as a person.
    `node skills/setup/scripts/setup-apply.mjs --check --ref origin/<default> --root "<root>"`.
    Its first line names the commit read; the report carries that commit. When the fetch fails, the
    last fetched copy is read and the report says it may be stale. The reader's result:
-   - exit 0 with `INFO ... absent` or `PASS proof_level: (unset)`: the layer is unset.
-   - exit 0 or 1 with `PASS proof_level: <level>`: the layer sets that level. On exit 1 the
-     `WARN` lines name another key, such as a bad `live_workers`, and leave `proof_level` valid.
+   - exit 0 with `INFO ... absent`, or exit 0 or 1 with `PASS proof_level: (unset)`: the layer is
+     unset.
+   - exit 0 or 1 with `PASS proof_level: <level>`: the layer sets that level.
+   - On exit 1 beside either `PASS proof_level` line, the `WARN` lines name another key, such as
+     `live_workers=0 is not a whole number of at least 1`, and say nothing against `proof_level`:
+     the layer is unset or sets the printed level, never invalid for `proof_level`.
    - exit 1 with no `PASS proof_level` line: the committed `proof_level` or the whole committed
      file is invalid. Each `WARN` line names the file, the key and the value (an unlisted word, a
      capitalized level, an empty value, a list, a key set twice, an unknown key, a parse error, a

@@ -281,6 +281,19 @@
       ]
     },
     {
+      "id": "live-workers-05",
+      "name": "untrusted-stage-runs-one-worker-despite-workspace-entry",
+      "prompt": "/verification:confirm outcome. The change comes from a fork pull request. The user option live_workers is 3, and origin/main declares a Workspace environment entry in docs/conventions/workspace-environment.md. The change edits the shopping-list sharing dialog; the feature map's Share list feature lists three entry points. This session runs on the developer's own machine, not a cloud host. Build, tests and lint pass.",
+      "expected_output": "live_workers resolves to 3 from userConfig and the entry exists, but the stage reads untrusted input (a fork pull request) and the session is not on a cloud host whose stage-start probe passed, so /testing:run-e2e runs neither the entry's up nor its info and the entry gives no isolation. One worker drives all three entry points. The report says live_workers 3 was asked for, one worker ran, and that the untrusted stage is the reason.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs one worker, not three, although the Workspace environment entry exists",
+        "Names the fork pull request (untrusted input outside a passed cloud-host probe) as the reason one worker ran",
+        "The report states that 3 workers were asked for"
+      ]
+    },
+    {
       "id": "live-workers-04",
       "name": "cloud-execution-target-adds-unverified-line",
       "prompt": "/verification:confirm outcome. This session is a Claude cloud session: CLAUDE_CODE_REMOTE is true, and the stage's execution_target in origin/main's docs/conventions/execution-target.yaml is cloud-session. The change edits the invoice PDF preview page. proof_level resolves to live. Build, tests and lint pass.",
