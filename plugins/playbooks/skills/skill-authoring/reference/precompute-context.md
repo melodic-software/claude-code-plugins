@@ -76,7 +76,8 @@ check refuses aborts the skill load. We therefore:
   [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
 - **As of**: 2026-10-10
 - **Recheck trigger**: the Permission checks on injected commands section changes which permission
-  results abort a render, or Pre-approve tools for a skill stops covering injected commands.
+  results abort a render, Pre-approve tools for a skill stops covering injected commands, or the
+  Compound commands section changes how a rule matches each subcommand of a joined line.
 
 ### Defensive fallback is mandatory
 
