@@ -166,7 +166,10 @@ Each activity declares:
   by the base-SHA config reader from the PR's file list, never from head text. It names what the
   activity is asked to work on, not what it can touch; for a write effect it leaves out
   instruction surfaces and paths `.github/CODEOWNERS` lists
-  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
+  [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
+  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
+  only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, work classes, events).
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
@@ -215,9 +218,9 @@ Each activity reports:
 - A check run named `<lane> / <activity>`, for example `pr-refine / simplify`.
 
 A skip reports as a neutral check with one reason from the schema's `$defs/skip-reason`:
-`not-applicable-paths` (a `paths` predicate missed), `not-applicable` (a label, event or
-work-class predicate missed), `prerequisite-missing`, `cost-gated`, `awaiting-human`,
-`superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
+`not-applicable-paths` (a `paths` predicate missed, or every matching path was left out of
+`changed-paths`), `not-applicable` (a label, event or work-class predicate missed),
+`prerequisite-missing`, `cost-gated`, `awaiting-human`, `superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
