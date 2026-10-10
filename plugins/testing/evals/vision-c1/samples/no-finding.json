@@ -11,6 +11,12 @@
     },
     {
       "answer": ""
+    },
+    {
+      "answer": "No findings.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "FINDINGS: none\nVERDICT: CONFIRMED"
     }
   ],
   "fail": [
@@ -29,6 +35,58 @@
     {
       "answer": "Checked.\nFINDING [unknown]: nothing\nVERDICT: CONFIRMED",
       "why": "unknown category FINDING line"
+    },
+    {
+      "answer": "### FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "## FINDING: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING [overlap] - badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "Finding (overlap): badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "**FINDING**: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "finding: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "**FINDING [overlap]**: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING [overlap] badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING — overlap: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "| FINDING [overlap]: badge on title |\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDINGS: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "- [ ] FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "1. FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
     }
   ]
 }
