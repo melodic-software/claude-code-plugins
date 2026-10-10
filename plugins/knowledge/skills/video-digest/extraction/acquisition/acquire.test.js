@@ -98,7 +98,7 @@ describe("acquireYouTubeMedia", () => {
     if (autoOnly.success) {
       expect(autoOnly.data?.caption.rung).toBe("auto-en");
       expect(autoOnly.data?.caption.isAutoCaption).toBe(true);
-      expect(autoOnly.data?.caption.provenanceNote).toContain("7zZy1QTvokM.en.vtt");
+      expect(autoOnly.data?.caption.path).toBe(`${workDir}/7zZy1QTvokM.en-orig.vtt`);
     }
 
     const withManual = await acquireWith({ subtitles: { en: [] } });

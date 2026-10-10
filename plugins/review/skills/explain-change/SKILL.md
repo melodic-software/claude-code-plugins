@@ -102,11 +102,10 @@ If the publish gate exits non-zero or its result is unclear, keep the page as a 
 When `medium` is `hosted`, the page goes to the operator's shared page host through `pages-publish`, a command the operator installs; its contract is "The `pages-publish` command" in `docs/conventions/rendered-views/README.md` in the marketplace repository. Run:
 
 ```bash
-gh repo view <owner/repo> --json visibility --jq .visibility
-"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --repo <owner/repo> --pr <n> --repo-visibility <VISIBILITY> --data-dir "${CLAUDE_PLUGIN_DATA}"
+"${CLAUDE_SKILL_DIR}/scripts/publish-hosted.mjs" <page> --repo <owner/repo> --pr <n> --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
 
-If `gh repo view` fails, pass `UNKNOWN`. The script gates the built page itself, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC`, or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
+When the pull request's URL names a host other than `github.com`, pass `--repo <host>/<owner>/<repo>`, so the lookup asks that host and not github.com; the script asks it only when `gh` is already logged in to that host, and otherwise sends the page private. The script looks up the repository's visibility itself through `gh api`, and gates the built page, whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` (a failed lookup included), or a machine path or hostname in the page, sends it to the private host. It then runs `pages-publish`, keeps the page's id in a sidecar under the plugin data dir so a rebuild replaces the same page, and deletes the old copy when the page moved between hosts. Never run `pages-publish` yourself for this page.
 
 - Exit 0: say "published to the <visibility> page host", give `url`, and report `old_copy` when present.
 - Exit 4: say "refused: credential-shaped content", give the path and the `reason`, and keep the file. No layer overrides this.
