@@ -65,6 +65,10 @@ RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 BRANCH="${1:-}"
 if [[ "$BRANCH" == "--pr" ]]; then
   PR="${2:-}"
+  if [[ ! "$PR" =~ ^[0-9]+$ ]]; then
+    echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
+    exit 1
+  fi
   BRANCH=$(gh pr view "$PR" --json headRefName -q '.headRefName' 2>/dev/null | tr -d '\r')
   if [[ -z "$BRANCH" ]] || ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
     echo "push-branch.sh: no local branch for the head of PR '$PR' ('$BRANCH'); not pushing" >&2

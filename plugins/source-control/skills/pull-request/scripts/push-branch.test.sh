@@ -184,7 +184,7 @@ git -C "$wc" worktree add -q -b feat/b "$wt_b" 2>/dev/null
 git -C "$wt_b" commit -q --allow-empty -m "merge base into b"
 stub="$WORKDIR/pr-worktree/bin"
 mkdir -p "$stub"
-printf '#!/usr/bin/env bash\n[[ "$*" == *" 42 "* ]] && echo feat/b && exit 0\n[[ "$*" == *" 43 "* ]] && echo feat/missing && exit 0\nexit 1\n' >"$stub/gh"
+printf '#!/usr/bin/env bash\n[[ "$*" == *" 42 "* ]] && echo feat/b && exit 0\n[[ "$*" == *" 43 "* ]] && echo feat/missing && exit 0\n[[ "$*" == "pr view  "* ]] && echo feat/x && exit 0\nexit 1\n' >"$stub/gh"
 chmod +x "$stub/gh"
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1
 check "pr-worktree: --pr 42 exits 0" "$?" "0"
@@ -194,6 +194,11 @@ check "pr-worktree: origin holds B's head commit" \
 missing_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 43) >/dev/null 2>&1 || missing_exit=nonzero
 check "pr-worktree: head branch with no local branch exits non-zero" "$missing_exit" "nonzero"
+# `gh pr view ""` resolves the cwd branch's PR (the stub answers feat/x, which
+# exists locally), so an empty number must stop before gh is asked.
+empty_exit=zero
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr "") >/dev/null 2>&1 || empty_exit=nonzero
+check "pr-worktree: --pr with no number exits non-zero" "$empty_exit" "nonzero"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
