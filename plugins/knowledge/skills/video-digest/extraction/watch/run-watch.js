@@ -36,6 +36,7 @@ import {
   UnsupportedSourceError,
 } from "../adapters/adapter-contract.js";
 import { acquireMedia, resolveSourceAdapter } from "../adapters/registry.js";
+import { portableTargetName } from "../lib/portable-target.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveWorkRoot } from "../lib/work-root.js";
 import { deriveVideoSlug, resolveWorkSliceDir } from "../transcript/derive-video-slug.js";
@@ -115,7 +116,7 @@ export async function runWatchCli(argv) {
     writeStderr("`--target` requires a value");
     return 1;
   }
-  const target = targetIndex !== -1 ? argv[targetIndex + 1] : undefined;
+  const target = targetIndex !== -1 ? portableTargetName(argv[targetIndex + 1]) : undefined;
   const strategyArg = parseTranscriptStrategyOverride(argv);
   if (!strategyArg.ok) {
     writeStderr(strategyArg.error);
