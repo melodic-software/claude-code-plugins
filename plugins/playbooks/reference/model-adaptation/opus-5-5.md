@@ -78,18 +78,11 @@ not your memory of the scrollback (the context-economy chapter's durable-note ru
 When you author instructions for an agent, say which rule the surface wants: keep working until the
 task is done, or check in with the person pairing on it. `[CC: prompt-authoring]`
 
-When you hand over a task in a brief, plan, or skill, state what done means as a condition the
-agent can check, such as a named test passing or every listed item migrated, and name the stops you
-want. A finish line lets the agent take the whole task instead of a slice of it.
-`[CC: prompt-authoring]`
-
 - **Pointer**: when authoring an unattended-run steer, read
   [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
   live through the docs lookup (`fetch-docs.sh --cache --profile platform`, the fable-5 skill's
   Chapter routing) and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-10
-  (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>). For stating
-  the completion condition and the stops, see the same section (correlate with
-  <https://claude.dev/blog/getting-the-most-out-of-opus-5-5>).
+  (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>).
 - **As of**: 2026-10-10
 - **Recheck trigger**: a re-read of that section no longer supporting the decisions above, or an
   official guide or system card covers scope hedging (move the correlate beside that page).
