@@ -273,12 +273,10 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-- Findings settle a type, contract, or boundary choice: `/planning:design`.
-- Findings are ready to act on with no design question open: `/planning:plan`.
-- A multi-topic or workflow-driven pass: `/discovery:research-deep`.
-- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`
-  (`scripts/fetch-docs.sh --cache`).
-- The reasons behind a past decision: `/discovery:trace-intent <subject>`.
+- Findings feed new medium-large work with no locked contract yet: `/planning:interview`.
+- The contract is locked: `/planning:design` when the findings settle a type, contract, or boundary choice, else `/planning:plan`.
+- A multi-topic pass, one docs page that settles the claim, or the reasons behind a past decision: `/discovery:research-deep`, `/discovery:read-docs <url-or-slug> [question]` (`scripts/fetch-docs.sh --cache`), or `/discovery:trace-intent <subject>`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## See also
 

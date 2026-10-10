@@ -214,8 +214,9 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
-- The root cause is a design flaw that a focused patch cannot fix: `/planning:plan`.
+- The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## When to escalate
 

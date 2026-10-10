@@ -34,10 +34,10 @@ Session output has no persisted artifact by default (ideation is conversation ou
 
 ## Next
 
-- Engineering contract: /planning:interview.
-- Product intent: /planning:prd.
+- An approach resonates and the engineering contract is next: /planning:interview.
+- Product intent, or who the users are and what they need: /planning:prd, or /user-experience:shape.
 - Type and module decisions: /planning:design.
-- Who the users are and what they need: /user-experience:shape.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## What this skill does NOT do
 
