@@ -12,13 +12,18 @@ Two independent verifiers over the full digest set, fresh context, production ra
   and the operator may set a different level for one run. A call that names an agent omits effort
   unless the run overrides it, so that agent's own pin holds. The verdict header records the
   effective effort and where it came from. Where the Workflow tool is unavailable, dispatch
-  verifier A through the Agent tool instead. That tool sets no effort per call, so the effort is
-  the named agent's pin or else the session level, and the verdict header says which. If that
-  level is below `medium`, stop Phase 4 and report the level instead of verifying.
+  verifier A through the Agent tool instead, passing `effort` on that call on the same terms as
+  the Workflow call. The verdict header records the effective effort and where it came from. If
+  that level is below `medium`, stop Phase 4 and report the level instead of verifying.
   - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
     record, in the marketplace repository; no docs page covers per-call Workflow effort.
   - **As of**: 2026-10-02
   - **Recheck trigger**: a docs page starts covering it.
+  - **Pointer**: when verifier A goes through the Agent tool, fetch
+    <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: that section changes what the per-call `effort` overrides or what
+    overrides it.
 - **Verifier B**. Cross-vendor (e.g. Codex via the `codex` plugin, high reasoning effort), same
   three checks. Cross-vendor independence is the point: correlated blind spots differ.
   A Codex arm run in a sandbox without network access cannot re-fetch a live page. Brief it over the slice's local files (`source.*`, the digests, `SOURCES.md`, any
