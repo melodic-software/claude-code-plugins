@@ -20,8 +20,8 @@ Camera-dependent checks report SKIP when the EDL's camera layer is off (plain st
 
 usage: qc.py EDL.json VIDEO.mp4 OUT_DIR [--config FILE]
 exit: 0 every check passed, 1 a check failed, 2 the inputs could not be read
-Writes OUT_DIR/qc.json and contact sheets (cuts, zoom peaks, longest still, each failure) for the
-independent reviewer.
+Writes OUT_DIR/qc.json, sheet-key-moments.png (page cuts, zoom peaks, longest still) and, for each
+failing check, sheet-fail-<check>.png with up to six frames it failed on, for the independent reviewer.
 """
 import argparse
 import json
@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from demo_common import SMOOTH_10_90, SMOOTH_PEAK_A, SMOOTH_PEAK_V, Ink, anchor_box, edge_ink, font, load_config
+from demo_common import SMOOTH_10_90, SMOOTH_PEAK_A, SMOOTH_PEAK_V, Ink, anchor_box, edge_ink, font, load_config, page_change
 
 AW, AH = 240, 135   # registration resolution
 SW, SH = 480, 270   # stillness / blend resolution
@@ -161,10 +161,13 @@ def main(argv=None):
     camera_on = edl['layers'].get('camera', True)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    results = []
+    results, fail_frames = [], {}
 
-    def check(name, status, detail):
+    def check(name, status, detail, frames=()):
+        """Record a result; `frames` are the output frames a FAIL is seen on, for its contact sheet."""
         results.append({'check': name, 'status': status, 'detail': detail})
+        if status == 'FAIL':
+            fail_frames[name] = sorted(set(frames))[:6]
 
     reg_frames = decode(a.video, AW, AH)
     small = decode(a.video, SW, SH)
@@ -192,7 +195,7 @@ def main(argv=None):
         prev = i
     poor = [i for i in runtime if est[i][2] < Q['match_min']]
     check('capture-match', 'FAIL' if poor else 'PASS',
-          f"min NCC {min(est[i][2] for i in runtime):.3f} (floor {Q['match_min']})" + (f"; poor at {spans(poor, fps)[:6]}" if poor else ''))
+          f"min NCC {min(est[i][2] for i in runtime):.3f} (floor {Q['match_min']})" + (f"; poor at {spans(poor, fps)[:6]}" if poor else ''), poor)
 
     lnz = np.log(np.array([est[i][0] for i in runtime]))
     cx = np.array([est[i][1][0] + est[i][1][2] / 2 for i in runtime])
@@ -220,7 +223,8 @@ def main(argv=None):
         share = float(zoomed.mean())
         check('zoom-share', 'PASS' if share >= Q['zoom_share_min'] else 'FAIL',
               f"{share:.0%} of {len(runtime) / fps:.2f}s runtime at >= {Q['zoom_threshold']}x (min {Q['zoom_share_min']:.0%}); "
-              f"{zoomed.sum() / fps:.2f}s zoomed")
+              f"{zoomed.sum() / fps:.2f}s zoomed",
+              [runtime[j] for j in np.flatnonzero(~zoomed)[::max(1, int((~zoomed).sum()) // 6)]])
     else:
         check('zoom-share', 'SKIP', 'camera layer off (plain style)')
 
@@ -254,13 +258,13 @@ def main(argv=None):
         if clipped:
             first = next(iter(clipped))
             detail = f'text cut at {spans(sorted(clipped), fps)[:6]}; first {first / fps:.2f}s edges {clipped[first]}'
-        check('edge-clip', 'FAIL' if clipped else 'PASS', detail)
+        check('edge-clip', 'FAIL' if clipped else 'PASS', detail, clipped)
     else:
         check('edge-clip', 'SKIP', 'camera layer off (plain style)')
 
     # ---- click targets keep headroom ------------------------------------------------------------
     if camera_on:
-        bad = []
+        bad, bad_at = [], []
         for s in edl.get('steps', []):
             fi = int(round(s['click_out'] * fps))
             j = next((j for j, i in enumerate(runtime) if i >= fi), None)
@@ -273,16 +277,20 @@ def main(argv=None):
                 (tb[0] + tb[2] <= r[0] + r[2] - m or r[0] + r[2] > W - 1) and (tb[1] + tb[3] <= r[1] + r[3] - m or r[1] + r[3] > H - 1)
             if not inside:
                 bad.append(f"{s['id']}@{s['click_out']:.2f}s")
-        check('target-headroom', 'FAIL' if bad else 'PASS', f'targets out of shot or at the frame edge: {bad}' if bad else 'every click target in shot with headroom')
+                bad_at.append(runtime[j])
+        check('target-headroom', 'FAIL' if bad else 'PASS', f'targets out of shot or at the frame edge: {bad}' if bad else 'every click target in shot with headroom',
+              bad_at)
     else:
         check('target-headroom', 'SKIP', 'camera layer off (plain style)')
 
     # ---- caption anchors ------------------------------------------------------------------------
     if edl['layers'].get('captions'):
         allowed = CAP['anchors'][:2]
-        bad = [c['text'] for c in edl.get('captions', [])
+        off = [c for c in edl.get('captions', [])
                if c.get('slot') not in allowed or list(c['box']) != list(anchor_box(c['slot'], c['box'][2], W, H, cfg))]
-        check('caption-anchor', 'FAIL' if bad else 'PASS', f'off-anchor captions: {bad}' if bad else f'primary or fallback only ({allowed})')
+        bad = [c['text'] for c in off]
+        check('caption-anchor', 'FAIL' if bad else 'PASS', f'off-anchor captions: {bad}' if bad else f'primary or fallback only ({allowed})',
+              [min(int(sum(c['span']) / 2 * fps), n - 1) for c in off])
     else:
         check('caption-anchor', 'SKIP', 'captions layer off')
 
@@ -303,8 +311,11 @@ def main(argv=None):
                 longest, worst = (run + 1) / fps, (run_start, i)
         else:
             run = 0
-    check('stillness', 'PASS' if longest <= Q['still_max'] + 1 / fps else 'FAIL',
-          f"longest still {longest:.2f}s (max {Q['still_max']}s)" + (f' at {worst[0] / fps:.2f}-{(worst[1] + 1) / fps:.2f}s' if worst else ''))
+    still_limit = Q['still_max'] + 1 / fps   # a run of n still frames spans n frames, one more than its n-1 gaps
+    check('stillness', 'PASS' if longest <= still_limit else 'FAIL',
+          f"longest still {longest:.3f}s (limit {still_limit:.3f}s: still_max {Q['still_max']}s plus one frame)"
+          + (f' at {worst[0] / fps:.2f}-{(worst[1] + 1) / fps:.2f}s' if worst else ''),
+          [worst[0], (worst[0] + worst[1]) // 2, worst[1]] if worst else [])
 
     # ---- motion: each move's peaks from its measured 10-90% duration and total change --------------
     tol = 1 + Q['motion_tolerance']
@@ -316,7 +327,7 @@ def main(argv=None):
                 j += 1
             moves.append((max(s0 - 1, 0), min(j, len(runtime) - 1)))
         j += 1
-    over = []
+    over, over_at = [], []
     for s0, s1 in moves:
         if runtime[s1] - runtime[s0] != s1 - s0:
             continue   # spans a gap in runtime frames (title): not a camera move
@@ -335,24 +346,19 @@ def main(argv=None):
             v, acc = SMOOTH_PEAK_V * delta / T, SMOOTH_PEAK_A * delta / T ** 2
             if v > lim_v * tol or acc > lim_a * tol:
                 over.append(f'{name} {runtime[s0] / fps:.2f}-{runtime[s1] / fps:.2f}s: {v:.2f}/s (cap {lim_v}), {acc:.2f}/s^2 (cap {lim_a}), T {T:.2f}s')
-    check('motion', 'FAIL' if over else 'PASS', over[:6] if over else f'{len(moves)} camera moves within the caps')
+                over_at += [runtime[s0], runtime[(s0 + s1) // 2]]
+    check('motion', 'FAIL' if over else 'PASS', over[:6] if over else f'{len(moves)} camera moves within the caps', over_at)
 
     # ---- page cuts: camera still; a URL change at 1.0x, an in-page state cut at 1.0x or clean edges --
     # The EDL says only where the URL changes; the zoom at each cut is the one measured from the frames.
     pos = {i: j for j, i in enumerate(runtime)}
     url_frames = {int(round(c * fps)) for c in edl.get('nav_cuts', [])}
-    caps_small = {}
-
-    def cap_small(path):
-        if path not in caps_small:
-            caps_small[path] = np.asarray(Image.open(path).convert('L').resize((SW, SH), Image.BOX), np.float32)
-        return caps_small[path]
-    cuts, bad_cuts = [], []
+    cuts, bad_cuts, bad_cut_at = [], [], []
     for i in runtime[1:]:
         if (i - 1) not in rset or est[i][3] == est[i - 1][3]:
             continue
         url = bool({i - 1, i, i + 1} & url_frames)
-        changed = float((np.abs(cap_small(est[i][3]) - cap_small(est[i - 1][3])) > 24).mean())
+        changed = page_change(est[i][3], est[i - 1][3])   # the measure build_edl.py plans camera moves around
         if not url and changed < Q['nav_change_min']:
             continue
         j = pos[i]
@@ -363,9 +369,11 @@ def main(argv=None):
         clean = (i not in clipped) and ((i - 1) not in clipped)
         if not (still and (at_one or (clean and not url))):
             bad_cuts.append(f"{'URL' if url else 'state'} cut {i / fps:.2f}s zoom {zf[j - 1]:.2f}->{zf[j]:.2f} still={still}")
+            bad_cut_at += [i - 1, i]
     bad_cuts += [f'URL cut at {f / fps:.2f}s shows no page change in the frames' for f in sorted(url_frames)]
     check('nav-cuts', 'FAIL' if bad_cuts else 'PASS',
-          bad_cuts or f'{len(cuts)} page cuts, camera still; URL changes at 1.0x, state cuts at 1.0x or with clean edges')
+          bad_cuts or f'{len(cuts)} page cuts, camera still; URL changes at 1.0x, state cuts at 1.0x or with clean edges',
+          bad_cut_at + [f for f in url_frames if f < n])
 
     # ---- crossfades: a frame that is a blend of its neighbors across a page change ------------------
     # Checked around each page change only: slow camera motion also makes a frame resemble the average
@@ -384,11 +392,12 @@ def main(argv=None):
         nearest = min(float(np.abs(F - A).mean()), float(np.abs(F - B).mean()))
         if 0.15 < alpha < 0.85 and nearest > 0.3 and resid < Q['crossfade_gain'] * nearest:
             blends.append(i)
-    check('crossfade', 'FAIL' if blends else 'PASS', f'blended frames at {spans(blends, fps)[:6]}' if blends else 'every page change is a hard cut')
+    check('crossfade', 'FAIL' if blends else 'PASS', f'blended frames at {spans(blends, fps)[:6]}' if blends else 'every page change is a hard cut',
+          blends)
 
     # ---- blank, white or flat frames ------------------------------------------------------------
     flat = [i for i in runtime if small[i].std() < Q['blank_std'] or (small[i].mean() > Q['white_luma'] and small[i].std() < 3 * Q['blank_std'])]
-    check('blank', 'FAIL' if flat else 'PASS', f'flat or white frames at {spans(flat, fps)[:6]}' if flat else 'no flat or white frame')
+    check('blank', 'FAIL' if flat else 'PASS', f'flat or white frames at {spans(flat, fps)[:6]}' if flat else 'no flat or white frame', flat)
 
     # ---- report and contact sheets ----------------------------------------------------------------
     @lru_cache(maxsize=64)
@@ -401,10 +410,11 @@ def main(argv=None):
     if worst:
         items.append((worst[0], f'still from {worst[0] / fps:.2f}s'))
     sheet(rgb, items, out / 'sheet-key-moments.png')
-    fails = [(sorted(clipped)[:1], 'edge-clip'), (blends[:1], 'crossfade'), (flat[:1], 'blank'), (poor[:1], 'capture-match')]
-    fail_items = [(i, f'{name} {i / fps:.2f}s') for idx, name in fails for i in idx]
-    if fail_items:
-        sheet(rgb, fail_items, out / 'sheet-failures.png')
+    for stale in out.glob('sheet-fail-*.png'):
+        stale.unlink()
+    for name, idx in fail_frames.items():
+        if idx:
+            sheet(rgb, [(i, f'{name} {i / fps:.2f}s') for i in idx], out / f'sheet-fail-{name}.png')
     report = {'video': str(a.video), 'runtime_s': round(len(runtime) / fps, 3), 'checks': results,
               'zoom_series': [[round(runtime[j] / fps, 3), round(float(zf[j]), 3)] for j in range(len(runtime))]}
     (out / 'qc.json').write_text(json.dumps(report, indent=1))

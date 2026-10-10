@@ -1,6 +1,6 @@
 """Smoke test for the demo-video pipeline, network-free: a synthetic capture of a three-step flow
 (navigate, type with results, navigate) goes through build_edl.py, produce.py and qc.py, and QC must
-pass. Then defects are planted in the rendered frames (a crossfade across the page cut, a white
+pass, and so must a variant whose search click opens a modal a quarter second later. Then defects are planted in the rendered frames (a crossfade across the page cut, a white
 frame, a frozen stretch, a 1.0x render under a zoomed EDL, a zoom rect that cuts text, a zoomed
 URL-changing cut with clean edges) and QC must fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
 """
@@ -69,8 +69,43 @@ def draw_page(name, typed='', results=False):
     return img
 
 
-def state_at(t):
-    """Page state shown at source time t (the flow below)."""
+MODAL, MODAL_FIELD, MODAL_HIT = [240, 40, 480, 200], [256, 56, 448, 36], [268, 116, 230, 24]
+SEARCH_BUTTON = [660, 120, 110, 32]
+
+
+def draw_docs_with_button():
+    """The docs page with a Search button that opens the modal."""
+    img = draw_page('docs')
+    d = ImageDraw.Draw(img)
+    x, y, w, h = SEARCH_BUTTON
+    d.rounded_rectangle([x, y, x + w, y + h], radius=6, fill=(30, 110, 230))
+    d.text((x + 28, y + 7), 'Search', font=_font(15), fill=(255, 255, 255))
+    return img
+
+
+def draw_modal(typed='', results=False):
+    """The docs page behind an opaque scrim with a search modal over it (DocSearch's shape)."""
+    img = draw_docs_with_button()
+    d = ImageDraw.Draw(img)
+    small = _font(15)
+    d.rectangle([0, 0, W, H], fill=(101, 108, 133))
+    x, y, w, h = MODAL
+    d.rounded_rectangle([x, y, x + w, y + h], radius=10, fill=(255, 255, 255))
+    fx, fy, fw, fh = MODAL_FIELD
+    d.rectangle([fx, fy, fx + fw, fy + fh], outline=(90, 90, 200), width=2)
+    d.text((fx + 12, fy + 8), typed or 'Search docs', font=small, fill=(20, 20, 30) if typed else (160, 160, 170))
+    if results:
+        for k, line in enumerate(('Trace viewer: open a trace', 'Trace viewer: snapshots', 'Tracing API')):
+            d.text((MODAL_HIT[0] + 4, MODAL_HIT[1] + 2 + k * 28), line, font=small, fill=(20, 60, 160))
+    return img
+
+
+def state_at(t, modal=False):
+    """Page state shown at source time t (the flow below). With `modal`, the search click opens a
+    modal 0.25 s after it (DocSearch's timing), and typing and results happen inside it."""
+    if modal and 1009.0 <= t < 1015.4:
+        key = state_at(t)
+        return ('modal', key[1], key[2])
     if t < 1004.4:
         return ('home', '', False)
     if t < 1005.0:
@@ -85,16 +120,17 @@ def state_at(t):
     return ('trace', '', False)
 
 
-def make_capture(out):
+def make_capture(out, modal=False):
     """A timeline.json in record.mjs's shape: frames every 0.2 s plus the step events."""
     (out / 'frames').mkdir(parents=True)
     frames, cache = [], {}
     t = T0
     n = 0
     while t <= 1017.2 + 1e-9:
-        key = state_at(t)
+        key = state_at(t, modal)
         if key not in cache:
-            img = Image.new('RGB', (W, H), (255, 255, 255)) if key[0] == 'loading' else draw_page(*key)
+            img = Image.new('RGB', (W, H), (255, 255, 255)) if key[0] == 'loading' else \
+                draw_modal(*key[1:]) if key[0] == 'modal' else draw_docs_with_button() if modal and key[0] == 'docs' else draw_page(*key)
             buf = io.BytesIO()
             img.save(buf, 'PNG')
             cache[key] = buf.getvalue()
@@ -125,6 +161,22 @@ def make_capture(out):
         {'name': 'settled', 'step': 'open-result', 't': 1015.6, 'url': url_c},
         {'name': 'end', 't': 1017.2},
     ]
+    if modal:   # a Search button opens the modal; typing and the result click happen inside it
+        hx, hy = MODAL_HIT[0] + MODAL_HIT[2] / 2, MODAL_HIT[1] + MODAL_HIT[3] / 2
+        bx, by = SEARCH_BUTTON[0] + SEARCH_BUTTON[2] / 2, SEARCH_BUTTON[1] + SEARCH_BUTTON[3] / 2
+        for e in ev:
+            if e['name'] == 'move' and e['step'] == 'search':
+                e['to'] = {'x': bx, 'y': by}
+            elif e['name'] == 'click' and e['step'] == 'search':
+                e.update(x=bx, y=by, box=SEARCH_BUTTON, block=None)
+            elif e['name'] == 'type':
+                e.update(box=MODAL_FIELD, modal=MODAL)
+            elif e['name'] == 'settled' and e['step'] == 'search':
+                e.update(box=[256, 100, 448, 120], modal=MODAL)
+            elif e['name'] == 'move' and e['step'] == 'open-result':
+                e.update({'from': {'x': bx, 'y': by}, 'to': {'x': hx, 'y': hy}})
+            elif e['name'] == 'click' and e['step'] == 'open-result':
+                e.update(x=hx, y=hy, box=MODAL_HIT, block=[252, 110, 456, 100])
     (out / 'timeline.json').write_text(json.dumps({'width': W, 'height': H, 'dsf': 1, 'frames': frames, 'events': ev}))
 
 
@@ -282,6 +334,32 @@ class DemoPipelineSmoke(unittest.TestCase):
         for c in edl['nav_cuts']:
             before = [k for k in edl['camera'] if k['t'] <= c]
             self.assertEqual(before[-1]['rect'], [0.0, 0.0, float(W), float(H)])
+
+    def test_modal_opening_after_the_click_passes_qc(self):
+        # A click that opens a modal 0.25 s later (DocSearch: the scrim changes most of the page) must
+        # give a plan QC passes: nav-cuts fails any such page change taken while the camera moves.
+        capture = self.tmp / 'capture-modal'
+        make_capture(capture, modal=True)
+        edl_path = self.tmp / 'edl-modal.json'
+        r = run('build_edl.py', capture, self.tmp / 'script.json', edl_path)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = self.tmp / 'modal.mp4'
+        r = run('produce.py', edl_path, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r, report = self.qc(out, edl=edl_path, name='qc-modal')
+        self.assertEqual(self.failed(report), set(), r.stdout)
+
+    def test_refused_plan_removes_the_earlier_edl(self):
+        # An edge_ink limit below zero leaves no caption anchor empty, so the plan is refused; the
+        # earlier approved plan at the same path must not survive for produce.py to render.
+        cfg = self.tmp / 'refuse.json'
+        cfg.write_text(json.dumps({'camera': {'edge_ink': -1}}))
+        edl_path = self.tmp / 'edl-refused.json'
+        shutil.copy(self.edl, edl_path)
+        r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', edl_path, '--config', cfg)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertFalse(edl_path.exists())
+        self.assertTrue(edl_path.with_suffix('.rejected.json').exists())
 
     def test_crossfade_across_the_cut_fails(self):
         edl = json.loads(self.edl.read_text())

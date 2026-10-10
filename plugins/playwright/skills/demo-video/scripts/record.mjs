@@ -4,11 +4,12 @@
 //
 // usage: node record.mjs [--playwright-core DIR] [--headed] REPLAY.mjs CAPTURE_DIR
 //   REPLAY.mjs default-exports `async (demo) => { ... }`; see reference/replay-script.md for the API.
-// exit: 0 recorded, 1 the replay failed, 2 playwright-core or its Chromium is missing (remedy printed).
+// exit: 0 recorded, 1 the replay failed (nothing written; an earlier capture is kept), 2 playwright-core or
+// its Chromium is missing (remedy printed).
 //
 // Capture: Chromium's screencast delivers frames at CSS-pixel size whatever the deviceScaleFactor, so
 // frames come from CDP Page.captureScreenshot with clip.scale = DSF (3840x2160 at DSF 2). That is slow
-// (~5 fps), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
+// (3.6-4.0 fps measured), so cursor travel and typing run in slow motion (SLOW) and build_edl.py retimes them.
 import { createRequire } from 'node:module';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -224,7 +225,10 @@ try {
 capturing = false;
 if (grabber) await grabber;
 await browser.close();
-if (failed) { console.error(`record.mjs: replay failed: ${failed.message}`); process.exit(1); }
+if (failed) {
+  console.error(`record.mjs: replay failed, no capture written (${out} ${earlierCapture ? 'keeps the earlier capture' : 'was not created'}): ${failed.message}`);
+  process.exit(1);
+}
 if (!frames.length) { console.error('record.mjs: no frames captured (did the replay call demo.goto?)'); process.exit(1); }
 fs.writeFileSync(path.join(stage, 'timeline.json'), JSON.stringify({ width: W, height: H, dsf: DSF, frames, events }, null, 1));
 fs.rmSync(out, { recursive: true, force: true });
