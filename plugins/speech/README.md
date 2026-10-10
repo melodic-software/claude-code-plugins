@@ -50,8 +50,8 @@ standard library.
 - **Retries.** HTTP 429 and 5xx are retried with jittered exponential backoff, honoring
   `Retry-After`; 401, 422 and other client errors fail at once with the API's error code and
   message. `words.json` records the call's `request-id` and `character-cost` headers.
-- **Model.** The `elevenlabs_model` option sets the default model; the script's `MODELS` table lists
-  the models it accepts and marks `eleven_v4` unverified on the timed endpoint.
+- **Model.** The default is `eleven_v4`; the `elevenlabs_model` option changes it, and the script's
+  `MODELS` table lists the models it accepts.
   [reference/elevenlabs.md](reference/elevenlabs.md) points at the live ElevenLabs docs.
 - **Organization egress floor.** Managed settings can set `SPEECH_EGRESS_FLOOR=local` in `env`.
   Managed settings outrank every other settings layer, so a user cannot unset it. The backend then
@@ -125,7 +125,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `elevenlabs_model` | string | `"eleven_multilingual_v2"` | `CLAUDE_PLUGIN_OPTION_ELEVENLABS_MODEL` | Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default. |
+| `elevenlabs_model` | string | `"eleven_v4"` | `CLAUDE_PLUGIN_OPTION_ELEVENLABS_MODEL` | Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default. |
 | `model_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_MODEL_DIR` | Folder that holds the downloaded Kokoro model set (a kokoro-<revision> subfolder per pin), for a larger disk or one cache shared across worktrees and plugins. Unset keeps it under the plugin data directory's models folder. |
 
 ### How to set these

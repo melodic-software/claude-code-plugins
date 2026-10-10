@@ -139,8 +139,8 @@ class Statement(unittest.TestCase):
             self.assertEqual(elevenlabs.subscription(KEY), (1200, 30000))
 
     def test_an_unverified_model_is_named_in_the_statement(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            _, events = run(tmp, proceed=False, model='eleven_v4')
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(elevenlabs.MODELS['eleven_v3'], timestamps=False):
+            _, events = run(tmp, proceed=False, model='eleven_v3')
         self.assertIn('not confirmed on the with-timestamps endpoint', events[0][1])
 
 
@@ -169,7 +169,7 @@ class CliGates(unittest.TestCase):
     def test_an_unsubstituted_model_placeholder_means_the_default(self):
         code, out, _ = cli({elevenlabs.KEY_VAR: KEY}, '--model', '${user_config.elevenlabs_model}')
         self.assertEqual(code, 3)
-        self.assertIn('model eleven_multilingual_v2', out)
+        self.assertIn('model eleven_v4', out)
 
 
 class VaultDelivery(unittest.TestCase):
@@ -414,6 +414,15 @@ class Outputs(unittest.TestCase):
         self.assertEqual(on_disk, record)
         self.assertEqual([w['word'] for w in record['words']], TEXT.split())
         self.assertEqual((record['backend'], record['audio'], record['duration']), ('elevenlabs', 'narration.wav', 0.5))
+
+    def test_a_word_ending_past_the_audio_is_clamped_to_the_audio_duration(self):
+        # 0.4 s of audio; 'cd' ends at 0.5 s in the alignment, 'ab' at 0.2 s.
+        with tempfile.TemporaryDirectory() as tmp:
+            record = elevenlabs.write_outputs('ab cd', Path(tmp), reply('ab cd', seconds=0.4), META,
+                                              elevenlabs.DEFAULT_VOICE, 'eleven_v4', {}, False)
+            on_disk = json.loads((Path(tmp) / 'words.json').read_text(encoding='utf-8'))
+        self.assertEqual(record['duration'], 0.4)
+        self.assertEqual([(w['start'], w['end']) for w in on_disk['words']], [(0.0, 0.2), (0.3, 0.4)])
 
     def test_a_word_spans_its_first_to_last_character(self):
         words = elevenlabs.word_times('ab cd', reply('ab cd'))

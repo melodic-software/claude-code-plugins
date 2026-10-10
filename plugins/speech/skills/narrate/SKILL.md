@@ -71,8 +71,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --data-dir "${CLAUDE_PLUGI
 ```
 
 Keep `--model` exactly as shown, in single quotes: it carries the plugin's `elevenlabs_model`
-option, and the script uses its default model when that option is unset ([reference/plugin-options.md](../../reference/plugin-options.md)). When the
+option, and the script uses its default model, `eleven_v4`, when that option is unset ([reference/plugin-options.md](../../reference/plugin-options.md)). When the
 user names a model for this run, replace that argument with `--model <model id>`.
+`eleven_multilingual_v2` gives a steadier, less expressive delivery.
 
 1. **Without `--proceed`**, the script prints one statement and sends nothing (exit 3): the
    character count, the host, the model and voice, the plan's remaining character quota, and the
@@ -86,8 +87,8 @@ A request identical to an earlier one (text, voice, model, settings) is served f
 the plugin data directory: the script says so, sends nothing, needs no key and no `--proceed`, and
 exits 0. `--no-cache` forces a new call, which goes through both steps above.
 
-The models, their limits, and which are unverified on the timed endpoint are the script's `MODELS`
-table. `--setting` takes the voice settings the script names in its `--help`. Where to read the
+The models, their limits, and whether each is confirmed on the timed endpoint are the script's
+`MODELS` table. `--setting` takes the voice settings the script names in its `--help`. Where to read the
 live ElevenLabs specifics (models, script-writing guidance, voice cloning, pricing) is
 [reference/elevenlabs.md](../../reference/elevenlabs.md).
 

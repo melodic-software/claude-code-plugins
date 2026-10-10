@@ -22,7 +22,7 @@
       "type": "string",
       "title": "ElevenLabs model",
       "description": "Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default.",
-      "default": "eleven_multilingual_v2",
+      "default": "eleven_v4",
       "options": ["eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_v3", "eleven_v4"]
     },
     "model_dir": {

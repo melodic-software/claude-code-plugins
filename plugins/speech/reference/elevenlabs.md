@@ -6,12 +6,12 @@ each entry states what the plugin decided and where to read the upstream specifi
 ## Models
 
 The script keeps a `MODELS` table with each model's per-request limit and whether the
-with-timestamps endpoint is confirmed for it. `eleven_v4` stays unverified there, and the default
-model does not move to it, until a live run confirms word timings for it.
+with-timestamps endpoint is confirmed for it. The default is `eleven_v4`: the models page lists it
+for Text to Dialogue only, but a live with-timestamps call returned clean word timings for it.
 
 - **Pointer**: when choosing a model or rechecking a limit, fetch
   <https://elevenlabs.io/docs/overview/models> live.
-- **As of**: 2026-10-04
+- **As of**: 2026-10-10
 - **Recheck trigger**: that page changes a model's character limit, or lists `eleven_v4` under
   Text to Speech.
 
