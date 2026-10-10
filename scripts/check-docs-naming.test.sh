@@ -376,6 +376,7 @@ run_case "plugins/p/Skill.md fails" 1 plugins/p/Skill.md
 run_case "fixture, eval, vendor trees and non-markdown pass" 0 \
   plugins/p/tests/fixtures/a/NOTES.md plugins/p/evals/workspaces/w/MISSION.md \
   plugins/p/vendor/v/TUNING.md plugins/p/scripts/Bad_Name.json
+run_case "docs/x/fixtures/NOTES.md fails" 1 docs/x/fixtures/NOTES.md
 
 # 15. A case collision outside docs/ fails, inside an excluded tree too.
 run_case "plugins/p/Foo.md beside plugins/p/foo.md fails" 1 plugins/p/Foo.md plugins/p/foo.md
