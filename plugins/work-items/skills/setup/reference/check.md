@@ -111,3 +111,10 @@ check.
    `gh label create` ad hoc there). Providers without a label listing (`local-markdown`, read-only
    `jira`) → INFO: verify at triage time via the item store. When probe 2 is INFO (no binding) or
    FAIL (malformed binding), skip this probe. There is no addressable provider yet.
+9. **Jira resolution classification**, only when probe 2 found a present, shape-valid `jira`
+   binding. List the instance's resolutions (the paginated call in
+   [`providers.md`](providers.md) "`jira`") and compare their ids with
+   `config.jira.resolutions`. Every check outcome here is INFO, never FAIL: key absent → won't-do
+   detection is off; ids on the instance that the binding classifies in neither list → name
+   each (a done blocker carrying one keeps blocking and warns); the call fails → say so with the
+   reason. Remediation is `/work-items:setup apply` with a user present.

@@ -9,7 +9,9 @@
 #   scripts/check-changelog-fragments.sh --check-required <base-ref>
 #       a change set that changes a fragment-mode plugin's shipped files adds or
 #       modifies a fragment for it; a fragment it adds must not already exist at
-#       <base-ref>
+#       <base-ref>. A Dependabot pull request whose every commit is a verified
+#       Dependabot commit needs no fragment: scripts/dependabot-fragments.sh
+#       writes it after the merge (see dependabot_only below)
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: <base-ref> holds no fragment this release
 #       left unconsumed for a plugin whose version it bumps, and no fragment it
@@ -137,8 +139,54 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   esac
 done <"$status_file"
 
+# 0 when the change set is Dependabot's alone: CHANGELOG_PR_AUTHOR (CI sets it
+# from the pull request event) is dependabot[bot], and every commit in it is
+# authored by Dependabot, committed by GitHub, and carries a signature GitHub
+# verified. A commit anyone else pushes to the branch fails the last two: git
+# lets a pusher write any author and committer, but not GitHub's signature.
+# The one other commit allowed is pr-bump-plugin-version.yml's own: authored by
+# github-actions[bot], committed and verified the same way, and touching only
+# the plugin.json and CHANGELOG.md of plugins not in fragment mode (a Dependabot
+# update that spans a legacy plugin and a fragment-mode one). The signature is
+# read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.
+legacy_bump_only() {
+  local paths path rest
+  paths="$(git diff-tree --no-commit-id --name-only -r "$1")" || return 1
+  [[ -n "$paths" ]] || return 1
+  while IFS= read -r path; do
+    [[ "$path" == plugins/* ]] || return 1
+    rest="${path#plugins/}"
+    [[ "${rest%%/*}/.claude-plugin/plugin.json" == "$rest" || "${rest%%/*}/CHANGELOG.md" == "$rest" ]] || return 1
+    changelog_fragments::in_mode "${rest%%/*}"
+    (($? == 1)) || return 1
+  done <<<"$paths"
+}
+
+dependabot_only() {
+  local commits sha an ae ce verified
+  [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+  commits="$(git log --format='%H%x09%an%x09%ae%x09%ce' "$merge_base..$head_commit")" || return 1
+  [[ -n "$commits" ]] || return 1
+  while IFS=$'\t' read -r sha an ae ce; do
+    [[ "$ce" == 'noreply@github.com' ]] || return 1
+    if [[ "$an" == 'github-actions[bot]' && "$ae" == '41898282+github-actions[bot]@users.noreply.github.com' ]]; then
+      # shellcheck disable=SC2310  # the non-zero return IS the answer
+      legacy_bump_only "$sha" || return 1
+    elif [[ "$an" != 'dependabot[bot]' || "$ae" != '49699333+dependabot[bot]@users.noreply.github.com' ]]; then
+      return 1
+    fi
+    verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
+    [[ "$verified" == true ]] || return 1
+  done <<<"$commits"
+}
+
 if [[ "$mode" == --check-required ]]; then
   findings=0
+  dependabot=""
+  # shellcheck disable=SC2310  # the non-zero return IS the answer
+  if dependabot_only; then
+    dependabot=1
+  fi
   for path in ${added_fragments[@]+"${added_fragments[@]}"}; do
     if git cat-file -e "$base:$path" 2>/dev/null; then
       echo "FRAGMENT PATH TAKEN: $path already exists at $base; create a new one with scripts/new-changelog-fragment.sh." >&2
@@ -155,6 +203,10 @@ if [[ "$mode" == --check-required ]]; then
     esac
     checked=$((checked + 1))
     [[ -z "${covered[$name]:-}" ]] || continue
+    if [[ -n "$dependabot" ]]; then
+      echo "Dependabot-only change to plugins/$name/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      continue
+    fi
     echo "MISSING FRAGMENT: this change set changes files under plugins/$name/ but adds or edits no fragment under .changes/$name/." >&2
     echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
     findings=$((findings + 1))

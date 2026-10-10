@@ -18,10 +18,13 @@ Run the read-only check, report it, and stop. This skill is the model-invocable 
 ## Check
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DATA}"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
+  --model-dir '${user_config.model_dir}'
 ```
 
 Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
+Keep `--model-dir` exactly as shown, in single quotes; the script handles an unset `model_dir`
+option ([reference/plugin-options.md](../../reference/plugin-options.md)).
 
 Report the `PASS`/`FAIL` rows and the summary as printed. Each `FAIL` row carries its remedy.
 Do not run the remedies.

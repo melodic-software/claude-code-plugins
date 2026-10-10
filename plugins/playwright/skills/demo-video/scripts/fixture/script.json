@@ -1,0 +1,23 @@
+{
+  "title": "Fixture tour",
+  "subtitle": "Get started  ›  Search  ›  Trace viewer",
+  "steps": {
+    "get-started": {
+      "caption": "Open “Get started”",
+      "narration": "Open Get started from the home page.",
+      "outcome": "Installation guide open",
+      "outcome_narration": "The installation guide opens."
+    },
+    "search": {
+      "caption": "Search the docs for “trace viewer”",
+      "narration": "Type trace viewer into the search box.",
+      "results_narration": "Results appear for the full query."
+    },
+    "open-result": {
+      "caption": "Open the first result",
+      "narration": "Open the first result.",
+      "outcome": "Trace viewer docs open",
+      "outcome_narration": "The trace viewer guide is open."
+    }
+  }
+}
