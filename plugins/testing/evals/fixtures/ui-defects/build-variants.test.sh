@@ -70,6 +70,16 @@ check(sorted(v["id"] for v in mapping.values()) == sorted(catalog), f"map ids {s
 dirs = {p.name for p in (a / "variants").iterdir()}
 check(dirs == set(mapping), "variant dirs do not match the map")
 
+# D4 and D7 have no vision case, so no crops; every other variant has exactly one crop directory.
+crops = {p.name for p in (here / "crops").iterdir() if p.is_dir()}
+want = {vid for vid, v in mapping.items() if v["id"] not in {"D4", "D7"}}
+check(crops == want, f"crop dirs {sorted(crops - want)} stale, {sorted(want - crops)} missing")
+by_defect = {v["id"]: vid for vid, v in mapping.items()}
+for scaffold in sorted(here.parent.parent.glob("vision-*/scaffold.sh")):
+    case = scaffold.parent.name[len("vision-"):].upper()
+    copied = re.findall(r"crops/([0-9a-f]{12})/", scaffold.read_text(encoding="utf-8"))
+    check(copied == [by_defect.get(case)], f"{scaffold.parent.name}: copies {copied}, want {by_defect.get(case)}")
+
 pages = {}
 for vid, info in mapping.items():
     page = (a / "variants" / vid / "index.html").read_bytes()

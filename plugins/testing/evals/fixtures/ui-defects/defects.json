@@ -57,7 +57,7 @@
       "patches": [
         {
           "find": "</body>",
-          "replace": "<script>\nsetTimeout(function () {\n  var note = document.createElement(\"div\");\n  note.textContent = \"Free shipping on orders over 50 dollars\";\n  note.style.cssText = \"height: 48px; line-height: 48px; padding: 0 12px; background: #fff4ce;\";\n  var row = document.querySelector(\".card .actions\");\n  row.parentNode.insertBefore(note, row);\n}, 300);\n</script>\n</body>"
+          "replace": "<script>\nsetTimeout(function () {\n  var note = document.createElement(\"div\");\n  note.textContent = \"Free shipping today\";\n  note.style.cssText = \"height: 48px; line-height: 48px; padding: 0 12px; background: #fff4ce;\";\n  var row = document.querySelector(\".card .actions\");\n  row.parentNode.insertBefore(note, row);\n}, 300);\n</script>\n</body>"
         }
       ]
     },
