@@ -214,8 +214,9 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
-- The root cause is a design flaw that a focused patch cannot fix: `/planning:plan`.
+- The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## When to escalate
 
@@ -223,5 +224,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Re-iterate Phase 1 (faster, sharper, more deterministic)
-- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan` when the `planning` plugin is installed, or your environment's own plan-review capability otherwise
+- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` when the `planning` plugin is installed (it hands off to `/planning:plan`), or your environment's own planning capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code
