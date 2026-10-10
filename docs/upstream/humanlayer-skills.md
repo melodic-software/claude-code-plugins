@@ -1,8 +1,9 @@
-# Upstream source — humanlayer/skills (show-me)
+# Upstream source — humanlayer/skills (show-me, rpi)
 
 Single source of truth for everything in this marketplace derived from
 [humanlayer/skills](https://github.com/humanlayer/skills) — "Claude Code skills from HumanLayer",
-MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md`. The `visualization` plugin's
+MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md` and its `rpi` research step
+([below](#rpi-create-research)). The `visualization` plugin's
 code-shape sketch family is inspired by and adapted from that skill. Provenance lives HERE and in
 plugin CHANGELOGs, never in skill bodies, where it is agent-facing noise. Content citations an agent
 actually uses are not provenance records and stay in place.
@@ -95,6 +96,26 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## rpi: create-research
+
+`discovery`'s `/discovery:explore` artifact took five accuracy ideas from the `rpi` plugin's
+research step: `plugins/rpi/skills/rpi/references/create-research/process.md` and
+`references/research_template.md`.
+
+**Last audited upstream state:** `main@653b641` (2026-10-08T21:54:25Z); both files last changed at
+`04ecf04` (2026-10-07). **Recheck trigger:** a change to either file against `04ecf04`.
+
+**Adaptation posture.** Ideas only. No upstream sentence was carried verbatim, so no MIT notice
+travels with the `discovery` files; the notice above covers the show-me text only.
+
+| Upstream element | Ours | Relation | What was taken / rejected |
+|---|---|---|---|
+| `process.md` step 5, template `repos[].sha`: a commit SHA per researched repository in the frontmatter | `EXPLORE.md` frontmatter `repos:` (`skills/research/context/artifact-shape.md`, "`EXPLORE.md` index additions") | Adapted | **Taken:** one SHA per repository. **Added:** a `dirty` flag and the `git diff --stat <sha> -- <cited paths>` staleness check, since a SHA alone cannot vouch for a citation read from uncommitted content. |
+| `process.md` step 6: distinguish tests read from checks run; a pass claim carries its command and observed result | `verified: ran` with `command:` and `result:` (same file, EXPLORE sidecar header) | Adapted | **Taken:** the read/ran split and the command-plus-result evidence. **Added:** a write-producing test run is outside the dispatched explorer's read-only boundary, so there the pass question becomes a gap. |
+| Template "Code References": state whether coverage is exhaustive or covers key files | `## Code references` section with `coverage: exhaustive \| key-files` | Adapted | **Taken:** the coverage statement. The listing also scopes the SHA staleness diff. |
+| `process.md` step 6: headers assert what is true | Explore abstracts state the finding, not the coverage | Adapted | **Taken:** for the one-line abstracts mirrored into the index. **Rejected:** finding-named section headers; our sidecar names stay fixed because the gate and the section → file table key on them. |
+| `process.md` steps 3 and 7: subagent roles and a targeted follow-up for remaining questions | `/discovery:explore` gap routing to `/discovery:trace-intent` | Adapted | **Taken:** that a remaining "why" question goes somewhere that can answer it. Explore reads git only; rationale lives in pull requests and issues, which `/discovery:trace-intent` reads. **Rejected:** the four named subagent roles and the web-search researcher; explore's single-worker and scout model already covers locating and analyzing, and external sources are `/discovery:research`'s. |
 
 ## Not audited
 

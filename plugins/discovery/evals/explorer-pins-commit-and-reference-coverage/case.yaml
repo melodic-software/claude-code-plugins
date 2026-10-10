@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: explorer-pins-commit-and-reference-coverage
+description: A discovery:explorer dispatch writes an EXPLORE.md index that pins the explored repository's HEAD commit under repos[].sha, carries a dirty flag, and opens its Code references section with a coverage line. The scaffold commits with fixed identity and dates, so the only correct sha is f1e312a2d8074519be9bb00d710fbc170f607d1f. A run needs --scaffold --allow-tools Bash,Write, and --ablation none because the baseline arm cannot dispatch the agent.
+tags: [explorer, artifact-shape]
+plugins: ["../.."]
+runs: 3
+expected_outcome: the explorer writes EXPLORE.md with Run status complete, a repos entry whose sha is the scaffold commit's full sha plus a dirty flag, and a Code references section whose first line is coverage exhaustive or key-files.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Agent, Read, Glob, Grep, Write, Bash]
+  max_turns: 20
+  timeout_seconds: 1200
+graders:
+  - name: explorer-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:explorer'
+    min: 1
+    max: 1
+    arm: with-only
+  - name: slice-reached-complete
+    type: regex
+    pattern: '^Run status: complete$'
+    flags: m
+    target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
+    arm: with-only
+  - name: sha-pinned
+    type: regex
+    pattern: '^\s*(-\s+)?sha:\s*"?f1e312a2d8074519be9bb00d710fbc170f607d1f"?\s*$'
+    flags: m
+    target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
+    arm: with-only
+  - name: dirty-flag-recorded
+    type: regex
+    pattern: '^\s*(-\s+)?dirty:\s*(true|false)\s*$'
+    flags: m
+    target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
+    arm: with-only
+  - name: reference-coverage-stated
+    type: regex
+    pattern: '^## Code references\s*\n+coverage: (exhaustive|key-files)\s*$'
+    flags: m
+    target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
+    arm: with-only

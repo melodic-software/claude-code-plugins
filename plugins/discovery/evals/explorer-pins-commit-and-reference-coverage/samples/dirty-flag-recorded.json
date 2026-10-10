@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: false\n"},
+    {"answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: true\n", "why": "an untracked memory slice can make the tree dirty"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n", "why": "no dirty flag"},
+    {"answer": "The working tree was not dirty: true story.", "why": "prose, not a field"}
+  ]
+}

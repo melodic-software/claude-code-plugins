@@ -268,22 +268,64 @@ abstract: <one line, mirrored verbatim into the index>
 dimension: codebase        # which of the six exploration dimensions produced this
 findings:
   - finding: "<one-line finding>"
-    verified: read         # read | grep | inferred — see below
+    verified: read         # read | ran | grep | inferred — see below
     paths:                 # repo-relative, never absolute; the outcome gate checks this
       - "src/payments/rounding.ts:112-140"
+  - finding: "tests/payments/test_rounding.py passes"
+    verified: ran
+    command: "python -m pytest tests/payments/test_rounding.py -q"   # only with verified: ran
+    result: "4 passed"     # the observed output, quoted, not a reading of it
+    paths:
+      - "tests/payments/test_rounding.py"
 produced_by: <phase or dimension id>
 ---
 ```
 
 **`verified` is the whole point of the header**, and it is the local analogue of the source tier:
 
-- **`read`**: the file was opened and the finding comes from its contents. The only value a
-  conclusion-driving claim may carry, per the outcome gate's Read-verified criterion.
+- **`read`**: the file was opened and the finding comes from its contents. A conclusion-driving
+  claim carries `read` or `ran`, per the outcome gate's Read-verified criterion.
+- **`ran`**: a command was executed and the finding is its observed result, recorded in `command:`
+  and `result:`. A claim that a test or check passes, fails, or builds carries `ran` and nothing
+  else: a test that was only opened supports what it asserts (`read`), never that it passes. A
+  command that would write to the repository (build output, caches, a test runner's state) is
+  outside a dispatched explorer's read-only boundary, so there the pass/fail question becomes a
+  numbered gap instead of a claim.
 - **`grep`**: a search hit located it and nothing was opened. Discovery only. A `grep`-verified
   finding is a lead, not a conclusion.
 - **`inferred`**: drawn from a filename, a directory layout, or a convention rather than from
   content. Always suspect; name it so a reader can discount it.
 
-Keeping these three distinct is what lets a verifier grade "conclusion-driving claims are
+Keeping these distinct is what lets a verifier grade "conclusion-driving claims are
 Read-verified, not inferred from a filename or grep hit" off the artifact instead of taking the
 run's word for it, the same job `sources[]` does for the research side.
+
+**Abstracts state the finding, not the coverage.** For exploration, the index's `abstract:` and
+each sidecar's `abstract` assert what is true ("Rounding happens once, in `rounding.ts`, after
+currency conversion"), never what was looked at ("Rounding module overview"). A reader picks one
+sidecar by its abstract, and a coverage label gives them nothing to pick on. The `section` id and
+the filename stay the fixed section names: the gate and the section → file table key on them.
+
+### `EXPLORE.md` index additions
+
+The index frontmatter also carries the commit each explored repository was read at:
+
+```yaml
+repos:
+  - name: <repository name, e.g. owner/repo or its directory name; never an absolute path>
+    sha: <full 40-character `git rev-parse HEAD` at the final write>
+    dirty: false           # true when `git status --porcelain` was non-empty at the final write
+```
+
+Every `path:line` citation in the set is only as good as the commit it was read at. A resuming
+session compares `sha` with its own `HEAD` and runs `git diff --stat <sha> -- <cited paths>`; a
+cited file that changed since is re-read before anything rests on it. `dirty: true` says some
+citations may point at uncommitted content the sha cannot reproduce. Outside a repository the list
+is `repos: []`.
+
+The index body adds a **`## Code references`** section after the section → file table: the
+repo-relative paths the findings cite, grouped by area, each with a few words on its role. Its first
+line is `coverage: exhaustive` (every file in the scope that bears on the task is listed) or
+`coverage: key-files` (the entry points and load-bearing files only), so a reader knows whether a
+file missing from the list was ruled out or simply not listed. These paths are also the set the
+staleness diff above runs over.

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "---\nabstract: Rounding happens once\nrepos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: false\n---\n", "why": "schema shape, name first"},
+    {"answer": "---\nrepos:\n  - sha: \"f1e312a2d8074519be9bb00d710fbc170f607d1f\"\n    name: payments-fixture\n---\n", "why": "sha first in the list item, quoted"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "---\nrepos:\n  - name: payments-fixture\n    sha: f1e312a\n---\n", "why": "short sha"},
+    {"answer": "---\nrepos:\n  - name: payments-fixture\n    sha: 0000000000000000000000000000000000000000\n---\n", "why": "a 40-hex value that is not the scaffold commit"},
+    {"answer": "The fixture was read at commit f1e312a2d8074519be9bb00d710fbc170f607d1f.", "why": "sha in prose, not a sha: field"}
+  ]
+}
