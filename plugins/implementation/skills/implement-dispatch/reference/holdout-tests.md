@@ -71,9 +71,9 @@ special-case.
    first rechecks the step 3 hash; a change it did not make itself (step 6, which records a new
    hash) is a Major divergence and stops the run. It then creates a detached throwaway worktree at
    the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
-   that path, the holdout path, the exact run command, and the criterion each test maps to. When the ecosystem needs the tests inside the tree to build,
-   the orchestrator copies them into the throwaway worktree, never into a worker's. It removes the
-   throwaway worktree after the verdict.
+   that path, the holdout path, the exact run command, and the criterion each test maps to. When
+   the ecosystem needs the tests inside the tree to build, the orchestrator copies them into the
+   throwaway worktree, never into a worker's. It removes the throwaway worktree after the verdict.
 
    The phase diff is worker-authored, and a test runner executes configuration it finds in the
    tree: a new `conftest.py` hook can force a pass, a pytest ini can add options, a `pretest`
