@@ -225,51 +225,45 @@ catalog on, and the cloud bootstrap installs from the two together (see
   the health verdict against the clone's HEAD rather than the checkout's, and prints one
   warning naming both commits, so a branch that changed a plugin knows its copy is not the one
   being served.
-- **`skillListingBudgetFraction` is set to `0.05`, and what that buys depends entirely on the
-  live model's context window.** Claude Code loads every enabled skill's name and description
-  each turn and caps the total at
+- **`skillListingBudgetFraction` is set to `0.07`, and what that buys depends on the live
+  model's context window and its bytes per token.** Claude Code loads every enabled skill's
+  name and description each turn and caps the total at
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) of the context window,
   default `0.01`. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring
   skills first, so a skill that is never invoked loses the keywords a request would have matched
-  and goes on not being invoked. Measured at `main` 3ea592bb with
-  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`: **182 listing-eligible
-  skills, 135,596 characters**. The budget is `window_tokens x 4 chars/token x fraction`, so at
-  `0.05` the listing fits **only on a context window of 677,980 tokens or larger**. Read the
-  setting as a window assumption, not a guarantee:
+  and goes on not being invoked. The budget is `window_tokens x bytes_per_token x fraction`, and
+  bytes per token is 3 or 4 depending on the model.
 
-  | Context window | Budget at `0.05` | `harness-ops:audit-skill-visibility` |
-  | --- | --- | --- |
-  | 200,000 (Claude Code's documented default) | 40,000 chars | `overflowing`, **135 of 182 starved** |
-  | 677,980 (break-even for today's fleet) | 135,596 chars | `listing-fits`, 0 starved |
-  | 750,000 | 150,000 chars | `listing-fits`, 0 starved, 14,404 spare |
-  | 1,000,000 | 200,000 chars | `listing-fits`, 0 starved, 64,404 spare |
+  Measured 2026-10-10 on Claude Code 2.1.296 with
+  `/harness-ops:audit-skill-visibility --installed --context-window 1000000 --listing-capture
+  <session transcript>`: the full listing for the installed fleet is about **177,000
+  characters**. That is 302 competing skills at 169,124, plus 8,237 for built-in and other
+  entries only the captured listing shows. A `claude-opus-5-5` session on a 1M window got a
+  listing of exactly 150,000 characters at the previous `0.05`, so that model runs at 3 bytes
+  per token, and it shed 38 descriptions. At `0.07`:
 
-  On a 200k-window machine this setting does not clear the fleet; it moves the starved count from
-  177 to 135. It reaches 0 starved only on the large-window models this marketplace is actually
-  driven on. Re-measured after merging `main` 8dd38b81: 182 skills, 135,572 characters. Every
-  row above reproduces unchanged, so treat the table as accurate to within a few dozen characters
-  of whatever `main` you read it on, not as a live reading.
+  | Context window | Budget at 3 bytes/token | Budget at 4 bytes/token | Against about 177,000 |
+  | --- | --- | --- | --- |
+  | 200,000 | 42,000 chars | 56,000 chars | overflowing at either rate |
+  | 750,000 | 157,500 chars | 210,000 chars | overflowing at 3, fits at 4 |
+  | 1,000,000 | 210,000 chars | 280,000 chars | fits, about 33,000 spare at 3 |
 
-  **The repo did not previously run `0.03` or a 90,000-character budget.**
-  `git log -S skillListingBudgetFraction -- .claude/settings.json` returns exactly one commit on
-  this branch, a5a9503a, the commit in this change that adds the key, so before it this repo
-  inherited the harness default `0.01`,
-  which is the documented 8,000-character fallback on a 200k window and leaves **177 of 182
-  skills starved**. The `0.03` / 90,000-character pair belongs to one contributor's machine in
-  [#3505](https://github.com/melodic-software/claude-code-plugins/issues/3505)'s debug log, where
-  the audit reports 72 of 182 starved. That is a real observation of one consumer, not this
-  repository's prior configuration.
+  A 200k-window session, including a subagent whose listing is sized to its own window, still
+  sheds descriptions at any fraction anyone would want to pay for. The setting is sized for the
+  1M-window models this marketplace is driven on. Re-measure with the command above rather than
+  trusting this table on a later `main`.
 
-  **This is a stopgap measured in days.** The same tool measured 59,465 characters on 2026-07-20
-  and 86,316 on 2026-08-05 against 135,596 on 2026-09-05, which is 1,620 to 1,700 characters of
-  growth a day. Against the 14,404-character headroom on a 750,000-token window that is **about
-  9 days**; against the 64,404 on a 1,000,000-token window, **about 40 days**. No fraction anyone
-  would want to pay for changes that shape, because the aggregate is what grows. Trimming the
-  descriptions at their source is the fix, and it is
-  [#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526). That is required
-  work, not optional follow-up. Until it lands, a second report-only CI step measures the
-  aggregate at this configured fraction on the tighter 750,000-token basis, so the WARN arrives
-  with days of warning instead of after the consumers on that basis have already overflowed.
+  **This is a stopgap.** The repository's own skills grew 1,620 to 1,700 description characters
+  a day between July and September 2026 (measured with
+  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`). At that rate the
+  1M/3 headroom lasts about three weeks, an estimate because the installed fleet includes skills
+  from outside this repository. Raising the fraction again only resets the clock. Trimming the
+  descriptions at their source is the fix, and
+  [#6846](https://github.com/melodic-software/claude-code-plugins/issues/6846) owns it, including
+  lowering this fraction again once the trimmed listing is re-measured. Until it lands, a
+  second report-only CI step measures this repository's skills at the configured fraction on a
+  750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, which
+  overflows at 750,000 tokens already.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
