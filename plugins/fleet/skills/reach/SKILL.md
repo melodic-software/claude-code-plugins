@@ -101,8 +101,13 @@ context loading). When a script can do the job, run the script.
   `uuidgen` is missing.
 - **Background sessions** need a trusted working directory. Anywhere else the start fails with
   ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt`` and exit 1.
-  `claude logs` takes only the short id, not the name, and prints raw TUI output, so read a reply
-  from the transcript (`--resume <id>`), not from `logs`.
+  Address `claude logs` and `claude attach` by the `id` from `claude agents --json`, so a lane on
+  an older CLI behaves like a current one; pass a name only after checking the lane's version
+  against the CLI reference. `logs` prints raw TUI output, so read a reply from the transcript
+  (`--resume <id>`), not from `logs`.
+  - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
+    [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
+    **As of**: 2026-10-10. **Recheck trigger**: the `claude logs` or `claude attach` row changes.
 - An interactive session in a prompting mode (default or auto) accepts inbound messages. A `-p`
   receiver needs `crossSessionInbound: accept`, and lives only as long as its turn.
 - `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive

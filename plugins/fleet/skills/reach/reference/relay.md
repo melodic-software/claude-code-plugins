@@ -122,8 +122,14 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
   the trust prompt, then retry.`` and exit 1.
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
-- `claude logs` takes only the short `id`, not the name (`No job matching '<name>'`), and prints the
-  raw ANSI TUI stream. Read a reply from the transcript with `--resume <id>` instead.
+- We address `claude logs` and `claude attach` by the short `id` from `claude agents --json`, so a
+  lane on an older CLI behaves like a current one; a name is passed only after checking the lane's
+  version against the CLI reference. `claude logs` prints the raw ANSI TUI stream, so read a reply
+  from the transcript with `--resume <id>` instead.
+  - **Pointer**: when deciding whether a lane can take a session name in place of the id, fetch
+    [CLI reference: CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: the `claude logs` or `claude attach` row changes.
 - `--bg` cannot be combined with `-p`. A running background session binds an inbox socket, so a
   later relay turn in that lane can list and message it. `claude --resume <id> --bg "<prompt>"`
   continues a finished one.
