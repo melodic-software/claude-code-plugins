@@ -791,6 +791,10 @@ def main(argv=None):
         r = rect_at(c - 1e-3)
         if layers['camera'] and abs(W / r[2] - 1.0) > 1e-3:
             errs.append(f'navigation cut at {c:.2f}s taken at {W / r[2]:.2f}x, not 1.0x')
+    for stp in steps:   # qc.py's target-headroom: a move delayed past a state cut can end after its click
+        r = rect_at(out_of(stp['ck']['t']))
+        if layers['camera'] and not in_shot(r, stp['target_box'], W, H, CAM['safe_margin'] * r[2] / W / 2):
+            errs.append(f"{stp['id']} click target is not in shot with headroom at its click")
     for stp in steps:
         for key in ('click_shot', 'type_rect', 'land_rect'):
             r = stp.get(key)
