@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D2: the first card's Add to cart button is 64 px wide with overflow hidden, so its label is cut off"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600

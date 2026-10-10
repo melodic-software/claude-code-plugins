@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Already sharp tickets: /planning:interview or /work-items."
+description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. Not the first step: a new effort starts at /planning:interview. Already sharp tickets: /work-items."
 argument-hint: "[chart|work] [topic]"
 user-invocable: true
 disable-model-invocation: false
@@ -30,9 +30,11 @@ Arguments: `$ARGUMENTS`
 Some efforts are **too big to hold at once AND too foggy to ticket**. You can't yet
 phrase half the questions, let alone answer them. `/planning:interview` needs a coherent task;
 `/planning:plan` needs a coherent plan; both presuppose you already know what you're deciding.
-`/planning:wayfind` sits **upstream of all of them**: it turns a too-big-foggy effort into a shared
-**decision map** on the work-item tracker, then works that map's frontier one decision at a
-time until the fog burns off and a real destination (Brief / PRD / PLAN) can be handed onward.
+`/planning:wayfind` is the **escalation from an interview that outgrew one session**: it turns a
+too-big-foggy effort into a shared **decision map** on the work-item tracker, then works that
+map's frontier one decision at a time until the fog burns off and a real destination (Brief /
+PRD / PLAN) can be handed onward. It is never the first step: a brand-new effort starts with
+`/planning:interview`, which names this skill when the effort outgrows it.
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
@@ -85,14 +87,23 @@ applies: when the invocation says the run is unattended (a loop, a spawned worke
 session. Do not fabricate a map.
 
 1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
-   commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
-   decision item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
+   commits, the topic). **Seed from the interview:** when the slice holds an interview ledger
+   (`interview-checklist.md`), its settled answers go into one seed decision item whose
+   resolution comment lists them; it is closed at once with one *Decisions-so-far* pointer (the
+   work-mode step 5 sequence). Its open, deferred and blocked questions become candidate
+   decision items, and its self-answered facts are distilled into *Notes* as text, never as a
+   path. Sort every remaining uncertainty through the fog test: sharp → candidate decision
+   item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet. Every uncertainty is already sharp, or the
    whole effort fits one session. This effort does not need a map. STOP and route out
    instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
    Skill tool; a set of
    sharp tickets → `/work-items:decompose` (or `/work-items:track add` for one ticket); small enough to just do → say so. (The trigger is too-big
-   AND foggy. Both, never either alone.)
+   AND foggy. Both, never either alone.) Seeded rows are sharp by construction, so the fog must
+   come from the survey; a seeded interview with no fog goes back to its own handoff and resume.
+   **New-effort gate**, checked after the bail-out: when neither the slice nor this conversation
+   holds an interview of the effort, STOP and recommend `/planning:interview` first; chart only
+   if the user still asks for a map after hearing that.
 2. **Create or extend the map issue.** On first use in a repo, resolve the container label
    (the seam's `config.container_label` key, default `work-map`. Snippet in
    `context/tracker-mechanics.md`), then **verify** the wayfind label
@@ -181,7 +192,7 @@ session. Do not fabricate a map.
 
 `/planning:wayfind`'s description carries the proactive trigger. The sibling skills carry **pull-back
 lines**: when `/planning:interview`, `/planning:plan`, or `/implementation:implement` hits a task that is clearly
-too-big-AND-foggy for their stage, they name `/planning:wayfind` as the better entry.
+too-big-AND-foggy for their stage, they name `/planning:wayfind` as the escalation.
 **guiding the user, never auto-switching**. Wording lives in each of those skills; this skill
 owns the trigger's meaning (too-big + fog, both, not either alone).
 
@@ -198,8 +209,9 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 
 For pre-implementation efforts, the routed items above compose into a known order (blindspot →
-brainstorm/prototype → PRD → interview → reference port → design → plan → decompose); the workflow section of
-`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+brainstorm/prototype → PRD → interview, escalating here when it outgrows one session → reference
+port → design → plan → decompose); the workflow section of `docs/finding-your-unknowns.md` in
+the marketplace repository states it with rationale.
 
 ## What this skill does NOT do
 
@@ -217,6 +229,13 @@ brainstorm/prototype → PRD → interview → reference port → design → pla
   research scratch, evidence).
 - **Does not invent a second claim/mode mechanism.** Claims use the sibling `work-items`
   plugin's claim model (`/work-items:track start`); mode is the `needs-human` label. No parallel taxonomy.
+
+## Next
+
+- A brand-new effort with no interview behind it: /planning:interview.
+- The map is charted: /planning:wayfind work.
+- The map closed and its destination is a PLAN: /planning:plan.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Reference
 
