@@ -313,9 +313,9 @@ END {
     # `:*` is recognized as prefix syntax only at the end of a pattern; elsewhere
     # the colon is a literal and the `*` a wildcard, so `Bash(git:* push)`
     # matches `git:<anything> push` and none of the git commands it was meant
-    # for. Claude Code warns about such a rule at startup, but the warning was
-    # not seen in a -p run, so the lint still reports it. Probed on Claude Code
-    # 2.1.296, 2026-10-10; evidence in the pull request that carries this change.
+    # for. We saw no startup warning for such a rule in a -p run, so the lint
+    # reports it. Probed on Claude Code 2.1.296, 2026-10-10; evidence in the
+    # pull request that carries this change.
     # Pointer: when the mid-pattern colon matters, fetch
     # https://code.claude.com/docs/en/permissions#wildcard-patterns live.
     # As of: 2026-10-10. Recheck trigger: that section changes how a
@@ -342,14 +342,14 @@ END {
     # and the check still applies.
     # ...and the value must carry NO SPACE. "Each rule names one parameter" and
     # its value is a single scalar, so a parameter value never has
-    # space-separated trailing words -- while the dead form is precisely a
-    # command prefix FOLLOWED BY MORE WORDS.
+    # space-separated trailing words -- while the literal-colon command wildcard
+    # is precisely a command prefix FOLLOWED BY MORE WORDS.
     #
     # Without this, `git` parses as an identifier and `deny Bash(git:* push)` --
-    # the OWN dead-rule example the page gives -- went silent. That is worse
-    # than the false positive it replaced: a dead ALLOW fails closed (the
-    # operator is denied something they thought they had), a dead DENY fails
-    # OPEN (they believe they blocked `git push` and did not). The space is a
+    # the OWN literal-colon example the page gives -- went silent. That is
+    # worse than the false positive it replaced: an ALLOW in this form fails closed (the
+    # operator is denied something they thought they had), a DENY in this form
+    # fails OPEN (they believe they blocked `git push` and did not). The space is a
     # property of the grammar, so it does not reintroduce the name allowlist.
     #
     # In an ALLOW rule the same shape is exempted for a different reason: it is
@@ -357,7 +357,8 @@ END {
     # rule cannot use the parameter form at all). Letting colonStar fire too
     # gave one rule two findings with two mechanics, and for a tool that takes
     # no command prefixes -- `Agent` -- the colonStar explanation is simply
-    # wrong. The rule is dead either way; only one of the two says why.
+    # wrong. The rule does not do what it looks like either way; only one of
+    # the two says why.
     cs = index(body, ":*")
     mid_colon_star = (cs > 0 && cs + 1 < length(body))
     is_param_shape = (pfx ~ /^[A-Za-z_][A-Za-z0-9_]*$/) && (value_of(body) !~ /[ \t]/)

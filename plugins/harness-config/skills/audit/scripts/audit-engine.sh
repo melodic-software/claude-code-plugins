@@ -2103,12 +2103,14 @@ check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
   local raw dedup cap mix enforce avail_len req key
-  # deniedModels and availableModelsMatch are read only from managed settings,
-  # and every file check_h reads is a user, project or local file, so an entry
-  # here is a model policy that is not in force.
+  # We treat deniedModels and availableModelsMatch as managed-only, and every
+  # file check_h reads is a user, project or local file, so an entry here is a
+  # model policy that is not in force.
   # Pointer: when the managed-only rule matters, fetch
-  # settings-reference#availablemodelsmatch live. As of: 2026-10-10.
-  # Recheck trigger: that section reads either key outside managed settings.
+  # https://code.claude.com/docs/en/settings-reference#availablemodelsmatch and
+  # https://code.claude.com/docs/en/settings-reference#deniedmodels live.
+  # As of: 2026-10-10. Recheck trigger: either section reads its key outside
+  # managed settings.
   for key in deniedModels availableModelsMatch; do
     if [[ "$(jqf "$file" -r "has(\"$key\")")" == "true" ]]; then
       row H managed-only-model-policy finding warning "$surface" "$key-outside-managed" "$key is set outside managed settings, where Claude Code ignores it, so this model policy is not in force" "/$key"

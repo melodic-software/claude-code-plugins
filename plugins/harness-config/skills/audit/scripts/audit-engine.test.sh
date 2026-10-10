@@ -534,9 +534,10 @@ assert_eq "case 10: user enforce without a list is an error" "error" "$(jq -r '.
 assert_eq "case 10: deep-link boolean is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="disableDeepLinkRegistration:true") | .severity' <<<"$out")"
 
 # --- Case 10b: managed-only model policy outside managed settings -------------
-# Source: settings-reference#availablemodelsmatch: Claude Code ignores
-# availableModelsMatch (and deniedModels) in user, project and local settings, so
-# either key in a file this audit reads is a policy that is not in force.
+# Source: the engine's managed-only decision for these keys, pointing at
+# https://code.claude.com/docs/en/settings-reference#availablemodelsmatch and
+# https://code.claude.com/docs/en/settings-reference#deniedmodels: either key in
+# a file this audit reads is a policy that is not in force.
 m="$(make_machine hpolicy)"
 printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {deniedModels:["opus"]}' >"$m/project/.claude/settings.json"
 printf '%s\n' '{"availableModelsMatch":"exact"}' >"$m/user/settings.json"

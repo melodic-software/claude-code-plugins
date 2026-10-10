@@ -88,17 +88,16 @@ sandbox.
 | --- | --- | --- |
 | `allowUnsandboxedCommands` | A command that fails under the sandbox may be retried with `dangerouslyDisableSandbox`, which runs it outside | set to `false` |
 | `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
-| `excludedCommands` | Anything listed runs outside the sandbox. When the sandbox is admin-required, entries in the repository's own `.claude/settings.json` and `.claude/settings.local.json` are ignored, but a developer's user settings and `--settings` can still append entries | kept narrow, and reviewed in every scope that still applies |
+| `excludedCommands` | Anything listed runs outside the sandbox. Which scopes' entries still apply when the sandbox is admin-required is in the pointer below the table | kept narrow, and reviewed in every scope that still applies |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
 | `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |
 
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
 the same defect as recommending the deny globs without their scope. Strict mode
 (`allowUnsandboxedCommands: false`) closes the unsandboxed retry for commands Claude runs. It does
-not close `!` shell mode in an interactive session. Set from managed settings or `--settings`, it
-also makes the sandbox admin-required, which stops the repository's own project and local settings
-from loosening it; a developer's user settings and `--settings` still can. Audit the loosening
-settings in those remaining scopes rather than reporting the repository's entries as live.
+not close `!` shell mode in an interactive session. When strict mode may make the sandbox
+admin-required, audit the loosening settings only in the scopes it still reads, and do not report
+the repository's ignored entries as live.
 
 - **Pointer**: when you need what makes the sandbox admin-required, or which loosening settings it
   then ignores from the repository, fetch

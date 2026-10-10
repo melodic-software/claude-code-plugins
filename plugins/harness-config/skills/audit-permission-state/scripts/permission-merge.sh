@@ -3,7 +3,8 @@
 # permission-state.sh's scope records.
 #
 # Permission rules "merge across scopes rather than override", so every scope's
-# rules are live at once and there is no same-kind winner to elect. What a rule
+# rules, except `!` carve-outs, are live at once and there is no same-kind
+# winner to elect. What a rule
 # text CAN lose is its kind: "deny rules from any scope are evaluated before
 # allow rules", in both directions — a user deny blocks a project allow and a
 # project deny blocks a user allow. That is the only election this script makes,
