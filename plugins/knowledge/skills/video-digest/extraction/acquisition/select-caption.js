@@ -159,7 +159,8 @@ function refineWithManualKeys(filePath, rung, manualKeys) {
  * alone cannot prove a manual track. When `manualLanguages` (the keys of
  * info.json `subtitles`) is given, a `manual-en` filename whose key is not a
  * manual track is reclassified auto: a bare `.en.vtt` becomes `auto-en` with
- * a `provenanceNote`, ranked below the original `.en-orig.vtt`, and an
+ * a `provenanceNote`, ranked below the original `.en-orig.vtt` (the bare
+ * file may be YouTube's machine translation, `tlang=en`), and an
  * `en-<lang>` translation becomes `auto-translate-en`. Omitted, the filename
  * classification stands.
  *

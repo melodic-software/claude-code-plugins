@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D3: body text is #a0a0a0 on white, below the 4.5:1 contrast minimum"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600

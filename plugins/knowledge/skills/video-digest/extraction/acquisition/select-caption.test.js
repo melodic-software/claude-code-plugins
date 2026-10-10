@@ -108,24 +108,28 @@ describe("selectCaptionFile", () => {
     }
   });
 
-  it("prefers the original en-orig track over a bare auto .en.vtt when no manual English exists (#6740)", () => {
-    const result = selectCaptionFile(["x.en.vtt", "x.en-orig.vtt"], "manual-and-auto", {
-      manualLanguages: [],
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.selection.path).toBe("x.en-orig.vtt");
-      expect(result.selection.rung).toBe("auto-en");
-      expect(result.selection.isAutoCaption).toBe(true);
+  it("prefers the original .en-orig.vtt over a possibly translated bare .en.vtt when info.json lists no manual English subtitles", () => {
+    for (const files of [
+      ["x.en.vtt", "x.en-orig.vtt"],
+      ["/w/_U-O5lYhJ7Q.en-orig.vtt", "/w/_U-O5lYhJ7Q.en.vtt"],
+    ]) {
+      const result = selectCaptionFile(files, "manual-and-auto", { manualLanguages: [] });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.selection.path).toMatch(/\.en-orig\.vtt$/);
+        expect(result.selection.rung).toBe("auto-en");
+        expect(result.selection.isAutoCaption).toBe(true);
+      }
     }
   });
 
-  it("classifies a bare .en.vtt as auto-en when info.json lists no manual English subtitles", () => {
+  it("classifies a lone bare .en.vtt as auto-en when info.json lists no manual English subtitles", () => {
     const result = selectCaptionFile(["/w/_U-O5lYhJ7Q.en.vtt"], "manual-and-auto", {
       manualLanguages: [],
     });
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.selection.path).toBe("/w/_U-O5lYhJ7Q.en.vtt");
       expect(result.selection.rung).toBe("auto-en");
       expect(result.selection.isAutoCaption).toBe(true);
       expect(result.selection.provenanceNote).toContain("_U-O5lYhJ7Q.en.vtt");
