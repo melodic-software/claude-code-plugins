@@ -67,11 +67,11 @@
       "why": "hedge"
     },
     {
-      "answer": "FINDING [count-mismatch]: \"Showing 5 results\" but only 3 product cards are shown.\nVERDICT: NEEDS WORK",
-      "why": "compares only with the cards, as on the unmodified page"
+      "answer": "FINDING [count-mismatch]: \"Showing 5 results\" but only 4 product cards are shown.\nVERDICT: NEEDS WORK",
+      "why": "compares only with the cards, which number five and match the count"
     },
     {
-      "answer": "FINDING [count-mismatch]: The specs table lists 2 items while the page shows 3 cards.\nVERDICT: NEEDS WORK",
+      "answer": "FINDING [count-mismatch]: The specs table lists 2 items while the page shows 5 cards.\nVERDICT: NEEDS WORK",
       "why": "a different defect"
     },
     {
