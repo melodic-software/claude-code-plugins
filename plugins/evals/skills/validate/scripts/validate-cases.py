@@ -44,12 +44,20 @@ carries the full parser.
 Drift record. CLAIM: the FAIL tier mirrors what the binary rejects - the
 thirteen `prompt.md` frontmatter keys, the six grader types whose option sets are
 strict, the bounds on `runs`, `max_turns`, `timeout_seconds`, `weight`, and
-`env` key names, the two fields a `case.yaml` without a `prompt.md` must carry
-(`schema_version` and `name`), and the supported `schema_version` major (1).
-BASIS: the case schema read out of Claude Code 2.1.269 together
+`env` key names, the supported `schema_version` major (1), and every field the
+schema marks required: `schema_version` (a string with a leading major) and
+`name`, which the binary defaults only when the case has no `case.yaml`; a
+prompt, from the `prompt.md` body or `execution.prompt`; and each grader type's
+required options (regex `pattern`, tool_used `tool`, tool_order `before` and
+`after`, file_exists `path`, llm `criteria`, baseline `baseline_file` and
+`criteria`), where a `graders/*.md` body stands in for `pattern` or `criteria`.
+BASIS: the case schema and its loader read out of Claude Code 2.1.296 (the
+zod object behind `invalid case.yaml: <path>: Required`, and the merge that
+defaults `schema_version` and `name` only when `case.yaml` is absent), each
+required-field rejection reproduced with `claude plugin eval --case`, together
 with the eval-suite reference page; recheck on the next Claude Code release,
-which can add a key or move a bound, and re-derive both lists from the schema
-rather than patching one value. AS OF: 2026-09-12. Page:
+which can add a key or move a bound, and re-derive the lists from the schema
+rather than patching one value. AS OF: 2026-10-09. Page:
 https://code.claude.com/docs/en/plugin-evals
 
 Drift record. CLAIM: two more `prompt.md` keys, `artifact_publish` and
@@ -157,11 +165,25 @@ READ_ONLY_TOOLS = frozenset(
 # (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
 
-# The `schema_version` major the binary supports; a newer major is refused. A
-# `case.yaml` with no companion `prompt.md` carries the case's identity itself.
+# The `schema_version` major the binary supports; a newer major is refused, and
+# so is a value with no leading major. A case with no `case.yaml` gets a default
+# `schema_version` and takes its directory name as `name`; once a `case.yaml`
+# exists, the two come from it or from `prompt.md` frontmatter, or the case
+# fails to load.
 SCHEMA_MAJOR = 1
-SCHEMA_MAJOR_PREFIX = re.compile(r"^\s*([0-9]+)")
-CASE_YAML_REQUIRED = ("schema_version", "name")
+SCHEMA_MAJOR_PREFIX = re.compile(r"^\s*([+-]?[0-9]+)")
+
+# The options each grader type marks required. A `graders/*.md` body stands in
+# for the option named in BODY_FIELD when the frontmatter leaves it out.
+GRADER_REQUIRED = {
+    "regex": ("pattern",),
+    "tool_used": ("tool",),
+    "tool_order": ("before", "after"),
+    "file_exists": ("path",),
+    "llm": ("criteria",),
+    "baseline": ("baseline_file", "criteria"),
+}
+BODY_FIELD = {"regex": "pattern", "llm": "criteria", "baseline": "criteria"}
 
 # The double-quoted escapes this subset translates. Anything else is a ParseError
 # rather than a silent drop: YAML rejects an unknown escape too, so translating
@@ -479,15 +501,20 @@ def parse_yaml(text):
     return value
 
 
-def split_frontmatter(text):
-    """Return the frontmatter block of a markdown file, or None when it has none."""
+def split_markdown(text):
+    """Return (frontmatter block or None, body) of a markdown file."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        return None
+        return None, text
     for index in range(1, len(lines)):
         if lines[index].strip() == "---":
-            return "\n".join(lines[1:index])
+            return "\n".join(lines[1:index]), "\n".join(lines[index + 1 :])
     raise ParseError("unterminated frontmatter")
+
+
+def split_frontmatter(text):
+    """Return the frontmatter block of a markdown file, or None when it has none."""
+    return split_markdown(text)[0]
 
 
 # --------------------------------------------------------------------------
@@ -594,13 +621,29 @@ def check_bounds(fields, case, findings):
 
 
 def check_schema_version(value, case, path, findings):
-    """FAIL a schema_version whose major is newer than the binary supports.
-
-    A value with no leading integer is left alone: no source records the binary
-    rejecting it, and the FAIL tier invents no rejection of its own.
-    """
-    match = SCHEMA_MAJOR_PREFIX.match(str(value))
-    if match and int(match.group(1)) > SCHEMA_MAJOR:
+    """FAIL a schema_version that is not a string, has no leading major, or has
+    a major newer than the binary supports."""
+    if not isinstance(value, str):
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'schema_version must be a quoted string such as "1.1"',
+            )
+        )
+        return
+    match = SCHEMA_MAJOR_PREFIX.match(value.split(".")[0])
+    if not match:
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                path,
+                'schema_version "%s" is not a valid version string' % value,
+            )
+        )
+    elif int(match.group(1)) > SCHEMA_MAJOR:
         findings.append(
             Finding(
                 "FAIL",
@@ -608,6 +651,40 @@ def check_schema_version(value, case, path, findings):
                 path,
                 'schema_version "%s" is a major newer than %d, which the binary '
                 "refuses" % (value, SCHEMA_MAJOR),
+            )
+        )
+
+
+def check_identity(identity, prompt, prompt_file, case, findings):
+    """FAIL a case missing a field the binary requires once the files merge."""
+    for key in ("schema_version", "name"):
+        if key not in identity:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    "case.yaml",
+                    '"%s" is required; set it in case.yaml or in prompt.md '
+                    "frontmatter" % key,
+                )
+            )
+    if "schema_version" in identity:
+        value, path = identity["schema_version"]
+        check_schema_version(value, case, path, findings)
+    if "name" in identity:
+        value, path = identity["name"]
+        if not isinstance(value, str) or not value:
+            findings.append(
+                Finding("FAIL", case, path, "name must be a non-empty string")
+            )
+    if not prompt:
+        findings.append(
+            Finding(
+                "FAIL",
+                case,
+                prompt_file,
+                "no prompt; write it as the prompt.md body or as execution.prompt "
+                "in case.yaml",
             )
         )
 
@@ -649,6 +726,16 @@ def check_grader(case, path, options, findings):
                     case,
                     path,
                     'unknown grader option "%s" for type %s' % (key, kind),
+                )
+            )
+    for key in GRADER_REQUIRED[kind]:
+        if key not in options:
+            findings.append(
+                Finding(
+                    "FAIL",
+                    case,
+                    path,
+                    'grader type %s requires "%s"' % (kind, key),
                 )
             )
     if "weight" in options:
@@ -735,7 +822,9 @@ def collect_graders(case_dir, case, yaml_data, findings):
                 continue
             path = "graders/" + filename
             try:
-                block = split_frontmatter(read_text(os.path.join(grader_dir, filename)))
+                block, body = split_markdown(
+                    read_text(os.path.join(grader_dir, filename))
+                )
             except ParseError as error:
                 findings.append(unparsed(case, path, error))
                 continue
@@ -752,6 +841,10 @@ def collect_graders(case_dir, case, yaml_data, findings):
             except ParseError as error:
                 findings.append(unparsed(case, path, error))
                 continue
+            kind = options.get("type") if isinstance(options, dict) else None
+            field = BODY_FIELD.get(kind) if isinstance(kind, str) else None
+            if field and field not in options and body.strip():
+                options[field] = body.strip()
             graders.append((filename[:-3], options, path))
     return graders
 
@@ -1047,6 +1140,11 @@ def analyze_case(case_dir, case, findings):
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
     prompt_path = os.path.join(case_dir, "prompt.md")
+    # The case identity and prompt, each as (value, file it came from). Without
+    # a case.yaml the binary supplies the identity; with one it supplies none.
+    identity = {}
+    prompt = ""
+    unread = False
 
     if os.path.isfile(yaml_path):
         try:
@@ -1055,42 +1153,42 @@ def analyze_case(case_dir, case, findings):
                 text = text.lstrip()[3:]
             yaml_data = parse_yaml(text)
         except ParseError as error:
+            unread = True
             findings.append(unparsed(case, "case.yaml", error))
         except OSError as error:
+            unread = True
             findings.append(
                 Finding("FAIL", case, "case.yaml", "could not read (%s)" % error)
             )
         if isinstance(yaml_data, dict):
-            if not os.path.isfile(prompt_path):
-                for key in CASE_YAML_REQUIRED:
-                    if not yaml_data.get(key):
-                        findings.append(
-                            Finding(
-                                "FAIL",
-                                case,
-                                "case.yaml",
-                                'case.yaml without a prompt.md requires "%s"' % key,
-                            )
-                        )
-            if "schema_version" in yaml_data:
-                check_schema_version(
-                    yaml_data["schema_version"], case, "case.yaml", findings
-                )
+            for key in ("schema_version", "name"):
+                if key in yaml_data:
+                    identity[key] = (yaml_data[key], "case.yaml")
             if "runs" in yaml_data:
                 fields["runs"] = (yaml_data["runs"], "case.yaml")
             execution = yaml_data.get("execution")
             if isinstance(execution, dict):
+                if isinstance(execution.get("prompt"), str):
+                    prompt = execution["prompt"].strip()
                 for key in EXECUTION_KEYS:
                     if key in execution:
                         fields[key] = (execution[key], "case.yaml")
+    if not yaml_data:
+        identity = {
+            "schema_version": ("1.1", "case.yaml"),
+            "name": (os.path.basename(case_dir), "case.yaml"),
+        }
 
     if os.path.isfile(prompt_path):
         block = None
         try:
-            block = split_frontmatter(read_text(prompt_path))
+            block, body = split_markdown(read_text(prompt_path))
+            prompt = body.strip() or prompt
         except ParseError as error:
+            unread = True
             findings.append(unparsed(case, "prompt.md", error))
         except OSError as error:
+            unread = True
             findings.append(
                 Finding("FAIL", case, "prompt.md", "could not read (%s)" % error)
             )
@@ -1098,6 +1196,7 @@ def analyze_case(case_dir, case, findings):
             try:
                 prompt_fm = parse_yaml(block)
             except ParseError as error:
+                unread = True
                 findings.append(unparsed(case, "prompt.md", error))
                 prompt_fm = None
             if prompt_fm is not None:
@@ -1121,17 +1220,19 @@ def analyze_case(case_dir, case, findings):
                                 'unknown frontmatter key "%s"' % key,
                             )
                         )
-                if "schema_version" in prompt_fm:
-                    check_schema_version(
-                        prompt_fm["schema_version"], case, "prompt.md", findings
-                    )
                 # prompt.md frontmatter overrides the matching case.yaml field,
-                # so the bounds check reads the effective value and reports the
-                # file the value actually came from.
+                # so each check reads the effective value and reports the file
+                # the value actually came from.
+                for key in ("schema_version", "name"):
+                    if key in prompt_fm:
+                        identity[key] = (prompt_fm[key], "prompt.md")
                 for key in ("runs",) + EXECUTION_KEYS:
                     if key in prompt_fm:
                         fields[key] = (prompt_fm[key], "prompt.md")
 
+    if not unread:
+        prompt_file = "prompt.md" if os.path.isfile(prompt_path) else "case.yaml"
+        check_identity(identity, prompt, prompt_file, case, findings)
     check_bounds(fields, case, findings)
     can_write = check_tools(fields, case, findings)
 
