@@ -272,6 +272,7 @@ def write_outputs(text, out, reply, meta, voice, model, settings, cached):
         raise Failed(f'the response alignment was unusable ({type(e).__name__})') from None
     duration = round(len(pcm) / 2 / SAMPLE_RATE, 3)
     for w in words:
+        w['start'] = min(w['start'], duration)
         w['end'] = min(w['end'], duration)
     cost = meta.get('character_cost')
     record = {

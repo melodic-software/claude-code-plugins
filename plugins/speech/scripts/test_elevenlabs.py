@@ -424,6 +424,14 @@ class Outputs(unittest.TestCase):
         self.assertEqual(record['duration'], 0.4)
         self.assertEqual([(w['start'], w['end']) for w in on_disk['words']], [(0.0, 0.2), (0.3, 0.4)])
 
+    def test_a_word_starting_past_the_audio_never_ends_before_it_starts(self):
+        # 0.25 s of audio; 'cd' starts at 0.3 s in the alignment, so both its times clamp to 0.25 s.
+        with tempfile.TemporaryDirectory() as tmp:
+            elevenlabs.write_outputs('ab cd', Path(tmp), reply('ab cd', seconds=0.25), META,
+                                     elevenlabs.DEFAULT_VOICE, 'eleven_v4', {}, False)
+            on_disk = json.loads((Path(tmp) / 'words.json').read_text(encoding='utf-8'))
+        self.assertEqual([(w['start'], w['end']) for w in on_disk['words']], [(0.0, 0.2), (0.25, 0.25)])
+
     def test_a_word_spans_its_first_to_last_character(self):
         words = elevenlabs.word_times('ab cd', reply('ab cd'))
         self.assertEqual(words, [{'word': 'ab', 'start': 0.0, 'end': 0.2}, {'word': 'cd', 'start': 0.3, 'end': 0.5}])
