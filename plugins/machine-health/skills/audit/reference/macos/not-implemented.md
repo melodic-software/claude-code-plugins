@@ -6,7 +6,7 @@ Scaffolding placeholder. When `machine-health` is invoked on a macOS host, the s
 
 1. Detect OS: `$IsMacOS -eq $true` (PowerShell 7+) or `uname -s` returns `Darwin`.
 2. Load `reference/shared/*.md` for semantics, schema, and discovery guidance.
-3. Read this file; note `scripts/macos/NOT_IMPLEMENTED.md` is also present.
+3. Read this file; note `scripts/macos/not-implemented.md` is also present.
 4. Produce a single-check report:
    - `id: "os-support"`, `category: "reliability"`, `severity: "UNKNOWN"`.
    - `summary: "macOS support is scaffolded but not yet implemented."`
