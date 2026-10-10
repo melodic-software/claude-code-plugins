@@ -150,7 +150,7 @@ user-writable layer.
 | Plugin | Status |
 |---|---|
 | `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified |
-| `user-experience` | Planned |
+| `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; applies #6642's two limits narrower than this doc |
 | Developer-experience plugin | Planned |
 
 An adopter with a switch for account-bound tools names it `account_tools_enabled`, a boolean, as

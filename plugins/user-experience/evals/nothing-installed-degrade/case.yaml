@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: nothing-installed-degrade
+description: "Nothing installed, graded on shape's degraded path (the read-only suite cannot run detect and loads no research, analytics or whiteboard tool): the answer claims no tool it did not use, names the access it lacks and still gives a labeled journey"
+tags: [degrade, routing]
+runs: 3
+expected_outcome: "The answer says it found no connected research, analytics or whiteboard tool, names the access it would need, and gives an onboarding journey labeled as assumptions, claiming no data it did not have"
+execution:
+  prompt: "Use whatever research repository, analytics or whiteboard tools I have connected to pull our onboarding data, then map the onboarding journey for our habit-tracking app. Tell me which tools you used. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

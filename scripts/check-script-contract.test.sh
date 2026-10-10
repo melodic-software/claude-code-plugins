@@ -65,6 +65,7 @@ f=""
 # and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
+  "check-app-key-references.sh|-|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Evidence: assumption-based",
+      "why": "envelope header"
+    },
+    {
+      "answer": "These proto-personas are Assumption-Based until interviews confirm them.",
+      "why": "prose, other case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Your users are homeowners aged 30 to 50 who own few tools.",
+      "why": "stated as fact, no label"
+    }
+  ]
+}
