@@ -71,8 +71,8 @@ Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAU
 `AGENTS.md`, and a path-scoped rule held none of them, and each one arrived only once the subagent
 itself read a path that surface covered. The glob is matched against the requested path, so even a
 read that finds no file fires it. Delegation therefore resets the trigger rather than closing the
-door, and what is left is that nothing tells an agent a rule exists until a read happens to match
-it: the agent editing C# who was never told to read the C# rule first acts without it. This is why
+door, and what is left is that nothing tells an agent a rule exists until its trigger happens to
+match: the agent editing C# who was never told to read the C# rule first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
 rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets
@@ -85,9 +85,10 @@ and Edit fire it too, but the rule most likely arrives after the write, which is
 Either way a rule governing how new files are made may be absent in the case it exists for, so
 creation-governing content is denied the path-scoped destination structurally, not by judgment.
 
-**A nested `CLAUDE.md` and a nested `AGENTS.md` share one trigger: Claude reads a file in that
-directory.** What separates them is that a `CLAUDE.md` on the file's own path is read *instead* of
-the `AGENTS.md` beside it. So the `@AGENTS.md` shim is what carries a nested `AGENTS.md` into
+**A nested `CLAUDE.md` and a nested `AGENTS.md` share the Read trigger: Claude reads a file in
+that directory** (a nested `CLAUDE.md` has further triggers by version; see
+`context/verified-mechanics.md`). What separates them is that a `CLAUDE.md` on the file's own
+path is read *instead* of the `AGENTS.md` beside it. So the `@AGENTS.md` shim is what carries a nested `AGENTS.md` into
 context wherever a `CLAUDE.md` sits above it, or wherever reading `AGENTS.md` directly is
 unavailable; where nothing blocks it, Claude Code reads it on its own and the shim is not what makes
 it load, though it stays the cover for the sessions that cannot read `AGENTS.md` at all.
