@@ -20,7 +20,11 @@ The `/goal` contract, its condition shape and its character limit, can change be
 
 ## Step 0. Lever fit (is `/goal` even the right tool?)
 
-`/goal` starts the next turn when the previous one finishes and stops when a fresh evaluator model confirms a completion condition holds. Before authoring, confirm that fits the intent. If it does not, route instead of drafting:
+`/goal` starts the next turn when the previous one finishes and stops when a fresh evaluator model confirms a completion condition holds. Before authoring, confirm that fits the intent. If it does not, route instead of drafting.
+
+A lever that repeats build-and-check rounds (a metric hill-climb, or a `/goal`, `/loop` or routine that edits each round) pays off only when the task repeats and the agent can run what it builds and see the result. When either is missing, prompt once instead.
+
+- **Metric hill-climb** (one editable target, a scorer the agent cannot edit, keep a round's change when the score improves and revert it otherwise, log every round) → no new runner. For runtime speed or a counter: `/performance:goal`, then `/performance:snapshot`, then `/performance:verify`. For a prompt or model setting against an eval suite: `/evals:methodology`, which says when the bundled `claude-api` skill's hillclimb fits and who starts it.
 
 - **Interval-driven** ("every 5 minutes", "poll until") → `/loop` (a time interval starts each turn), not `/goal`.
 - **Cloud / sessionless / scheduled** ("nightly", "each morning", runs with no session open) → routines / `/schedule`. Routines were labeled a research preview on `https://code.claude.com/docs/en/routines` as of 2026-09-02; re-read that label during the Step 1 fetch before recommending them, and recheck when the page drops the research-preview label.
