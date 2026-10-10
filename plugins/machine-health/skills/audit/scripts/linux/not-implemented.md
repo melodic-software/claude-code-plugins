@@ -12,13 +12,13 @@ scripts/linux/
 
 ## Contract for the skill runtime
 
-Owned by [`../../reference/linux/NOT_IMPLEMENTED.md`](../../reference/linux/NOT_IMPLEMENTED.md) § "What the skill should do on Linux today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
+Owned by [`../../reference/linux/not-implemented.md`](../../reference/linux/not-implemented.md) § "What the skill should do on Linux today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
 **Do not attempt to execute any script from `scripts/windows/` on Linux.** Those scripts call Windows-only cmdlets and fail noisily.
 
 ## Porting guidance
 
-See `../../reference/linux/NOT_IMPLEMENTED.md` for the full porting checklist. Linux-specific notes:
+See `../../reference/linux/not-implemented.md` for the full porting checklist. Linux-specific notes:
 
 - **Distro variance is first-class.** Parse `/etc/os-release` and dispatch package-manager checks accordingly. Consider a `distro` field in catalog entries for narrow-scope checks.
 - **Language choice per check is flexible.** PowerShell 7 on Linux is fine; bash checks are also acceptable provided they emit the schema from `reference/shared/output-schema.md`. Orchestrator invokes the script and captures stdout; interpreter is irrelevant.
