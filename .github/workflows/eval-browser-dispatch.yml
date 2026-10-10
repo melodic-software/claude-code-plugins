@@ -92,46 +92,55 @@ jobs:
 
       # check-trusted-trigger needs a PR, and a dispatch here names none, so
       # the dispatcher is matched against the same list directly: the event
-      # actor by numeric id, the re-runner by login, as that action does.
-      - name: Check the dispatcher is a trusted actor
+      # actor by numeric id, the re-runner by login, as that action does. Both
+      # must be listed humans, and the lanes App bot is denied by id, as in
+      # pr-run-activity-write.yml.
+      - name: Check the dispatcher is a trusted human
         env:
           LIST: .base/.github/standards/trusted-actors/trusted-actors.json
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
-          if ! jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
+            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
               .version == 1
-              and any(.actors[]; .id == $id)
-              and any(.actors[]; (.login | ascii_downcase) == ($login | ascii_downcase))
+              and any(.actors[]; .id == $id and .kind == "human")
+              and any(.actors[];
+                (.login | ascii_downcase) == ($login | ascii_downcase)
+                and .kind == "human" and .id != $app)
             ' "$LIST" >/dev/null; then
-            echo "::error::untrusted-actor: the dispatcher or re-runner is not on the trusted-actor list"
+            echo "::error::untrusted-actor: the dispatcher or re-runner is not a listed human"
             exit 1
           fi
 
-      - name: Check out the dispatched ref
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: src
-          persist-credentials: false
-
+      # Every binary this job runs comes from the default branch tip's
+      # lockfile, installed outside the workspace: the dispatched ref is
+      # checked out only after isolation and adds nothing to PATH. /opt keeps
+      # the tools readable from the eval's Bash sandbox, which hides HOME.
       - name: Install the locked root toolchain
-        working-directory: src
         run: |
-          npm ci
-          echo "$GITHUB_WORKSPACE/src/node_modules/.bin" >> "$GITHUB_PATH"
+          sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
 
-      # Global npm installs land in setup-node's toolcache, which is on PATH.
-      # Chromium goes outside HOME, since each eval run gets a temporary one.
-      # The CLI is pinned to an exact version but has no lockfile entry, so
-      # zizmor's adhoc-packages finding is ignored on this step.
-      - name: Install playwright-cli and Chromium
+      # Chromium goes outside HOME, since each eval run gets a temporary one,
+      # and comes from the playwright that the locked playwright-cli uses.
+      - name: Install Chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: /opt/pw
-        run: | # zizmor: ignore[adhoc-packages]
-          npm install -g @playwright/cli@0.1.22
+        run: |
           sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/pw
-          node "$(npm root -g)/@playwright/cli/node_modules/playwright/cli.js" install --with-deps chromium
-          command -v playwright-cli
+          node /opt/tools/node_modules/playwright/cli.js install --with-deps chromium
+          command -v playwright-cli claude
 
       # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
       # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
@@ -140,6 +149,12 @@ jobs:
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
+
+      - name: Check out the dispatched ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: src
+          persist-credentials: false
 
       - name: Run the plugin eval
         working-directory: src
@@ -160,6 +175,11 @@ jobs:
           mkdir -p "$OUT"
           IFS=, read -ra tools <<< "$ALLOW_TOOLS"
           read -ra tags <<< "$TAGS"
+          for value in "${tools[@]}" "${tags[@]}"; do
+            case "$value" in
+              -*) echo "::error::a tag or tool must not start with -"; exit 1 ;;
+            esac
+          done
           args=(
             "$TARGET"
             --trust-plugin
