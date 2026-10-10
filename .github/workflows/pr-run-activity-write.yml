@@ -80,7 +80,8 @@ jobs:
     # The report job trusts only these. Each is a step outcome or an output of a
     # step that ran before any PR head code, except act-outcome for a gate
     # skill: the verdict step it reads runs after the skill, so a gate skill
-    # must not execute head code.
+    # must not execute head code. Its promote term only turns a success into
+    # a failure.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -90,11 +91,13 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      # A gate skill succeeds only on a `pass` verdict. The verdict step's
+      # A gate skill succeeds only on a `pass` verdict, and a skill whose
+      # commits could not be moved onto the PR branch fails. The verdict step's
       # ACT_OUTCOME repeats this expression: runner-policy refuses YAML aliases.
       act-outcome: >-
-        ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-        && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+        ${{ steps.act-skill.outcome == 'success'
+        && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
+        || steps.promote.outcome == 'failure') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
         || steps.act-script.outcome }}
     steps:
@@ -221,9 +224,8 @@ jobs:
           model: ${{ steps.config.outputs.model || inputs.default-model }}
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
-          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
+          effect: ${{ steps.config.outputs.effect }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
-          trusted-context-path: ${{ runner.temp }}/trusted-context.json
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -251,6 +253,30 @@ jobs:
             exit 1
           fi
 
+      # claude-code-action's commit_files builds each commit on the live tip of
+      # CLAUDE_BRANCH with file bytes from this checkout
+      # (src/mcp/github-file-ops-server.ts:226-367 at ed670b4), so a push to
+      # the PR branch during the run would have its edits to the same files
+      # overwritten. The skill commits to a branch made at the gated SHA
+      # instead, and a later step moves the PR branch to it only while the PR
+      # branch is still at the gated SHA.
+      - name: Make the lane's commit branch at the gated SHA
+        id: lane-branch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+          && steps.config.outputs.can-commit == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          LANE_BRANCH: lane-commits/${{ inputs.lane }}/${{ inputs.activity }}/${{ github.run_id }}-${{ github.run_attempt }}
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const { HEAD_SHA, LANE_BRANCH } = process.env;
+            await github.rest.git.createRef({ ...context.repo, ref: `refs/heads/${LANE_BRANCH}`, sha: HEAD_SHA });
+            core.setOutput('branch', LANE_BRANCH);
+
       - name: Run the skill activity
         id: act-skill
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
@@ -264,7 +290,7 @@ jobs:
           # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
           # and GITHUB_TOKEN as kept).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
+          CLAUDE_BRANCH: ${{ steps.lane-branch.outputs.branch || steps.gate.outputs.head-ref }}
           TRUSTED_CONTEXT_FILE: >-
             ${{ steps.config.outputs.reads-untrusted == 'true'
             && format('{0}/trusted-context.json', runner.temp) || '' }}
@@ -292,13 +318,18 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
+          # The model can read the lane token, so its reply could quote it;
+          # the token is cut out before the reply is shown or uploaded.
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
         run: |
           mkdir -p "$REPLY_DIR"
           if [ ! -f "$EXECUTION_FILE" ]; then
             echo "No execution file to summarize" | tee "$REPLY_DIR/reply.txt"
             exit 0
           fi
-          jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' \
+          jq -r --arg token "$LANE_TOKEN" '[.[] | select(.type == "result")] | last | (.result // "")
+            | if $token == "" then . else split($token) | join("[REDACTED]") end
+            | .[:4000] | gsub("`"; "'"'"'")' \
             "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
           {
             echo "### Skill reply"
@@ -339,6 +370,47 @@ jobs:
             echo "::error::the gate skill's verdict is not pass"
             exit 1
           fi
+
+      # Fast-forwards the PR branch to the lane's commits only while it is
+      # still at the gated SHA; otherwise the commits are dropped and the run
+      # the new head started redoes the activity. A pinned action, like the
+      # revoke step, since the activity could have changed PATH. The lane
+      # branch is deleted either way.
+      - name: Move the PR branch to the lane's commits
+        id: promote
+        if: always() && steps.lane-branch.outputs.branch != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
+          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
+            const tip = async (branch) =>
+              (await github.rest.git.getRef({ ...context.repo, ref: `heads/${branch}` })).data.object.sha;
+            try {
+              const lane = await tip(LANE_BRANCH);
+              if (lane === HEAD_SHA) {
+                core.info('The activity made no commits');
+                return;
+              }
+              const head = await tip(HEAD_REF);
+              if (head !== HEAD_SHA) {
+                core.setFailed(`The PR branch moved from ${HEAD_SHA} to ${head} during the run, so the lane's commits (${lane}) are not applied; the run for the new head redoes the activity`);
+                return;
+              }
+              // force: false refuses anything but a fast-forward.
+              await github.rest.git.updateRef({ ...context.repo, ref: `heads/${HEAD_REF}`, sha: lane, force: false });
+              core.info(`Moved ${HEAD_REF} from ${HEAD_SHA} to ${lane}`);
+            } finally {
+              // A failed cleanup must not fail an activity whose commits landed.
+              await github.rest.git
+                .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
+                .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
+            }
 
       # A script that gets GH_TOKEN must not execute code from the PR head.
       - name: Run the script activity
@@ -386,8 +458,9 @@ jobs:
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
           SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-            && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+            ${{ steps.act-skill.outcome == 'success'
+            && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
+            || steps.promote.outcome == 'failure') && 'failure'
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict

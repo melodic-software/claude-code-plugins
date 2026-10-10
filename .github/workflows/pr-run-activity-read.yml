@@ -200,9 +200,8 @@ jobs:
           model: ${{ steps.config.outputs.model || inputs.default-model }}
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
-          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
+          effect: ${{ steps.config.outputs.effect }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
-          trusted-context-path: ${{ runner.temp }}/trusted-context.json
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner

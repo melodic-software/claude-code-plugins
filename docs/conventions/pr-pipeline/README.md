@@ -106,11 +106,14 @@ Every lane:
   runs per item: each comment, review reply and linked issue is checked by its own author, not by
   the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
-- Runs Claude Code with `--permission-mode dontAsk` and every tool allowed, and gets the write
-  access its job needs through a short-lived, job-scoped App token, revoked when the job ends.
-  Local lanes keep auto mode (AGENTS.md). Capability is never removed for safety; safety comes from
-  who can trigger a lane, token lifetime and scope, workflow execution protections, the kill switch,
-  and a `ci-status` no lane can write (below).
+- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job: a
+  write-effect skill can change, commit and push any file in the repository with its token
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). It gets the write access its job
+  needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
+  auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
+  granular its activity is, the PR is the review step, and safety comes from who can trigger a
+  lane, token lifetime and scope, workflow execution protections, the kill switch, and a
+  `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
   so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
   skill activity loads nothing else from the head:
@@ -155,10 +158,15 @@ Each activity declares:
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`
   activity or under a separate design.
-- `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is
-  data, never instructions ([`untrusted-content`](../untrusted-content/README.md)).
+- `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
+  which can quote such text. Ingested text is data, never instructions
+  ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
-  `baseline`, `findings`). An activity reads nothing from a session.
+  `baseline`, `findings`). An activity reads nothing from a session. `changed-paths` is computed
+  by the base-SHA config reader from the PR's file list, never from head text. It names what the
+  activity is asked to work on, not what it can touch; for a write effect it leaves out
+  instruction surfaces and paths `.github/CODEOWNERS` lists
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, work classes, events).
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
@@ -250,14 +258,53 @@ change to any of them is a change to every lane's powers:
 - `.github/workflows/**`;
 - `.github/CODEOWNERS`.
 
-The trust-root ruleset makes a change to a trust-root path that `.github/CODEOWNERS` assigns need
-an approving review from a human code owner, which the lanes App cannot give, with no App bypass;
-no lane goes live before it is in force. The exceptions are the paths `.github/CODEOWNERS` lists
-with no owner: the eight synced data files (the vocabulary, pyright and runner-policy data files)
-and the three synced hosted caller workflows (`pr-check-managed-files-hosted.yml`,
-`pr-review-hosted.yml`, `pr-review-security-hosted.yml`). The required `check-managed-files` job
-in `ci-status` guards them instead, failing any hand edit or deletion.
-The runner-policy script and both trusted-actors files stay owned. `pr-merge` never merges a PR that
+Code-owner review is off on the default branch by owner decision: the `trust-root` and `base`
+rulesets require no code-owner review and no approvals
+([github-iac ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md),
+amendment 2026-10-09; only azure-iac, which holds the broker, keeps it). `.github/CODEOWNERS`
+still lists the trust-root paths, owned or not, and only requests review. The controls on a
+trust-root change are:
+
+- base-SHA config: every lane reads its config, grants, actions and trusted-actor list from the
+  default branch, so a PR's own edit to them never governs its own run;
+- the trusted-actor filter: the trigger gate and the broker refuse an untrusted actor, PR author
+  or re-runner, and the lanes bot never starts a write run;
+- the broker's workflow-path rule: it mints only for a lane caller listed in the default-branch
+  config, calling a `pr-run-activity-write.yml` byte-equal to the tip, and the App token never
+  holds `workflows`, so no lane can push `.github/workflows/`;
+- the merge queue and the required `ci-status` check, which no lane can write;
+- required review-thread resolution;
+- the kill switch;
+- broker scoping: one mint per job, this repository only, the effect's grant, at most an hour,
+  revoked when the job ends;
+- the lane session: `--setting-sources user`, an explicit `--permission-mode dontAsk`, and never
+  `bypassPermissions`.
+
+A write lane can change and commit any file in the repository its token reaches, trust-root and
+instruction paths included; no tool rule limits which files it touches. The PR is the review step:
+the review lanes, `ci-status`, review-thread resolution and the merge gate see every lane commit
+before it reaches the default branch. Residuals, accepted by the owner:
+
+- a trust-root change merges with no human approval; what stands between it and the default
+  branch is the list above and whoever merges it;
+- the model can read its token (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until the job revokes
+  it;
+- a skill's `Bash` grant can be wider than its job: `ai-slop:audit`, which `fix-docs` runs,
+  allows `Bash(git:*)` with no subcommand bound, and claude-code-action puts the token in the
+  origin URL. A run, including one steered by untrusted text it reads, can then push to any branch
+  no ruleset protects (the token is scoped to the repository, not the PR branch; rulesets cover
+  the default branch and `release/plugins`), run any shell command through `git -c
+  core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
+  the signed-commit tool and the lane-branch freshness check. Unsigned commits on the PR branch
+  fail the check run's signed-commit step; a push to another branch is not checked;
+- a lane commit can change instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, skills) that
+  the PR author's local session loads once it checks out the branch.
+
+The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
+vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
+(`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
+The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
+`pr-merge` never merges a PR that
 touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
 here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
 `pr-merge` is built.
