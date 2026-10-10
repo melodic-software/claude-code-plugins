@@ -34,7 +34,7 @@ The skill reports one line naming the resolved value and the layer that supplied
 `ratchet_offer: false (docs/conventions/review.yaml)`. A value outside the key's values in either
 layer, or a repository file the reader cannot parse, is named with its file or option, the key and
 the value, and that layer is dropped: a valid higher layer still wins, otherwise the key's default,
-never a lower layer's value (ADR 0054 Decision 7). The run continues either way.
+never a lower layer's value (ADR 0060 Decision 7). The run continues either way.
 
 **Policy floor: `downstream_probe`.** This key does not take the later layer. `report` from any
 valid layer wins over `run` from the other, so the user option can only tighten the repository

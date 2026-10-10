@@ -612,7 +612,7 @@ jobs:
         run: scripts/check-adr-numbers.sh --check
 
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
-      # (ADR 0054 Decisions 6 and 7). Ungated: a change that edits only a
+      # (ADR 0060 Decisions 6 and 7). Ungated: a change that edits only a
       # convention YAML is docs-only, and that is the edit this gate reads.
       # check-jsonschema comes from the hash-locked requirements install above.
       - name: Validate docs/conventions YAML against its schemas

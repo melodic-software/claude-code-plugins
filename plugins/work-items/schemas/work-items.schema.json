@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/schemas/work-items.schema.json",
   "title": "work-items team config",
-  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0054). A key set here wins over the same key in the plugin's userConfig. Reader: /work-items:triage only; the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts.",
+  "description": "Schema for a repository's docs/conventions/work-items.yaml, the team layer of the work-items plugin's settings (ADR 0060). A key set here wins over the same key in the plugin's userConfig. Reader: /work-items:triage only; the /work-items:work-loop admission gate reads the objection window's end from the marker comment triage posts.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

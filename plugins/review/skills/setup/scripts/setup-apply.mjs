@@ -346,7 +346,7 @@ if (check) {
     process.stdout.write(`INFO ${REL}: absent; every key resolves from userConfig or its default\n`);
     process.exit(0);
   }
-  // A bad value drops only its own key (ADR 0054 Decision 7): every other key
+  // A bad value drops only its own key (ADR 0060 Decision 7): every other key
   // still gets its PASS line. A problem with the whole file leaves no PASS.
   const problems = validate(existing);
   process.stdout.write(problems.map((p) => `WARN ${REL}: ${p.msg}\n`).join(""));

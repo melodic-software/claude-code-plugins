@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Validate every tracked docs/conventions/<concern>.yaml against its JSON Schema
-# (ADR 0054 Decisions 6 and 7).
+# (ADR 0060 Decisions 6 and 7).
 #
 #   scripts/check-convention-yaml.sh          validate; list every finding
 #   scripts/check-convention-yaml.sh --check  same, explicit form matching the
 #                                             sibling gates
 #
-# The schema for <concern>.yaml is found by ADR 0054 Decision 6, first match
+# The schema for <concern>.yaml is found by ADR 0060 Decision 6, first match
 # wins:
 #
 #   1. plugins/<concern>/schemas/<concern>.schema.json   a plugin concern

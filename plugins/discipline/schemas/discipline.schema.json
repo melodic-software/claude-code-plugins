@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/discipline/schemas/discipline.schema.json",
   "title": "Discipline team config",
-  "description": "Schema for a repository's docs/conventions/discipline.yaml: the team layer of the discipline plugin's settings. A value here overrides the same key in the plugin's userConfig. Keys and resolution: plugins/discipline/reference/config.md. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for a repository's docs/conventions/discipline.yaml: the team layer of the discipline plugin's settings. A value here overrides the same key in the plugin's userConfig. Keys and resolution: plugins/discipline/reference/config.md. Contract: docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

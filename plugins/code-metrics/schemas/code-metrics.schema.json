@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/code-metrics/schemas/code-metrics.schema.json",
   "title": "code-metrics team config",
-  "description": "Schema for a repository's docs/conventions/code-metrics.yaml, the team layer of the code-metrics plugin (ADR 0054). The same keys are valid in ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml. Every key is optional; the plugin's reference/config.md gives each key's default and meaning. Reader: scripts/resolve-config.py, which drops an invalid value by name and keeps running.",
+  "description": "Schema for a repository's docs/conventions/code-metrics.yaml, the team layer of the code-metrics plugin (ADR 0060). The same keys are valid in ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml. Every key is optional; the plugin's reference/config.md gives each key's default and meaning. Reader: scripts/resolve-config.py, which drops an invalid value by name and keeps running.",
   "type": "object",
   "additionalProperties": false,
   "$defs": {

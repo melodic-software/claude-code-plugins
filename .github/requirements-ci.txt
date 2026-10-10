@@ -169,7 +169,7 @@ zizmor==1.30.1 \
     --hash=sha256:eee12266b793cb87ad4a7e3af2e72404f8a63e3de5eb099b80bf7b1cfd232a8e \
     --hash=sha256:f9eb092f089e35fa9fb3b70aeec0a19eca7dacf2ab161f1d50b18351895f085c
 # check-jsonschema validates each docs/conventions/<concern>.yaml against its
-# schema (scripts/check-convention-yaml.sh, ADR 0054 Decision 7), at the version
+# schema (scripts/check-convention-yaml.sh, ADR 0060 Decision 7), at the version
 # the ci-workflows check-jsonschema action runs by default. Its closure is the
 # output of `uv pip compile --universal --python-version 3.11 --generate-hashes
 # --only-binary :all:` over that one pin, so the compiled wheels (rpds-py,

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/testing/schemas/testing.schema.json",
   "title": "testing team config",
-  "description": "Schema for a repository's docs/conventions/testing.yaml, the team layer of the testing plugin's settings. The scan keys (adapters, paths, adapter_dirs, extend, rules) are resolved by plugins/testing/scripts/resolve-config.sh, whose loader holds their full grammar; the run-e2e keys by its e2e mode, and each wins over the plugin's userConfig value of the same name. Values use plain or single-quoted scalars: the scan loader refuses double quotes. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for a repository's docs/conventions/testing.yaml, the team layer of the testing plugin's settings. The scan keys (adapters, paths, adapter_dirs, extend, rules) are resolved by plugins/testing/scripts/resolve-config.sh, whose loader holds their full grammar; the run-e2e keys by its e2e mode, and each wins over the plugin's userConfig value of the same name. Values use plain or single-quoted scalars: the scan loader refuses double quotes. Contract: docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "$defs": {

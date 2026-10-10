@@ -27,7 +27,7 @@ is unchanged, and no surface has to change.
   and `.claude/<name>` stay readable until #5906 migrates each surface. The layers table lists
   `userConfig` below the three file layers, and the Expression doctrine names the YAML file as a
   policy floor's dedicated team-layer file.
-  [ADR 0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md) records the
+  [ADR 0060](../../adr/0060-home-plugin-customization-in-docs-conventions-yaml.md) records the
   decision.
 
 ## [1.5] - 2026-10-01

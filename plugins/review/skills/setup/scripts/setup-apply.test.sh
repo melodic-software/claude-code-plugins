@@ -540,7 +540,7 @@ for shadow in refs/heads/refs/remotes/origin/main refs/tags/refs/remotes/origin/
 done
 
 # --- Case 24: a bad value drops only its own key; a bad file drops every key ----
-# ADR 0054 Decision 7 drops the layer an invalid value sits in, per key. A bad
+# ADR 0060 Decision 7 drops the layer an invalid value sits in, per key. A bad
 # ratchet_offer value must not void a valid downstream_probe: report, or the
 # policy floor would fall back to run.
 per_key() { # per_key <label> <ratchet_offer line(s)>

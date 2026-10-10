@@ -135,7 +135,7 @@ shape 'a value outside the list' replace $'compress_articles: drop\n'
 shape 'an unknown key' refuse $'compress_articles: keep\nverbosity: high\n'
 shape 'an empty unknown key' refuse $'compress_articles: keep\nstray:\n'
 
-# --check names the effective repository value per key (ADR 0054 Decision 7):
+# --check names the effective repository value per key (ADR 0060 Decision 7):
 # an invalid value drops this layer for its key, which then resolves to the
 # schema default, keep, never to the lower userConfig layer; a key the schema
 # does not list is reported and leaves the valid key in force, as

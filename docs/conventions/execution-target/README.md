@@ -34,7 +34,7 @@ not part of this setting and does not change with the host.
 
 `docs/conventions/execution-target.yaml` in the consumer repository, validated by
 [`execution-target.schema.json`](execution-target.schema.json) beside this README
-(ADR [0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md) Decisions 1, 5
+(ADR [0060](../../adr/0060-home-plugin-customization-in-docs-conventions-yaml.md) Decisions 1, 5
 and 6). It is a policy floor: it has a team layer only, and no plugin declares a `userConfig` option
 for it, so no per-user or local overlay can move a stage.
 

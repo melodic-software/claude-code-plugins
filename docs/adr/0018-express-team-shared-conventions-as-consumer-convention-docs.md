@@ -3,7 +3,7 @@
 - Status: accepted; Decision 1 partly superseded by
   [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   for structured surfaces; its expression criterion amended by
-  [ADR 0054](0054-home-plugin-customization-in-docs-conventions-yaml.md)
+  [ADR 0060](0060-home-plugin-customization-in-docs-conventions-yaml.md)
 - Date: 2026-09-01
 
 ## Context

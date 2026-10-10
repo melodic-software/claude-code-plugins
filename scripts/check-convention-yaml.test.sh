@@ -7,7 +7,7 @@
 # arguments it was given and rejects any file holding a `reject: true` line, so
 # the cases assert what the script owns (which schema it picks, which files it
 # reads, how a rejection or a missing schema is reported) and not what
-# check-jsonschema owns. The expected schema paths come from ADR 0054 Decision 6.
+# check-jsonschema owns. The expected schema paths come from ADR 0060 Decision 6.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

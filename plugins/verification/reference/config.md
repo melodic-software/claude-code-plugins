@@ -61,7 +61,7 @@ result as a person.
 **Which value wins.** The stricter of the user option and the repository value wins, so either
 layer can raise the level and neither can lower the other. A skipped or unset layer takes no part.
 An invalid repository value is named and dropped, and the key resolves its default, `path`, not the
-user's value (ADR 0054 Decision 7: no valid higher layer remains, and a lower layer's value is
+user's value (ADR 0060 Decision 7: no valid higher layer remains, and a lower layer's value is
 never used). An invalid user option is dropped and the repository value, when valid, still applies.
 An invalid value never stops the run.
 
@@ -108,7 +108,7 @@ repository value wins over the user option, which wins over the default. A value
 that is not a whole number of at least 1 (`0`, `2.5`, `-1`, a quoted `"2"`, a word) is named with
 its file or option, the key and the value, and that layer is dropped: a valid higher layer still
 wins, otherwise the key resolves `1`. A lower layer's value is never used in its place, so an
-invalid repository value resolves `1` even when the user option is valid (ADR 0054 Decision 7). An
+invalid repository value resolves `1` even when the user option is valid (ADR 0060 Decision 7). An
 invalid value never stops the run, and an invalid `live_workers` never changes `proof_level`: the
 reader still prints `PASS proof_level` for a valid committed level.
 

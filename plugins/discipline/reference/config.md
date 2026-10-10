@@ -8,7 +8,7 @@ them.
 ## Layers
 
 Resolved lowest first; a later layer wins
-([ADR 0054](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md)
+([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md)
 Decision 8):
 
 | Order | Layer | Where |

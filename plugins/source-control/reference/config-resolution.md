@@ -146,7 +146,7 @@ Absent sections are absent, never empty.
 ## YAML keys (`docs/conventions/source-control.yaml`)
 
 A key added to this plugin after the YAML config home
-([ADR 0054](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md))
+([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md))
 has no H2 in
 `.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
 repo root, a YAML mapping validated by

@@ -247,7 +247,7 @@ def surface_layer_paths(
 ) -> list[tuple[str, str]]:
     """The plugin's own three layers; the team layer prefers the docs home.
 
-    `docs/conventions/code-metrics.yaml` is the team layer (ADR 0054). The
+    `docs/conventions/code-metrics.yaml` is the team layer (ADR 0060). The
     older `.claude/code-metrics.yaml` is read only when the docs file is
     absent, so a repository configured by an earlier release keeps its values.
     """

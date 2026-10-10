@@ -579,7 +579,7 @@ for shadow in refs/heads/refs/remotes/origin/main refs/tags/refs/remotes/origin/
 done
 
 # --- Case 24: an invalid proof_level leaves no PASS line to read --------------
-# ADR 0054 Decision 7: the reading skill names the file, key and value and
+# ADR 0060 Decision 7: the reading skill names the file, key and value and
 # drops the layer. The skill reads the value only from a PASS line, so an
 # invalid value must print a WARN naming it and no PASS proof_level line.
 bad_value() { # bad_value <label> <file body> <text the WARN must name>
@@ -668,7 +668,7 @@ for bad in 0 00 02 -1 +2 2.5 2.0 1e3 abc ' 2' '"2"' "'2'" '' '""'; do
 done
 
 # --- Case 28: --check names an invalid live_workers and drops only that key -----
-# ADR 0054 Decision 7: the WARN names the key and the value, no PASS live_workers
+# ADR 0060 Decision 7: the WARN names the key and the value, no PASS live_workers
 # line is printed, and a valid proof_level beside it still gets its PASS line.
 lw_warns() { # lw_warns <label> <live_workers line(s)> <text the WARN must name>
   local r out
