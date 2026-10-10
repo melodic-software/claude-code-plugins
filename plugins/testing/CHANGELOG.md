@@ -3,6 +3,16 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-10-10
+
+### Changed
+
+- `/testing:write` blind-author mode shows the user one plain-language line per acceptance test before committing it, and adds an opt-in `Edit` deny rule on the acceptance-test directory for the implementer's run; the empty-diff check stays the gate, since a deny does not stop a script writing files.
+
+### Fixed
+
+- **The vision eval cases no longer make `run-validity` reject a run.** Each `vision-*` case is now tagged `no-trigger`, so `/evals:plugin-eval`'s run-validity check exempts it from the should-trigger rule. Their prompts say no browser is present and never ask for `/testing:run-e2e`, so a with-arm run that does not fire the skill is expected; the `skill-fired` grader stays as an unscored with-arm indicator.
+
 ## [0.24.0] - 2026-10-10
 
 ### Added

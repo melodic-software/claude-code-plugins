@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.4.2 - 2026-10-10
+
+Docs only. `version` stays 1.
+
+- README: "Outside this repository" names where each external piece the lanes depend on is
+  documented (broker, Lanes App, org variables, rulesets, sandbox, standards, ci-workflows).
+
 ## 1.4.1 - 2026-10-10
 
 A skill activity can read its own plugin and a write activity commits its edits. `version` stays 1.

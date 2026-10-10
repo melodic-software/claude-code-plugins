@@ -28,7 +28,8 @@ graduate into. One paragraph. This is the map's success condition.>
 <A pointer INDEX: one line per resolved-in-scope decision, NOT the decisions themselves.
 Each line names the item by **title**, with the number as a suffix/link, and points at the
 item whose resolution comment is the decision's durable home. Closed-as-out-of-scope items
-do not get a line here.>
+do not get a line here. A map seeded from an interview has one line for its seed item, whose
+resolution comment lists the interview's settled answers.>
 
 - <title> (#<item>): <one-line what-was-decided> (resolved <date>)
 
