@@ -35,7 +35,7 @@ Session output has no persisted artifact by default (ideation is conversation ou
 ## Next
 
 - An approach resonates and the engineering contract is next: /planning:interview.
-- Product intent, or who the users are and what they need: /planning:prd, or /user-experience:shape.
+- Product intent: /planning:prd.
 - Type and module decisions: /planning:design.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 

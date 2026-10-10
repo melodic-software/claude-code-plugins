@@ -273,9 +273,9 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-- Findings feed new medium-large work with no locked contract yet: `/planning:interview`.
-- The contract is locked: `/planning:design` when the findings settle a type, contract, or boundary choice, else `/planning:plan`.
-- A multi-topic pass, one docs page that settles the claim, or the reasons behind a past decision: `/discovery:research-deep`, `/discovery:read-docs <url-or-slug> [question]` (`scripts/fetch-docs.sh --cache`), or `/discovery:trace-intent <subject>`.
+- Findings feed work with no locked contract whose diff will not be quick to review and cheap to retry: `/planning:interview`.
+- Findings settle a type, contract, or boundary choice: `/planning:design`.
+- A multi-topic or workflow-driven pass: `/discovery:research-deep`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## See also

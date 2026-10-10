@@ -158,9 +158,9 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 
 ## Next
 
-- Findings raise a question about current external practice, or about why the code is the way it is: `/discovery:research <topic>`, or `/discovery:trace-intent <subject>`.
-- The picture is enough and new medium-large work has no locked contract yet: `/planning:interview`.
-- The contract is locked: `/planning:design` when the work adds types, contracts, or module boundaries, else `/planning:plan`.
+- Findings raise a question about current external practice: `/discovery:research <topic>`.
+- The picture is enough, no contract is locked, and the diff will not be quick to review and cheap to retry: `/planning:interview`.
+- The contract is locked and the work adds types, contracts, or module boundaries: `/planning:design`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Gotchas
