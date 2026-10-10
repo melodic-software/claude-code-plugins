@@ -200,6 +200,7 @@ jobs:
           model: ${{ steps.config.outputs.model || inputs.default-model }}
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
+          effect: ${{ steps.config.outputs.effect }}
           reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
           trusted-context-path: ${{ runner.temp }}/trusted-context.json

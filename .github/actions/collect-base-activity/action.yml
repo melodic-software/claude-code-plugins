@@ -3,9 +3,10 @@ description: >
   Copy what an activity runs out of the base checkout before the PR head
   replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for
   a skill the base plugins/ and .claude-plugin/ to
-  $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt and
-  claude_args. Contract: docs/conventions/pr-pipeline/pr-run-activity.md,
-  run job step 8.
+  $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt (with its
+  changed-paths) and claude_args (with the write tool set for any effect but
+  read). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  step 8 and Skill activities.
 
 inputs:
   kind:
@@ -31,6 +32,11 @@ inputs:
     description: "`gate` or `advisory`."
     required: false
     default: ""
+  effect:
+    description: >
+      The activity's effect, from resolve-config. Any effect but `read` gets
+      the write tool set below.
+    required: true
   reads-untrusted:
     description: "`true` when the prompt names the trusted PR context file."
     required: false
@@ -95,6 +101,7 @@ runs:
         MODEL: ${{ inputs.model }}
         MAX_TURNS: ${{ inputs.max-turns }}
         GATING: ${{ inputs.gating }}
+        EFFECT: ${{ inputs.effect }}
         READS_UNTRUSTED: ${{ inputs.reads-untrusted }}
         TRUSTED_CONTEXT_FILE: ${{ inputs.trusted-context-path }}
       run: |
@@ -109,7 +116,38 @@ runs:
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
-        claude_args="--max-turns $MAX_TURNS --allowedTools \"Skill($SKILL)\""
+        # resolve-config already filtered these; a name outside this set
+        # could break the prompt or a permission rule, so it fails red.
+        mapfile -t targets < <(jq -r '.selected["changed-paths"] // [] | .[]' "$RESOLVED")
+        safe='^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$'
+        for target in "${targets[@]}"; do
+          [[ $target =~ $safe && /$target/ != */-* && /$target/ != */./* && /$target/ != */../* ]] ||
+            fail "a changed path has a name the prompt cannot carry"
+        done
+        allowed="Skill($SKILL)"
+        disallowed=""
+        case "$EFFECT" in
+          read) ;;
+          mutate-branch | mutate-tracker | publish-artifact | merge)
+            # A write skill commits only through the action's signed API
+            # tool, on the gated head branch, and edits only the changed
+            # paths it was handed. It runs no git: the action writes the App
+            # token into the origin URL, and a Bash git rule cannot cover
+            # every spelling of push or -c, so every git command is denied
+            # (deny wins over the skill's own allowed-tools). WebFetch and
+            # WebSearch could carry the token out, so they are removed.
+            allowed="$allowed,mcp__github_file_ops__commit_files"
+            for target in "${targets[@]}"; do
+              allowed="$allowed,Edit(./$target)"
+            done
+            disallowed="Bash(git *),Bash(*/git *),WebFetch,WebSearch"
+            ;;
+          *) fail "the activity's effect is not a known effect" ;;
+        esac
+        claude_args="--max-turns $MAX_TURNS --allowedTools \"$allowed\""
+        if [ -n "$disallowed" ]; then
+          claude_args="$claude_args --disallowedTools \"$disallowed\""
+        fi
         if [ -n "$MODEL" ]; then
           model='^[A-Za-z0-9][]A-Za-z0-9._[-]*$'
           [[ $MODEL =~ $model ]] || fail "the model name is malformed"
@@ -126,12 +164,18 @@ runs:
           *) fail "the activity's gating must be gate or advisory" ;;
         esac
         args=$(jq -r '.selected.args // ""' "$RESOLVED")
+        command_line="/$SKILL"
+        for word in "$args" "${targets[@]}"; do
+          if [ -n "$word" ]; then
+            command_line="$command_line $word"
+          fi
+        done
         delimiter="prompt_$(openssl rand -hex 16)"
         {
           echo "plugin=${SKILL%%:*}@$marketplace"
           echo "claude-args=$claude_args"
           echo "prompt<<$delimiter"
-          printf '/%s %s\n' "$SKILL" "$args"
+          printf '%s\n' "$command_line"
           if [ "$READS_UNTRUSTED" = true ]; then
             printf 'Trusted PR context: %s\n' "$TRUSTED_CONTEXT_FILE"
           fi

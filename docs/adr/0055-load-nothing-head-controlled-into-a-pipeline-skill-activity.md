@@ -159,3 +159,28 @@ default-branch workflow at each commit named.
 - Re-derive this record when the claude-code-action pin moves past `ed670b4` and its setting-source
   default, marketplace parsing, credential handling, scrub defaults or restore list changes, or
   when the Claude Code docs change what the subprocess scrub keeps.
+
+## Addendum (2026-10-10): code-owner review is off; write skills get a fixed tool set
+
+The residual above that names "a ruleset or CODEOWNERS protection on `.github/workflows/**`" as
+required before the first live caller no longer holds as written. The owner turned code-owner
+review off on the `trust-root` ruleset (github-iac#665; github-iac ADR 0007, amendment
+2026-10-09); github-iac#669 kept it on azure-iac only. Live rulesets 17988999 (`base`) and 24475076
+(`trust-root`) require no code-owner review and no approvals, and require review-thread
+resolution. The first live write caller, `pr-refine`, relies instead on the controls listed in the
+convention's [Trust-root paths](../conventions/pr-pipeline/README.md#trust-root-paths): base-SHA
+config, the trusted-actor filter, the broker's workflow-path rule and an App token without
+`workflows`, the merge queue and `ci-status`, thread resolution, the kill switch and broker
+scoping. Accepted residual: a change to `.github/workflows/` or any other trust-root path merges
+with no human approval.
+
+Decision 7's "holds a contents-write App token in its process and in the git config" now has a
+bound on what the model can do with it. A skill whose effect is not `read` gets
+`mcp__github_file_ops__commit_files` and `Edit` on its computed `changed-paths` only, and
+`--disallowedTools` denies every `git` command, `WebFetch` and `WebSearch`; a deny rule wins over
+the skill's own `allowed-tools`. `changed-paths` comes from the PR's file list through the
+base-SHA reader and, for a write effect, never holds an instruction surface or a path
+`.github/CODEOWNERS` lists. The `mutate-branch` grant narrows to `contents: write`. The model can
+still read the token text (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`); that residual stands. The
+contract is
+[`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#skill-activities).

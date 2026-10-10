@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## 1.4.0 - 2026-10-10
+
+Write activities get a narrower grant, a fixed tool set and computed targets. `version` stays 1.
+
+- `effect-grants.json`: `mutate-branch` grants `contents: write` with `pull-requests: read` and
+  `issues: read`. The broker reads the same file at the tip, so a job resolved from an older base
+  fails `effect-mismatch` until the PR's base moves past this change.
+- A skill with any effect but `read` gets the signed-commit tool and `Edit` on its
+  `changed-paths` only; every `git` command, `WebFetch` and `WebSearch` are denied.
+  `collect-base-activity` takes a required `effect` input.
+- The `changed-paths` input is now passed: `resolve-config` writes it to the resolved file from the
+  PR's file list, and the prompt carries it after `args`. For a write effect it drops instruction
+  surfaces and every path the base `.github/CODEOWNERS` lists; an empty result skips the activity
+  with `not-applicable-paths`.
+- `reads-untrusted` also covers PR head files, which can quote untrusted text.
+- The trust-root section states the controls in force now that code-owner review is off by owner
+  decision, and the residual.
+
 ## 1.3.0 - 2026-10-10
 
 The write runner gets its token from the lanes token broker. `version` stays 1; callers of the

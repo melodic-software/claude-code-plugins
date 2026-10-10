@@ -451,6 +451,46 @@ test("a renamed file's previous path counts as changed", async () => {
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
 });
 
+test("changed-paths holds the head's changed files minus removed ones and the base CODEOWNERS paths", async () => {
+  const { env } = workspace();
+  const config = join(env.BASE_PATH, CONFIG_PATH);
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      "    effect: mutate-branch\n",
+      "    effect: mutate-branch\n    inputs: [changed-paths]\n",
+    ),
+  );
+  mkdirSync(join(env.BASE_PATH, ".github"), { recursive: true });
+  writeFileSync(
+    join(env.BASE_PATH, ".github/CODEOWNERS"),
+    "/plugins/ai-slop/** @owner\n",
+  );
+  env.LANE = "pr-refine";
+  env.ACTIVITY = "fix-docs";
+  const files = [
+    { filename: "docs/kept.md", status: "modified" },
+    { filename: "docs/gone.md", status: "removed" },
+    {
+      filename: "docs/new.md",
+      previous_filename: "docs/old.md",
+      status: "renamed",
+    },
+    { filename: "plugins/ai-slop/README.md", status: "modified" },
+  ];
+  const { github } = fakeGitHub(pullRoutes({ changedFiles: 4, files }));
+  assert.equal(await main({ env, github }), 0);
+  const resolved = JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8"));
+  assert.deepEqual(resolved.selected["changed-paths"], [
+    "docs/kept.md",
+    "docs/new.md",
+  ]);
+  assert.equal(
+    Object.hasOwn(readOutputs(env.GITHUB_OUTPUT), "changed-paths"),
+    false,
+  );
+});
+
 test("a paths miss outputs not-applicable-paths", async () => {
   const { env } = workspace();
   env.ACTIVITY = "measure-coverage";

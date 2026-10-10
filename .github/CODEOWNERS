@@ -1,7 +1,7 @@
 # Trust-root paths: lane config, grants and rules, the workflows and actions lanes run
-# from the default branch, and the plugins lanes load. The trust-root ruleset requires
-# an approving review from a code owner listed here before a change to these paths merges.
-# Paths not listed have no owner and need no code-owner review.
+# from the default branch, and the plugins lanes load. Code-owner review is off by owner
+# decision, so an owner here is only requested for review. A write lane never edits any path
+# listed here, owned or not (docs/conventions/pr-pipeline/README.md#trust-root-paths).
 
 /docs/conventions/pr-pipeline.yaml @kyle-sexton
 /docs/conventions/pr-pipeline/** @kyle-sexton
@@ -9,7 +9,7 @@
 /.github/standards/** @kyle-sexton
 # Standards-synced data files outside .github/workflows/ have no owner (an entry with no owner
 # unowns the path, and the last match wins), so a standards-sync pull request touching only these
-# needs no code-owner review. runner-policy.mjs and the trusted-actors files stay owned above.
+# requests no review. runner-policy.mjs and the trusted-actors files stay owned above.
 /.github/standards/github-actions-conventions/vocabulary.json
 /.github/standards/github-actions-conventions/vocabulary.schema.json
 /.github/standards/pyright/pyrightconfig.json

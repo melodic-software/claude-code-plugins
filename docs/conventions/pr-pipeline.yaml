@@ -7,7 +7,8 @@ activities:
     args: fix
     effect: mutate-branch
     gating: advisory
-    reads-untrusted: false
+    # Head markdown can quote issue, PR or web text.
+    reads-untrusted: true
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]

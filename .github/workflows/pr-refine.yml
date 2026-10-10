@@ -7,7 +7,7 @@ name: pr-refine
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       pr-number:
@@ -19,6 +19,8 @@ permissions: {}
 
 jobs:
   fix-docs:
+    # Pipeline lanes skip draft PRs (docs/conventions/pr-pipeline/README.md).
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     permissions:
       contents: read
       pull-requests: read

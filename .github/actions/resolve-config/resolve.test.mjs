@@ -525,8 +525,8 @@ test("each effect resolves to its App grant", () => {
     },
     "mutate-branch": {
       contents: "write",
-      "pull-requests": "write",
-      issues: "write",
+      "pull-requests": "read",
+      issues: "read",
     },
     merge: { contents: "write", "pull-requests": "write", issues: "write" },
   };
@@ -581,7 +581,7 @@ test("resolveGrant returns the selected slot's effect and grant", () => {
     grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-docs" }),
     {
       effect: "mutate-branch",
-      grant: { contents: "write", "pull-requests": "write", issues: "write" },
+      grant: { contents: "write", "pull-requests": "read", issues: "read" },
     },
   );
 });
@@ -734,11 +734,107 @@ test("resolveGrant rejects a non-string lane or activity", () => {
   );
 });
 
+// The changed-paths input
+
+const CODEOWNERS = `# owned and unowned entries
+/plugins/ai-slop/** @owner
+/docs/conventions/pr-pipeline/** @owner
+/docs/unowned.md
+`;
+
+const withChangedPaths = (edit = () => {}) =>
+  edited((doc) => {
+    doc.activities["fix-docs"].inputs = ["changed-paths"];
+    doc.activities["fix-docs"]["applies-when"] = { paths: ["**/*.md"] };
+    edit(doc);
+  });
+
+const targetsOf = (changedTargets, config = withChangedPaths()) =>
+  run(
+    config,
+    {
+      lane: "pr-refine",
+      activity: "fix-docs",
+      facts: { ...FACTS, changedPaths: changedTargets, changedTargets },
+    },
+    { codeowners: CODEOWNERS },
+  ).selected;
+
+test("changed-paths keeps only the changed markdown a write activity may edit", () => {
+  const selected = targetsOf([
+    "docs/guide.md",
+    "README.md",
+    "src/app.js",
+    "CLAUDE.md",
+    "nested/AGENTS.md",
+    "docs/Claude.md",
+    ".claude/rules/style.md",
+    "plugins/x/skills/y/SKILL.md",
+    "plugins/x/skills/y/reference/guide.md",
+    "plugins/x/agents/worker.md",
+    "plugins/x/hooks/README.md",
+    "plugins/ai-slop/README.md",
+    "docs/conventions/pr-pipeline/README.md",
+    "docs/unowned.md",
+    "docs/guide.md",
+  ]);
+  assert.equal(selected.applies, true);
+  assert.deepEqual(selected["changed-paths"], ["README.md", "docs/guide.md"]);
+});
+
+test("changed-paths drops a name that could read as an option, a glob or two words", () => {
+  const selected = targetsOf([
+    "docs/two words.md",
+    "docs/a,b.md",
+    "docs/-rf.md",
+    "-x.md",
+    "docs/*.md",
+    "docs/$(id).md",
+    "docs/../x.md",
+    "docs/ok.md",
+  ]);
+  assert.deepEqual(selected["changed-paths"], ["docs/ok.md"]);
+});
+
+test("changed-paths with nothing left skips the activity as not-applicable-paths", () => {
+  const selected = targetsOf(["CLAUDE.md", "plugins/ai-slop/README.md"]);
+  assert.equal(selected.applies, false);
+  assert.equal(selected["skip-reason"], "not-applicable-paths");
+  assert.equal(Object.hasOwn(selected, "changed-paths"), false);
+});
+
+test("a read activity's changed-paths keeps instruction surfaces and owned paths", () => {
+  const config = withChangedPaths((doc) => {
+    doc.activities["fix-docs"].effect = "read";
+  });
+  assert.deepEqual(
+    targetsOf(["CLAUDE.md", "plugins/ai-slop/README.md"], config)[
+      "changed-paths"
+    ],
+    ["CLAUDE.md", "plugins/ai-slop/README.md"],
+  );
+});
+
+test("an activity with the changed-paths input needs the changed files even without a paths predicate", () => {
+  const config = edited((doc) => {
+    doc.activities["fix-docs"].inputs = ["changed-paths"];
+  });
+  assert.deepEqual(
+    neededFacts(files(config), {
+      lane: "pr-refine",
+      activity: "fix-docs",
+      configPath: CONFIG_PATH,
+    }),
+    ["changedPaths"],
+  );
+});
+
 // The README example
 
 const EXAMPLE_FACTS = {
   event: "synchronize",
   changedPaths: ["README.md"],
+  changedTargets: ["README.md"],
   labels: [],
   workClasses: [],
 };
@@ -768,6 +864,9 @@ test("the README example validates and resolves for each of its lanes", () => {
     ["opus", 100],
   );
   assert.equal(results["pr-refine / fix-docs"].applies, true);
+  assert.deepEqual(results["pr-refine / fix-docs"]["changed-paths"], [
+    "README.md",
+  ]);
   assert.equal(results["pr-update / update"]["skip-reason"], "not-applicable");
   assert.equal(
     results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
