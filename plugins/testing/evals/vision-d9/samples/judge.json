@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [overflow]: The Item/Weight table is wider than the 375 px screen and is cut off on the right.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix"
+    },
+    {
+      "answer": "**FINDING [overflow]:** On the narrow layout the weight table extends beyond the viewport and forces a horizontal scroll.\nVERDICT: NEEDS WORK",
+      "why": "bold label"
+    },
+    {
+      "answer": "FINDING [overflow]: The specs table does not fit in the 375 px viewport; its right side is off-screen.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [overflow]: At mobile width the specs table isn't contained by the page and spills past the right edge.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [overflow]: The specs table is wider than the 375 px viewport.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [overflow]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: The specs table fits inside the viewport at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [overflow]: No element extends past the right edge.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [overflow]: The specs table may be slightly too wide at 375 px; hard to tell.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [overflow]: At 1280 px the specs table runs past the right edge.\nVERDICT: NEEDS WORK",
+      "why": "placed only at 1280 px"
+    },
+    {
+      "answer": "FINDING [overflow]: At 375 px the product cards run off the right edge of the screen.\nVERDICT: NEEDS WORK",
+      "why": "names only another element"
+    },
+    {
+      "answer": "FINDING [overflow]: Something runs off the screen.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [clipping]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "under another category"
+    },
+    {
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    }
+  ]
+}

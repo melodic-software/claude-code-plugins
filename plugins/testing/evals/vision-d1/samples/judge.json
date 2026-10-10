@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": "Reviewed all four screenshots.\nFINDING [overlap]: At 375 px each card's badge sits on top of the product title and hides part of it.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [overlap]: On the 375 px layout the New, Sale and Popular badges cover the start of each card title.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix"
+    },
+    {
+      "answer": "**FINDING [overlap]:** The badge collides with the product heading in every card at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "bold label"
+    },
+    {
+      "answer": "FINDING [overlap]: The card titles are not readable at 375 px because the badge sits over them.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [overlap]: At 375 px the badge no longer sits beside the title; it covers the first word of each card title.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "At 1280 px the cards look right.\n\n1. FINDING [overlap]: In the 375 px screenshots the \"New\" badge on Trail backpack is drawn over the title text.\n\nVERDICT: NEEDS WORK",
+      "why": "numbered prefix after prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [overlap]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overlap]: I don't see the badge overlapping the title at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [overlap]: Checked the badges at 375 px; they sit clear of the titles.\nVERDICT: NEEDS WORK",
+      "why": "checked and fine"
+    },
+    {
+      "answer": "FINDING [overlap]: At 375 px the badge may be overlapping the product title; hard to tell at this size.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [overlap]: The toast at the bottom of the page covers the specs table.\nVERDICT: NEEDS WORK",
+      "why": "a different defect"
+    },
+    {
+      "answer": "FINDING [overlap]: Two elements overlap.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [overlap]: At 1280 px the badge covers the product title.\nVERDICT: NEEDS WORK",
+      "why": "placed only at 1280 px"
+    },
+    {
+      "answer": "FINDING [other]: At 375 px the badge covers the product title.\nVERDICT: NEEDS WORK",
+      "why": "under another category"
+    },
+    {
+      "answer": "At 375 px the badge covers the product title.\nVERDICT: NEEDS WORK",
+      "why": "prose only, no FINDING line"
+    },
+    {
+      "answer": "FINDING [overlap]: At 375 px the badge covers the product title.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    }
+  ]
+}

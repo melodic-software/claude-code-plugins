@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [count-mismatch]: The count line says \"Showing 5 results\" but the list below the cards has only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [count-mismatch]: The results list is one item short of the stated count; Sleeping pad is missing.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix; no exact numbers"
+    },
+    {
+      "answer": "**FINDING [count-mismatch]:** \"Showing 5 results\" disagrees with the bulleted list, which shows fewer items.\nVERDICT: NEEDS WORK",
+      "why": "bold label; one number only"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The results list does not contain the 5 items the count line promises.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The stated result count doesn't match the bulleted list under the cards.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect; no numbers"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The header claims five results; the list renders four (backpack, stove, filter, headlamp).\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [count-mismatch]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The list shows every result the count line states.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Counted the list against \"Showing 5 results\"; they agree.\nVERDICT: NEEDS WORK",
+      "why": "checked and fine"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The list may be missing an item; hard to count from the screenshot.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: \"Showing 5 results\" but only 3 product cards are shown.\nVERDICT: NEEDS WORK",
+      "why": "compares only with the cards, as on the unmodified page"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The specs table lists 2 items while the page shows 3 cards.\nVERDICT: NEEDS WORK",
+      "why": "a different defect"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: A number on the page is wrong.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [other]: The count line says 5 results but the list has 4 items.\nVERDICT: NEEDS WORK",
+      "why": "under another category"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says 5 results but the list has 4 items.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    }
+  ]
+}
