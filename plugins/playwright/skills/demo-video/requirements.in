@@ -1,0 +1,4 @@
+# Direct pins for the demo-video pipeline: numpy for frame analysis, Pillow for drawing overlays.
+# Python >= 3.12 (numpy 2.5). After a change, recompile requirements.txt with the command in its header.
+numpy==2.5.3
+pillow==12.3.0
