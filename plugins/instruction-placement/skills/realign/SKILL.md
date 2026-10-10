@@ -209,7 +209,7 @@ Observed failure modes. Every one leaves a repository that looks migrated and is
   correct: a well-written conventions file, in the right directory, that Claude Code never loads,
   because the `CLAUDE.md` above it is read instead. Measured, not inferred.
 - **Forgetting the index regeneration.** The move succeeds, the rule fires when Claude works with a
-  file its glob covers (which tool calls count, by version: `context/verified-mechanics.md`), and
+  file its glob covers (which tool calls count, by version: `../../context/verified-mechanics.md`), and
   nothing tells any agent the rule exists until then. In a delegation-heavy repo a worker briefed
   to create or change files under that glob can act before the rule arrives. The index is part
   of the move, not a follow-up task.
