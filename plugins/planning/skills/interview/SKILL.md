@@ -1,5 +1,5 @@
 ---
-description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before behavior-changing work with ambiguous intent. Skip mechanical work."
+description: "Interview to shared understanding on a plan, decision, or idea, in rounds of numbered, recommended questions. An engineering task locks a PLAN.md Brief (goal, constraints, acceptance criteria, assumptions). Use when: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'what do you need to know', 'acceptance criteria', 'how will we know this is done', or before work whose diff is not quick to review and cheap to retry; skip one that is."
 argument-hint: "[me|lock|scope] [topic]"
 user-invocable: true
 disable-model-invocation: false
@@ -106,7 +106,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 
 **Intake the starting point.** Early in the loop (or before it), establish where the user is. One intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER, they can't yet evaluate options because they don't know the domain or codebase area. Route to a blindspot-surfacing exploration FIRST (invoke `/discovery:blindspot <area>` via the Skill tool if enabled, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
-When the effort is too big to hold at once AND still too foggy to phrase as sharp questions, the user can't yet list the decisions, let alone lock them; that is upstream of `/planning:interview`. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch.
+A new effort starts here, however big. When the interview shows the effort is too big to hold in one session AND still too foggy to phrase as sharp questions, the user can't yet list the decisions, let alone lock them. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch. The user can run it in this same session: its chart step reads this topic's ledger, so settled answers become decisions so far and open questions become decision items.
 
 **Question budget scales with what's already settled.** Upstream artifacts, research findings, exploration output, a PRD, a design resolution, count as settled prerequisites: an interview invoked after them starts with a smaller tree and fewer rounds; never re-ask what an artifact already answers. There is no numeric question cap, but a frontier that keeps *ballooning* (each round opens more branches than it closes) is the wayfind signal above, not a license for a marathon session. Surface the routing recommendation instead of grinding on.
 
@@ -433,17 +433,13 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)
 - **Already understand the codebase and the externals** → `/planning:design` when the work is design-significant (new types or contracts, a new module or library, a package-topology, cross-module, or data-model change), whose handoff writes PLAN.md's `## Design` before `/planning:plan`; `/planning:plan` directly when no design question is open
 - **Task is small, not design-significant, and the contract IS the plan** → proceed directly to implementation. Small design-significant work still goes through `/planning:design` first
-- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if enabled, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
+- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if enabled, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume"). When it outgrew the session because the effort is too big AND still foggy, recommend `/planning:wayfind` instead (Stance, above), which charts from the same ledger
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Session-config recommendation (model, effort, advisor)
 
-Turn the interview's read of complexity and ambiguity into a recommendation for how the session
-carrying the work forward should be configured. *When* it lands follows from *what* it configures:
-an engineering interview recommends at the stop/handoff boundary, for the downstream execution
-session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey
-surface and again at the stop boundary, for the current session.
+Turn the interview's read of complexity and ambiguity into a recommendation for how the session carrying the work forward should be configured. *When* it lands follows from *what* it configures: an engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
 
 Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the
 recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing,
@@ -459,7 +455,7 @@ the recommendation from this summary.
 - **Does not plan implementation**. The Brief says *what* and *what we are assuming*; `/planning:plan` says *how*. Resist drafting an approach mid-interview
 - **Does not write code or run tests**. Discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs (written through `/architecture:record-decision` when that plugin is enabled, else by hand into the declared convention) are first-class interview outputs alongside the Brief (a general session writes none)
 - **Does not adversarially attack the user's idea**. That is `/planning:devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics. It is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
-- **Does not gate truly mechanical work**. Typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/planning:interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default**. Auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
+- **Does not gate a quick change**. A change whose diff is quick to review and cheap to retry skips `/planning:interview`: build it, review the diff, and align on it there (the quick-change on-ramp of `/session-flow:workflow`). Behavior change alone does not force the interview. Work that fails either test, or whose diff turns out not to be quick to review, is **interview-first**, and auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy)
 - **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing
 - **Does not export Gherkin**. Named as a deferred extension point so its absence reads as a decision rather than an oversight: nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios, and the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract, and none of it is built here
 
@@ -467,6 +463,8 @@ the recommendation from this summary.
 
 - Contract locked and the work is design-significant: /planning:design.
 - Contract locked with no design question open: /planning:plan.
+- The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Spoke paths
 
