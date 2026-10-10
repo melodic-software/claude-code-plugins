@@ -8,8 +8,9 @@
 // copy on the old host is deleted.
 //
 //   publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --data-dir <dir>
-// The script looks up the repository's visibility itself, so no caller can route
-// a private repository to the public host.
+// The script looks up the --repo repository's visibility itself; no caller passes
+// a visibility. The page carries no repository identity, so --repo must name the
+// pull request's repository.
 // Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
 // 2 usage or not a builder page, 4 refused: credential-shaped content.
 
@@ -67,7 +68,7 @@ const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf
 
 /** REST, not `gh repo view`: GraphQL is refused in some sessions. Anything but a clean answer is UNKNOWN, which the gate sends private. */
 function lookupVisibility(repo) {
-  const run = spawnSync("gh", ["api", `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const run = spawnSync("gh", ["api", `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 30000 });
   const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
   return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
 }
