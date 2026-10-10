@@ -226,6 +226,7 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
+          can-commit: ${{ steps.config.outputs.can-commit }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
 
       # Nothing after this step needs sudo or docker.
