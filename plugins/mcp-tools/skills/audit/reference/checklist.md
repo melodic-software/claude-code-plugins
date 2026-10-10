@@ -30,11 +30,10 @@ names.
   per-tool `false`, or a release note names MCP `_meta` annotations.
 
 **Description length record.** C4 holds each tool description and each server `instructions` field
-to a floor this skill chose so that no client version it supports cuts the text; the number sits in
-the C4 row as this skill's own rule. C4 warns rather than fails past that floor, because whether a
-given client cuts there is read at the pointer, not decided here. C4 grades against the client
-default and ignores the session-level override `CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the
-server author does not control.
+to a floor this skill chose; the number sits in the C4 row as this skill's own rule. C4 warns
+rather than fails past that floor, because whether a given client cuts there is read at the
+pointer, not decided here. C4 ignores the session-level override
+`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the server author does not control.
 
 - **Pointer**: when grading C4 or revisiting its number, fetch
   <https://code.claude.com/docs/en/changelog> (versions 2.1.295 and 2.1.296) and

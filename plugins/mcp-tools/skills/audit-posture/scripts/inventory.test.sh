@@ -497,8 +497,8 @@ printf '%s\n' '{"mcpServers": {"dup": {"type": "sdk"}}}' >"$FIX/sdk shadow/.mcp.
 run_inv --claude-json "$FIX/sdk shadow/claude.json" --project "$FIX/sdk shadow" \
   --mcp-json "$FIX/sdk shadow/.mcp.json" --managed-dir "$FIX/no managed" --date 2026-01-02
 assert_eq "project sdk entry is skipped by the client" "skipped-by-client" "$(cell project dup 3)"
-assert_eq "user row under a same-named project sdk entry stays shadowed" "shadowed-by:" \
-  "$(cell user dup 3 | cut -c1-12)"
+assert_eq "user row under a same-named unapproved project sdk entry stays shadowed" \
+  "shadowed-by:project-if-approved" "$(cell user dup 3)"
 
 # --- Run 2c: enableAllProjectMcpServers approves every project server ----------
 

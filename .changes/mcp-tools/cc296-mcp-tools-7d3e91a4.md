@@ -9,5 +9,5 @@ bump: minor
 
 ### Added
 
-- **C19 recognizes a per-tool `anthropic/alwaysLoad: false`.** That value keeps a heavy tool deferred when a user configures its whole server to load upfront. It is never a finding, and the audit can now suggest it for a large tool on such a server. The client-behavior record points at which server sources honor it.
+- **C19 recognizes a per-tool `anthropic/alwaysLoad: false`.** Declaring it is never a finding, and the audit can now suggest it for a large tool. The client-behavior record points at the docs section that says which servers honor it.
 - **`/mcp-tools:audit-posture` marks `"type": "sdk"` config entries as `skipped-by-client`.** The audit now treats these entries as dead config and does not score them; shadowing of same-name servers in lower scopes is unchanged. Before this change they appeared as live servers. An SDK entries record points at the docs and changelog note on these entries.
