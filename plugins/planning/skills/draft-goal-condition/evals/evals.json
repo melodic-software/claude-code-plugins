@@ -37,6 +37,31 @@
         "Output recognizes the intent as interval-driven (every 5 minutes / poll until), not as a completion-condition /goal",
         "Output does NOT emit a paste-ready /goal invocation for this interval-driven intent"
       ]
+    },
+    {
+      "id": 4,
+      "name": "metric-hill-climb-routes-to-performance-chain",
+      "prompt": "/planning:draft-goal-condition make Claude keep cutting the number of processes this hook spawns: it edits the hook, runs a fixed counting script it may not change, keeps an edit only when the count drops, reverts otherwise, and logs each round.",
+      "expected_output": "Step 0 classifies this as a metric hill-climb on a counter and routes to /performance:goal, then /performance:snapshot, then /performance:verify, instead of building a new runner.",
+      "files": [],
+      "expectations": [
+        "Output identifies the intent as a metric hill-climb: one editable target, a scorer the agent cannot edit, keep or revert each round",
+        "Output routes to /performance:goal followed by /performance:snapshot and /performance:verify",
+        "Output does NOT propose building a new hill-climb runner or script"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "hill-climb-agent-cannot-run-routes-to-one-shot",
+      "prompt": "/planning:draft-goal-condition make Claude keep editing the iOS app's startup code until launch time drops. Only I can run the app on my phone and read the launch time, so Claude never sees the number.",
+      "expected_output": "Step 0 finds a build-and-check precondition unmet (the agent cannot run what it builds or see the score), so it recommends prompting once instead of a hill-climb or a /goal loop.",
+      "files": [],
+      "expectations": [
+        "Output names the unmet precondition: the agent cannot run the app or see the launch time",
+        "Output recommends a one-shot prompt rather than a looping lever",
+        "Output does NOT emit a paste-ready /goal invocation for this intent",
+        "Output does NOT route to the /performance chain as a hill-climb loop"
+      ]
     }
   ]
 }
