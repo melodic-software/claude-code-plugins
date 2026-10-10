@@ -6,7 +6,7 @@ The page's count line reads "Showing 5 results", but the bulleted list below the
 
 The reply was asked to put each problem on a line of the form `FINDING [<category>]: <what and where>` and to end with a last line of exactly `VERDICT: CONFIRMED` or `VERDICT: NEEDS WORK`.
 
-PASS only if a line starting `FINDING [count-mismatch]:` (a markdown prefix or emphasis is allowed, such as `- `, `1. ` or `**FINDING [count-mismatch]:**`) asserts that the stated result count disagrees with the bulleted list, says where in any wording that identifies the list or the count line (for example the results list, the list under the cards, or "Showing 5 results"), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the list does not show 5 items", is an assertion.
+PASS only if a line starting `FINDING [count-mismatch]:` (a markdown prefix or emphasis is allowed, such as a `-` or `1.` list marker, or `**FINDING [count-mismatch]:**`) asserts that the stated result count disagrees with the bulleted list, says where in any wording that identifies the list or the count line (for example the results list, the list under the cards, or "Showing 5 results"), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the list does not show 5 items", is an assertion.
 
 FAIL if any of these holds:
 

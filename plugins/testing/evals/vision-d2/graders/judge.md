@@ -6,7 +6,7 @@ The case shows one page as four screenshots: 375 px and 1280 px wide, each at lo
 
 The reply was asked to put each problem on a line of the form `FINDING [<category>]: <what and where>` and to end with a last line of exactly `VERDICT: CONFIRMED` or `VERDICT: NEEDS WORK`.
 
-PASS only if a line starting `FINDING [clipping]:` (a markdown prefix or emphasis is allowed, such as `- `, `1. ` or `**FINDING [clipping]:**`) asserts that the "Add to cart" label is cut off, says where in any wording that identifies the button (for example the Add to cart button, the first card's button, or the Trail backpack card), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the label is not fully visible", is an assertion.
+PASS only if a line starting `FINDING [clipping]:` (a markdown prefix or emphasis is allowed, such as a `-` or `1.` list marker, or `**FINDING [clipping]:**`) asserts that the "Add to cart" label is cut off, says where in any wording that identifies the button (for example the Add to cart button, the first card's button, or the Trail backpack card), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the label is not fully visible", is an assertion.
 
 FAIL if any of these holds:
 

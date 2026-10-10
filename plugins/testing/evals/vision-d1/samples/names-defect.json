@@ -60,7 +60,7 @@
       "why": "untagged FINDING line"
     },
     {
-      "answer": "FINDING [overlaping]: At 375 px each card's New badge sits on top of the product title, hiding its first word.\nVERDICT: NEEDS WORK",
+      "answer": "FINDING [overlapped]: At 375 px each card's New badge sits on top of the product title, hiding its first word.\nVERDICT: NEEDS WORK",
       "why": "unknown category"
     },
     {

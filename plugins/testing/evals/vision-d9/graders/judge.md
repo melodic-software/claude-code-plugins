@@ -6,7 +6,7 @@ The case shows one page as four screenshots: 375 px and 1280 px wide, each at lo
 
 The reply was asked to put each problem on a line of the form `FINDING [<category>]: <what and where>` and to end with a last line of exactly `VERDICT: CONFIRMED` or `VERDICT: NEEDS WORK`.
 
-PASS only if a line starting `FINDING [overflow]:` (a markdown prefix or emphasis is allowed, such as `- `, `1. ` or `**FINDING [overflow]:**`) asserts that the specs table runs past the edge of the viewport, says where (the specs table, at 375 px or the narrow width), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the table does not fit in the 375 px viewport", is an assertion.
+PASS only if a line starting `FINDING [overflow]:` (a markdown prefix or emphasis is allowed, such as a `-` or `1.` list marker, or `**FINDING [overflow]:**`) asserts that the specs table runs past the edge of the viewport, says where (the specs table, at 375 px or the narrow width), and the last non-empty line is `VERDICT: NEEDS WORK`. A negation that asserts the defect, such as "the table does not fit in the 375 px viewport", is an assertion.
 
 FAIL if any of these holds:
 
