@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.70.1] - 2026-10-09
+
+### Changed
+
+- `/planning:design` points UI/UX work at `/user-experience:shape` and `/user-interface:design` (when enabled), and `/planning:brainstorm` names `/user-experience:shape` under Next for who the users are and what they need.
+
 ## [0.70.0] - 2026-10-08
 
 ### Changed

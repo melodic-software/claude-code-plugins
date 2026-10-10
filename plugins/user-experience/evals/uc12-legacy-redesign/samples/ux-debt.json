@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Start with a UX-debt inventory of the receiving screens.",
+      "why": "hyphenated"
+    },
+    {
+      "answer": "Build a ux debt register first.",
+      "why": "spaced, lower case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Start by migrating off Struts to React.",
+      "why": "a technology choice"
+    },
+    {
+      "answer": "List the technical debt in the codebase.",
+      "why": "technical debt, not UX debt"
+    }
+  ]
+}

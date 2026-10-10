@@ -1,0 +1,4 @@
+Checking MCP server health…
+
+dovetail: https://mcp.dovetail.example/sse (HTTP) - ✔ Connected
+plugin:mixpanel:mixpanel: npx -y @mixpanel/mcp - ✗ Failed to connect
