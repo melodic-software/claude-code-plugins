@@ -300,18 +300,20 @@ def main(argv=None):
         ck, st, typ = stp['ck'], stp['st'], stp['typ']
         pw = max(pill_width(stp['caption'], cfg, a.font), pill_width(stp['outcome'] or '', cfg, a.font))
         tb = ck['box']
-        held = layers['camera'] and cur != full and contains(cur, tb, CAM['safe_margin'] * cur[2] / W)
         budget = P['move'] + P['pre_click'] + (P['lead_in'] if k == 0 else 0.0)
-        if held:   # the target is already in shot with headroom: keep the shot
-            shot = cur
-        elif not layers['camera']:
-            shot = None
-        else:
+        if layers['camera']:
             # the click shot holds still while a modal opens (a state cut QC allows zoomed only with
             # clean edges), so its edges clear every capture up to the modal's settled one
             t_end = stp['modal_at'] or ck['t']
             ink = union_ink([(capture_at(ck['t']), mask_at(ck['t']))] +
                             [(cap / f['file'], mask_at(f['t'])) for f in frames if ck['t'] < f['t'] <= t_end], W, H, CAM['word_gap'])
+        held = layers['camera'] and cur != full and contains(cur, tb, CAM['safe_margin'] * cur[2] / W) and \
+            all(v <= CAM['edge_ink'] for v in edge_ink(ink, cur, CAM['gutter_band'], W, H).values())
+        if held:   # the target is already in shot with headroom and the edges stay clean: keep the shot
+            shot = cur
+        elif not layers['camera']:
+            shot = None
+        else:
             fr = [ink, stp['block'] or pad_block(tb), tb, W, H, cfg, pw, zr_shot]
             exit_b = 1.0 if stp['navigates'] else None
             shot = focus_rect(*fr, origin=cur, budget=budget, exit_budget=exit_b)[0]
@@ -628,7 +630,7 @@ def main(argv=None):
         prev_end, prev_rect, before = m1, r if r else prev_rect, r0
     moves_t = [(m0, m1, r) for m0, m1, _, r in moves_t]
     travel = []   # drawn-cursor travel: frames change, so it breaks a still stretch
-    for m in moves:
+    for m in moves if layers['cursor'] else []:
         try:
             if m['from'] != m['to']:
                 travel.append((out_of(m['t']), out_of(m['t1'])))
