@@ -7,8 +7,9 @@
 // request, so a rebuild replaces the same page. When the page changes host, the
 // copy on the old host is deleted.
 //
-//   publish-hosted.mjs <page> --repo <owner/repo> --pr <n>
-//                      --repo-visibility <PUBLIC|PRIVATE|INTERNAL|UNKNOWN> --data-dir <dir>
+//   publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --data-dir <dir>
+// The script looks up the repository's visibility itself, so no caller can route
+// a private repository to the public host.
 // Prints one JSON object. Exit 0 published, 1 upload failed (keep the file),
 // 2 usage or not a builder page, 4 refused: credential-shaped content.
 
@@ -64,15 +65,21 @@ function writeSidecar(path, current, stale) {
 
 const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
+/** REST, not `gh repo view`: GraphQL is refused in some sessions. Anything but a clean answer is UNKNOWN, which the gate sends private. */
+function lookupVisibility(repo) {
+  const run = spawnSync("gh", ["api", `repos/${repo}`, "--jq", ".visibility"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const answer = run.status === 0 && !run.error ? run.stdout.trim() : "";
+  return ["public", "private", "internal"].includes(answer) ? answer.toUpperCase() : "UNKNOWN";
+}
+
 /** @returns {{exit: number, result: object}} */
-export function publishHosted({ page, repo, pr, repoVisibility, dataDir }) {
+export function publishHosted({ page, repo, pr, dataDir }) {
   const html = readFileSync(page, "utf8");
   // A connected page names the session bridge in its policy; it only works on this machine.
   if (!validateView(html).ok || /connect-src http:\/\/127\.0\.0\.1:\d{1,5}"/.test(html)) {
     return { exit: 2, result: { medium: "file", reason: "not a page the builder made for publishing" } };
   }
-  // A pull request always has a repository, so NONE counts as not PUBLIC here.
-  const visibility = repoVisibility === "NONE" ? "UNKNOWN" : repoVisibility;
+  const visibility = lookupVisibility(repo);
   const text = [html, ...dataStrings(html)].join("\n");
   const gate = publishGate({ explicit: false, visibility, text, subject: "page", medium: "hosted" });
   if (gate.medium !== "hosted") return { exit: 4, result: gate };
@@ -126,24 +133,20 @@ function main(argv) {
   const ok =
     page &&
     !page.startsWith("--") &&
-    rest.length === 8 &&
+    rest.length === 6 &&
     NAME.test(owner ?? "") &&
     NAME.test(name ?? "") &&
     extra === undefined &&
     /^\d{1,9}$/.test(flags["--pr"] ?? "") &&
-    /^[A-Za-z]+$/.test(flags["--repo-visibility"] ?? "") &&
     isAbsolute(flags["--data-dir"] ?? "");
   if (!ok || !existsSync(page)) {
-    process.stderr.write(
-      "usage: publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --repo-visibility <VISIBILITY> --data-dir <absolute dir>\n",
-    );
+    process.stderr.write("usage: publish-hosted.mjs <page> --repo <owner/repo> --pr <n> --data-dir <absolute dir>\n");
     return 2;
   }
   const { exit, result } = publishHosted({
     page: resolve(page),
     repo: flags["--repo"],
     pr: flags["--pr"],
-    repoVisibility: flags["--repo-visibility"].toUpperCase(),
     dataDir: flags["--data-dir"],
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
