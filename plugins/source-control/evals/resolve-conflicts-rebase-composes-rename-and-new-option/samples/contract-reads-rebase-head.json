@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show REBASE_HEAD -- retry.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show --stat --oneline REBASE_HEAD -- retry.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w log -p -1 REBASE_HEAD -- retry.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff REBASE_HEAD~1 REBASE_HEAD -- retry.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline main..ORIG_HEAD"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --all --oneline"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --verify REBASE_HEAD"
+          }
+        }
+      ],
+      "why": "confirms the pseudoref exists without reading its commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f .git/REBASE_HEAD && echo yes"
+          }
+        }
+      ],
+      "why": "checks the stop, reads no history"
+    }
+  ]
+}

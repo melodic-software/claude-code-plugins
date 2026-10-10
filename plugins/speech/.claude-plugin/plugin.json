@@ -1,7 +1,7 @@
 {
   "name": "speech",
-  "version": "0.2.10",
-  "description": "Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word. The default kokoro backend runs Kokoro-82M locally with onnxruntime. The optional elevenlabs backend sends the text to the third-party ElevenLabs API (ELEVENLABS_API_KEY) after showing a cost estimate; an organization can forbid it. You install espeak-ng (GPL-3.0). A hook installs the Python packages; setup downloads the models; check reports missing prerequisites.",
+  "version": "0.3.0",
+  "description": "Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, with a start and end time per word. The default backend runs Kokoro-82M locally. The optional elevenlabs backend sends the text to the third-party ElevenLabs API (ELEVENLABS_API_KEY or vault-exec) after showing the character count against your quota, caching repeats; an organization can forbid it. You install espeak-ng (GPL-3.0); a hook installs Python packages, setup the models, check reports gaps.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -16,5 +16,19 @@
     "elevenlabs",
     "word-timings",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "elevenlabs_model": {
+      "type": "string",
+      "title": "ElevenLabs model",
+      "description": "Model id the elevenlabs backend uses when a run names none, one of the ids in the MODELS table of scripts/elevenlabs.py. The default matches the script's own default.",
+      "default": "eleven_v4",
+      "options": ["eleven_multilingual_v2", "eleven_flash_v2_5", "eleven_v3", "eleven_v4"]
+    },
+    "model_dir": {
+      "type": "directory",
+      "title": "Kokoro model directory",
+      "description": "Folder that holds the downloaded Kokoro model set (a kokoro-<revision> subfolder per pin), for a larger disk or one cache shared across worktrees and plugins. Unset keeps it under the plugin data directory's models folder."
+    }
+  }
 }

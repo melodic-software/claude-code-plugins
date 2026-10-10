@@ -10,6 +10,8 @@ SCRIPT="$SELF_DIR/check-pipefail-grep-q.sh"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/fixture-tree.sh
+. "$SELF_DIR/lib/fixture-tree.sh"
 
 WORK="$(mktemp -d)" || exit 2
 trap 'rm -rf "$WORK"' EXIT
@@ -343,19 +345,58 @@ else
   fail "a missing file argument: wanted exit 2 on stderr only (rc=$RC, stdout='$OUT', stderr='$ERR')"
 fi
 
-# A default run that finds no scripts/ tree could not look, so it is not clean.
-mkdir -p "$WORK/noscripts/bin"
-cp "$SCRIPT" "$WORK/noscripts/bin/gate.sh"
-run_gate_default() {
-  RC=0
-  bash "$WORK/noscripts/bin/gate.sh" >"$WORK/out" 2>"$WORK/err" || RC=$?
-}
-run_gate_default
+# --- the default scan: every *.sh git lists, less the baseline ---------------
+# A default run outside a git work tree could not list files, so it is not clean.
+mkdir -p "$WORK/nogit/scripts"
+cp "$SCRIPT" "$WORK/nogit/scripts/gate.sh"
+RC=0
+bash "$WORK/nogit/scripts/gate.sh" >"$WORK/out" 2>"$WORK/err" || RC=$?
 if ((RC == 2)) && [[ ! -s "$WORK/out" ]]; then
-  ok "a default run with no scripts/ tree exits 2"
+  ok "a default run outside a git work tree exits 2"
 else
-  fail "a default run with no scripts/ tree: wanted exit 2 (rc=$RC, stdout='$(cat "$WORK/out")')"
+  fail "a default run outside a git work tree: wanted exit 2 (rc=$RC, stdout='$(cat "$WORK/out")')"
 fi
+
+# default_case <label> <expected-rc> <baseline lines> [<needle>...]: a git
+# fixture holding a clean file, plugins/p/bad.sh (an offender), and
+# plugins/p/fixed.sh (clean), with the given baseline; every needle must appear
+# in the combined output.
+default_case() {
+  local label="$1" want="$2" base="$3" repo out rc needle
+  shift 3
+  fixture_tree::build repo --sut "$SCRIPT" --git || {
+    fail "$label: fixture build failed"
+    return
+  }
+  mkdir -p "$repo/plugins/p"
+  # shellcheck disable=SC2016  # literal fixture source; nothing here should expand
+  printf '%s\n' 'grep -q x <<<"$v"' >"$repo/scripts/clean.sh"
+  # shellcheck disable=SC2016  # see above
+  printf '%s\n' 'printf "%s\n" "$v" | grep -qxF x' >"$repo/plugins/p/bad.sh"
+  # shellcheck disable=SC2016  # see above
+  printf '%s\n' 'grep -qxF x <<<"$v"' >"$repo/plugins/p/fixed.sh"
+  [[ -z "$base" ]] || printf '%s\n' "$base" >"$repo/scripts/pipefail-grep-q-baseline.txt"
+  rc=0
+  out="$(bash "$repo/scripts/check-pipefail-grep-q.sh" 2>&1)" || rc=$?
+  for needle in "$@"; do
+    [[ "$out" == *"$needle"* ]] || {
+      fail "$label: output lacks '$needle' (rc=$rc, out='$out')"
+      rm -rf "$repo"
+      return
+    }
+  done
+  if ((rc == want)); then ok "$label"; else fail "$label: wanted rc=$want, got $rc (out='$out')"; fi
+  rm -rf "$repo"
+}
+
+default_case "a default run scans shell files outside scripts/" 1 "" \
+  "plugins/p/bad.sh:1:"
+default_case "a baselined offender is skipped" 0 "plugins/p/bad.sh" \
+  "1 baselined file(s) still to fix"
+default_case "a baseline entry with nothing left to fix is stale" 1 $'plugins/p/bad.sh\nplugins/p/fixed.sh' \
+  "STALE BASELINE: " "'plugins/p/fixed.sh'"
+default_case "a baseline entry whose file is gone is stale" 1 $'plugins/p/bad.sh\nplugins/p/gone.sh' \
+  "STALE BASELINE: " "'plugins/p/gone.sh'"
 
 # A bare name shaped like var=value must still be read as a file, not as an awk
 # variable assignment that would silently scan nothing.

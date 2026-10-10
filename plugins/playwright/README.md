@@ -38,6 +38,23 @@ prerequisites report lists `playwright-cli` as missing. It never installs.
 - **Vendored upstream baseline**. The skill directory Microsoft ships inside
   the npm package is bundled verbatim for drift detection.
 
+## Demo videos for pull requests
+
+`/playwright:demo-video` turns a web flow into a short produced MP4 for a PR:
+it replays a written script with 4K capture, zooms in on each action, draws
+the cursor and click ripples, captions each step, cuts out page loads, and
+posts the result with `gh pr comment --attach` (or a CI artifact link).
+`qc.py` checks the rendered frames (zoom share, text cut at the frame edge,
+stillness, camera motion, cuts, crossfades, blank frames) and an independent
+reviewer looks at the frames before anything is posted.
+
+It needs Python 3.12+, `ffmpeg` and `ffprobe`, and `playwright-cli` for
+recording. Its numpy and Pillow are hash-locked in
+`skills/demo-video/requirements.txt`; a SessionStart hook installs them into
+the plugin data directory, and a run before that prints the one install
+command. The `demo_*` options in the reference below set the style and the
+layers.
+
 ## Works in any repo
 
 - **Self-contained.** All reference material ships inside the plugin and is
@@ -99,6 +116,83 @@ This plugin has no `userConfig`. Behavior tuning happens through
 `@playwright/cli`'s own flags and config surface (documented in the upstream
 README inside the npm package); the skill deliberately recommends upstream
 defaults.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `demo_style` | string | `"produced"` | `CLAUDE_PLUGIN_OPTION_DEMO_STYLE` | Style of /playwright:demo-video output: produced (zoom on each action, captions, title card) or plain (the same replay and drawn cursor, no zoom, captions or title). |
+| `demo_title` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_TITLE` | Open the demo video with a title card. The plain style has none whatever this says. |
+| `demo_camera` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CAMERA` | Zoom and pan onto each action. The plain style has none whatever this says. |
+| `demo_cursor` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CURSOR` | Draw the pointer traveling to and clicking each target. |
+| `demo_ripple` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_RIPPLE` | Draw a ring around each clicked element. |
+| `demo_captions` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CAPTIONS` | Caption each step and its outcome. The plain style has none whatever this says. |
+| `demo_narration` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_DEMO_NARRATION` | Add a voice-over through /speech:narrate when the speech plugin is installed. Off by default. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively.** Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure playwright@<marketplace>`.
+2. **Headless.** Repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install playwright@<marketplace> -s <scope> --config demo_style=<value>
+   ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior. A check run in the old session
+   still reports the old value, and that is not a failed write.
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "playwright@<marketplace>": {
+         "options": {
+           "demo_style": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

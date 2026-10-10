@@ -1,0 +1,166 @@
+{
+  "pass": [
+    {
+      "answer": "Checked all four screenshots.\nFINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "- **FINDING [`count-mismatch`]:** The count line says Showing 5 results but the list renders only 4 items.\n- FINDING [contrast]: Body text looks pale.\n\nVERDICT: NEEDS WORK\n"
+    },
+    {
+      "answer": "1. FINDING [COUNT-MISMATCH]: The count line says Showing 5 results but the list renders only 4 items.\n\n**VERDICT: NEEDS WORK**"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ count-mismatch ]: The count line says Showing 5 results but the list renders only 4 items.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Notable count-mismatch in the first card.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [count-mismatch]: The count line says 5 results, but the list does not show 5 items; only 4 render.\n\nVERDICT: NEEDS WORK"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
+      "why": "clean report"
+    },
+    {
+      "answer": "FINDING [other]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "this defect under another case's token"
+    },
+    {
+      "answer": "FINDING [other]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "this defect under the other token"
+    },
+    {
+      "answer": "It says Showing 5 results but the list has only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "prose-only mention, no FINDING line"
+    },
+    {
+      "answer": "FINDING: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "untagged FINDING line"
+    },
+    {
+      "answer": "FINDING [count-mismatching]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "unknown category"
+    },
+    {
+      "answer": "FINDING [count-mismatch, other]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "two categories in one tag"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: CONFIRMED",
+      "why": "wrong final verdict"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK (draft)\nOn a second look it is fine.\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK\nLet me know if you want a fix.",
+      "why": "verdict is not the last line"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK (draft)",
+      "why": "final verdict line carries extra text"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT:\nNEEDS WORK",
+      "why": "verdict split across lines"
+    },
+    {
+      "answer": "Category FINDING [count-mismatch]: The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "tag not at line start"
+    },
+    {
+      "answer": "FINDING [count-mismatch]:\nVERDICT: NEEDS WORK",
+      "why": "tag with an empty body"
+    },
+    {
+      "answer": "FINDING [count-mismatch] The count line says Showing 5 results but the list renders only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "tag without a colon"
+    },
+    {
+      "answer": "FINDING [contrast]: The count-mismatch category does not apply; It says Showing 5 results but the list has only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "token named in another finding's prose"
+    },
+    {
+      "answer": "FINDING [clipping]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [misalignment]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overflow]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING: avoids any overlap\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverlap - ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nBadge overlap: absent.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nfree of truncation\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\ncontrast is far from low.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nmisalignment is ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\navoids overflow\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    }
+  ]
+}

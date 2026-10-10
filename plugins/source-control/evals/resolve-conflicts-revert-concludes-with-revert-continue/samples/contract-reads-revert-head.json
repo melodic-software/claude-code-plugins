@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show REVERT_HEAD -- auth/session.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show --stat --oneline REVERT_HEAD"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w log -p -1 REVERT_HEAD -- auth/session.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff REVERT_HEAD~1 REVERT_HEAD -- auth/session.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -3"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --all --oneline"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --verify REVERT_HEAD"
+          }
+        }
+      ],
+      "why": "confirms the pseudoref exists without reading its commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f .git/REVERT_HEAD && echo yes"
+          }
+        }
+      ],
+      "why": "checks the stop, reads no history"
+    }
+  ]
+}

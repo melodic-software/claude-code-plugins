@@ -4,8 +4,12 @@ name: pr-bump-plugin-version
 # bump plugins/<name>/.claude-plugin/plugin.json or write CHANGELOG.md. The
 # changelog-parity --check-bump gate correctly requires those (Claude Code
 # delivers updates only when the plugin version string changes). This workflow
-# supplies the bump on Dependabot PRs, or, for a plugin in changelog-fragment
-# mode (ADR 0048), a patch fragment under .changes/ that the release PR consumes.
+# supplies the bump on Dependabot PRs for a plugin not yet in changelog-fragment
+# mode. A plugin in fragment mode (ADR 0048) gets no commit here: every run on a
+# commit this workflow makes waits at action_required (#5786, below), so
+# dependabot-fragments.yml writes its fragment after the merge instead, and
+# check-changelog-fragments.sh --check-required exempts the Dependabot-only pull
+# request. Once every plugin is in fragment mode this workflow commits nothing.
 #
 # Commit messages include [dependabot skip] so Dependabot may force-push over
 # the bot commit when rebasing (GitHub docs: Managing pull requests for
@@ -17,18 +21,10 @@ name: pr-bump-plugin-version
 # ruleset accepts. A local commit pushed with GITHUB_TOKEN is unsigned.
 # Per the GitHub docs page "Triggering a workflow", a pull_request event from a
 # pull request that GITHUB_TOKEN updated creates runs in an approval-required
-# state; the page names a GitHub App installation token as the way to start
-# them without approval. So the commit uses a token
-# from the dedicated bump App when its Dependabot secrets
-# DEPENDABOT_BUMP_APP_CLIENT_ID and DEPENDABOT_BUMP_APP_PRIVATE_KEY exist (a
-# Dependabot-triggered run sees only Dependabot secrets: "Troubleshooting
-# Dependabot on GitHub Actions"), and GITHUB_TOKEN otherwise, under which every
-# run on the bump commit waits in action_required (#5786). The App holds
-# contents: write on this repository only and bypasses no ruleset; the release
-# App's key stays in the plugin-release environment. Trade-off: runs on an
-# App-made bump commit are not Dependabot-triggered, so they get the
-# repository's Actions secrets with no approval step, as approved runs do now.
-# Recheck: once the secrets exist, a bump commit's runs start without approval.
+# state, so every run on the bump commit waits in action_required (#5786). No
+# App token is used here: a Dependabot-triggered run sees only Dependabot
+# secrets, and the owner declined a dedicated bump App; the fragment path above
+# removes the commit instead.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -51,9 +47,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
-    env:
-      # Both secrets or neither: a lone one would fail the mint step, not fall back.
-      BUMP_APP_READY: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID != '' && secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY != '' }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,41 +60,35 @@ jobs:
         run: |
           git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
           git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
-      - name: Bump plugin manifests and changelogs, or write fragments
+      - name: Bump legacy plugin manifests and changelogs
         id: bump
         env:
           BASE_REF: ${{ github.base_ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          # Prefer the base tip's copy of the bump script so a Dependabot branch
-          # that has not yet rebased still runs the landed implementation.
+          # Prefer the base tip's copy of the bump script, and of the fragment
+          # and entry libraries it sources from beside itself, so a Dependabot
+          # branch that has not yet rebased still runs the landed implementation.
           bump_script=scripts/dependabot-plugin-bump.sh
           if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
             git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
             bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
             chmod +x "$bump_script"
+            mkdir -p "$RUNNER_TEMP/lib"
+            for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+              if git cat-file -e "origin/$BASE_REF:scripts/lib/$lib" 2>/dev/null; then
+                git show "origin/$BASE_REF:scripts/lib/$lib" > "$RUNNER_TEMP/lib/$lib"
+              fi
+            done
           fi
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
-      - name: Mint the bump App token
-        id: app-token
-        if: env.BUMP_APP_READY == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID }}
-          private-key: ${{ secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
       - name: Commit release metadata
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_REF: ${{ github.head_ref }}
         run: |
           git add -u -- plugins
-          # A changelog fragment (ADR 0048) is a new file, which -u skips. The guard
-          # keeps a run with no fragment off git add's unmatched-pathspec error.
-          if [ -d .changes ]; then git add -A -- .changes; fi
           if git diff --cached --quiet; then
             echo "nothing to commit"
             exit 0

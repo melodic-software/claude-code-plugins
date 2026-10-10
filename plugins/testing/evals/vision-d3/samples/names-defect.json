@@ -1,0 +1,175 @@
+{
+  "pass": [
+    {
+      "answer": "Checked all four screenshots.\nFINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "- **FINDING [`contrast`]:** Body text is light grey on white and hard to read at both widths.\n- FINDING [overlap]: The badge covers the title.\n\nVERDICT: NEEDS WORK\n"
+    },
+    {
+      "answer": "1. FINDING [CONTRAST]: Body text is light grey on white and hard to read at both widths.\n\n**VERDICT: NEEDS WORK**"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nFINDING [ contrast ]: Body text is light grey on white and hard to read at both widths.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: Notable contrast in the first card.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [contrast]: The footer note uses light gray (#c8c8c8) on white, noticeably below 4.5:1.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [contrast]: The notification banner text does not meet WCAG AA contrast against its pale yellow background.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [contrast]: Body copy in `.card p` is #aaa on #fff (about 2.3:1), see https://www.w3.org/TR/WCAG21/#contrast-minimum.\n\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Reviewed both widths.\n\nFINDING [contrast]: The \"Trail gear\" subheading has zero visible contrast against the hero image at 1280 px.\n\nVERDICT: NEEDS WORK"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
+      "why": "clean report"
+    },
+    {
+      "answer": "FINDING [other]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "this defect under another case's token"
+    },
+    {
+      "answer": "FINDING [other]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "this defect under the other token"
+    },
+    {
+      "answer": "The body text has low contrast against the white background.\nVERDICT: NEEDS WORK",
+      "why": "prose-only mention, no FINDING line"
+    },
+    {
+      "answer": "FINDING: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "untagged FINDING line"
+    },
+    {
+      "answer": "FINDING [contrasting]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "unknown category"
+    },
+    {
+      "answer": "FINDING [contrast, other]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "two categories in one tag"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: CONFIRMED",
+      "why": "wrong final verdict"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK (draft)\nOn a second look it is fine.\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK\nLet me know if you want a fix.",
+      "why": "verdict is not the last line"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK (draft)",
+      "why": "final verdict line carries extra text"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT:\nNEEDS WORK",
+      "why": "verdict split across lines"
+    },
+    {
+      "answer": "Category FINDING [contrast]: Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "tag not at line start"
+    },
+    {
+      "answer": "FINDING [contrast]:\nVERDICT: NEEDS WORK",
+      "why": "tag with an empty body"
+    },
+    {
+      "answer": "FINDING [contrast] Body text is light grey on white and hard to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "tag without a colon"
+    },
+    {
+      "answer": "FINDING [overlap]: The contrast category does not apply; The body text has low contrast against the white background.\nVERDICT: NEEDS WORK",
+      "why": "token named in another finding's prose"
+    },
+    {
+      "answer": "FINDING [clipping]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [misalignment]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overflow]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nFINDING: avoids any overlap\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\noverlap - ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nBadge overlap: absent.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nfree of truncation\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\ncontrast is far from low.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\nmisalignment is ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\navoids overflow\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [overlap]: The badge covers the title.\noverflow - none observed.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    }
+  ]
+}

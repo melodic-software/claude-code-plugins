@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "import random\nimport time\nfrom dataclasses import dataclass\n\n\n@dataclass\nclass RetryOptions:\n    max_attempts: int = 3\n    backoff_jitter: float = 0.0\n    base_delay: float = 0.1\n\n\ndef retry(fn, options=None, sleep=time.sleep):\n    options = options or RetryOptions()\n    last = None\n    for attempt in range(options.max_attempts):\n        try:\n            return fn()\n        except Exception as exc:\n            last = exc\n            sleep(options.base_delay * (2 ** attempt) + random.uniform(0, options.backoff_jitter))\n    raise last\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import random\nimport time\nfrom dataclasses import dataclass\n\n\n@dataclass\nclass RetryOptions:\n    max_attempts: int = 3\n    backoff_jitter: float = 0.0\n    max_delay: float = 5.0\n    base_delay: float = 0.1\n\n\ndef retry(fn, options=None, sleep=time.sleep):\n    options = options or RetryOptions()\n    last = None\n    for attempt in range(options.max_attempts):\n        try:\n            return fn()\n        except Exception as exc:\n            last = exc\n            sleep(min(options.max_delay, options.base_delay * (2 ** attempt) + random.uniform(0, options.backoff_jitter)))\n    raise last\n",
+      "why": "invents a max_delay cap neither side had"
+    },
+    {
+      "answer": "import time\nfrom dataclasses import dataclass\n\n\n@dataclass\nclass RetryOptions:\n    max_attempts: int = 3\n    base_delay: float = 0.1\n\n\ndef retry(fn, options=None, sleep=time.sleep):\n    options = options or RetryOptions()\n    last = None\n    for attempt in range(options.max_attempts):\n        try:\n            return fn()\n        except Exception as exc:\n            last = exc\n            sleep(options.base_delay * (2 ** attempt))\n    raise last\n",
+      "why": "drops feature's backoff_jitter"
+    }
+  ]
+}

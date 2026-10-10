@@ -53,11 +53,13 @@ new_repo() {
   export CLAUDE_PROJECT_DIR="$REPO"
 }
 
-payload() { # <event> <cwd> [tool]
-  jq -cn --arg e "$1" --arg c "$2" --arg t "${3:-Bash}" \
+payload() { # <event> <cwd> [tool]; BG=true marks the call run_in_background
+  jq -cn --arg e "$1" --arg c "$2" --arg t "${3:-Bash}" --argjson bg "${BG:-false}" \
     '{session_id:"sess",transcript_path:"",cwd:$c,hook_event_name:$e,tool_name:$t,
-      tool_use_id:"toolu_1",tool_input:{command:"node write.js"}}'
+      tool_use_id:"toolu_1",tool_input:{command:"node write.js",run_in_background:$bg}}'
 }
+# The notes a post fire carries, from whichever field the output used.
+notes() { jq -r '.reason // .hookSpecificOutput.additionalContext // empty' <<<"$1"; }
 pre() { payload PreToolUse "$1" "${2:-Bash}" | node "$HOOK" snapshot; }
 post() { payload "${2:-PostToolUse}" "$1" "${3:-Bash}" | node "$HOOK" check; }
 scratch() { node "$SCRATCH/write.js" "$@"; }
@@ -220,7 +222,94 @@ g add tracked.txt && g commit -qm merged
 assert_contains "resolved merge commit: checked" "$(jq -r .reason <<<"$(post "$REPO")")" \
   'changed "tracked.txt"'
 
+# ===================== MUST REPORT A SKIP OR TRUNCATION ======================
+
+# R1. The #6709 repro: 20 benign files sort before the flagged one, so the
+#     check stops at 20 of 21 and says one file went unexamined.
+new_repo
+pre "$REPO"
+touch "$REPO"/a{01..20}
+scratch write "$REPO/zz.sh" "root = $LINUX_HOME"
+OUT=$(post "$REPO")
+assert_eq "file cap: reported to Claude without blocking" "PostToolUse" \
+  "$(jq -r .hookSpecificOutput.hookEventName <<<"$OUT")"
+assert_contains "file cap: count and reason" "$(notes "$OUT")" \
+  "1 changed file not examined: the check stops after the first 20 in path order"
+
+# R1b. Past the cap with a finding among the first 20: the block reason
+#      carries both.
+new_repo
+pre "$REPO"
+touch "$REPO"/b{01..21}
+scratch write "$REPO/a.txt" "root = $LINUX_HOME"
+OUT=$(post "$REPO")
+assert_eq "file cap with finding: still blocks" "block" "$(jq -r .decision <<<"$OUT")"
+assert_contains "file cap with finding: names the file" "$(notes "$OUT")" 'changed "a.txt"'
+assert_contains "file cap with finding: counts the rest" "$(notes "$OUT")" \
+  "2 changed files not examined"
+
+# R1c. More than 20 commits in one command, the flagged file only in the first:
+#      the earlier commits go unread, and the check says so.
+new_repo
+pre "$REPO"
+scratch write "$REPO/zz.sh" "root = $LINUX_HOME"
+g add zz.sh && g commit -qm flagged
+for i in {01..20}; do g commit -q --allow-empty -m "c$i"; done
+assert_contains "commit cap: reported" "$(notes "$(post "$REPO")")" \
+  "the command made 21 commits and the check reads only the last 20, so 1 earlier commit is not checked"
+
+# R2. The command leaves more than 10000 paths in git status.
+new_repo
+pre "$REPO"
+mkdir "$REPO/many" && seq -f "$REPO/many/f%g" 1 10001 | xargs touch
+assert_contains "status over the entry limit: reported" "$(notes "$(post "$REPO")")" \
+  "changed files not examined: git status failed or listed more than 10000 paths"
+
+# R2b. The repository was already over the limit when the snapshot ran.
+pre "$REPO"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+assert_contains "snapshot over the entry limit: reported" "$(notes "$(post "$REPO")")" \
+  "changed files not examined: git status failed or listed more than 10000 paths"
+
+# R3. A run_in_background command writes after the post fire.
+new_repo
+BG=true pre "$REPO"
+assert_contains "background command: reported" "$(notes "$(BG=true post "$REPO")")" \
+  "changed files not examined: the command runs in the background"
+
+# R4. A new symbolic link to a file outside the repository: reported, and its
+#     target is never read, so nothing outside the repository is quoted back.
+new_repo
+printf 'root = %s\n' "$LINUX_HOME" >"$TEST_TMPDIR/outside.txt"
+pre "$REPO"
+ln -s "$TEST_TMPDIR/outside.txt" "$REPO/link.txt"
+OUT=$(notes "$(post "$REPO")")
+assert_contains "new symlink: reported" "$OUT" "1 changed file not examined: a symbolic link is not followed"
+assert_absent "new symlink: target not quoted" "$OUT" "jdoe"
+
+# R5. A check with no snapshot (the PreToolUse fire never ran or failed).
+new_repo
+rm -rf "$SNAPSHOTS"
+scratch write "$REPO/config.txt" "root = $LINUX_HOME"
+assert_contains "no snapshot: reported" "$(notes "$(post "$REPO")")" \
+  "changed files not examined: no git status snapshot was recorded before the command"
+
 # ========================== MUST STAY QUIET =================================
+
+# 5f. Exactly 20 benign changed files: at the cap, nothing left unexamined.
+new_repo
+pre "$REPO"
+touch "$REPO"/c{01..20}
+assert_silent "20 files, at the cap: silent" "$(post "$REPO")"
+
+# 5g. A symbolic link already there before the command, untouched by it, and
+#     a tracked file the command deletes.
+new_repo
+ln -s tracked.txt "$REPO/old-link"
+pre "$REPO"
+rm "$REPO/tracked.txt"
+scratch write "$REPO/notes.txt" "nothing to see"
+assert_silent "pre-existing link and a deletion: silent" "$(post "$REPO")"
 
 # 5e. A checkout that brings in a branch with a flagged file is not this
 #     command's writing.
@@ -259,14 +348,6 @@ pre "$REPO"
 scratch write "$REPO/ignored.txt" "root = $LINUX_HOME"
 assert_silent "gitignored file: silent" "$(post "$REPO")"
 
-# 9b. A new symbolic link to a file outside the repository: its target is
-#     never read, so nothing outside the repository is quoted back.
-new_repo
-printf 'root = %s\n' "$LINUX_HOME" >"$TEST_TMPDIR/outside.txt"
-pre "$REPO"
-ln -s "$TEST_TMPDIR/outside.txt" "$REPO/link.txt"
-assert_silent "symlink to an outside file: silent" "$(post "$REPO")"
-
 # 10. A cwd outside any repository: no snapshot, no check, fail open.
 rm -rf "$SNAPSHOTS"
 mkdir -p "$TEST_TMPDIR/plain"
@@ -274,11 +355,6 @@ pre "$TEST_TMPDIR/plain"
 assert_eq "non-git cwd: no snapshot written" "no" "$([[ -d "$SNAPSHOTS" && -n "$(ls -A "$SNAPSHOTS")" ]] && echo yes || echo no)"
 scratch write "$TEST_TMPDIR/plain/config.txt" "root = $LINUX_HOME"
 assert_silent "non-git cwd: silent" "$(post "$TEST_TMPDIR/plain")"
-
-# 11. A check with no snapshot (the PreToolUse fire never ran).
-new_repo
-scratch write "$REPO/config.txt" "root = $LINUX_HOME"
-assert_silent "no snapshot: silent" "$(post "$REPO")"
 
 # 12. The kill switch.
 new_repo
