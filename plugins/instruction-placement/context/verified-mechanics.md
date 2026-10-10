@@ -70,7 +70,7 @@ Three facts from that table carry the whole design:
   surface covers. Delegation therefore does not put a demoted rule out of reach, but it does reset
   the trigger.
 - **No deferred surface announces that it exists.** An agent working on something a rule covers,
-  in any context, learns nothing about that rule until a read happens to match it. That is the
+  in any context, learns nothing about that rule until Claude works with a matching file. That is the
   residual the always-loaded index exists to close: the index supplies the knowledge, and an
   ordinary `Read` supplies the content.
 

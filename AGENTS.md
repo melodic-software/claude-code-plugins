@@ -84,7 +84,8 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 
 Each surface below enters context automatically, in subagents as well as in the main session,
 once a file it covers triggers it. The triggers differ by surface type: see
-<https://code.claude.com/docs/en/memory#path-specific-rules> for rules and nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules,
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load> for nested `CLAUDE.md`, and
 <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
 match is on the requested path, so even a Read tool call that finds no file fires it. A surface
 whose trigger has not fired is simply absent, and after a compaction it returns only when its

@@ -195,8 +195,8 @@ incomplete, and the operator cannot gate what they cannot see.
 
 State, for each candidate: the destination and its trigger; roughly what leaves the always-loaded
 budget; that the content is not inherited by a subagent and announces itself nowhere, so it arrives
-only once some context reads a covered path or reaches it through the index; and, for path-scoped
-destinations, that it returns after compaction only when a matching file is read again.
+only once Claude works with a covered path in some context or reaches it through the index; and,
+for path-scoped destinations, that it returns after compaction only when its trigger fires again.
 
 ## What this rubric does not decide
 

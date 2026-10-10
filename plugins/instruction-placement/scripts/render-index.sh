@@ -257,8 +257,10 @@ render_block() {
     # a stale list after the next release. It links the live sections instead.
     # - **Pointer**: when the preamble's wording about what loads a surface is
     #   in question, fetch https://code.claude.com/docs/en/memory#path-specific-rules
-    #   and https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
-    #   live (per-surface detail: context/verified-mechanics.md).
+    #   (rules), https://code.claude.com/docs/en/memory#how-claude-md-files-load
+    #   (nested CLAUDE.md) and
+    #   https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+    #   (AGENTS.md) live (per-surface detail: context/verified-mechanics.md).
     # - **As of**: 2026-10-10
     # - **Recheck trigger**: a Claude Code release note changes which tool calls
     #   load path-scoped rules, nested CLAUDE.md or nested AGENTS.md.
@@ -268,7 +270,8 @@ render_block() {
 
 Each surface below enters context automatically, in subagents as well as in the main session,
 once a file it covers triggers it. The triggers differ by surface type: see
-<https://code.claude.com/docs/en/memory#path-specific-rules> for rules and nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules,
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load> for nested `CLAUDE.md`, and
 <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
 match is on the requested path, so even a Read tool call that finds no file fires it. A surface
 whose trigger has not fired is simply absent, and after a compaction it returns only when its
