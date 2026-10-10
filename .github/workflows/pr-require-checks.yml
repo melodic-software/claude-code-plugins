@@ -601,7 +601,7 @@ jobs:
         continue-on-error: true
         run: scripts/check-conformance-registry.sh --check
 
-      - name: Check docs/ filenames are lower-kebab
+      - name: Check docs/ and markdown filenames are lower-kebab
         id: docs_naming
         continue-on-error: true
         run: scripts/check-docs-naming.sh --check

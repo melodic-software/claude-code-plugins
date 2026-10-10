@@ -471,6 +471,22 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
+  // The fake gh records its argv, passes `auth status --hostname <h>` for a host in FAKE_GH_AUTHED or, as real gh
+  // does, for any host when an enterprise token is in its environment, and answers the visibility lookup with
+  // FAKE_GH_OUT and FAKE_GH_EXIT.
+  writeFileSync(
+    join(bin, "gh"),
+    `#!/usr/bin/env node
+const argv = process.argv.slice(2);
+require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(argv) + "\\n");
+const enterpriseToken = process.env.GH_ENTERPRISE_TOKEN || process.env.GITHUB_ENTERPRISE_TOKEN;
+if (argv[0] === "auth") process.exit(enterpriseToken || (process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
+process.stdout.write(process.env.FAKE_GH_OUT + "\\n");
+process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
+`,
+  );
+  chmodSync(join(bin, "gh"), 0o755);
+  const ghLog = join(scratch, "gh.log");
   // publish-hosted.mjs spawns pages-publish with no shell, so Windows finds only a .exe or .com on PATH.
   const runsFake = { skip: process.platform === "win32" && "the fake pages-publish is a script, which a shell-less spawn on Windows cannot run" };
   const idA = "A".repeat(22);
@@ -490,18 +506,25 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
       writeFileSync(join(data, "hosted/acme__app__7.json"), sidecar);
     }
     rmSync(log, { force: true });
+    rmSync(ghLog, { force: true });
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
-  const publish = ({ page, data }, { visibility = "PUBLIC", out = "", exit = 0, deleteExit = 0 } = {}) =>
-    spawnSync(process.execPath, [PUBLISH, page, "--repo", "acme/app", "--pr", "7", "--repo-visibility", visibility, "--data-dir", data], {
+  /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0, env = {} } = {}) =>
+    spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
         ...process.env,
         PATH: `${bin}${delimiter}${process.env.PATH}`,
+        FAKE_GH_LOG: ghLog,
+        FAKE_GH_OUT: gh,
+        FAKE_GH_EXIT: String(ghExit),
+        FAKE_GH_AUTHED: authed,
         FAKE_LOG: log,
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
         FAKE_DELETE_EXIT: String(deleteExit),
+        ...env,
       },
     });
   const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);
@@ -534,7 +557,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
   });
   test("a private repository sends the page private with no --id, then deletes the old public id", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
-    const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
+    const out = publish(at, { gh: "private", out: answer(idB, "private") });
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(calls(), [
       [at.page, "--visibility", "private"],
@@ -543,14 +566,14 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
   });
   test("a failed delete keeps the old id in the sidecar as stale, and the next publish retries it", runsFake, () => {
     const at = setup(sample, answer(idA, "public"));
-    const first = publish(at, { visibility: "PRIVATE", out: answer(idB, "private"), deleteExit: 6 });
+    const first = publish(at, { gh: "private", out: answer(idB, "private"), deleteExit: 6 });
     assert.equal(first.status, 0, first.stderr);
     assert.match(JSON.parse(first.stdout).old_copy, /delete failed; https:\/\/public\.pages\.example\/A+\/ still up/);
     const kept = JSON.parse(readFileSync(at.sidecarPath, "utf8"));
     assert.equal(kept.id, idB);
     assert.deepEqual(kept.stale, [JSON.parse(answer(idA, "public"))]);
     rmSync(log, { force: true });
-    const second = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
+    const second = publish(at, { gh: "private", out: answer(idB, "private") });
     assert.equal(second.status, 0, second.stderr);
     assert.deepEqual(calls(), [
       [at.page, "--visibility", "private", "--id", idB],
@@ -561,7 +584,7 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
   test("a second wrong public landing under a new id still deletes the first", runsFake, () => {
     const idC = "C".repeat(22);
     const at = setup(sample, answer(idA, "public"));
-    const out = publish(at, { visibility: "PRIVATE", out: answer(idC, "public") });
+    const out = publish(at, { gh: "private", out: answer(idC, "public") });
     assert.equal(out.status, 1);
     assert.deepEqual(calls(), [
       [at.page, "--visibility", "private"],
@@ -571,11 +594,67 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
   });
   test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", runsFake, () => {
     const at = setup();
-    const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "public") });
+    const out = publish(at, { gh: "private", out: answer(idB, "public") });
     assert.equal(out.status, 1);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
     assert.match(JSON.parse(out.stdout).reason, new RegExp(`public host; take down https://public\\.pages\\.example/${idB}/$`));
     assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).visibility, "public");
+  });
+  test("the script asks gh's REST API for the visibility, and a private answer sends the page private", runsFake, () => {
+    const at = setup();
+    const out = publish(at, { gh: "private", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["api", "repos/acme/app", "--jq", ".visibility"]]);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("a host gh is logged in to in --repo asks that host's API and keys the sidecar by host", runsFake, () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { repo: "ghe.example.com/acme/app", authed: "ghe.example.com", gh: "private", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [
+      ["auth", "status", "--hostname", "ghe.example.com"],
+      ["api", "--hostname", "ghe.example.com", "repos/acme/app", "--jq", ".visibility"],
+    ]);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], "the github.com sidecar is not this repository's");
+    assert.equal(JSON.parse(readFileSync(join(at.data, "hosted/ghe.example.com__acme__app__7.json"), "utf8")).id, idB);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+  });
+  test("a host gh is not logged in to sends the page private with no API call, whatever it would answer", runsFake, () => {
+    const at = setup();
+    const out = publish(at, { repo: "evil.example.net/acme/app", authed: "ghe.example.com", gh: "public", out: answer(idB, "private") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["auth", "status", "--hostname", "evil.example.net"]]);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("an enterprise token in the environment does not vouch for a host gh is not logged in to", runsFake, () => {
+    for (const name of ["GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"]) {
+      const at = setup();
+      const out = publish(at, { repo: "evil.example.com/o/r", gh: "public", out: answer(idB, "private"), env: { [name]: "t" } });
+      assert.equal(out.status, 0, out.stderr);
+      assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["auth", "status", "--hostname", "evil.example.com"]], name);
+      assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], name);
+    }
+  });
+  test("a malformed host or an IP address in --repo is a usage error with no lookup and no upload", runsFake, () => {
+    for (const repo of ["ghe_example/acme/app", "-x/acme/app", "localhost/acme/app", "a.b/c/acme/app", "/acme/app", "169.254.169.254/acme/app", "10.0.0.1/acme/app"]) {
+      const at = setup();
+      assert.equal(publish(at, { repo, out: answer(idB, "public") }).status, 2, repo);
+      assert.ok(!existsSync(ghLog), repo);
+      assert.deepEqual(calls(), [], repo);
+    }
+  });
+  test("a caller can no longer pass a visibility: --repo-visibility PUBLIC is a usage error with no upload", runsFake, () => {
+    const at = setup();
+    assert.equal(publish(at, { gh: "private", extra: ["--repo-visibility", "PUBLIC"], out: answer(idB, "public") }).status, 2);
+    assert.deepEqual(calls(), []);
+  });
+  test("an internal repository, a failed gh, or an unexpected answer sends the page private", runsFake, () => {
+    for (const [gh, ghExit] of [["internal", 0], ["public", 1], ["", 0], ["PUBLIC", 0], ["public\npublic", 0]]) {
+      const at = setup();
+      const out = publish(at, { gh, ghExit, out: answer(idB, "private") });
+      assert.equal(out.status, 0, `${JSON.stringify(gh)} ${ghExit}: ${out.stderr}`);
+      assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], `${JSON.stringify(gh)} ${ghExit}`);
+    }
   });
   test("a credential in the page refuses before any upload and keeps the sidecar", () => {
     const at = setup({ ...sample, why: `t = ${"ghp_"}${"a".repeat(36)}` }, answer(idA, "public"));
@@ -613,14 +692,14 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     assert.equal(publish(at).status, 2);
     writeFileSync(at.page, buildDigest(sample, "http://127.0.0.1:8765"));
     assert.equal(publish(at).status, 2, "a connected page works only on this machine");
-    for (const args of [[], [at.page, "--repo", "acme", "--pr", "7", "--repo-visibility", "PUBLIC", "--data-dir", at.data]]) {
+    for (const args of [[], [at.page, "--repo", "acme", "--pr", "7", "--data-dir", at.data]]) {
       assert.equal(spawnSync(process.execPath, [PUBLISH, ...args], { encoding: "utf8" }).status, 2);
     }
     assert.deepEqual(calls(), []);
   });
   test("SKILL.md runs publish-hosted on medium: hosted and names pages-publish", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
-    assert.match(skill, /scripts\/publish-hosted\.mjs" <page> --repo <owner\/repo> --pr <n> --repo-visibility <VISIBILITY> --data-dir "\$\{CLAUDE_PLUGIN_DATA\}"/);
+    assert.match(skill, /scripts\/publish-hosted\.mjs" <page> --repo <owner\/repo> --pr <n> --data-dir "\$\{CLAUDE_PLUGIN_DATA\}"/);
     assert.match(/^allowed-tools: (.*)$/m.exec(skill)[1], /publish-hosted\.mjs/);
   });
 });
