@@ -116,17 +116,16 @@ calling skill's step naming it, walk the continuation router in
 anywhere but a handoff, recommend that route and write no save-point. A user's explicit
 `/session-flow:handoff` always writes one.
 
-- Mid-task and the user reports the session is heavy, or a context-measuring mechanism says to
-  fork (`context-guard`'s zone report is one), never your own estimate of the remaining window
-- Quality degrading (context rot), responses drifting, repeating, or looping. This is the signal
-  that is yours to read, because decay shows up in the output and never in a budget number
+- A heavy or degrading session (the user's report, a context-measuring mechanism such as
+  `context-guard`'s zone report, or responses drifting, repeating, or looping, never your own
+  estimate of the remaining window), when `/session-flow:workflow`'s continuation router routes
+  here rather than to `/compact`
 - Extending the session chain, the deliberate escape-and-resume cadence (save-point, `/clear`,
   fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
   `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
   skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
-- Last turn had an unexpected compaction
 - Crossing a boundary. Handing the work to a colleague, another repository or checkout, or
   another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine
