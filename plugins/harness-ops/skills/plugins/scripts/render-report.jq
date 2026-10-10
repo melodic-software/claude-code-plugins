@@ -145,12 +145,17 @@ def block($d):
 
       (if $audit then
          (if $d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true then
-            "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all, meaning these reinstall on every sync unless you also disable them)",
+            "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all: once installed, a later sync would reinstall any of these you uninstall; to keep one out, disable it instead of uninstalling)",
             (.install_gap[] | "  would run: claude plugin install \(.) -s user")
           else empty end)
        elif ($installed_ok | length) > 0 then
          "Installed: \($installed_ok | length) new catalog plugin(s): \($installed_ok | ids)"
-         + (if $d.install_new == "all" then " (policy install_new: all, meaning these reinstall on every sync unless you also disable them)" else "" end)
+         + (if $d.install_new != "all" then ""
+            elif (($installed_ok | map(.id)) - (.installed_disabled // []) | length) == 0 then
+              " (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off unless a project or local setting enables them)"
+            else
+              " (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling)"
+            end)
          + (if ((.installed_disabled // []) | length) > 0 then
               " (installed but not enabled: \(.installed_disabled | join(", ")))"
             else "" end)
