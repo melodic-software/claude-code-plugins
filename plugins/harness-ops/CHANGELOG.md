@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.3] - 2026-10-10
+
+### Fixed
+
+- `/harness-ops:plugins` no longer says marketplace auto-update runs at session start: the report line for a marketplace with `autoUpdate` off now says the catalog refreshes automatically when enabled, and the concurrency gotcha points at the upstream page for when the sweep fires.
+
 ## [3.11.2] - 2026-10-10
 
 ### Fixed
