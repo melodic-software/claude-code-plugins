@@ -117,6 +117,12 @@ Labels need the triage role or higher, and triage maps to `read`, so a triage us
 not kick. The drain applies the same bar at admission: it reads who last applied the role and
 `work-class:` labels and refuses the item unless each labeler holds `write` or higher (the
 `work-items` plugin's `/work-items:work-loop`, "Admission gate").
+A label an App applies through its installation token is recorded under the App's `<app>[bot]`
+login, which never reads back a `write` permission, so the drain refuses the item. A triage lane
+or other automation that labels as an App therefore never makes an item admissible: the drain
+stays idle, and each cycle report lists `labeler refused` lines naming the bot. To fix it, have a
+user with `write` or higher apply the role and `work-class:` labels. An App acting through such a
+user's user access token labels as that user and passes, as step 2 notes.
 
 Vendor facts this shape depends on:
 

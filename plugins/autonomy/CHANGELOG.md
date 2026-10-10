@@ -13,6 +13,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
+- **The label kick's notes say a bot-applied label leaves the drain idle.** `skills/setup/templates/trigger-adapters.md` adds a note that a label an App applies through its installation token carries the App's `[bot]` login, which the drain refuses, so an App-run triage lane never makes an item admissible; the role and `work-class:` labels must come from a user with `write` or higher.
 - **The label kick's notes say the drain now checks the labeler.** `skills/setup/templates/trigger-adapters.md` no longer leaves a triage user's label to the drain as an open question: `/work-items:work-loop` admits an item only when whoever last applied its role and `work-class:` labels holds `write` or higher.
 - **`reference/trigger-dispatch.md` points host choice at the execution-target convention.** "Executor surface classes" says which host runs each local-lane stage is set by `docs/conventions/execution-target/`, separate from `executor_class`, and changes no merge policy.
 
