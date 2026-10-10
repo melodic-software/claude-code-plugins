@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 check_config.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git merge --continue"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 check_config.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit --no-edit"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git merge --continue"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 check_config.py"
+          }
+        }
+      ],
+      "why": "checks after the commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git merge --continue"
+          }
+        }
+      ],
+      "why": "no checks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 check_config.py"
+          }
+        }
+      ],
+      "why": "never concluded"
+    }
+  ]
+}

@@ -425,6 +425,7 @@ jobs:
               scripts/cross-plugin-source-registry.txt
               scripts/orphaned-fixtures-baseline.txt
               scripts/check-pipefail-grep-q*
+              scripts/pipefail-grep-q-baseline.txt
               scripts/check-test-tmp-cleanup*
               scripts/test-tmp-cleanup-baseline.txt
               **/*.sh
@@ -1032,6 +1033,14 @@ jobs:
         continue-on-error: true
         run: scripts/check-read-caller-keys.sh --check
 
+      # Lane tokens come from the lanes token broker; no workflow or action
+      # may hold the lanes App key or mint as the lanes App (ADR 0058).
+      - name: Check no workflow or action references the lanes App key
+        id: app_key_references
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        run: scripts/check-app-key-references.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1059,6 +1068,7 @@ jobs:
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
+            app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -1239,8 +1249,9 @@ jobs:
           scripts/check-shell-portability.sh "origin/$BASE_REF"
 
       # Piped early-exit grep: `producer | grep -q` under pipefail can report a
-      # producer's SIGPIPE as "no match". The gate scans every scripts/**/*.sh
-      # on every run.
+      # producer's SIGPIPE as "no match". The gate scans every *.sh in the repo
+      # on every run, less the known offenders in
+      # scripts/pipefail-grep-q-baseline.txt, which only shrinks.
       - name: Gate scripts on piped early-exit greps
         id: pipefail_grep_q
         continue-on-error: true
@@ -1373,6 +1384,11 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
+    # pull-requests: read lets "Resolve the queued pull request" read the
+    # queued pull request in a merge group.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1516,6 +1532,39 @@ jobs:
         id: changelog_parity_check
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check
+      # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
+      # hand bump the queue never checked), against HEAD^1: the queued squash
+      # commit is this pull request's own change on top of main and every entry
+      # ahead of it. The group event names no pull request, so this step reads
+      # the queued one from the group's head ref
+      # (gh-readonly-queue/<base>/pr-<number>-<head sha>): its author and its
+      # head branch, which the release and Dependabot exemptions read on
+      # pull_request, and its head commit, fetched so the Dependabot exemption
+      # reads the pull request's own commits rather than the queue's squash.
+      - name: Resolve the queued pull request
+        id: queued_pr
+        if: github.event_name == 'merge_group'
+        continue-on-error: true
+        env:
+          QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-([0-9a-f]{40})$ ]]; then
+            echo "::error::Cannot read a pull request number and head SHA from the merge group's head ref '$QUEUE_HEAD_REF'."
+            exit 1
+          fi
+          number="${BASH_REMATCH[1]}" head_sha="${BASH_REMATCH[2]}"
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$number")"
+          author="$(jq -r '.user.login' <<<"$pr")"
+          # A fork's branch name is not this repository's release branch.
+          head_ref="$(jq -r --arg repo "$GITHUB_REPOSITORY" 'if .head.repo.full_name == $repo then .head.ref else "" end' <<<"$pr")"
+          git fetch --no-tags origin "$head_sha"
+          echo "Queued pull request #$number by $author, head ${head_sha:0:9}${head_ref:+ on $head_ref}."
+          {
+            echo "author=$author"
+            echo "head_ref=$head_ref"
+            echo "head_sha=$head_sha"
+          } >>"$GITHUB_OUTPUT"
       - name: Verify a version bump updates the plugin's CHANGELOG.md
         id: changelog_parity_bump
         continue-on-error: true
@@ -1524,13 +1573,20 @@ jobs:
           # The head branch of a pull request from this repository, never a
           # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
           # here as the release pull request.
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the bump gate without knowing whether it is the release."
+              exit 1
+            fi
+            scripts/check-changelog-parity.sh --check-bump 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
       # The other half of the same discipline: the bump gate polices what a
       # change set ADDS and never what it REMOVES, so a merge-forward that
       # writes the new release under the PREVIOUS release's heading deletes a
@@ -1572,13 +1628,25 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
-          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+          # A Dependabot-only pull request needs no fragment; the script checks
+          # each commit's GitHub-verified signature before it trusts this.
+          CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the fragment gate without knowing its author and branch."
+              exit 1
+            fi
+            scripts/check-changelog-fragments.sh --check-required 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
       - name: Verify a release consumes every pending fragment for the plugins it bumps
         id: changelog_fragments_release
         continue-on-error: true
@@ -1606,12 +1674,23 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The Dependabot exemption, read as changelog_fragments_required reads it.
+          CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the vendor gate without knowing its author."
+              exit 1
+            fi
+            scripts/check-vendor-version-bump.sh --check-bump 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
       - name: Validate marketplace manifest
         id: marketplace_schema
@@ -1786,6 +1865,7 @@ jobs:
             plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
             plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
             changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
@@ -2671,9 +2751,10 @@ jobs:
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only.
     timeout-minutes: 3
     permissions:
-      # The full run re-runs this workflow's red contract-only runs on its head
-      # SHA once it records `success` (the last step). Under an explicit block
-      # the default is none, and the call would 403.
+      # `yield-to-full-run` lists this workflow's runs on the head SHA, and
+      # `rerun-contract-only-siblings` re-runs the red contract-only ones once
+      # the full run records `success`. Under an explicit permissions block every
+      # unlisted scope defaults to none; write covers the read.
       actions: write
       contents: read
       # check-contract upserts the advisory linkage comment and moves the linkage
@@ -2692,41 +2773,6 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A CONTRACT-ONLY RUN FAILS AT ONCE WHILE A FULL RUN ON THIS SHA IS QUEUED
-      # OR IN PROGRESS. A queued full run has not written its `ci-lanes=pending`
-      # marker yet, so the status read below could carry an older verdict across
-      # the run that is about to replace it. One listing, no wait. A sibling
-      # whose `select-tests` job was skipped is contract-only and does not count, and
-      # neither does one whose `ci-status` job has started: its verdict is being
-      # written, and the status read below sees the marker or the verdict. That
-      # is also what lets the re-run this full run's last step starts pass. A
-      # sibling with no jobs yet counts. An unreadable listing fails closed.
-      - name: Fail while a full run is in flight
-        if: github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          api="repos/$GITHUB_REPOSITORY/actions"
-          ids=""
-          for attempt in 1 2 3; do
-            if workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) &&
-              ids=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&per_page=100" \
-                --jq ".workflow_runs[] | select(.status != \"completed\" and .id != $GITHUB_RUN_ID) | .id"); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not list this workflow's runs on $HEAD_SHA; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
-          for id in $ids; do
-            jobs=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '([.jobs[] | select(.name == "select-tests") | .conclusion][0] // "") + " " + ([.jobs[] | select(.name == "ci-status") | .status][0] // "none")') || jobs=""
-            case "$jobs" in
-              "skipped "* | *" in_progress" | *" completed") continue ;;
-            esac
-            echo "::error::full run $id is in flight on $HEAD_SHA; it re-runs this run when it records success."
-            exit 1
-          done
       # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
       # and tested nothing. Between the flip to ready and the `ready_for_review`
       # run's own ci-status check run (minutes later), the draft's ci-status is
@@ -2734,22 +2780,23 @@ jobs:
       # nothing. The aggregate below fails on the skipped lanes and records
       # `ci-lanes=failure`; this step says why.
       #
-      # A contract-only run (`select-tests` skipped) reads the live draft state, not
-      # its payload. A re-run keeps the payload, and the last step re-runs the
-      # contract-only runs a body edit or label flip drew while this was a
-      # draft: on the payload they would fail here again and be the newest red
-      # ci-status. A contract-only run tests nothing either way; the `ci-lanes`
-      # status decides it. A full run's lanes skipped on this same payload, so
-      # it fails whatever the live state says. An unreadable state fails closed.
+      # A re-run keeps the payload of the event that started the run, so a
+      # contract-only run from the draft era that a full run re-runs after
+      # ready_for_review still carries draft: true; the live state decides.
+      # A contract-only run tests nothing either way; the `ci-lanes` status
+      # decides it. An unreadable state fails closed.
       # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
       - name: Fail a draft
         if: github.event.pull_request.draft == true
         env:
-          SCOPE: ${{ needs.select-tests.result }}
+          # Only a contract-only run reads its verdict from ci-lanes, so only it
+          # may pass on the live state. A re-run of a draft-era full run still
+          # skipped its lanes and is refused.
+          CONTRACT_ONLY: ${{ github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$SCOPE" = skipped ] &&
+          if [ "$CONTRACT_ONLY" = true ] &&
             [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
             echo "Marked ready since this run's event; the ci-lanes status decides."
             exit 0
@@ -2836,51 +2883,14 @@ jobs:
           results: ${{ steps.lanes.outputs.results }}
           # A `skipped` lane is red, a draft's included (see `Fail a draft`).
           treat-skipped-as: fail
-          # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
-          # `ci-lanes` status once and passes only on `success`. While a full
-          # run is in flight that status is the `pending` its `select-tests` job
-          # wrote, so the contract-only run goes red in seconds; the full run's
-          # own `ci-status` check run is newer and decides the merge gate, and
-          # the next step re-runs the red one so it does not linger. Waiting
-          # instead held a runner for the whole full run (mean 299 s, up to the
-          # ceiling) and still went red whenever the full run outlasted the
-          # ceiling (#5784). Operator remedy: docs/ci-runner-routing.md, section
-          # Contract-only ci-status.
+          # A contract-only run never waits: while a full run on the SHA is in
+          # flight it fails with "superseded by full run <url>", and that run's
+          # newer ci-status decides the gate. Once the full run records
+          # `success` it re-runs those red contract-only runs, which then read
+          # the `success` and replace their red check runs. A draft full run
+          # skips its lanes and re-runs nothing. Operator remedy:
+          # docs/ci-runner-routing.md, section Contract-only ci-status.
+          yield-to-full-run: 'true'
+          rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           token: ${{ github.token }}
-      # The full run's `success` is now on the SHA, so every red contract-only
-      # run beside it (a body edit or label flip that read `pending`) would read
-      # `success` on a re-run. Re-running the failed jobs keeps the run's
-      # original event, so the attempt is contract-only again and cannot reach
-      # this step. A red that is red for a contract reason stays red, and a
-      # contract-only run still in progress at this listing is not seen: re-run
-      # it by hand (the failure message says so). Never fails the job: the
-      # verdict above is already recorded, and a refused re-run must not turn
-      # the required check red over a check run that is no longer the newest.
-      - name: Re-run the red contract-only runs on this SHA
-        # Same repository by id, as in the in-flight marker step.
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id && needs.select-tests.result == 'success' && success()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          api="repos/$GITHUB_REPOSITORY/actions"
-          workflow_id=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .workflow_id) || {
-            echo "::warning::could not read this run; no contract-only run re-run."
-            exit 0
-          }
-          failed=$(gh api "$api/workflows/$workflow_id/runs?head_sha=$HEAD_SHA&status=completed&per_page=100" \
-            --jq ".workflow_runs[] | select(.conclusion == \"failure\" and .id != $GITHUB_RUN_ID) | .id") || {
-            echo "::warning::could not list this workflow's runs on $HEAD_SHA; no contract-only run re-run."
-            exit 0
-          }
-          for id in $failed; do
-            scope=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '[.jobs[] | select(.name == "select-tests") | .conclusion][0] // ""') || continue
-            [ "$scope" = skipped ] || continue
-            if gh api --method POST "$api/runs/$id/rerun-failed-jobs" >/dev/null; then
-              echo "Re-ran contract-only run $id."
-            else
-              echo "::warning::could not re-run contract-only run $id; re-run it by hand."
-            fi
-          done

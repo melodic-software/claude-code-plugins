@@ -89,6 +89,7 @@ lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-hom
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/planning/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/user-experience/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/developer-experience/lib/resolve-convention-home.sh
 lib/parse-concern-value.sh plugins/harness-memory/skills/audit/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/session-flow/skills/retro/scripts/parse-concern-value.sh
@@ -144,6 +145,7 @@ lib/exec-bash.mjs plugins/testing/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/typos-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/speech/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/explainer-video/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/playwright/hooks/exec-bash.mjs
 lib/prerequisites.mjs plugins/explainer-video/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/explainer-video/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/explainer-video/lib/prerequisites.ps1
@@ -366,6 +368,9 @@ lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/user-interface/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/user-interface/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/user-interface/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/user-experience/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/user-experience/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/user-experience/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
@@ -388,6 +393,7 @@ lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/ruff-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/typos-format/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
@@ -401,3 +407,5 @@ lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
+lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
+lib/installed.mjs plugins/user-interface/scripts/lib/installed.mjs

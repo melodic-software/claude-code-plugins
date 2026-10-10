@@ -3,6 +3,19 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-10-10
+
+### Added
+
+- Web guidance gains a design-time "Motion and interaction" block: interruptible motion, expanding to content height, appearance changes that keep the layout box, layout changes that keep element identity, briefing motion in named terms and numbers, snapping free-drag controls, and shaping corners without clipping focus.
+
+## [0.2.1] - 2026-10-09
+
+### Changed
+
+- Detect's installed-plugin logic moves to `scripts/lib/installed.mjs`, a generated copy shared with
+  user-experience; output unchanged.
+
 ## [0.2.0] - 2026-10-09
 
 ### Changed

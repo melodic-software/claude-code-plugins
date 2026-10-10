@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "0000 1111 eval <eval@example.invalid> 1700000000 +0000\tcheckout: moving from main to feature\n1111 2222 eval <eval@example.invalid> 1700000001 +0000\tcommit (cherry-pick): fix(billing): cap the late fee at 50\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "0000 1111 eval <eval@example.invalid> 1700000000 +0000\tcommit: refactor(billing): name the late-fee rate\n"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

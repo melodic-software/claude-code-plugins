@@ -36,6 +36,9 @@
 #                                                 adds a fragment for it whose bump
 #                                                 is not none; 1 otherwise; 2 when
 #                                                 git fails
+#   changelog_fragments::dependabot_only <base>   0 when the change set against
+#                                                 <base> is Dependabot's alone and
+#                                                 needs no fragment (see below)
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/changelog-fragments.sh is sourced-only\n' >&2
@@ -223,4 +226,56 @@ changelog_fragments::bump_delivered() {
     fi
   done <<<"$added"
   return 1
+}
+
+# 0 when the change set is Dependabot's alone: CHANGELOG_PR_AUTHOR (CI sets it
+# from the pull request) is dependabot[bot], and every commit in it is authored
+# by Dependabot, committed by GitHub, and carries a signature GitHub verified. A
+# commit anyone else pushes to the branch fails the last two: git lets a pusher
+# write any author and committer, but not GitHub's signature. The one other
+# commit allowed is pr-bump-plugin-version.yml's own: authored by
+# github-actions[bot], committed and verified the same way, and touching only
+# the plugin.json and CHANGELOG.md of plugins not in fragment mode (a Dependabot
+# update that spans a legacy plugin and a fragment-mode one). The signature is
+# read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.
+#
+# The commits are the pull request's own: fork point to branch tip, with a
+# pull_request merge commit resolved to its branch tip. In the merge queue the
+# checked-out commit is the queue's squash, so CI sets CHANGELOG_PR_HEAD to the
+# queued pull request's head commit and the commits are read from there.
+changelog_fragments::_legacy_bump_only() {
+  local paths path rest
+  paths="$(git diff-tree --no-commit-id --name-only -r "$1")" || return 1
+  [[ -n "$paths" ]] || return 1
+  while IFS= read -r path; do
+    [[ "$path" == plugins/* ]] || return 1
+    rest="${path#plugins/}"
+    [[ "${rest%%/*}/.claude-plugin/plugin.json" == "$rest" || "${rest%%/*}/CHANGELOG.md" == "$rest" ]] || return 1
+    changelog_fragments::in_mode "${rest%%/*}"
+    (($? == 1)) || return 1
+  done <<<"$paths"
+}
+
+changelog_fragments::dependabot_only() {
+  local base="$1" tip=HEAD from commits sha an ae ce verified
+  [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+  if [[ -n "${CHANGELOG_PR_HEAD:-}" ]]; then
+    tip="$CHANGELOG_PR_HEAD"
+  elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
+    tip='HEAD^2'
+  fi
+  from="$(git merge-base "$base" "$tip" 2>/dev/null)" || return 1
+  commits="$(git log --format='%H%x09%an%x09%ae%x09%ce' "$from..$tip")" || return 1
+  [[ -n "$commits" ]] || return 1
+  while IFS=$'\t' read -r sha an ae ce; do
+    [[ "$ce" == 'noreply@github.com' ]] || return 1
+    if [[ "$an" == 'github-actions[bot]' && "$ae" == '41898282+github-actions[bot]@users.noreply.github.com' ]]; then
+      # shellcheck disable=SC2310  # the non-zero return IS the answer
+      changelog_fragments::_legacy_bump_only "$sha" || return 1
+    elif [[ "$an" != 'dependabot[bot]' || "$ae" != '49699333+dependabot[bot]@users.noreply.github.com' ]]; then
+      return 1
+    fi
+    verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
+    [[ "$verified" == true ]] || return 1
+  done <<<"$commits"
 }

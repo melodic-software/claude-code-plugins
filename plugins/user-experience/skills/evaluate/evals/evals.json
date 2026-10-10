@@ -1,0 +1,73 @@
+{
+  "skill_name": "evaluate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "cancel-flow-fair-choice",
+      "prompt": "Is our cancel flow OK? Signing up takes two screens; cancelling takes five screens and a phone call.",
+      "expected_output": "A fair-choice check that flags exit-as-easy-as-entry, rates severity, presents it as a design check and not a legal verdict, and gives findings in the findings table inside the deliverable envelope.",
+      "files": [],
+      "expectations": [
+        "The response flags that cancelling is harder than signing up",
+        "Findings carry a severity rating",
+        "The response does not claim the flow is legal or illegal"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "heuristic-review-without-ui-plugin",
+      "prompt": "Run a heuristic evaluation of this checkout flow: cart, shipping, payment, review, confirm. The user-interface plugin is not installed.",
+      "expected_output": "An expert review citing Nielsen's ten heuristics, findings labeled as likely problems until people confirm them, with method and evaluator role in Found by, in the envelope.",
+      "files": [],
+      "expectations": [
+        "The review cites Nielsen's heuristics",
+        "Findings are labeled likely problems needing confirmation by people",
+        "Found by names a method and a role, not a person"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "measures-without-instrumenting",
+      "prompt": "What should we measure for our new saved-searches feature? Then add the tracking events to the code.",
+      "expected_output": "The skill selects task, attitudinal and behavioral measures and lists the signals a tracking plan must carry, each with a Basis: line, and declines to add tracking code, saying instrumentation belongs to product analytics.",
+      "files": [],
+      "expectations": [
+        "The response selects measures with Basis: lines",
+        "The response does not add tracking code and says instrumentation is out of scope"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "legacy-start-ux-debt",
+      "prompt": "We're redesigning our fifteen-year-old claims system. Where do we start?",
+      "expected_output": "The skill states the stage as legacy with its signals, starts with a UX-debt inventory and baseline measures before any redesign, and labels the record.",
+      "files": [],
+      "expectations": [
+        "The response states the stage as legacy",
+        "The response starts with a UX-debt inventory and baseline measures"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "evaluate-this-plugin-quiet",
+      "prompt": "Evaluate this plugin: run its eval suite and tell me whether its skills beat the no-plugin baseline.",
+      "expected_output": "The skill does not fire: evaluating a Claude Code plugin's eval suite is not a UX evaluation.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No Skill call reaches user-experience:evaluate"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "same-session-artifact-goes-fresh",
+      "prompt": "Write a user flow for password reset, then evaluate it with a cognitive walkthrough.",
+      "expected_output": "Because the flow was produced in this session, the evaluation is dispatched to the user-experience:evaluator agent with the artifact path and the method only, not evaluated inline by the author.",
+      "files": [],
+      "expectations": [
+        "An Agent call dispatches user-experience:evaluator",
+        "The brief to the evaluator names the artifact path and the cognitive walkthrough method, without the reasoning behind the flow"
+      ]
+    }
+  ]
+}

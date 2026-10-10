@@ -7,8 +7,9 @@ Two reusable workflows run one activity of one lane each and end in one check ru
   activity whose effect is `read`. It declares no App key secret and no `id-token` permission, and
   fails red with `effect-not-read` before the head checkout for any other effect.
 - [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) runs every
-  other effect. It takes the App key, mints the effect's token, never runs for the lanes App bot,
-  and fails red with `effect-read` for a `read` activity.
+  other effect. It declares no App key either: its run job holds `id-token: write` and gets the
+  effect's token from the lanes token broker before any head checkout. It never runs for the lanes
+  App bot, and fails red with `effect-read` for a `read` activity.
 
 Every lane workflow calls one of them once per activity; the activity's effect decides which. Which
 activity runs, with what model, turn budget and token grant, comes from the base SHA's
@@ -41,8 +42,8 @@ jobs:
       claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
-A write activity calls `./.github/workflows/pr-run-activity-write.yml` the same way and also passes
-`app-private-key: ${{ secrets.AUTOMATION_LANES_APP_PRIVATE_KEY }}`.
+A write activity calls `./.github/workflows/pr-run-activity-write.yml` the same way, passes no App
+key, and adds `id-token: write` to the calling job's permissions.
 
 | Input | Default | Meaning |
 |---|---|---|
@@ -55,9 +56,10 @@ A write activity calls `./.github/workflows/pr-run-activity-write.yml` the same 
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
-files) and `app-private-key` (the lanes App, the write file only). Repository variables: `CLAUDE_LANES_DISABLED` (the kill switch),
-`AUTOMATION_LANES_APP_CLIENT_ID`, and `AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user
-id, the one place it is written. The run job's first step fails red when
+files) is the only one. Variables: `CLAUDE_LANES_DISABLED` (the kill switch),
+`AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and,
+for the write file, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`
+([below](#the-lane-token-broker)). The run job's first step fails red when
 `AUTOMATION_LANES_APP_SENDER_ID` is not a numeric id, since an unset value would let the App's own
 events through the self-trigger guard.
 
@@ -66,14 +68,15 @@ Node 24.
 
 The caller must:
 
-- Grant the calling job `contents: read`, `pull-requests: read` and `checks: write`. The `run` job
-  narrows this to the two reads; only the `report` job uses `checks: write`.
+- Grant the calling job `contents: read`, `pull-requests: read` and `checks: write`, plus
+  `id-token: write` when it calls the write file. The `run` job narrows this to the two reads, and
+  `id-token: write` in the write file; only the `report` job uses `checks: write`.
 - Put the calling job in a per-PR concurrency group with `queue: max`, or an equivalent that never
   cancels a pending run. A group that drops a pending run leaves that activity with no check, and
   silence is not a skip.
 - Leave concurrency off the reusable workflow, which sets none.
 - Call the file that matches the activity's effect. A mismatch fails red before the head
-  checkout, so the file a caller names, and any `app-private-key` it passes, is what a human
+  checkout, so the file a caller names, and any `id-token: write` it grants, is what a human
   reviews.
 - Reference no App key anywhere in a caller of the read file ([below](#secrets-and-the-two-files)).
 - Expose `config-path` only from a test caller. A production lane never passes it and never offers
@@ -82,8 +85,8 @@ The caller must:
 
 ## The run job
 
-Holds `contents: read` and `pull-requests: read`, and no other permission; it never holds
-`checks: write` or `workflows`. It times out after the `timeout-minutes` input. In order:
+Holds `contents: read` and `pull-requests: read`, plus `id-token: write` in the write file for
+the broker request, and no other permission; it never holds `checks: write` or `workflows`. It times out after the `timeout-minutes` input. In order:
 
 1. Fails red unless `AUTOMATION_LANES_APP_SENDER_ID` is a numeric id and the event names a default
    branch.
@@ -111,10 +114,14 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
    With a valid config, the read file fails red with `effect-not-read` unless the effect is
    `read`, and the write file fails red with `effect-read` when it is, whether or not the activity
    applies.
-6. Write file only: asserts the grant's `contents`, `pull-requests` and `issues` are each exactly
-   `read` or `write`, then mints the App token for this repository only with those three
-   permissions. An empty `permission-*` would widen the token to every installation permission.
-   The read file mints nothing and uses the job's read-only `GITHUB_TOKEN` throughout.
+6. Write file only:
+   [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) gets the lane
+   token from the broker ([below](#the-lane-token-broker)), before `select-trusted-text` and before
+   any head checkout. The broker mints once per job, so a second request from this job is denied
+   `already-minted`. The
+   step fails red unless the grant this job resolved is `read` or `write` for each of `contents`,
+   `pull-requests` and `issues` and the broker's answer equals it. The read file requests nothing
+   and uses the job's read-only `GITHUB_TOKEN` throughout.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
    in the read file, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR
@@ -133,6 +140,12 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
 12. Runs the activity (below), then, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
+14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
+    pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
+    `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
+    unless they return 204 and 401. It is a backstop for an honest activity that did not clean
+    up, not a control against a hostile one: the activity holds the token and can write the
+    runner's files.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
@@ -141,14 +154,27 @@ Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`
 `act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
-default branch. `act-outcome` is the activity step's outcome, except that a gate skill whose step
-succeeded takes the outcome of the verdict check (below), a step that runs after the skill.
+default branch. `act-outcome` is the activity step's outcome, except that a skill whose step
+succeeded is a failure when it took no model turn, or when it is a gate skill and the verdict check
+(below) fails. Both checks are steps that run after the skill.
 
 ### Skill activities
 
-The prompt is `/<plugin>:<skill> <args>`; for a `reads-untrusted` activity a second line,
-`Trusted PR context: <path>`, names the `select-trusted-text` output, which the step also gets as
-`TRUSTED_CONTEXT_FILE`. A `reads-untrusted` skill must read PR text (title, body, comments,
+The prompt is `/<plugin>:<skill> <args>`, followed, for an activity with the `changed-paths`
+input, by those paths as further words. `resolve-config` computes them from the PR's file list
+(`pulls/{n}/files`), never from head text: files the head still holds, matching the slot's `paths`
+predicate when it has one, with a name of letters, digits and `_ @ + . -` only, no `.` or `..`
+segment, no segment starting with `-` and no leading `@`, which would read as a file mention.
+The paths are the job's scope, what the skill is asked to work on, not a limit on what it can
+touch. For any effect but `read` they leave out instruction surfaces (`CLAUDE.md`,
+`CLAUDE.local.md`, `AGENTS.md` at any depth, case-insensitive, and anything under a `.claude`,
+`.claude-plugin`, `skills`, `agents`, `commands`, `hooks`, `output-styles` or `prompts`
+directory) and every path the base `.github/CODEOWNERS` lists, owned or not, so a lane is not
+asked to rewrite them. When nothing is left the activity skips with `not-applicable-paths` and
+mints nothing. `collect-base-activity` fails red on a path outside that name set. For a
+`reads-untrusted` activity the step gets the `select-trusted-text` output's path as
+`TRUSTED_CONTEXT_FILE`, and only there: the prompt holds the command line alone, so nothing after
+the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
 reviews, linked issues) only from that file, never through the API. Existing skills are not yet
 adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
 known residual. The skill gets the App token as `github_token` in the write file, and the job's
@@ -156,10 +182,43 @@ read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sourc
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
-plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
-(`use_commit_signing`), on the gate's head branch (`CLAUDE_BRANCH`). A mutating activity's commits
-are made against that branch, which may have moved since the gate; the push that moved it starts
-its own `synchronize` run, which gates the new head again. Why a skill activity loads nothing from
+plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
+directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
+it the skill cannot read its own reference files. Commits go through the API, signed
+(`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
+when the grant can commit.
+
+A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
+(for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
+`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
+scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
+its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
+directory, says no one can answer a question, and, when the grant can commit, tells it to commit
+every file it changed with that tool: the prompt is the slash command alone, so without this the
+skill leaves its edits uncommitted and the lane moves nothing. Its
+`Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
+(`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
+token it can change, commit and push any file in the repository, and claude-code-action writes
+the token into the origin URL under `use_commit_signing`
+(`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
+the review step: the review lanes, `ci-status`, review-thread resolution and the merge gate see
+every lane commit. The hardening is the broker's scoped, hour-long token revoked when the job
+ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
+`--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
+residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
+(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
+[ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
+accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
+`ai-slop:audit`), and a lane commit can change instruction files the PR author's local session
+later loads. The skill's final reply is uploaded as an artifact with the token string cut out.
+`commit_files` builds each commit on the live tip of `CLAUDE_BRANCH` with file bytes from the
+gated checkout (`src/mcp/github-file-ops-server.ts:226-367` at `ed670b4`), so committing straight
+to the PR branch would overwrite a push made during the run. After the skill, a pinned
+`github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
+still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
+lane's commits are dropped and the activity fails; the push that moved it starts its own
+`synchronize` run, which gates the new head and redoes the activity. A raw `git push` from the
+skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
@@ -192,6 +251,14 @@ neutralized) for audit. It is model output, printed as data. The same text is up
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
+
+A slash command whose expansion fails ends with a `success` result and no model turn: claude-code-action
+reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
+that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
+skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
+`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, and any `<local-command-stderr>`
+text (lane token cut out) to the step summary and to `act-turns.json` in the same artifact. The
+full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
 
@@ -250,10 +317,9 @@ test or build of the PR runs through Bash. A lane that needs to run head code wi
 is outside this contract until a split design exists (a read-only run, then a separate step that
 makes the signed commit).
 
-Secrets in the job that runs head code: the read file never references `app-private-key`, and its
-run holds the key only if its caller passes it elsewhere
-([below](#secrets-and-the-two-files)). The write file still references `app-private-key` to mint,
-and every skill job references the Claude OAuth token. Two routes reach them:
+Secrets in the job that runs head code: neither file references the App key, and a run holds it
+only if a caller passes it ([below](#secrets-and-the-two-files)). Every skill job references the
+Claude OAuth token. Two routes reach it and the activity's GitHub token:
 
 - Environment inheritance, no root needed. claude-code-action puts `CLAUDE_CODE_OAUTH_TOKEN` and
   the token it was given (as `GH_TOKEN` and `GITHUB_TOKEN`) in Claude's environment, so every Bash
@@ -269,10 +335,8 @@ and every skill job references the Claude OAuth token. Two routes reach them:
   Removing sudo and docker access before the head checkout blocks the documented memory-dump
   route.
 
-Both are mitigations, not a fix: the full fix is a token broker that keeps the App key off any
-runner that runs head code. The broker is decided and not yet built; until it lands, no live lane
-holds a write effect, and a lane runs head code only under the rule in
-[Secrets and the two files](#secrets-and-the-two-files).
+Both are mitigations for the OAuth token and the activity's own GitHub token. The App key is kept
+off every runner by the broker instead: no workflow holds it.
 
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
@@ -288,12 +352,14 @@ are one run, and a secret referenced anywhere in that run must be assumed to rea
 it, the read job that runs PR head code included. Lane is the caller's file stem, so one lane
 cannot be split across two caller files.
 
-Until the token broker lands, a lane may go live with head-code read activities only if its caller
-file references no App key at all, so every activity it calls runs through the read file, and only
-after the trust-root ruleset ([README](README.md#trust-root-paths)) is in force. A lane that mixes
-read and write activities waits for the broker.
-[`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces it in
-`lint-repo`: it parses every workflow, walks up from `pr-run-activity-read.yml` to every workflow
+So no file of a run that reaches the read file may reference an App key. Code-owner review of
+trust-root paths is off by owner decision; the controls a lane relies on instead, and the residual,
+are in [Trust-root paths](README.md#trust-root-paths). With the broker,
+the write file references no key either, so one caller may call both files: the read file's run
+job sets its own permissions, without `id-token`, so its head code holds neither the key nor an
+OIDC token.
+[`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces the
+key rule in `lint-repo`: it parses every workflow, walks up from `pr-run-activity-read.yml` to every workflow
 whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-code-plugins/...@ref`
 form, any case) and down through every reusable workflow those runs call. It fails when a file of
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
@@ -302,7 +368,7 @@ a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` 
 `claude_code_oauth_token`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 `secrets[...]` and bare `secrets` fail. It also fails when the read file names `id-token`.
 
-The read file stays after the broker lands: its guarantee, no key and no OIDC token in a run that
+The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.
 
 Residuals the split does not close:
@@ -314,6 +380,73 @@ Residuals the split does not close:
   is rebased.
 - Listed bots other than the lanes bot, such as `claude[bot]` and `cursor[bot]`, can start a write
   activity. Its own pushes are denied, so the chain stops after one hop.
+
+## The lane token broker
+
+The write file's run job exchanges its GitHub OIDC token for the lane token at an Azure Function
+that holds the App key as a sign-only Key Vault key. Why:
+[ADR 0058](../../adr/0058-mint-lane-app-tokens-through-an-oidc-broker.md). Its code and Azure
+resources live in `melodic-software/azure-iac`; its operations are not yet documented there
+([Outside this repository](README.md#outside-this-repository)).
+
+| Variable | Value |
+|---|---|
+| `LANES_BROKER_URL` | The token endpoint, `https://<host>/api/token`. Empty, or not `https://`, fails step 6 red |
+| `LANES_BROKER_AUDIENCE` | The audience the job requests its OIDC token for, `melodic-lanes-token-broker`. Empty fails step 6 red |
+
+Both are organization variables declared in github-iac
+([ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md)).
+
+The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token>` and the JSON
+body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>}`; `pr_number` is the gate's PR
+and is required off `pull_request`. The client sends it once and never retries: the broker
+reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
+and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
+
+The broker derives the grant from the default-branch tip's config and `effect-grants.json`, never
+from the request, and mints a token for this repository only, with exactly `contents`,
+`pull_requests` and `issues`. A 200 returns `token`, `expires_at`, `repository_ids`, `permissions`,
+`lane`, `activity`, `effect` and `mint_id`. The client fails red with `effect-mismatch`, after
+revoking the token, unless `effect`, `permissions`, `lane`, `activity` and `repository_ids` equal
+this job's own: the job runs actions from the PR's base SHA, which can resolve the activity
+differently from the tip. Re-running after a rebase onto the tip clears it.
+
+Any other answer fails step 6 red with `lane-token-denied`, the HTTP status and the broker's
+reason; no response at all is `broker-unreachable`. Broker reasons:
+
+| Status | Reason | Meaning |
+|---|---|---|
+| 400 | (none) | The body is not `{lane, activity, pr_number?}` with valid names |
+| 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
+| 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main` |
+| 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
+| 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
+| 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
+| 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
+| 403 | `effect-read` | The activity is `read`; it belongs in the read file |
+| 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list, or is the lanes bot |
+| 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
+| 403 | `default-branch-not-main` | The repository's default branch is not `main` |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, or a repository variable of that name is set to anything else |
+| 403 | `already-minted` | This job already received its mint |
+| 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
+
+A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
+means the job's read and the broker's read of the switch disagreed.
+
+[`scripts/check-app-key-references.sh`](../../../scripts/check-app-key-references.sh) fails
+`lint-repo` when any file under `.github/workflows/` or `.github/actions/` names
+`AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID`, so no
+workflow holds the lanes key or mints as the lanes App outside the broker.
+
+Step 14 revokes the token as soon as the activity is done. Residuals:
+
+- Any step of the write job can request an OIDC token for another audience, so whatever the
+  claude-code-action process runs, its MCP servers included, can reach any relying party that
+  trusts this organization's tokens. The broker refuses a second mint for the job.
+- The job runs trusted actions from the base SHA while the grant comes from the tip; the effect
+  check fails a skewed job red rather than running it.
 
 ## Runs that post no check
 

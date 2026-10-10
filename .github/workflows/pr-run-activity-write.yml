@@ -2,10 +2,12 @@ name: pr-run-activity-write
 
 # Runs one write activity (any effect but `read`) of one PR pipeline lane and
 # reports it as the check run `<lane> / <activity>`. The run job gates,
-# resolves the base-SHA config, fails red on a `read` effect, mints the App
-# token the effect grants, and runs a skill or a script; the report job writes
-# the check from the run job's runner-computed outputs. Read activities run in
-# pr-run-activity-read.yml, which references no App key.
+# resolves the base-SHA config, fails red on a `read` effect, gets the App
+# token the effect grants from the lanes token broker with its OIDC token
+# before any head checkout, runs a skill or a script, and revokes the token;
+# the report job writes the check from the run job's runner-computed outputs.
+# Neither file references the App key. Read activities run in
+# pr-run-activity-read.yml, which also requests no OIDC token.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
 # Every action runs from the base-SHA checkout at ./.base. zizmor's
@@ -53,9 +55,6 @@ on:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
         required: false
-      app-private-key:
-        description: Private key of the lanes GitHub App.
-        required: true
 
 permissions: {}
 
@@ -71,13 +70,18 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    # id-token: write is only for the broker request. Any step of this job can
+    # request an OIDC token for another audience: an accepted residual (ADR
+    # 0058), bounded by the broker's one mint per job.
     permissions:
       contents: read
       pull-requests: read
+      id-token: write
     # The report job trusts only these. Each is a step outcome or an output of a
     # step that ran before any PR head code, except act-outcome for a gate
     # skill: the verdict step it reads runs after the skill, so a gate skill
-    # must not execute head code.
+    # must not execute head code. Its promote term only turns a success into
+    # a failure.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -87,11 +91,14 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      # A gate skill succeeds only on a `pass` verdict. The verdict step's
+      # A gate skill succeeds only on a `pass` verdict, a skill that took no
+      # model turn fails, and a skill whose commits could not be moved onto
+      # the PR branch fails. The verdict step's
       # ACT_OUTCOME repeats this expression: runner-policy refuses YAML aliases.
       act-outcome: >-
-        ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-        && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+        ${{ steps.act-skill.outcome == 'success'
+        && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
+        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
         || steps.act-script.outcome }}
     steps:
@@ -177,37 +184,24 @@ jobs:
           echo "::error::effect-read: a read activity runs in pr-run-activity-read.yml, not pr-run-activity-write.yml"
           exit 1
 
-      # An empty permission-* input is skipped, and a mint with all of them
-      # empty inherits every installation permission.
-      - name: Assert the App grant
+      # The broker mints once per job, and this runs before any head checkout,
+      # so a second request from this job is denied already-minted. It fails
+      # red on an empty LANES_BROKER_URL or LANES_BROKER_AUDIENCE, on any
+      # answer but 200, and on a grant other than the one resolved above.
+      - name: Request the lane token
+        id: lane-token
         if: steps.config.outputs.applies == 'true'
-        env:
-          CONTENTS: ${{ steps.config.outputs.contents }}
-          PULL_REQUESTS: ${{ steps.config.outputs.pull-requests }}
-          ISSUES: ${{ steps.config.outputs.issues }}
-        run: |
-          for value in "$CONTENTS" "$PULL_REQUESTS" "$ISSUES"; do
-            case "$value" in
-              read | write) ;;
-              *)
-                echo "::error::the App grant must be read or write for contents, pull-requests and issues"
-                exit 1
-                ;;
-            esac
-          done
-
-      - name: Mint the lane App token
-        id: app-token
-        if: steps.config.outputs.applies == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
-          client-id: ${{ vars.AUTOMATION_LANES_APP_CLIENT_ID }}
-          private-key: ${{ secrets.app-private-key }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: ${{ steps.config.outputs.contents }}
-          permission-pull-requests: ${{ steps.config.outputs.pull-requests }}
-          permission-issues: ${{ steps.config.outputs.issues }}
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: ${{ inputs.lane }}
+          activity: ${{ inputs.activity }}
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
 
       - name: Select the trusted PR text
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.reads-untrusted == 'true'
@@ -216,7 +210,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ runner.temp }}/trusted-context.json
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.lane-token.outputs.token }}
 
       # The head checkout below replaces .base, so what the activity runs from
       # the base is copied out first.
@@ -231,9 +225,9 @@ jobs:
           model: ${{ steps.config.outputs.model || inputs.default-model }}
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
-          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
+          effect: ${{ steps.config.outputs.effect }}
+          can-commit: ${{ steps.config.outputs.can-commit }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
-          trusted-context-path: ${{ runner.temp }}/trusted-context.json
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -247,7 +241,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.gate.outputs.head-sha }}
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
 
       # The activity judges exactly the commit the check is posted on.
@@ -260,6 +254,30 @@ jobs:
             echo "::error::the checked-out head is not the gated head SHA"
             exit 1
           fi
+
+      # claude-code-action's commit_files builds each commit on the live tip of
+      # CLAUDE_BRANCH with file bytes from this checkout
+      # (src/mcp/github-file-ops-server.ts:226-367 at ed670b4), so a push to
+      # the PR branch during the run would have its edits to the same files
+      # overwritten. The skill commits to a branch made at the gated SHA
+      # instead, and a later step moves the PR branch to it only while the PR
+      # branch is still at the gated SHA.
+      - name: Make the lane's commit branch at the gated SHA
+        id: lane-branch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+          && steps.config.outputs.can-commit == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          LANE_BRANCH: lane-commits/${{ inputs.lane }}/${{ inputs.activity }}/${{ github.run_id }}-${{ github.run_attempt }}
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const { HEAD_SHA, LANE_BRANCH } = process.env;
+            await github.rest.git.createRef({ ...context.repo, ref: `refs/heads/${LANE_BRANCH}`, sha: HEAD_SHA });
+            core.setOutput('branch', LANE_BRANCH);
 
       - name: Run the skill activity
         id: act-skill
@@ -274,13 +292,13 @@ jobs:
           # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
           # and GITHUB_TOKEN as kept).
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
+          CLAUDE_BRANCH: ${{ steps.lane-branch.outputs.branch || steps.gate.outputs.head-ref }}
           TRUSTED_CONTEXT_FILE: >-
             ${{ steps.config.outputs.reads-untrusted == 'true'
             && format('{0}/trusted-context.json', runner.temp) || '' }}
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugin }}
@@ -302,13 +320,18 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
+          # The model can read the lane token, so its reply could quote it;
+          # the token is cut out before the reply is shown or uploaded.
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
         run: |
           mkdir -p "$REPLY_DIR"
           if [ ! -f "$EXECUTION_FILE" ]; then
             echo "No execution file to summarize" | tee "$REPLY_DIR/reply.txt"
             exit 0
           fi
-          jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' \
+          jq -r --arg token "$LANE_TOKEN" '[.[] | select(.type == "result")] | last | (.result // "")
+            | if $token == "" then . else split($token) | join("[REDACTED]") end
+            | .[:4000] | gsub("`"; "'"'"'")' \
             "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
           {
             echo "### Skill reply"
@@ -318,12 +341,76 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # A slash command whose expansion fails, such as a skill pre-compute line
+      # the permission mode denies, ends with a `success` result and no model
+      # turn, so the act did nothing. This fails it and records why. The same
+      # step runs in pr-run-activity-read.yml, which holds no lane token.
+      - name: Check the skill took a model turn
+        id: act-turns
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { EXECUTION_FILE, REPLY_DIR, LANE_TOKEN } = process.env;
+            // Head code could have planted one; only this step's copy is uploaded.
+            fs.rmSync(`${REPLY_DIR}/act-turns.json`, { force: true });
+            const redact = (text) => (LANE_TOKEN ? text.split(LANE_TOKEN).join('[REDACTED]') : text);
+            let messages = [];
+            try {
+              messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
+            } catch (error) {
+              core.setFailed(`No readable execution file: ${error.code ?? error.name}`);
+              return;
+            }
+            const result = messages.filter((m) => m.type === 'result').at(-1) ?? {};
+            const textOf = (content) =>
+              typeof content === 'string' ? content : (content ?? []).map((block) => block?.text ?? '').join('\n');
+            const diag = {
+              subtype: result.subtype ?? null,
+              is_error: result.is_error ?? null,
+              num_turns: result.num_turns ?? null,
+              duration_ms: result.duration_ms ?? null,
+              models: Object.keys(result.modelUsage ?? {}),
+              // The CLI's own report of a failed slash command expansion.
+              local_command_stderr: messages
+                .filter((m) => m.type === 'user')
+                .map((m) => textOf(m.message?.content))
+                .filter((text) => text.includes('<local-command-stderr>'))
+                .map((text) => redact(text).slice(0, 2000)),
+            };
+            fs.mkdirSync(REPLY_DIR, { recursive: true });
+            fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
+            await core.summary
+              .addHeading('Skill run', 3)
+              // addCodeBlock does not escape its text.
+              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
+              .write();
+            // JSON escapes newlines, so no field can start a workflow command.
+            core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
+            if (!(diag.num_turns > 0) || diag.models.length === 0) {
+              core.setFailed(
+                'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
+                  'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
+              );
+            }
+
       - name: Upload the skill's final reply
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-reply/reply.txt
+          # Named files only: head code can write into this directory.
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
           retention-days: 7
           if-no-files-found: error
 
@@ -350,6 +437,47 @@ jobs:
             exit 1
           fi
 
+      # Fast-forwards the PR branch to the lane's commits only while it is
+      # still at the gated SHA; otherwise the commits are dropped and the run
+      # the new head started redoes the activity. A pinned action, like the
+      # revoke step, since the activity could have changed PATH. The lane
+      # branch is deleted either way.
+      - name: Move the PR branch to the lane's commits
+        id: promote
+        if: always() && steps.lane-branch.outputs.branch != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
+          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
+            const tip = async (branch) =>
+              (await github.rest.git.getRef({ ...context.repo, ref: `heads/${branch}` })).data.object.sha;
+            try {
+              const lane = await tip(LANE_BRANCH);
+              if (lane === HEAD_SHA) {
+                core.info('The activity made no commits');
+                return;
+              }
+              const head = await tip(HEAD_REF);
+              if (head !== HEAD_SHA) {
+                core.setFailed(`The PR branch moved from ${HEAD_SHA} to ${head} during the run, so the lane's commits (${lane}) are not applied; the run for the new head redoes the activity`);
+                return;
+              }
+              // force: false refuses anything but a fast-forward.
+              await github.rest.git.updateRef({ ...context.repo, ref: `heads/${HEAD_REF}`, sha: lane, force: false });
+              core.info(`Moved ${HEAD_REF} from ${HEAD_SHA} to ${lane}`);
+            } finally {
+              // A failed cleanup must not fail an activity whose commits landed.
+              await github.rest.git
+                .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
+                .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
+            }
+
       # A script that gets GH_TOKEN must not execute code from the PR head.
       - name: Run the script activity
         id: act-script
@@ -357,7 +485,7 @@ jobs:
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          LANE_TOKEN: ${{ steps.app-token.outputs.token }}
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
@@ -396,8 +524,9 @@ jobs:
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
           SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-            && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+            ${{ steps.act-skill.outcome == 'success'
+            && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
+            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
@@ -435,6 +564,32 @@ jobs:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
           if-no-files-found: error
+
+      # The token would live an hour; revoking it ends it now (probe P5 found
+      # revocation immediate). A pinned action rather than a shell step, so no
+      # binary resolved through PATH or BASH_ENV, which the activity could have
+      # changed, runs with the token. The step fails red unless the revoke
+      # returns 204 and a later call with the token is refused with 401.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const status = async (route) => {
+              try {
+                return (await github.request(route)).status;
+              } catch (error) {
+                return error.status ?? `error: ${error.message}`;
+              }
+            };
+            const revoke = await status('DELETE /installation/token');
+            const after = await status('GET /installation/repositories');
+            core.info(`DELETE /installation/token: ${revoke}; then GET /installation/repositories: ${after}`);
+            if (revoke !== 204 || after !== 401) {
+              core.setFailed(`the lane token was not confirmed revoked (DELETE ${revoke}, GET ${after}); it expires within the hour`);
+            }
 
   report:
     needs: run

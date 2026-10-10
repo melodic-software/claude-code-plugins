@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "0000 1111 eval <eval@example.invalid> 1700000000 +0000\tcheckout: moving from main to feature\n1111 2222 eval <eval@example.invalid> 1700000001 +0000\tcommit (merge): Merge branch main into feature\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "0000 1111 eval <eval@example.invalid> 1700000000 +0000\tcommit: feat: signup report\n"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

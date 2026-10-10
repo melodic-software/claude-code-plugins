@@ -78,6 +78,12 @@
       "description": "Comma-separated absolute directories block-hook-bypass exempts as scratch or temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). Empty by default; it adds to the shipped temp-tree and plugin-data roots. Matching, quoting and symlink rules are in the README's Option details.",
       "default": ""
     },
+    "bash_file_change_check_enabled": {
+      "type": "boolean",
+      "title": "Bash file-change check",
+      "description": "After a Bash or PowerShell command, runs the Write and Edit secret and hardcoded-path guards on each repository file the command changed, and reports what they find. On by default.",
+      "default": true
+    },
     "block_windows_drive_tmp_enabled": {
       "type": "boolean",
       "title": "Block-Windows-drive-tmp guard",
@@ -170,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.49.1"
+  "version": "0.50.1"
 }

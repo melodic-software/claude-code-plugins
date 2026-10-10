@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/conventions/user-experience.yaml was not applied: it could not be parsed.",
+      "why": "full path"
+    },
+    {
+      "answer": "Your User-Experience.yaml team file was skipped.",
+      "why": "basename, other case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "I followed your team's conventions.",
+      "why": "no file named"
+    }
+  ]
+}

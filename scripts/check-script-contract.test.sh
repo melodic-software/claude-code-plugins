@@ -65,6 +65,7 @@ f=""
 # and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
+  "check-app-key-references.sh|-|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
@@ -417,7 +418,7 @@ recipe::pipefail_grep_q() { # <clean|violation>
   local body='grep -q x <<<"$v"'
   # shellcheck disable=SC2016  # see above
   [[ "$1" == violation ]] && body='echo "$v" | grep -q x'
-  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --no-lib || return 2
+  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --git || return 2
   printf '%s\n' "$body" >"$f/scripts/sample.sh"
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }
