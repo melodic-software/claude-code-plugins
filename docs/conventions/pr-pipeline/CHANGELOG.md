@@ -14,7 +14,9 @@ write file must change.
   `broker-unreachable`), and, after revoking the token, on a 200 whose effect, permissions, lane,
   activity or repository differ from the job's own (`effect-mismatch`). The contract lists the
   broker's reasons, `default-branch-not-main` included.
-- A final `if: always()` step revokes the token and fails red unless the revoke returns 204.
+- A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token and fails
+  red unless `DELETE /installation/token` returns 204 and a later
+  `GET /installation/repositories` with the token returns 401.
 - Callers of the write file pass no App key and grant `id-token: write` on the calling job.
   `AUTOMATION_LANES_APP_CLIENT_ID` is no longer read.
 - With no App key in either runner, one lane may call both files.

@@ -47,8 +47,9 @@ No workflow holds the App key. A write activity gets its token from a broker:
    `effect-grants.json` at the tip. The grant never comes from the request.
 4. The client masks the token and fails red, after revoking it, unless the broker's effect,
    permissions, lane, activity and repository equal what the job resolved (`effect-mismatch`).
-5. A final `if: always()` step revokes the token with `DELETE /installation/token` and fails red
-   unless that returns 204.
+5. A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token with
+   `DELETE /installation/token`, then calls `GET /installation/repositories` with it, and fails red
+   unless they return 204 and then 401.
 6. `pr-run-activity-read.yml` is unchanged: no key, no `id-token`, no broker call. Its guarantee is
    structural, so it stays.
 
