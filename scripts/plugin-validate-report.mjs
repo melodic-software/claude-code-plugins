@@ -77,7 +77,7 @@ function emit(label, bucket) {
     return;
   }
   for (const item of gating) {
-    if (!item || item.hasCatch !== false) continue;
+    if (item?.hasCatch !== false) continue;
     const where = typeof item.module === "string" ? `${item.module} ` : "";
     const hook = typeof item.hook === "string" ? item.hook : "(unnamed hook)";
     process.stdout.write(
