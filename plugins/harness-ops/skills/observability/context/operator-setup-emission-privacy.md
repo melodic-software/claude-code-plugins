@@ -56,7 +56,7 @@ committed file. To capture one project only, export them in the shell that launc
 | Key | Effect |
 |---|---|
 | `OTEL_LOG_USER_PROMPTS=1` | prompt text in events/spans (else `<REDACTED>`) |
-| `OTEL_LOG_TOOL_DETAILS=1` | see the pointer below; we set it for the `vcs_ref_head_*` columns |
+| `OTEL_LOG_TOOL_DETAILS=1` | see the pointer below; needed in user scope for the `vcs_ref_head_*` columns |
 | `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans |
 | `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies (inline, truncated at 60 KB) |
 
