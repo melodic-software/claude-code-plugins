@@ -98,7 +98,32 @@ SOFTWARE.
 
 ## Not audited
 
-The other four plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`,
-`build-iterated-agentic-loop`, and `design-control-loop`, were not evaluated for this marketplace.
-This is not a "not adopted" verdict; nobody researched those lanes. Recheck trigger: a change under
-any of those four `plugins/<name>/` paths upstream, or a request for one of those lanes here.
+The other three plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`, and
+`build-iterated-agentic-loop`, were not evaluated for this marketplace. This is not a "not adopted"
+verdict; nobody researched those lanes. Recheck trigger: a change under any of those three
+`plugins/<name>/` paths upstream, or a request for one of those lanes here.
+
+## Evaluated, not adopted: design-control-loop
+
+Evaluated at upstream commit `39fb327`, the only commit under `plugins/design-control-loop/`
+(upstream `main` HEAD was `653b641` on 2026-10-08). Not adopted, wrapped, or depended on:
+
+- It scaffolds a different loop shape: a CI loop in a consumer repository that drives one codebase
+  property. This marketplace's lanes are session-resident queue drains.
+- Its runner templates use permission-bypass flags that this repository's `AGENTS.md` forbids for
+  lanes.
+- It runs an unpinned `@latest` CLI.
+- Its `/iterate` command feeds raw pull request text into prompts without untrusted-content framing.
+
+One idea is worth tracking: a ceiling on open lane pull requests awaiting human review. It is
+tracked separately and is not part of this record.
+
+The evaluation is the Fighting Code Slop video digest, companion
+`loop-engineering-control-loops.md` (item 11 verdict), in `melodic-software/knowledge-corpus`
+(PR #43), under
+`sources/videos/fighting-code-slop-the-state-of-software-ix1qQK1IvmA/analysis/companion/`.
+
+- **Pointer**: when re-deriving this verdict, fetch
+  <https://github.com/humanlayer/skills/commits/main/plugins/design-control-loop> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a new commit under `plugins/design-control-loop/` upstream after `39fb327`.
