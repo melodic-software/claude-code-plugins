@@ -1865,6 +1865,7 @@ jobs:
             plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
             plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
             changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
