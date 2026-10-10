@@ -1,4 +1,4 @@
-# test-scope: plugins/speech/prerequisites.json
+# test-scope: plugins/speech/prerequisites.json plugins/speech/.claude-plugin/plugin.json
 """elevenlabs.py: the statement and quota gate before every call, the proceed gate, the egress floor, the cache, the
 retry policy, key delivery through vault-exec, the key never leaking, and the mapping from character alignment to word
 timings. No test reaches the network: the transport is injected, or urlopen is replaced."""
