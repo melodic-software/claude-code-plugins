@@ -2,10 +2,12 @@ name: pr-run-activity-write
 
 # Runs one write activity (any effect but `read`) of one PR pipeline lane and
 # reports it as the check run `<lane> / <activity>`. The run job gates,
-# resolves the base-SHA config, fails red on a `read` effect, mints the App
-# token the effect grants, and runs a skill or a script; the report job writes
-# the check from the run job's runner-computed outputs. Read activities run in
-# pr-run-activity-read.yml, which references no App key.
+# resolves the base-SHA config, fails red on a `read` effect, gets the App
+# token the effect grants from the lanes token broker with its OIDC token
+# before any head checkout, runs a skill or a script, and revokes the token;
+# the report job writes the check from the run job's runner-computed outputs.
+# Neither file references the App key. Read activities run in
+# pr-run-activity-read.yml, which also requests no OIDC token.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
 # Every action runs from the base-SHA checkout at ./.base. zizmor's
@@ -53,9 +55,6 @@ on:
       claude-code-oauth-token:
         description: Claude Code OAuth token for skill activities.
         required: false
-      app-private-key:
-        description: Private key of the lanes GitHub App.
-        required: true
 
 permissions: {}
 
@@ -71,9 +70,13 @@ jobs:
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.timeout-minutes }}
+    # id-token: write is only for the broker request. Any step of this job can
+    # request an OIDC token for another audience: an accepted residual (ADR
+    # 0058), bounded by the broker's one mint per job.
     permissions:
       contents: read
       pull-requests: read
+      id-token: write
     # The report job trusts only these. Each is a step outcome or an output of a
     # step that ran before any PR head code, except act-outcome for a gate
     # skill: the verdict step it reads runs after the skill, so a gate skill
@@ -177,37 +180,24 @@ jobs:
           echo "::error::effect-read: a read activity runs in pr-run-activity-read.yml, not pr-run-activity-write.yml"
           exit 1
 
-      # An empty permission-* input is skipped, and a mint with all of them
-      # empty inherits every installation permission.
-      - name: Assert the App grant
+      # The broker mints once per job, so this runs before any head checkout:
+      # head code in this job can never ask for a token of its own. It fails
+      # red on an empty LANES_BROKER_URL or LANES_BROKER_AUDIENCE, on any
+      # answer but 200, and on a grant other than the one resolved above.
+      - name: Request the lane token
+        id: lane-token
         if: steps.config.outputs.applies == 'true'
-        env:
-          CONTENTS: ${{ steps.config.outputs.contents }}
-          PULL_REQUESTS: ${{ steps.config.outputs.pull-requests }}
-          ISSUES: ${{ steps.config.outputs.issues }}
-        run: |
-          for value in "$CONTENTS" "$PULL_REQUESTS" "$ISSUES"; do
-            case "$value" in
-              read | write) ;;
-              *)
-                echo "::error::the App grant must be read or write for contents, pull-requests and issues"
-                exit 1
-                ;;
-            esac
-          done
-
-      - name: Mint the lane App token
-        id: app-token
-        if: steps.config.outputs.applies == 'true'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
-          client-id: ${{ vars.AUTOMATION_LANES_APP_CLIENT_ID }}
-          private-key: ${{ secrets.app-private-key }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: ${{ steps.config.outputs.contents }}
-          permission-pull-requests: ${{ steps.config.outputs.pull-requests }}
-          permission-issues: ${{ steps.config.outputs.issues }}
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: ${{ inputs.lane }}
+          activity: ${{ inputs.activity }}
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
 
       - name: Select the trusted PR text
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.reads-untrusted == 'true'
@@ -216,7 +206,7 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ runner.temp }}/trusted-context.json
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.lane-token.outputs.token }}
 
       # The head checkout below replaces .base, so what the activity runs from
       # the base is copied out first.
@@ -247,7 +237,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.gate.outputs.head-sha }}
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
 
       # The activity judges exactly the commit the check is posted on.
@@ -280,7 +270,7 @@ jobs:
             && format('{0}/trusted-context.json', runner.temp) || '' }}
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugin }}
@@ -357,7 +347,7 @@ jobs:
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          LANE_TOKEN: ${{ steps.app-token.outputs.token }}
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
@@ -435,6 +425,31 @@ jobs:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verdict/verdict.json
           if-no-files-found: error
+
+      # The token would live an hour; revoking it ends it now (probe P5 found
+      # revocation immediate). A failed revoke fails the job red; the later
+      # call only reports whether GitHub already refuses the token.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        env:
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          call() {
+            printf 'Authorization: Bearer %s\n' "$LANE_TOKEN" |
+              curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X "$1" -H @- \
+                -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
+                "$GITHUB_API_URL/$2" || true
+          }
+          revoke=$(call DELETE installation/token)
+          after=$(call GET installation/repositories)
+          echo "DELETE /installation/token: $revoke; then GET /installation/repositories: $after"
+          if [ "$after" != 401 ]; then
+            echo "::warning::GitHub still answered $after with the revoked lane token"
+          fi
+          if [ "$revoke" != 204 ]; then
+            echo "::error::the lane token was not revoked (HTTP $revoke); it expires within the hour"
+            exit 1
+          fi
 
   report:
     needs: run

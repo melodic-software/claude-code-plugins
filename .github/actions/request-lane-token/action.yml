@@ -1,0 +1,168 @@
+name: Request lane token
+description: >
+  Exchange this job's GitHub OIDC token for one lane App installation token at
+  the lanes token broker. Sends exactly one request and never retries it, masks
+  the token, and fails red, after revoking the token, unless the broker's
+  effect, permissions, lane, activity and repository equal what this job
+  resolved. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  step 6.
+
+inputs:
+  broker-url:
+    description: The broker's token endpoint, normally `vars.LANES_BROKER_URL`. Empty fails red.
+    required: true
+  audience:
+    description: The OIDC audience the broker accepts, normally `vars.LANES_BROKER_AUDIENCE`. Empty fails red.
+    required: true
+  lane:
+    description: The lane, its caller workflow's file stem.
+    required: true
+  activity:
+    description: The activity.
+    required: true
+  pr-number:
+    description: The gated PR number; sent as `pr_number` when set.
+    required: false
+    default: ""
+  effect:
+    description: The effect resolve-config resolved for this activity.
+    required: true
+  contents:
+    description: The resolved grant's `contents`, `read` or `write`.
+    required: true
+  pull-requests:
+    description: The resolved grant's `pull-requests`, `read` or `write`.
+    required: true
+  issues:
+    description: The resolved grant's `issues`, `read` or `write`.
+    required: true
+
+outputs:
+  token:
+    description: The lane App token, masked; set only when every check passed.
+    value: ${{ steps.request.outputs.token }}
+  expires-at:
+    description: The token's expiry, as the broker returned it.
+    value: ${{ steps.request.outputs.expires-at }}
+  mint-id:
+    description: The broker's `<check_run_id>-<run_attempt>` for this mint.
+    value: ${{ steps.request.outputs.mint-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Request the lane token
+      id: request
+      shell: bash
+      env:
+        BROKER_URL: ${{ inputs.broker-url }}
+        AUDIENCE: ${{ inputs.audience }}
+        LANE: ${{ inputs.lane }}
+        ACTIVITY: ${{ inputs.activity }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        EFFECT: ${{ inputs.effect }}
+        CONTENTS: ${{ inputs.contents }}
+        PULL_REQUESTS: ${{ inputs.pull-requests }}
+        ISSUES: ${{ inputs.issues }}
+      run: |
+        set -euo pipefail
+        umask 077
+        fail() {
+          echo "::error::$1"
+          printf -- '- %s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+          exit 1
+        }
+        # One printable line, at most 300 characters: broker text is data.
+        one_line() { tr -cd '[:print:]' | cut -c1-300; }
+
+        [ -n "$BROKER_URL" ] || fail "lane-token-unconfigured: the LANES_BROKER_URL variable is empty"
+        [ -n "$AUDIENCE" ] || fail "lane-token-unconfigured: the LANES_BROKER_AUDIENCE variable is empty"
+        [[ $BROKER_URL =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._/-]*)?$ ]] ||
+          fail "lane-token-unconfigured: LANES_BROKER_URL is not an https URL"
+        [[ $AUDIENCE =~ ^[A-Za-z0-9._:-]+$ ]] ||
+          fail "lane-token-unconfigured: LANES_BROKER_AUDIENCE holds characters an audience cannot"
+        name='^[a-z][a-z0-9]*(-[a-z0-9]+)*$'
+        [[ $LANE =~ $name && $ACTIVITY =~ $name && $EFFECT =~ $name ]] ||
+          fail "the lane, activity and effect must be kebab-case names"
+        for value in "$CONTENTS" "$PULL_REQUESTS" "$ISSUES"; do
+          [[ $value == read || $value == write ]] ||
+            fail "the resolved grant must be read or write for contents, pull-requests and issues"
+        done
+        [[ -z ${PR_NUMBER:-} || $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the PR number is malformed"
+        [[ -n ${ACTIONS_ID_TOKEN_REQUEST_URL:-} && -n ${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-} ]] ||
+          fail "the job cannot request an OIDC token; it needs permissions id-token: write"
+
+        response="$RUNNER_TEMP/lane-token-response.json"
+        issued=""
+        revoke() {
+          printf 'Authorization: Bearer %s\n' "$1" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "$GITHUB_API_URL/installation/token" || true
+        }
+        # Any failure after the broker issued a token revokes it here, so only a
+        # token that passed every check reaches the job.
+        cleanup() {
+          local rc=$?
+          rm -f "$response"
+          if [ "$rc" -ne 0 ] && [ -n "$issued" ]; then
+            echo "Revoked the lane token after the failure: DELETE /installation/token returned $(revoke "$issued")"
+          fi
+        }
+        trap cleanup EXIT
+
+        oidc=$(printf 'Authorization: bearer %s\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
+          curl -sS --fail --max-time 30 -H @- "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" |
+          jq -r 'if type == "object" and (.value | type) == "string" then .value else "" end') ||
+          fail "the OIDC token request failed"
+        [ -n "$oidc" ] || fail "the OIDC token request returned no token"
+        echo "::add-mask::$oidc"
+
+        body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
+          '{lane: $lane, activity: $activity} + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)')
+
+        # Exactly one request, with no retry: the broker spends this job's one
+        # mint when it answers, and a 200 lost in transit is revoked by nobody,
+        # so a second request could only be denied or issue a second token.
+        status=$(printf 'Authorization: Bearer %s\n' "$oidc" |
+          curl -sS --proto '=https' --max-time 60 -o "$response" -w '%{http_code}' -X POST -H @- \
+            -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000
+        unset oidc
+
+        if [ "$status" = 000 ]; then
+          fail "broker-unreachable: the lanes token broker gave no response"
+        fi
+        if [ "$status" != 200 ]; then
+          reason=$(jq -r 'if type == "object" and (.reason | type) == "string" then .reason else "" end' "$response" 2>/dev/null) || reason=""
+          [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]] || reason=unknown
+          detail=$(jq -r 'if type == "object" and (.detail | type) == "string" then .detail else "" end' "$response" 2>/dev/null | one_line) || detail=""
+          fail "lane-token-denied: the broker answered $status with reason $reason${detail:+: $detail}"
+        fi
+
+        token=$(jq -r 'if type == "object" and (.token | type) == "string" then .token else "" end' "$response") || token=""
+        [[ $token =~ ^[A-Za-z0-9_.-]+$ ]] || fail "lane-token-denied: the broker's 200 carries no usable token"
+        echo "::add-mask::$token"
+        issued=$token
+
+        # The broker derives the grant from the default-branch tip; this job ran
+        # base-SHA actions on its own resolution. Any difference fails red.
+        got=$(jq -c '{effect, permissions, lane, activity, repository_ids}' "$response")
+        want=$(jq -cn --arg effect "$EFFECT" --arg c "$CONTENTS" --arg p "$PULL_REQUESTS" --arg i "$ISSUES" \
+          --arg lane "$LANE" --arg activity "$ACTIVITY" --arg repo "$GITHUB_REPOSITORY_ID" \
+          '{effect: $effect, permissions: {contents: $c, pull_requests: $p, issues: $i},
+            lane: $lane, activity: $activity, repository_ids: [($repo | tonumber)]}')
+        if [ "$(jq -n --argjson got "$got" --argjson want "$want" '$got == $want')" != true ]; then
+          fail "effect-mismatch: the broker granted $(one_line <<<"$got"), this job resolved $want"
+        fi
+
+        expires=$(jq -r '.expires_at // ""' "$response" | one_line)
+        mint_id=$(jq -r '.mint_id // ""' "$response" | one_line)
+        [[ $mint_id =~ ^[0-9]+-[0-9]+$ ]] || fail "lane-token-denied: the broker's 200 carries no mint id"
+        {
+          echo "token=$token"
+          echo "expires-at=$expires"
+          echo "mint-id=$mint_id"
+        } >>"$GITHUB_OUTPUT"
+        # shellcheck disable=SC2016  # the backticks are Markdown, not expansions
+        printf -- '- Lane token minted: effect `%s`, mint `%s`, expires `%s`\n' "$EFFECT" "$mint_id" "$expires" >>"$GITHUB_STEP_SUMMARY"
+        issued=""
