@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Renders the vision cases' screenshots: for each variant, widths 375 and 1280, once at load and once 1 s
-// later on Playwright's fake clock, full page, into crops/<variant-id>/<width>-{load,after-1s}.png.
+// later on Playwright's fake clock, full page, into ../fixtures/ui-defects/crops/<variant-id>/<width>-{load,after-1s}.png.
 // usage: render-crops.mjs [--playwright-core DIR] [variant-id...]
 // With no ids it re-renders every variant directory already under crops/. Build the variants first
 // (build-variants.py). playwright-core comes from --playwright-core DIR, else from the playwright-cli
@@ -10,15 +10,15 @@ import { createRequire } from 'node:module';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURE = dirname(HERE);
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ui-defects');
+const CROPS = join(FIXTURE, 'crops');
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--playwright-core');
 const coreDir = at >= 0 ? args.splice(at, 2)[1] : null;
 const ids = args.length
   ? args
-  : readdirSync(HERE, { withFileTypes: true })
+  : readdirSync(CROPS, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
 
@@ -47,7 +47,7 @@ const { chromium } = playwrightCore();
 const browser = await chromium.launch({ args: ['--disable-partial-raster', '--disable-gpu-rasterization'] });
 for (const id of ids) {
   const url = pathToFileURL(join(FIXTURE, 'variants', id, 'index.html')).href;
-  mkdirSync(join(HERE, id), { recursive: true });
+  mkdirSync(join(CROPS, id), { recursive: true });
   for (const width of [375, 1280]) {
     const context = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 1 });
     await context.route('**/*', (r) => (r.request().url().startsWith('file:') ? r.continue() : r.abort()));
@@ -60,7 +60,7 @@ for (const id of ids) {
     const shot = async (name) => {
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       await page.screenshot({
-        path: join(HERE, id, name),
+        path: join(CROPS, id, name),
         fullPage: true,
         clip: { x: 0, y: 0, width, height },
         animations: 'disabled',

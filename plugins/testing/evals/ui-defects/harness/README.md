@@ -1,6 +1,6 @@
 # ui-defects layer harness
 
-`measure-layers.mjs` rebuilds the variants with `../build-variants.py`, loads each over `file://` at
+`measure-layers.mjs` rebuilds the variants with `../../fixtures/ui-defects/build-variants.py`, loads each over `file://` at
 widths 375 and 1280 with every non-`file:` request aborted, and records which check layer flags it:
 axe (WCAG 2.x A and AA rules), geometry (box overlap, clipped content, page wider than the viewport,
 same-row siblings off a shared top edge, boxes moved between load and 1 s), the CLS observer, pixel
@@ -11,7 +11,7 @@ against C0. It makes no model calls. `harness.test.sh` compares the result with
 ## Setup (once)
 
 ```bash
-npm --prefix plugins/testing/evals/fixtures/ui-defects/harness ci --omit=peer --ignore-scripts
+npm --prefix plugins/testing/evals/ui-defects/harness ci --omit=peer --ignore-scripts
 ```
 
 This installs the pinned `@axe-core/playwright` 4.13.0 (with `axe-core` 4.13.0) from
@@ -26,7 +26,7 @@ Chromium 154.0.8037.0.
 ## Run
 
 ```bash
-bash plugins/testing/evals/fixtures/ui-defects/harness/harness.test.sh
+bash plugins/testing/evals/ui-defects/harness/harness.test.sh
 ```
 
 It prints `PASS` with the versions used, or `SKIP` when the setup above has not run. The full

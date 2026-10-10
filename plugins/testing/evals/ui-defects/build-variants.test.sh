@@ -3,13 +3,13 @@
 # catalog (D1-D9, C0, C1 and their injections), not from the builder's output.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../../../../.." && pwd)"
+FIXTURE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../fixtures/ui-defects" && pwd)"
+ROOT="$(cd "$FIXTURE/../../../../.." && pwd)"
 
-# shellcheck source=../../../../../scripts/lib/python-probe.sh
+# shellcheck source=../../../../scripts/lib/python-probe.sh
 . "$ROOT/scripts/lib/python-probe.sh"
 PYTHON=""
-python_probe::require_to PYTHON "$HERE/build-variants.py"
+python_probe::require_to PYTHON "$FIXTURE/build-variants.py"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -20,27 +20,27 @@ fail() {
 }
 
 build() {
-  "$PYTHON" "$HERE/build-variants.py" --out "$1/variants" --map "$1/variant-map.json" >/dev/null
+  "$PYTHON" "$FIXTURE/build-variants.py" --out "$1/variants" --map "$1/variant-map.json" >/dev/null
 }
 
 build "$TMP/a"
 build "$TMP/b"
 build "$TMP/a"
-"$PYTHON" "$HERE/build-variants.py" >/dev/null
+"$PYTHON" "$FIXTURE/build-variants.py" >/dev/null
 
-if grep -rEl 'https?://' "$HERE/site" "$HERE/variants" "$TMP/a"; then
+if grep -rEl 'https?://' "$FIXTURE/site" "$FIXTURE/variants" "$TMP/a"; then
   fail "external URL under site/ or variants/"
 fi
 
 mkdir -p "$TMP/neg"
-cp -R "$HERE/site" "$TMP/neg/site"
+cp -R "$FIXTURE/site" "$TMP/neg/site"
 printf '%s\n' '{"base": "site/index.html", "defects": [{"id": "X", "name": "x", "patches": [{"find": "not in the page", "replace": ""}]}]}' >"$TMP/neg/defects.json"
-if "$PYTHON" "$HERE/build-variants.py" --defects "$TMP/neg/defects.json" --out "$TMP/neg/variants" --map "$TMP/neg/map.json" 2>"$TMP/neg/err"; then
+if "$PYTHON" "$FIXTURE/build-variants.py" --defects "$TMP/neg/defects.json" --out "$TMP/neg/variants" --map "$TMP/neg/map.json" 2>"$TMP/neg/err"; then
   fail "builder accepted a patch whose anchor is absent"
 fi
 grep -q 'matched 0 times' "$TMP/neg/err" || fail "unexpected builder error: $(cat "$TMP/neg/err")"
 
-"$PYTHON" - "$HERE" "$TMP/a" "$TMP/b" <<'PY'
+"$PYTHON" - "$FIXTURE" "$TMP/a" "$TMP/b" <<'PY'
 import hashlib
 import re
 import sys

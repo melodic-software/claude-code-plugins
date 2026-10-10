@@ -9,7 +9,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../../../../../.." && pwd)"
+ROOT="$(cd "$HERE/../../../../.." && pwd)"
 
 skip() {
   if [[ "${UI_DEFECTS_REQUIRE:-}" == 1 ]]; then
@@ -20,10 +20,10 @@ skip() {
   exit 0
 }
 
-# shellcheck source=../../../../../../scripts/lib/python-probe.sh
+# shellcheck source=../../../../../scripts/lib/python-probe.sh
 . "$ROOT/scripts/lib/python-probe.sh"
 PYTHON=""
-python_probe::require_to PYTHON "$HERE/../build-variants.py"
+python_probe::require_to PYTHON "$HERE/../../fixtures/ui-defects/build-variants.py"
 
 if ! command -v node >/dev/null 2>&1 || [[ ! -d "$HERE/node_modules/@axe-core/playwright" ]]; then
   skip "node or harness/node_modules missing; install per $HERE/README.md"

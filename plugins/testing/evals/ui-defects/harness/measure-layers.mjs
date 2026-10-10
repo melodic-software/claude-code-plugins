@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inflateSync } from 'node:zlib';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FIXTURE = dirname(HERE);
+const FIXTURE = join(HERE, '..', '..', 'fixtures', 'ui-defects');
 const WIDTHS = [375, 1280];
 const HEIGHT = 800;
 const SETTLE_MS = 1000;
