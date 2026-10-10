@@ -63,8 +63,8 @@ The full evidence, including a first-party repro, is in
 
 **A rule without `paths:` costs exactly what `CLAUDE.md` costs.** The plugin prices an unscoped
 rule as always-loaded, the same as `.claude/CLAUDE.md` (the pointer is in the evidence file above).
-Moving a section into `.claude/rules/` without a glob is bookkeeping, not a saving. The glob is the
-product.
+Moving a section into `.claude/rules/` without a glob is bookkeeping, not a saving; the saving
+comes from the glob.
 
 **Nothing that defers is inherited, and no deferred surface says it exists.** Measured on Claude
 Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested

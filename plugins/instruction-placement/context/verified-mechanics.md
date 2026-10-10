@@ -63,8 +63,8 @@ from the memory page, never from this table.
 Three facts from that table carry the whole design:
 
 - **An unscoped rule costs exactly what `CLAUDE.md` costs.** Moving a section from `CLAUDE.md` into
-  `.claude/rules/` without `paths:` frontmatter saves nothing at all. The glob is the product; the
-  file move is bookkeeping.
+  `.claude/rules/` without `paths:` frontmatter saves nothing at all. The saving comes from the glob;
+  the file move is bookkeeping.
 - **A deferred surface does reach a subagent, but nothing is inherited.** The subagent starts
   without the parent's on-demand loads, and acquires a surface only by itself reading a path the
   surface covers. Delegation therefore does not put a demoted rule out of reach, but it does reset
