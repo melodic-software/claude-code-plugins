@@ -166,6 +166,14 @@ READ_ONLY_TOOLS = frozenset(
     ]
 )
 
+# Tools Claude Code removed. No grant restores one, so suggesting
+# --allow-tools would send the case to a paid run without it.
+# - Pointer: when a tool here may be back, or another was removed, fetch
+#   https://code.claude.com/docs/en/changelog live (TaskOutput: 2.1.277).
+# - As of: 2026-10-10
+# - Recheck trigger: a release note removes or restores a tool a case can list.
+REMOVED_TOOLS = frozenset(["TaskOutput"])
+
 # (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
 
@@ -701,7 +709,19 @@ def check_tools(fields, case, findings):
     if not isinstance(value, list):
         findings.append(Finding("FAIL", case, path, "allowed_tools must be a list"))
         return False
-    gated = [str(tool) for tool in value if str(tool) not in READ_ONLY_TOOLS]
+    tools = [str(tool) for tool in value if str(tool) not in READ_ONLY_TOOLS]
+    gated = [tool for tool in tools if tool not in REMOVED_TOOLS]
+    for tool in tools:
+        if tool in REMOVED_TOOLS:
+            findings.append(
+                Finding(
+                    "WARN",
+                    case,
+                    path,
+                    "allowed_tools lists %s, which Claude Code removed; no grant "
+                    "restores it, so drop it or rewrite the case" % tool,
+                )
+            )
     for tool in gated:
         findings.append(
             Finding(
