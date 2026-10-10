@@ -417,7 +417,7 @@ from the model page whenever it matters, and never restated in this convention.
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
   [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -435,9 +435,12 @@ The reasons behind each binding:
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
   for Opus (for fast mode, see
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
-- **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
-  having a smaller context window and an older knowledge cutoff than these lanes need (for both,
-  see the models overview), so no tier binds it.
+- **`haiku` is admissible nowhere in these lanes today.** On some providers the model it resolves
+  to has a smaller context window and an older knowledge cutoff than these lanes need (see Model
+  aliases and the models overview). Where it resolves to a model without those limits, whether a
+  tier should bind it is an open decision
+  ([#6856](https://github.com/melodic-software/claude-code-plugins/issues/6856)); until it is made,
+  no tier binds it.
 
 **Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
 here rather than left as an unstated assumption:

@@ -1370,16 +1370,22 @@ same depth on two models):
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
   change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
-  two ladders do not compose there: we read the model the `haiku` alias resolves to as having no
-  effort support, so a pin there has no level to land on. What the harness does with such a pin,
-  whether ignore it, warn, or fail, is **unverified here**, and no page we read settles it. The rule
-  does not rest on that gap: a lane wanting the cheapest tier takes it by model alone and omits the
-  pin, because the dial it would be reaching for only exists one rung up (Pointer: for which models
-  support effort, see
+  two ladders do not compose there on every provider: the model the `haiku` alias resolves to
+  supports effort on the Anthropic API but not on every other provider, so a portable pin there may
+  have no level to land on. What the harness does with such a pin, whether ignore it, warn, or fail,
+  is **unverified here**, and no page we read settles it. The rule does not rest on that gap: a lane
+  wanting the cheapest tier takes it by model alone, omits the pin, and runs at that model's default
+  level where it has one; the Haiku 5.5 guide also ties its lowest level to more early stopping and
+  skipped checks in long agent prompts (Pointer: for what the alias resolves to on each provider,
+  see [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
+  for which models support effort, see
   [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level);
   for what a lower level trades away, see
-  [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
-  As of: 2026-10-01. Recheck trigger: a Haiku model appears among the models that support effort).
+  [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works)
+  and
+  [Prompting Claude Haiku 5.5: use effort to control thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
+  As of: 2026-10-10. Recheck trigger: the `haiku` alias resolving to an effort-capable model on
+  every provider that page lists).
 - **Every other named agent pins the level its work's task row gives it**, never below `medium`
   for code-changing or verifying work (the [effort floor](#effort-floor); the per-pin rows under
   pinned agents name each row). Only a skill with no consequential output omits the pin and
