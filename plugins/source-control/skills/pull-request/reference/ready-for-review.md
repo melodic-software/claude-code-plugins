@@ -85,10 +85,12 @@ clean on `git rev-parse HEAD`.
 When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
 replaces that push's draft run within seconds instead of after it ran to the end. Push through
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
---push` resolves, so a fork or triangular checkout never pushes to the wrong remote.
+--push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
+the pull request's head branch even when the session runs in another worktree, and exits non-zero
+when that branch has no local ref or its push remote is not the PR's head repository.
 
 ```bash
-bash "<skill-dir>/scripts/push-branch.sh" || exit 1   # only when 2.5.3 committed anything
+bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 gh pr ready "$PR_NUMBER"
 ```
 
