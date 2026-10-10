@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-10-10
+
+### Changed
+
+- `/implementation:implement-dispatch` holdout tests: the user approves one plain-language line per test before the first wave, an opt-in `Read` and `Edit` deny on the memory-slice root fences workers run as their own `claude` session, and a hash of the holdout files, rechecked before the verifier runs, is the gate a deny cannot replace.
+
 ## [0.24.2] - 2026-10-10
 
 ### Changed
