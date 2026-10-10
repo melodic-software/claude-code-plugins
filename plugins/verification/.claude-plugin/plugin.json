@@ -27,6 +27,13 @@
         "live",
         "strict"
       ]
+    },
+    "live_workers": {
+      "type": "number",
+      "title": "Live verification workers",
+      "description": "How many workers /verification:confirm splits its live drive across, by feature-map entry point; default 1. Above 1 on one machine it needs a Workspace environment entry on the default branch, else one worker runs. A repository's docs/conventions/verification.yaml wins.",
+      "default": 1,
+      "min": 1
     }
   }
 }

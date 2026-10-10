@@ -23,14 +23,16 @@
 //                 from the default branch, so a branch cannot lower it.
 //
 // The allowed values of a key come from the schema: `true` and `false` for a
-// boolean key, the listed strings for an enum key. Each key may be given once.
+// boolean key, the listed strings for an enum key, and for an integer key an
+// unquoted whole number from the schema's minimum up to any maximum (no sign,
+// no decimal point, no leading zero). Each key may be given once.
 //
 // Two functions hold the guarantees:
 //   validate(text)  the document parses, sets every top-level key once (keys
 //                   compared after trimming), names no key outside the schema,
 //                   and gives each key one allowed scalar. Each problem is
 //                   marked fixable when it is a value apply may overwrite: an
-//                   out-of-list scalar, an empty value or null. A map or a list
+//                   out-of-list or out-of-range scalar, an empty value or null. A map or a list
 //                   in block or flow form, or an empty quoted string, is not.
 //                   --check reports every problem; apply refuses an existing
 //                   file with any problem it would not overwrite, then
@@ -142,7 +144,25 @@ try {
 const keys = Object.fromEntries(
   Object.entries(schema.properties).filter(([k]) => k !== "$schema"),
 );
-const allowed = (spec) => (spec.type === "boolean" ? ["true", "false"] : spec.enum);
+// allowedText(spec) words a key's allowed values for a message; allows(spec,
+// raw) tests one value as written, quotes included. A quoted boolean or number
+// is a string, so it is not allowed; a quoted listed string is.
+function allowedText(spec) {
+  if (spec.type === "boolean") return "one of true, false";
+  if (spec.type === "integer") {
+    const min = spec.minimum ?? 0;
+    return spec.maximum === undefined ? `a whole number of at least ${min}` : `a whole number from ${min} to ${spec.maximum}`;
+  }
+  return `one of ${spec.enum.join(", ")}`;
+}
+function allows(spec, raw) {
+  if (spec.type === "boolean") return raw === "true" || raw === "false";
+  if (spec.type === "integer") {
+    const n = Number(raw);
+    return /^(0|[1-9][0-9]*)$/.test(raw) && n >= (spec.minimum ?? 0) && (spec.maximum === undefined || n <= spec.maximum);
+  }
+  return spec.enum.includes(raw.replace(/^(["'])(.*)\1$/, "$2"));
+}
 const target = join(root, REL);
 
 // Refuse any path shape that could send a write somewhere other than
@@ -277,20 +297,19 @@ function validate(text) {
   for (const [k, spec] of Object.entries(keys)) {
     const line = tops.find((t) => t.key === k);
     if (!line) continue;
-    const values = allowed(spec).join(", ");
+    const values = allowedText(spec);
     const { raw } = line;
     const shown = raw ? `${k}=${raw}` : k;
     if (records.some((r) => r.top === k && r.nested) || /^[[{]/.test(raw)) {
-      bad(`${shown} holds a map or a list; it takes one of ${values}`, k, false);
+      bad(`${shown} holds a map or a list; it takes ${values}`, k, false);
     } else if (raw === '""' || raw === "''") {
-      bad(`${shown} is an empty quoted string; it takes one of ${values}`, k, false);
+      bad(`${shown} is an empty quoted string; it takes ${values}`, k, false);
     } else if (raw === "") {
-      bad(`${k} is empty; it takes one of ${values}`, k);
+      bad(`${k} is empty; it takes ${values}`, k);
     } else if (/^(null|Null|NULL|~)$/.test(raw)) {
-      bad(`${k} is null; it takes one of ${values}`, k);
-    } else {
-      const v = spec.type === "boolean" ? raw : raw.replace(/^(["'])(.*)\1$/, "$2");
-      if (!allowed(spec).includes(v)) bad(`${k}=${raw} is not one of ${values}`, k);
+      bad(`${k} is null; it takes ${values}`, k);
+    } else if (!allows(spec, raw)) {
+      bad(`${k}=${raw} is not ${values}`, k);
     }
   }
   return [...new Map(problems.map((p) => [p.msg, p])).values()];
@@ -366,7 +385,8 @@ for (const pair of pairs) {
   const v = pair.slice(eq + 1);
   if (wanted.has(k)) die(1, `${k} is given more than once; pass each key once; nothing written`);
   if (!Object.hasOwn(keys, k)) die(1, `${k} is not a key of ${REL} (keys: ${Object.keys(keys).join(", ")}); nothing written`);
-  if (!allowed(keys[k]).includes(v)) die(1, `${k}=${v} is not one of ${allowed(keys[k]).join(", ")}; nothing written`);
+  // A command-line value is the bare word itself, so any quote makes it invalid.
+  if (/^["']/.test(v) || !allows(keys[k], v)) die(1, `${k}=${v} is not ${allowedText(keys[k])}; nothing written`);
   wanted.set(k, v);
 }
 

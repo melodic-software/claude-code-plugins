@@ -47,6 +47,9 @@ One setting, `proof_level` (`path`, `live` or `strict`, default `path`), decides
 and per repository in `docs/conventions/verification.yaml` (schema
 `schemas/verification.schema.json`, written by `/verification:setup apply`). The stricter of the
 two wins, and the repository value is read from the default branch, so a branch cannot lower it.
+A second setting, `live_workers` (a whole number, default 1), sets how many workers split that live
+drive by feature-map entry point, at the same two levels with the repository value winning; a
+release without it runs one worker.
 Keys, layers and resolution: `reference/config.md`.
 
 **Upgrade every member before setting a floor.** A verification release from before this setting
@@ -65,6 +68,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `proof_level` | string | `"path"` | `CLAUDE_PLUGIN_OPTION_PROOF_LEVEL` | Evidence /verification:confirm requires. path (default): a live run only for runtime-affecting paths. live: a live drive for any change with a runnable surface. strict: unit, live and performance proof per phase. The stricter of this and the default branch's docs/conventions/verification.yaml wins. |
+| `live_workers` | number<br>*min 1* | `1` | `CLAUDE_PLUGIN_OPTION_LIVE_WORKERS` | How many workers /verification:confirm splits its live drive across, by feature-map entry point; default 1. Above 1 on one machine it needs a Workspace environment entry on the default branch, else one worker runs. A repository's docs/conventions/verification.yaml wins. |
 
 ### How to set these
 

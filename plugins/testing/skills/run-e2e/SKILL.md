@@ -34,17 +34,27 @@ after a scoped invocation**: the run exits degraded and the report names the pat
 not named.
 
 **Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
-launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, the
-drive subagent probes the URL or port the scenario or the project's documented start command
-names. The scenario is free-form input, so the target is used only when it is a bare
+launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, or
+before `up` when a Workspace environment entry exists (Step 3), the drive subagent probes the URL or
+port the scenario or the project's documented start command names. The scenario is free-form input,
+so the target is used only when it is a bare
 `http://` or `https://` URL on `localhost` or `127.0.0.1`, or a bare port number, with no
 whitespace or shell metacharacters; the subagent passes it as one quoted argument
 (`curl -fsS --max-time 5 "<url>"`, or a connect to the port). Any other value is not probed. A
-response means the app is already running, and the resolved `reuse_running_instance` (Step 2)
-decides: `auto` or `true` skips the step and drives that app, so `run` never starts a second
-instance, and an `unattended` run labels its evidence "instance not started by this run"; `false`
-stops with the gap report naming the collision (the running app, its URL or port, and the setting).
-No usable target, or no response, means not running and the step proceeds.
+response means an app is already answering, and the resolved `reuse_running_instance` (Step 2),
+with whether origin's default branch declares a Workspace environment entry, decides:
+
+| `reuse_running_instance` | Entry | What the run does |
+|---|---|---|
+| `true`, or `auto` on an attended run | either | drives that app and starts nothing, so no second instance runs; an `unattended` run labels its evidence "instance not started by this run" |
+| `auto` on an `unattended` run | none | drives that app, evidence labelled "instance not started by this run" |
+| `auto` on an `unattended` run, or `false` in either mode | declared | starts its own instance: runs `up`, then `info`, and drives the URL `info` reports, never the app that answered |
+| `false` | none | stops with the gap report naming the collision (the running app, its URL or port, and the setting) |
+
+An instance this run did not start is never driven on the own-instance row: when `info` reports the
+address that answered before `up`, the run cannot tell its instance from the other, and it stops with
+the gap report naming the collision. No usable target, or no response, means not running and the
+step proceeds.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
@@ -156,7 +166,9 @@ drive subagent runs its `up` and then its `info` through the Bash tool before dr
 the address `info` reports instead of assuming `localhost:<port>`. The entry is read from the
 fetched default-branch commit, never the working tree. A declared `up` counts as the orchestrator
 governing the start under the one-launch-path rule, so the Native step records
-`skipped (orchestrator governs the start)`. Neither verb runs for a worktree whose stage reads
+`skipped (orchestrator governs the start)`. When an app already answers before `up`, the Already
+running table in the Native step decides whether the run reuses it or starts its own instance.
+Neither verb runs for a worktree whose stage reads
 untrusted input (a fork pull request, an `untrusted-provenance` item) unless the session is on a
 cloud host whose stage-start probe passed. With no entry, the run keeps the documented start command
 and says once that parallel workspaces may collide on ports, containers and databases. Procedure:
@@ -166,7 +178,7 @@ and says once that parallel workspaces may collide on ports, containers and data
 
 The drive subagent makes one run id when the run starts: the UTC time as `YYYYMMDDHHMMSS`, a `-`,
 and four random hex digits (`20261004153012-7f3a`). Every browser session the run opens is named
-`<run id>-<scenario part>`, built with this slug rule:
+`[<workspace part>-]<run id>-<scenario part>`, built with this slug rule:
 
 1. Lower-case the text.
 2. Replace each run of characters outside `a-z0-9` with a single `-`.
@@ -178,6 +190,14 @@ rule again, so the 64-character cut only ever shortens the scenario part and the
 whole. Every name matches `^[a-z0-9-]{1,64}$`. Scenario `Checkout: apply coupon & pay` becomes
 `<run id>-checkout-apply-coupon-pay`. The subagent composes the name itself: the raw scenario text
 never reaches a shell, and only the finished name is passed, quoted, as `-s='<name>'`.
+
+When the run has a `WORKSPACE_ID` (a Workspace environment entry ran, Step 3), the name starts with
+a workspace part, so runs in different worktrees never share a session name. `WORKSPACE_ID` is
+untrusted text: it goes through the slug rule and is then cut to 24 characters before it is joined,
+and the joined name goes through the slug rule's 64-character cut as before, which still shortens
+only the scenario part, so the run id survives whole. `WORKSPACE_ID` `Feature/ABC 12;x` gives the
+workspace part `feature-abc-12-x`. Like the scenario text, the raw value never reaches a shell; only
+the finished name is passed. With no `WORKSPACE_ID` the name has no workspace part.
 
 ### Feature map
 

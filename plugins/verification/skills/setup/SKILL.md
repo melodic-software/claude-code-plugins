@@ -1,6 +1,6 @@
 ---
 description: "Report where verification artifacts land and write the repository's docs/conventions/verification.yaml proof level. check (read-only) names the memory root the verification skills resolve and validates the settings file; apply writes proof_level after confirmation. Use when: 'set up verification', 'configure the verification plugin', 'is verification configured', 'verification setup', 'where do verification manifests / baselines land', 'set the proof level for this repo'. Actions: check (read-only, default) | apply proof_level=VALUE. Re-runnable."
-argument-hint: "[check|apply] [proof_level=<path|live|strict>]"
+argument-hint: "[check|apply] [proof_level=<path|live|strict>] [live_workers=<n>]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -14,7 +14,7 @@ raw captures into the memory slice `<memory_dir>/<slug>/`, never committed. `<me
 unless the project's own instructions declare another root. Nothing about placement is configured.
 
 The plugin owns one tracked settings file, `docs/conventions/verification.yaml`, the repository
-layer of its one setting, `proof_level` (values, layers and the stricter-wins rule:
+layer of its settings, `proof_level` and `live_workers=<n>` (values, layers and the level rules:
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md); schema:
 `${CLAUDE_PLUGIN_ROOT}/schemas/verification.schema.json`). `check` reports it; `apply` writes it
 only when the operator names the key or asks to set the proof level. Idempotent: re-running reads

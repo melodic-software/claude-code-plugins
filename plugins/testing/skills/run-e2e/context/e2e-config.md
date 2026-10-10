@@ -73,12 +73,19 @@ serve the target, is the Driver ranking section of [e2e.md](e2e.md).
 
 ### `reuse_running_instance`
 
-Selects what a run does when the app already answers at the URL or port it would use.
+Selects what a run does when the app already answers at the URL or port it would use. The answer
+also depends on whether origin's default branch declares a Workspace environment entry, which gives
+each worktree its own instance through `up` and `info`.
 
-- `auto` (default) and `true`: drive the running app. An unattended run labels its evidence
-  "instance not started by this run".
-- `false`: stop with the gap report naming the collision. Starting a second instance beside the
-  running one needs an isolated workspace, which this skill does not provide yet.
+- `true`, and `auto` on an attended run: drive the running app. An unattended run labels its
+  evidence "instance not started by this run".
+- `auto` on an unattended run: with an entry, start this run's own instance (`up`, then the URL
+  `info` reports) and never drive the app that answered; with no entry, drive the running app with
+  the label above.
+- `false`: with an entry, start this run's own instance the same way, attended or not; with no
+  entry, stop with the gap report naming the collision.
+
+The decision table is in SKILL.md's Native step, under Already running.
 
 ### `feature_map_dir`
 

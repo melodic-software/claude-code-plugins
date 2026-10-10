@@ -192,7 +192,7 @@
       "id": "e2e-settings-09",
       "name": "reuse-false-with-app-answering-stops",
       "prompt": "/testing:run-e2e the signup form. docs/conventions/testing.yaml sets `reuse_running_instance: false`. No orchestrator governs the start, and an app already answers on port 8080.",
-      "expected_output": "false forbids driving an instance this run did not start, and a second instance beside it is not supported. The run stops with the gap report naming the collision: the app answering on port 8080 and reuse_running_instance: false from docs/conventions/testing.yaml.",
+      "expected_output": "false forbids driving an instance this run did not start, and a second instance beside it needs a Workspace environment entry, which this repository has none of. The run stops with the gap report naming the collision: the app answering on port 8080 and reuse_running_instance: false from docs/conventions/testing.yaml.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -399,6 +399,72 @@
       "expectations": [
         "Names docs/conventions/testing.yaml, feature_map_dir and /home/shared/maps as refused",
         "Reads the map from .claude/skills/feature-map without stopping the run"
+      ]
+    },
+    {
+      "id": "own-instance-01",
+      "name": "unattended-auto-with-entry-starts-own-instance",
+      "prompt": "/testing:run-e2e unattended the order history page. reuse_running_instance resolves to auto. origin/main's docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `scripts/ws.sh up`, info: `scripts/ws.sh info`). An app already answers at http://localhost:3000, started by someone else. After up, info prints APP_URL=http://127.0.0.1:49210.",
+      "expected_output": "Because the run is unattended, the setting is auto and a Workspace environment entry exists, the run starts its own instance: it runs up, then info, and drives http://127.0.0.1:49210. It never drives the app already answering at http://localhost:3000.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the entry's up and then info",
+        "Drives the APP_URL info reported, http://127.0.0.1:49210",
+        "Never drives the app already answering at http://localhost:3000"
+      ]
+    },
+    {
+      "id": "own-instance-02",
+      "name": "false-with-entry-attended-starts-own-instance",
+      "prompt": "/testing:run-e2e the team calendar view. Someone is present (no unattended token). reuse_running_instance resolves to false. origin/main's docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `make ws-up`, info: `make ws-info`). An app already answers at http://localhost:8080. After up, info prints APP_URL=http://localhost:51877.",
+      "expected_output": "With false and a Workspace environment entry, the run does not stop on the answering app: it starts its own instance through up, reads info, and drives http://localhost:51877, never the app at http://localhost:8080.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not stop with a collision gap report",
+        "Runs up and then info and drives http://localhost:51877",
+        "Never drives the app already answering at http://localhost:8080"
+      ]
+    },
+    {
+      "id": "own-instance-03",
+      "name": "false-with-entry-unattended-starts-own-instance",
+      "prompt": "/testing:run-e2e unattended the team calendar view. reuse_running_instance resolves to false. origin/main's docs/conventions/workspace-environment.md declares a Workspace environment entry (up: `make ws-up`, info: `make ws-info`). An app already answers at http://localhost:8080. After up, info prints APP_URL=http://localhost:51877.",
+      "expected_output": "Unattended with false and a Workspace environment entry, the run starts its own instance through up, reads info, and drives http://localhost:51877, never the app at http://localhost:8080; it does not stop on the collision.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not stop with a collision gap report",
+        "Runs up and then info and drives http://localhost:51877",
+        "Never drives the app already answering at http://localhost:8080"
+      ]
+    },
+    {
+      "id": "own-instance-04",
+      "name": "workspace-id-slugged-into-session-prefix",
+      "prompt": "/testing:run-e2e the coupon form. A Workspace environment entry ran up and info, and the run's WORKSPACE_ID text is `Feature/ABC 12;x`.",
+      "expected_output": "The workspace part of every session name is feature-abc-12-x: lower-cased, each run of other characters turned into one dash. Session names read feature-abc-12-x-<run id>-coupon-form, and the raw WORKSPACE_ID text never reaches a shell; only the finished name is passed, quoted.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses feature-abc-12-x as the workspace part",
+        "Composes names as <workspace part>-<run id>-<scenario part>",
+        "Passes only the finished, quoted name, never the raw WORKSPACE_ID text"
+      ]
+    },
+    {
+      "id": "own-instance-05",
+      "name": "long-workspace-id-and-scenario-keep-run-id",
+      "prompt": "/testing:run-e2e followed by a 200-character scenario: the words 'apply partial refund to a split shipment order ' repeated until the text is 200 characters long. A Workspace environment entry ran, and the run's WORKSPACE_ID is the 80-character text 'q4-ledger-reconciliation-' repeated and cut to 80 characters.",
+      "expected_output": "The workspace part is cut to 24 characters, q4-ledger-reconciliation. The session name is exactly 64 characters: the 24-character workspace part, a dash, the whole 19-character run id, a dash, and the first 19 characters of the slugged scenario, apply-partial-refun. It matches ^[a-z0-9-]{1,64}$.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses the 24-character workspace part q4-ledger-reconciliation",
+        "Produces a session name exactly 64 characters long",
+        "Keeps the whole 19-character run id in the name",
+        "Shortens only the scenario part, to apply-partial-refun"
       ]
     }
   ]

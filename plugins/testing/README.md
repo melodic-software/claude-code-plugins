@@ -166,7 +166,11 @@ judges those tests at the task end, again with no background job ahead of it.
 `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
 layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
-an invalid value instead of stopping. Under `auto` a run now drives through the repository's own
+an invalid value instead of stopping. When an app already answers and the default branch declares a
+Workspace environment entry, `reuse_running_instance: false`, and `auto` on an unattended run,
+start the run's own instance through the entry's `up` and `info` and never drive the answering app;
+with no entry, unattended `auto` reuses the app with labelled evidence and `false` stops, as
+before. Under `auto` a run now drives through the repository's own
 harness when a spec covers the changed flow, and otherwise through the path it used before. A fifth
 key, `feature_map_dir` (default `.claude/skills/feature-map`), says where `/testing:map-features`
 writes the feature map and where run-e2e reads it; it is a repository path, set only in
@@ -262,7 +266,7 @@ reads it from.
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
-| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | auto (default) or true: /testing:run-e2e drives an app that already answers, labelling unattended evidence; false: it stops with a gap report instead. A repository's docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labelled evidence and false stops. docs/conventions/testing.yaml wins. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these

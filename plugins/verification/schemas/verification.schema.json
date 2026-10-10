@@ -11,6 +11,12 @@
       "enum": ["path", "live", "strict"],
       "default": "path",
       "description": "How much evidence /verification:confirm requires before a CONFIRMED verdict. path: a live run only for a change on a runtime-affecting path. live: a live drive for any change with a runnable surface when the app can be launched, else the non-UI check that proves the change. strict: a unit, a live and a performance box per plan phase, each holding evidence or a reasoned not-applicable line. Unlike a later-layer key, the stricter of this value and the user's option wins (path < live < strict), and this file is read from the default branch's committed copy, so a branch cannot lower it for its own run."
+    },
+    "live_workers": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "How many workers /verification:confirm splits its live drive across, one group of feature-map entry points each. 1 keeps a single drive. A count above 1 on one machine also needs a Workspace environment entry on the default branch; without one the run uses one worker and says why. This file's value wins over the user's option."
     }
   }
 }

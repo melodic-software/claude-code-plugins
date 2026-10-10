@@ -623,6 +623,126 @@ assert_contains "case 24: a committed bad value is named" "$out" "proof_level=ma
 assert_eq "case 24: a valid working-tree value does not stand in for the committed one" "0" \
   "$(printf '%s\n' "$out" | grep -c '^PASS proof_level')"
 
+# --- Case 26: live_workers takes an unquoted whole number of at least 1 --------
+# The schema gives live_workers type integer and minimum 1, so 1, 2 and 12 are
+# valid and the file holds them as written.
+for n in 1 2 12; do
+  R26="$(new_root "c26-$n")"
+  run --root "$R26" "live_workers=$n" >/dev/null
+  assert_eq "case 26: live_workers=$n exits 0" "0" "$?"
+  assert_eq "case 26: the file holds live_workers: $n" "1" "$(grep -cx "live_workers: $n" "$(yaml_of "$R26")")"
+  out="$(run --root "$R26" --check)"
+  assert_eq "case 26: --check after live_workers=$n exits 0" "0" "$?"
+  assert_contains "case 26: --check reports live_workers: $n" "$out" "PASS live_workers: $n"
+done
+R26B="$(new_root c26b)"
+run --root "$R26B" proof_level=live live_workers=3 >/dev/null
+assert_eq "case 26: both keys in one apply exit 0" "0" "$?"
+assert_eq "case 26: both keys are written" "2" \
+  "$(grep -cxE 'proof_level: live|live_workers: 3' "$(yaml_of "$R26B")")"
+R26U="$(new_root c26u)"
+printf 'proof_level: strict\n' >"$(yaml_of "$R26U")"
+out="$(run --root "$R26U" --check)"
+assert_contains "case 26: a file without live_workers reports it unset" "$out" "PASS live_workers: (unset)"
+run --root "$R26U" --yes live_workers=2 >/dev/null
+assert_eq "case 26: adding live_workers beside proof_level exits 0" "0" "$?"
+assert_eq "case 26: proof_level is kept and live_workers added" $'proof_level: strict\nlive_workers: 2' \
+  "$(cat "$(yaml_of "$R26U")")"
+
+# --- Case 27: a command-line live_workers that is not such a number is refused --
+# A quoted number, a decimal, a sign, 0, a leading zero, a word and an empty or
+# empty-quoted value: one line, no file created, an existing file untouched.
+for bad in 0 00 02 -1 +2 2.5 2.0 1e3 abc ' 2' '"2"' "'2'" '' '""'; do
+  r="$(new_root "c27-$(printf '%s' "$bad" | od -An -tx1 | tr -dc '0-9a-f')")"
+  f="$(yaml_of "$r")"
+  out="$(run --root "$r" "live_workers=$bad")"
+  assert_eq "case 27: live_workers=$bad with no file exits 1" "1" "$?"
+  one_line "case 27: live_workers=$bad with no file" "$out"
+  assert_eq "case 27: live_workers=$bad creates no file" "0" "$(exists "$f")"
+  printf 'live_workers: 2\n' >"$f"
+  before="$(od -c "$f")"
+  out="$(run --root "$r" --yes "live_workers=$bad")"
+  assert_eq "case 27: live_workers=$bad over a file exits 1" "1" "$?"
+  one_line "case 27: live_workers=$bad over a file" "$out"
+  assert_eq "case 27: live_workers=$bad leaves the file untouched" "$before" "$(od -c "$f")"
+done
+
+# --- Case 28: --check names an invalid live_workers and drops only that key -----
+# ADR 0054 Decision 7: the WARN names the key and the value, no PASS live_workers
+# line is printed, and a valid proof_level beside it still gets its PASS line.
+lw_warns() { # lw_warns <label> <live_workers line(s)> <text the WARN must name>
+  local r out
+  r="$(new_root "lw-$1")"
+  printf 'proof_level: live\n%s' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  assert_eq "case 28: --check on $1 exits 1" "1" "$?"
+  assert_contains "case 28: the WARN for $1 names it" "$out" "$3"
+  assert_eq "case 28: $1 prints no PASS live_workers line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS live_workers')"
+  assert_contains "case 28: $1 keeps the PASS line for proof_level" "$out" "PASS proof_level: live"
+}
+lw_warns "zero" $'live_workers: 0\n' "live_workers=0"
+lw_warns "a decimal" $'live_workers: 2.5\n' "live_workers=2.5"
+lw_warns "a negative number" $'live_workers: -1\n' "live_workers=-1"
+lw_warns "a plus sign" $'live_workers: +2\n' "live_workers=+2"
+lw_warns "a quoted number" $'live_workers: "2"\n' 'live_workers="2"'
+lw_warns "a word" $'live_workers: many\n' "live_workers=many"
+lw_warns "an empty value" $'live_workers:\n' "live_workers is empty"
+lw_warns "a null value" $'live_workers: null\n' "live_workers is null"
+lw_warns "an empty quoted string" $'live_workers: ""\n' 'live_workers=""'
+lw_warns "a flow list" $'live_workers: [2]\n' "live_workers=[2]"
+lw_warns "a block list" $'live_workers:\n  - 2\n' "live_workers"
+
+# --- Case 29: apply overwrites an out-of-range or non-integer live_workers -------
+lw_replaces() { # lw_replaces <label> <file body>
+  local r f
+  r="$(new_root "lr-$1")"
+  f="$(yaml_of "$r")"
+  printf '%s' "$2" >"$f"
+  run --root "$r" --yes live_workers=4 >/dev/null
+  assert_eq "case 29: apply over $1 exits 0" "0" "$?"
+  assert_eq "case 29: apply over $1 leaves the asked-for line" "live_workers: 4" "$(cat "$f")"
+}
+lw_replaces "zero" $'live_workers: 0\n'
+lw_replaces "a decimal" $'live_workers: 2.5\n'
+lw_replaces "a negative number" $'live_workers: -3\n'
+lw_replaces "a quoted number" $'live_workers: "2"\n'
+lw_replaces "a word" $'live_workers: many\n'
+lw_replaces "an empty value" $'live_workers:\n'
+lw_replaces "a null value" $'live_workers: ~\n'
+lw_refuses() { # lw_refuses <label> <file body>: one line, file byte for byte unchanged
+  local r f before out
+  r="$(new_root "lf-$1")"
+  f="$(yaml_of "$r")"
+  printf '%s' "$2" >"$f"
+  before="$(od -c "$f")"
+  out="$(run --root "$r" --yes live_workers=4)"
+  assert_eq "case 29: apply over $1 exits 1" "1" "$?"
+  one_line "case 29: apply over $1" "$out"
+  assert_eq "case 29: apply over $1 leaves the file untouched" "$before" "$(od -c "$f")"
+  assert_eq "case 29: apply over $1 leaves no temp file" "0" "$(leftover_temps "$r")"
+}
+lw_refuses "an empty quoted string" $'live_workers: ""\n'
+lw_refuses "a flow list" $'live_workers: [2]\n'
+lw_refuses "a block map" $'live_workers:\n  n: 2\n'
+lw_refuses "a duplicate live_workers key" $'live_workers: 2\nlive_workers: 3\n'
+lw_refuses "an unknown key beside live_workers" $'live_workers: 2\nworkers: 3\n'
+lw_refuses "an invalid proof_level it is not writing" $'proof_level: maybe\nlive_workers: 2\n'
+pair_twice "live_workers twice" live_workers=2 live_workers=3
+
+# --- Case 30: --check --ref reads live_workers as committed ------------------------
+R30="$TEST_TMPDIR/c30"
+mkdir -p "$R30/docs/conventions"
+g "$R30" init -q
+printf 'live_workers: 4\n' >"$(yaml_of "$R30")"
+g "$R30" add docs/conventions/verification.yaml
+g "$R30" commit -q -m base
+g "$R30" update-ref refs/remotes/origin/main HEAD
+printf 'live_workers: 1\n' >"$(yaml_of "$R30")"
+out="$(run --root "$R30" --check --ref origin/main)"
+assert_eq "case 30: --check --ref with a committed live_workers exits 0" "0" "$?"
+assert_contains "case 30: the committed live_workers is read, not the working tree's" "$out" "PASS live_workers: 4"
+assert_contains "case 30: proof_level is unset in the committed file" "$out" "PASS proof_level: (unset)"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -66,7 +66,7 @@
     "reuse_running_instance": {
       "type": "string",
       "title": "Reuse a running app",
-      "description": "auto (default) or true: /testing:run-e2e drives an app that already answers, labelling unattended evidence; false: it stops with a gap report instead. A repository's docs/conventions/testing.yaml wins.",
+      "description": "true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labelled evidence and false stops. docs/conventions/testing.yaml wins.",
       "default": "auto",
       "options": ["auto", "true", "false"]
     },

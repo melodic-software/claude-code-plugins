@@ -1,14 +1,15 @@
 # verification settings
 
-The one key the verification plugin's skills read. It is set per user through the plugin's
+The keys the verification plugin's skills read. Each is set per user through the plugin's
 `userConfig` option of the same name and per repository in `docs/conventions/verification.yaml`,
 validated by [`schemas/verification.schema.json`](../schemas/verification.schema.json). No
-`~/.claude` file, `.claude/` file or local overlay sets it. `/verification:setup apply` writes the
+`~/.claude` file, `.claude/` file or local overlay sets them. `/verification:setup apply` writes the
 repository file after validating it; `/verification:setup check` validates it.
 
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `proof_level` | `path`, `live`, `strict` | `path` | `/verification:confirm` (Stage 2 step 1) | stricter wins (`path` < `live` < `strict`); the repository value is read from the default branch |
+| `live_workers` | a whole number, at least `1` | `1` | `/verification:confirm` (Stage 2 step 1) | per user (`userConfig.live_workers`) and per repository (`docs/conventions/verification.yaml`); the later layer wins: repository file over user option over default; the repository value is read from the default branch ([Resolving `live_workers`](#resolving-live_workers)) |
 
 ## What each level requires
 
@@ -45,11 +46,12 @@ result as a person.
    Its first line names the commit read; the report carries that commit. When the fetch fails, the
    last fetched copy is read and the report says it may be stale. The reader's result:
    - exit 0 with `INFO ... absent` or `PASS proof_level: (unset)`: the layer is unset.
-   - exit 0 with `PASS proof_level: <level>`: the layer sets that level.
-   - exit 1: the committed value or the whole committed file is invalid. Each `WARN` line names
-     the file, the key and the value (an unlisted word, a capitalized level, an empty value, a
-     list, a key set twice, an unknown key, a parse error, a committed symlink). The layer is
-     invalid.
+   - exit 0 or 1 with `PASS proof_level: <level>`: the layer sets that level. On exit 1 the
+     `WARN` lines name another key, such as a bad `live_workers`, and leave `proof_level` valid.
+   - exit 1 with no `PASS proof_level` line: the committed `proof_level` or the whole committed
+     file is invalid. Each `WARN` line names the file, the key and the value (an unlisted word, a
+     capitalized level, an empty value, a list, a key set twice, an unknown key, a parse error, a
+     committed symlink). The layer is invalid for `proof_level`.
    - exit 2 (no `origin/<default>`, a ref that does not resolve) or node not installed: the layer
      cannot be read; skip it and say why.
 
@@ -74,3 +76,42 @@ different level from the default branch's copy, the report names both and says w
 `docs/conventions/verification.yaml`, so on that machine a repository's `live` or `strict` silently
 weakens to the `path` rule. Upgrade every member before setting a repository level; the report line
 lets a reviewer see a run that lacks it.
+
+## Resolving `live_workers`
+
+`live_workers` is how many workers share the live drive Stage 2 step 1 runs, split by feature-map
+entry point. It decides only how many workers run that drive; `proof_level` still decides whether a
+live drive is required. `/verification:confirm` resolves it once per run, beside `proof_level`, and
+never asks the user.
+
+1. **Default:** `1`, a single drive, the behavior before this key existed.
+2. **User option:** `${user_config.live_workers}`, rendered into the skill. A literal, unexpanded
+   placeholder means unset.
+3. **Repository file:** `live_workers` in `docs/conventions/verification.yaml`, read from origin's
+   default branch by the same `setup-apply.mjs --check --ref origin/<default>` call, root rule and
+   branch-name check that read `proof_level` (Resolution above). That call prints
+   `PASS live_workers: <n>`, `PASS live_workers: (unset)`, or a `WARN` naming the key and value and
+   no `PASS live_workers` line; the value it prints comes through the plugin's
+   `lib/parse-concern-value.sh` copy. Exit 2, node missing or a skipped layer leaves this layer
+   unread, and the report says why.
+
+**Why the default branch.** The worker count starts processes and app instances on the host, so it
+follows the policy the repository has merged, not the branch under verification, and the one
+`--check --ref` call already made for `proof_level` reads both keys. A working-tree value takes
+effect once it is merged.
+
+**Which value wins.** The ordinary later-layer rule, not the stricter-wins rule of `proof_level`: the
+repository value wins over the user option, which wins over the default. A value in either layer
+that is not a whole number of at least 1 (`0`, `2.5`, `-1`, a quoted `"2"`, a word) is named with
+its file or option, the key and the value, and that layer is dropped: a valid higher layer still
+wins, otherwise the key resolves `1`. A lower layer's value is never used in its place, so an
+invalid repository value resolves `1` even when the user option is valid (ADR 0054 Decision 7). An
+invalid value never stops the run, and an invalid `live_workers` never changes `proof_level`: the
+reader still prints `PASS proof_level` for a valid committed level.
+
+**Report line.** The worker line names the count and the layer that supplied it, for example
+`live_workers: 3 (docs/conventions/verification.yaml at origin/main, commit <sha>)` or
+`live_workers: 1 (default)`, with any dropped layer and its reason.
+
+**Older releases.** A verification release from before this key ignores it and runs one worker.
+That is not a floor: nothing weakens, and the report's worker line shows which count ran.

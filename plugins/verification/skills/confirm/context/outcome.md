@@ -64,6 +64,7 @@ Justified additions are fine but should be noted. Unjustified additions should b
 - Scope additions: N (M justified)
 - Verifier model: <model passed to the fresh-context verifier> / not matched to the producing model (unknown)
 - Proof level: <path | live | strict> (<layer that supplied it>; any dropped or skipped layer and why)
+- Live workers: <n resolved> (<layer that supplied it>; any dropped layer and why); <n ran> ran (<why fewer, if fewer>); per worker: <entry points> | <result> | <tokens measured> | <wall time measured>; <"live-UI step unverified on this host" on a cloud execution target>
 ```
 
 ### 5. Verdict

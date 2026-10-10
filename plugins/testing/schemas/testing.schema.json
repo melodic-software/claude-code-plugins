@@ -45,7 +45,7 @@
     "reuse_running_instance": {
       "enum": ["auto", true, false, "true", "false"],
       "default": "auto",
-      "description": "Whether /testing:run-e2e drives an app that already answers. auto and true reuse it, labelling unattended evidence; false stops with the gap report when an app already answers."
+      "description": "Whether /testing:run-e2e drives an app that already answers. true, and auto when attended, reuse it. With a Workspace environment entry, false and unattended auto start the run's own instance through up and info instead; with no entry, unattended auto reuses it with labelled evidence and false stops with the gap report."
     },
     "feature_map_dir": {
       "type": "string",
