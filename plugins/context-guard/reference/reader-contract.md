@@ -34,10 +34,11 @@ the decision, and re-date the record when any of these change. The status line's
 `context_window` fields, whose names and meanings the snapshot keeps, including the
 `used_percentage` formula, and the session usage and version the mods API reports, which the
 module maps onto them. The auto-compact trigger,
-meaning whether a default threshold is published as a number, and which models and environments
-compact before the model's context limit. The four surfaces in the tunable table below
-(`autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`,
-`autoCompactEnabled`), including their units, ranges, and precedence. The skills substitution table
+meaning how the published default thresholds relate to the bands, and which models and environments
+compact before the model's context limit. The surfaces in the tunable table below
+(`autoCompactWindow` at top level, per model, and per subagent, `/autocompact`, `--autocompact`,
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `autoCompactEnabled`),
+including their units, ranges, and precedence. The skills substitution table
 that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
 across its length, which the band rationale cites when it declines a folklore number. Where mods
 run, which decides where a snapshot can be written at all. A release note touching the status
@@ -385,14 +386,14 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No published default auto-compaction threshold grounds the bands.** With no window configured,
-compaction fires at or near the model's context limit; the cases that fire earlier depend on the
-model, the window it runs with, and the environment. For the current thresholds, see
+**The defaults are published by the docs, and we state none of them here.** The default threshold
+depends on the model, the window it runs with, and the environment, so we read it from the
+published table at run time and keep no figure of our own. For the current thresholds, see
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-10-09, the one number that section publishes for native 1M windows, about 967K tokens, sits above
-the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
-protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
-or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
+**As of:** 2026-10-10, our rule is that the shipped `dumb` band must sit below the default trigger
+the table gives for the model in use, which the bands-below-the-trigger rule below protects.
+**Recheck trigger:** that section is renamed or removed, or publishes a default at or below the
+`dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 implies a percentage default that no page publishes as a number; for that variable, see
 [Claude Code environment variables](https://code.claude.com/docs/en/env-vars). The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
@@ -413,24 +414,36 @@ next request, so it can trail `/context`. With auto-compact turned off, the dumb
 - **Recheck trigger**: a release note or either section changes when the percentage is computed or
   what turning auto-compact off does.
 
-### The trigger has no documented threshold, but it is operator-tunable
+### The trigger is operator-tunable
 
-No *default* threshold is published as a number (above), yet the point at which auto-compact fires
-is a configured value the operator can read and set. **Four** surfaces govern it. Each row states
-what this plugin relies on; the pointer holds the units, ranges, forms, and precedence.
+The docs publish the default thresholds (pointer above), and the point at which auto-compact fires
+is a configured value the operator can read and set. Several surfaces govern it. Each row states
+what this plugin relies on; the pointer holds the units, ranges, and forms. Rows marked observed
+were run on Claude Code 2.1.296 on 2026-10-10 in a throwaway config directory; the rest follow the
+docs or the Claude Code changelog.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
 | `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. Unset gives no number we can read, so we never assume one. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `modelSettings.<model id>.autoCompactWindow` | `settings.json` key, per model | A saved per-model window (Claude Code 2.1.288). Observed 2026-10-10 on 2.1.296: wins over the top-level `autoCompactWindow` in the same file, and a project-scope top-level key still beats a user-scope per-model value. Not observed: against managed settings, and on models other than Opus. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `/autocompact [auto\|<tokens>]` | slash command | Writes the per-model value above at user scope. Observed 2026-10-10 on 2.1.296: runs under `-p`, and with no argument reports the effective value and its source, which is the one reader that names the winner. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `--autocompact <tokens>` | CLI flag | Observed 2026-10-10 on 2.1.296: beats the settings keys above and loses to `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. | [cli-reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). Per the changelog only; the docs are silent and we did not probe it, so we read it as unconfirmed and never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. Observed 2026-10-10 on 2.1.296: beats `--autocompact`. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. We treated `DISABLE_COMPACT` as unconfirmed by docs: it came from our 2026-08-17 probe of the shipped binary's strings (v2.1.233) and was absent from the env-vars page on 2026-08-19. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 
 We read a configured window above the model's context window as the model's window: it extends
 nothing.
 
+Precedence, highest first, for the session's own window: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then
+`--autocompact`, then project-scope settings, then the user-scope per-model value over the user-scope
+top-level key. Every step in that order is observed except managed settings, which sit unprobed
+against the saved value. Run `/autocompact` with no argument to see the effective value and its
+source rather than deriving it.
+
 - **Pointer**: per row above.
-- **As of**: 2026-08-19
+- **As of**: 2026-10-10
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
 

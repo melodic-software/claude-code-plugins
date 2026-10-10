@@ -193,7 +193,8 @@ through unchanged.
   data they cannot trust, never a fabricated zone. The shipped bands are declared judgment
   defaults. `zones.json` is the tuning path. The reader contract points at the model-config page's
   default auto-compact thresholds and records how they relate to the bands. The trigger itself is
-  operator-tunable: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`,
+  operator-tunable: `autoCompactWindow` (top level, per model, and in subagent frontmatter),
+  `/autocompact`, `--autocompact`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`,
   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`. Bands
   belong **below** whatever it resolves to, normalized into the percentage shape, so the session
   reaches a boundary decision before the harness compacts for it. Note that `used_percentage`
