@@ -31,16 +31,21 @@ against those sources before relying on a time-sensitive detail; the platform mo
   or the changelog names the runtime, when a mermaid-family rendering failure is
   reported, or at each release of this plugin; re-read the installed binary before
   relying on the number.
-- **Content-Security-Policy**: the page may load typefaces from Google Fonts
-  (`fonts.googleapis.com`, `fonts.gstatic.com`) and scripts from four CDN hosts
-  (`cdnjs.cloudflare.com`, `cdn.jsdelivr.net` on `/npm/` paths,
-  `cdn.tailwindcss.com`, `code.jquery.com`); every other external image, script,
-  stylesheet, and font is blocked, and `fetch`/XHR/WebSocket reach only the page's
-  own origin and the Google Fonts hosts. This plugin's own policy is stricter:
-  inline all CSS and JS and embed images as `data:` URIs, so a page never depends
-  on a network call. There is a page-size cap (~16 MiB). Verified 2026-09-04
-  against `https://code.claude.com/docs/en/artifacts`; recheck when that page's
-  "Page constraints" or "Allowlist the viewer domain" section changes.
+- **Content-Security-Policy**: the published page's CSP decides which external
+  hosts it may load from. This plugin's policy is stricter: inline all CSS and JS
+  and embed images as `data:` URIs, so a page never depends on a network call. If
+  a page ever has to load something external, use only a host the artifacts page
+  allows, and check that list live before relying on one.
+  - **Pointer**: when a page would load anything from an external host, fetch
+    [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
+    live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: the "Page constraints" section changes its external
+    requests row.
+
+  There is a page-size cap (~16 MiB). Verified 2026-09-04 against
+  `https://code.claude.com/docs/en/artifacts`; recheck when that page's "Page
+  constraints" section changes.
 - **Theme-aware** (light/dark), **responsive**, and **favicon required**. This is
   the Artifact tool's own contract; an artifact-design capability, when installed,
   owns the craft on top of it.
@@ -114,9 +119,9 @@ needing no rendering surface beyond GFM.
 
 ### Charts (quantitative data)
 
-This plugin loads **no external chart library** on a page: the platform allows
-scripts from four CDN hosts, but the plugin's policy is no network calls, so the
-paths are zero-dependency:
+This plugin loads **no external chart library** on a page, even from a host the
+artifact CSP allows (see the Content-Security-Policy entry above): the plugin's
+policy is no network calls, so the paths are zero-dependency:
 
 - **On a page:** hand-authored inline **SVG + CSS** primitives (bars, lines,
   scatter, area, stat tiles). The *craft* of palette, scales, marks, and
@@ -248,8 +253,8 @@ what terminal Markdown rendering covers.
   Desktop's Claude Code tab showing a mermaid fence as raw source. Recheck when a
   changelog entry or either page names terminal diagram rendering, or when #14375
   closes.
-- Artifact CSP (Google Fonts plus four CDN script hosts allowed, everything else
-  blocked; this plugin inlines regardless), ~16 MiB, HTML+Markdown types,
+- Artifact CSP (this plugin inlines regardless; the allowed hosts are read live
+  per the Content-Security-Policy entry's pointer), ~16 MiB, HTML+Markdown types,
   availability gating, and connector-backed live data (verified 2026-09-04):
   `https://code.claude.com/docs/en/artifacts`.
 - Artifact native mermaid, favicon requirement, theme-awareness
