@@ -131,9 +131,11 @@ const ENGLISH_LANGUAGE_KEY = /^en(?:-|$)/i;
  *
  * yt-dlp writes an auto track as a bare `<id>.en.vtt` too, so the filename
  * alone cannot prove a manual track. When `manualLanguages` (the keys of
- * info.json `subtitles`) is given and holds no English key, a `manual-en`
- * pick is reclassified `auto-en` with a `provenanceNote`. Omitted, the
- * filename classification stands.
+ * info.json `subtitles`) is given and holds no English key, the bare
+ * `.en.vtt` is auto-generated and may be YouTube's machine translation
+ * (`tlang=en`), so an original `auto-en` track (`.en-orig.vtt`) wins;
+ * without one, the bare file is reclassified `auto-en` with a
+ * `provenanceNote`. Omitted, the filename classification stands.
  *
  * @param {string[]} captionPaths
  * @param {CaptionClass} [captionClass]
@@ -157,14 +159,15 @@ export function selectCaptionFile(
     }
   }
 
+  const noManualEnglish =
+    manualLanguages !== undefined &&
+    !manualLanguages.some((language) => ENGLISH_LANGUAGE_KEY.test(language));
+
   for (const rung of ladder) {
     const match = byRung.get(rung);
     if (!match) continue;
-    if (
-      rung === "manual-en" &&
-      manualLanguages &&
-      !manualLanguages.some((language) => ENGLISH_LANGUAGE_KEY.test(language))
-    ) {
+    if (rung === "manual-en" && noManualEnglish) {
+      if (byRung.has("auto-en")) continue;
       return {
         success: true,
         selection: {
