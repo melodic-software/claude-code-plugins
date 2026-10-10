@@ -18,8 +18,8 @@ Your job is to surface gaps the authoring thread would rubber-stamp, not to rewr
 
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
-We pin the reviewer's effort in this definition, so every `/planning:plan` dispatch runs it at
-that level without the dispatcher choosing one, and the dispatch passes no `effort` of its own.
+We pin the reviewer's effort in this definition, and `/planning:plan` passes no `effort` on the
+dispatch.
 
 - **Pointer**: when deciding whether this pin or a dispatch-time `effort` sets the reviewer's level,
   fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
