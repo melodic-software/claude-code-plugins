@@ -33,19 +33,16 @@ against those sources before relying on a time-sensitive detail; the platform mo
   relying on the number.
 - **Content-Security-Policy**: the published page's CSP decides which external
   hosts it may load from. This plugin's policy is stricter: inline all CSS and JS
-  and embed images as `data:` URIs, so a page never depends on a network call. If
-  a page ever has to load something external, use only a host the artifacts page
-  allows, and check that list live before relying on one.
-  - **Pointer**: when a page would load anything from an external host, fetch
+  and embed images as `data:` URIs, so a page never depends on a network call,
+  even to a host the CSP allows. The rendered page also has a size cap, so large
+  embedded images can fail a publish.
+  - **Pointer**: when a question turns on which external hosts the CSP allows or
+    on the page-size cap, fetch
     [Artifacts: Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
     live.
   - **As of**: 2026-10-10
   - **Recheck trigger**: the "Page constraints" section changes its external
-    requests row.
-
-  There is a page-size cap (~16 MiB). Verified 2026-09-04 against
-  `https://code.claude.com/docs/en/artifacts`; recheck when that page's "Page
-  constraints" section changes.
+    requests or rendered size row.
 - **Theme-aware** (light/dark), **responsive**, and **favicon required**. This is
   the Artifact tool's own contract; an artifact-design capability, when installed,
   owns the craft on top of it.
