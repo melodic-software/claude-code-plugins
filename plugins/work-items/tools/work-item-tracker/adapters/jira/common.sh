@@ -83,7 +83,7 @@ readonly WIT_JIRA_PROJECT_KEY_RE='^[A-Za-z][A-Za-z0-9_]*$'
 readonly WIT_JIRA_CATEGORY_KEY_RE='^[A-Za-z][A-Za-z0-9-]*$'
 # Blocker issue keys go into the resolution lookup's `key in (...)` clause, so they get
 # the same allowlist treatment.
-readonly WIT_JIRA_ISSUE_KEY_RE='^[A-Za-z][A-Za-z0-9_]*-[0-9]+$'
+readonly WIT_JIRA_ISSUE_KEY_RE='^[A-Za-z][A-Za-z0-9_]*-[0-9]+\z'
 
 # config.jira.site becomes the request host that receives the Basic-auth token, so it
 # must be a BARE hostname — no scheme, path, userinfo (`@`), port, or control chars —
@@ -417,7 +417,7 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM='
   def blockers: [(.fields.issuelinks // [])[]
     | select(.type.name == $blk and (.inwardIssue != null)) | .inwardIssue];
   def done: (.fields.status.statusCategory.key) as $bk | ($dk | index($bk)) != null;
-  def lookup: .key as $k | ($res[$k] // {read: true, name: null});
+  def lookup: .key as $k | ((if ($k | type) == "string" then $res[$k] else null end) // {read: true, name: null});
   def wontdo: lookup as $l | $l.read and ($l.name | type) == "string"
     and ([$wd[] | ascii_downcase] | index($l.name | ascii_downcase)) != null;
   def unread: lookup | .read | not;
