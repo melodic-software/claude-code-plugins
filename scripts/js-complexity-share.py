@@ -9,8 +9,7 @@ Run from the repository root. Prints one line,
 decimals). 20 is the code-metrics plugin's cyclomatic reference (ISO/IEC
 5055:2021 section 8.2.117), and lizard is its collector for the lane.
 
-The scope is the one the slope measurement behind this counter used, so the
-number stays comparable with it:
+The scope:
 
 - tracked .js .jsx .mjs .cjs files, outside node_modules, vendor, dist and
   build directories;
@@ -114,8 +113,8 @@ def production_files(registry: str) -> list[str]:
         seen.add(digest)
         if key:
             seen.add(key)
-        # Copies collapse across test and production files alike, as in the
-        # measurement; the test split comes after.
+        # Copies collapse across test and production files alike; the test
+        # split comes after.
         if not is_test(rel):
             kept.append(rel)
     return kept
