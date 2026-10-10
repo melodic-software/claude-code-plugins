@@ -1709,11 +1709,13 @@ printf '%s\n' "import { readFileSync } from 'fs';" "import { join } from 'path';
   "const B = 'src/b.ts';" "const T = join(tmpdir(), 'b.ts');" \
   "test('inline dollar', () => {" "  expect(readFileSync(join(__dirname, '..', 'routes', '_app.\$id.tsx'), 'utf8').indexOf('a')).toBe(1);" "});" \
   "test('one-line const', () => {" "  expect(readFileSync(B, 'utf8')).toContain('x');" "});" \
-  "test('temp const', () => {" "  expect(readFileSync(T, 'utf8')).toContain('x');" "});" >"$RO/const/test/const.test.ts"
+  "test('temp const', () => {" "  expect(readFileSync(T, 'utf8')).toContain('x');" "});" \
+  "test('let redeclares', () => {" "  let B = makeTemp();" "  expect(readFileSync(B, 'utf8')).toContain('x');" "});" >"$RO/const/test/const.test.ts"
 run_scan "$RO/const"
 assert_contains "(const) an inline join to a \$-named route file fires" "$out" "const.test.ts:7: reads tracked source file routes/_app.\$id.tsx as text"
 assert_contains "(const) a read of a one-line const path fires" "$out" "const.test.ts:10: reads tracked source file src/b.ts as text"
 assert_not_contains "(const) a const built from a temp directory is no candidate" "$out" "const.test.ts:13:"
+assert_not_contains "(const) a let redeclaring the name forgets the const path" "$out" "const.test.ts:17:"
 
 # (d) a contract constant under cant-fail-ok: is exempt, and counted.
 printf '%s\n' "import { X_POST_CHARACTER_LIMIT } from '../src/post';" \
