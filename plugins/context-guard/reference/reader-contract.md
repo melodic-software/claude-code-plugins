@@ -387,8 +387,8 @@ including a green `smart` reading. The snapshot cannot tell you compaction happe
 session itself can know.
 
 **The defaults are published by the docs, and we state none of them here.** The default threshold
-depends on the model, the window it runs with, and the environment, so we read it from the
-published table at run time and keep no figure of our own. For the current thresholds, see
+depends on the model, the window it runs with, and the environment, so the docs table is where it is
+published and we keep no figure of our own; it is a documentation pointer, not something read at run time. For the current thresholds, see
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
 **As of:** 2026-10-10, our rule is that the shipped `dumb` band must sit below the default trigger
 the table gives for the model in use, which the bands-below-the-trigger rule below protects.
@@ -424,9 +424,9 @@ docs or the Claude Code changelog.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. Unset gives no number we can read, so we never assume one. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `modelSettings.<model id>.autoCompactWindow` | `settings.json` key, per model | A saved per-model window (Claude Code 2.1.288). Observed 2026-10-10 on 2.1.296: wins over the top-level `autoCompactWindow` in the same file, and a project-scope top-level key still beats a user-scope per-model value. Not observed: against managed settings, and on models other than Opus. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `/autocompact [auto\|<tokens>]` | slash command | Writes the per-model value above at user scope. Observed 2026-10-10 on 2.1.296: runs under `-p`, and with no argument reports the effective value and its source, which is the one reader that names the winner. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. When unset, the default comes from the docs' default-thresholds table (pointer above), and we state no figure. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `modelSettings.<model id>.autoCompactWindow` | `settings.json` key, per model | A saved per-model window (Claude Code 2.1.288). Observed 2026-10-10 on 2.1.296: wins over the top-level `autoCompactWindow` in the same file, and a project-scope top-level key still beats a user-scope per-model value. Per docs, not observed: a managed-settings window holds even after `/autocompact` saves a value. Not observed: on models other than Opus. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `/autocompact [auto\|<tokens>]` | slash command | Writes the per-model value above at user scope. Observed 2026-10-10 on 2.1.296: runs under `-p`, and with no argument prints the effective window and its source (settings or the environment variable). Per docs, interactively it opens a dialog showing the current window. Docs for the command: [commands](https://code.claude.com/docs/en/commands). | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
 | `--autocompact <tokens>` | CLI flag | Observed 2026-10-10 on 2.1.296: beats the settings keys above and loses to `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. | [cli-reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) |
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). Per the changelog only; the docs are silent and we did not probe it, so we read it as unconfirmed and never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. Observed 2026-10-10 on 2.1.296: beats `--autocompact`. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
@@ -438,9 +438,11 @@ nothing.
 
 Precedence, highest first, for the session's own window: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then
 `--autocompact`, then project-scope settings, then the user-scope per-model value over the user-scope
-top-level key. Every step in that order is observed except managed settings, which sit unprobed
-against the saved value. Run `/autocompact` with no argument to see the effective value and its
-source rather than deriving it.
+top-level key. Every step in that order is observed. Managed settings are per docs, not observed:
+a managed window holds even after `/autocompact` saves a value, and managed settings do not
+override `--autocompact`. To see the effective window rather than derive it, run `/autocompact`
+with no argument: observed under `-p` to print the value and its source, and per docs a dialog
+when interactive.
 
 - **Pointer**: per row above.
 - **As of**: 2026-10-10
