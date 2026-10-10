@@ -2,11 +2,14 @@
 # effort-probe.sh <dir>: the subagent effort fixture under <dir>/.claude/.
 #   agents/effort-probe.md           pins `effort: low`, preloads print-effort
 #   agents/effort-probe-unpinned.md  no effort key, preloads print-effort
-#   skills/print-effort/SKILL.md     one Bash call: echo effort=${CLAUDE_EFFORT}
+#   skills/print-effort/SKILL.md     one Bash call: echo effort=${CLAUDE_EFFORT},
+#                                    which a preloaded skill fills in from the
+#                                    session effort, not the subagent's
 #   hooks/log-effort.py              appends each hook payload's effort.level to
-#                                    <dir>/effort.log, a reading independent of
-#                                    the skill's substitution; the case's
-#                                    settings.json registers it
+#                                    <dir>/effort.log; the case's settings.json
+#                                    registers it. PreToolUse writes before the
+#                                    call runs, so a subagent's
+#                                    `cat <dir>/effort.log` returns its own level
 set -euo pipefail
 d="$1"
 mkdir -p "$d/.claude/agents" "$d/.claude/skills/print-effort" "$d/.claude/hooks"
@@ -22,7 +25,7 @@ agent() {
     echo "  - print-effort"
     echo "---"
     echo
-    echo "Follow the preloaded print-effort skill exactly: make its one Bash call once,"
+    echo "Make exactly the one Bash call your task names, once, character for character,"
     echo "then report the tool result verbatim. Make no other tool call."
   } >"$d/.claude/agents/$1.md"
 }

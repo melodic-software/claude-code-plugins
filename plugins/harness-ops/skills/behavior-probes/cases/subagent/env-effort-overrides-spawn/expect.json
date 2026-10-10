@@ -1,5 +1,5 @@
 {
-  "claim": "CLAUDE_CODE_EFFORT_LEVEL=medium overrides both a per-spawn effort of high and the definition's effort: low pin.",
+  "claim": "CLAUDE_CODE_EFFORT_LEVEL=medium overrides both a per-spawn effort of high and the definition's effort: low pin. Read from the PreToolUse hook payload's effort.level, which the subagent's cat of effort.log returns.",
   "tags": [
     "effort",
     "subagent",
@@ -14,12 +14,12 @@
   "max_turns": 8,
   "target": {
     "tool": "Bash",
-    "input_match": "echo effort=",
+    "input_match": "cat .*effort\\.log",
     "in_subagent": true,
     "example": {
-      "command": "echo effort=${CLAUDE_EFFORT}"
+      "command": "cat /tmp/cc-probe-x/effort.log"
     }
   },
   "outcome": "ran",
-  "match": "effort=medium"
+  "match": "tool=Bash effort=medium"
 }

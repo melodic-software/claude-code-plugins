@@ -14,7 +14,7 @@
     "input_match": "\"effort\": \"high\"",
     "example": {
       "description": "effort probe",
-      "prompt": "Run the print-effort command once and report the tool result verbatim.",
+      "prompt": "Run this Bash command exactly once, character for character: cat ${PROBE_WORKDIR}/effort.log. Then report the tool result verbatim.",
       "subagent_type": "effort-probe",
       "run_in_background": false,
       "effort": "high"
