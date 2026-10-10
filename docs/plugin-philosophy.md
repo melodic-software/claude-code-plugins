@@ -673,7 +673,9 @@ is nothing it could conformingly write. Three kinds of surface qualify, in any c
   it is the operator's to apply, and names what re-invalidates it (a plugin update moving
   `${CLAUDE_PLUGIN_ROOT}`, say).
 - **External prerequisites setup can only verify**: a system tool, service, or credential, per the
-  prerequisites section. `check` probes and reports the remediation; installing is the operator's.
+  prerequisites section. `check` probes and reports the remediation; installing is the operator's
+  decision, and the agent runs the fix only on the operator's yes
+  ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Check-only is therefore a consequence of having nothing conforming to write, never a preference and
 never a shortcut. A plugin with even one writable owned artifact takes the narrow-write shape
@@ -785,7 +787,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
 of use and in the plugin README. Never download or execute an undeclared tool as an incidental fallback.
 The [prerequisites convention](conventions/prerequisites/README.md) owns the machine-readable
-declaration and its checker.
+declaration and its checker, and the rule for running a declared fix: the agent offers it and runs
+it only on the user's yes ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Classify absence deliberately:
 

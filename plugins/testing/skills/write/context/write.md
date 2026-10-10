@@ -157,7 +157,7 @@ When no public read path exists and the stored state is not the contract, reachi
 No tests needed for:
 
 - Pure contracts (interfaces, attributes, records with no logic)
-- Constants (validated by drift guard tests in consumers)
+- Constants. A drift guard, where one is needed, compares the constant to its external source of truth (the spec, the consumer's value), never to a literal copied from the code
 - One-liner delegation methods
 - Configuration wiring tested end-to-end through the repo's E2E orchestrator
 
