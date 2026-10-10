@@ -22,3 +22,5 @@ paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
       - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
+      # Remove when an actionlint release accepts `queue` under `concurrency`.
+      - 'unexpected key "queue" for "concurrency" section'

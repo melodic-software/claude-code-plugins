@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=pr-pipeline/pr-pipeline.schema.json
+version: 1
+
+activities:
+  fix-docs:
+    skill: ai-slop:audit
+    args: fix
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    inputs: [changed-paths]
+    applies-when:
+      paths: ["**/*.md"]
+
+lanes:
+  pr-refine:
+    stage: refine
+    slots:
+      - activity: fix-docs
