@@ -155,6 +155,8 @@ baselines). Recheck trigger: a benchmark measures current vision models on UI de
 injected-defect eval in this repository reports catch rates per check, or either cited Playwright
 page changes what it says about automated accessibility coverage or same-environment baselines.
 
+Capture more than the path where everything succeeds. For each changed screen, also drive and capture its error state (a rejected input, a failed request), its empty state (no rows, no search results) and the feedback it gives after an action (a spinner, a toast, an inline message). A state the run could not reach is listed as not driven, with the reason.
+
 ### Recording tier (optional)
 
 Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.

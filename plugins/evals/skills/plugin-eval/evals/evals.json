@@ -141,6 +141,28 @@
         "Names the near-ceiling baseline as leaving no headroom",
         "Reports cost beside the scores"
       ]
+    },
+    {
+      "id": 13,
+      "name": "spot-read-before-trusting-delta",
+      "prompt": "/evals:plugin-eval read results.json for my changelog-writer plugin. run-validity says VALID, the noise report says the interval excludes 0, and the delta is +0.30. Kept traces are there. Can I merge the change?",
+      "expected_output": "Before trusting the +0.30, opens a few runs from each arm, at least one its graders passed and one they failed where both exist, and checks each verdict against what the output actually does; a pass on a wrong output or a fail on a correct one makes the grader the finding to fix and rerun. Ends with one line: promote only when the run is VALID, the interval excludes 0 with the with-arm ahead, and the spot-read found no verdict it disagrees with; otherwise do not promote, naming the first failed condition.",
+      "expectations": [
+        "Reads sample outputs from both arms against their grader verdicts before endorsing the delta",
+        "Treats a verdict that disagrees with its output as a grader finding to fix and rerun",
+        "Ends with a single promote or do not promote line"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "do-not-promote-names-the-failed-condition",
+      "prompt": "/evals:plugin-eval read results.json. VALID run, delta +0.12, and the noise report verdict is within noise. My teammate wants a yes or no on shipping the new prompt.",
+      "expected_output": "Says the gain is not established because the noise report verdict is within noise, and ends with a do not promote line that names that verdict as the failed condition.",
+      "expectations": [
+        "Does not call the +0.12 delta a gain",
+        "Ends with a do not promote line",
+        "Names the within-noise verdict as the condition that failed"
+      ]
     }
   ]
 }

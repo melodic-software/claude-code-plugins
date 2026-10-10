@@ -85,6 +85,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] The test needs no export, flag or injection hook that no production caller uses; if it does, test through the real boundary instead
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
+- [ ] Picture each function the test imports from the code under test returning nothing (`undefined`, `None`, `null`): the test must then fail. One that still passes checks its own fixture or mock, not the code
 
 ## Four Pillars Assessment (Khorikov)
 

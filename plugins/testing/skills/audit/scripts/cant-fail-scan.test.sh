@@ -1907,6 +1907,79 @@ b4 defined-beside.test.ts "import { expect, it } from 'vitest';" "it('user', asy
   "  expect(user).toBeDefined();" "  expect(user.name).toBe('ada');" "});"
 assert_finding_count "(e) toBeDefined beside a value assertion gives 0 findings" 0
 
+# (g) not.toThrow() and a "> 0" comparison are weak matchers: alone they fire
+# weak-oracle, in Jest and in Vitest (which inherits Jest's list), and a tree
+# whose only finding is one still passes --check and --check --strict.
+JEST_HEAD="import { expect, it } from '@jest/globals';"
+b4 parse-ok.test.ts "$JEST_HEAD" "it('parses', () => {" "  expect(() => parseInvoice(draft)).not.toThrow();" "});"
+assert_contains "(g) not.toThrow() alone fires weak-oracle" "$out" "parse-ok.test.ts:3: test 'parses': the only oracle passes for almost any value"
+b4 rows-any.test.ts "$JEST_HEAD" "it('lists', () => {" "  expect(listInvoices().length).toBeGreaterThan(0);" "});"
+assert_contains "(g) toBeGreaterThan(0) alone fires weak-oracle" "$out" "rows-any.test.ts:3: test 'lists'"
+b4 rows-gt.test.ts "$JEST_HEAD" "it('lists', () => {" "  expect(listInvoices().length > 0).toBe(true);" "});"
+assert_contains "(g) a > 0 comparison asserted true fires weak-oracle" "$out" "rows-gt.test.ts:3: test 'lists'"
+b4 parse-ok-vi.test.ts "import { expect, it } from 'vitest';" "it('parses', () => {" "  expect(() => parseInvoice(draft)).not.toThrow();" "});"
+assert_contains "(g) not.toThrow() alone fires weak-oracle in Vitest" "$out" "parse-ok-vi.test.ts:3: test 'parses'"
+b4 parse-ok-beside.test.ts "$JEST_HEAD" "it('parses', () => {" "  expect(() => parseInvoice(draft)).not.toThrow();" \
+  "  expect(parseInvoice(draft).total).toBe(1250);" "});"
+assert_finding_count "(g) not.toThrow() beside a value assertion gives 0 findings" 0
+b4 rows-gt-arrow.test.ts "$JEST_HEAD" "it('picks', () => {" "  expect(pickFirst(() => 0)).toBe(true);" "});"
+assert_finding_count "(g) an arrow returning 0 is not a > 0 comparison" 0
+b4 rows-gt-two.test.ts "$JEST_HEAD" "it('lists', () => {" "  expect(listInvoices().length).toBeGreaterThan(2);" "});"
+assert_finding_count "(g) toBeGreaterThan with a bound other than 0 gives 0 findings" 0
+ro_repo "$RO/weakjest"
+cp "$B4/parse-ok.test.ts" "$B4/rows-gt.test.ts" "$RO/weakjest/test/"
+for args in "--check" "--check --strict"; do
+  read -ra argv <<<"$args"
+  run_scan "$RO/weakjest" "${argv[@]}"
+  assert_exit "(g) $args passes a tree whose only findings are the new weak matchers (exit 0)" 0 "$rc"
+  assert_contains "(g) $args still prints them" "$out" "finding [testing/audit/rule-weak-oracle] test/rows-gt.test.ts:3"
+done
+
+# (h) a value bound to a literal compared to another bound literal, with no
+# call to the code under test, fires constant-restatement; a call clears it.
+b4 fixture-pair.test.ts "$JEST_HEAD" "it('keeps the name', () => {" "  const draft = { id: 4, owner: 'Rui' };" \
+  "  const want = { id: 4, owner: 'Rui' };" "  expect(draft.owner).toBe(want.owner);" "});"
+assert_contains "(h) fixture against fixture fires constant-restatement" "$out" \
+  "fixture-pair.test.ts:5: draft and want are literals bound in the test and draft.owner is compared to want.owner with no code under test called"
+b4 fixture-pair-called.test.ts "$JEST_HEAD" "it('keeps the name', () => {" "  const draft = { id: 4, owner: 'Rui' };" \
+  "  const want = { id: 4, owner: 'Rui' };" "  expect(renameOwner(draft).owner).toBe(want.owner);" "});"
+assert_finding_count "(h) the same pair with a call to the subject gives 0 findings" 0
+b4 fixture-pair-unbound.test.ts "$JEST_HEAD" "it('keeps the name', () => {" "  const draft = { id: 4, owner: 'Rui' };" \
+  "  expect(draft.owner).toBe(seeded.owner);" "});"
+assert_finding_count "(h) a pair whose other side the test did not bind gives 0 findings" 0
+BANDS_HEAD=("it('bands meet', () => {" "  const bands = [{ upTo: 2, from: 0 }, { upTo: 5, from: 2 }];")
+BANDS_TAIL=("  expect(bands[1].from).toBe(bands[0].upTo);" "});")
+b4 bands-bare.test.ts "$JEST_HEAD" "${BANDS_HEAD[@]}" "${BANDS_TAIL[@]}"
+assert_contains "(h) control: a relation across rows fires constant-restatement" "$out" "bands-bare.test.ts:4: bands is a literal bound in the test and bands[1].from is compared to bands[0].upTo"
+b4 bands.test.ts "$JEST_HEAD" "${BANDS_HEAD[@]}" "  // cant-fail-ok: relation across rows" "${BANDS_TAIL[@]}"
+assert_finding_count "(h) a relation across rows annotated cant-fail-ok gives 0 findings" 0
+assert_contains "(h) and is counted as an exemption" "$out" "exempted findings (cant-fail-ok): 1"
+b4 test_fixture_pair.py "def test_keeps_owner():" "    draft = {'id': 4, 'owner': 'Rui'}" "    want = {'id': 4, 'owner': 'Rui'}" \
+  "    assert draft['owner'] == want['owner']"
+assert_contains "(h) fixture against fixture fires constant-restatement in Python" "$out" \
+  "test_fixture_pair.py:4: draft and want are literals bound in the test"
+ro_repo "$RO/fixturepair"
+cp "$B4/fixture-pair.test.ts" "$RO/fixturepair/test/"
+run_scan "$RO/fixturepair" --check --strict
+assert_exit "(h) --check --strict passes a tree whose only finding is fixture against fixture (exit 0)" 0 "$rc"
+assert_contains "(h) --check --strict still prints it" "$out" "finding [testing/audit/rule-constant-restatement] test/fixture-pair.test.ts:5"
+
+# (i) a *.test-d.ts type test is never enumerated; the same body in a
+# *.test.ts file is, and fires zero-assertion, so the silence is not vacuous.
+TD="$TMP_ROOT/typetests"
+mkdir -p "$TD/src"
+TYPE_BODY=("import { expectTypeOf, test } from 'vitest';" "test('sum types', () => {" "  expectTypeOf(sum).returns.toBeNumber();" "});")
+printf '%s\n' "${TYPE_BODY[@]}" >"$TD/src/sum.test-d.ts"
+printf '%s\n' "${TYPE_BODY[@]}" >"$TD/src/sum.test-d.tsx"
+printf '%s\n' "${TYPE_BODY[@]}" >"$TD/src/sum.test.ts"
+run_scan "$TD"
+assert_contains "(i) control: the body in a .test.ts file fires zero-assertion" "$out" "src/sum.test.ts:2: test 'sum types' has 0 assertion tokens"
+assert_contains "(i) only the .test.ts file is enumerated" "$out" "test files: 1 examined of 1 enumerated"
+assert_not_contains "(i) the .test-d.ts file gives no finding" "$out" "sum.test-d.ts"
+assert_not_contains "(i) the .test-d.tsx file gives no finding" "$out" "sum.test-d.tsx"
+run_file --file "$TD/src/sum.test-d.ts"
+assert_contains "(i) --file on the type-test file names no adapter" "$out" "adapter: none (no adapter claims this file)"
+
 # Remedies for the four rules, asserted in each language they fire in here.
 for f in js-vitest/bad/vitest-rows-loop-unchecked.test.ts py-unittest/bad/test_unittest_parse_except_only.py \
   cs-nunit/bad/CartPlaceOrderCatchTests.cs; do

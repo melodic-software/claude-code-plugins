@@ -77,6 +77,19 @@
         "Loads no file under context/property/",
         "States commutativity (merging a with b equals merging b with a) as the property"
       ]
+    },
+    {
+      "id": 8,
+      "name": "test-passes-when-imports-return-nothing",
+      "prompt": "I just went green on this cycle for buildReceipt. Run the per-cycle checklist on the test before I refactor:\n\nimport { buildReceipt } from './receipt';\n\ntest('a receipt lists every order line', () => {\n  const order = { id: 'A17', lines: [{ sku: 'TEA', qty: 2 }, { sku: 'MUG', qty: 1 }] };\n  buildReceipt(order);\n  expect(order.lines).toHaveLength(2);\n});",
+      "expected_output": "Walks the per-cycle checklist and flags the last item: the test keeps passing even when buildReceipt returns nothing, because it asserts on the order fixture it built, not on the receipt. Proposes asserting the lines of the receipt buildReceipt returns, with expected values taken from the order's stated content.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that the test keeps passing when buildReceipt returns nothing",
+        "Identifies that the assertion reads the order fixture rather than the receipt",
+        "Proposes asserting on the receipt buildReceipt returns"
+      ]
     }
   ]
 }

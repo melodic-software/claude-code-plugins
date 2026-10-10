@@ -495,6 +495,20 @@
         "Includes the error-context aria snapshot",
         "Passes the packet to /testing:diagnose"
       ]
+    },
+    {
+      "id": "e2e-states-01",
+      "name": "captures-error-empty-and-feedback-states",
+      "prompt": "/testing:run-e2e the new saved-searches panel. A signed-in user can save the current search under a name, and the panel lists their saved searches. The happy path works on my machine.",
+      "expected_output": "Plans and captures more than saving one search and seeing it listed: the panel's empty state for a user with no saved searches, an error state (saving with a blank or duplicate name, or the save request failing), and the feedback the panel shows after Save (a toast, spinner or inline message). Each state gets its screenshot or snapshot as evidence, and any state the run could not reach is listed as not driven with the reason.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Captures the empty state of the panel for a user with no saved searches",
+        "Captures at least one error state of saving a search",
+        "Captures the feedback shown after Save, not only the resulting list",
+        "Lists any state it could not reach as not driven, with the reason"
+      ]
     }
   ]
 }
