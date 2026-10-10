@@ -66,8 +66,9 @@ grant would mint a token with every App permission.
 A slot whose activity declares the `changed-paths` input and applies also carries
 `changed-paths`: the PR's changed files the head still holds, filtered as the
 [skill activities contract](../../../docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)
-states, which for a write effect drops instruction surfaces and every path in the base
-`.github/CODEOWNERS`. An empty result turns the slot into `not-applicable-paths`. Declaring the
+states. It selects what the activity is asked to work on and is not a control; for a write effect
+it leaves out instruction surfaces and every path in the base `.github/CODEOWNERS`. An empty
+result turns the slot into `not-applicable-paths`. Declaring the
 input makes the reader fetch the PR's files even without a `paths` predicate.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,

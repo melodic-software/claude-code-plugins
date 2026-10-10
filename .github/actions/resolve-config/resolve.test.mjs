@@ -760,7 +760,7 @@ const targetsOf = (changedTargets, config = withChangedPaths()) =>
     { codeowners: CODEOWNERS },
   ).selected;
 
-test("changed-paths keeps only the changed markdown a write activity may edit", () => {
+test("changed-paths asks a write activity to fix only changed markdown outside instruction surfaces and CODEOWNERS", () => {
   const selected = targetsOf([
     "docs/guide.md",
     "README.md",
@@ -782,8 +782,11 @@ test("changed-paths keeps only the changed markdown a write activity may edit", 
   assert.deepEqual(selected["changed-paths"], ["README.md", "docs/guide.md"]);
 });
 
-test("changed-paths drops a name that could read as an option, a glob or two words", () => {
+test("changed-paths drops a name that could read as an option, a mention, a glob or two words", () => {
   const selected = targetsOf([
+    "@docs/x.md",
+    "@x.md",
+    "docs/@kept.md",
     "docs/two words.md",
     "docs/a,b.md",
     "docs/-rf.md",
@@ -793,7 +796,7 @@ test("changed-paths drops a name that could read as an option, a glob or two wor
     "docs/../x.md",
     "docs/ok.md",
   ]);
-  assert.deepEqual(selected["changed-paths"], ["docs/ok.md"]);
+  assert.deepEqual(selected["changed-paths"], ["docs/@kept.md", "docs/ok.md"]);
 });
 
 test("changed-paths with nothing left skips the activity as not-applicable-paths", () => {

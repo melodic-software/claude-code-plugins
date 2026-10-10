@@ -1,7 +1,8 @@
 # Trust-root paths: lane config, grants and rules, the workflows and actions lanes run
 # from the default branch, and the plugins lanes load. Code-owner review is off by owner
-# decision, so an owner here is only requested for review. A write lane never edits any path
-# listed here, owned or not (docs/conventions/pr-pipeline/README.md#trust-root-paths).
+# decision, so an owner here is only requested for review. A write lane is not asked to fix a
+# path listed here, but its token can change any file; the PR is the review step
+# (docs/conventions/pr-pipeline/README.md#trust-root-paths).
 
 /docs/conventions/pr-pipeline.yaml @kyle-sexton
 /docs/conventions/pr-pipeline/** @kyle-sexton

@@ -163,14 +163,17 @@ The prompt is `/<plugin>:<skill> <args>`, followed, for an activity with the `ch
 input, by those paths as further words. `resolve-config` computes them from the PR's file list
 (`pulls/{n}/files`), never from head text: files the head still holds, matching the slot's `paths`
 predicate when it has one, with a name of letters, digits and `_ @ + . -` only, no `.` or `..`
-segment and no segment starting with `-`. For any effect but `read` it also drops instruction
-surfaces (`CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` at any depth, case-insensitive, and anything
-under a `.claude`, `.claude-plugin`, `skills`, `agents`, `commands`, `hooks`, `output-styles` or
-`prompts` directory) and every path the base `.github/CODEOWNERS` lists, owned or not. When
-nothing is left the activity skips with `not-applicable-paths` and mints nothing.
-`collect-base-activity` fails red on a path outside that name set. For a `reads-untrusted` activity a second line,
-`Trusted PR context: <path>`, names the `select-trusted-text` output, which the step also gets as
-`TRUSTED_CONTEXT_FILE`. A `reads-untrusted` skill must read PR text (title, body, comments,
+segment, no segment starting with `-` and no leading `@`, which would read as a file mention.
+The paths are the job's scope, what the skill is asked to work on, not a limit on what it can
+touch. For any effect but `read` they leave out instruction surfaces (`CLAUDE.md`,
+`CLAUDE.local.md`, `AGENTS.md` at any depth, case-insensitive, and anything under a `.claude`,
+`.claude-plugin`, `skills`, `agents`, `commands`, `hooks`, `output-styles` or `prompts`
+directory) and every path the base `.github/CODEOWNERS` lists, owned or not, so a lane is not
+asked to rewrite them. When nothing is left the activity skips with `not-applicable-paths` and
+mints nothing. `collect-base-activity` fails red on a path outside that name set. For a
+`reads-untrusted` activity the step gets the `select-trusted-text` output's path as
+`TRUSTED_CONTEXT_FILE`, and only there: the prompt holds the command line alone, so nothing after
+the slash command reaches the skill's arguments. A `reads-untrusted` skill must read PR text (title, body, comments,
 reviews, linked issues) only from that file, never through the API. Existing skills are not yet
 adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
 known residual. The skill gets the App token as `github_token` in the write file, and the job's
@@ -181,26 +184,24 @@ project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from t
 plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
 (`use_commit_signing`), on the gate's head branch (`CLAUDE_BRANCH`).
 
-A skill with any effect but `read` also gets `mcp__github_file_ops__commit_files`, the action's
-signed-commit tool, which writes only to `CLAUDE_BRANCH`, and `Edit(./<path>)` for each of its
-`changed-paths`, and nothing else to write with. `--disallowedTools` removes `WebFetch` and
-`WebSearch` and denies `Bash(git *)` and `Bash(*/git *)`. A deny rule wins over any allow rule,
-the skill's own `allowed-tools` included, so a skill that grants `Bash(git:*)` runs no git in a
-write job. Every git command is denied rather than `git push` and `git config` alone because
-claude-code-action writes the App token into the origin URL under `use_commit_signing`
-(`src/github/operations/git-config.ts:129-133` at `ed670b4`), and a narrower rule misses other
-spellings such as `git -C . push` or `git -c <key>=<value> push`. Other spellings of git (`sh -c`,
-`env git`) match no allow rule, so `dontAsk` denies them; whether Claude Code's built-in read-only
-command set admits a git invoked by full path is not documented, which `Bash(*/git *)` covers.
-Pointer: [what a Bash rule doesn't match](https://code.claude.com/docs/en/permissions#bash-rule-limits)
-and [rule evaluation order](https://code.claude.com/docs/en/permissions#manage-permissions). As
-of: 2026-10-10. Recheck trigger: either section changes how deny rules, wrappers or the read-only
-set match. The skill's helper scripts still run git as their own subprocesses; a rule matches
-only the command Claude writes. The token text stays readable to the model, through
-`GH_TOKEN`, `GITHUB_TOKEN` and `.git/config`: that is
+A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
+(for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
+`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`. Its
+`Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
+(`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
+token it can change, commit and push any file in the repository, and claude-code-action writes
+the token into the origin URL under `use_commit_signing`
+(`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
+the review step: the review lanes, `ci-status`, review-thread resolution and the merge gate see
+every lane commit. The hardening is the broker's scoped, hour-long token revoked when the job
+ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
+`--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
+residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
+(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
-accepted residual, and the tool set leaves the model no network tool to use it with beyond the
-commit tool. A mutating activity's commits
+accepted residual, and a lane commit can change instruction files the PR author's local session
+later loads. The skill's final reply is uploaded as an artifact with the token string cut out. A
+mutating activity's commits
 are made against that branch, which may have moved since the gate; the push that moved it starts
 its own `synchronize` run, which gates the new head again. Why a skill activity loads nothing from
 the PR head:

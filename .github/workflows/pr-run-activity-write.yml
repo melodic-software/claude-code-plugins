@@ -222,9 +222,7 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
-          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
-          trusted-context-path: ${{ runner.temp }}/trusted-context.json
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -293,13 +291,18 @@ jobs:
             ${{ steps.act-skill.outputs.execution_file
             || format('{0}/claude-execution-output.json', runner.temp) }}
           REPLY_DIR: ${{ runner.temp }}/skill-reply
+          # The model can read the lane token, so its reply could quote it;
+          # the token is cut out before the reply is shown or uploaded.
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
         run: |
           mkdir -p "$REPLY_DIR"
           if [ ! -f "$EXECUTION_FILE" ]; then
             echo "No execution file to summarize" | tee "$REPLY_DIR/reply.txt"
             exit 0
           fi
-          jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' \
+          jq -r --arg token "$LANE_TOKEN" '[.[] | select(.type == "result")] | last | (.result // "")
+            | if $token == "" then . else split($token) | join("[REDACTED]") end
+            | .[:4000] | gsub("`"; "'"'"'")' \
             "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
           {
             echo "### Skill reply"

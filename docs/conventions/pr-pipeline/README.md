@@ -106,14 +106,14 @@ Every lane:
   runs per item: each comment, review reply and linked issue is checked by its own author, not by
   the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
-- Runs Claude Code with `--permission-mode dontAsk`: the skill's own `allowed-tools` decide what
-  it may use, and a write-effect skill also gets the signed-commit tool and `Edit` on the changed
-  paths it was handed, with every `git` command, `WebFetch` and `WebSearch` denied
+- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job: a
+  write-effect skill can change, commit and push any file in the repository with its token
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). It gets the write access its job
   needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
-  auto mode (AGENTS.md). Beyond that tool set, safety comes from who can trigger a lane, token
-  lifetime and scope, workflow execution protections, the kill switch, and a `ci-status` no lane
-  can write (below).
+  auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
+  granular its activity is, the PR is the review step, and safety comes from who can trigger a
+  lane, token lifetime and scope, workflow execution protections, the kill switch, and a
+  `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
   so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
   skill activity loads nothing else from the head:
@@ -163,8 +163,9 @@ Each activity declares:
   ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
   `baseline`, `findings`). An activity reads nothing from a session. `changed-paths` is computed
-  by the base-SHA config reader from the PR's file list, never from head text, and for a
-  write effect it never holds an instruction surface or a path `.github/CODEOWNERS` lists
+  by the base-SHA config reader from the PR's file list, never from head text. It names what the
+  activity is asked to work on, not what it can touch; for a write effect it leaves out
+  instruction surfaces and paths `.github/CODEOWNERS` lists
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, work classes, events).
 
@@ -276,11 +277,20 @@ trust-root change are:
 - the kill switch;
 - broker scoping: one mint per job, this repository only, the effect's grant, at most an hour,
   revoked when the job ends;
-- a write activity never edits a path `.github/CODEOWNERS` lists or an instruction surface: its
-  `changed-paths` drops them and its `Edit` grant covers only `changed-paths`.
+- the lane session: `--setting-sources user`, an explicit `--permission-mode dontAsk`, and never
+  `bypassPermissions`.
 
-Residual, accepted by the owner: a trust-root change merges with no human approval. What stands
-between it and the default branch is the list above and whoever merges it.
+A write lane can change and commit any file in the repository its token reaches, trust-root and
+instruction paths included; no tool rule limits which files it touches. The PR is the review step:
+the review lanes, `ci-status`, review-thread resolution and the merge gate see every lane commit
+before it reaches the default branch. Residuals, accepted by the owner:
+
+- a trust-root change merges with no human approval; what stands between it and the default
+  branch is the list above and whoever merges it;
+- the model can read its token (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until the job revokes
+  it;
+- a lane commit can change instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, skills) that
+  the PR author's local session loads once it checks out the branch.
 
 The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
 vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows

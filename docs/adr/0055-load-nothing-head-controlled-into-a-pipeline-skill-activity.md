@@ -160,7 +160,7 @@ default-branch workflow at each commit named.
   default, marketplace parsing, credential handling, scrub defaults or restore list changes, or
   when the Claude Code docs change what the subprocess scrub keeps.
 
-## Addendum (2026-10-10): code-owner review is off; write skills get a fixed tool set
+## Addendum (2026-10-10): code-owner review is off; the PR is the review step
 
 The residual above that names "a ruleset or CODEOWNERS protection on `.github/workflows/**`" as
 required before the first live caller no longer holds as written. The owner turned code-owner
@@ -174,13 +174,18 @@ config, the trusted-actor filter, the broker's workflow-path rule and an App tok
 scoping. Accepted residual: a change to `.github/workflows/` or any other trust-root path merges
 with no human approval.
 
-Decision 7's "holds a contents-write App token in its process and in the git config" now has a
-bound on what the model can do with it. A skill whose effect is not `read` gets
-`mcp__github_file_ops__commit_files` and `Edit` on its computed `changed-paths` only, and
-`--disallowedTools` denies every `git` command, `WebFetch` and `WebSearch`; a deny rule wins over
-the skill's own `allowed-tools`. `changed-paths` comes from the PR's file list through the
-base-SHA reader and, for a write effect, never holds an instruction surface or a path
-`.github/CODEOWNERS` lists. The `mutate-branch` grant narrows to `contents: write`. The model can
-still read the token text (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`); that residual stands. The
-contract is
+Decision 7's "holds a contents-write App token in its process and in the git config" stands with
+no tool bound on it, by owner decision (2026-10-10): lanes may follow skill instructions, change
+files, commit, push, and create, update and comment on PRs, and a lane's scope comes from how
+granular it is, not from tool restrictions. A skill whose effect is not `read` gets `Edit`,
+`Write`, `Agent` and `mcp__github_file_ops__commit_files`, its own `allowed-tools` Bash, git
+included, and no `WebFetch` or `WebSearch`; with its token it can change and commit any file in
+the repository. The PR is the review step: the review lanes, `ci-status`, review-thread resolution
+and the merge gate. `changed-paths` selects what the skill is asked to fix and is not a control.
+The `mutate-branch` grant narrows to `contents: write`. Security comes from hardening only: the
+broker's scoped, hour-long token revoked when the job ends, base-SHA config and runner, the
+trusted-actor filter, the kill switch, `--setting-sources user`, an explicit `--permission-mode`
+and never `bypassPermissions`. Residuals: the model can read the token text (`GH_TOKEN`,
+`GITHUB_TOKEN`, `.git/config`) until it is revoked, and a lane commit can change instruction files
+the PR author's local session later loads. The contract is
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#skill-activities).

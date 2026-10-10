@@ -256,8 +256,9 @@ export function neededFacts(files, { lane, activity, configPath }) {
   return [...needed];
 }
 
-// Files Claude Code or a plugin loads as instructions. A write activity is
-// never handed one: the PR head controls their text.
+// Files Claude Code or a plugin loads as instructions. Target selection, not a
+// control: a write activity is not asked to fix them, though its token and
+// tools can change any file and the PR reviews what it did.
 const INSTRUCTION_SURFACES = [
   "**/claude.md",
   "**/claude.local.md",
@@ -272,10 +273,11 @@ const INSTRUCTION_SURFACES = [
   "**/output-styles/**",
   "**/prompts/**",
 ];
-// A name that is safe as a prompt word and a permission-rule path: no space,
-// quote, comma, glob or shell character, no `.`/`..` segment, and no segment
-// that starts with `-`, so it cannot read as an option.
-const SAFE_PATH = /^(?!-)[A-Za-z0-9_@+.-]+(?:\/(?!-)[A-Za-z0-9_@+.-]+)*$/;
+// A name that is safe as a prompt word: no space, quote, comma, glob or shell
+// character, no `.`/`..` segment, no segment that starts with `-`, so it
+// cannot read as an option, and no leading `@`, so it cannot read as a file
+// mention.
+const SAFE_PATH = /^(?![-@])[A-Za-z0-9_@+.-]+(?:\/(?!-)[A-Za-z0-9_@+.-]+)*$/;
 const isSafePath = (path) =>
   SAFE_PATH.test(path) &&
   !path.split("/").some((segment) => segment === "." || segment === "..");
@@ -298,7 +300,8 @@ function codeownersGlobs(text) {
 // The changed-paths input: the PR's changed files that still exist, that match
 // the slot's `paths` predicate when it has one, and that have a safe name. For
 // any effect but `read`, instruction surfaces and every path CODEOWNERS lists
-// are dropped too. Sorted, without duplicates.
+// are left out of what the activity is asked to fix. Sorted, without
+// duplicates.
 export function changedPathTargets({
   paths,
   predicatePaths,
@@ -306,7 +309,7 @@ export function changedPathTargets({
   codeowners,
 }) {
   const owned = codeownersGlobs(codeowners);
-  const protectedPath = (path) =>
+  const notTargeted = (path) =>
     effect !== "read" &&
     (INSTRUCTION_SURFACES.some((glob) =>
       posix.matchesGlob(path.toLowerCase(), glob),
@@ -317,7 +320,7 @@ export function changedPathTargets({
       isSafePath(path) &&
       (predicatePaths === undefined ||
         predicatePaths.some((glob) => posix.matchesGlob(path, glob))) &&
-      !protectedPath(path),
+      !notTargeted(path),
   );
   return [...new Set(kept)].sort();
 }

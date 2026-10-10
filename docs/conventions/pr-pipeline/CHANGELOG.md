@@ -2,21 +2,28 @@
 
 ## 1.4.0 - 2026-10-10
 
-Write activities get a narrower grant, a fixed tool set and computed targets. `version` stays 1.
+Write activities get a narrower grant, the tools their skill needs and computed targets. `version`
+stays 1.
 
 - `effect-grants.json`: `mutate-branch` grants `contents: write` with `pull-requests: read` and
   `issues: read`. The broker reads the same file at the tip, so a job resolved from an older base
   fails `effect-mismatch` until the PR's base moves past this change.
-- A skill with any effect but `read` gets the signed-commit tool and `Edit` on its
-  `changed-paths` only; every `git` command, `WebFetch` and `WebSearch` are denied.
-  `collect-base-activity` takes a required `effect` input.
+- A skill with any effect but `read` gets `Edit`, `Write`, `Agent` and the signed-commit tool, and
+  its own `allowed-tools` Bash; `WebFetch` and `WebSearch` stay off. No rule limits which files it
+  changes; the PR is the review step. `collect-base-activity` takes a required `effect` input and
+  drops its `reads-untrusted` and `trusted-context-path` inputs.
 - The `changed-paths` input is now passed: `resolve-config` writes it to the resolved file from the
-  PR's file list, and the prompt carries it after `args`. For a write effect it drops instruction
-  surfaces and every path the base `.github/CODEOWNERS` lists; an empty result skips the activity
-  with `not-applicable-paths`.
+  PR's file list, and the prompt carries it after `args`. It selects what the skill is asked to
+  fix and is not a control. For a write effect it leaves out instruction surfaces and every path
+  the base `.github/CODEOWNERS` lists, and it drops a name with a leading `@`; an empty result
+  skips the activity with `not-applicable-paths`.
+- The trusted PR context reaches a `reads-untrusted` skill only as `TRUSTED_CONTEXT_FILE`; the
+  prompt no longer carries a `Trusted PR context:` line.
+- The write runner cuts the lane token string out of the skill's reply before showing or uploading
+  it.
 - `reads-untrusted` also covers PR head files, which can quote untrusted text.
-- The trust-root section states the controls in force now that code-owner review is off by owner
-  decision, and the residual.
+- The trust-root section states the hardening in force now that code-owner review is off by owner
+  decision, that a write lane can change any file, and the residuals.
 
 ## 1.3.0 - 2026-10-10
 

@@ -37,17 +37,9 @@ inputs:
       The activity's effect, from resolve-config. Any effect but `read` gets
       the write tool set below.
     required: true
-  reads-untrusted:
-    description: "`true` when the prompt names the trusted PR context file."
-    required: false
-    default: "false"
   resolved-path:
     description: resolve-config's output file, which holds the activity's args.
     required: true
-  trusted-context-path:
-    description: select-trusted-text's output file.
-    required: false
-    default: ""
   base-path:
     description: The base-SHA checkout.
     required: false
@@ -102,8 +94,6 @@ runs:
         MAX_TURNS: ${{ inputs.max-turns }}
         GATING: ${{ inputs.gating }}
         EFFECT: ${{ inputs.effect }}
-        READS_UNTRUSTED: ${{ inputs.reads-untrusted }}
-        TRUSTED_CONTEXT_FILE: ${{ inputs.trusted-context-path }}
       run: |
         fail() {
           echo "::error::$1"
@@ -117,11 +107,12 @@ runs:
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
         # resolve-config already filtered these; a name outside this set
-        # could break the prompt or a permission rule, so it fails red.
+        # could break the prompt (a leading @ reads as a file mention), so it
+        # fails red.
         mapfile -t targets < <(jq -r '.selected["changed-paths"] // [] | .[]' "$RESOLVED")
         safe='^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$'
         for target in "${targets[@]}"; do
-          [[ $target =~ $safe && /$target/ != */-* && /$target/ != */./* && /$target/ != */../* ]] ||
+          [[ $target =~ $safe && $target != @* && /$target/ != */-* && /$target/ != */./* && /$target/ != */../* ]] ||
             fail "a changed path has a name the prompt cannot carry"
         done
         allowed="Skill($SKILL)"
@@ -129,18 +120,12 @@ runs:
         case "$EFFECT" in
           read) ;;
           mutate-branch | mutate-tracker | publish-artifact | merge)
-            # A write skill commits only through the action's signed API
-            # tool, on the gated head branch, and edits only the changed
-            # paths it was handed. It runs no git: the action writes the App
-            # token into the origin URL, and a Bash git rule cannot cover
-            # every spelling of push or -c, so every git command is denied
-            # (deny wins over the skill's own allowed-tools). WebFetch and
-            # WebSearch could carry the token out, so they are removed.
-            allowed="$allowed,mcp__github_file_ops__commit_files"
-            for target in "${targets[@]}"; do
-              allowed="$allowed,Edit(./$target)"
-            done
-            disallowed="Bash(git *),Bash(*/git *),WebFetch,WebSearch"
+            # What a write skill needs to do its job under dontAsk: edit
+            # files, run subagents and commit through the action's signed
+            # tool. Its Bash comes from its own allowed-tools. The PR is the
+            # review step; no tool here limits which files it changes.
+            allowed="$allowed,Edit,Write,Agent,mcp__github_file_ops__commit_files"
+            disallowed="WebFetch,WebSearch"
             ;;
           *) fail "the activity's effect is not a known effect" ;;
         esac
@@ -176,8 +161,5 @@ runs:
           echo "claude-args=$claude_args"
           echo "prompt<<$delimiter"
           printf '%s\n' "$command_line"
-          if [ "$READS_UNTRUSTED" = true ]; then
-            printf 'Trusted PR context: %s\n' "$TRUSTED_CONTEXT_FILE"
-          fi
           echo "$delimiter"
         } >>"$GITHUB_OUTPUT"
