@@ -137,10 +137,10 @@ We route to `claude purge` everywhere and never to its old name `claude project 
 - **As of**: 2026-10-10
 - **Recheck trigger**: the cli-reference stops listing `claude purge`, or the claude-directory
   section changes what it says about the old name.
-- **Source conflict**: the [changelog](https://code.claude.com/docs/en/changelog) entry for
-  2.1.288 says the old name still works and prints a notice; the claude-directory page says only
-  that it was the command's name before v2.1.288. Recheck when the page states the old name's
-  status.
+- **Source conflict**: the [changelog](https://code.claude.com/docs/en/changelog) (2.1.288) and
+  [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
+  disagree on whether the old name still works. As of 2026-10-10; recheck when the page states
+  the old name's status.
 
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants. The leading number *looks*
 like a PID; that has not been verified, so the engine attempts no liveness lookup on it.
