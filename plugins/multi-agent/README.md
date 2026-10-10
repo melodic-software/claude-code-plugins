@@ -114,7 +114,7 @@ frontier fan-outs. The basis for each default is recorded beside it in
 ## Configuration
 
 One surface, layered user-global (`~/.claude/multi-agent.yaml`), team (a
-```` ```yaml config ```` block in `docs/conventions/multi-agent.md`, else
+fenced block tagged `yaml config` in `docs/conventions/multi-agent.md`, else
 `.claude/multi-agent.yaml`) and a gitignored overlay
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
