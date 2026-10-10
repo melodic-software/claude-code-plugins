@@ -59,19 +59,25 @@ commit exists on the remote only, so the fetch above is what makes the two agree
 
 ## 2.5.3 Review and verify the merged head
 
-Two runs, in the pre-PR order cited at the top of this file:
+Three runs, in the pre-PR order cited at the top of this file. Both reviews run in a fresh-context
+subagent, never in the authoring session: hand it the pull request's diff
+(`gh pr diff "$PR_NUMBER"`) and the acceptance criteria, not the author's reasoning.
 
-- **Security review of the pull request's diff** (`gh pr diff "$PR_NUMBER"`), for any diff that is
-  not docs-only. It runs here rather than in prep because it needs the PR to exist. Run
-  `/review:security-review` over that diff when the `review` plugin is installed. Without it, run a
-  security-reviewer agent when your environment ships one, and otherwise review the diff inline for
-  the security scope the repository's `REVIEW.md` names (trust boundaries, injection, credential
-  exposure, authorization gaps, Actions and hook permissions).
+- **Code review of the pull request's diff**, for any diff that is not docs-only: `/code-review`
+  against the pull request, or the `review` plugin's reviewer agents when that resolves instead.
+  Fix each verified finding (prep.md §1.3), or record why it stays in the pull request body. It
+  repeats prep's review because the diff that ships includes the base merge and every fix since.
+- **Security review of the same diff**, for any diff that is not docs-only. It runs here rather than
+  in prep because it needs the PR to exist. Run `/review:security-review` over that diff when the
+  `review` plugin is installed. Without it, run a security-reviewer agent when your environment
+  ships one, and otherwise a fresh-context subagent over the diff for the security scope the
+  repository's `REVIEW.md` names (trust boundaries, injection, credential exposure, authorization
+  gaps, Actions and hook permissions).
 - **The verify gate of [prep.md](prep.md) §1.5, last.** The merge moved HEAD, so the gate that ran
-  in prep no longer covers the commit that ships. Commit whatever the security review changed first;
+  in prep no longer covers the commit that ships. Commit whatever the reviews changed first;
   nothing that edits the tree runs after the gate.
 
-Completion criterion: the security review's findings are dispositioned, and the verify gate is
+Completion criterion: both reviews' findings are fixed or recorded, and the verify gate is
 clean on `git rev-parse HEAD`.
 
 ## 2.5.4 Flip to ready
@@ -99,7 +105,7 @@ Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` pri
 
 ## 2.5.5 Report
 
-Report, in this order: the base merge, the security review's findings and how each was
-dispositioned (or the fallback that stood in for it), the verify gate's result with the head it
+Report, in this order: the base merge, both reviews' findings and how each was
+dispositioned (or the fallback that stood in for a review), the verify gate's result with the head it
 ran on, and the flip. Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).

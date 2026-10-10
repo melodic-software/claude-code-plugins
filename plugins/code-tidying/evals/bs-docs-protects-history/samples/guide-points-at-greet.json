@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Guide\n\nRun the greeting script:\n\n    bash src/greet.sh Ada\n\nInside your own scripts, call `greet NAME` to print a greeting.\n",
+      "why": "rewritten to the current name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Guide\n\nRun the greeting script:\n\n    bash src/greet.sh Ada\n",
+      "why": "sentence deleted instead of corrected"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ absent means WebFetch the docs site directly, not a category skipped.
 
 | Source category | What it gives you | Reach for whatever's connected |
 |---|---|---|
-| **Official docs** | The authoritative primary for an ecosystem/library | the ecosystem's canonical docs site, fetched directly. If the consuming project ships a per-ecosystem source mapping (check its `CLAUDE.md`/rules), use it; else identify the canonical home yourself. When the topic centers on a specific library or site, probe its `llms.txt` / sitemap first to enumerate the doc set |
+| **Official docs** | The authoritative primary for an ecosystem/library | the ecosystem's canonical docs site, fetched directly. If the consuming project ships a per-ecosystem source mapping (check its `CLAUDE.md`/rules), use it; else identify the canonical home yourself. When the topic centers on a specific library or site, probe its `llms.txt` / sitemap first to enumerate the doc set. WebFetch only finds which page to read; read the page itself by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs). Read page content through the docs lookup, `<plugin-root>/scripts/fetch-docs.sh --cache` (the discipline file's "A size failure is the same trigger") |
 | **Upstream source + releases** | Ground truth + recency for a tool/library | the GitHub repo, releases, `CHANGELOG.md`, required for the recency gate |
 | **Package registry** | Versions, dependencies, publish dates | the ecosystem's registry (NuGet / PyPI / npm / crates.io / Maven Central) |
 | **Spec / standard** | Definitive behavior for a protocol/language | the RFC, language spec, or standard document |

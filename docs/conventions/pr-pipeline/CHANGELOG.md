@@ -1,5 +1,48 @@
 # Changelog for the PR pipeline convention
 
+## 1.3.0 - 2026-10-10
+
+The write runner gets its token from the lanes token broker. `version` stays 1; callers of the
+write file must change.
+
+- `pr-run-activity-write.yml` drops the `app-private-key` secret and the
+  `create-github-app-token` mint. Its run job holds `id-token: write` and, before
+  `select-trusted-text` and any head checkout, calls the new `request-lane-token` action, which
+  sends the job's OIDC token to `LANES_BROKER_URL` for audience `LANES_BROKER_AUDIENCE` once,
+  never retrying. Either variable empty fails red.
+- The step fails red on any answer but 200 (`lane-token-denied` with the broker's reason, or
+  `broker-unreachable`), and, after revoking the token, on a 200 whose effect, permissions, lane,
+  activity or repository differ from the job's own (`effect-mismatch`). The contract lists the
+  broker's reasons, `default-branch-not-main` included.
+- A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token and fails
+  red unless `DELETE /installation/token` returns 204 and a later
+  `GET /installation/repositories` with the token returns 401.
+- Callers of the write file pass no App key and grant `id-token: write` on the calling job.
+  `AUTOMATION_LANES_APP_CLIENT_ID` is no longer read.
+- With no App key in either runner, one lane may call both files.
+- `scripts/check-app-key-references.sh` fails `lint-repo` on `AUTOMATION_LANES_APP_PRIVATE_KEY`,
+  `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID` anywhere under `.github/workflows/` or
+  `.github/actions/`.
+
+## 1.2.0 - 2026-10-04
+
+The runner splits in two. `version` stays 1; callers of the old file must move.
+
+- `pr-run-activity.yml` becomes `pr-run-activity-write.yml`, for every effect but `read`. It keeps
+  the App key and its mint, fails red with `effect-read` on a `read` activity, and stops with
+  `bot-actor` when the lanes App bot is the sender or a `workflow_run` actor. A `bot-actor` stop
+  posts neutral `untrusted-trigger`, like the other trust stops.
+- New `pr-run-activity-read.yml` runs `read` activities with no App key secret and no `id-token`
+  permission, and fails red with `effect-not-read` before the head checkout on any other effect.
+- Both pass the run attempt's `triggering_actor` to `check-trusted-trigger`. A re-run by an
+  account not on the trusted-actor list, by a denied account, or with no triggering actor stops
+  with `untrusted-rerunner`, which has no skip mapping, so the check posts failure rather than
+  turning an earlier red check on the same SHA neutral.
+- Until the token broker lands, a lane runs head-code read activities only when no file of its run
+  references the App key; `scripts/check-read-caller-keys.sh` checks it.
+- The README lists the trust-root paths, and `pr-merge` refuses any PR that touches one. The
+  refusal is recorded now and enforced when `pr-merge` is built.
+
 ## 1.1.1 - 2026-10-04
 
 Fixes to the runner and reader. `version` stays 1.

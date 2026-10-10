@@ -1,0 +1,128 @@
+{
+  "skill": "code-tidying:audit-dead-code",
+  "plugin": "code-tidying",
+  "skill_dir": "plugins/code-tidying/skills/audit-dead-code",
+  "ranking_note": "Authored blind from the before descriptions at commit 11916cbf93f741882f68780cca63b74a30919980, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are every other model-invoked code-tidying skill (setup is user-invoked only).",
+  "competitors": [
+    "code-tidying:audit-comment-residue",
+    "code-tidying:batch-simplify",
+    "code-tidying:dissolve-comments",
+    "code-tidying:tidy"
+  ],
+  "competitor_dirs": {
+    "code-tidying:audit-comment-residue": "plugins/code-tidying/skills/audit-comment-residue",
+    "code-tidying:batch-simplify": "plugins/code-tidying/skills/batch-simplify",
+    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
+    "code-tidying:tidy": "plugins/code-tidying/skills/tidy"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is there anything in this repo that is exported but never imported anywhere?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which Python functions in this project have no callers left?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I think half of src/legacy is unused now; can you check what is actually still referenced?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a report of files nobody imports anymore, but do not delete anything yet."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look for unreachable or never-used Go code across the module."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We removed the v1 API last quarter, so find the helpers that only it used."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What could we safely remove from this TypeScript codebase because nothing uses it?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are any of the classes in the models package orphaned?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "List unused symbols across the whole repository so I can plan a cleanup."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Delete the helper formatLegacyDate in dates.ts, it is no longer needed."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Simplify the code I changed in the last three commits."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find comments that mention old ticket numbers."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which npm dependencies in package.json are outdated?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find the bug that makes the checkout total come out wrong."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Measure the test coverage for the billing module."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Remove the commented-out code blocks from this file."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find duplicated copy-pasted logic across the services."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pick an area of the code and make a few small structure-only cleanups."
+    }
+  ]
+}

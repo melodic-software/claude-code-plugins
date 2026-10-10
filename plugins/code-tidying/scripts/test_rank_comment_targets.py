@@ -140,6 +140,7 @@ class Ranking(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
+        cls.addClassCleanup(shutil.rmtree, cls.tmp)
         cls.repo = cls.tmp / "repo"
         cls.repo.mkdir()
         build(cls.repo)
@@ -151,10 +152,6 @@ class Ranking(unittest.TestCase):
         (stub / "scc").write_text("#!/bin/sh\nexit 1\n")
         (stub / "scc").chmod(0o755)
         cls.env = {**os.environ, "PATH": f"{stub}{os.pathsep}{os.environ['PATH']}"}
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(cls.tmp)
 
     def run_rank(
         self, *args: str, cwd: Path | None = None

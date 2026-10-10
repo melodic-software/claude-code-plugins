@@ -92,7 +92,9 @@ FILE_ATTRIBUTE_SYSTEM = 0x4
 # including it protected ordinary local files: a sweep of two non-cloud trees on
 # this host flagged .NET build output and temp .node files that are fully
 # present on disk. Protecting build artifacts from cleanup would defeat the
-# engine's purpose, so the ambiguous bit stays out.
+# engine's purpose, so the ambiguous bit stays out. Recheck when the
+# file-attribute-constants page changes the 0x00040000 value of RECALL_ON_OPEN
+# or documents it for non-enumeration reads.
 FILE_ATTRIBUTE_OFFLINE = 0x00001000
 FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS = 0x00400000
 FILE_ATTRIBUTE_SPARSE_FILE = 0x00000200

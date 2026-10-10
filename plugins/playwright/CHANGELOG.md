@@ -3,6 +3,89 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-10-09
+
+### Added
+
+- A `claude plugin eval` suite under `evals/` (#6651) with four cases: loading the saved login after `open`, asking the owner to re-save an expired login, never reading the saved login file, and the named-session snapshot-then-click-by-ref loop. Every grader is deterministic and every case grants only `Read`, `Glob`, `Grep` and `Skill`. The never-read case seeds a fake saved login in the run's temporary home through a `scaffold_script` (run with `--scaffold`) and fails any `Read` of it or any reply that prints its cookie names or value. Each case also reports whether the skill fired, as a with-arm indicator that is not scored.
+
+### Changed
+
+- The skill's `when_to_use` now names checking or inspecting a saved playwright-cli login or state file, so that request loads the skill and its never-read-the-file rule.
+- The skill now answers "is my saved login still good" by loading the file in a session and looking at the page, never by inspecting the file, cookie names or expiry included.
+
+## [0.11.0] - 2026-10-09
+
+### Added
+
+- **Shared login state ([#6641](https://github.com/melodic-software/claude-code-plugins/issues/6641)).** Agents load a per-site state file (`<site>.json` under `${XDG_STATE_HOME:-~/.local/state}/playwright-cli/`, or `%LOCALAPPDATA%\playwright-cli\` on Windows) after `open` by default, so any number of sessions run logged in at once. The owner saves and refreshes the file; agents never save or read it.
+
+### Fixed
+
+- `storage-and-auth.md` examples ran `state-load` before `open`, which fails; they now open first.
+
+## [0.10.3] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.10.2] - 2026-10-07
+
+### Changed
+
+- The `## Gotchas` evidence line points at ADR 0056, where the benchmark result is recorded, instead of a results file the marketplace no longer keeps.
+
+## [0.10.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.10.0] - 2026-10-07
+
+### Changed
+
+- **Sessions are closed by name, not with `kill-all`.** The quick start no longer runs `kill-all` before every flow, and the conventions, `reference/sessions.md` and the orchestrator recipe say why: `close-all` and `kill-all` reach every playwright-cli browser on the machine, so they would end other agents' sessions in parallel work. Both stay as the recovery for a stuck daemon.
+- **`SKILL.md` no longer restates upstream default values.** The defaults section keeps the decision (accept the defaults, override per command) and points at the upstream README and `open --help` with an as-of date and a recheck trigger; the video-size levers stay in `reference/tracing-and-video.md`.
+
+### Added
+
+- `## Gotchas` in `SKILL.md`, each observed in the browser-tools benchmark of 2026-10-07: `fill` not leaving the field on validate-on-blur forms, refs refused after a re-render, clicks landing before hydration, short-lived toasts outrunning per-command startup, reading `console` for uncaught exceptions, and the missing `chrome` channel on Linux containers.
+- `## Next` naming the typical successors, `/source-control:pull-request` and `/verification:confirm`.
+- A contents list on every reference file over 100 lines, per the skill-authoring guidance on long reference files.
+- The README records why the plugin keeps wrapping Microsoft's skill instead of switching to it: the upstream 0.1.22 skill's gaps against the skill-authoring guidance, as of 2026-10-07, with the recheck trigger.
+- `snapshot --boxes` for geometry questions in `reference/snapshots-and-refs.md`, and `generate-locator` in `reference/test-generation.md`, both present upstream in 0.1.22.
+
+## [0.9.0] - 2026-10-06
+
+### Changed
+
+- `reference/tracing-and-video.md` covers reading a failed `@playwright/test` run from the terminal: the `npx playwright trace` loop (1.59+), the error context (1.60+), and when to use each trace, screenshot and video retention mode. A routing row in `SKILL.md` points there.
+- Test generation treats the spec as the oracle and the app as the subject: every `expect` traces to a requirement, and an outcome only observed on the page is marked unconfirmed. The heal step reads the retained trace first, and when the feature is broken it marks the test `test.fail()` or `test.fixme()` with the reason instead of patching the expectation.
+
+## [0.8.11] - 2026-10-04
+
+### Changed
+
+- The `update` action's finishing steps name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
+## [0.8.10] - 2026-10-04
+
+### Changed
+
+- **Synced `@playwright/cli` vendor baseline to 0.1.22.** `reference/tracing-and-video.md` now
+  documents `video-start --size/--fps/--cursor`, `video-chapter`, and `video-show-actions` with its
+  opt-in `--highlight-style`/`--point-style`/`--title-style` (the target highlight no longer shows
+  unless styled), and says to always pass `--size` because the default fits 800×800. Also added the
+  emulation (`set-color-scheme` and siblings), WebMCP, and `find --filename` commands, the headless
+  idle shutdown, and the `run-code` sandbox limits. Upstream:
+  [playwright-cli v0.1.20 to v0.1.22](https://github.com/microsoft/playwright-cli/releases).
+- **Declared `gh` as an optional prerequisite.** The vendored skill now shows attaching
+  screenshots and videos to a pull request with `gh pr comment --attach`.
+- **Upstream records in the new reference text state our decision plus a live pointer.** The
+  `run-code` login example passes the password from the shell instead of `process.env`.
+
 ## [0.8.9] - 2026-10-04
 
 ### Changed

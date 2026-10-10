@@ -1,0 +1,28 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fires-on-setup-apply",
+      "prompt": "/developer-experience:setup apply. I confirm the changes it shows.",
+      "expected_output": "The skill writes the developer tooling conventions file with a written_against front matter line and a source marker under every section except Not yet, and adds exactly one developer-experience pointer line inside the managed plugin-conventions block of the root AGENTS.md, changing no other AGENTS.md line.",
+      "files": [],
+      "expectations": [
+        "The conventions file exists with front matter naming the developer-experience version it was written against",
+        "Every section of the conventions file except Not yet has a source marker on the line after its heading",
+        "AGENTS.md holds exactly one developer-experience pointer line inside the managed block and no other AGENTS.md line changed"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stays-quiet-without-the-slash-command",
+      "prompt": "Write down this repo's developer tooling conventions where coding agents will find them",
+      "expected_output": "The setup skill does not run; it runs only when the user invokes /developer-experience:setup.",
+      "files": [],
+      "expectations": [
+        "The response makes no Skill call to developer-experience setup",
+        "The response does not write the developer-experience managed block pointer line into AGENTS.md"
+      ]
+    }
+  ]
+}

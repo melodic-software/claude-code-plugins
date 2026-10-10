@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
   "approvedReusableWorkflowContracts": {
-    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": [
@@ -19,7 +19,7 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-review.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "incremental-review"],
@@ -32,7 +32,7 @@
         "id-token": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "incremental-review"],
@@ -45,7 +45,7 @@
         "id-token": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "label", "label-prefix"],
@@ -54,7 +54,7 @@
         "issues": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-scan-dependencies.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-scan-dependencies.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner"],
@@ -63,16 +63,16 @@
         "contents": "read"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/maintenance-sync-standards.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/maintenance-sync-standards.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
-      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets"],
+      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets", "environment"],
       "allowedSecrets": {
-        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
-        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+        "STANDARDS_SYNC_APP_CLIENT_ID": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "STANDARDS_SYNC_APP_PRIVATE_KEY": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-audit-workflows.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-audit-workflows.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "paths", "fail-on-severity"],
@@ -82,7 +82,7 @@
         "security-events": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner"],
@@ -92,7 +92,7 @@
         "pull-requests": "write"
       }
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-run-checks.yml@fb56986808750d6856c27de78df15e150027b8dc": {
+    "melodic-software/ci-workflows/.github/workflows/pr-run-checks.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": [

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "tools/old-migrate.sh: dead"
+    },
+    {
+      "answer": "old-migrate.sh - uncertain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "plugins/greet.sh is uncertain."
+    }
+  ]
+}

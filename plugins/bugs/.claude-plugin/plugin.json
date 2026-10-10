@@ -1,6 +1,6 @@
 {
   "name": "bugs",
-  "version": "0.11.15",
+  "version": "0.11.16",
   "description": "Produces from an informal defect description a structured five-field bug report: title, steps to reproduce, expected vs actual, severity with justification, and suggested fix location. Read-only by default: it emits the report and never edits code, opens a PR, or files an issue on its own.",
   "author": {
     "name": "Melodic Software",

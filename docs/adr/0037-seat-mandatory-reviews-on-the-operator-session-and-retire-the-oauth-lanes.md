@@ -86,7 +86,8 @@ contract as advisory steps, and a babysit merge gate that reads pull-request sta
   review-lane run, 1 reviewed on the merged head. Pull request #4210 carried the plan for this
   change.
 - GitHub skips `pull_request` runs while the pull request has a merge conflict (the events
-  reference, fetched 2026-09-12).
+  reference, fetched 2026-09-12; recheck when that page stops saying a merge conflict skips
+  `pull_request` runs).
 - Two fresh-context reviews of the plan found that a rule demanding every row at HEAD marks every
   mutating skill stale by construction, because rows are stamped at invocation; the two-tier rule
   above is the repair, pinned by the script's suite.

@@ -1012,7 +1012,8 @@ hook::in_git_working_tree() {
 # TRACKED file matching an ignore pattern reads as not ignored: a file under
 # version control is part of the reviewable artifact whatever the patterns say.
 # Exit 0 = ignored, 1 = not ignored, 128 = error; only 0 answers true.
-# https://git-scm.com/docs/git-check-ignore (fetched 2026-09-28)
+# https://git-scm.com/docs/git-check-ignore (fetched 2026-09-28; recheck when
+# that page changes the exit codes or the tracked-file behavior without --no-index)
 #
 # FAILS TOWARD ACTING. Git absent, the directory gone, no repository, or a
 # check-ignore error all answer false, so the hook runs as before. A skip that
@@ -4252,6 +4253,8 @@ hook::git_invocation() {
 # `alias.bugreport = commit` cannot slip through. git 2.51+ honors
 # `alias.whatchanged = commit` (t/t0014-alias.sh). A name not listed here is
 # still probed: skipping a non-builtin would miss a real alias.
+# Recheck when the git-config page stops saying aliases that hide builtins are
+# ignored, or git.c marks another command DEPRECATED.
 hook::git_subcommand_ignores_alias() {
   case "$1" in
   add | am | annotate | apply | archive | bisect | blame | branch | bundle | \

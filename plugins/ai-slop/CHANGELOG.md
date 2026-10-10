@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.6] - 2026-10-04
+
+### Changed
+
+- The README's phrase-promotion steps name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
 ## [0.13.5] - 2026-10-04
 
 ### Changed

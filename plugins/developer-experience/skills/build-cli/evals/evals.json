@@ -1,0 +1,28 @@
+{
+  "skill_name": "build-cli",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fires-on-new-team-cli-command",
+      "prompt": "Add a `branch start` command to our team CLI. It takes a work item id and a short title, creates a work branch from main, pushes it, and opens a draft review request on our forge. The forge token is in an environment variable.",
+      "expected_output": "The skill reads the repository's developer tooling conventions, shows a plan for the command and waits for a yes before writing any file, then builds the command through the existing process helper with --help, distinct exit codes, --json and --dry-run, and records it in the conventions.",
+      "files": [],
+      "expectations": [
+        "The first response shows a plan and makes no file edit before the user agrees",
+        "The new command runs external processes through the repository's existing process helper, not a second one",
+        "The command reads the forge token from the environment and no option takes the token"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "stays-quiet-on-library-bug-fix",
+      "prompt": "PageCount in our paging library returns one page too many when the total is an exact multiple of the page size. Fix it.",
+      "expected_output": "The build-cli skill does not run; the request is a bug fix in library code, not a command-line tool change.",
+      "files": [],
+      "expectations": [
+        "The response fixes the page count calculation",
+        "The response does not plan or build a command-line tool and does not edit the tooling conventions"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Prints the legacy status.
+set -euo pipefail
+
+flag="${1:-on}"
+if [ "$flag" = "on" ]; then
+  echo "legacy: flag is $flag"
+else
+  echo "legacy: flag is $flag"
+fi

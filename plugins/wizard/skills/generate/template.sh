@@ -227,20 +227,31 @@ _resolve_link() {
 # symlinked file or a symlinked parent directory (a hostile repo can ship
 # `.env -> ~/.bashrc` or `sub -> ~`), is written to only after the human sees
 # the real destination and says yes; like open_url, the destination is printed
-# before anything is dispatched. Runs before any value is prompted for. The
-# path is re-resolved on every call and the yes is remembered for that
-# resolved target only, so a link repointed mid-run asks again. A decline or an
-# unanswerable gate aborts with nothing written.
+# before anything is dispatched. A target inside the project under any .git
+# directory (`.env -> .git/config`, a nested repo's metadata) gets the same gate:
+# a secret appended there sits in a world-readable file, and a key name of the
+# repo's choosing is read as git configuration. Runs before any value is
+# prompted for. The path is re-resolved on every call and the yes is remembered
+# for that resolved target only, so a link repointed mid-run asks again. A
+# decline or an unanswerable gate aborts with nothing written.
 _ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
-  local target
+  local target rel
   if ! target=$(_resolve_link "$ENV_FILE"); then
     [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
     return 0 # its directory does not exist, so nothing can be written there
   fi
-  if [[ "$target" == "$_WIZARD_PROJECT_DIR"/* || "$target" == "$_ENV_TARGET_CONFIRMED" ]]; then return 0; fi
-  warn "$ENV_FILE resolves to a file outside this project: $target"
+  [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
+  # Lowercased: on a case-insensitive filesystem .GIT/config is the git config.
+  rel=$(printf '/%s/' "${target#"$_WIZARD_PROJECT_DIR"/}" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+  if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
+    warn "$ENV_FILE resolves to a file outside this project: $target"
+  elif [[ "$rel" == */.git/* ]]; then
+    warn "$ENV_FILE resolves into git metadata: $target"
+  else
+    return 0
+  fi
   confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
   _ENV_TARGET_CONFIRMED="$target"
 }
@@ -252,8 +263,12 @@ _check_env_target() {
 # bash manual), whose new value would change how the rest of the wizard runs.
 # LD_* and DYLD_* are refused too: when already exported, the dynamic loader
 # reads them in every command the wizard starts (gh, git, mktemp).
+# A key the shell already exports (GH_TOKEN, BROWSER, GIT_SSH_COMMAND, ...) is
+# refused: printf -v keeps the export flag, so the assigned value would reach
+# gh, git and the browser opener.
 # Gate KEY with _valid_key first.
 _assignable_key() {
+  local __wiz_decl
   case "$1" in
   __wiz_* | _WIZARD_* | _ENV_* | _STAGE_INDEX | ENV_FILE | TOTAL_STAGES | \
     WRITTEN_ENV | WRITTEN_SECRET | WRITTEN_VAR | SKIPPED | GH_REPO | \
@@ -274,6 +289,12 @@ _assignable_key() {
     ;;
   *) ;;
   esac
+  # declare -p prints the attribute flags first (declare -x, -rx, ...).
+  __wiz_decl=$(declare -p -- "$1" 2>/dev/null) || return 0
+  __wiz_decl=${__wiz_decl#declare -}
+  if [[ "${__wiz_decl%% *}" == *x* ]]; then
+    fatal "exported key name: '$1' (already exported, so a value the wizard assigns would reach gh, git and the browser opener; pick another name)"
+  fi
 }
 
 # ask, ask_secret and write_env assign $KEY with printf -v, which writes the

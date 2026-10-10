@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Print one REPORT line per .log file in a directory: name and line count.\nset -euo pipefail\n\nlegacy_mode=1\n\ncount_lines() {\n  wc -l <\"$1\" | tr -d ' '\n}\n\nrender_report() {\n  dir=\"$1\"\n  if [[ -d \"$dir\" ]]; then\n    # Loop over files\n    for f in \"$dir\"/*.log; do\n      if [[ -f \"$f\" ]]; then\n        printf 'REPORT %s %s\\n' \"$(basename \"$f\")\" \"$(count_lines \"$f\")\"\n      fi\n    done\n  else\n    echo \"no such directory: $dir\" >&2\n    return 1\n  fi\n}\n\nif [[ \"${BASH_SOURCE[0]}\" == \"$0\" ]]; then\n  render_report \"${1:-.}\"\nfi\n",
+      "why": "expected file state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Print one REPORT line per .log file in a directory: name and line count.\nset -euo pipefail\n\ncount_lines() {\n  wc -l <\"$1\" | tr -d ' '\n}\n\nrender_report() {\n  local dir=\"$1\"\n  if [[ -d \"$dir\" ]]; then\n    for f in \"$dir\"/*.log; do\n      if [[ -f \"$f\" ]]; then\n        printf 'REPORT %s %s\\n' \"$(basename \"$f\")\" \"$(count_lines \"$f\")\"\n      fi\n    done\n  else\n    echo \"no such directory: $dir\" >&2\n    return 1\n  fi\n}\n\nif [[ \"${BASH_SOURCE[0]}\" == \"$0\" ]]; then\n  render_report \"${1:-.}\"\nfi\n",
+      "why": "violating file state"
+    }
+  ]
+}

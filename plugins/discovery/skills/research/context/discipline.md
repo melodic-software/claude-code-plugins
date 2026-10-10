@@ -49,7 +49,7 @@ Every accepted claim has at least one Tier 0/1 source plus two independent corro
 
 ## Single-source first-party content claims
 
-Some claims can have only one publisher. A **first-party content claim** states what a named Anthropic page, file or changelog says. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
+Some claims can have only one publisher. A **first-party content claim** states what a vendor's or maintainer's own official page, file, changelog or help text says about its own product. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
 
 - **The claim states why only one publisher exists**, in the sidecar header's `single_source:` field. The verifier grades that reason; one that does not hold fails criterion 4 like any other uncorroborated claim.
 - **A repost is not a second source.** A blog post, forum answer, mirror or synthesis answer that quotes or restates the page shares its pool. Record it with the page's `pool`, never count it, and keep the flag: a repost does not turn the claim into a corroborated one.
@@ -59,11 +59,11 @@ The claim's confidence is `HIGH (single source)` (see "Confidence calibration"),
 
 **A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs two independent corroborators, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
 
-**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher. When the page states the publisher's own pricing, roadmap or internal metrics, "the page says X" can carry the flag, while X as a fact about the publisher is a separate claim under "Single-publisher facts" below and is never accepted.
+**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher, so it carries no `subject_pool` and the cap in "Single-publisher facts" below does not apply to it, even though its one source is the publisher's. When the artifact states the publisher's own pricing, roadmap, internal metrics, or how its product behaves or performs, "the artifact says X" can carry the flag, while X as a fact about the publisher or its product is a separate claim under "Single-publisher facts" and is never accepted on the publisher's word alone.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
-When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. The windows below bound how stale a cited doc may be before this cross-check is required. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
+When the topic touches a library, tool, CLI, API or framework that ships releases, one Phase 1 or Phase 2 query fetches the latest upstream changelog or release notes this turn and confirms the claims are current as of it. Acceptable forms: `gh api repos/<owner>/<repo>/releases/latest`, WebFetch on a raw `CHANGELOG.md` URL, the vendor's "What's New" page. When the changelog or release notes are a docs page, read the page itself through the docs lookup, `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`, not a WebFetch summary of it. The windows below bound how stale a cited doc may be before this cross-check is required. A stable project whose latest release is older than the window still passes once that release is confirmed to be the current one.
 
 **Tightening tiers:**
 
@@ -240,7 +240,9 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
-**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or, in the silent variant, truncate it: Claude Code's WebFetch documents truncating large pages to a fixed character limit, and names `curl` via Bash as the unprocessed-page path ([tools-reference](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior), fetched 2026-07-24). Escalate by moving the fetch out of context, in three steps.
+**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or, in the silent variant, truncate it: Claude Code's WebFetch documents truncating large pages to a fixed character limit, and names `curl` via Bash as the unprocessed-page path ([tools-reference](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior), fetched 2026-07-24). Escalate by moving the fetch out of context.
+
+**An upstream docs page goes through the docs lookup**: `<plugin-root>/scripts/fetch-docs.sh --cache` per `<plugin-root>/reference/docs-lookup-procedure.md`. It writes the page to a file, checks it is the page asked for, records a page it cannot read whole as `unread` with a reason, and caches the bytes for other sessions. Cite the manifest's `validated` and `age_seconds` with the source. An `unread` page is a block: walk the escalation order above. A negative claim or any other verification read takes `--max-age 0` and the raw reads in the procedure's step 6, because cached bytes are not a fetch this turn. Every other artifact (a PDF, a spec, a source file) takes the three steps below.
 
 1. **Download** to the session's scratch dir with any available downloader, failing loudly on an HTTP error instead of saving the error body as the document:
 
@@ -301,7 +303,7 @@ Prefer: the vendor's own `/docs` subdomain, GitHub source code, RFCs, language s
 
 If a required tool category is unavailable this session (no synthesis MCP server, no web access), don't lower the bar. Substitute and document:
 
-- Lost synthesis tool → substitute WebSearch + WebFetch + `gh api` for equivalent coverage
+- Lost synthesis tool → substitute WebSearch + WebFetch + `gh api` for equivalent coverage. WebFetch only finds which page to read; read the page itself by the [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs). For a docs page that is `<plugin-root>/scripts/fetch-docs.sh --cache`
 - Lost web access → flag the topic as `verification: incomplete — offline session`; do not edit code based on Tier 3 recall
 - Document the gap in RESEARCH.md's `Gaps` section: which tool was unavailable, what alternative was used, residual risk
 
@@ -322,7 +324,7 @@ Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforce
 
 Some facts only their publisher can state: its own pricing, roadmap, internal metrics, or how its own product behaves. Two sources sharing a `pool` are one corroborator (`artifact-shape.md`), so the publisher's own pages count once toward criterion 4 however many repeat the fact, and such a fact never reaches criterion 7 or counts as independently corroborated.
 
-A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. Carry it this way:
+A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. A flagged first-party content claim never fits this definition: its subject is the artifact, and it is graded under "Single-source first-party content claims" above. A claim carries `single_source:` or `subject_pool:`, never both. Carry a single-publisher claim this way:
 
 - **Worded as an attribution.** The claim reads "<publisher> states ...", never as a bare fact, in the sidecar, the evidence table and the answer.
 - **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabeled, and the verifier fails it on criterion 4.

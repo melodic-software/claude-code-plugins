@@ -198,7 +198,8 @@ context. Run this once **per resolved target**, into that target's own packet. W
 - Anything anomalous you noticed while using the component (the reason this audit started).
 - When the target plugin ships a mod (its hook config names `"modules"`): load the built-in
   `plugin-authoring` skill and record the declaration-file path that skill names, whatever its
-  basename or directory. As of 2026-10-03 that path ends in `types/claude-code.d.ts`. The
+  basename or directory. As of 2026-10-03 that path ends in `types/claude-code.d.ts` (recheck when the
+  `plugin-authoring` skill names a different file). The
   auditor cannot load skills, so the packet is its only way to that file. Why the file matters is
   in `reference/component-types/hook.md` "A mod (hooks module)".
 
@@ -231,9 +232,11 @@ pass one below `opus`.
 The `auditor` returns: grounded findings (each with evidence + doc citation), blindspots (what
 the audit framing missed), candidate remediations ordered cheapest → most ambitious, and doc-worthy
 gotchas (usage-evidence lessons graded general vs situational; general = candidate doc additions). Every doc
-citation states the retrieval channel it came over plus a byte count or line number; a finding whose
+citation states the retrieval channel it came over (rung-1 `fetch-docs.sh` read (cached, validated
+<time>), or rung-2 `WebFetch`) plus a byte count or line number; a finding whose
 citation omits **either** field is recorded as **unverified**, however confidently worded. "rung-1
-`curl`, `<url>`, fetched `<date>`" with no count and no line is a half-citation, not a grounded one.
+`fetch-docs.sh` read (cached, validated `<time>`), `<url>`" with no count and no line is a
+half-citation, not a grounded one.
 
 **Confirm the findings reached disk before presenting anything, once per target packet.** A
 multi-target run confirms every packet. One silently empty packet among several is exactly the loss
@@ -463,8 +466,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

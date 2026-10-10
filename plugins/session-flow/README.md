@@ -1,11 +1,12 @@
 # session-flow
 
-A Claude Code plugin bundling seventeen skills for one cohesive capability: managing the lifecycle
+A Claude Code plugin bundling eighteen skills for one cohesive capability: managing the lifecycle
 of a working session. The skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
 session's assumptions are still current, what to learn from it while it runs and after, where your
-sessions lose time and tokens over weeks, and how to arm it for delegation-heavy tasks.
+sessions lose time and tokens over weeks, where permissions and asks get in the way, and how to arm
+it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -17,6 +18,7 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
 | `/session-flow:clean-stop` | Before I lose this machine, is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time, tokens or corrections, and what would fix it? |
+| `/session-flow:audit-friction` | Where do permission prompts, auto-mode denials, hook blocks and the agent's own asks get in my way, and what should change? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orient` | Where do we stand, what are we doing, and why, from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
@@ -39,6 +41,7 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
   - [clean-stop](#clean-stop)
   - [retro](#retro)
   - [audit-sessions](#audit-sessions)
+  - [audit-friction](#audit-friction)
   - [running-retro](#running-retro)
   - [orient](#orient)
   - [orchestrate](#orchestrate)
@@ -226,6 +229,21 @@ applies a finding.
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
 ```
 
+### audit-friction
+
+Permission and autonomy friction across this machine's sessions. The audit-sessions collector
+records each denial (classifier category, hook, rule), approved prompt, ask, hand-off and
+correction per session; a script mines a window of them, maps each to the permission rules that
+could match it, and diffs a later window against a saved baseline. Agents classify the friction,
+plan the fixes and verify the claims at a depth you pick. The run ends in one decision brief, with
+scripts you run for the edits auto mode blocks; it changes no setting itself.
+
+```shell
+/session-flow:audit-friction                         # last 7 days, every project
+/session-flow:audit-friction --days 14 --verify full # wider window, check every claim
+/session-flow:audit-friction remeasure               # compare with the saved baseline
+```
+
 ### running-retro
 
 The live counterpart to `retro`: an in-flight retrospective checkpoint taken *while the work is
@@ -371,7 +389,7 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other sixteen skills are zero-config.
+A check-centric setup for the **observer substrate only**. The other seventeen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
@@ -538,6 +556,6 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->

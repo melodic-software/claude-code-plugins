@@ -37,7 +37,8 @@ real occupancy numbers for the running session, and neither can be turned into a
 OpenTelemetry `claude_code.api_request` log event carries live per-session token counts but no
 window size and reaches only an out-of-process receiver, and the session transcript carries the
 same numbers behind an explicitly unsupported entry format. Both are recorded in full below rather
-than waved off.
+than waved off. Recheck when the hooks, settings or statusline docs name a new per-session
+occupancy channel outside a mod.
 
 Hook stdin, the named candidate for a settings hook, carries no context, token, usage, or window
 field on any event, **except `PostToolUse` on the `Agent` tool, whose `tool_response` carries
@@ -85,7 +86,8 @@ nothing calling the tee, because nothing calls a statusline.
 scope of a live cloud session, and it never ran. The write was live rather than pending a restart.
 Claude Code "watches your settings files and reloads them when they change", the reload "covers
 user, project, local, and managed settings", and `statusLine` is not among the few keys documented
-as read once at session start (<https://code.claude.com/docs/en/settings>, read 2026-08-21). The
+as read once at session start (<https://code.claude.com/docs/en/settings>, read 2026-08-21; recheck
+when that page lists `statusLine` among them). The
 headless half was measured the same day by the same method: the identical `statusLine` written into
 a scratch `HOME`, exercised with `claude -p '…' --output-format json`, again never invoked the
 probe and never created `~/.claude/context-guard/` at all.
@@ -99,11 +101,12 @@ result for a settings hook rather than an assumption.
 ## Channels checked
 
 Every row but the first was read from the live page on **2026-08-21**, before mods shipped. Claims
-below are quoted or paraphrased from those pages, not recalled.
+below are quoted or paraphrased from those pages, not recalled. Recheck a row when its page adds
+or removes a field in the Carries or Does-not-carry cell.
 
 | Channel | Source read | Carries | Does **not** carry |
 |---|---|---|---|
-| Mods API `$.session.usage()` (read 2026-10-03, Claude Code 2.1.288) | <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods> | The running session's context-window use, read in process by a mod in any kind of session that loads it: tokens, window size, percentage, and with `breakdown: 'summary'` the last API response's token breakdown. **The capture path this plugin ships.** | Anything where the mod does not run (Desktop WSL sessions, mods off, the plugin not enabled); `prompt_cache` |
+| Mods API `$.session.usage()` (read 2026-10-03, Claude Code 2.1.288; recheck when the mods API table renames or drops it) | <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods> | The running session's context-window use, read in process by a mod in any kind of session that loads it: tokens, window size, percentage, and with `breakdown: 'summary'` the last API response's token breakdown. **The capture path this plugin ships.** | Anything where the mod does not run (Desktop WSL sessions, mods off, the plugin not enabled); `prompt_cache` |
 | Hook stdin (all events) | <https://code.claude.com/docs/en/hooks> | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives `totalTokens` ("Token count from the subagent's final API request: input, output, and cache tokens combined. This isn't a total across the whole run") and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped, and the page says outright it "isn't a total across the whole run". It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
 | Status line stdin | <https://code.claude.com/docs/en/statusline> | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. It was the one sufficient channel before mods, and it exists only where a `statusLine` is configured *and* the environment runs it |
 | `subagentStatusLine` stdin | <https://code.claude.com/docs/en/statusline> | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
@@ -128,7 +131,8 @@ a session therefore yields the current main-thread occupancy, the same three inp
 statusline page names as the `used_percentage` formula
 (<https://code.claude.com/docs/en/statusline>, read 2026-08-21): "`input_tokens +
 cache_creation_input_tokens + cache_read_input_tokens`". This channel really does supply live,
-per-session occupancy for a running interactive session.
+per-session occupancy for a running interactive session. Recheck when the monitoring-usage events
+table drops those token fields or the statusline page changes the `used_percentage` formula.
 
 Two disqualifiers hold anyway, and both were measured rather than assumed.
 

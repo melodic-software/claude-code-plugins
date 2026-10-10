@@ -14,7 +14,7 @@ const WINDOWS = [
 ] as const
 // The verdict is always in a line; these add to it.
 const DATA_ITEMS = ['verdict', 'percent', 'window', 'reset']
-const DEFAULT_DATA = ['verdict', 'window', 'reset']
+const DEFAULT_DATA = ['verdict', 'percent', 'window', 'reset']
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limit-guard'
@@ -25,6 +25,8 @@ const README = 'https://github.com/melodic-software/claude-code-plugins/blob/mai
 type Level = 'quiet' | 'approach' | 'edge'
 type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
+// An event and the reading that produced it, so a late line states both from one reading.
+type Due = { event: Event; limit: SessionRateLimit | undefined }
 type Config = {
   bad: string[]
   writes: boolean
@@ -48,9 +50,9 @@ type Body = {
 type State = {
   reading: Reading | undefined
   spend: SessionRateLimit | undefined
-  levels: Map<string, { level: Level; resetsMs: number }>
+  levels: Map<string, { level: Level; resetsMs: number; limit: SessionRateLimit }>
   limits: readonly SessionRateLimit[]
-  pending: Map<string, Event>
+  pending: Map<string, Due>
   // Rises from a known level and resets not yet shown to the person.
   toastQueue: [string, Event][]
   // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
@@ -58,7 +60,7 @@ type State = {
   heldToasts: [string, Event][]
   rowSeen: boolean
   // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
-  handoff: Map<string, Event>
+  handoff: Map<string, Due>
   restate: boolean
   restateIfLoud: boolean
   // An in-process /resume or /branch ended the last session; cleared by the first decided write.
@@ -139,12 +141,17 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
-// The person's wording; Claude's names the threshold alone, since Claude Code waits out a usage limit itself.
+// The person's wording; Claude's names the threshold crossed and nothing else.
 const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
 
 const modelVerdict = (event: Event, cfg: Config) =>
-  ({ edge: 'at or above', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
+  ({
+    edge: `at or above ${cfg.threshold}%`,
+    approach: `at or above ${cfg.approach}%`,
+    quiet: `below ${cfg.threshold}%`,
+    reset: `reset, now below ${cfg.threshold}%`,
+  })[event]
 
 const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
 
@@ -181,7 +188,7 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
     let prev = st.levels.get(kind)
     if (prev !== undefined && (limit === undefined || prev.resetsMs <= nowMs)) {
       if (prev.level === 'edge') {
-        st.pending.set(kind, 'reset')
+        st.pending.set(kind, { event: 'reset', limit })
         changes.push([kind, 'reset'])
       } else st.pending.delete(kind)
       st.levels.delete(kind)
@@ -191,32 +198,30 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
     const level = levelOf(limit.percentUsed, cfg)
     const resetsMs = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
     if (prev !== undefined && RANK[level] <= RANK[prev.level]) continue
-    st.levels.set(kind, { level, resetsMs: Number.isFinite(resetsMs) ? resetsMs : Infinity })
+    st.levels.set(kind, { level, resetsMs: Number.isFinite(resetsMs) ? resetsMs : Infinity, limit })
     if (level === 'quiet') continue
-    st.pending.set(kind, level)
+    st.pending.set(kind, { event: level, limit })
     if (prev !== undefined) changes.push([kind, level])
   }
   return changes
 }
 
 // The events due now, one per window, without consuming them.
-const dueEvents = (st: State): [string, Event][] => {
+const dueEvents = (st: State): [string, Due][] => {
   // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
   // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
-  const atEdge = st.restateIfLoud ? [...st.levels].filter(([, w]) => w.level === 'edge').map(([kind]) => kind) : []
+  // A restated level carries the reading that crossed into it.
+  const recorded = ([kind, w]: [string, { level: Level; limit: SessionRateLimit }]): [string, Due] => [kind, { event: w.level, limit: w.limit }]
+  const atEdge = st.restateIfLoud ? [...st.levels].filter(([, w]) => w.level === 'edge').map(recorded) : []
   return st.restate
-    ? [...st.levels].filter(([kind, w]) => w.level !== 'quiet' && st.reading?.has(kind)).map(([kind, w]) => [kind, w.level])
-    : [...new Map<string, Event>([...st.pending.entries(), ...atEdge.map(kind => [kind, 'edge'] as const)])]
+    ? [...st.levels].filter(([kind, w]) => w.level !== 'quiet' && st.reading?.has(kind)).map(recorded)
+    : [...new Map<string, Due>([...st.pending.entries(), ...atEdge])]
 }
 
-const dueLines = (st: State, cfg: Config): string[] => {
-  const reading = st.reading ?? new Map()
-  const events = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
-  const lastEdge = events.map(([, event]) => event).lastIndexOf('edge')
-  return events.map(
-    ([kind, event], i) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.${i === lastEdge ? ' Keep working.' : ''}`,
-  )
-}
+const dueLines = (st: State, cfg: Config): string[] =>
+  dueEvents(st)
+    .sort(([a], [b]) => order(a) - order(b))
+    .map(([kind, due]) => `rate-limit-guard: ${clause(kind, due.event, due.limit, cfg)}.`)
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
@@ -547,7 +552,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. Call it when the user asks about usage limits or before starting long or parallel work. Do not poll it: by default rate-limit-guard adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. By default rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({
@@ -610,8 +615,8 @@ export const register: Register = (on, options) => {
       // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
       const handingOff = !isPersonTurn(st) && st.handoff.size > 0
       if (handingOff) {
-        for (const [kind, event] of st.handoff) {
-          if (!st.pending.has(kind) && (event === 'reset' || st.levels.has(kind))) st.pending.set(kind, event)
+        for (const [kind, due] of st.handoff) {
+          if (!st.pending.has(kind) && (due.event === 'reset' || st.levels.has(kind))) st.pending.set(kind, due)
         }
       }
       st.handoff.clear()

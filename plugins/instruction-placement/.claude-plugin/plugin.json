@@ -1,6 +1,6 @@
 {
   "name": "instruction-placement",
-  "version": "0.21.12",
+  "version": "0.22.1",
   "description": "Routes agent instructions to the surface that loads them at the right time. audit finds conventions narrower than the always-loaded CLAUDE.md or AGENTS.md holding them, or stranded in docs Claude never loads, and proposes a destination with a validated paths glob; safety-class content is never demoted. realign applies moves item by item and regenerates an index. check verifies globs and index. migrate moves content to AGENTS.md with a CLAUDE.md shim. setup checks the index is readable.",
   "author": {
     "name": "Melodic Software",

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Prints the branch utility status.
+set -euo pipefail
+
+state="${1:-ok}"
+if [ "$state" = "ok" ]; then
+  echo "branch-util: state is $state"
+else
+  echo "branch-util: state is $state"
+fi

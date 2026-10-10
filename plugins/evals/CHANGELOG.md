@@ -1,5 +1,53 @@
 # Changelog: evals
 
+## [0.7.2] - 2026-10-10
+
+### Changed
+
+- `plugin-eval`: `## Run` now calibrates judges before the full-suite run, and on a miss fixes the rubric or moves the run to a stronger `--judge-model`. The rule covers every LLM-judge grader the calibration harness can reproduce (labeled samples, judging text), treats the default judge as uncalibrated until it passes, and reports graders it cannot reproduce as uncalibrated. Observed twice in #6669's eval gate: the default Haiku judge marked uc3 below baseline in a full run, then agreed with its labels on only 66.7% of calibration runs; a Sonnet judge calibrated at 100% and the next full run passed.
+
+## [0.7.1] - 2026-10-09
+
+### Fixed
+
+- **`/evals:validate` fails every case field `claude plugin eval` marks required.** A case with a `case.yaml` but no `name` (or `schema_version`) in it or in `prompt.md` frontmatter, a case with no prompt, a grader missing an option its type requires (regex `pattern`, tool_used `tool`, tool_order `before`/`after`, file_exists `path`, llm `criteria`, baseline `baseline_file`/`criteria`), and a `schema_version` that is unquoted or has no leading major now FAIL instead of passing at exit 0. The required set is re-derived from the Claude Code 2.1.296 case schema and each rejection was reproduced with the CLI (#6673).
+
+## [0.7.0] - 2026-10-08
+
+### Added
+
+- `noise-report.py --baseline <before.json> [--margin M]` compares two results of the same suite, paired by case name: the with-arm change with its interval, the without-arm change as a drift check, each case that fell by a third or more, and a non-inferiority verdict at the margin. `/evals:plugin-eval` reads it beside the noise report's other lines.
+
+## [0.6.3] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.6.2] - 2026-10-07
+
+### Fixed
+
+- **`plugin-eval` run-validity classifies a driveless rooted denial path on Windows ([#6499](https://github.com/melodic-software/claude-code-plugins/issues/6499)).** On Python 3.13 and later, `os.path.isabs` on Windows calls `/tmp/x` relative, so a with-arm denial outside the plugin counted as inside it and the run came out INVALID. The inside-the-plugin check now treats any rooted path as anchored and skips a plugin root on another drive instead of raising; behavior on Linux and macOS is unchanged.
+
+## [0.6.1] - 2026-10-07
+
+### Changed
+
+- **`plugin-eval` case-authoring checklist points at the upstream grader table for `tool_order` ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** That row restated the pass condition on the plugin-evals page closely enough for the attribution audit's fingerprint check to confirm a copy; its "Passes when" cell now links the page's "Grader types" section instead. The `file_exists` common mistake now says it applies with the default `exists`, since `exists: false` passes when nothing is created. The `file_exists` row and the "Precedence" checks now link the same page, as of 2026-10-07 with a recheck trigger, and keep only the local rules: scaffold output and edited files do not count, and author each field in one file.
+
+## [0.6.0] - 2026-10-06
+
+### Added
+
+- `/evals:methodology` adds an "Agent evals: grader hygiene" section pointing at Anthropic's agent-evals post: grade the outcome rather than the transcript's claim, keep graders out of the agent's reach, and sample transcripts to catch gaming.
+
+## [0.5.7] - 2026-10-04
+
+### Changed
+
+- **`plugin-eval` documents the CLI's linked-worktree refusal ([#6374](https://github.com/melodic-software/claude-code-plugins/issues/6374)).** `claude plugin eval` refuses a plugin inside a git repository that "registers more linked worktrees than can be screened"; a new record row in the worktree table gives the cause and the workaround (copy the plugin into a new empty directory outside git, excluding `.git` and results, run against the copy, write `--json` back to the plugin's gitignored results directory), with a dated basis and recheck trigger. The description gains a trigger phrase for it.
+
 ## [0.5.6] - 2026-10-04
 
 ### Fixed

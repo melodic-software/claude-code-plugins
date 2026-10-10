@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -20",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no matching call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -b chore/tidy-shell-tooling-2026-10-07 origin/main",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a branch was created"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git switch -c chore/tidy-x",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a branch was created"
+    }
+  ]
+}

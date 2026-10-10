@@ -1,5 +1,200 @@
 # Changelog: discovery plugin
 
+## [0.32.6] - 2026-10-09
+
+### Changed
+
+- **research-deep pilots a wide fan-out.** When the multi-topic check finds more than about 4 topics, the skill spawns one `discovery:researcher` alone, waits for its return, and confirms plan usage remains before spawning the rest, so a usage limit cannot stop every researcher at once.
+
+## [0.32.5] - 2026-10-08
+
+### Changed
+
+- The rendered-view reference treats `medium: hosted` as `artifact`: the blindspot view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.32.4] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.32.3] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.32.2] - 2026-10-07
+
+### Fixed
+
+- The parent contract and the research and trace-intent spoke-path records cite the plugin
+  manifest reference (`plugins/manifest-reference#settings` and
+  `#where-each-variable-resolves`) in place of the retired `plugins-reference` page, re-verified
+  2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+- The docs-fetcher gate's `CLAUDE_PLUGIN_DATA` citation points at
+  `plugins/manifest-reference#environment-variables` in place of the retired `plugins-reference`
+  page, re-verified 2026-10-07 ([#6523](https://github.com/melodic-software/claude-code-plugins/issues/6523)).
+
+## [0.32.1] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate keeps its once-per-run markers in the plugin data directory instead of a
+  shared temp directory, created with mode 0700, and denies the call when that directory is a
+  link, is owned by another user, or others can reach it
+  ([#6526](https://github.com/melodic-software/claude-code-plugins/issues/6526)).
+
+## [0.32.0] - 2026-10-07
+
+### Security
+
+- The docs-fetcher gate passes its one `docs-raw.sh` command once per agent run, so a page cannot
+  steer a second fetch, and denies when its input stream fails or the gate errors instead of
+  failing open. `docs-raw.sh` fetches with `--public-only`: a host, a redirect or a DNS answer
+  that leads to a non-global address is unread `private-address`, and curl (now run with `-q`)
+  connects only to the checked address with no proxy. A generic page is cached in a per-run
+  directory, never the shared docs cache
+  ([#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486),
+  [#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+- `docs-raw.sh` prints `body_sha256` and normalizes CRLF; the workflow marks a slice unread when
+  the body the fetcher returned differs from the header byte count or hash
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+- The WebFetch truncation note names the requested URL by origin and path only, encoded and cut
+  at 200 characters, so text in the URL does not reach the context
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488)).
+
+## [0.31.1] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md` now has the reader slice the sections for any part
+  of the question none of its slices covers, and the section of every item when the question asks
+  the same thing for each of many events, options or keys. In a blind-graded run on the hooks page
+  (n = 6 per arm), new-core recall rose from .899 (control, n = 16) to .953, with mean bytes read
+  of 218159 against a limit of 219084, half the saving over reading the whole page. A lower
+  `escalate_bytes` and a "read the whole page" sentence did not pass the same rule.
+
+## [0.31.0] - 2026-10-07
+
+### Added
+
+- A PostToolUse WebFetch hook that, when a result ends in a truncation marker or placeholder line,
+  adds a note naming /discovery:read-docs; it never blocks or changes the result and does not flag
+  a page summarized with neither. /discovery:check reports whether node resolves and the hook is
+  registered, and a node prerequisite with a SessionStart notice
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- The `discovery:docs-fetcher` agent and a `PreToolUse` Bash gate (`hooks/hooks.json`,
+  `lib/docs-fetcher-gate.mjs`) that holds it to the plugin's `docs-raw.sh` on a public https host.
+  `research-sweep` now fetches each selected page raw before the Read stage; readers and skeptics
+  judge from those inline slices and can request sections for one more round, then use WebFetch
+  for a section still missing. The research verifier's
+  truncated-primary snapshots now come from `docs-raw.sh`, with the curl recipe kept for non-docs
+  artifacts ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
+## [0.30.0] - 2026-10-07
+
+### Changed
+
+- **`/discovery:research` reads upstream docs pages through the shared docs lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** The
+  discipline file's recency gate, size-failure escalation and lost-tool fallback, and the
+  source-categories Official docs row, send a docs page through `scripts/fetch-docs.sh --cache`
+  and cite its `validated` time and age; a verification or negative-claim read takes
+  `--max-age 0` and raw reads. The `curl` download recipe stays for PDFs, specs and source files,
+  and WebFetch stays for finding which page to read.
+- **The parent saves a truncated docs primary for the research verifier through the lookup
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** handing over
+  the page file the manifest names.
+- **The researcher agent reads a docs page with `scripts/fetch-docs.sh --cache`
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)),** and its
+  write-boundary wording names the user-scope docs cache. `/discovery:research` and
+  `/discovery:research-deep` point a single docs page at `/discovery:read-docs`.
+
+## [0.29.0] - 2026-10-04
+
+### Added
+
+- **`/discovery:read-docs` reads one upstream docs page through the shared docs lookup and cache
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).** It fetches the
+  page with `scripts/fetch-docs.sh --cache`, then reads it with `scripts/docs-cache.sh read`: a
+  page under the whole-page threshold comes back whole, a larger one as its section map plus the
+  stored section summaries and notes, and the model slices the sections it picks. The answer marks
+  each asked fact the page does not state as `not stated on the page`, keeps inference in a
+  separate labeled part, and ends with the page's URL, format and validated time. After reading,
+  it stores one-line section summaries and a note whose quoted spans the script checks against
+  the cited sections. Verification reads raw bytes only (`--max-age 0`, `read --raw`, `slice`).
+  The procedure lives in `reference/docs-lookup-procedure.md`, a generated copy of
+  `lib/docs-lookup-procedure.md` that other plugins can carry.
+- Shared `fetch-docs.sh`, `docs-cache.sh` and `html2md.py` synced into `scripts/`, and
+  `prerequisites.json` declares curl and jq (required by `/discovery:read-docs`) and Python 3
+  (optional: without it a page served only as HTML is recorded unread).
+- `/discovery:research` names `/discovery:read-docs` in its `## Next` for a claim one docs page
+  settles.
+- The shared scripts hold back hostile pages and notes: `fetch-docs.sh` leaves a body over
+  `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or
+  note with a line shaped like the block's BEGIN or END marker, says in the block's opening line
+  that only the END line with its nonce closes it, and prints a note's writer and session as `(self-reported)`.
+- The read procedure pins every read, slice, summary and note to `<cache_key>-<sha256>` from the
+  manifest, so a concurrent fetch cannot swap the page version under the currency line; a code
+  block holding a ``` line converts inside a wider fence instead of leaking headings into the
+  section map; and the Python 3 prerequisite no longer counts the `py` launcher, which the fetch
+  does not use.
+- A docs URL in browser form (no `.md`, or with a `#fragment`) reads the indexed page instead of
+  quarantining it; a page found removed is fetched again, never served from the cache, fresh or
+  stale; summaries and notes are stored only for pages over the whole-page threshold, where `read`
+  shows them back; headings keep a real trailing `#` (`Using C#`); and prune counts and clears
+  temp items left by an interrupted write, takes over a lock left without a start time, and never
+  leaves a key without its pointer when an entry cannot be moved away.
+- Headings wrapped in an in-page anchor (mdBook, VuePress) keep their text, html2md runs on Python
+  3.8, a browser-form URL with a query string or trailing slash resolves, prune sweeps stale temp
+  leftovers on every run, and a page with no title lifts its removal quarantine when read again.
+- Headings drop screen-reader-only and `aria-hidden` text, and prune keeps its grace-window
+  reference file outside the store, so one prune never sweeps another's.
+
+## [0.28.11] - 2026-10-04
+
+### Fixed
+
+- `/discovery:research` evals: five eval prompts (15, 22, 23, 29, 30) said "both gates" where the acceptance gate now runs three scripted gates; they now say "all three gates".
+
+## [0.28.10] - 2026-10-04
+
+### Fixed
+
+- `/discovery:research`: a flagged first-party content claim carries no `subject_pool`, and the single-publisher MEDIUM cap does not apply to it, since its subject is the artifact, not the publisher; a claim carries `single_source:` or `subject_pool:`, never both. The exception also covers a publisher's own help text. Verifiers had failed rows 4 and 7 on non-Anthropic first-party content claims whose quotes held on re-fetch.
+
+## [0.28.9] - 2026-10-04
+
+### Fixed
+
+- `check-source-applicability.py` no longer fails a run for keeping its Gap claims in the sidecar header. A claim at `MEDIUM` or `LOW` confidence is a Gap, and the artifact shape keeps Gaps in the header, but rule R7 (and R5's one-primary count) demanded a dated, `current` primary from every claim, so a Gap with a historical, undated, or missing primary turned criterion 13 red. Both rules now apply only to claims above `MEDIUM`; a Gap's sources are still graded for standing.
+- The single-source first-party content-claim exception is vendor-neutral: it covers any vendor's or maintainer's own official page, file or changelog about its own product, not only an Anthropic page.
+
 ## [0.28.8] - 2026-10-04
 
 ### Changed

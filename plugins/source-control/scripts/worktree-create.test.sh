@@ -1201,4 +1201,115 @@ assert_file_exists "existing branch worktree has the commit" "$out/README.md"
 bash "$HELPER" --name missing-branch --existing-branch --root "$TEST_TMPDIR/wtroot-missing" --repo-dir "$repo" >/dev/null 2>"$errfile"
 assert_exit "missing existing branch is a usage error" 2 "$?"
 
+# --- Dependency install: npm ci runs when the new tree has a package-lock.json ---
+# A fake npm stands in for the registry: it records its arguments and, like a
+# real install, creates node_modules/.bin in its working directory. Its exit
+# code and duration come from FAKE_NPM_EXIT and FAKE_NPM_SLEEP.
+fake_bin="$TEST_TMPDIR/fake-npm-bin"
+mkdir -p "$fake_bin"
+cat >"$fake_bin/npm" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$FAKE_NPM_LOG"
+# A lifecycle script stands in as a child process; its pid goes to FAKE_NPM_CHILD_PID.
+[[ -n "${FAKE_NPM_CHILD_PID:-}" ]] && { sleep 60 & echo $! >"$FAKE_NPM_CHILD_PID"; }
+sleep "${FAKE_NPM_SLEEP:-0}"
+mkdir -p node_modules/.bin && : >node_modules/.bin/markdownlint-cli2
+exit "${FAKE_NPM_EXIT:-0}"
+EOF
+chmod +x "$fake_bin/npm"
+deps_repo=$(mkrepo)
+commitfile "$deps_repo" package-lock.json
+
+npm_log="$TEST_TMPDIR/npm-ok.log"
+errfile="$TEST_TMPDIR/err-deps-ok.txt"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/deps-ok --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+assert_exit "lockfile: creation succeeds" 0 "$?"
+assert_eq "lockfile: stdout is still only the worktree path" \
+  "$TEST_TMPDIR/wtroot-deps/${deps_repo##*/}-feat-deps-ok" "$out"
+assert_eq "lockfile: npm ci ran once" "ci --no-audit --no-fund" "$(cat "$npm_log" 2>/dev/null)"
+assert_file_exists "lockfile: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
+assert_not_contains "lockfile: a clean install prints no warning" "$(cat "$errfile")" "warning"
+
+# No lockfile: npm is never invoked.
+npm_log="$TEST_TMPDIR/npm-none.log"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/deps-none --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$(mkrepo)" 2>/dev/null)
+assert_exit "no lockfile: creation succeeds" 0 "$?"
+assert_file_absent "no lockfile: npm is not run" "$npm_log"
+
+# A failed install warns with the remedy and keeps exit 0.
+npm_log="$TEST_TMPDIR/npm-fail.log"
+errfile="$TEST_TMPDIR/err-deps-fail.txt"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_EXIT=7 bash "$HELPER" --name feat/deps-fail \
+  --base-ref head --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+assert_exit "failed install: creation still exits 0" 0 "$?"
+assert_file_exists "failed install: worktree exists" "$out/README.md"
+assert_contains "failed install: warning names npm's exit code" "$(cat "$errfile")" "npm ci failed (exit 7)"
+assert_contains "failed install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+
+# An install past the cap is stopped with its children, warned about, and does
+# not hold creation.
+npm_log="$TEST_TMPDIR/npm-slow.log"
+errfile="$TEST_TMPDIR/err-deps-slow.txt"
+child_pid_file="$TEST_TMPDIR/npm-slow-child.pid"
+start=$SECONDS
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=30 FAKE_NPM_CHILD_PID="$child_pid_file" \
+  WORKTREE_CREATE_DEPS_CAP_SECONDS=1 bash "$HELPER" --name feat/deps-slow --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+rc=$?
+elapsed=$((SECONDS - start))
+assert_exit "capped install: creation still exits 0" 0 "$rc"
+assert_contains "capped install: warning names the cap" "$(cat "$errfile")" "did not finish within 1s"
+assert_contains "capped install: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+child_pid=$(cat "$child_pid_file" 2>/dev/null)
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  if [[ -z "$child_pid" ]] || ! kill -0 "$child_pid" 2>/dev/null; then break; fi
+  sleep 0.2
+done
+if [[ -n "$child_pid" ]] && ! kill -0 "$child_pid" 2>/dev/null; then
+  pass "capped install: a child of npm does not outlive the cap"
+else
+  fail "capped install: a child of npm does not outlive the cap" "child stopped" "pid '${child_pid}' alive or unrecorded"
+  [[ -n "$child_pid" ]] && kill "$child_pid" 2>/dev/null
+fi
+if ((elapsed < 15)); then
+  pass "capped install: returns well before the 30s install would finish"
+else
+  fail "capped install: returns well before the 30s install would finish" "<15s" "${elapsed}s"
+fi
+
+# A cap with a leading zero (08) is 8 seconds, not an invalid octal number: an
+# install that outlasts several polls finishes cleanly with no arithmetic error.
+npm_log="$TEST_TMPDIR/npm-octal.log"
+errfile="$TEST_TMPDIR/err-deps-octal.txt"
+out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=0.5 \
+  WORKTREE_CREATE_DEPS_CAP_SECONDS=08 bash "$HELPER" --name feat/deps-octal --base-ref head \
+  --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+assert_exit "cap 08: creation succeeds" 0 "$?"
+assert_contains "cap 08: the cap is read as 8 seconds" "$(cat "$errfile")" "capped at 8s"
+assert_not_contains "cap 08: no octal arithmetic error" "$(cat "$errfile")" "value too great for base"
+assert_not_contains "cap 08: the install is not stopped" "$(cat "$errfile")" "warning"
+assert_file_exists "cap 08: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
+
+# npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
+# an npm; skipped when that would also drop git or bash.
+no_npm_path=""
+IFS=: read -r -a path_dirs <<<"$PATH"
+for d in "${path_dirs[@]}"; do
+  [[ -n "$d" && ! -x "$d/npm" ]] && no_npm_path="${no_npm_path:+$no_npm_path:}$d"
+done
+if PATH="$no_npm_path" command -v git >/dev/null 2>&1 && PATH="$no_npm_path" command -v bash >/dev/null 2>&1; then
+  errfile="$TEST_TMPDIR/err-deps-nonpm.txt"
+  bash_bin=$(command -v bash)
+  out=$(PATH="$no_npm_path" "$bash_bin" "$HELPER" --name feat/deps-nonpm --base-ref head \
+    --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$deps_repo" 2>"$errfile")
+  assert_exit "no npm: creation still exits 0" 0 "$?"
+  assert_file_exists "no npm: worktree exists" "$out/README.md"
+  assert_contains "no npm: warning says npm is missing" "$(cat "$errfile")" "npm is not on PATH"
+  assert_contains "no npm: warning names the remedy" "$(cat "$errfile")" "Run npm ci in $out"
+else
+  skip_case "npm shares a PATH directory with git or bash; cannot hide it"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1

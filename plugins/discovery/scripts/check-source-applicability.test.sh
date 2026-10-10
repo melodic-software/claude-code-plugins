@@ -179,6 +179,24 @@ else
   fail "undated primary stored current should report two violations: $out / $err"
 fi
 
+# A MEDIUM or LOW claim is a Gap, and Gaps stay in the sidecar header
+# (artifact-shape.md), so the accepted-claim primary rules (R5's count, R7)
+# skip it. Every source it does carry is still graded, so its labels stay
+# honest. Confidence is the only marker: HIGH, or no confidence at all, gets R7.
+gap() { claim "$@" | sed "s/confidence: HIGH/confidence: ${GAP_LEVEL:-LOW}/"; }
+run 0 "LOW gap claim keeps a historical primary" \
+  "$(mkslice gap-historical - "$(gap "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)")")"
+run 0 "LOW gap claim keeps an undated primary" \
+  "$(mkslice gap-undated - "$(gap "$V9" "$(src primary undated "$V9" historical)")")"
+run 0 "MEDIUM gap claim with no primary" \
+  "$(mkslice gap-no-primary - "$(GAP_LEVEL=MEDIUM gap "$V9" "$(src corroborator 2025-01-01 'ExampleLib 2' historical)")")"
+run 1 "gap claim still fails a mislabeled standing" --err "source 1: $DERIVES_HIST" \
+  "$(mkslice gap-mislabeled - "$(gap "$V9" "$(src primary 2025-01-01 'ExampleLib 2' current)")")"
+run 1 "HIGH (single source) claim gets R7" --err 'source 1: primary source must be current' \
+  "$(mkslice single-historical - "$(GAP_LEVEL='HIGH (single source)' gap "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)")")"
+run 1 "claim with no confidence gets R7" --err 'source 1: primary source must be current' \
+  "$(mkslice no-confidence-historical - "$(claim "$V9" "$(src primary 2025-01-01 'ExampleLib 2' historical)" | sed '/confidence:/d')")"
+
 # --- derived standing (R6) --------------------------------------------------
 
 run 1 "old-major source stored current on newer-major claim" --err "source 2: $DERIVES_HIST" \

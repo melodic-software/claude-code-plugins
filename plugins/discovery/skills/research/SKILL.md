@@ -81,7 +81,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 10 | Every reported absence names both the sources checked and the sources left unchecked. No bare "unsourced" / "not found" | run | revisit before presenting |
 | 11 | **Coverage ledger fully marked**, when Phase 0 wrote `research-checklist.md`, `${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh <ledger>` (or `.py`) exits 0. Cite the **exit status**, not a reading of the table: the context that wants to be finished is the one grading it. It fails closed, a ledger it cannot parse exits 2, and 2 is a FAIL; a script that could not run at all is the same FAIL, never a skip or a hand-grade. Not applicable when Phase 0 recorded the corpus as unbounded | run, **script verdict** | Phase 0. Cover the unmarked items, or narrow the corpus explicitly |
 | 12 | Every accepted claim follows jointly from its cited sources: the claim's primary source measures the claim's variable and population, every cited source passes the variable, population, era and scenario checks or is recorded and not counted toward criterion 4, counter-evidence already read is resolved, and every recorded qualifier survives. Under `evidence_use: publish`, the answer quotes only `current` sources as support. Recipe: the discipline file's "Joint-inference check" | **verifier** | Phase 2. Fetch a source that measures the claim's variable, population, version and scenario, or reattach the qualifier or resolve the counter-evidence in the artifact; else a Gap or Conflicts entry |
-| 13 | **Source applicability recorded and consistent**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py <slice>` exits 0. It checks that every claim names its target `applies_to:`, every source its `published:`, `applies_to:` and `standing:`, that each stored `standing:` matches the one derived from those fields, and that each primary is dated and `current`. Cite the **exit status**; 1 and 2 FAIL, and so does a script that could not run. Applies to every run with claims, inline included | run, **script verdict** | Phase 2. Record the fields, or relabel the source, or find a `current` primary |
+| 13 | **Source applicability recorded and consistent**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py <slice>` exits 0. It checks that every claim names its target `applies_to:`, every source its `published:`, `applies_to:` and `standing:`, that each stored `standing:` matches the one derived from those fields, and each non-Gap primary is dated and `current`. Cite the **exit status**; 1 and 2 FAIL, and so does a script that could not run. Applies to every run with claims, inline included | run, **script verdict** | Phase 2. Record the fields, or relabel the source, or find a `current` primary |
 | 14 | The index's `accepted:` counts the claims neither in Gaps nor unresolved in Conflicts; at 0 the Summary opens `Inconclusive: no claim accepted.` A zero with that line passes; a missing or wrong count, or a bare zero, FAILs | **verifier** | revisit before presenting |
 
 **A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations. Tier-3 reconciliation: "Reconciling sources at the gate" below.
@@ -267,15 +267,17 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-29; recheck when that table adds supporting files to where a `${…}` reference resolves.
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugin manifest reference,
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
 - Findings are ready to act on with no design question open: `/planning:plan`.
 - A multi-topic or workflow-driven pass: `/discovery:research-deep`.
+- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`
+  (`scripts/fetch-docs.sh --cache`).
 - The reasons behind a past decision: `/discovery:trace-intent <subject>`.
 
 ## See also

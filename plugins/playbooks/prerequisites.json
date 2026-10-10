@@ -6,14 +6,15 @@
       "need": "optional",
       "for": [
         "skill:boris",
-        "skill:skill-authoring"
+        "skill:skill-authoring",
+        "skill:fable-5"
       ],
       "detect": {
         "any": [
           "curl"
         ]
       },
-      "degrade": "Without curl, the update scripts cannot fetch the upstream playbook; the vendored copy still loads.",
+      "degrade": "Without curl, the update scripts cannot fetch the upstream playbook; the vendored copy still loads. fetch-docs.sh records a pointed docs page unread with reason curl-missing, so /playbooks:fable-5 reads it with WebFetch instead.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
@@ -28,19 +29,43 @@
       "need": "optional",
       "for": [
         "skill:boris",
-        "skill:repo-sweep"
+        "skill:repo-sweep",
+        "skill:fable-5"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the boris update check and the repo-sweep scripts cannot parse their JSON and stop; the playbook text still loads.",
+      "degrade": "Without jq, the boris update check and the repo-sweep scripts cannot parse their JSON and stop; the playbook text still loads. fetch-docs.sh and docs-cache.sh exit before reading anything, so /playbooks:fable-5 reads a pointed docs page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
         "winget": "jqlang.jq",
         "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:fable-5"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "reject_store_alias": true
+      },
+      "degrade": "Without Python 3, a pointed docs page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
     },

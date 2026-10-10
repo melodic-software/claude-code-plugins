@@ -1,0 +1,9 @@
+# user-experience team file fixture: path values outside the project, each dropped with a warning.
+version: 1
+research_paths:
+  - research
+  - ../outside
+  - /etc
+persona_paths:
+  - ../../personas
+output_home: ../out

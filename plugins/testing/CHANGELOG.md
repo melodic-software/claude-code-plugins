@@ -3,13 +3,44 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.23.0] - 2026-10-04
+## [0.23.2] - 2026-10-09
+
+### Changed
+
+- The task-end test judge's Stop hook runs with `asyncRewake`, so a turn ends without waiting for it. Only an attended FLAG (or an UNKNOWN that started as a FLAG) wakes Claude, with the relay on stderr and exit 2; every other result reaches Claude on its next turn. A `claude -p` or Agent SDK session ends before the judge finishes and gets no task-end verdict; CI is its gate.
+- The SubagentStop hook is removed: a subagent's tests are judged at the parent's Stop with the parent's own.
+
+## [0.23.1] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The shared `hook-utils.sh` copy picks up recheck triggers on its upstream records.
+
+## [0.23.0] - 2026-10-06
 
 ### Added
 
-- **Planted-defect eval fixture.** `evals/fixtures/ui-defects/` holds one static product page and `build-variants.py`, which writes eleven variants under opaque ids: nine planted defects (overlap, clipping, low contrast, missing image, layout shift, off-by-one count, console error, misalignment, off-viewport), a clean control and a benign change. Variants load only from `file://` and rebuild byte for byte.
-- **Check-layer harness.** `harness/measure-layers.mjs` renders every variant in Chromium at 375 and 1280 px and records which layer catches each defect (axe, geometry, layout shift, pixel diff, console, DOM, aria snapshot), with no model calls. `harness.test.sh` compares the result with `expected-matrix.json`; it skips when the one-time install in its README is missing, and `UI_DEFECTS_REQUIRE=1` makes that skip a failure.
-- **Vision eval cases.** Nine `vision-*` cases give a model the committed screenshots of one variant and grade whether it reports the planted defect: the verdict line, a defect-term grader that counts only an asserted finding, reads at both widths, and a grader that fails a run reading the eval cases or the variant map. `crops/render-crops.mjs` re-renders the screenshots byte for byte.
+- `/testing:write` gains a property-test route, a characterization, approval and differential route, an opt-in blind test author mode (a separate agent writes acceptance tests from the spec without reading the implementation), outside-in user-flow-first guidance, and concrete determinism controls. The 100ms/5s speed bar is relabeled as this repository's own heuristic.
+- `/testing:plan` adds property and characterization (pin) rows.
+- `/testing:test-value` section 1 adds where a property comes from and how it shows it can fail, the rewrite-pin carve-out with a sabotage check, grounding canned responses from unmanaged dependencies, and the oracle record for tests the same agent wrote from its own code. The snapshot row covers volatile values and blind re-approval.
+- The test-judge flags, or marks UNKNOWN, an unsourced canned response from an external API. Judge calibration is scored on holdout rows only from this change on.
+- `/testing:run-e2e` runs a committed flow suite first as the oracle, starts a trace before driving, and hands `/testing:diagnose` a failure packet shaped as its next input. App-sourced fields sit inside an untrusted-data block, query strings and secret field values are redacted when the packet is written, and trace files stay out of PRs and public artifacts.
+- `/testing:diagnose` caps diagnostic reruns of an unchanged test, keeps first-failure artifacts before any rerun, and replays with the printed seed.
+- `/testing:cleanup` quarantines carry an owner, a tracking issue and an expiry, and expired quarantines are reported for re-enable, escalation or renewal.
+- `/testing:audit` `rule-flaky-passes-suite` also reads pytest-rerunfailures reruns without `--fail-on-flaky`, Vitest `test.retry` and Jest `jest.retryTimes`. A multi-line config value can no longer inject a line into the scanner's record stream.
+
+### Changed
+
+- `/testing:audit` scopes the `rule-recomputed-derived` property exemption to the test that holds the marker instead of the whole file, so an example test beside a property test is now judged and can produce new report-only findings. Go property markers are now call forms, and FsCheck and CsCheck markers are added.
+
+## [0.22.20] - 2026-10-04
+
+### Changed
+
+- `/testing:run-e2e` owns one browser-tool rubric: Playwright CLI headless by default (Linux-side Chromium on WSL2), Playwright MCP for long stateful exploration, Chrome DevTools MCP for deep performance and network debugging, a committed spec in the project's own browser-test framework (`@playwright/test` when it has none) for durable regression, and Claude in Chrome for the user's logged-in browser on native hosts (from WSL, read the upstream WSL note first; live test pending). It replaces the token table and the fit-triage table.
+- UI verification now inspects the render: an axe scan (necessary, not sufficient), geometry assertions at two or more widths, a pixel baseline when one exists, and a vision review of cropped screenshots whose findings are leads only.
 
 ## [0.22.19] - 2026-10-04
 

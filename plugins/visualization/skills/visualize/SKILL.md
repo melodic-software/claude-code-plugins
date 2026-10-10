@@ -115,7 +115,8 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    the configured value into this line; if it still shows the literal
    `${user_config.medium}` token, is empty, or is `auto` (the default), the option
    defers and the next rung resolves. `terminal`, `file`, and `artifact` force
-   that tier; any other value is reported and treated as `auto`.
+   that tier; `hosted` is treated as `artifact` here (this skill never sends a page
+   to a page host); any other value is reported and treated as `auto`.
 3. **Cascade preference**. The `rendered-views` cascade surface, read only when
    rungs 1-2 are unset: anchor at the repo root (`${CLAUDE_PROJECT_DIR}` when
    set, else `git rev-parse --show-toplevel`), then read whichever of
