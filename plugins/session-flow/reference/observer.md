@@ -70,7 +70,8 @@ running the parser.
 The default analysis command is:
 
 ```text
-claude -p --model <observer_analysis_model> --permission-mode dontAsk --output-format json \
+claude -p --model <observer_analysis_model> --effort <observer_analysis_effort> \
+  --permission-mode dontAsk --output-format json \
   --tools Read --allowedTools Read --strict-mcp-config \
   --add-dir <checkpoint-context-dir> --add-dir <work_dir>
 ```
@@ -88,8 +89,27 @@ the user's ambient tool grants; `--allowedTools Read` keeps the authorized read 
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report
 `Not logged in · Please run /login` and fail on an **OAuth-login** install, because it drops the login
 credential state. Enable it only where auth is an env-var API key that survives it. The dominant cost
-lever is the **model** (`observer_analysis_model`, default a small, fast model); `--bare` is a
-secondary, environment-dependent one.
+levers are the **model** and **effort** (`observer_analysis_model`, `observer_analysis_effort`);
+`--bare` is a secondary, environment-dependent one.
+
+## Model and effort
+
+The default is Opus 5.5 at medium effort, chosen for faithful findings: in a four-session local
+pilot against Haiku 5.5 high, Sonnet 5.5 medium and Sonnet 5.5 high, it missed the fewest important
+findings and invented the fewest events. The run always passes `--effort`, even at the default, and
+drops `CLAUDE_CODE_EFFORT_LEVEL` from its environment, because that variable overrides `--effort`
+and would otherwise let an operator's exported level decide the run's effort.
+
+**Record.** Claim: `CLAUDE_CODE_EFFORT_LEVEL` takes precedence over `--effort`, and the levels a
+model accepts depend on the model. Basis: <https://code.claude.com/docs/en/env-vars#precedence> and
+<https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-10. Recheck: either
+section changes the precedence between the variable and the flag, or the levels a model accepts.
+
+## When a run counts as failed
+
+The observations are kept, and nothing is written to the ledger, when the run exits non-zero, its JSON
+body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
+`subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
 
 ## Config surface (userConfig)
 
@@ -99,7 +119,8 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = zero-config unchanged; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: the distilled observations are retained under the plugin work dir for manual inspection; the observer does not itself analyze or write the ledger. There is no automatic in-session consumer of the observations today (deferred; see below). |
-| `observer_analysis_model` | `claude-haiku-5-5` | Analysis model (the cost lever). |
+| `observer_analysis_model` | `claude-opus-5-5` | Analysis model (a cost lever; see "Model and effort"). |
+| `observer_analysis_effort` | `medium` | Analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits WITHOUT analysis. |

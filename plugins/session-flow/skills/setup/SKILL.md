@@ -49,7 +49,8 @@ and note that re-enabling restores the FAIL semantics.
 5. **Observer config**. Report the effective value of each native key (an unexpanded `${user_config.…}`
    token or empty means the default): `${user_config.observer_enabled}` (default off),
    `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`
-   (default `claude-haiku-5-5`), `${user_config.observer_analysis_bare}` (default off),
+   (default `claude-opus-5-5`), `${user_config.observer_analysis_effort}` (default `medium`),
+   `${user_config.observer_analysis_bare}` (default off),
    `${user_config.observer_idle_seconds}` (default 900), `${user_config.observer_poll_seconds}`
    (default 5), `${user_config.observer_max_seconds}` (default
    86400). Call out two hazards: `observer_analysis_bare` on is a FAIL on an OAuth-login install (the
