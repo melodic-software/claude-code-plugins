@@ -47,8 +47,10 @@ special-case.
 
    Then show the user one plain-language line per test, what it asserts and which criterion it
    checks, and keep only the tests they approve; in a run with no user present, record that list
-   in `DEVIATIONS.md` for review at PR time. Record a hash of the approved files
-   (`sha256sum <holdout>/phase-N/*`) in the orchestrator's notes.
+   in `DEVIATIONS.md` for review at PR time. Record a hash of every file in the phase's holdout
+   directory, nested and dot files included
+   (`find <holdout>/phase-N -type f -print0 | sort -z | xargs -0 sha256sum`), in the
+   orchestrator's notes.
 
    **Optional lock.** When the plan or the user opts in, launch each worker that runs as its own
    `claude` session with the deny rules `Read(//<memory-slice root>/**)` and
@@ -67,9 +69,9 @@ special-case.
      script opens itself, or subagent definitions gain path-scoped deny rules.
 4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator
    first rechecks the step 3 hash; a change it did not make itself (step 6, which records a new
-   hash) is a Major divergence and stops the run. It then creates a detached throwaway worktree at the phase head, never reusing a worker's worktree, and
-   the `phase-verifier` dispatch carries that path, the holdout path, the exact run command, and
-   the criterion each test maps to. When the ecosystem needs the tests inside the tree to build,
+   hash) is a Major divergence and stops the run. It then creates a detached throwaway worktree at
+   the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
+   that path, the holdout path, the exact run command, and the criterion each test maps to. When the ecosystem needs the tests inside the tree to build,
    the orchestrator copies them into the throwaway worktree, never into a worker's. It removes the
    throwaway worktree after the verdict.
 
@@ -96,7 +98,7 @@ special-case.
 6. **When the holdout test is wrong.** A holdout test written from criteria alone can misread
    them. When the failure traces to the test rather than the code, the orchestrator fixes the test
    from the criteria, never from the code's output, records its new hash, and logs a
-   `DEVIATIONS.md` entry. A disputed
-   reading of a criterion is a human-decision entry, and Major divergence still stops the run.
+   `DEVIATIONS.md` entry. A disputed reading of a criterion is a human-decision entry, and Major
+   divergence still stops the run.
 7. **After `[DONE]`.** The tests may be promoted into the repository's suite in a test-only commit.
    From then on they are existing tests, read-only to later phases' workers under item 1.12.
