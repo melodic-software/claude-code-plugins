@@ -41,7 +41,7 @@ decision; the run job contract is in
    and `repository_ids` with this job's values (`pull-requests` is `pull_requests` in the API). Any
    difference revokes the token and fails red with `effect-mismatch`. That happens when the PR's
    base SHA and the default-branch tip resolve the activity differently.
-6. Writes the outputs. Any failure after the broker issued a token revokes it before the step
+6. Writes the outputs. Any failure after the broker issued a token attempts to revoke it, and prints the status, before the step
    exits.
 
 It does not revoke a token it handed out. The workflow does, in a final step with

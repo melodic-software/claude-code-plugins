@@ -8,6 +8,8 @@
 # Scope: .github/workflows/** and .github/actions/** lines naming
 # AUTOMATION_LANES_APP_PRIVATE_KEY, app-private-key or AUTOMATION_LANES_APP_CLIENT_ID
 # (case-insensitive); other Apps' mints and docs are out of scope.
+# A regression guard for literal references only: the control is deleting the
+# AUTOMATION_LANES_APP_PRIVATE_KEY secret at go-live, not this check.
 #
 # WHY. Lane jobs get their App token from the lanes token broker, which holds
 # the key; a key referenced anywhere in a workflow run must be assumed to reach

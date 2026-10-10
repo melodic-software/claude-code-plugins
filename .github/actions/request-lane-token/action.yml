@@ -100,13 +100,13 @@ runs:
               -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
               "$GITHUB_API_URL/installation/token" || true
         }
-        # Any failure after the broker issued a token revokes it here, so only a
-        # token that passed every check reaches the job.
+        # Any failure after the broker issued a token attempts a revoke here and
+        # prints its status, so only a token that passed every check reaches the job.
         cleanup() {
           local rc=$?
           rm -f "$response"
           if [ "$rc" -ne 0 ] && [ -n "$issued" ]; then
-            echo "Revoked the lane token after the failure: DELETE /installation/token returned $(revoke "$issued")"
+            echo "Revoke attempt returned $(revoke "$issued")"
           fi
         }
         trap cleanup EXIT

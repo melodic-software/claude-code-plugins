@@ -117,7 +117,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
 6. Write file only:
    [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) gets the lane
    token from the broker ([below](#the-lane-token-broker)), before `select-trusted-text` and before
-   any head checkout. The broker mints once per job, so head code in the job cannot ask again. The
+   any head checkout. The broker mints once per job, so a second request from this job is denied
+   `already-minted`. The
    step fails red unless the grant this job resolved is `read` or `write` for each of `contents`,
    `pull-requests` and `issues` and the broker's answer equals it. The read file requests nothing
    and uses the job's read-only `GITHUB_TOKEN` throughout.
@@ -139,9 +140,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
 12. Runs the activity (below), then, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
-14. Write file only, `if: always()` whenever step 6 output a token: revokes it with
-    `DELETE /installation/token`, failing red unless that returns 204, then reports whether
-    `GET /installation/repositories` with the token returns 401.
+14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
+    pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
+    `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
+    unless they return 204 and 401.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
