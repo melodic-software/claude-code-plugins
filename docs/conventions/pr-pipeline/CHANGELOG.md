@@ -23,7 +23,11 @@ stays 1.
   it.
 - `reads-untrusted` also covers PR head files, which can quote untrusted text.
 - The trust-root section states the hardening in force now that code-owner review is off by owner
-  decision, that a write lane can change any file, and the residuals.
+  decision, that a write lane can change any file, and the residuals, including what a skill's
+  unbounded `Bash(git:*)` grant allows with the token in the origin URL.
+- A skill that can commit commits to a lane branch made at the gated head SHA; the write runner
+  fast-forwards the PR branch to it only while the PR branch is still at that SHA, so a push
+  during the run is never overwritten, and fails the activity otherwise.
 
 ## 1.3.0 - 2026-10-10
 

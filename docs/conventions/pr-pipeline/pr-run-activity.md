@@ -182,7 +182,8 @@ project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from t
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
 plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
-(`use_commit_signing`), on the gate's head branch (`CLAUDE_BRANCH`).
+(`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
+when the grant can commit.
 
 A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
@@ -199,11 +200,17 @@ ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
 residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
 (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
-accepted residual, and a lane commit can change instruction files the PR author's local session
-later loads. The skill's final reply is uploaded as an artifact with the token string cut out. A
-mutating activity's commits
-are made against that branch, which may have moved since the gate; the push that moved it starts
-its own `synchronize` run, which gates the new head again. Why a skill activity loads nothing from
+accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
+`ai-slop:audit`), and a lane commit can change instruction files the PR author's local session
+later loads. The skill's final reply is uploaded as an artifact with the token string cut out.
+`commit_files` builds each commit on the live tip of `CLAUDE_BRANCH` with file bytes from the
+gated checkout (`src/mcp/github-file-ops-server.ts:226-367` at `ed670b4`), so committing straight
+to the PR branch would overwrite a push made during the run. After the skill, a pinned
+`github-script` step fast-forwards the PR branch to the lane branch only while the PR branch is
+still at the gated SHA, and deletes the lane branch either way. When the PR branch has moved, the
+lane's commits are dropped and the activity fails; the push that moved it starts its own
+`synchronize` run, which gates the new head and redoes the activity. A raw `git push` from the
+skill skips this check. Why a skill activity loads nothing from
 the PR head:
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
