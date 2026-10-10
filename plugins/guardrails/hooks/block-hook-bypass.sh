@@ -248,6 +248,8 @@ SEG_HD_TAB=()  # 1 for a <<- here-doc, whose terminator may carry leading tabs
 # arbitrary shell word expansion, which this guard does not do (see
 # block-dangerous-git.sh's treatment of the same relocation).
 _BBH_CWD_MOVED=0
+# 1 when the command holds `&>`, which the parse below reads as ` >`.
+_BBH_AMP_REDIR=0
 
 # hook::bash_parse_segments callback: record one simple command.
 #
@@ -257,7 +259,8 @@ _BBH_CWD_MOVED=0
 # merely CONTAINING a `/dev/null` redirect would hand an attacker a one-token
 # bypass of this whole guard — write the discard first, the real file second.
 # An fd-qualified redirect (`2>err`) is not stdout, and a dup or close (`>&2`,
-# `>&-`) names an fd rather than a file, so neither is a write.
+# `>&-`) names an fd rather than a file, so neither is a write on its own; a dup
+# of stdout onto an fd that writes a file (`2>err 1>&2`) is.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 collect_segment() {
   local w j
@@ -265,14 +268,39 @@ collect_segment() {
   SEG_WLEN+=("$#")
   for w in "$@"; do SEG_W+=("${w,,}"); done
   for j in "${HOOK_SEG_WORD_QUOTED[@]}"; do SEG_WQ+=("$j"); done
-  local tgt="" traw="" tset=0 tq=0 topq=0 op fd plain=1 nout=0 nhd=0 hd="" hdq=0 hds=0
+  local tgt="" traw="" tset=0 tq=0 topq=0 op fd t n plain=1 nout=0 nhd=0 hd="" hdq=0 hds=0
+  local oj=-1 sj=-1
+  # fdt[N] is the redirect index whose FILE fd N writes to after the redirects so
+  # far, applied left to right as bash does; absent means inherited. It is what
+  # finds a write that never names stdout with a plain `>`: `>& f`, `1<> f`,
+  # `3> f 1>&3`, `2> f 1>&2`.
+  local -A fdt=()
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
     op="${HOOK_SEG_REDIR_OP[j]}"
     fd="${HOOK_SEG_REDIR_FD[j]}"
+    t="${HOOK_SEG_REDIR_TARGET[j]}"
+    case "$op" in
+    '>' | '>>') fdt[${fd:-1}]=$j ;;
+    '<>') fdt[${fd:-0}]=$j ;;
+    '>&' | '<&')
+      n="$fd"
+      if [[ -z "$n" && "$op" == '>&' ]]; then n=1; elif [[ -z "$n" ]]; then n=0; fi
+      if [[ "$t" =~ ^([0-9]+)-?$ ]]; then
+        if [[ -n "${fdt[${BASH_REMATCH[1]}]+x}" ]]; then fdt[$n]="${fdt[${BASH_REMATCH[1]}]}"; else unset 'fdt[$n]'; fi
+      elif [[ "$t" == - ]]; then
+        unset 'fdt[$n]'
+      else
+        # `>& word` sends stdout and stderr to the file, as `&> word` does.
+        fdt[$n]=$j
+        [[ -n "$fd" ]] || fdt[2]=$j
+      fi
+      ;;
+    *) unset 'fdt[${fd:-0}]' ;; # an input redirect: the fd no longer writes a file
+    esac
     # The repository axis's redirect allowlist (see _bbh_single_write): one
     # stdout write, stderr to the discard or onto stdout, and stdin from a
-    # here-doc or here-string. Any other form (`&>` arrives as a separator,
-    # `1<>`, an fd-numbered write, a dup onto stdout) clears `plain`.
+    # here-doc or here-string. Any other form (`1<>`, an fd-numbered write, a
+    # dup onto stdout) clears `plain`; `&>` is refused by _BBH_AMP_REDIR.
     case "$op:$fd" in
     '>:' | '>:1' | '>>:' | '>>:1') ((nout++)) ;;
     '>:2') [[ "${HOOK_SEG_REDIR_TARGET[j]}" == /dev/null && "${HOOK_SEG_REDIR_QUOTED[j]}${HOOK_SEG_REDIR_OPAQUE[j]}" == 00 ]] || plain=0 ;;
@@ -294,13 +322,25 @@ collect_segment() {
     '' | 1) ;;
     *) continue ;;
     esac
-    traw="${HOOK_SEG_REDIR_TARGET[j]}"
-    tgt="${traw,,}"
-    tset=1
-    tq="${HOOK_SEG_REDIR_QUOTED[j]}"
-    topq="${HOOK_SEG_REDIR_OPAQUE[j]}"
+    oj=$j
   done
   ((nout == 1 && nhd <= 1)) || plain=0
+  # The effective stdout file is fdt[1]. The last plain stdout `>` still counts
+  # when fdt[1] is empty (`> f 1>&2` truncates f); when the two name different
+  # redirects, both files are written to, so the target is marked opaque and no
+  # exemption can apply to it.
+  [[ -n "${fdt[1]+x}" ]] && sj="${fdt[1]}"
+  if ((sj >= 0)); then
+    ((oj >= 0 && oj != sj)) && topq=1
+    oj=$sj
+  fi
+  if ((oj >= 0)); then
+    traw="${HOOK_SEG_REDIR_TARGET[oj]}"
+    tgt="${traw,,}"
+    tset=1
+    tq="${HOOK_SEG_REDIR_QUOTED[oj]}"
+    ((HOOK_SEG_REDIR_OPAQUE[oj])) && topq=1
+  fi
   SEG_TGT+=("$tgt")
   SEG_TGT_RAW+=("$traw")
   SEG_TGT_SET+=("$tset")
@@ -1085,12 +1125,14 @@ scratch_target_exempt() {
 #   - any redirect other than ONE plain `>`/`>>` to the target, `2>&1`,
 #     `2>/dev/null`, a here-string, and one here-doc whose terminator is the
 #     last line and whose body, unless the delimiter is quoted, runs no
-#     substitution. So `&>`, `1<>`, an fd-numbered write and a dup onto stdout
+#     substitution and has no line ending in `\`. So `&>`, `1<>`, an
+#     fd-numbered write and a dup onto stdout
 #     all refuse, as does a second stdout target;
 #   - a `run_in_background` call, whose writes land after the check has run;
-#   - a target this guard cannot place: opaque, quoted or escaped, carrying `$`,
-#     a backtick, `~` or a glob character, relative after a directory change or
-#     with no absolute cwd in the payload;
+#   - a target this guard cannot place: opaque, quoted or escaped, holding any
+#     character outside [A-Za-z0-9._/@+-] (so `$`, a backtick, `~`, a glob or
+#     brace character, `,`, `:` and `\` all refuse), relative after a directory
+#     change or with no absolute cwd in the payload;
 #   - no repository at or above the cwd, found by the same walk to a `.git`
 #     entry the check makes;
 #   - a target outside that repository once both are resolved through symlinks,
@@ -1126,6 +1168,10 @@ _BBH_TOOL_USE_ID=""
 # command line itself. Matched over the first line, so quoted text holding one
 # refuses too: that only keeps today's block.
 _BBH_META_RE='[;&|()`]'
+# The only characters a granted target may hold. Anything else, `{`, `,`, `}`,
+# `:` (an NTFS stream), `\`, `~`, `$`, a glob character or a space, keeps the
+# block. Listed one by one, not as ranges, so no locale widens the set.
+_BBH_TARGET_RE='^[abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/@+-]+$'
 
 # 0 when <line> terminates the segment's here-doc: it equals the delimiter, after
 # leading tabs are stripped for a `<<-` here-doc.
@@ -1147,7 +1193,7 @@ _bbh_single_write() {
   _BBH_SINGLE=1
   _BBH_REPO_REFUSAL=shape
   local k line rest last body b bl
-  ((SEG_COUNT == 1 && SEG_PLAIN[0])) || return 1
+  ((SEG_COUNT == 1 && SEG_PLAIN[0] && ! _BBH_AMP_REDIR)) || return 1
   case "${SEG_W[0]}" in
   cat | echo | printf) ;;
   *) return 1 ;; # a prefix word (env, exec, coproc, an assignment) or another command
@@ -1176,8 +1222,10 @@ _bbh_single_write() {
       if [[ "$bl" == "$b" ]]; then b=""; else b="${b#*$'\n'}"; fi
       _bbh_hd_terminator "$bl" && return 1
     done
-    # An unquoted delimiter expands the body, so a substitution in it runs.
-    if ((SEG_HD_Q[0] == 0)) && [[ "$body" == *\$\(* || "$body" == *\`* ]]; then
+    # An unquoted delimiter expands the body, so a substitution in it runs, and
+    # joins a line ending in `\` to the next before looking for the terminator,
+    # so `EO\` then `F` ends the body early and runs the lines after it.
+    if ((SEG_HD_Q[0] == 0)) && [[ "$body" == *\$\(* || "$body" == *\`* || "$rest" == *$'\\\n'* ]]; then
       return 1
     fi
   elif [[ -n "${SEG_HD[0]}" ]]; then
@@ -1251,7 +1299,7 @@ repo_target_seen() {
   _bbh_single_write || return 1
   _BBH_REPO_REFUSAL=unplaced
   ((tgt_opaque || tgt_quoted)) && return 1
-  [[ -n "$target" && "$target" != *\\* ]] || return 1
+  [[ "$target" =~ $_BBH_TARGET_RE ]] || return 1
   _bbh_repo_root
   if [[ -z "$_BBH_REPO_ROOT" ]]; then
     _BBH_REPO_REFUSAL=outside
@@ -1913,7 +1961,18 @@ fi
 # Tokenize once into simple-command segments; every lane below reads that model
 # (see collect_segment). Words arrive lowercased, which is what makes each lane's
 # command-word test case-insensitive.
-hook::bash_parse_segments "$COMMAND" collect_segment
+#
+# The shared parser splits `&>` and `&>>` at the `&`, so the `> f` after it
+# reaches no segment and `echo x &> f` would carry no write. Bash reads either
+# as one redirect of stdout and stderr, so the command is parsed with each
+# spelled ` >`/` >>`, which keeps the stdout write. Text inside quotes changes
+# too, which moves no redirect. The repository axis refuses any such command.
+if [[ "$COMMAND" == *'&>'* ]]; then
+  _BBH_AMP_REDIR=1
+  hook::bash_parse_segments "${COMMAND//&>/ >}" collect_segment
+else
+  hook::bash_parse_segments "$COMMAND" collect_segment
+fi
 
 # SCOPE (documented residual): Bash lane only. POSIX `tee` / `tee -a` pipe-to-file
 # writes are NOT caught — the guard models cat/echo/printf redirects and

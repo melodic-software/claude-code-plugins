@@ -3210,6 +3210,96 @@ run_repo "repo F7: .git. alias still blocks" "cat > .git./hooks/pre-commit" 2
 run_repo "repo F7: .git.. alias in its own case still blocks" "echo x > .GIT../config" 2
 run_repo "repo F7: escaped .git-space alias still blocks" 'cat > .git\ /hooks/pre-commit' 2
 
+# Must fire: the second security review's bypass hunt (#6708). A granted target
+# holds only [A-Za-z0-9._/@+-]; every other character keeps the block.
+run_repo "repo P4: brace expansion in the target still blocks" 'echo x > {a,b}' 2
+run_repo "repo P4: one-word brace in the target still blocks" 'echo x > a{b}c' 2
+run_repo "repo P4: comma in the target still blocks" 'echo x > f,g' 2
+run_repo "repo P4: NTFS stream on .git still blocks" 'echo x > .git:stream' 2
+run_repo "repo P4: NTFS stream on a tracked file still blocks" 'echo x > README.md:stream' 2
+run_repo "repo P4: trailing backslash on .git still blocks" "echo x > .git\\\\" 2
+run_repo "repo P4: 8.3 short name of .git still blocks" 'echo x > GIT~1/config' 2
+run_repo "repo P4: .Git in another case still blocks" 'echo x > .Git/config' 2
+run_repo "repo P4: every allowed target character (allowed)" 'echo x > docs/a@b+c-d_e.v2.md' 0
+# Redirect spellings: each writes stdout to the file without a plain `>`.
+run_repo "repo P4: >| noclobber override still blocks" 'echo x >| newfile.txt' 2
+run_repo "repo P4: 1>| noclobber override still blocks" 'echo x 1>| newfile.txt' 2
+run_repo "repo P4: 1<> read-write open still blocks" 'echo x 1<> newfile.txt' 2
+run_repo "repo P4: >& word still blocks" 'echo x >& newfile.txt' 2
+run_repo "repo P4: &> still blocks" 'echo x &> newfile.txt' 2
+run_repo "repo P4: &>> still blocks" 'echo x &>> newfile.txt' 2
+run_repo "repo P4: &> on a continued heredoc opener line still blocks" "cat <<'EOF' \\
+&> newfile.txt
+hi
+EOF" 2
+run_repo "repo P4: fd 3 to the file, stdout onto fd 3, still blocks" 'echo x 3> newfile.txt 1>&3' 2
+run_repo "repo P4: stderr to the file, stdout onto stderr, still blocks" 'printf x 2>newfile.txt 1>&2' 2
+run "&> file with the shell check off (blocked)" 'echo x &> f.txt' 2
+run "&>> file with the shell check off (blocked)" 'echo x &>> f.txt' 2
+run ">& file with the shell check off (blocked)" 'echo x >& f.txt' 2
+run "1<> file with the shell check off (blocked)" 'cat 1<> f.txt' 2
+run "3> file then 1>&3 with the shell check off (blocked)" 'echo x 3>f.txt >&3' 2
+run "fd 3 to a real file, > /dev/null, then stdout onto fd 3 (blocked)" 'echo x 3>f.txt > /dev/null 1>&3' 2
+run "&> /dev/null (allowed)" 'echo x &> /dev/null' 0
+run "stdout onto fd 3 opened on /dev/null (allowed)" 'echo x 3>/dev/null 1>&3' 0
+run "echo >&2 (allowed)" 'echo x >&2' 0
+run "quoted &> in a commit message (allowed)" 'git commit -m "use cmd &> log"' 0
+# shellcheck disable=SC2016  # literal $'..' is the command under test, not for expansion
+run_repo "repo P4: ANSI-C target still blocks" "echo x > \$'newfile.txt'" 2
+# shellcheck disable=SC2016  # literal $'..' is the command under test, not for expansion
+run_repo "repo P4: ANSI-C escape spelling .git still blocks" "echo x > \$'\\x2egit/config'" 2
+run_repo "repo P4: backslash-newline joining a second command still blocks" "echo x > newfile.txt \\
+&& touch pwned" 2
+run_repo "repo P4: heredoc opener continued onto a second command still blocks" "cat > newfile.txt <<'EOF' \\
+; touch pwned
+hi
+EOF" 2
+run_repo "repo P4: unquoted heredoc joining lines into its terminator still blocks" "cat > newfile.txt <<EOF
+EO\\
+F
+touch pwned
+EOF" 2
+run_repo "repo P4: <<- tab-indented terminator inside the body still blocks" "cat > newfile.txt <<-EOF
+	x
+	EOF
+touch pwned
+EOF" 2
+run_repo "repo P4: terminator text inside a quoted heredoc body still blocks" "cat > newfile.txt <<\"EOF\"x
+EOFx
+touch pwned
+EOF" 2
+run_repo "repo P4: two heredocs still block" "cat > newfile.txt <<A <<B
+a
+A
+b
+B" 2
+run_repo "repo P4: ~user target still blocks" 'echo x > ~root/f' 2
+# shellcheck disable=SC2016  # literal ${x} is the command under test, not for expansion
+run_repo "repo P4: \${x} target still blocks" 'echo x > ${x}' 2
+run_repo "repo P4: process substitution target still blocks" 'echo x > >(cat > newfile.txt)' 2
+# shellcheck disable=SC2016  # literal $(...) is the command under test, not for expansion
+run_repo "repo P4: printf -v subscript running a substitution still blocks" \
+  "printf -v 'a[\$(touch pwned)]' x > newfile.txt" 2
+# shellcheck disable=SC2016  # literal $'..' is the command under test, not for expansion
+run_repo "repo P4: echo -e into an escaped .git target still blocks" "echo -e 'x\\n' > \$'.git/config'" 2
+run_repo "repo P4: ~/.claude target still blocks" 'echo x > ~/.claude/settings.json' 2
+# shellcheck disable=SC2016  # literal $HOME is the command under test, not for expansion
+run_repo "repo P4: \$HOME/.claude target still blocks" 'echo x > $HOME/.claude/settings.json' 2
+run_repo "repo P4: absolute .claude path outside the repository still blocks" \
+  "echo x > $TEST_TMPDIR/home/.claude/settings.json" 2
+NR_OUT="$TEST_TMPDIR/narrow-outside"
+mkdir -p "$NR_OUT"
+: >"$NR_OUT/f"
+if make_link "$NR_OUT/f" "$NR_REPO/outfile" && make_link "$NR_OUT/new/nf" "$NR_REPO/dangle" &&
+  make_link .git "$NR_REPO/gitdir" && make_link .git/config "$NR_REPO/gitcfg"; then
+  run_repo "repo P4: existing symlink to a file outside still blocks" 'echo x > outfile' 2
+  run_repo "repo P4: dangling symlink to a path outside still blocks" 'echo x > dangle' 2
+  run_repo "repo P4: symlink to .git still blocks" 'echo x > gitdir/config' 2
+  run_repo "repo P4: symlink to a file in .git still blocks" 'echo x > gitcfg' 2
+else
+  bhb_skip "repo P4: existing symlinks out of the repository and into .git"
+fi
+
 # The block says which part of the shell check's scope the target falls outside.
 repo_reason() { # <label> <command> <expected stderr fragment>
   guard_invoke --command "$2" --cwd "$NR_REPO" -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
