@@ -105,6 +105,8 @@ assert_eq "a missing explicit path exits 2" 2 "$?"
 assert_eq "an unknown flag exits 2" 2 "$?"
 bash "$SCRIPT" --help 2>&1 | grep -q 'audit-suppressions.sh \[--json | --findings'
 assert_eq "--help prints usage" 0 "$?"
+assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRIPT" --help 2>&1)" \
+  'Exit 0 report produced, 2 usage error or a scan that failed.'
 
 # ---- --findings: the review-findings file ------------------------------------
 # Expected rows come from the fixture lines below and the two crosswalk rows in

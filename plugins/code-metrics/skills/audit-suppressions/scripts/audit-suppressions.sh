@@ -48,7 +48,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 15
+    cm_usage_banner "${BASH_SOURCE[0]}" 16
     exit 0
     ;;
   *)

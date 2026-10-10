@@ -55,14 +55,15 @@
       "id": 5,
       "name": "findings-mode-asks-nothing-and-writes-a-conforming-file",
       "prompt": "/code-metrics:audit-suppressions --findings. I'm stepping away; the branch is feat/billing-retry and it adds two eslint-disable-line comments, one with a reason after -- and one without.",
-      "expected_output": "Runs audit-suppressions.sh --findings without asking any question, presents the report, and names the findings file it wrote under .work/reviews/feat-billing-retry/ with a -suppressions.md name. The file has review-findings frontmatter with branch: feat/billing-retry and a date, the Rank | Tier | Confidence | Location | Surface(s) | Finding | Action table, and a ## Surfaces section with declined counts per rule.",
+      "expected_output": "Runs audit-suppressions.sh --findings without asking any question, presents the report, and names the findings file it wrote under .work/reviews/feat-billing-retry/ with a -suppressions.md name, then reads that file back and quotes from it the table header line, the one row for the comment with no reason, and the ## Surfaces heading. The script's test suite proves the rest of the file's shape (frontmatter, declined counts per rule); this case grades only what the run shows.",
       "files": [],
       "expectations": [
         "Asks the user no question before or after the run",
         "Runs audit-suppressions.sh with --findings rather than writing the findings file by hand",
         "Names the written file under .work/reviews/feat-billing-retry/",
-        "States that the file carries one row for the unexplained suppression and none for the explained one",
-        "Says the findings file has review-findings frontmatter with branch: feat/billing-retry and a date, the Rank | Tier | Confidence | Location | Surface(s) | Finding | Action table, and a ## Surfaces section with declined counts per rule"
+        "Reads the written findings file back after the script run instead of describing it from the skill's instructions",
+        "Quotes from the file read back its table header line | Rank | Tier | Confidence | Location | Surface(s) | Finding | Action | and its ## Surfaces heading",
+        "Quotes from the file read back exactly one Findings row, for the eslint-disable-line comment with no reason, and no row for the one with a reason after --"
       ]
     },
     {

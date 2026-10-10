@@ -13,3 +13,7 @@ bump: minor
 
 - **The team layer is `docs/conventions/code-metrics.yaml`.** The resolver reads it first; `.claude/code-metrics.yaml` is read only while that file is absent, and with both present the docs file is the whole team layer and one warning names both paths. `/code-metrics:setup apply` writes the docs file and, on its first write, carries every key of an existing `.claude/code-metrics.yaml`, so resolved values do not change; `apply` with no key does that move alone. `setup check` warns while only the older file exists.
 - **An invalid configuration value no longer stops an audit.** A layer outside the YAML subset is named with its line and read as absent. A value of the wrong shape (a quoted reference, a scalar where a list or mapping belongs, a control character, an exclude glob the matcher cannot compile) is named with its file, key and value and dropped; the key resolves from a valid higher layer, else the bundled default, never from a lower layer. These cases used to exit 2.
+
+### Fixed
+
+- **`audit-suppressions.sh --help` prints the whole header**, ending on the sentence that gives exit 0 and exit 2 and their meaning, which it used to cut off.
