@@ -48,11 +48,10 @@ special-case.
    Then show the user one plain-language line per test, what it asserts and which criterion it
    checks, and keep only the tests they approve; in a run with no user present, record that list
    in `DEVIATIONS.md` for review at PR time. Record a hash of every file in the phase's holdout
-   directory, nested and dot files included
-   (`find <holdout>/phase-N -type f -print0 | sort -z | xargs -0 sha256sum`), in the
-   orchestrator's notes. The directory holds regular files and directories only: an entry of any
-   other type, such as a symlink (`find <holdout>/phase-N ! -type f ! -type d` prints it), fails
-   the recheck.
+   directory, nested and dot files included, in the orchestrator's notes:
+   `find <holdout>/phase-N -type f -exec shasum -a 256 {} + | LC_ALL=C sort -k 2` (`sha256sum`
+   in place of `shasum -a 256` where only it exists). The directory holds regular files and
+   directories only.
 
    **Optional lock.** When the plan or the user opts in, launch each worker that runs as its own
    `claude` session with the deny rules `Read(//<memory-slice root>/**)` and
@@ -70,8 +69,11 @@ special-case.
    - **Recheck trigger**: that section changes `//` path anchoring or starts covering files a
      script opens itself, or subagent definitions gain path-scoped deny rules.
 4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator
-   first rechecks the step 3 hash; a change it did not make itself (step 6, which records a new
-   hash) is a Major divergence and stops the run. It then creates a detached throwaway worktree at
+   first reruns the step 3 hash command and compares it with the record, and confirms the holdout
+   directory holds no entry other than a regular file or directory
+   (`find <holdout>/phase-N ! -type f ! -type d` prints nothing; a symlink is the case this
+   catches). A difference it did not make itself (step 6, which records a new hash) is a Major
+   divergence and stops the run. It then creates a detached throwaway worktree at
    the phase head, never reusing a worker's worktree, and the `phase-verifier` dispatch carries
    that path, the holdout path, the exact run command, and the criterion each test maps to. When
    the ecosystem needs the tests inside the tree to build, the orchestrator copies them into the
