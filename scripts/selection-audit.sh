@@ -9,9 +9,10 @@
 #       selector would not take is a GAP: a change to that file could break the
 #       suite on main while the pull request's affected run never started it.
 #       Default corpus: every tracked *.test.sh, and every test_*.py outside
-#       /evals/fixtures/, which holds data no lane runs, but this audit's own
-#       suite; --shard keeps suites I, I+N, I+2N, ... of the sorted list. Each
-#       suite gets 600 s under strace, and the slowest start first.
+#       /evals/fixtures/, which holds data no lane runs, but the two suites
+#       that run strace themselves; --shard keeps suites I, I+N, I+2N, ...
+#       of the sorted list. Each suite gets 600 s under strace, and the
+#       slowest start first.
 #
 #   scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
 #       For each first-parent commit in GOOD..BAD, run that commit's own
@@ -190,9 +191,9 @@ cmd_trace() {
   if ((${#suites[@]} == 0)); then
     # A Python eval fixture is data no lane runs (scripts/plan-test-lanes.sh);
     # a *.test.sh there would still run in the bash lane, so it stays traced.
-    # This suite runs strace itself, which fails under the audit's own strace.
+    # These suites run strace themselves, which fails under the audit's own strace.
     mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
-      grep -vxF scripts/selection-audit.test.sh | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
+      grep -vxF -e scripts/selection-audit.test.sh -e scripts/hook-census.test.sh | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
   # Slowest first by scripts/suite-seconds.txt, so a long suite starts while the
