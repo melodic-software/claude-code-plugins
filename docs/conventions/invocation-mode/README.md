@@ -66,7 +66,8 @@ reasons, each measured rather than assumed:
   19,096 description chars. With all 21 flipped, the fleet's
   149,643 would drop to 130,547, still about 16× over the 8,000-char fallback budget and over 3×
   the 40,000 chars that 1% of a 1M-token window buys. Where the listing already fits (a 1M window
-  at `skillListingBudgetFraction: 0.05`, observed in #4657) there is nothing to save. The saving
+  at this repository's configured `skillListingBudgetFraction`, measured in
+  [cloud-sessions](../../cloud-sessions.md)) there is nothing to save. The saving
   that does move the verdict is at the source, owned by #4657's description-trim child.
 - **At least five candidates are operative Skill-tool targets, so a flip breaks live chains.**
   Examples: `docs-hygiene:audit-encapsulation` from `extract-ssot`,
