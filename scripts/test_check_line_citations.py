@@ -117,6 +117,10 @@ class StaysQuiet(unittest.TestCase):
     def test_fenced_example(self):
         self.assert_quiet("```text\n| 1 | src/ten.py:42 | sample row |\n```\n")
 
+    def test_fence_in_block_quote_or_list_item(self):
+        self.assert_quiet("> ```text\n> src/ten.py:42\n> ```\n")
+        self.assert_quiet("- ```text\n  src/ten.py:42\n  ```\n")
+
     def test_point_in_time_record(self):
         self.assert_quiet("Cut `src/ten.py:13-30`.\n", "docs/adr/0001-cut.md")
         self.assert_quiet("- Fixed `src/ten.py:99`.\n", "plugins/x/CHANGELOG.md")

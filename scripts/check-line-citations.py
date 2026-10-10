@@ -62,7 +62,8 @@ CITATION = re.compile(
     r"(?![\w.:/-]*\w)"
 )
 
-FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+# A fence may sit inside a block quote (`> ````) or open a list item (`- ````).
+FENCE = re.compile(r"^(?:\s*>)*\s*(?:(?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 
 # Point-in-time records, by repository-relative prefix or by basename.
 RECORD_PREFIXES = ("docs/adr/", "docs/upstream/", ".changes/")
@@ -106,7 +107,7 @@ def scan(citing: Path, tracked: set, cache: dict) -> list:
             elif (
                 run[0] == fence[0]
                 and len(run) >= len(fence)
-                and not line.strip()[len(run) :]
+                and not line[opener.end() :].strip()
             ):
                 fence = ""
             continue
