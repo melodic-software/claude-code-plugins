@@ -70,7 +70,7 @@ describe("acquireYouTubeMedia", () => {
     }
   });
 
-  it("reclassifies a bare .en.vtt as auto when info.json has no English manual subtitles", async () => {
+  it("picks en-orig over a bare .en.vtt when info.json has no English manual subtitles", async () => {
     const workDir = "/tmp/fake-work";
     /** @param {object} infoFields */
     const acquireWith = (infoFields) =>
@@ -96,9 +96,9 @@ describe("acquireYouTubeMedia", () => {
     });
     expect(autoOnly.success).toBe(true);
     if (autoOnly.success) {
+      expect(autoOnly.data?.caption.path).toBe(`${workDir}/7zZy1QTvokM.en-orig.vtt`);
       expect(autoOnly.data?.caption.rung).toBe("auto-en");
       expect(autoOnly.data?.caption.isAutoCaption).toBe(true);
-      expect(autoOnly.data?.caption.provenanceNote).toContain("7zZy1QTvokM.en.vtt");
     }
 
     const withManual = await acquireWith({ subtitles: { en: [] } });

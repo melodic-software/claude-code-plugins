@@ -220,6 +220,46 @@ function captionsOnlyPass(source) {
   return { mode: "captions-only", source, sleepSubtitlesSec: CAPTION_ONLY_SLEEP_SUBTITLES_SEC };
 }
 
+/** yt-dlp's message when one requested subtitle track fails to download. */
+const SUBTITLE_DOWNLOAD_FAILURE = /Unable to download video subtitles/i;
+
+/** The original-language (non-translated) English auto track YouTube serves. */
+const ORIGINAL_ENGLISH_SUB_LANGS = "en-orig";
+
+/**
+ * One failed subtitle track (often HTTP 429 on YouTube's machine-translated
+ * `en`) aborts yt-dlp before it writes the other tracks or the info JSON. When
+ * that happened, run one more pass that requests only the original English
+ * track, and return the work-dir files on success.
+ *
+ * @param {AcquireDeps} deps
+ * @param {<T>(fn: () => Promise<T>) => Promise<T>} throttle
+ * @param {string} url
+ * @param {string} workDir
+ * @param {AcquisitionMode} mode
+ * @param {SourceAcquisitionDeclarations} source
+ * @param {string} failureDetail - the failed pass's detail
+ * @returns {Promise<string[] | null>}
+ */
+async function retryOriginalEnglishCaptions(
+  deps,
+  throttle,
+  url,
+  workDir,
+  mode,
+  source,
+  failureDetail,
+) {
+  if (!SUBTITLE_DOWNLOAD_FAILURE.test(failureDetail)) return null;
+  const pass = await throttle(() =>
+    runAcquirePass(deps, url, workDir, {
+      ...captionsOnlyPass({ ...source, subLangs: ORIGINAL_ENGLISH_SUB_LANGS }),
+      mode,
+    }),
+  );
+  return pass.spawnResult.success ? pass.files : null;
+}
+
 /**
  * @param {AcquireDeps} deps
  * @param {string} url
@@ -325,10 +365,21 @@ export async function acquireYouTubeMedia(
     const single = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, { mode, source }),
     );
-    if (!single.spawnResult.success) {
+    const files = single.spawnResult.success
+      ? single.files
+      : await retryOriginalEnglishCaptions(
+          mergedDeps,
+          throttle,
+          url,
+          workDir,
+          mode,
+          source,
+          single.detail,
+        );
+    if (!files) {
       return failVideo(single.detail || "yt-dlp failed");
     }
-    artifacts = resolveMediaArtifacts(single.files, videoId);
+    artifacts = resolveMediaArtifacts(files, videoId);
   }
 
   let captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
@@ -337,7 +388,22 @@ export async function acquireYouTubeMedia(
     const captionRetry = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(source)),
     );
-    if (!captionRetry.spawnResult.success) {
+    const files = captionRetry.spawnResult.success
+      ? await mergedDeps.listFiles(workDir)
+      : await retryOriginalEnglishCaptions(
+          mergedDeps,
+          throttle,
+          url,
+          workDir,
+          "captions-only",
+          source,
+          captionRetry.detail,
+        );
+    if (files) {
+      artifacts = resolveMediaArtifacts(files, videoId);
+      captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
+    }
+    if (!captionRetry.spawnResult.success && !captionResult.success) {
       // No caption file was fetched, so the ladder's "no captions" message would hide the cause.
       return failVideo(
         isRetryableAcquireError(captionRetry.detail)
@@ -345,8 +411,6 @@ export async function acquireYouTubeMedia(
           : `Caption download failed: ${captionRetry.detail || "yt-dlp failed"}`,
       );
     }
-    artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);
-    captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
   }
 
   if (!captionResult.success) {
@@ -383,6 +447,7 @@ export async function acquireYouTubeMedia(
       : undefined;
   const finalCaption = selectCaptionFile(artifacts.captionPaths, source.captionClass, {
     manualLanguages,
+    automaticCaptions: info?.automatic_captions ?? undefined,
   });
   if (!finalCaption.success) {
     return failVideo(finalCaption.error);

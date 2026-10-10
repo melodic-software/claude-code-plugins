@@ -41,6 +41,19 @@ function createStagedSpawn(modes) {
   };
 }
 
+const AUTO_ONLY_INFO_JSON = JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video", subtitles: {} });
+
+const SPAWN_OK = { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false };
+
+const SUBTITLE_429 = {
+  success: false,
+  code: 1,
+  signal: null,
+  stdout: "",
+  stderr: "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests",
+  timedOut: false,
+};
+
 const NO_THROTTLE = {
   withThrottle: (/** @type {() => Promise<unknown>} */ fn) => fn(),
   sleep: async () => {},
@@ -131,5 +144,88 @@ describe("acquireYouTubeMedia staged full mode", () => {
     expect(result.error).toContain("HTTP Error 429");
     expect(result.error).toContain("wait several minutes and retry");
     expect(result.error).not.toContain("ladder exhausted");
+  });
+
+  it("fetches en-orig alone when the full caption request fails on the translated en track", async () => {
+    /** @type {string[]} */
+    const subLangsRequested = [];
+    const written = [`${WORK_DIR}/7zZy1QTvokM.mp4`];
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir: WORK_DIR, mode: "full", videoId: "7zZy1QTvokM" },
+      {
+        ...NO_THROTTLE,
+        spawn: async (_cmd, args) => {
+          if (!args.includes("--skip-download")) return SPAWN_OK;
+          const subLangs = args[args.indexOf("--sub-langs") + 1];
+          subLangsRequested.push(subLangs);
+          if (subLangs !== "en-orig") return SUBTITLE_429;
+          written.push(`${WORK_DIR}/7zZy1QTvokM.en-orig.vtt`, `${WORK_DIR}/7zZy1QTvokM.info.json`);
+          return SPAWN_OK;
+        },
+        listFiles: async () => [...written],
+        readFile: async () => AUTO_ONLY_INFO_JSON,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(subLangsRequested.at(-1)).toBe("en-orig");
+    if (result.success) {
+      expect(result.data?.caption.path).toBe(`${WORK_DIR}/7zZy1QTvokM.en-orig.vtt`);
+      expect(result.data?.artifacts.videoPath).toContain(".mp4");
+    }
+  });
+
+  it("fetches en-orig alone when a transcript run fails on the translated en track", async () => {
+    /** @type {string[]} */
+    const subLangsRequested = [];
+    /** @type {string[]} */
+    const written = [];
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir: WORK_DIR, mode: "transcript", videoId: "7zZy1QTvokM" },
+      {
+        ...NO_THROTTLE,
+        spawn: async (_cmd, args) => {
+          const subLangs = args[args.indexOf("--sub-langs") + 1];
+          subLangsRequested.push(subLangs);
+          if (subLangs !== "en-orig") return SUBTITLE_429;
+          written.push(`${WORK_DIR}/7zZy1QTvokM.en-orig.vtt`, `${WORK_DIR}/7zZy1QTvokM.info.json`);
+          return SPAWN_OK;
+        },
+        listFiles: async () => [...written],
+        readFile: async () => AUTO_ONLY_INFO_JSON,
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(subLangsRequested[0]).toBe("en.*,-live_chat");
+    expect(subLangsRequested.at(-1)).toBe("en-orig");
+    if (result.success) {
+      expect(result.data?.caption.path).toBe(`${WORK_DIR}/7zZy1QTvokM.en-orig.vtt`);
+      expect(result.data?.artifacts.videoPath).toBe("");
+    }
+  });
+
+  it("does not retry for en-orig when the failure is not a subtitle download", async () => {
+    /** @type {string[][]} */
+    const calls = [];
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir: WORK_DIR, mode: "transcript", videoId: "7zZy1QTvokM" },
+      {
+        ...NO_THROTTLE,
+        spawn: async (_cmd, args) => {
+          calls.push(args);
+          return { ...SUBTITLE_429, stderr: "ERROR: Video unavailable" };
+        },
+        listFiles: async () => [],
+        readFile: async () => INFO_JSON,
+      },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Video unavailable");
+    expect(calls.every((args) => !args.includes("en-orig"))).toBe(true);
   });
 });

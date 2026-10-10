@@ -5,7 +5,9 @@
  *
  * - `manual-and-auto` (e.g. YouTube): manual EN → auto EN → auto-translate EN
  *   → STOP. yt-dlp filenames distinguish manual vs auto via `.en-orig` and
- *   related suffixes.
+ *   related suffixes. With no manual English track, the original-language
+ *   `.en-orig.vtt` beats a bare auto `.en.vtt`, which can be a machine
+ *   translation.
  * - `platform-asr` (e.g. X): every track is platform-generated ASR — filename
  *   shape carries NO manual/auto signal, so a bare `.en.vtt` must never
  *   classify `manual-en`. Ladder: EN → `und` (the raw unnormalized track
@@ -126,24 +128,48 @@ export function classifyCaptionRung(filePath, captionClass = "manual-and-auto") 
 const ENGLISH_LANGUAGE_KEY = /^en(?:-|$)/i;
 
 /**
+ * Whether yt-dlp's pick for an info.json `automatic_captions` language is a
+ * YouTube machine translation (`tlang` on the URL). yt-dlp takes the last
+ * format matching the requested extension, so this checks that one.
+ *
+ * @param {Record<string, unknown> | undefined} automaticCaptions
+ * @param {string} filePath - a bare `<id>.<lang>.vtt` caption file
+ * @returns {boolean}
+ */
+function isTranslatedAutoTrack(automaticCaptions, filePath) {
+  const language = path.basename(filePath).split(".").at(-2)?.toLowerCase();
+  const key = Object.keys(automaticCaptions ?? {}).find((k) => k.toLowerCase() === language);
+  const formats = key ? automaticCaptions?.[key] : undefined;
+  if (!Array.isArray(formats)) return false;
+  const picked = formats.findLast((format) => format?.ext === "vtt") ?? formats.at(-1);
+  try {
+    return new URL(picked?.url).searchParams.has("tlang");
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Select the best caption file from downloaded paths, walking the declared
  * class's ladder. Every platform-ASR rung is auto-class (`isAutoCaption`).
  *
  * yt-dlp writes an auto track as a bare `<id>.en.vtt` too, so the filename
  * alone cannot prove a manual track. When `manualLanguages` (the keys of
- * info.json `subtitles`) is given and holds no English key, a `manual-en`
- * pick is reclassified `auto-en` with a `provenanceNote`. Omitted, the
- * filename classification stands.
+ * info.json `subtitles`) is given and holds no English key, the bare file is
+ * an auto track: it ranks after the original-language `.en-orig.vtt` (the bare
+ * one can be a machine translation), as `auto-translate-en` when info.json
+ * `automaticCaptions` marks it translated, and carries a `provenanceNote` when
+ * picked. Omitted, the filename classification stands.
  *
  * @param {string[]} captionPaths
  * @param {CaptionClass} [captionClass]
- * @param {{ manualLanguages?: readonly string[] }} [options]
+ * @param {{ manualLanguages?: readonly string[], automaticCaptions?: Record<string, unknown> }} [options]
  * @returns {{ success: true, selection: CaptionSelection } | { success: false, error: string, available: string[] }}
  */
 export function selectCaptionFile(
   captionPaths,
   captionClass = "manual-and-auto",
-  { manualLanguages } = {},
+  { manualLanguages, automaticCaptions } = {},
 ) {
   const ladder = ladderForClass(captionClass);
   const vttPaths = captionPaths.filter((p) => p.toLowerCase().endsWith(".vtt"));
@@ -157,30 +183,34 @@ export function selectCaptionFile(
     }
   }
 
+  const bareAuto = byRung.get("manual-en");
+  let provenanceNote;
+  if (
+    bareAuto &&
+    manualLanguages &&
+    !manualLanguages.some((language) => ENGLISH_LANGUAGE_KEY.test(language))
+  ) {
+    byRung.delete("manual-en");
+    const rung = isTranslatedAutoTrack(automaticCaptions, bareAuto)
+      ? "auto-translate-en"
+      : "auto-en";
+    if (!byRung.has(rung)) {
+      byRung.set(rung, bareAuto);
+      const treatedAs = rung === "auto-en" ? "auto captions" : "machine-translated auto captions";
+      provenanceNote = `no manual English subtitles in info.json; ${path.basename(bareAuto)} treated as ${treatedAs}`;
+    }
+  }
+
   for (const rung of ladder) {
     const match = byRung.get(rung);
     if (!match) continue;
-    if (
-      rung === "manual-en" &&
-      manualLanguages &&
-      !manualLanguages.some((language) => ENGLISH_LANGUAGE_KEY.test(language))
-    ) {
-      return {
-        success: true,
-        selection: {
-          path: match,
-          rung: "auto-en",
-          isAutoCaption: true,
-          provenanceNote: `no manual English subtitles in info.json; ${path.basename(match)} treated as auto captions`,
-        },
-      };
-    }
     return {
       success: true,
       selection: {
         path: match,
         rung,
         isAutoCaption: rung !== "manual-en",
+        ...(match === bareAuto && provenanceNote ? { provenanceNote } : {}),
       },
     };
   }

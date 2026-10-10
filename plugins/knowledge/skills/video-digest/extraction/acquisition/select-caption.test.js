@@ -109,16 +109,54 @@ describe("selectCaptionFile", () => {
   });
 
   it("classifies a bare .en.vtt as auto-en when info.json lists no manual English subtitles", () => {
-    const result = selectCaptionFile(
-      ["/w/_U-O5lYhJ7Q.en.vtt", "/w/_U-O5lYhJ7Q.en-orig.vtt"],
-      "manual-and-auto",
-      { manualLanguages: [] },
-    );
+    const result = selectCaptionFile(["/w/_U-O5lYhJ7Q.en.vtt"], "manual-and-auto", {
+      manualLanguages: [],
+    });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.selection.rung).toBe("auto-en");
       expect(result.selection.isAutoCaption).toBe(true);
       expect(result.selection.provenanceNote).toContain("_U-O5lYhJ7Q.en.vtt");
+    }
+  });
+
+  it("prefers the original .en-orig.vtt over a bare auto .en.vtt when there is no manual English", () => {
+    const result = selectCaptionFile(["x.en.vtt", "x.en-orig.vtt"], "manual-and-auto", {
+      manualLanguages: [],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.path).toBe("x.en-orig.vtt");
+      expect(result.selection.rung).toBe("auto-en");
+      expect(result.selection.provenanceNote).toBeUndefined();
+    }
+  });
+
+  it("ranks a bare .en.vtt as auto-translate-en when info.json marks its track translated", () => {
+    const timedtext = "https://www.youtube.com/api/timedtext?v=x&kind=asr";
+    const result = selectCaptionFile(["/w/x.en.vtt"], "manual-and-auto", {
+      manualLanguages: [],
+      automaticCaptions: {
+        en: [
+          { ext: "vtt", url: `${timedtext}&lang=en&fmt=vtt` },
+          { ext: "vtt", url: `${timedtext}&lang=uk&tlang=en&fmt=vtt` },
+          { ext: "srv3", url: `${timedtext}&lang=en&fmt=srv3` },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.rung).toBe("auto-translate-en");
+      expect(result.selection.isAutoCaption).toBe(true);
+      expect(result.selection.provenanceNote).toContain("machine-translated");
+    }
+  });
+
+  it("keeps the filename classification when info.json is not consulted", () => {
+    const result = selectCaptionFile(["/w/a.en.vtt", "/w/a.en-orig.vtt"]);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.selection.rung).toBe("manual-en");
     }
   });
 

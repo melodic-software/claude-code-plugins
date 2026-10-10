@@ -31,7 +31,15 @@ Captions (transcript action and the caption leg of watch) use:
 Built by `acquisition/build-yt-dlp-args.js`. Auto-generated captions are in scope for YouTube, and
 the caption ladder below deliberately falls through to them.
 
-**Caption ladder:** manual EN → auto EN → auto-translate EN → STOP and surface if exhausted.
+When a video has no manual English track, YouTube's `en` auto track can be a machine translation
+(its info.json URL carries `tlang=en`), and its download can fail with HTTP 429 while the original
+`en-orig` track downloads fine. One failed subtitle download stops yt-dlp before it writes any other
+caption or the info JSON, so after a subtitle download failure acquisition runs one more pass with
+`--sub-langs en-orig` alone.
+
+**Caption ladder:** manual EN → auto EN → auto-translate EN → STOP and surface if exhausted. When
+info.json lists no manual English subtitles, a bare `.en.vtt` is an auto track: the original
+`.en-orig.vtt` wins over it, and it ranks as auto-translate EN when its URL carries `tlang`.
 Rung 3 and below trigger the auto-caption dedup clean-up pass. Declared caption class:
 `manual-and-auto`. Declared transcript strategy: `captions`.
 
