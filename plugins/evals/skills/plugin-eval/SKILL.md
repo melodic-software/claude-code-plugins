@@ -50,20 +50,11 @@ ceiling:         <n> USD | unlimited
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | Version floor: the command needs Claude Code 2.1.269 or later; an older binary answers `plugin eval is currently in early access`, which updating Claude Code fixes with no sign-up; `plugin eval is currently unavailable` means Anthropic has the command switched off for now, which can change at any time and may depend on the account or context. Nothing local fixes it and there is no access to request: wait and retry | `claude plugin eval --help` on the floor release plus <https://code.claude.com/docs/en/plugin-evals> troubleshooting, verified 2026-09-12 | Recheck trigger: a Claude Code release note touches `plugin eval`, or the floor error string changes. Then re-run `--help`, re-read the page, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| Git floor: preflight also reads `git --version` so a git too old for the CLI is caught before any spend. A git below the floor sets `floor_met: false` and names the git version; no git at all reports `git: none` and does not block | **Pointer**: when comparing `git --version` against the floor, fetch <https://code.claude.com/docs/en/plugin-evals#requirements> live for the git floor, and <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> for the refusal. **As of**: 2026-10-10 | Recheck trigger: the requirements section changes the git floor or its no-git exemption. Then re-read it and refresh this row with the outcome |
 
 `floor_met: false` stops the run and reports the floor; nothing else in this skill is worth doing on
 a binary that cannot execute a case. Never assert that the command is installed: read
 `claude --version` and let the number decide.
-
-Preflight also reads `git --version` so a git too old for the CLI is caught before any spend. A git
-below the floor sets `floor_met: false` and names the git version; no git at all reports
-`git: none` and does not block.
-
-- **Pointer**: when comparing `git --version` against the floor, fetch
-  <https://code.claude.com/docs/en/plugin-evals#requirements> live for the git floor, and
-  <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> for the refusal.
-- **As of**: 2026-10-10
-- **Recheck trigger**: the requirements section changes the git floor or its no-git exemption.
 
 ### Sandbox backend
 
@@ -81,10 +72,7 @@ this session's own host, which may not be the machine that will run the eval.
 
 Then, when the rows above give `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
-to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
-with a link inside it. On `platform: darwin` with `cli_version` 2.1.293 or later, ignore links
-under `~/.docker/bin` (Docker Desktop's own); an older client, or a `$DOCKER_CONFIG` store
-elsewhere, keeps them `not-ready`. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
+to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store with a link inside it. On `platform: darwin` with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
