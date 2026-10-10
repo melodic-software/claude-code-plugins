@@ -82,13 +82,14 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude works with a file it covers, in
-subagents as well as in the main session; which tool calls count is listed at
-<https://code.claude.com/docs/en/memory#path-specific-rules>. The match is on the requested path,
-so even a Read tool call that finds no file fires it. A surface whose trigger has not fired is
-simply absent, and after a compaction it returns only when its trigger fires again. When you are
-working on something an entry covers and its content is not already in context, read the file
-directly.
+Each surface below enters context automatically, in subagents as well as in the main session,
+once a file it covers triggers it. The triggers differ by surface type: see
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules and nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
+match is on the requested path, so even a Read tool call that finds no file fires it. A surface
+whose trigger has not fired is simply absent, and after a compaction it returns only when its
+trigger fires again. When you are working on something an entry covers and its content is not
+already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|

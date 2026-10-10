@@ -14,8 +14,8 @@ directory does not survive between tool calls.
   --root <repo> --trigger README.md --expect AGENTS.md
 
 # A nested surface: the trigger has to be a NON-INSTRUCTION file in that
-# directory or below it. The nested AGENTS.md attaches when Claude works with a
-# file there, and reading the nested AGENTS.md itself lets the model quote the
+# directory or below it. A nested AGENTS.md attaches lazily, on the triggers the
+# record below points to, and reading the nested AGENTS.md itself lets the model quote the
 # token out of the Read result, which proves nothing about loading.
 <plugin-root>/scripts/verify-load.sh \
   --root <repo> --trigger src/billing/service.ts \
@@ -32,7 +32,7 @@ subdirectory `AGENTS.md`.
 
 - **Pointer**: when choosing a nested-surface trigger, fetch
   <https://code.claude.com/docs/en/changelog> (v2.1.290) and
-  <https://code.claude.com/docs/en/memory#agents-md> live.
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: the memory page's AGENTS.md section changes, or a release note changes what
   attaches a subdirectory `AGENTS.md`.
