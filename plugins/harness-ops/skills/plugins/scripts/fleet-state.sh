@@ -816,7 +816,7 @@ fi
 #   1. exact: installPath == this plugin's normalized root (the precise case).
 #   2. version-agnostic fallback: installPath and the running root differ ONLY
 #      by their trailing `/<version>` segment. This is common, not an edge case:
-#      marketplace autoUpdate bumps the install shortly after session start while
+#      marketplace autoUpdate bumps the install mid-session while
 #      the session keeps rendering the old version's skill, and `sync`'s own
 #      Step 3 updates harness-ops itself, so every subsequent same-session call of
 #      the bare (no --marketplace) default path would otherwise fail. The fallback
