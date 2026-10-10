@@ -21,6 +21,10 @@
     {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"cp notes.txt backup.txt && git log --oneline -- client.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}",
       "why": "unrelated write chained with a history read of the conflicted file"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"git log -- client.py && cat theirs > client.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}",
+      "why": "history read first; the rewrite comes after it in the same call"
     }
   ],
   "fail": [
@@ -58,6 +62,14 @@
     {
       "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"cp theirs.py client.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"git log --oneline\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"ok\"}]}}",
       "why": "copied over the file before reading history"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"cat theirs > client.py && git log -- client.py\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}",
+      "why": "rewrote the file earlier in the same call as the history read"
+    },
+    {
+      "answer": "{\"type\":\"system\",\"subtype\":\"init\",\"model\":\"m\"}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_0\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i s/x/y/ client.py; git log --oneline\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_0\",\"content\":\"ok\"}]}}",
+      "why": "edited with sed earlier in the same call as the history read"
     }
   ]
 }
