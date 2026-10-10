@@ -177,10 +177,13 @@ fi
 #     exit codes, stdout, and stderr must agree. The comparison is behavioral,
 #     not textual: the two differ by construction in the script's name and
 #     path, in the rule's display name (`lower-kebab-case` here, the config's
-#     `rule` there), and in how the roots are spelled in the clean-run line, so
-#     exactly those literals are normalized and nothing else is. Every root and
-#     exemption the config declares is seeded, so an entry added on one side
-#     only surfaces as a finding the other side lacks.
+#     `rule` there), in how the roots are spelled in the clean-run line, and in
+#     that line's clause for the markdown scope outside docs/, which the
+#     template has no key for, so exactly those literals are normalized and
+#     nothing else is. The seeded tree therefore holds no markdown outside
+#     docs/; cases 12 to 15 cover that scope. Every root and exemption the
+#     config declares is seeded, so an entry added on one side only surfaces as
+#     a finding the other side lacks.
 EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"
 REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
 EMITTED_RULE=""
@@ -188,12 +191,13 @@ EMITTED_ROOTS=""
 DRIFT_REPORT=""
 DRIFT_RC=""
 
-# drift_norm <script-path> <rule> <roots> <file>: <file> with the three
+# drift_norm <script-path> <rule> <roots> <file>: <file> with the four
 # by-construction differences replaced by fixed tokens.
 drift_norm() {
   local path="$1" rule="$2" roots="$3" s stem
   s="$(cat "$4" && printf x)"
   s="${s%x}"
+  s="${s//", and so is every tracked .md file outside it."/.}"
   stem="${path##*/}"
   stem="${stem%.sh}"
   s="${s//"$path"/SCRIPT}"
@@ -269,7 +273,8 @@ if [[ -n "$drift_ready" ]]; then
   done < <(jq -r '.file_names.roots[]' "$REPO_CONFIG")
   # Every offender shape the header names, the exemption boundaries (a case
   # variant of an exempt name, an exempt extension in the wrong case), case
-  # collisions including one against an exempt name, and files outside docs/ that neither gate may judge.
+  # collisions including one against an exempt name, and non-markdown files
+  # outside docs/ that neither gate may judge.
   offender_seeds+=(
     docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
     docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
@@ -277,7 +282,7 @@ if [[ -n "$drift_ready" ]]; then
     docs/conventions/standards/readme.md docs/x/Readme.md
     docs/a/Bad_Name.PY "docs/x/caf"$'\303\251'".py" "docs/x/Caf"$'\303\251'".py"
     "docs/New"$'\n'"line/foo.md" "docs/new"$'\n'"line/foo.md"
-    Top_Level.md other/Bad_Name.md
+    Top_Level.txt other/Bad_Name.json
   )
 fi
 
@@ -353,5 +358,27 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
 elif [[ -n "$drift_ready" ]]; then
   fail "template drift: fixture build failed"
 fi
+
+# 12. Markdown outside docs/ is held to the rule and named when it breaks it.
+run_case "Top_Level.md fails" 1 Top_Level.md
+run_case "plugins/p/skills/s/NOT_IMPLEMENTED.md fails" 1 plugins/p/skills/s/NOT_IMPLEMENTED.md
+run_case "plugins/p/NOTES.md fails" 1 plugins/p/NOTES.md
+
+# 13. Every listed role name passes anywhere; a case variant of one does not.
+run_case "role names pass outside docs/" 0 AGENTS.md CLAUDE.md SECURITY.md REVIEW.md \
+  LICENSE.md CONTRIBUTING.md CODE_OF_CONDUCT.md plugins/p/README.md plugins/p/CHANGELOG.md \
+  plugins/p/skills/s/SKILL.md plugins/p/tools/t/CONTRACT.md plugins/p/styles/s/STYLE.md \
+  plugins/p/skills/s/TODO.md plugins/p/reference/r/PLAN.md plugins/p/INDEX.md
+run_case "plugins/p/Skill.md fails" 1 plugins/p/Skill.md
+
+# 14. Fixture, eval, and vendor trees keep the names they reproduce, and
+#     non-markdown files outside docs/ are out of scope.
+run_case "fixture, eval, vendor trees and non-markdown pass" 0 \
+  plugins/p/tests/fixtures/a/NOTES.md plugins/p/evals/workspaces/w/MISSION.md \
+  plugins/p/vendor/v/TUNING.md plugins/p/scripts/Bad_Name.json
+
+# 15. A case collision outside docs/ fails, inside an excluded tree too.
+run_case "plugins/p/Foo.md beside plugins/p/foo.md fails" 1 plugins/p/Foo.md plugins/p/foo.md
+run_case "collision inside a fixture tree fails" 1 p/fixtures/A.md p/fixtures/a.md
 
 test_harness::report
