@@ -130,6 +130,7 @@ Either way the commit checkpoint follows the last green check.
 - **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
 - **Commit before running a simplify pass**. Your working code is a save point. If simplification introduces a bad change, revert cleanly
 - **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
+- **Fix the finding, never silence it**. Do not add a lint or type-checker suppression (`eslint-disable`, `# noqa`, `# type: ignore`, `#pragma warning disable` and the like) to turn a check green. The one exception is a false positive you have shown to be one: its suppression line names the rule id, where the tool's syntax can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
 - **Follow the consuming project's commit-message convention** (check its `CLAUDE.md` / rules; Conventional Commits is a common default). On squash-merge workflows, feature-branch messages matter less than the final squash subject
 
 ### Dependency direction

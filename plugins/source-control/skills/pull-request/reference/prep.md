@@ -45,6 +45,8 @@ Run the audit each detected class owes, over the changed files of that class onl
 - **`rules`**: `/instruction-placement:check` when the `instruction-placement` plugin is enabled, otherwise confirm each changed rule's `paths:` glob still matches a tracked file
 - **`security`**: not here. It reviews the pull request's own diff, so it runs in the ready step
 
+**Added suppressions (any diff that is not docs-only).** When `/code-metrics:audit-suppressions` is among the available skills, run it in its change scope against the base the pull request targets (`--base <remote>/<base-branch>`), and list in the 1.6 report every suppression the change adds, each with its file, line, rule ids and reason. This list is advisory: it never blocks pull request creation, and no suppression is removed or rewritten on its account without the user. When the skill is not available, or the scan exits non-zero, put `suppression check not run: <reason>` in the report (for example `suppression check not run: /code-metrics:audit-suppressions is not available`) and continue.
+
 Audits that persist findings hand them to one `/review:fanout fix` pass when the `review` plugin is enabled, and are applied by hand otherwise. Either way each finding goes through 1.3 first.
 
 ## 1.3 Verify every finding

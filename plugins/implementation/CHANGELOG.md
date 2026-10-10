@@ -7,6 +7,11 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Added
 
+- **No suppression to make a check pass.** `/implementation:implement` "Commit discipline" and the
+  `/implementation:implement-dispatch` worker brief both carry the rule: adding a lint or
+  type-checker suppression to turn a check green is not allowed, except for a proven false positive
+  whose suppression line states the reason and, where the tool can name one, the rule id. A
+  project's own instructions may override it. One eval case per skill.
 - **`refactor_compat` sets what a refactor does with the shape it replaces.** `same-wave` (the
   default) updates all call sites and removes the replaced shape in that same change, unless code
   outside the repository (a public API, a published package) relies on it; `deprecate` keeps an

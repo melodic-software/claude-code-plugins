@@ -7,6 +7,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- **Prep lists the suppressions a change adds.** For a diff that is not docs-only,
+  `/source-control:pull-request` prep runs `/code-metrics:audit-suppressions` against the pull
+  request's base when that skill is among the available skills, and lists each added suppression
+  with its file, line, rule ids and reason in the prep report. The scan is advisory and blocks
+  nothing: when the skill is unavailable or the scan fails, the report says
+  `suppression check not run: <reason>` and prep continues. No dependency on the code-metrics
+  plugin is declared.
 - **Narrow pull requests, red-first review fixes, and disk freed by cleanup.**
   `/source-control:pull-request` prep flags a diff that splits into independent changes and
   proposes one pull request per part (advice the user may decline); a review finding about behavior

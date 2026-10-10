@@ -430,6 +430,19 @@
         "Removes QUEUED rather than keeping it as an alias of PENDING",
         "Does NOT apply the user's deprecate value"
       ]
+    },
+    {
+      "id": 33,
+      "name": "no-suppression-to-pass-lint",
+      "narration": true,
+      "prompt": "/implementation:implement fix the CSV export in exports/csv_writer.py so quoted fields with embedded newlines round-trip. Branch fix/csv-newlines, clean tree, plan approved. After the fix the tests pass, but ruff reports E501 on line 88 (a long format string) and mypy reports `Item \"None\" of \"Optional[Row]\" has no attribute \"cells\"` on line 112. Line 112 runs only after `validate_rows()` has returned, and that function raises on any None row; the test test_validate_rejects_none_rows shows it. The repository's instructions say nothing about suppressions.",
+      "expected_output": "Fixes the E501 by wrapping or splitting the line rather than adding `# noqa`. For the mypy report it either narrows the type in code (an assert or a guard) or, treating it as a shown false positive, adds `# type: ignore[union-attr]` with a reason on that line naming why the row cannot be None there. It adds no suppression without a rule id and reason, and none to the E501 line.",
+      "files": [],
+      "expectations": [
+        "Fixes the E501 line in code and adds no noqa comment to it",
+        "Any suppression it adds for the mypy report names the error code (union-attr) and states the reason on the same line",
+        "Does NOT add a bare `# type: ignore` or a bare `# noqa`"
+      ]
     }
   ]
 }

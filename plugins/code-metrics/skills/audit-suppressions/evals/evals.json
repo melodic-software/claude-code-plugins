@@ -50,6 +50,59 @@
         "Runs suppression-scan.py --count and quotes both lines it prints",
         "Names /review:ratchet for holding the count, without wiring CI itself"
       ]
+    },
+    {
+      "id": 5,
+      "name": "findings-mode-asks-nothing-and-writes-a-conforming-file",
+      "prompt": "/code-metrics:audit-suppressions --findings. I'm stepping away; the branch is feat/billing-retry and it adds two eslint-disable-line comments, one with a reason after -- and one without.",
+      "expected_output": "Runs audit-suppressions.sh --findings without asking any question, presents the report, and names the findings file it wrote under .work/reviews/feat-billing-retry/ with a -suppressions.md name. The file has review-findings frontmatter with branch: feat/billing-retry and a date, the Rank | Tier | Confidence | Location | Surface(s) | Finding | Action table, and a ## Surfaces section with declined counts per rule.",
+      "files": [],
+      "expectations": [
+        "Asks the user no question before or after the run",
+        "Runs audit-suppressions.sh with --findings rather than writing the findings file by hand",
+        "Names the written file under .work/reviews/feat-billing-retry/",
+        "States that the file carries one row for the unexplained suppression and none for the explained one",
+        "Says the findings file has review-findings frontmatter with branch: feat/billing-retry and a date, the Rank | Tier | Confidence | Location | Surface(s) | Finding | Action table, and a ## Surfaces section with declined counts per rule"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "a-justified-suppression-emits-no-row",
+      "narration": true,
+      "prompt": "/code-metrics:audit-suppressions --findings src/report.py. Line 12 has `# noqa: E501 the URL is kept whole` and is the only suppression in the file. Will the findings file have a row for it?",
+      "expected_output": "Explains that the line names a rule (E501) and carries a reason, so it is justified and emits no row; the findings file is still written, with an empty Findings table and a ## Surfaces section counting the line as a declined candidate for both rules (a reason on the line, a rule id on the line).",
+      "files": [],
+      "expectations": [
+        "Says the justified line produces no row in the findings file",
+        "Says the file is still written with its ## Surfaces coverage",
+        "Does not invent a severity or a row for the justified line"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "an-unjustified-suppression-emits-under-its-rule-id",
+      "narration": true,
+      "prompt": "/code-metrics:audit-suppressions --findings scripts/deploy.sh tools/gen.py. Line 30 of deploy.sh is `# shellcheck disable=SC2086` with nothing after it, and line 44 of gen.py is `x = 1  # noqa  # the generated file keeps long lines`. What rows will the findings file get?",
+      "expected_output": "Explains one row per unjustified line: scripts/deploy.sh:30 under code-metrics/audit-suppressions/rule-no-reason (shellcheck, SC2086, no reason) and tools/gen.py:44 under code-metrics/audit-suppressions/rule-no-rule-id (a reason but no rule code). Both rows are IMPORTANT with Confidence high, each Finding cell leads with its rule id, and neither row is auto-applicable because removing or explaining a suppression is a human's call.",
+      "files": [],
+      "expectations": [
+        "Names code-metrics/audit-suppressions/rule-no-reason for the shellcheck line",
+        "Names code-metrics/audit-suppressions/rule-no-rule-id for the noqa line with a reason and no code",
+        "Gives both rows Tier IMPORTANT and Confidence high",
+        "Does not edit or remove either suppression"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "no-resolvable-branch-writes-nothing",
+      "prompt": "/code-metrics:audit-suppressions --findings --all. This is a CI checkout of the pull request merge ref, so HEAD is detached.",
+      "expected_output": "Runs audit-suppressions.sh --findings --all, which stops with exit 2 because there is no current branch. Reports that no findings file was written and why (the relay reads only a file whose branch matches the current branch), and offers the plain report or --json instead. It does not write a findings file by hand or under a made-up branch name.",
+      "files": [],
+      "expectations": [
+        "Reports that no findings file was written because HEAD is detached",
+        "Does not write a findings file by hand or invent a branch name",
+        "Offers the report-only run or --json as the way to see the suppressions"
+      ]
     }
   ]
 }

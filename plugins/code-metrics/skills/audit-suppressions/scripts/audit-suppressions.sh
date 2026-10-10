@@ -3,13 +3,17 @@
 # suppression in scope, with its rule ids, its reason, and whether it names a
 # rule listed in `suppressions.correctness_rules`.
 #
-#   audit-suppressions.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
+#   audit-suppressions.sh [--json | --findings [--memory-dir <dir>]] [--all] [--base <ref>]
+#                         [--config <resolved.json>] [<path>...]
 #
 # The scope is the dispatcher's (scope.exclude and lane opt-outs apply).
 # With no path and no --all, the change: only the lines the commits since
 # the merge-base with the default branch (or --base) add. --all and paths scan
 # whole files. Prints the markdown report; --json prints the document
-# instead. Exit 0 report produced, 2 usage error or a scan that failed.
+# instead. --findings also writes a review-findings file to
+# <memory-dir>/reviews/<branch-slug>/ (memory dir `.work` under the repository
+# root unless named) and prints its path; with no current branch it writes
+# nothing and exits 2. Exit 0 report produced, 2 usage error or a scan that failed.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -25,6 +29,8 @@ die_usage() {
 }
 
 JSON=0
+FINDINGS=0
+MEMORY_DIR=.work
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -32,8 +38,17 @@ while [[ $# -gt 0 ]]; do
     JSON=1
     shift
     ;;
+  --findings)
+    FINDINGS=1
+    shift
+    ;;
+  --memory-dir)
+    [[ $# -ge 2 && -n "$2" ]] || die_usage "--memory-dir needs a value"
+    MEMORY_DIR="$2"
+    shift 2
+    ;;
   --help | -h)
-    cm_usage_banner "${BASH_SOURCE[0]}" 11
+    cm_usage_banner "${BASH_SOURCE[0]}" 15
     exit 0
     ;;
   *)
@@ -42,6 +57,15 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+
+# The relay admits a findings file only on an exact `branch:` match, so with
+# no branch there is no file it could ever read: refuse before scanning.
+BRANCH=""
+if [[ "$FINDINGS" -eq 1 ]]; then
+  [[ "$JSON" -eq 0 ]] || die_usage "--findings prints the markdown report; drop --json"
+  BRANCH="$(git branch --show-current 2>/dev/null || true)"
+  [[ -n "$BRANCH" ]] || die_usage "--findings: no current branch (detached HEAD or not a git repository); no findings file written"
+fi
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -201,4 +225,147 @@ if kept:
 elif len(rows) > CAP:
     print("\nRe-run with --json for every row.")
 ' "$WORK/report.json" "$KEPT" || exit 2
+
+[[ "$FINDINGS" -eq 1 ]] || exit 0
+
+# The findings file, under docs/conventions/detector-findings/README.md: rule
+# ids, tiers and auto-applicability are that file's crosswalk rows, looked up
+# here, never chosen per finding. Every value read from a source file (path,
+# tool, rule ids, reason) is data: it is escaped into a table cell and never
+# reaches a shell.
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die_usage "--findings: not inside a git repository"
+# shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
+"${PY[@]}" -c '
+import datetime, json, os, re, sys
+
+doc_path, branch, root, memory_dir = sys.argv[1:5]
+doc = json.load(open(doc_path, encoding="utf-8"))
+scope = doc["scope"]
+if scope["files"] == 0:
+    print("\nNo findings file: 0 files in scope, so the run examined nothing to record.")
+    sys.exit(0)
+
+SURFACE = "code-metrics:audit-suppressions"
+NO_REASON = "code-metrics/audit-suppressions/rule-no-reason"
+NO_RULE_ID = "code-metrics/audit-suppressions/rule-no-rule-id"
+TIER = "IMPORTANT"  # both rules, per their crosswalk rows
+DEFAULT_SLOT = "in a comment after the directive on the same line"
+SLOTS = {
+    "eslint": "after ` -- ` at the end of the directive",
+    "rubocop": "after ` -- ` at the end of the directive",
+    "csharp": "in the `Justification` argument of the attribute",
+    "csharp-pragma": "in a `//` comment after the pragma on the same line",
+    "powershell": "in a `Justification` argument on the attribute",
+    "markdownlint": "in a second `<!-- -->` comment on the same line",
+}
+
+
+def cell(value):
+    text = str(value).replace("\\", "\\\\").replace("|", "\\|")
+    return text.replace("\r", " ").replace("\n", " ")
+
+
+def subject(r):
+    if r["rules"]:
+        return "%s suppression of %s" % (r["tool"], ", ".join(r["rules"]))
+    if r["tool"] == "typescript":
+        return "typescript directive (it cannot name an error code)"
+    return "%s suppression naming no rule id" % r["tool"]
+
+
+def is_pragma(rel, line):
+    # A C# pragma has no Justification argument, so its reason slot differs
+    # from the attribute form the scanner reports under the same tool name.
+    try:
+        with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as handle:
+            for number, text in enumerate(handle, 1):
+                if number == line:
+                    return re.match(r"\s*#\s*pragma\s+warning\s+disable\b", text) is not None
+    except OSError:
+        pass
+    return False
+
+
+def action_no_reason(r, rel):
+    if r["tool"] == "typescript":
+        return ("Decide whether the silenced error is a false positive. If it is, write the reason as "
+                "text after the directive on the same line; if it is not, fix the code and delete the directive.")
+    name = "" if r["rules"] else "name the rule id it silences in the directive and "
+    tool = "csharp-pragma" if r["tool"] == "csharp" and is_pragma(rel, r["line"]) else r["tool"]
+    return ("Decide whether the silenced check is a false positive. If it is, %swrite the reason %s; "
+            "if it is not, fix the code and delete the suppression." % (name, SLOTS.get(tool, DEFAULT_SLOT)))
+
+
+def action_no_rule_id(r):
+    return ("The directive silences every rule the tool checks on its span. Name the rule id the stated "
+            "reason is about in the directive; if the reason covers no single rule, fix the code and "
+            "delete the suppression.")
+
+
+# The scanner prints paths relative to the repository root; one outside it
+# cannot be a repo-relative Location, so it is counted rather than emitted.
+root = os.path.realpath(root)
+rows, outside = [], 0
+declined = {"reason-on-line": 0, "rule-id-on-line": 0, "tool-names-no-rule": 0}
+for r in doc["suppressions"]:
+    rel = os.path.relpath(os.path.normpath(os.path.join(root, r["file"])), root).replace(os.sep, "/")
+    if rel == ".." or rel.startswith("../"):
+        outside += 1
+        continue
+    where = "%s:%d" % (rel, r["line"])
+    if not r["reason"]:
+        rows.append((rel, r["line"], where, "%s: %s, no reason on the line" % (NO_REASON, subject(r)), action_no_reason(r, rel)))
+        continue
+    declined["reason-on-line"] += 1
+    if not r["justified"]:
+        rows.append((rel, r["line"], where, "%s: %s, reason \"%s\"" % (NO_RULE_ID, subject(r), r["reason"]), action_no_rule_id(r)))
+    elif r["rules"]:
+        declined["rule-id-on-line"] += 1
+    else:
+        declined["tool-names-no-rule"] += 1
+rows.sort(key=lambda row: (row[0], row[1]))
+
+slug = re.sub(r"[^a-z0-9._-]", "-", branch.lower())
+memory = memory_dir if os.path.isabs(memory_dir) else os.path.join(root, memory_dir)
+target_dir = os.path.join(memory, "reviews", slug)
+os.makedirs(target_dir, exist_ok=True)
+ignore = os.path.join(memory, ".gitignore")
+if not os.path.exists(ignore):
+    with open(ignore, "w", encoding="utf-8") as handle:
+        handle.write("*\n")
+    print("audit-suppressions.sh: created %s holding * so the memory root stays out of git" % ignore, file=sys.stderr)
+
+now = datetime.datetime.now(datetime.timezone.utc)
+stem = os.path.join(target_dir, now.strftime("%Y%m%dT%H%M%SZ") + "-suppressions")
+n = 1
+while True:
+    path = stem + (".md" if n == 1 else "-%d.md" % n)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+        break
+    except FileExistsError:
+        n += 1
+
+mode = {"change": "lines added since %s" % scope["base"], "all": "the whole tree", "paths": "the named paths"}[scope["mode"]]
+emitted = {row[3].split(":", 1)[0] for row in rows}
+quiet = [rule for rule in (NO_REASON, NO_RULE_ID) if rule not in emitted]
+out = ["---", "type: review-findings", "date: %s" % now.strftime("%Y-%m-%dT%H:%M:%SZ"), "branch: %s" % branch, "---", "",
+       "## Findings", "",
+       "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |",
+       "|------|------|------------|----------|------------|---------|--------|"]
+for rank, row in enumerate(rows, 1):
+    out.append("| %d | %s | high | %s | %s | %s | %s |" % (rank, TIER, cell(row[2]), SURFACE, cell(row[3]), cell(row[4])))
+ran = "Ran: [%s (%s, %d files in scope, %d suppressions examined)]." % (SURFACE, mode, scope["files"], len(doc["suppressions"]))
+if quiet:
+    ran += " Returned no result: [%s]." % ", ".join(quiet)
+out += ["", "## Surfaces", "", ran]
+out.append("Declined candidates: %s count=%d reason=reason-on-line" % (NO_REASON, declined["reason-on-line"]))
+out.append("Declined candidates: %s count=%d reason=rule-id-on-line" % (NO_RULE_ID, declined["rule-id-on-line"]))
+out.append("Declined candidates: %s count=%d reason=tool-names-no-rule" % (NO_RULE_ID, declined["tool-names-no-rule"]))
+if outside:
+    out.append("Not examined: %d suppressions outside the repository root." % outside)
+with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+    handle.write("\n".join(out) + "\n")
+print("\nFindings file: %s" % path)
+' "$WORK/report.json" "$BRANCH" "$ROOT" "$MEMORY_DIR" || exit 2
 exit 0

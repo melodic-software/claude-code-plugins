@@ -1,6 +1,6 @@
 ---
 description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings. Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit-complexity."
-argument-hint: "[--json] [--all] [--base <ref>] [<path>...]"
+argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh:*)", "Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py:*)", "Bash(git branch --show-current:*)"]
@@ -19,8 +19,8 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 A suppression turns a linter or type checker off for one line, one block or one file. Each one is
 a decision someone made once; this skill lists them so a reader can see how many there are, which
 explain themselves, and which switch off a rule the team counts as correctness rather than style.
-It reports and stops: no pass or fail, no severity. Whether a suppression should go is the reader's
-call.
+It reports and stops: no pass or fail, and the report carries no severity (a `--findings` file
+carries the tier its rule's row sets, below). Whether a suppression should go is the reader's call.
 
 A suppression is **justified** when its line carries a reason and, for a tool whose syntax can name
 a rule, at least one rule id. TypeScript's `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck`
@@ -41,6 +41,7 @@ span or a fenced code block in a Markdown file is not a suppression.
 "${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh" --all              # every suppression in the tree
 "${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh" src/ tools/build.sh # explicit paths, whole files
 "${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh" --json --all        # the document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-suppressions.sh" --findings          # the report plus a findings file for /review:fanout fix
 ```
 
 The change scope reads committed lines only: a suppression in an uncommitted edit is not in it until
@@ -53,6 +54,38 @@ capped at 200 rows with the kept document named for the rest. The `--json` docum
 (`code-metrics/suppressions/v1`) carries `scope`, `counts` (`suppressions`, `unjustified`,
 `correctness`), `correctness_rules` (`rules`, `layer`) and `suppressions`, one object per row with
 `file`, `line`, `tool`, `rules`, `justified`, `reason` and `correctness`.
+
+## Findings for the review relay (`--findings`)
+
+`--findings` runs the same scan in the same scope, prints the same report, then writes one findings
+file in the shape `/review:fanout fix` reads and prints its path. It asks nothing, so a pipeline or
+another skill can run it. Bare invocation and `--json` write no findings file.
+
+- **Where it goes.** `<memory root>/reviews/<branch-slug>/<UTC stamp>-suppressions.md`, the
+  directory `/review:fanout` "Shared inputs" names. The memory root is `.work` under the repository
+  root; when the project's instructions name another memory root, pass it with `--memory-dir`. A
+  memory root with no `.gitignore` gets one holding `*`, and the run says so. An existing file is
+  never overwritten: a second run in the same second takes a `-2` suffix.
+- **No branch, no file.** On a detached HEAD or outside a git repository the run stops with exit 2
+  before scanning and says no findings file was written: the relay reads only a file whose
+  `branch:` matches the current branch.
+- **What becomes a row.** A justified suppression is no finding. An unjustified one is a row under
+  one of two rules: `code-metrics/audit-suppressions/rule-no-reason` when the line carries no
+  reason, and `code-metrics/audit-suppressions/rule-no-rule-id` when it carries a reason but no rule
+  id and the tool can name one. Each `Finding` cell leads with the rule id and what fired (the tool,
+  its rule ids, and the missing part); `Location` is the repo-relative `file:line`. `Tier`
+  (`IMPORTANT`), `Confidence` (`high`) and the fact that neither rule is auto-applicable come from
+  the two rules' rows in the detector-findings convention
+  (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>,
+  "The severity crosswalk"), never from the finding. The `Action` names where this tool keeps its
+  reason, and asks for a rule id only where the tool can name one and the line names none.
+- **Coverage.** `## Surfaces` names the scope and how many suppressions were examined, and counts
+  each rule's declined candidates by the evidence that declined them: a reason on the line, a rule
+  id on the line, or a TypeScript directive, which cannot name an error. A run whose scope holds no
+  file writes no findings file.
+
+Whether a suppression goes or gets its reason is a human's call, so no row is auto-applicable: the
+fix pass surfaces the rows rather than applying them.
 
 ## Correctness rules
 
@@ -119,6 +152,7 @@ The marker catalog follows each tool's own directive syntax, read from these pag
 ## Next
 
 - Hold the count in CI so it only falls: /review:ratchet.
+- Work through the rows a `--findings` run wrote: /review:fanout fix.
 - A count needs reading before anyone acts on it: /code-metrics:principles.
 
 ## Gotchas

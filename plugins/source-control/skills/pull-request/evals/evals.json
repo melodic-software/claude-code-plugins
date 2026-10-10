@@ -473,6 +473,32 @@
         "It does not keep the pull request in draft because of the Review line",
         "It proceeds to the flip once the security review and the verify gate are clean"
       ]
+    },
+    {
+      "id": 37,
+      "name": "prep-lists-added-suppressions-advisory",
+      "narration": true,
+      "prompt": "/pull-request prep. Branch feat/rate-window changes api/limits.py and api/limits_test.py against origin/main. /code-metrics:audit-suppressions is among the available skills, and its change-scope run reports two added lines: api/limits.py:41 `# noqa: E501` with no reason, and api/limits.py:77 `# type: ignore[arg-type]` with the reason `the stub types the window as int`.",
+      "expected_output": "Runs /code-metrics:audit-suppressions in change scope against origin/main and lists both added suppressions in the prep report with file, line, rule ids and reason (none for line 41). It treats the list as advisory: it does not block or delay pull request creation on it and does not remove or rewrite either suppression on its own.",
+      "files": [],
+      "expectations": [
+        "Runs /code-metrics:audit-suppressions against the pull request's base (origin/main)",
+        "Lists api/limits.py:41 (E501, no reason) and api/limits.py:77 (arg-type, its reason) in the prep report",
+        "Does not block pull request creation because of the suppressions",
+        "Does not edit or remove either suppression without the user"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "prep-suppression-check-not-run-when-skill-absent",
+      "narration": true,
+      "prompt": "/pull-request prep. Branch fix/retry-jitter changes worker/retry.go against origin/main. The code-metrics plugin is not installed, so /code-metrics:audit-suppressions is not among the available skills.",
+      "expected_output": "Prep does not try to scan for suppressions by other means. Its report carries the line `suppression check not run: <reason>` naming that the skill is not available, and prep goes on to the review, simplify and verify steps and then pull request creation.",
+      "files": [],
+      "expectations": [
+        "The prep report contains `suppression check not run:` with a reason naming the unavailable skill",
+        "Prep continues to its remaining steps and does not stop on the missing skill"
+      ]
     }
   ]
 }

@@ -4,6 +4,16 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.7.0] - 2026-10-10
+
+**Minor, additive.** Two crosswalk rows and one Adopters row admit `code-metrics:audit-suppressions`
+and its `--findings` mode: `code-metrics/audit-suppressions/rule-no-reason` (a suppression with no
+reason on its line) and `code-metrics/audit-suppressions/rule-no-rule-id` (a reason but no rule id,
+where the tool can name one), both IMPORTANT through the degradation limb, `Confidence` high, not
+auto-applicable. Every decline needs evidence on the line and is counted in `## Surfaces`. Both
+rules postdate 3.0.0, so their remedies are pinned in full. No producer-owned field's rule,
+coexistence obligation, or enforceability verdict moves.
+
 ## [3.6.2] - 2026-10-01
 
 **Patch, docs-only.** The `attribution/audit/rule-stamp-expired` and

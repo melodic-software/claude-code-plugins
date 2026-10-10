@@ -347,6 +347,19 @@
         "Dispatches one worker row that pilots and runs the lever over all 14 services instead of 14 per-service rows",
         "Makes no /batch offer for the change and does not edit source in the orchestrator's checkout"
       ]
+    },
+    {
+      "id": 27,
+      "name": "brief-carries-the-no-suppression-rule",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute Phase 2 of the approved plan at .work/upload-limits/PLAN.md: one worker row that adds the size check to web/upload.ts, branch feat/upload-limits, autonomous. The project's lint runs ESLint with no-explicit-any, and its instructions say nothing about suppressions. Show me the brief before you dispatch it.",
+      "expected_output": "The composed brief carries the no-suppression rule: the worker fixes what ESLint or the type checker reports instead of adding a suppression to make the check pass, and suppresses only a false positive it has shown to be one, on a line naming the rule (for example `// eslint-disable-next-line @typescript-eslint/no-explicit-any -- <reason>`) with the reason. A bare `eslint-disable` added to get lint green is out of bounds. The brief keeps its other items (scope fence, divergence clause, acceptance criteria, reason, commit authority).",
+      "files": [],
+      "expectations": [
+        "The brief tells the worker not to add a lint or type-checker suppression to make a check pass",
+        "The brief allows a suppression only for a shown false positive whose line names the rule id and the reason",
+        "The brief still carries the scope fence and the verbatim divergence-escalation clause"
+      ]
     }
   ]
 }
