@@ -7,6 +7,7 @@
 # SPEECH_E2E_DATA_DIR opts into the real end-to-end narration (see test_narrate.py).
 # test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/hooks/*.sh plugins/speech/scripts/*.json
 # test-scope: plugins/speech/scripts/*.py plugins/speech/prerequisites.json plugins/speech/requirements.txt
+# test-scope: plugins/speech/.claude-plugin/plugin.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
