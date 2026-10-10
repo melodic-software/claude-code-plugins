@@ -439,7 +439,7 @@ nothing.
 
 Precedence, highest first, for the session's own window: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then
 `--autocompact`, then a project-scope top-level `autoCompactWindow` (the observed case; a project-scope per-model key outranking it follows from the same-file rule but was not observed directly), then the user-scope per-model value over the user-scope
-top-level key. Every step in that order is observed. Managed settings are per docs, not observed:
+top-level key. Every step in that order was observed except the inferred project-scope per-model case. Managed settings are per docs, not observed:
 a managed window holds even after `/autocompact` saves a value, and managed settings do not
 override `--autocompact`. To see the effective window rather than derive it, run `/autocompact`
 with no argument: observed under `-p` to print the value and its source, and per docs a dialog
