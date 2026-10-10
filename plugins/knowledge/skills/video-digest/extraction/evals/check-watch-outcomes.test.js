@@ -159,6 +159,14 @@ describe("checkWatchOutcomes research gate", () => {
     expect(check?.actual).toContain("research-findings count (0) < done agenda rows (1)");
   });
 
+  it("names a missing research file relative to the slice", () => {
+    const sliceDir = sliceWithResearch({ agendaStatus: "done", findings: 1 });
+    fs.rmSync(path.join(sliceDir, "research", "research-agenda.md"));
+    expect(researchCheck(sliceDir)?.actual).toBe(
+      `missing ${path.join("research", "research-agenda.md")}`,
+    );
+  });
+
   it("passes when every row is resolved and backed by a finding", () => {
     const check = researchCheck(sliceWithResearch({ agendaStatus: "done", findings: 1 }));
     expect(check?.pass).toBe(true);
