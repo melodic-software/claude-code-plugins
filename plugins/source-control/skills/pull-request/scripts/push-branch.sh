@@ -50,14 +50,27 @@
 # Push resolution must be determinate (it names the destination), so a failed
 # --push resolution aborts; a failed fetch resolution does not.
 #
-# Usage: push-branch.sh [branch-name]   (defaults to the current branch)
+# `--pr <number>` pushes that pull request's head branch, read from
+# `gh pr view`, whatever worktree the caller runs in. Branch refs are shared
+# across worktrees, so the push carries the commits made in the PR's worktree.
+# A head branch with no local ref exits non-zero rather than falling back to
+# the current branch.
+#
+# Usage: push-branch.sh [branch-name | --pr <number>]   (defaults to the current branch)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
 BRANCH="${1:-}"
-if [[ -z "$BRANCH" ]]; then
+if [[ "$BRANCH" == "--pr" ]]; then
+  PR="${2:-}"
+  BRANCH=$(gh pr view "$PR" --json headRefName -q '.headRefName' 2>/dev/null | tr -d '\r')
+  if [[ -z "$BRANCH" ]] || ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    echo "push-branch.sh: no local branch for the head of PR '$PR' ('$BRANCH'); not pushing" >&2
+    exit 1
+  fi
+elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 

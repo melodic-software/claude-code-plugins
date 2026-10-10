@@ -172,6 +172,29 @@ check "merge-only: branch.remote not written (stays unset)" "$(branch_config "$w
 check "merge-only: merge ref preserved (not rewritten by -u)" "$(branch_config "$wc" merge)" "refs/heads/main"
 check "merge-only: origin received the branch" "$(has_branch "$WORKDIR/merge-only/origin")" "yes"
 
+# 8. --pr from another worktree: the session sits in worktree A (feat/x) while
+#    the PR being readied is on worktree B (feat/b), whose new commit is not yet
+#    pushed. `--pr <n>` must push the PR's head branch (from a stubbed
+#    `gh pr view`), never A's branch, and a PR whose head has no local branch
+#    must exit non-zero instead of pushing the cwd's branch.
+wc=$(make_clone pr-worktree)
+git -C "$wc" push -q -u origin "$BRANCH" 2>/dev/null
+wt_b="$WORKDIR/pr-worktree/wt-b"
+git -C "$wc" worktree add -q -b feat/b "$wt_b" 2>/dev/null
+git -C "$wt_b" commit -q --allow-empty -m "merge base into b"
+stub="$WORKDIR/pr-worktree/bin"
+mkdir -p "$stub"
+printf '#!/usr/bin/env bash\n[[ "$*" == *" 42 "* ]] && echo feat/b && exit 0\n[[ "$*" == *" 43 "* ]] && echo feat/missing && exit 0\nexit 1\n' >"$stub/gh"
+chmod +x "$stub/gh"
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1
+check "pr-worktree: --pr 42 exits 0" "$?" "0"
+check "pr-worktree: origin holds B's head commit" \
+  "$(git -C "$WORKDIR/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b)" \
+  "$(git -C "$wt_b" rev-parse HEAD)"
+missing_exit=zero
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 43) >/dev/null 2>&1 || missing_exit=nonzero
+check "pr-worktree: head branch with no local branch exits non-zero" "$missing_exit" "nonzero"
+
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"
 [[ $FAIL -eq 0 ]]

@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.1] - 2026-10-10
+
+### Fixed
+
+- `pull-request ready` pushes the pull request's head branch through `push-branch.sh --pr <number>`, so a session running in another worktree no longer pushes its own branch, prints "Everything up-to-date", and flips a PR whose pushed head lacks the base merge. `--pr` exits non-zero when the head branch has no local ref.
+
 ## [0.83.0] - 2026-10-09
 
 ### Added
