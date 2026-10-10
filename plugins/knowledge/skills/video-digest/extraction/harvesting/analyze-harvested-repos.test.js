@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -51,6 +52,8 @@ describe("shallowCloneGitHubRepo", () => {
       shallowCloneGitHubRepo("https://github.com/owner/repo", "-destination", spawnFn),
     ).resolves.toBe(true);
     expect(capturedArgs).toEqual([
+      "-c",
+      "credential.helper=",
       "clone",
       "--depth",
       "1",
@@ -59,6 +62,41 @@ describe("shallowCloneGitHubRepo", () => {
       "https://github.com/owner/repo",
       "-destination",
     ]);
+  });
+});
+
+describe("shallowCloneGitHubRepo hardening", () => {
+  it("disables credential prompts and LFS smudge for the clone", async () => {
+    let capturedArgs;
+    let capturedOptions;
+    const spawnFn = (_command, args, options) => {
+      capturedArgs = args;
+      capturedOptions = options;
+      return {
+        on(event, callback) {
+          if (event === "close") callback(0);
+        },
+      };
+    };
+
+    await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", spawnFn);
+
+    expect(capturedArgs.slice(0, 3)).toEqual(["-c", "credential.helper=", "clone"]);
+    expect(capturedOptions.env.GIT_TERMINAL_PROMPT).toBe("0");
+    expect(capturedOptions.env.GIT_LFS_SKIP_SMUDGE).toBe("1");
+  });
+
+  it("kills a clone that outlives the timeout and reports it as failed", async () => {
+    const hangingSpawn = (_command, _args, options) =>
+      spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], options);
+
+    const started = Date.now();
+    await expect(
+      shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", hangingSpawn, {
+        timeoutMs: 200,
+      }),
+    ).resolves.toBe(false);
+    expect(Date.now() - started).toBeLessThan(4000);
   });
 });
 

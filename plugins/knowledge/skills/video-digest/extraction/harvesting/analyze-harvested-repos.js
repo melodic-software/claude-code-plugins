@@ -22,16 +22,33 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  * @property {ReturnType<typeof detectFrameworks>} frameworks
  */
 
+const CLONE_TIMEOUT_MS = 120_000;
+
 /**
+ * Shallow-clone an untrusted harvested URL so that a private, renamed or
+ * LFS-heavy repository fails fast instead of prompting or downloading:
+ * `credential.helper=` empties the helper list, `GIT_TERMINAL_PROMPT=0` stops
+ * the terminal prompt, `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
+ * and a clone that outlives the timeout is killed and counted as failed.
+ *
  * @param {string} url
  * @param {string} destDir
  * @param {typeof spawn} [spawnFn]
+ * @param {{ timeoutMs?: number }} [options]
  * @returns {Promise<boolean>}
  */
-export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
+export async function shallowCloneGitHubRepo(
+  url,
+  destDir,
+  spawnFn = spawn,
+  { timeoutMs = CLONE_TIMEOUT_MS } = {},
+) {
   return new Promise((resolve) => {
-    const child = spawnFn("git", ["clone", "--depth", "1", "--single-branch", "--", url, destDir], {
+    const args = ["-c", "credential.helper=", "clone", "--depth", "1", "--single-branch"];
+    const child = spawnFn("git", [...args, "--", url, destDir], {
       stdio: "ignore",
+      timeout: timeoutMs,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_LFS_SKIP_SMUDGE: "1" },
     });
     child.on("close", (code) => resolve(code === 0));
     child.on("error", () => resolve(false));
