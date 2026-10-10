@@ -10,7 +10,7 @@ name: maintenance-audit-test-selection
 #                         read whose one-file diff would not select that suite.
 #                         The seventh rotates with the day, so every suite is
 #                         traced within a week; the whole corpus under strace
-#                         would not fit the 30-minute job.
+#                         would not fit the 35-minute job.
 #   audit-failed-suite-selection
 #                         when a pr-require-checks run on main fails: for each
 #                         failing suite, replays the selector on every commit
@@ -46,7 +46,7 @@ jobs:
   audit-test-selection:
     if: github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     permissions:
       contents: read
     concurrency:
@@ -115,8 +115,8 @@ jobs:
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
       - name: Test the selection audit
         run: bash scripts/selection-audit.test.sh
-      # Budget 1200 s: suites start for the first 720 s, selector queries stop
-      # at 1200 s, and anything cut off is counted in the report, not dropped.
+      # Budget 1500 s: suites start for the first 900 s, selector queries stop
+      # at 1500 s, and anything cut off is counted in the report, not dropped.
       # PATH is set here rather than through GITHUB_PATH, which zizmor rejects
       # in a workflow that also has a workflow_run trigger.
       - name: Trace suites and report selection gaps
@@ -131,7 +131,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/node_modules/.bin:$HOME/.local/bin:$RUNNER_TEMP/duckdb:$PATH"
           shard="${SHARD_INPUT:-$(($(date -u +%s) / 86400 % 7))/7}"
           read -ra suites <<<"${SUITES_INPUT:-}"
-          scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 1200 \
+          scripts/selection-audit.sh trace --shard "$shard" --jobs 4 --budget 1500 \
             --out "$RUNNER_TEMP/selection-audit" ${suites[@]+"${suites[@]}"}
       - name: Upload the trace report
         if: ${{ !cancelled() }}
