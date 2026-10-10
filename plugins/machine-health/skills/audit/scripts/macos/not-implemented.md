@@ -12,13 +12,13 @@ scripts/macos/
 
 ## Contract for the skill runtime
 
-Owned by [`../../reference/macos/NOT_IMPLEMENTED.md`](../../reference/macos/NOT_IMPLEMENTED.md) § "What the skill should do on macOS today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
+Owned by [`../../reference/macos/not-implemented.md`](../../reference/macos/not-implemented.md) § "What the skill should do on macOS today": detection, the `UNKNOWN` `os-support` report, and the clean exit.
 
 **Do not attempt to execute any script from `scripts/windows/` on macOS.** Those scripts call Windows-only cmdlets and fail noisily.
 
 ## Porting guidance
 
-See `../../reference/macos/NOT_IMPLEMENTED.md` for the full porting checklist. Short version:
+See `../../reference/macos/not-implemented.md` for the full porting checklist. Short version:
 
 - Semantics stay in `reference/shared/`, with no changes.
 - Add `reference/macos/check-catalog.md` and `reference/macos/remediation-policy.md`.
