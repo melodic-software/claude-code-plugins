@@ -6,7 +6,7 @@ Would update: 1 plugin(s)
   would run: claude plugin update alpha@market1 -s user (installed 0.1.0)
 Would withhold: 1 downgrade(s) (--allow-downgrade ignored: audit issues no update either way)
   - gamma@market1 (user): 0.5.0 → 0.1.0 (catalog moved backward)
-Would install: 1 new catalog plugin(s) (policy install_new: all, meaning these reinstall on every sync unless you also disable them)
+Would install: 1 new catalog plugin(s) (policy install_new: all: once installed, a later sync would reinstall any of these you uninstall; to keep one out, disable it instead of uninstalling)
   would run: claude plugin install beta@market1 -s user
 Would enable: 1 plugin(s)
   would run: claude plugin enable gamma@market1 -s user
