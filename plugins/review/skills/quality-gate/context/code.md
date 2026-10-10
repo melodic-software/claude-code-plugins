@@ -4,10 +4,18 @@ Specialized multi-aspect code feedback during development, before the formal PR 
 
 ## Boundary, the bundled `/code-review` skill
 
-Claude Code ships `/code-review` as a [bundled skill](https://code.claude.com/docs/en/skills#bundled-skills) that reviews the same target this mode does: the branch's commits ahead of upstream plus uncommitted working-tree changes. It reports correctness bugs and reuse, simplification, and efficiency cleanups. It is always available (no plugin install), honors effort levels, and its `ultra` mode runs a deeper cloud review. Verified 2026-09-06 against Claude Code 2.1.263: the skills page lists `/code-review` among the bundled skills, and the code-review page documents the effort levels, where `low` and `medium` report only the highest-confidence findings while `high` through `max` broaden coverage, and states that `ultra` neither updates nor uses the remembered level. Recheck when the bundled-skill list drops it, when the effort behavior on that page changes, or when a release note names the command. Because it overlaps this mode on the "code review" trigger and the current diff, choose deliberately:
+Claude Code ships `/code-review` as a [bundled skill](https://code.claude.com/docs/en/skills#bundled-skills) that reviews the same current diff this mode does, so the two overlap on the "code review" trigger. We route between them by what the review must ground in and whether it may write anything, never by the effort level passed to `/code-review`: we treat no level as a substitute for this mode.
 
-- **This mode** when the review must ground in the project's own standards and severity vocabulary (resolved through the standards index), stay report-only, and land in the gate's unified findings report. It dispatches the convention-aware reviewers in the paths below. (This is one lens per invocation; for a breadth fan-out across many review surfaces, reach for this plugin's `fanout` skill.)
-- **`/code-review`** for a fast zero-dependency pass, or its `ultra` cloud deep-dive, when project-standards grounding is not the point. It does not read `REVIEW.md`, and its `--fix` / `--comment` flags mutate the working tree or PR, outside this mode's report-only contract, so reach for those only on explicit user opt-in (the sibling `pr` mode gates the same side effect).
+- **Pointer**: when choosing an effort level for `/code-review` or judging what a level covers, fetch <https://code.claude.com/docs/en/code-review#tune-effort-and-arguments> live; for what the bundled review reads, fetch <https://code.claude.com/docs/en/code-review#what-the-review-reads-and-edits> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the code-review page changes its effort or reads-and-edits text, the skills page drops `/code-review` from its bundled skills, or a release note names the command.
+
+Source conflict: <https://code.claude.com/docs/en/code-review#tune-effort-and-arguments> and the v2.1.290 entry of <https://code.claude.com/docs/en/changelog> disagree on what `/code-review` `medium` covers. **As of**: 2026-10-10. **Recheck trigger**: the code-review page's effort section changes.
+
+Choose deliberately:
+
+- **This mode** when the review must ground in the project's own standards, `REVIEW.md` and severity vocabulary (resolved through the standards index), stay report-only, and land in the gate's unified findings report. It dispatches the convention-aware reviewers in the paths below. Convention and `REVIEW.md` review always routes to this mode. (This is one lens per invocation; for a breadth fan-out across many review surfaces, reach for this plugin's `fanout` skill.)
+- **`/code-review`** for a fast zero-dependency pass, or its `ultra` cloud deep-dive, when project-standards grounding is not the point. Its `--fix` / `--comment` flags mutate the working tree or PR, outside this mode's report-only contract, so reach for those only on explicit user opt-in (the sibling `pr` mode gates the same side effect).
 
 ## Primary path: `pr-review-toolkit` orchestrator plugin (when installed)
 
