@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: uc4-test-prototype
+description: "Use case 4 (greenfield): test a prototype before building, as a usability test plan with scenario tasks and any expert pass labeled a pre-study filter"
+tags: [use-case, uc4]
+runs: 3
+expected_outcome: "A usability test plan with scenario tasks and success criteria; any expert review of the described screens is labeled likely problems, and the prototype access is asked for"
+execution:
+  prompt: "Test this prototype before we build: it is a clickable Figma prototype of a pharmacy app where people request a prescription refill. It has four screens: a home screen with a 'My prescriptions' list, a prescription detail screen with a 'Request refill' button, a pickup screen to choose a store and a time, and a confirmation screen. I have not shared the Figma link yet. What should we do? This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

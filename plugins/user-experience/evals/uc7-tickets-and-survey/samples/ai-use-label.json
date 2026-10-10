@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "AI use: codes suggested by an agent; a product designer accepts or merges them",
+      "why": "envelope header"
+    },
+    {
+      "answer": "**AI-use:** drafted by Claude",
+      "why": "bold, hyphenated"
+    },
+    {
+      "answer": "These are AI-suggested codes for your review.",
+      "why": "inline disclosure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here are the five themes I found.",
+      "why": "no disclosure"
+    }
+  ]
+}
