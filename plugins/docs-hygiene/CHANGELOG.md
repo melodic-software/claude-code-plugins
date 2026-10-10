@@ -1,59 +1,61 @@
 # Changelog: docs-hygiene plugin
 
-## [Unreleased]
-
-### Added
-
-- **`compress_articles` decides whether `compress` removes `a`, `an` and `the`.** Set it per user
-  in `userConfig` or per repository in `docs/conventions/docs-hygiene.yaml` (schema
-  `schemas/docs-hygiene.schema.json`), which wins and is read by
-  `skills/compress/scripts/articles-setting.sh` through a bundled copy of the shared reader in
-  `lib/`. The run's summary ends with the value and the layer that supplied it; a value other than
-  `keep` or `cut` is named with its file and key, that layer is dropped, and the run continues.
-  Keys: `reference/config.md`.
-- **`/docs-hygiene:setup apply` writes `docs/conventions/docs-hygiene.yaml`.** It writes only the
-  keys named on the command line after validating the existing file and the result against the
-  schema, replaces only an empty, null or out-of-list value, and refuses with one line, the file
-  untouched, on a key set twice, a map or list, an empty quoted string, an unknown key, a parse
-  error, a root that is `$HOME` or an ancestor of it, a symlinked or hard-linked path, or a
-  directory or file in the way, or a file that mixes CRLF and LF line endings (a CRLF file is
-  updated in place and keeps CRLF). Changing an existing
-  file shows a diff and needs the operator's yes. `check` also validates that file and reports
-  the effective `compress_articles`, resolved the way `compress` resolves it: an invalid value in
-  the file resolves to the default, `keep`, never to the `userConfig` value, and a key the schema
-  does not list is a warning that leaves a valid `compress_articles` in force. Setup now needs
-  `node` for this step.
+## [0.27.2] - 2026-10-07
 
 ### Changed
 
-- **`compress` keeps articles by default, and under the default it no longer uses the `caveman`
-  backend or the full single-file latitude.** With `compress_articles` at `keep` (the default),
-  every run uses the in-session Edit backend even when `/caveman:compress` is installed, because
-  caveman always removes articles, and a single-file run is held to the batch path's word-level
-  cuts minus articles: no sentence or restatement is deleted. Set `compress_articles: cut` to get
-  the earlier behavior: caveman when installed, and the full flavor matrix on a single file. Expect
-  smaller yields under `keep`. The semantic-diff prompt takes the resolved value as `{ARTICLES}`:
-  under `keep` a dropped article is SEMANTIC LOSS and the revert pass restores it, and under `cut`
-  it stays a FALSE POSITIVE. `audit-scan.sh` takes `--articles keep|cut` (default `keep`), and its
-  COMPRESS reason names article cuts only under `cut`.
-- **`write-for-humans` reports new metaphor jargon.** After writing, a figurative noun the AI-tell
-  catalog does not list is named in the reply as a candidate for ai-slop's
-  `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
-  ai-slop catalog.
-- **`write-for-humans` reworded in its own terms.** The three surviving rules and the worked
-  example are tables; the mode picker gives each mode's voice, opening, body and exclusions in
-  columns; the rhythm section is a table of three checks; the first-read goal, and the instruction
-  to drop a rule where it makes a sentence worse, are now the first after-writing check.
-  `sentence-rules.md` groups the address rules by the part of the page they govern and states
-  every address, load and ambiguity rule against one running example, a made-up backup tool. The
-  worked example uses a new worker-reload passage. No rule or limit changed.
-- **`write-for-agents` words three rules in its own terms.** The cognitive-load line, the
-  matching-term pointer rule and the negation rule no longer share phrasing with an upstream course
-  skill. The rules are unchanged.
-- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in
-  `skills/audit-noise/scripts/lib/`.** The reader takes dotted keys, `--list`, stdin (`-`), a
-  validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the
-  parser rejects now yields the fallback with one stderr line.
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.27.1] - 2026-10-07
+
+### Changed
+
+- **`audit-derivability`'s sub-agents recheck reads the page by the fetch-route rungs ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** The Recheck triggers row now says to re-read the page at rung 1 with fresh bytes instead of a bare "re-fetch".
+
+## [0.27.0] - 2026-10-07
+
+### Added
+
+- **`compress compare ORIG_DIR NEW_DIR [REASONS]` labels a rewrite of a whole skill directory.** It is read-only: a new read-only agent, `compare-labeler` (Read, Grep, Glob), labels every difference across SKILL.md and its reference files as SEMANTIC LOSS, RELOCATED, INTENDED CUT, AMBIGUITY or FALSE POSITIVE, and ends with `VERDICT: BLOCK` when any loss remains or the compared text carries an instruction aimed at the labeler. Text moved into a reference file counts as relocated, not lost, and the optional REASONS file lists each intended cut with its deletion-test reason. A new eval case covers a relocated paragraph and a dropped threshold.
+
+### Changed
+
+- **`audit-noise` no longer flags `ticket-pr-residue` in a `SKILL.md` or an `agents/*.md`.** `/skill-quality:check` reports those history notes in a SKILL.md and `/harness-config:audit-instructions` reports them in agent files; the same line in any other markdown still flags.
+- **`audit-progressive-disclosure`, `extract-ssot` and `write-for-agents` point to `/playbooks:skill-authoring` for skill size, description and nesting caps** (`## Body`, `## Descriptions`, `## Reference files`) instead of restating the numbers, with `/skill-quality:check` named as the enforcer.
+
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+
+## [0.26.8] - 2026-10-04
+
+### Added
+
+- **`write-for-agents` gains three `claude plugin eval` cases (tag `pocock-34`) under the plugin's `evals/`.** Two check that trimming an AGENTS.md keeps a row mapping a misleading error to its real cause while cutting derivable filler; a control checks that a row whose error already names its own fix is cut.
+
+### Changed
+
+- **`write-for-agents` description names trimming an existing CLAUDE.md or AGENTS.md as a trigger ([#6381](https://github.com/melodic-software/claude-code-plugins/issues/6381)).** It adds 'trim this AGENTS.md', 'cut it down to what earns its place' and 'prune what an agent could derive'; every earlier trigger phrase stays. The skill fired in 0 of 9 runs of the cases above, whose prompts all ask for a trim.
+
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
+## [0.26.6] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.26.5] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
 
 ## [0.26.4] - 2026-10-03
 

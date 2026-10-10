@@ -20,7 +20,7 @@ on why outcome verification sits after the simplify pass.
 5. **Review the simplify diff.** Inspect what changed; approve or revert each edit individually
 6. **Re-test after simplify.** Cleanup edits can introduce issues; run the tests again
 7. **Verify outcome.** Confirm the result matches the original intent with evidence (see
-   `steps.md` stage 7). Never claim improvement without measurements
+   `steps.md` stage 11). Never claim improvement without measurements
 8. **Open the PR**, only after steps 1–7 pass
 
 ## Reviewing incoming findings (CI + bot review)

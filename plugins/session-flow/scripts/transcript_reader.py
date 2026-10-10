@@ -22,6 +22,19 @@ Public interface:
   one leading `<system-reminder>` block is dropped first: Claude Desktop writes the person's prompts
   that way, with `promptSource: sdk`. Injected records outnumber typed turns.
 - `is_typed_turn(record)` is `typed_text(record) is not None`.
+- `tool_result_id(record)` is the `tool_use_id` of a user record's first tool result, else None;
+  `tool_result_text(record)` is that result's text (`toolUseResult` when it is a string, else the
+  result block's text), `""` when there is none.
+- `permission_event(record)` is the permission outcome a user record carries for one tool call, else
+  None: `tool_use_id`, `outcome` (`denied` or `allowed`), the decision's `source` and `reason_type`,
+  `denial_kind` (`toolDenialKind`) and, for a denial, `cause` (`classifier`, `hook`, `rule` or
+  `user-rejected`), `reason` (the classifier's bracketed category, `unexplained` when it gave none, or
+  the first line of a hook's message) and `hook` (the plugin a hook message names, else the leading
+  label of the message, else `unattributed`). A hook message's leading `[<command line>]` is dropped.
+- `permission_denials(record)` is the `permission_denials` list of a stream-json `result` record
+  (headless output, not a session transcript): one dict per denial with `tool_name`, `tool_use_id`,
+  `tool_input` (an object, `{}` when absent) and `reason_type` (`decision_reason_type`, or None);
+  `[]` for any other record.
 - `iter_subagents(main_path)` yields a `Subagent(path, meta)` for each
   `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
   parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
@@ -71,6 +84,14 @@ INJECTED_PREFIXES = (
     "Caveat:",
     "<user-prompt-submit-hook>",
 )
+# What Claude Code writes into a denied tool call's result text.
+CLASSIFIER_DENIAL = "denied by the Claude Code auto mode classifier"
+CLASSIFIER_REASON_RE = re.compile(r"Reason: \[([^\]\n]{1,80})\]")
+UNEXPLAINED_RE = re.compile(r"gave no explanation", re.I)
+HOOK_ERROR_RE = re.compile(r"\b[A-Za-z]+:[\w.-]+ hook error: ")
+HOOK_PLUGIN_RE = re.compile(r"This hook comes from the ([\w.-]+?)(?:@[\w.-]+)? plugin")
+HOOK_COMMAND_RE = re.compile(r"^\[[^\]\n]*\]:?\s*")
+HOOK_LABEL_RE = re.compile(r"^([a-z0-9][\w.-]{1,40}): ")
 INTERRUPT_RE = re.compile(r"^\[Request interrupted by user( for tool use)?\]")
 LEADING_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
 TYPED_PROMPT_SOURCES = {"typed", "queued"}
@@ -89,6 +110,7 @@ RECORD_TYPES = frozenset(
         "worktree-state",
         "permission-mode",
         "file-history-snapshot",
+        "result",
     }
 )
 
@@ -216,3 +238,86 @@ def typed_text(record: dict) -> str | None:
 
 def is_typed_turn(record: dict) -> bool:
     return typed_text(record) is not None
+
+
+def tool_result_text(record: dict) -> str:
+    result = record.get("toolUseResult")
+    if isinstance(result, str):
+        return result
+    content = _obj(record.get("message")).get("content")
+    for block in content if isinstance(content, list) else ():
+        if isinstance(block, dict) and block.get("type") == "tool_result":
+            inner = block.get("content")
+            if isinstance(inner, list):
+                inner = "\n".join(b.get("text", "") for b in inner if isinstance(b, dict) and isinstance(b.get("text"), str))
+            return inner if isinstance(inner, str) else ""
+    return ""
+
+
+def tool_result_id(record: dict) -> str | None:
+    content = _obj(record.get("message")).get("content")
+    for block in content if isinstance(content, list) else ():
+        if isinstance(block, dict) and block.get("type") == "tool_result" and isinstance(block.get("tool_use_id"), str):
+            return block["tool_use_id"]
+    return None
+
+
+def _hook_cause(text: str) -> tuple[str, str]:
+    plugin = HOOK_PLUGIN_RE.search(text)
+    match = HOOK_ERROR_RE.search(text)
+    message = HOOK_COMMAND_RE.sub("", text[match.end() :] if match else text, count=1)
+    label = HOOK_LABEL_RE.match(message)
+    hook = plugin.group(1) if plugin else label.group(1) if label else "unattributed"
+    first = next((line.strip() for line in message.splitlines() if line.strip()), "")
+    return hook, first[:160]
+
+
+def permission_event(record: dict) -> dict | None:
+    if record.get("type") != "user":
+        return None
+    decision = _obj(record.get("permissionDecision"))
+    kind = record.get("toolDenialKind") if isinstance(record.get("toolDenialKind"), str) else None
+    if not decision and kind is None:
+        return None
+    reason_type = decision.get("reasonType") if isinstance(decision.get("reasonType"), str) else None
+    event = {
+        "tool_use_id": tool_result_id(record),
+        "outcome": "denied" if kind is not None or decision.get("decision") == "reject" else "allowed",
+        "source": decision.get("source") if isinstance(decision.get("source"), str) else None,
+        "reason_type": reason_type,
+        "denial_kind": kind,
+    }
+    if event["outcome"] == "allowed":
+        return event
+    text = tool_result_text(record)
+    cause, reason, hook = "rule", reason_type, None
+    if kind == "user-rejected" or text.startswith("User rejected"):
+        cause, reason = "user-rejected", None
+    elif reason_type == "classifier" or kind == "automode-blocked" or (reason_type is None and CLASSIFIER_DENIAL in text):
+        category = CLASSIFIER_REASON_RE.search(text)
+        cause = "classifier"
+        reason = category.group(1) if category else "unexplained" if UNEXPLAINED_RE.search(text) else None
+    elif reason_type == "hook" or (reason_type is None and HOOK_ERROR_RE.search(text)):
+        cause = "hook"
+        hook, reason = _hook_cause(text)
+    event.update(cause=cause, reason=reason, hook=hook)
+    return event
+
+
+def permission_denials(record: dict) -> list[dict]:
+    if record.get("type") != "result" or not isinstance(record.get("permission_denials"), list):
+        return []
+    out = []
+    for denial in record["permission_denials"]:
+        if not isinstance(denial, dict):
+            continue
+        reason_type = denial.get("decision_reason_type")
+        out.append(
+            {
+                "tool_name": denial.get("tool_name") if isinstance(denial.get("tool_name"), str) else None,
+                "tool_use_id": denial.get("tool_use_id") if isinstance(denial.get("tool_use_id"), str) else None,
+                "tool_input": _obj(denial.get("tool_input")),
+                "reason_type": reason_type if isinstance(reason_type, str) else None,
+            }
+        )
+    return out

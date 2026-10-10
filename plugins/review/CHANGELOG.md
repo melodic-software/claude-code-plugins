@@ -3,24 +3,100 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Added
-
-- **One enforcement ladder, and a `make-impossible` rung.** The plugin carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md`. `/review:audit-enforceability` takes its rung list and selection rule from it, and its crosswalk and stub rung enum gain `make-impossible`: an `invalid-state` finding (a state the code can express but must never hold) is offered a type, data-structure or API change first, handed to `/architecture:improve` when available, otherwise `/planning:design`. The `architecture-guardian` agent reads the boundary-rule sources from the ladder's "Where boundary rules live" list. The skill's report no longer prints a plugin install recipe for the Semgrep rung; the Semgrep documentation link stays.
-- **Enforceability stubs name how early a check fires and what its error says.** Each stub `/review:audit-enforceability` writes gains an `earliest-stage:` frontmatter key, mapped from its rung by a fixed table (`design`, `edit`, `build`, `commit`, `test`, `tool-call`, `review`), and an `## Error text` section: one line the check would print, naming the fix, passed as an optional sixth field on the classification TSV (`none proposed` when absent). The writer now refuses the whole TSV with exit 2, writing nothing, when a line has other than five or six fields or names a rank the findings table does not carry or a rung outside the closed set (the stderr line names the TSV line and the value); before, such a rank was a diagnostic and an empty middle field shifted the fields after it.
-- **Paved paths reach the code reviewer.** The bundled standards contract moves to 1.1.0, which adds a `paved-path` index row kind. When the resolved index has one, `/review:quality-gate` and `/review:fanout` name its file in the `code-reviewer` agent's brief, and the agent reports a change that adds a second way for a listed concern as an advisory finding. The agent resolves no index itself. `/review:code-review`, the CI review lane, resolves the index itself with Read and Glob and applies the paved-path file as review criteria; its `allowed-tools` are unchanged.
-- **A size flag only when the consumer set `size.file_lines`.** When `/code-metrics:audit-size` is available, `/review:quality-gate` code mode and `/review:fanout` run it over the changed files. If its References table shows the `size.file_lines` reference came from a consumer layer (user-global, team or local), each file that was below the reference at the base and at or above it at the head goes into the `code-reviewer` brief, and the agent reports it as an advisory finding naming the reference and its layer. The bundled default alone flags nothing, and the agent raises no other size finding. Not yet read by `/review:code-review`, the CI review lane.
-- **`/review:ratchet` holds a count with a CI ceiling.** It takes a lint rule's violation count, a suppression count, a counter `/performance:protect` verified, or a telemetry count, and records a ceiling at the measured value with the plugin's copy of `ratchet.py`, generated from the performance plugin's script. The ceiling joins the file the repository's CI already checks (`.performance/ratchets.json` when CI runs `ratchet.py check` with no `--file`); with none, it proposes `.ratchets.json` at the repository root, vendors `ratchet.py` beside it, and passes `--file .ratchets.json` on every call. A zero lint count turns the rule on with no ceiling, as does a zero suppression count when a rule forbids the suppression comment itself (otherwise it is ratcheted at 0), and a duration is refused. It adds the check step inside the required job, proposes same-PR or scheduled tightening, writes files uncommitted, and never merges. `prerequisites.json` lists the skill under `python3`, and the plugin gains a plugin-level eval suite with four ratchet cases.
-- **`/review:ratchet` vendors the suppression scanner for a suppression counter.** The skill carries a generated copy of the shared suppression scanner (`scripts/suppression-scan.py`, the same file `/code-metrics:audit-suppressions` runs). For a suppression count, the proposal vendors it beside `ratchet.py` without its two header lines, and the counter command runs that copy with `--count`, ratcheting its `suppressions` or `unjustified` field, so CI needs neither plugin installed.
-- **Enforceability stubs offer a count ceiling, with an off key.** A stub `/review:audit-enforceability` writes on a rung that reports a violation count (`editorconfig-severity`, `analyzer-pack-rule`, `custom-analyzer`, `semgrep-rule`, `architecture-test`) gains a `## Ratchet offer` section: once the rule exists, a count above zero goes to `/review:ratchet` and a zero count lands the rule. The new `ratchet_offer` setting turns it off: a `userConfig` option (boolean, default `true`) and, winning over it, the `ratchet_offer` key of a repository's `docs/conventions/review.yaml`, checked by the new `schemas/review.schema.json` and read through `setup-apply.mjs --check`, which tells a present but invalid value (such as `[]` or a quoted `"false"`) from an unset key. The skill reports the resolved value and its layer; an invalid value is named and that layer dropped, falling to the default rather than userConfig, and the run continues. The writer takes `--ratchet-offer on|off` (absent means `on`; any other value exits 2). `/review:setup apply` validates the existing `docs/conventions/review.yaml` and overwrites only an out-of-list, empty or null value; it refuses, in one line, a key set or passed twice, an empty quoted string, a non-scalar value, an unknown key, a parse error, a symlink or hard-linked target, and a path outside the repository, and shows the diff before it changes an existing file. Settings page: `reference/config.md`.
-- **Downstream mode runs one safety-fact probe, with a `report` floor.** When `/review:quality-gate downstream` finds a single fact that would make the change safe, the orchestrator writes one probe for it in a `mktemp -d` directory outside the tree, keeps file names and diff text out of the command line, runs it after the worker's findings are verified, and uses its result to clear or keep the concerns that fact covers. The new `downstream_probe` setting (`run`, the default, or `report`) is a policy floor: `report` in the user option or in `docs/conventions/review.yaml` wins, and the repository value is read from the default branch after a fetch, so a pull request cannot switch its own probe on; the commit read is reported. Under `report`, or when Bash is denied, the probe and its command are shown and not run, and the concern stays assessed, not verified. An invalid value is named and that layer dropped for that key only: `setup-apply.mjs --check` still prints a PASS line for every other key, and any whole-file problem (a parse error, an unknown key, or a refusal of the file itself: a symlink, a hard link, a path outside the repository, a non-regular or unreadable file) drops it for every key; the run continues. `setup-apply.mjs --check` gains `--ref <commit|origin/name>` to validate the file as committed there (`origin/name` is read only from `refs/remotes/origin/name`, matched exactly, so a same-named branch, tag or look-alike ref cannot stand in for it, and its absence exits 2), and `/review:setup apply` writes the new key.
+## [0.43.2] - 2026-10-09
 
 ### Changed
 
-- **The `code-reviewer` checklist grows from 21 to 24 items.** New: state-changing code that may run again with no reason a repeat is harmless or no condition that ends the repeats, and an old and a new path for one behavior both left callable; logic that reaches for I/O, the clock or shared state partway through when it could take them as inputs (trust boundaries stay with `security-reviewer`); and, only where no project linter covers them, casts that overrule the type checker and debug output left in shipped code. Repeated Switches also names one chain gaining yet another branch and a second boolean kept in step with the first. The three new items are SUGGESTION findings unless the change shows wrong behavior.
-- **`/review:fanout` states the change's intent to its reviewers and lists what it demoted.** Before dispatch it writes one paragraph on what the change is meant to do, from the request, commit subjects and PR text, and gives it to every surface it dispatches itself, as a description to check against. The persisted report gains a `## Dismissed` section listing each finding the CRITICAL check demoted, with one line of reason; the finding stays in `## Findings`. The `fix` action writes a failing test covering every site of a verified defect before fixing it, and reports the red and green runs.
-- **The `code-reviewer` agent's design-smell baseline is reworded and follows Fowler's chapter order.** Its list no longer follows an upstream course skill's order and phrasing. The twelve smells, the advisory framing, the project-standards override and the skip for tool-enforced patterns are unchanged.
+- **`/review:fanout` pilots one surface before a fan-out wider than about 4.** In either review mode it dispatches one surface alone and confirms plan usage remains before dispatching the rest, because a usage limit reached mid-fan-out halts the rest of the roster. Run-everything mode pilots one slice on the main thread before the workflow launch, since the workflow dispatches its roster in one call. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+
+## [0.43.1] - 2026-10-07
+
+### Fixed
+
+- The `explain-change` test suite loads on Windows: it imports its modules by `file://` URL, which the ESM loader requires there for an absolute path. The hosted-publish cases that run the fake `pages-publish` skip on Windows, since `publish-hosted.mjs` spawns it with no shell and Windows then finds only a `.exe` or `.com` on `PATH`.
+
+## [0.43.0] - 2026-10-07
+
+### Added
+
+- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts, keeping its id under `stale` until a delete succeeds. A page the gate sent private that `pages-publish` reports on the public host exits 1 and names the URL to take down. A tracked team layer cannot select `hosted`, and an overlay selects it only once gitignored. The contract is in the rendered-views convention, "The `hosted` medium".
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: new credential shapes (an R2 key pair, an Azure client secret, Cloudflare's prefixed tokens, upload tokens) also keep an `artifact` page local.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+- The skill's `allowed-tools` gains `Write`, which the connected-page step already used for `ops.json`.
+
+## [0.42.5] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.42.4] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.42.3] - 2026-10-04
+
+### Fixed
+
+- `/review:fanout` fix-pass eval cases: the scoped-to-fixed-hunks prompt names `/review:fanout`, asks what the fix action says, no longer tells the agent not to run anything, and lists `Bash` (run with `--allow-tools Bash`), so the with-arm loads the skill. Both cases drop their `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call and the grader read false even when the skill loaded.
+
+## [0.42.2] - 2026-10-04
+
+### Added
+
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill. The stop case also lists `Bash` and needs `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load.
+
+### Changed
+
+- `/review:fanout` fix pass: the required post-fix re-review covers only the hunks the pass changed and runs once; a finding it raises is reported to the operator, not fixed in another automatic round.
+
+## [0.42.1] - 2026-10-04
+
+### Added
+
+- **`review` ships a `claude plugin eval` suite with three cases for `/review:quality-gate` (tag `row37`).** Each case scaffolds a git branch whose commit removes a guard as a "simplification": an empty-list early return, a null-user check, and a length check that returned short titles unchanged. A case passes when the review names the input the removed guard handled and the behavior that now breaks for it. Each case has a regex grader for the input and a judge rubric for the regression, all with pass and fail samples. The cases need `--scaffold` and `--allow-tools Bash,Write`. No skill text changes.
+
+## [0.42.0] - 2026-10-04
+
+### Added
+
+- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills. `maxTurns` is 60 because a restatement batch hands it 40 to 50 files.
+- `stage-normalizer` agent: runs fanout's Stage 0 extraction and Stage 3 dedup with Read only. It inherits the model and pins no effort, so role routing still sets both.
+- `lane-verifier` agent: the hunter and verifier subagent for the CI lanes. Read, Grep, Glob and Bash only; it inherits the model and pins no effort so the lane's model holds within its step timeout.
+
+### Changed
+
+- `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`; the `/review:code-review` and `/review:security-review` CI lanes dispatch their hunters and verifiers as `lane-verifier`. No path in these skills dispatches a general-purpose or `Explore` subagent now, so a reviewer cannot rediscover a review skill and fan out; the README records the basis with an upstream pointer. The three agents carry the untrusted-content spine with a tail that keeps review criteria refining the lens.
+- `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow reads only `roles.retrieval.single` and returns only `extract` in `roles`.
+
+## [0.41.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.41.0] - 2026-10-04
+
+### Added
+
+- **`/review:explain-change` names the bundled `artifact-pr-review` skill in a Boundary section ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  Use that skill for a verdict on a pull request and this one to understand the change; the native-surfaces record now rules the pair `complementary`.
+
+### Removed
+
+- **The `/review:pr-explainer` rename stub ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It pointed at `/review:explain-change` for one release; run `/review:explain-change` directly.
+
+## [0.40.4] - 2026-10-04
+
+### Changed
+
+- The `architecture-guardian` agent's pattern-compliance check also verifies that a pattern matches its canonical definition and serves the principle it exists for; a shape copied from a popular template that defeats that principle is a violation.
 
 ## [0.40.3] - 2026-10-04
 

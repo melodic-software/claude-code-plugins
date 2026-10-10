@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Write plugin.json patch bumps and Keep a Changelog entries for Dependabot PRs
 # that touch plugins/**. Does not exempt Dependabot from check-changelog-parity
-# --check-bump; it supplies the bump the bot cannot author.
+# --check-bump; it supplies the bump the bot cannot author. A plugin in
+# changelog-fragment mode (the base's scripts/fragment-plugins.txt, ADR 0048)
+# gets nothing here: scripts/dependabot-fragments.sh writes its fragment, with the
+# same entry under `### Changed`, after the pull request merges.
 #
 # Usage:
 #   scripts/dependabot-plugin-bump.sh <base-ref> [--pr <n>] [--title <text>]
@@ -14,6 +17,8 @@
 #   - Claude Code plugin version delivery (code.claude.com/docs/en/plugins/loading)
 #   - scripts/check-changelog-parity.sh --check-bump (never relaxes for bots)
 #   - Tracker consensus: keep the gate; generalize dependabot-miro-bundle.yml
+#   Recheck when the GitHub page stops naming [dependabot skip] or the Claude
+#   Code plugin-loading page stops tying update delivery to the version string.
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,6 +36,24 @@ if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
 fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPTS_DIR/lib/changed-files.sh"
+# The workflow writes the base's copies of the fragment and entry libraries
+# next to its copy of this script, so a branch older than either still reads
+# the base's fragment list through the base's code and renders the entry.
+fragments_lib="$SELF_DIR/lib/changelog-fragments.sh"
+[[ -f "$fragments_lib" ]] || fragments_lib="$SCRIPTS_DIR/lib/changelog-fragments.sh"
+if [[ -f "$fragments_lib" ]]; then
+  # shellcheck source=lib/changelog-fragments.sh
+  . "$fragments_lib"
+else
+  changelog_fragments::in_mode() { return 1; }
+fi
+if [[ -f "$SELF_DIR/lib/dependabot-entry.sh" ]]; then
+  # shellcheck source=lib/dependabot-entry.sh
+  . "$SELF_DIR/lib/dependabot-entry.sh"
+else
+  # shellcheck source=lib/dependabot-entry.sh
+  . "$SCRIPTS_DIR/lib/dependabot-entry.sh"
+fi
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -69,6 +92,14 @@ changed_files::verify_base "$base" || {
   echo "dependabot-plugin-bump: base-ref '$base' is not a commit" >&2
   exit 2
 }
+# Fragment mode is the base's list, not the branch's: the gates run on the merge
+# with the base, and a branch that predates a plugin's flip still must not bump it.
+if git cat-file -e "$base:scripts/fragment-plugins.txt" 2>/dev/null; then
+  base_list="$(mktemp)"
+  trap 'rm -f "$base_list"' EXIT
+  git show "$base:scripts/fragment-plugins.txt" >"$base_list"
+  CF_LIST="$base_list"
+fi
 
 # Match check-changelog-parity.sh: on a pull_request merge commit, use the PR tip.
 head_commit=HEAD
@@ -122,23 +153,6 @@ has_heading() {
   grep -Eiq "^##[[:space:]]*(\[${ver}\]|${ver}([[:space:]]|-|$))" "$file" 2>/dev/null
 }
 
-# Parse "Updates \`pkg\` from A to B" lines from Dependabot commits on this branch.
-parse_dep_lines() {
-  local name=$1
-  local msg line pkg from to
-  while IFS= read -r msg; do
-    [[ -z "$msg" ]] && continue
-    while IFS= read -r line; do
-      if [[ "$line" =~ Updates\ \`([^\`]+)\`\ from\ ([^[:space:]]+)\ to\ ([^[:space:]]+) ]]; then
-        pkg="${BASH_REMATCH[1]}"
-        from="${BASH_REMATCH[2]}"
-        to="${BASH_REMATCH[3]}"
-        printf '%s\t%s\t%s\n' "$pkg" "$from" "$to"
-      fi
-    done <<<"$msg"
-  done < <(git log --format=%B "$merge_base..$head_commit" -- "plugins/$name")
-}
-
 insert_changelog_entry() {
   local changelog=$1 ver=$2 body=$3
   local date entry tmp
@@ -189,6 +203,19 @@ if ((${#shipped_changed[@]} > 0)); then
     head_ver="$(version_of "$manifest")"
     [[ -n "$base_ver" && -n "$head_ver" ]] || continue
 
+    # A plugin in fragment mode (ADR 0048) gets nothing on the pull request: a
+    # commit here would hold every run on it at action_required (#5786).
+    # scripts/dependabot-fragments.sh writes its fragment after the merge, and
+    # check-changelog-fragments.sh --check-required exempts the pull request.
+    mode_rc=0
+    # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits
+    changelog_fragments::in_mode "$name" || mode_rc=$?
+    ((mode_rc < 2)) || exit 2
+    if ((mode_rc == 0)); then
+      echo "dependabot-plugin-bump: $name is in fragment mode; its fragment is written after the merge"
+      continue
+    fi
+
     # Idempotent: head already above base tip and heading present for head version.
     # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
     if [[ "$head_ver" != "$base_ver" ]] && has_heading "$changelog" "$head_ver"; then
@@ -216,38 +243,25 @@ if ((${#shipped_changed[@]} > 0)); then
     jq --arg v "$new_ver" '.version = $v' "$manifest" >"${manifest}.tmp"
     mv "${manifest}.tmp" "$manifest"
 
-    dep_body=""
-    while IFS=$'\t' read -r pkg from to; do
-      [[ -z "${pkg:-}" ]] && continue
-      dep_body+="- \`${pkg}\` ${from}→${to}"$'\n'
-    done < <(parse_dep_lines "$name" | sort -u)
-
-    title_line=$pr_title
-    title_line="${title_line#build(deps): }"
-    title_line="${title_line#chore(deps): }"
-    ref=""
-    [[ -n "$pr_number" ]] && ref=" (#${pr_number})"
-
-    body_block="- **${title_line}**${ref}."
-    if [[ -n "$dep_body" ]]; then
-      body_block+=$'\n'"$(printf '%s' "$dep_body" | sed 's/^/  /')"
-    fi
     # Process substitution, not a pipe into grep -q: under pipefail a matched
     # grep exits early and SIGPIPEs git (scripts/check-pipefail-grep-q.sh).
     # The release workflow rebuilds a bundle in the working tree before this
     # step and commits it after, so uncommitted and untracked files count too.
+    bundle=0
     if grep -qE 'dist/|bundle' < <(
       git diff --name-only "$merge_base..$head_commit" -- "plugins/$name"
       git diff --name-only HEAD -- "plugins/$name"
       git ls-files -o --exclude-standard -- "plugins/$name"
     ); then
-      body_block+=$'\n'"  Committed bundle or dist artifact changed with this update."
+      bundle=1
     fi
+    body_block="$(git log --format=%B "$merge_base..$head_commit" -- "plugins/$name" |
+      dependabot_entry::deps | dependabot_entry::item "$pr_title" "$pr_number" "$bundle")"
 
     insert_changelog_entry "$changelog" "$new_ver" "$body_block"
+    echo "dependabot-plugin-bump: $name ${base_ver} -> ${new_ver}"
     edited=1
     bumped_names+=("$name")
-    echo "dependabot-plugin-bump: $name ${base_ver} -> ${new_ver}"
   done
 fi
 

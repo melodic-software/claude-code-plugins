@@ -45,7 +45,7 @@ child_value() { # <output> <key>
 
 # fixture_tree::build assigns through a nameref, which shellcheck cannot follow;
 # declaring each out-var here is what tells it (SC2154) the name is written.
-root_outside="" root_plugins="" probe_home="" root_sut="" root_nolib=""
+root_outside="" root_plugins="" probe_home="" root_sut="" root_nolib="" root_closure="" root_alllib=""
 root_git="" poison_root=""
 
 # --- sourced-only ----------------------------------------------------------
@@ -149,6 +149,29 @@ if [[ -e "$root_sut/scripts/lib/read-list.test.sh" ]]; then
   fail "a lib's own suite must not be staged into the fixture"
 else
   ok "the staged lib carries no *.test.sh of its own"
+fi
+
+# Only the libs the scripts under test reach are staged: each is a file the
+# suite reads, and one no copied script uses is a read the selection cannot see.
+if [[ -f "$root_sut/scripts/lib/read-list.sh" && ! -e "$root_sut/scripts/lib/awk-probe.sh" ]]; then
+  ok "a lib no script under test names is not staged"
+else
+  fail "expected read-list.sh and no awk-probe.sh, got: $(ls -A "$root_sut/scripts/lib" 2>&1)"
+fi
+# shellcheck disable=SC2016 # the probe expands $0 itself
+printf '#!/usr/bin/env bash\n. "$(dirname "$0")/lib/gate-entry.sh"\n' >"$probe_home/probe-entry.sh"
+fixture_tree::build root_closure --sut "$probe_home/probe-entry.sh"
+if [[ -f "$root_closure/scripts/lib/gate-entry.sh" && -f "$root_closure/scripts/lib/changed-files.sh" &&
+  ! -e "$root_closure/scripts/lib/read-list.sh" ]]; then
+  ok "a lib reached only through a staged lib is staged too"
+else
+  fail "expected gate-entry.sh and changed-files.sh only, got: $(ls -A "$root_closure/scripts/lib" 2>&1)"
+fi
+fixture_tree::build root_alllib --sut "$probe_home/probe-entry.sh" --lib
+if [[ -f "$root_alllib/scripts/lib/awk-probe.sh" && ! -e "$root_alllib/scripts/lib/read-list.test.sh" ]]; then
+  ok "--lib stages every lib but the libs' own suites"
+else
+  fail "--lib should stage every lib, got: $(ls -A "$root_alllib/scripts/lib" 2>&1)"
 fi
 
 # --no-lib is the escape for a suite whose SUT walks the fixture's scripts/.

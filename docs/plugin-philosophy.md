@@ -41,8 +41,10 @@ machine-path and layout half to the audits that check it.
 content*, not only runtime behavior: the publishing organization's name, its marketplace id, its own
 repository names, and publisher-prefixed configuration keys do not appear in a plugin's skill, agent,
 or schema content. One use is sanctioned: a citation that *names a source rather than a target the
-plugin acts on*, whether a documentation URL or a cross-plugin reference to this marketplace's own
-published files, cited for a reader to consult. Whether that sanctioned citation is forfeited turns on the
+plugin acts on*, whether a documentation URL or a reference to this marketplace's own
+published docs outside any plugin's `skills/` folder, cited for a reader to consult; a skill in
+another plugin is cited as the encapsulation rule below says
+([Configuration ownership and scope](#configuration-ownership-and-scope)). Whether that sanctioned citation is forfeited turns on the
 target's owner: a skill instructed to fetch, poll, or write a **publisher-owned** file has made the
 publisher a runtime dependency and is not conforming. A third-party documentation URL creates no such
 dependency, so fetching one does not forfeit the citation. This rule reaches publisher-owned targets
@@ -311,7 +313,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: plan gating and the user and organization off switches are upstream's, listed at [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (recheck when a switch or plan gate changes); so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. One ships: review's `fanout-sweep`, which `/review:fanout run-everything` launches and which keeps a main-thread fallback. Scripts follow the [workflow authoring convention](#workflow-authoring-convention). | 2026-10-02 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](conventions/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the node-notice SessionStart row every hook plugin carries (shell form with no `shell` field, so it runs under bash, or under PowerShell on Windows without Git Bash; [prerequisites convention](conventions/prerequisites/README.md#hook-notices)) and the harness-ops hook-failure-audit Stop row (shell form with `"shell": "bash"`), because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Mods, the in-process hook form, are adopted in [ADR 0052](adr/0052-adopt-claude-code-mods.md): a guard may move into a mod when the mod matches every behavior of the hook it replaces, and a settings hook stays where it must run with mods off. See the mods row under [Recorded gate runs](#recorded-gate-runs). | 2026-10-03 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](conventions/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the node-notice SessionStart row every hook plugin carries (shell form with no `shell` field, so it runs under bash, or under PowerShell on Windows without Git Bash; [prerequisites convention](conventions/prerequisites/README.md#hook-notices)) and the harness-ops hook-failure-audit Stop row (shell form with `"shell": "bash"`), because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Mods, the in-process hook form, are adopted in [ADR 0052](adr/0052-adopt-claude-code-mods.md): a guard may move into a mod when the mod matches every behavior of the hook it replaces, and a settings hook stays where it must run with mods off. See the mods row under [Recorded gate runs](#recorded-gate-runs). Text a hook or mod sends Claude or the user follows [hook-observability](conventions/hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing). | 2026-10-03 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Adopt on need | No additional constraints. | 2026-07-17 |
@@ -387,12 +389,15 @@ Choose one authoritative owner for each value:
 | Tracked repository convention or rich team policy (structured, policy-floor, per-operator-keyed, or state) | A documented file under the consumer project |
 | Team-shared prose convention with no per-operator axis | A natural-language convention doc at the consumer's convention home, bound by the root instruction file's pointer line (config-cascade § Expression doctrine, ADR 0018) |
 | Personal project instruction | A documented, gitignored local overlay where the convention supports one |
-| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}` |
+| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}`; exception: the upstream docs cache several plugins share lives in a user-scope directory ([ADR 0057](adr/0057-share-a-user-scope-docs-cache-across-plugins.md)) |
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
 
 `userConfig` is not repository configuration. Claude Code reads its stored `pluginConfigs` values only
-from user settings, `--settings`, and managed settings. It ignores project and local settings for this
-key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
+from user settings, `--settings`, and managed settings
+([`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
+[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
+2026-10-07; recheck when the settings guide stops letting `--settings` set user-scope keys, or the
+`pluginConfigs` scope changes). It ignores project and local settings for this key. Claude Code owns the configuration prompt and storage; plugin skills must not hand-edit
 `pluginConfigs` or invent a marketplace-qualified plugin ID.
 
 Use `userConfig` to its full native extent. Every personal or administrator scalar that flows
@@ -461,10 +466,12 @@ not there.
 
 This permission stops at the plugin boundary. It exists because a plugin is the unit that ships:
 one `plugin.json`, one version, one marketplace entry, and skills that always travel together, so
-a citation between two skills in the same plugin cannot arrive at an absent file. **Do not path-cite
-into a skill in a different plugin.** Plugins install independently, so that path can genuinely be
-missing at runtime; cite the other plugin's skill by its `/plugin:skill` invocation instead, or
-promote the shared content to a convention doc both plugins can cite. The same limit applies to
+a citation between two skills in the same plugin cannot arrive at an absent file.
+**Do not cite a skill in another plugin in this marketplace by a path or a URL into its `skills/`
+folder.** Plugins install independently, so that path can genuinely be missing at runtime; cite the other
+plugin's skill by its `/plugin:skill` invocation instead, or promote the shared content to a
+convention doc both plugins can cite. A third-party skill's URL, such as a route row's external
+`pointer`, is a citation for a reader and stays allowed. The same limit applies to
 anything outside `plugins/`: `docs/**` and `.claude/rules/**` cite skills by slash invocation, never
 by path.
 
@@ -833,6 +840,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/conventions/enforcement-ladder/`](conventions/enforcement-ladder/README.md), with generated plugin copies |
+| PR scope budget for agent-authored improvement PRs | [`docs/conventions/pr-scope-budget/`](conventions/pr-scope-budget/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
@@ -843,6 +851,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/conventions/plugin-option-naming/`](conventions/plugin-option-naming/README.md) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
 | Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
+| Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
 | Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/conventions/execution-target/`](conventions/execution-target/README.md) |
@@ -913,6 +922,20 @@ Validate the shipped behavior, not only the prose: manifest validation, determin
 path and prerequisite tests, local `--plugin-dir` smoke tests, and the repository's plugin contract gate.
 Apply the standards principles of explicit behavior, fail-fast boundaries, idempotency, one mechanism
 per concern, cross-platform operation, and stress-testing before presentation.
+
+Run a test install (`claude plugin install` or `claude plugin marketplace add` with
+`--scope local`) from a throwaway folder outside any git repository, never from a linked worktree.
+Local scope writes `.claude/settings.local.json`, and in a worktree Claude Code keeps that file at
+the main checkout's root, so the install enables the plugin for every session there and outlives the
+worktree. Outside a git repository the file stays in the folder you ran from.
+
+- **Pointer:** [Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
+  [`--scope` names the settings file written](https://code.claude.com/docs/en/plugins/cli-reference).
+  Observed for `plugin install --scope local` on Claude Code 2.1.289, WSL2, during the
+  install-and-test run in melodic-software/claude-code-plugins#6318, reported in #6375.
+- **As of:** 2026-10-04.
+- **Recheck trigger:** that settings section stops placing a worktree's local file at the main
+  checkout, or a release note changes where `--scope local` writes.
 
 ## Instruction economy
 
@@ -1231,8 +1254,8 @@ per-spawn `model`.
 There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
 semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
 configuration (Pointer:
-[plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
-As of: 2026-08-10. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+[plugin manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
+As of: 2026-10-07. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
 runs on).
 
 The tier table names Claude Code aliases, never model versions, so a release that moves an alias
@@ -1457,16 +1480,17 @@ same depth on two models):
 **Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
 cost does not silently cheapen a worker. Each pins the level that model config's task rows give its
 kind of work, and never below `medium` for work that changes code or verifies a change (the
-[effort floor](#effort-floor)). Ten pin `effort: high`: `implementation` `phase-verifier`;
+[effort floor](#effort-floor)). Twelve pin `effort: high`: `implementation` `phase-verifier`;
 `discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
-`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, and `doc-drift-detector`;
-`plugin-quality` `auditor`. Six pin `effort: medium`: `planning` `plan-reviewer` by its
-[recorded exception](#named-agent-bar); `implementation` `implementer`, because a phase brief is
-scoped feature work and its verifier runs at `high`; `implementation` `scoped-implementer`, because
-a plan routes only well-scoped work to it; `songwriting` `object-writer`, because creative
-generation is not verification; and `review` `ecosystem-specialist` and `discovery` `explorer`,
-because their work is clearly scoped tool use, running a repository's declared commands and reading
-and indexing a scope. No pin goes below `medium`, because a low-effort executor stops detecting
+`architecture-guardian`, `security-reviewer`, `ci-log-auditor`, `doc-drift-detector`, and
+`brief-reviewer`; `plugin-quality` `auditor`; `user-experience` `evaluator`. Seven pin
+`effort: medium`: `planning` `plan-reviewer` by its [recorded exception](#named-agent-bar);
+`implementation` `implementer`, because a phase brief is scoped feature work and its verifier runs
+at `high`; `implementation` `scoped-implementer`, because a plan routes only well-scoped work to
+it; `songwriting` `object-writer`, because creative generation is not verification; and `review`
+`ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
+work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
+scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
 that it is stuck. A frontmatter pin is what holds a named agent's lane, since an Agent-tool dispatch
 passes no effort.
 
@@ -1502,15 +1526,18 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 | `discovery` `intent-tracer` | `opus` | `high` | `high` | Reconstructed rationale feeds decisions |
 | `discovery` `research-verifier` | `opus` | `high` | `high` | Verdict on a research artifact |
 | `discovery` `researcher` | `opus` | `high` | `high` | Research that feeds decisions |
+| `performance` `go-faster-sweeper` | `opus` | `medium` | `medium` | Checks each named area of the development process and records findings |
 | `planning` `plan-reviewer` | `opus` | `medium` | `medium` | A review lane held to `medium` by its [recorded exception](#named-agent-bar), not by the review rule |
 | `plugin-quality` `auditor` | `opus` | `high` | `high` | Audit verdict |
 | `review` `architecture-guardian` | `opus` | `high` | `high` | Review verdict |
+| `review` `brief-reviewer` | `opus` | `high` | `high` | Review verdict on the brief it is handed |
 | `review` `ci-log-auditor` | `opus` | `high` | `high` | Audit verdict on a CI run |
 | `review` `code-reviewer` | `opus` | `high` | `high` | Review verdict |
 | `review` `doc-drift-detector` | `opus` | `high` | `high` | Drift verdict |
 | `review` `ecosystem-specialist` | `sonnet` | `medium` | `medium` | Runs a repository's declared build, test and lint commands |
 | `review` `security-reviewer` | `opus` | `high` | `high` | Security verdict |
 | `songwriting` `object-writer` | `opus` | `medium` | `medium` | Creative generation, which no row names; the `medium` choice is our judgment |
+| `user-experience` `evaluator` | `opus` | `high` | `high` | Verdict on a UX artifact |
 
 - **Pointer:** for the rows, see
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
@@ -1583,7 +1610,7 @@ reach an agent's `effort` field. We record this as a gap against
 [configuration ownership](#configuration-ownership-and-scope), not as a design choice.
 
 - **Pointer:** for plugin options, see
-  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration);
+  [plugins reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration);
   for the agent field, see
   [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
 - **As of:** 2026-10-01.
@@ -1711,14 +1738,15 @@ and the topics we read each one for. Recheck trigger for both lists: a page move
 covering a topic named beside it. The first list is as of 2026-08-10 (the
 `melodic-software/standards` entries are not Claude Code pages and carry no date):
 
-- [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
+- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
-- [Plugins reference](https://code.claude.com/docs/en/plugins-reference): component schemas,
-  `userConfig`, experimental components, version management, cache isolation, persistent data.
+- [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): component schemas,
+  `userConfig`, experimental components, persistent data.
+- [Plugin loading reference](https://code.claude.com/docs/en/plugins/loading): version management and cache isolation.
 - [Skills](https://code.claude.com/docs/en/skills): frontmatter reference and skill lifecycle.
 - [Hooks reference](https://code.claude.com/docs/en/hooks): exec form vs shell form, event list,
   `Setup` event, skill-scoped hooks.
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): constraints, release
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): constraints, release
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
@@ -1730,7 +1758,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
 
 As of 2026-07-17:
 
-- [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): the `dependencies`
+- [Plugin dependencies](https://code.claude.com/docs/en/plugins/dependencies): the `dependencies`
   array, automatic installation, and version constraints.
 - [Skills](https://code.claude.com/docs/en/skills): command-name derivation and the plugin skill
   namespace.
@@ -1738,3 +1766,6 @@ As of 2026-07-17:
   naming-convention guidance this document deviates from deliberately.
 - [Agent Skills specification](https://agentskills.io/specification): `name` field constraints and
   directory matching.
+
+Recheck when the dependencies page changes how constraints resolve, the skills page changes the
+plugin skill namespace, or the specification changes the `name` constraints.

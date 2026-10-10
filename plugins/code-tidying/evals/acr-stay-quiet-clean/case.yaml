@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: acr-stay-quiet-clean
+description: stay-quiet case. A file full of near-miss comments (license header with an adapted-from clause, a dated verified stamp, used tokens, phase 2 of the build, a mid-sentence copied-from, a TODO(#12) marker, residue words in an identifier and a string) yields zero findings
+tags: [acr, outcome, explicit, stay-quiet]
+expected_outcome: ratelimit.py has no residue findings; the report says 0 findings (T1=0, T2=0) and contains no finding rows.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:audit-comment-residue ratelimit.py
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: zero-counts
+    type: regex
+    pattern: 'T1\s*[=:]\s*\**0\b[^\n]*T2\s*[=:]\s*\**0\b|\b0\**\s+Tier[ -]1\b[^\n]*\b0\**\s+Tier[ -]2\b|\b0 findings?\b'
+    flags: i
+  - name: no-finding-rows
+    type: regex
+    pattern: '^\s*\|\s*(Tier\s*|T)?[12]\s*\|\s*(history-narration|plan-reference|conversational-antecedent|ticket-pr-residue|origin-note)'
+    flags: m
+    match: not_contains
+  - name: detector-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'detect\.sh'
+    arm: both

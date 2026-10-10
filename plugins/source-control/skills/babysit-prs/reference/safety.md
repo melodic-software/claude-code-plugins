@@ -808,21 +808,25 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, `review / claude-review-status` and the security lane's
-  `security-review / security-review` (matched by its whole name, never by the job segment alone),
+- both AI review checks, the review lane's `claude-review-status` (matched by that job segment
+  under any caller, e.g. `review /` or `pr-review /`) and the security lane's `security-review / security-review` or
+  `pr-review-security / security-review` (matched by its whole name, never by the job segment
+  alone; both names hold while old and new callers coexist),
   report success on the live head, which is the pinned head (a missing, skipped, failed, or
   running check holds, and so does a head that moved off the pin). Any
   `claude-security-review-status` check the rollup also carries must succeed as well;
 - no review thread is unresolved, and every other gate blocker is clear.
 
-The gate's check names follow the lane jobs the ci-workflows reusables define.
+The gate's check names are `<caller job id> / <reusable job name>`: the caller components synced
+from standards supply the first part, the ci-workflows reusables the second.
 
-- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job keys
-  in [claude-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-review.yml)
-  and [claude-security-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-security-review.yml)
-  live.
-- **As of**: 2026-10-03
-- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable.
+- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job names
+  in [pr-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
+  and [pr-review-security.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-security.yml)
+  and the caller job ids in standards `components/claude-lanes/` live.
+- **As of**: 2026-10-04
+- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable, or a
+  standards change to a lane caller's job id.
 
 Any other running check does not hold the arm: GitHub waits out a running required check
 (`ci-status`) itself, and a non-required check never holds a merge.
@@ -831,6 +835,26 @@ To retry an AI review check that failed on a rate limit (HTTP 429), rerun the wh
 with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns only the failed
 `-status` job, which re-reads the cached rate-limit output of the `review` job that succeeded and
 fails again.
+
+A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its JSON), only when all
+of these hold: the failed check is an AI review check on the pinned live head of an open, non-draft
+PR, or of a stack layer below it that the gate evaluated; the Actions job its `details_url` names
+emitted that check (the job's own check-run id, name and workflow match the check, and the check's
+id when the rollup carries one); its check run carries a `class=rate-limit` annotation; its job
+finished at least five hours ago;
+and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
+has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
+failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
+other failure class is never rerun, and a check-only run never reruns. The rerun only restarts the
+review; auto-merge still arms only on SUCCESS.
+
+- **Pointer**: the `class=<token>` contract in ci-workflows
+  [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
+  and the session window under "What happens when you hit usage limits" in
+  [Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
+- **As of**: 2026-10-09
+- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token, or a
+  change to the plan's session-limit window.
 
 The reason: `ci-status` is the only required check and does not wait on the review workflows, so
 auto-merge enabled earlier could merge before AI review posts. A fully ready PR still merges in

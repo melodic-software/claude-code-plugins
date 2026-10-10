@@ -3,76 +3,150 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.83.0] - 2026-10-09
 
 ### Added
 
-- **Prep lists the suppressions a change adds.** For a diff that is not docs-only,
-  `/source-control:pull-request` prep runs `/code-metrics:audit-suppressions` against the pull
-  request's base when that skill is among the available skills, and lists each added suppression
-  with its file, line, rule ids and reason in the prep report. The scan is advisory and blocks
-  nothing: when the skill is unavailable or the scan fails, the report says
-  `suppression check not run: <reason>` and prep continues. No dependency on the code-metrics
-  plugin is declared.
-- **Narrow pull requests, red-first review fixes, and disk freed by cleanup.**
-  `/source-control:pull-request` prep flags a diff that splits into independent changes and
-  proposes one pull request per part (advice the user may decline); a review finding about behavior
-  gets a failing test before its fix (D6 and `monitor`); the briefing body links a longer record
-  instead of reciting review or CI lanes; and `ready` gathers the evidence a plan phase's
-  `Review:` value asks for before the flip, leaving the draft in place when it is missing (a
-  review-concern tag such as `Review: security` asks for none and never holds the flip).
-  `/source-control:worktree cleanup` reports free space before and after, and on macOS with
-  `xcrun` (a new optional prerequisite) lists Xcode build output and unavailable simulators,
-  deleting each only on its own yes.
-- **`/source-control:worktree` runs the consumer's Workspace environment verbs.** `create` runs the
-  declared `setup` after the worktree exists and before entering it, on the helper path and the
-  plain `git worktree add` path; `cleanup` runs `down` after its guards clear and before removal.
-  The entry is read from the fetched default branch, the verbs run through the Bash tool with
-  `WORKSPACE_ID` and `WORKSPACE_ROOT`, and none runs for an untrusted-input worktree. The
-  `WorktreeCreate` and `WorktreeRemove` hooks are unchanged.
-- **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
-  (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
-  option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is
-  validated by the new `schemas/source-control.schema.json`. `create` reports which level supplied
-  the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
-  does not carry the key.
-- **A repository can keep a review-bot triage rubric.** A `## Review-bot triage rubric` table in
-  `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
-  `high`/`medium`/`low` confidence) is read at the PR's base branch by
-  `/source-control:pull-request` `monitor` and `comments` and by `/source-control:babysit-prs`, so
-  both triage a recurring bot finding the same way. It never dismisses a security or data finding,
-  and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
-  prompting. Without the section, triage is unchanged.
-- **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new
-  `manage_feedback_ledger.py record-rerun` records each rerun in the durable mutation ledger, keyed
-  by PR, head SHA and check, before the rerun is triggered, and refuses a second one for the same
-  check at the same head (exit 4): that failure is treated as real and fixed or reported. A new
-  head starts the count again. The command names the check by its hex id, which the snapshot
-  text prints first on each `failing check: rerun_id=<id> name="<name>"` line (check names are now
-  JSON-escaped, one check per line), never by its name, because a fork PR controls its job
-  names. `reference/native-autofix-pr.md` now states that an `/autofix-pr` session never
-  merges, and how a repository puts the same triage rules in front of that cloud session.
+- `worktree-create.sh` runs `npm ci` in a new worktree that has a `package-lock.json`, so the first commit's pre-commit hooks find `node_modules/.bin`. A missing npm, a failed install, or the 45-second cap (`WORKTREE_CREATE_DEPS_CAP_SECONDS`, which stops npm and its child processes) warns on stderr and leaves the exit code unchanged. `prerequisites.json` declares npm as optional.
 
 ### Changed
 
-- **`/source-control:pull-request create` drafts a short-briefing PR body by default.** When no
-  layer sets `pr_body_required_sections`, the body now has `Why`, `What changed`, `Scope` and
-  `Verification` (all required), plus `Tradeoffs` and `Risk` when they have content, in place of
-  `Summary` and `Test plan`. The key accepts two new keywords beside `none`: `briefing` (this
-  default, stated explicitly) and `summary-test-plan` (the previous default). A repository that wants
-  the old body sets `summary-test-plan`; a repository that already sets a heading list sees no
-  change. `/source-control:setup` reports and recommends the new default.
+- `pull-request` merges or enqueues a PR without asking only when it reads `CLEAN` and the AI review checks, matched by exact name, have passed on the head commit pinned with `--match-head-commit`, in a melodic-software repository whose live base-branch ruleset requires `ci-status`. Behind a merge queue it passes no strategy flag and waits until the PR merges or leaves the queue. It never arms auto-merge and never passes `--admin`, `--merge` or `--rebase`. A PR that changes CI workflows, permission or agent-instruction configuration still merges only when the user names it. The merge-queue case no longer routes to the async merge API.
+
+## [0.82.0] - 2026-10-09
+
+### Added
+
+- **The babysit merge gate re-runs an AI review that hit the usage limit.** A `--merge`
+  run held on a failed `claude-review-status` or security-review check re-runs that
+  check's workflow run when its check run carries a `class=rate-limit` annotation, five
+  hours after the failure, on the pinned live head, and only on the run's first attempt,
+  and only when the job its `details_url` names emitted that check.
+  Every other failure class is left alone, a check-only run never re-runs, and auto-merge
+  still arms only on SUCCESS. The JSON reports each decision under `aiReviewReruns`.
+
+### Changed
+
+- **The Bash gates spawn only for the commands they judge.** `pr-body-linkage-gate` now
+  runs from three entries, `Bash(*pr *create*)`, `Bash(*pr *new*)` and `Bash(*pr *edit*)`, in
+  place of `Bash(*gh *)`, so it still sees `gh -R o/r pr create` and the `gh pr new` alias
+  but no longer starts for every other `gh` call. `worktree-add-containment-gate` and
+  `worktree-add-claim-gate` now run under `Bash(*worktree *add*)` in place of
+  `Bash(*worktree*)`, so `git worktree list` and paths that merely contain `worktree` no
+  longer start them.
+- **`/source-control:worktree create` skips `EnterWorktree` with no user present.** Outside
+  `.claude/worktrees/`, the call asks for approval, which a headless run cannot give; the
+  run works by explicit path with `git -C <literal path>` instead.
+- **`/source-control:pull-request create` writes the PR body to a file.** The body is
+  written with the Write tool, the pre-create gates read that file, and `gh pr create`
+  gets `--body-file` (the REST fallback sends `-F body=@<file>`), so a long body no longer
+  hits the Bash command length cap.
+- **`/source-control:pull-request monitor` waits in the background.** The cloud baseline
+  poll and the per-push CI wait run through the Monitor watch or a `run_in_background`
+  poll, never a foreground `sleep` or `until` loop.
+
+- **`/source-control:pull-request ready` adds a fresh-context code review.** Before the flip,
+  `/code-review` (or the review plugin's reviewer agents) runs over the pull request's diff
+  in a subagent that gets the diff and the acceptance criteria, not the author's reasoning,
+  beside the security review, which now runs the same way. Findings are fixed or recorded.
+
+## [0.81.2] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.81.1] - 2026-10-04
 
 ### Fixed
 
-- **GitHub-sourced names stay out of typed shell commands and jq programs.** The readiness
-  duplicate-check verification lists every check run and matches the name in the output instead
-  of typing it into a `--jq` regex. The push-verify (`pull-request` D6 and review discipline),
-  remote-branch delete (`merge`) and read-only `git show` (`babysit-prs`) commands single-quote
-  the PR head branch, pass it after `--end-of-options`, and use it only when it matches
-  `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported,
-  never run. The pull-request checklist template's Phase 4 line shows the same quoted delete
-  command and points to that rule, and worktree cleanup's suggested remote delete applies it too.
+- **`pull-request merge` no longer reads as removing worktrees.** The routing row, the MERGED-state shortcut, the Phase 4 heading and the checklist said "worktree cleanup"; they now name what Phase 4.3 does: reuse the worktree for the next task, or release this session's lock on one it leaves. Phase 4.3 states that the merge phase never removes a worktree and that one left behind is a candidate for `/source-control:worktree cleanup`. No command changed (#6441).
+
+## [0.81.0] - 2026-10-04
+
+### Added
+
+- **`commit` and `pull-request create` write changelog fragments in place of the hand version bump** in a repository with `scripts/fragment-plugins.txt`, for each plugin that list names. The new `scripts/write-changelog-fragments.sh` maps the Conventional Commits type to the bump (`feat` minor; `fix` and `perf` patch; `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or `BREAKING CHANGE` major) and files the subject and body under `Added`, `Fixed` or `Changed`. Repositories without the list, and plugins it does not name, keep the per-PR bump.
+
+### Changed
+
+- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment, which `resolve-conflicts` routes through `convert-bump-to-fragment.sh` on the branch before merging main again; `babysit-loop` and `babysit-prs` say so.
+
+## [0.80.0] - 2026-10-04
+
+### Added
+
+- `scripts/convert-bump-to-fragment.sh [<base-ref>]` moves a branch's hand-written version bump into a changelog fragment for each plugin listed in `scripts/fragment-plugins.txt` (ADR 0048), so a pull request opened before its plugin moved to fragment mode stops failing `FRAGMENT-MODE RELEASE`. Run on the branch after merging the default branch, or during that merge: it restores the plugin's `plugin.json` version and `CHANGELOG.md` to the base (MERGE_HEAD, else the merge base with `<base-ref>`, default origin's default branch) and keeps every other edit, writes the removed entries through `scripts/new-changelog-fragment.sh` at the level of the version delta, and stages all three files. A plugin whose files are still conflicted, whose version went down, or that gained no CHANGELOG heading is named and left alone (exit 1), as is one whose CHANGELOG gained a heading with no version change; a written fragment that fails the repository's fragment validation is named too (exit 1); a repository with no fragment list has nothing to convert (exit 0); a rebase or cherry-pick in progress is refused (exit 2). `scripts/convert-bump-to-fragment.test.sh` covers these paths and checks the result against the repository's real fragment and parity gates (#6006).
+
+## [0.79.21] - 2026-10-04
+
+### Changed
+
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.79.20] - 2026-10-04
+
+### Changed
+
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.79.19] - 2026-10-04
+
+### Changed
+
+- `babysit-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
+## [0.79.18] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
+
+## [0.79.17] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.79.16] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.79.15] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.79.14] - 2026-10-04
+
+### Fixed
+
+- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted. A configured heading such as `What changed?` is matched as text, not as a regular expression.
+
+## [0.79.13] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
+## [0.79.11] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate counts the renamed security review check.** The security lane now accepts `pr-review-security / security-review` beside the previous `security-review / security-review`, so the `--auto` wait and the gate do not hold a PR whose repo moved to the renamed caller. A failing renamed check holds, and a `security-review` job under any other caller still does not count.
 
 ## [0.79.10] - 2026-10-04
 

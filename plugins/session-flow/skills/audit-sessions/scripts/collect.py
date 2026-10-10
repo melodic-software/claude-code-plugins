@@ -11,9 +11,9 @@ Writes one `session-record/v1` file per main session (the main transcript plus i
 under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads; a transcript Claude
 Code set aside (`<session>.orphaned-*.jsonl`) is skipped and counted, not ingested, and a record an
 earlier collector stored for one is deleted. A session whose
-fingerprint matches its stored record is skipped, unless that record was written by another
-collector version, under other excerpt limits, or with redaction failing closed where it now
-works or the reverse. With a retention window, records of sessions
+fingerprint matches its stored record is skipped, unless that record was written by a collector
+whose code or rules differ (the COLLECTOR_INPUTS digest), under other excerpt limits, or with
+redaction failing closed where it now works or the reverse. With a retention window, records of sessions
 that ended before it are pruned and such sessions are not ingested. Typed turns of at most
 `--excerpt-words` words right after an assistant message keep an excerpt, redacted by redact.py
 and then cut to `--excerpt-chars`; when redaction fails closed no excerpt is stored and the run
@@ -50,6 +50,7 @@ if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 import census  # noqa: E402  (beside this script)
+import friction_scan  # noqa: E402  (beside this script)
 import redact  # noqa: E402  (beside this script)
 import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
@@ -58,6 +59,17 @@ CENSUS_SCHEMA = "audit-sessions.census/v1"
 DRIFT_SCHEMA = "audit-sessions.drift/v1"
 RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
+# Every file that shapes a stored record, relative to PLUGIN_ROOT: a change to any of them
+# re-ingests every session, and a change elsewhere in the plugin (its version) does not.
+COLLECTOR_INPUTS = (
+    "skills/audit-sessions/scripts/collect.py",
+    "skills/audit-sessions/scripts/census.py",
+    "skills/audit-sessions/scripts/friction_scan.py",
+    "skills/audit-sessions/scripts/redact.py",
+    "scripts/transcript_reader.py",
+    "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
+    "lib/state-key.sh",
+)
 HEAD_BYTES = 4096
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
@@ -128,6 +140,18 @@ def collector_version() -> str:
     except (OSError, ValueError):
         return "unknown"
     return manifest.get("version", "unknown")
+
+
+def collector_digest() -> str:
+    """SHA-256 over COLLECTOR_INPUTS in order, CRLF read as LF so a checkout's line endings do not count."""
+    digest = hashlib.sha256()
+    for relative in COLLECTOR_INPUTS:
+        try:
+            data = (PLUGIN_ROOT / relative).read_bytes().replace(b"\r\n", b"\n")
+        except OSError:
+            data = b"<missing>"
+        digest.update(relative.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
+    return digest.hexdigest()
 
 
 def store_dir(data_dir: Path) -> Path:
@@ -287,6 +311,7 @@ class SessionScan:
         self.bucket = ""
         self.usage_seen: dict[tuple[str, str], tuple] = {}
         self.usage_split: set[tuple[str, str]] = set()
+        self.friction = friction_scan.FrictionScan()
 
     def add(self, record: dict, side: str) -> None:
         self.bucket, keys = census_keys(record)
@@ -308,6 +333,7 @@ class SessionScan:
                     values.add(record[field])
             if isinstance(record.get("entrypoint"), str) and record["entrypoint"]:
                 self.entrypoints.add(_label(record["entrypoint"]))
+        self.friction.add(record)
         handler = getattr(self, "_" + kind.replace("-", "_"), None)
         if handler is not None:
             handler(record, side, ts)
@@ -397,9 +423,11 @@ class SessionScan:
         if ts is not None:
             self.human_timestamps.append(ts)
         words = len(text.split())
+        correction = bool(CORRECTION_RE.search(text)) and not CORRECTION_NEG.search(text)
+        self.friction.typed_turn(text, ts, correction and words <= self.excerpt_words)
         if self.last_kind == "assistant" and words <= self.excerpt_words:
             flags = ["short-after-assistant"]
-            if CORRECTION_RE.search(text) and not CORRECTION_NEG.search(text):
+            if correction:
                 flags.append("lexicon-correction")
             if FRUSTRATION_RE.search(text):
                 flags.append("frustration")
@@ -620,6 +648,7 @@ def build_record(
     fp: dict,
     *,
     version: str,
+    digest: str,
     redactor: redact.Redactor,
     identity: RepoIdentity,
     excerpt_chars: int,
@@ -627,8 +656,10 @@ def build_record(
 ) -> dict:
     scan = SessionScan(excerpt_words)
     stats: dict[str, int] = {"files": 0}
-    for path, side in [(main, "main"), *((s.path, "sub") for s in subagents)]:
+    for path, side, meta in [(main, "main", None), *((s.path, "sub", s.meta) for s in subagents)]:
         stats["files"] += 1
+        agent = (meta or {}).get("agentType")
+        scan.friction.start_file(side, agent if isinstance(agent, str) else None)
         for record in transcript_reader.iter_records(path, stats):
             scan.add(record, side)
     repo_identity, worktree = identity.lookup(scan.cwd)
@@ -642,6 +673,7 @@ def build_record(
     return {
         "schema": RECORD_SCHEMA,
         "collector_version": version,
+        "collector_digest": digest,
         "excerpt_limits": {"chars": excerpt_chars, "words": excerpt_words},
         "ingested_at": _iso(time.time()),
         "session_id": main.stem,
@@ -701,6 +733,7 @@ def build_record(
         "branches": sorted({scrub.key(branch) for branch in scan.branches}),
         "prs": [{"repo": repo, "number": number} for repo, number in sorted({(scrub.key(r), n) for r, n in scan.prs})],
         "permission": {"modes": dict(scan.permission_modes), "changes": scan.permission_changes},
+        "friction": scan.friction.block(scrub, excerpt_chars),
         "commands": {"slash": scrub.keys(scan.slash), "skills_model_invoked": scrub.keys(scan.skills)},
         "human": {
             "turns": scan.human_turns,
@@ -739,7 +772,7 @@ def build_record(
 def stored_policy(record: dict) -> tuple:
     """The settings besides the transcript that shaped a record's stored text; None where a field is missing."""
     redaction = _obj(record.get("redaction"))
-    return record.get("collector_version"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
+    return record.get("collector_digest"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
 
 
 def load_store(store: Path) -> dict[Path, tuple[dict | None, tuple, float | None]]:
@@ -778,11 +811,12 @@ def cmd_collect(args: argparse.Namespace) -> int:
     cutoff = time.time() - args.retention_days * 86400 if args.retention_days else None
     wanted = set(args.session or ())
     version = collector_version()
+    digest = collector_digest()
     redactor = redact.load_redactor()
     identity = RepoIdentity()
     index = load_store(store)
     # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
-    policy = (version, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
+    policy = (digest, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
     scanned = ingested = skipped = expired = orphaned = purged = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
@@ -821,6 +855,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 subagents,
                 fp,
                 version=version,
+                digest=digest,
                 redactor=redactor,
                 identity=identity,
                 excerpt_chars=args.excerpt_chars,

@@ -4,7 +4,7 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
-## [3.7.0] - 2026-10-10
+## [3.8.0] - 2026-10-10
 
 **Minor, additive.** Two crosswalk rows and one Adopters row admit `code-metrics:audit-suppressions`
 and its `--findings` mode: `code-metrics/audit-suppressions/rule-no-reason` (a suppression with no
@@ -13,6 +13,16 @@ where the tool can name one), both IMPORTANT through the degradation limb, `Conf
 auto-applicable. Every decline needs evidence on the line and is counted in `## Surfaces`. Both
 rules postdate 3.0.0, so their remedies are pinned in full. No producer-owned field's rule,
 coexistence obligation, or enforceability verdict moves.
+
+## [3.7.0] - 2026-10-04
+
+**Minor, additive.** One crosswalk row admits `testing:audit`'s new report-only rule:
+`testing/audit/rule-throw-only-oracle`, SUGGESTION, `Confidence` omitted, not auto-applicable. It
+fires when every assertion of a C# test checks only that a value the test built with `new` exists
+or has its type, so only a throwing constructor fails the test; it is argued on the same walk as
+`testing/audit/rule-weak-oracle`. The `testing:audit` adopter row counts it: remedies pinned 7 of
+13, with this rule's remedy pinned positive only and owed its negative assertion. No
+producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
 
 ## [3.6.2] - 2026-10-01
 

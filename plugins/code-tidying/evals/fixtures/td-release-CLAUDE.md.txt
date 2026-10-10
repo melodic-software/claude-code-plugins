@@ -1,0 +1,6 @@
+# release-tools
+
+## Protected paths
+
+`scripts/release.sh` is release infrastructure. Agents must not edit it; changes go through the
+release owners by hand.

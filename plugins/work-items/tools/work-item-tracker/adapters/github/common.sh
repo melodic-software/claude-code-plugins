@@ -68,6 +68,7 @@ readonly WIT_GH_BOT
 
 readonly EX_INTERNAL=1
 readonly EX_USAGE=2
+readonly EX_CONFIG=3
 readonly EX_AUTH=4
 readonly EX_NOT_FOUND=5
 readonly EX_CONFLICT=7
@@ -250,7 +251,10 @@ readonly WIT_ITEM_JQ='{
   assignees: [(.assignees // [])[] | .login],
   labels: [(.labels // [])[] | .name],
   type: (.issueType.name // null),
-  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state == "OPEN")] | length),
+  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state != "CLOSED" or .reasonRead == false
+    or .stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE" or .wontDoLabel == true)] | length),
+  blocked_by_wont_do_count: ([(.blockedBy.nodes // [])[] | select(.state == "CLOSED"
+    and (.stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE" or .wontDoLabel == true))] | length),
   parent_id: (
     if (.parent // null) != null and (.parent.url // null) != null
     then (.parent.url
@@ -261,9 +265,76 @@ readonly WIT_ITEM_JQ='{
   url: .url
 }'
 
+# wit_gh_load_wont_do_labels — set WIT_GH_WONT_DO_LABELS (JSON array, lowercased) from
+# the binding's optional config.github.wont_do_labels; `[]` when the key or the binding
+# is absent. A present value must be an array of non-empty strings, else exit 3. Call
+# it before a pipeline into wit_gh_annotate_blocker_reasons, so the exit is not lost in
+# a pipeline stage.
+wit_gh_load_wont_do_labels() {
+  local binding ejson
+  WIT_GH_WONT_DO_LABELS='[]'
+  binding="$(wit_find_binding)" || return 0
+  ejson="$(wit_effective_binding_json "$binding")" || {
+    echo "github: invalid binding at $binding; run /work-items:setup check" >&2
+    exit "$EX_CONFIG"
+  }
+  WIT_GH_WONT_DO_LABELS="$(jq -c '(.config.github // {}) as $g
+    | if ($g | type) != "object" or ($g | has("wont_do_labels") | not) then []
+      elif ($g.wont_do_labels | type) == "array" and all($g.wont_do_labels[]; type == "string" and length > 0)
+      then $g.wont_do_labels | map(ascii_downcase)
+      else "bad" end' <<<"$ejson")"
+  if [[ "$WIT_GH_WONT_DO_LABELS" == '"bad"' ]]; then
+    echo "github: config.github.wont_do_labels must be an array of non-empty label names" >&2
+    exit "$EX_CONFIG"
+  fi
+}
+
+# wit_gh_annotate_blocker_reasons — stdin: one issue object or an array of them, as
+# `gh --json ...,blockedBy` returns it; stdout: the same JSON with `stateReason` set
+# on every CLOSED blocker node. That projection carries no stateReason or labels, so
+# both come from `gh api graphql` nodes(ids:), one query per 100 closed blockers
+# and none when there is no closed blocker. Each CLOSED node also gets `reasonRead`:
+# false when its query failed, answered with a blank or unparsable body, or returned
+# no node for it, and `wontDoLabel`: true when it was read and carries a label in
+# WIT_GH_WONT_DO_LABELS (wit_gh_load_wont_do_labels; case-insensitive). A failed query
+# is not fatal, but WIT_ITEM_JQ keeps an unread blocker blocking (fail closed). A node
+# read with a null stateReason (issues closed before GitHub recorded reasons) and no
+# listed label is resolved.
+wit_gh_annotate_blocker_reasons() {
+  local json ids n i reasons='[]' out page args id
+  json="$(cat)"
+  ids="$(printf '%s' "$json" | jq -c '[(if type == "array" then .[] else . end)
+    | (.blockedBy.nodes // [])[] | select(.state == "CLOSED") | .id] | unique')"
+  n="$(jq 'length' <<<"$ids")"
+  for ((i = 0; i < n; i += 100)); do
+    args=()
+    while IFS= read -r id; do
+      args+=(-f "ids[]=$id")
+    done <<<"$(jq -r --argjson i "$i" '.[$i:$i + 100][]' <<<"$ids")"
+    # shellcheck disable=SC2016  # GraphQL query — $ids is a GraphQL variable, not a bash expansion
+    if out="$(gh api graphql -f query='query($ids:[ID!]!){nodes(ids:$ids){... on Issue{id stateReason labels(first:100){nodes{name}}}}}' \
+      "${args[@]}" 2>/dev/null)" &&
+      page="$(jq -ce '[(.data.nodes // [])[] | select(. != null)]' <<<"$out" 2>/dev/null)"; then
+      reasons="$(jq -cn --argjson acc "$reasons" --argjson page "$page" '$acc + $page')"
+    else
+      echo "wit_gh_annotate_blocker_reasons: close-reason query failed; closed blockers keep blocking" >&2
+    fi
+  done
+  printf '%s' "$json" | jq -c --argjson r "$reasons" --argjson wl "${WIT_GH_WONT_DO_LABELS:-[]}" '
+    (reduce $r[] as $x ({}; .[$x.id] = $x)) as $by_id
+    | def ann: if (.blockedBy.nodes // null) == null then .
+        else .blockedBy.nodes |= map(if .state == "CLOSED"
+          then .id as $i | .stateReason = $by_id[$i].stateReason | .reasonRead = ($by_id | has($i))
+            | .wontDoLabel = any(($by_id[$i].labels.nodes // [])[]; (.name | ascii_downcase) as $n | any($wl[]; . == $n))
+          else . end) end;
+    if type == "array" then map(ann) else ann end'
+}
+
 # wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
 # item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
-# blockers only (closed blockers stay in blockedBy.totalCount — Tier-0 verified).
+# blockers, blockers closed NOT_PLANNED or DUPLICATE or carrying a config.github
+# wont_do_labels label, and closed blockers whose reason could not be read;
+# blocked_by_wont_do_count counts the won't-do ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
 # Older gh reads REST, which sandboxed sessions serve where GraphQL 403s, and maps
 # the REST shape onto the same fields; type comes from .type, and parent and
@@ -274,7 +345,9 @@ wit_emit_item() {
   if wit_gh_has_native_surface; then
     wit_run_gh read issue view "$number" -R "$owner/$repo" \
       --json number,title,state,assignees,labels,issueType,blockedBy,parent,url
-    jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+    wit_gh_load_wont_do_labels
+    printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
+      jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"
   else
     wit_run_gh read api "repos/$owner/$repo/issues/$number"
     if jq -e 'has("pull_request")' <<<"$WIT_GH_OUT" >/dev/null; then

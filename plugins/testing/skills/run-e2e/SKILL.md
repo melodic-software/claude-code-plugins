@@ -155,7 +155,7 @@ Pass the resolved config through to the executor:
 - `recording` → the capture path: `video` records via the playwright CLI, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
 - `e2e_driver` → what drives the flows, picked per the Driver ranking in [context/e2e.md](context/e2e.md). A pinned value the target cannot use, and `chrome` on an `unattended` run, stop with the gap report instead of switching drivers. When a feature map exists, the driver its index records comes before `e2e_driver`; only a session instruction overrides it (Feature map, below).
 
-The workflow steps themselves live in [context/e2e.md](context/e2e.md).
+The workflow steps themselves live in [context/e2e.md](context/e2e.md). When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or fail is the verdict; the ad-hoc drive and screenshots are evidence beside it, never the oracle. Each failed scenario returns a failure packet path with the evidence paths.
 
 ### Workspace environment
 
@@ -245,7 +245,7 @@ scenario counts as passed on it.
 
 - Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability
 - All scenarios pass → invoke `/verification:confirm outcome` via the Skill tool when the `verification` plugin is enabled (composes intent + evidence; chains back here when needed); otherwise report the captured evidence for outcome sign-off directly
-- Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool
+- Visual bugs or API errors found → for API errors, read the orchestrator's structured logs for the root cause first; then invoke `/testing:diagnose` via the Skill tool, passing each failed scenario's failure packet ([context/e2e.md](context/e2e.md), Failure packet) as its input rather than a summary, redacted at write time with its framing line and app-output block intact, so diagnose treats the app-sourced fields as data
 - Scenario planning needed first → invoke `/testing:plan` via the Skill tool
 
 ## Boundary, the bundled `run` skill
@@ -291,4 +291,5 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 - **Semantic locators**. Use the snapshot's accessibility-based element refs; CSS selectors and XPath break on cosmetic changes
 - Orchestrator version coupling + health-check waits. Wait for the orchestrator's health signal before driving flows; don't poll blindly
-- Playwright CLI vs MCP token budget: CLI is substantially cheaper (artifacts go to disk, only paths enter context). CLI by default; detail in [context/e2e.md](context/e2e.md)
+- Which browser tool: the rubric in [context/e2e.md](context/e2e.md) is the one owner; Playwright CLI is the default
+- A screenshot is not an inspection: run the layered render checks in [context/e2e.md](context/e2e.md) (axe, geometry, pixel baseline, vision review as leads only)

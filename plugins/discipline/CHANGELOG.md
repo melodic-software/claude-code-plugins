@@ -5,17 +5,86 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
-## [Unreleased]
+## [0.17.7] - 2026-10-10
 
-### Added
+### Fixed
 
-- `/discipline:reuse-or-replace` reads the project's paved-path file on demand: when the standards index has a `paved-path` row and the work touches a concern it lists, the listed entry is the established way, and replacing it includes updating the entry.
-- **`/discipline:script-the-deterministic-work lever-check <block summary>` and the `lever_scope` setting: `deterministic` (default) or `non-trivial`.** The mode answers `build-a-lever` or `edit-by-hand`, with its reason, for one change repeated across sites; `/implementation:implement` and `/implementation:implement-dispatch` call it before a multi-site block or a fan-out. `deterministic` builds a lever only for a mechanical change; `non-trivial` also builds one for judgment-bearing changes, using an established codemod or refactoring tool and never a refactoring script written for the occasion. Under either value the first site is edited by hand and the lever's result on it is diffed before the lever runs on the rest; for a fan-out the mode also answers whether one run of the lever covers every unit. `lever_scope` is set per user in the new user config option and per repository in `docs/conventions/discipline.yaml`, which wins; the schema ships at `schemas/discipline.schema.json`, and the new `reference/config.md` lists the key, its layers and the root rule. An invalid value is named with its file, key and value and that layer is dropped. The skill gains a `## Next` section and six eval cases.
-- **`/discipline:setup apply lever_scope=<value>` writes `docs/conventions/discipline.yaml`.** `check` also reports `lever_scope` and the repository file (absent, valid, or each problem as a WARN); `apply` validates the whole result against the schema before writing, refuses a duplicate key, an empty or non-scalar value, a key outside the schema, a parse error, a symlinked, hard-linked or out-of-repository path, and a root that is `$HOME` or above it, writes through an exclusive temp file and a rename, and shows a diff and asks before it changes an existing file. Personal options still change only through `/plugin configure`.
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [0.17.6] - 2026-10-08
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.17.5] - 2026-10-07
 
 ### Changed
 
-- **`/discipline:wait-what` states its description and opening instruction in this repository's own words.** A word-overlap check against the skill it was adapted from found both still followed the original's sentences. Behavior is unchanged: re-explain from the missing premise, in ASD-STE100 Simplified Technical English, with the project's domain terms.
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.17.4] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.17.3] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.17.2] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md`, synced from the shared copy, now has the reader
+  slice the sections for any part of the question none of its slices covers, and the section of
+  every item when the question asks the same thing for each of many events, options or keys.
+
+## [0.17.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.17.0] - 2026-10-07
+
+### Changed
+
+- **Upstream docs pages are read through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** `/discipline:recheck-against-upstream`, `/discipline:recheck-against-upstream-deep` (each subagent), `/discipline:do-your-research` and the `sweep-all` live read of the subagent-limit page follow `reference/docs-lookup-procedure.md` instead of a WebFetch summary, so the page is read fresh, complete and cached, with its age reported and raw bytes for a verification read. A source that is not a docs page keeps its existing route.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py`, `reference/docs-lookup-procedure.md` and `lib/prerequisites.*`.
+- New `prerequisites.json`: `curl` and `jq` required, `python3` optional (only an HTML-only page needs it).
+
+## [0.16.5] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/discipline:pick-for-the-problem` names popularity as a fifth selection sin.
 
 ## [0.16.4] - 2026-10-04
 

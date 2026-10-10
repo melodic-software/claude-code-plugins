@@ -20,8 +20,8 @@ D/audit-sessions/
   itself is not stored because it encodes the working directory unredacted.
 - **One JSON file per session, replaced atomically.** Re-collecting a session rewrites its file, so
   a repeated run never double-counts. Collect skips a session whose transcript fingerprint is
-  unchanged, unless its record was written by another plugin version, under other excerpt
-  settings, or while redaction was failing closed and now is not (or the reverse); `--force`
+  unchanged, unless its record was written by a collector with another `collector_digest`, under
+  other excerpt settings, or while redaction was failing closed and now is not (or the reverse); `--force`
   re-ingests it regardless. Lowering `audit_sessions_excerpt_chars` to 0 therefore removes stored
   excerpts, titles and agent names on the next collect.
 - **Transcript text kept.** A record stores these strings from the transcript, each redacted before
@@ -29,7 +29,11 @@ D/audit-sessions/
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
     the session's custom title and agent name; 0 stores none of the three;
   - the working directory, edited file paths (relative to it when inside it), branch names, PR
-    repositories, and the names of slash commands, model-invoked skills and assistant errors.
+    repositories, and the names of slash commands, model-invoked skills and assistant errors;
+  - in the `friction` block, per event: the command shape and, for a denial, the classifier's
+    category or the first line of the hook's message; with `audit_sessions_excerpt_chars` above 0,
+    also an excerpt of the call's command line or path, the agent's asking line, or the person's
+    reply. `/session-flow:audit-friction` documents the block's fields.
 
   A string longer than max(4096, 16 × `audit_sessions_excerpt_chars`) characters is skipped rather
   than cut and counted in `redaction.skipped_too_long`. While redaction fails closed, no excerpt,
@@ -70,7 +74,12 @@ D/audit-sessions/
 
 ## Schema versioning
 
-- Records carry `"schema": "session-record/v1"` and the plugin version that wrote them.
+- Records carry `"schema": "session-record/v1"`, the plugin version that wrote them
+  (`collector_version`, provenance only) and `collector_digest`: SHA-256 over the files that shape
+  a record, CRLF read as LF. Those files are `collect.py`, `census.py`, `friction_scan.py` and `redact.py`,
+  `vendor/gitleaks/gitleaks-rules.json`, and the plugin's `scripts/transcript_reader.py` and
+  `lib/state-key.sh` (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
+  re-ingested once.
 - New fields are added within v1, and readers treat a missing field as null.
 - A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.
   The store cannot be rebuilt from transcripts after Claude Code has swept them.

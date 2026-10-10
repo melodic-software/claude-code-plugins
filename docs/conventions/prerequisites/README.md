@@ -24,7 +24,7 @@ Three needs use a native surface instead, so the file never declares them:
 The `env` kind is for a variable a command run through the Bash tool reads, such as a CLI's API
 key. `userConfig` values do not reach that environment.
 
-As of 2026-10-02 the [plugin manifest reference](https://code.claude.com/docs/en/plugins-reference)
+As of 2026-10-07 the [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference)
 has no field for external binaries, runtimes, environment variables or system libraries, and
 the Bash tool's environment carries no plugin variables. Recheck when that page adds such a
 field; a native field replaces this file.
@@ -142,8 +142,16 @@ and `toolchain`) ships `check-prerequisites` and names that. No hook installs an
 
 | Notice | Fires | How |
 | --- | --- | --- |
-| `node` is missing | `SessionStart`, once per session across every plugin | Each hook plugin carries one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. A POSIX shell (bash, or dash as `/bin/sh` on Debian and Ubuntu) takes the first and leaves at `${PPID:+exit}`, because every POSIX shell sets `PPID`; PowerShell, the default shell on Windows without Git Bash, has no `sh`, skips to the second. Both stubs share a latch keyed by session id in the temp directory, so a session with several hook plugins sees one notice. A plugin's `<name>_enabled` kill switch, passed as the last argument, silences its row. |
-| Another hook dependency is missing | `SessionStart` for an entry whose `for` names a hook, via `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry: `degrade`, the `docs` install link and `check`. An entry that names only a skill never notifies at session start. |
+| `node` is missing | `SessionStart` except on compaction, once per session across every plugin | Each hook plugin carries one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. A POSIX shell (bash, or dash as `/bin/sh` on Debian and Ubuntu) takes the first and leaves at `${PPID:+exit}`, because every POSIX shell sets `PPID`; PowerShell, the default shell on Windows without Git Bash, has no `sh`, skips to the second. Both stubs share a latch keyed by session id in the temp directory, so a session with several hook plugins sees one notice. A plugin's `<name>_enabled` kill switch, passed as the last argument, silences its row. |
+| Another hook dependency is missing | `SessionStart` except on compaction, for an entry whose `for` names a hook, via `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry: `degrade`, the `docs` install link and `check`. An entry that names only a skill never notifies at session start. |
+
+The group holding the node-notice row and the group holding the `probe` row both carry
+`"matcher": "startup|resume|clear|fork"`, every SessionStart source but `compact` (the source
+list is the SessionStart matcher table in the
+[hooks reference](https://code.claude.com/docs/en/hooks), as of 2026-10-04; recheck when that table
+changes). A compaction keeps the session id (inferred from transcripts, which keep one sessionId across a compact boundary; not probed from a hook payload), and both latches with it, so a re-fire there prints
+nothing and only starts processes. `clear`, `resume` and `fork` stay: each can begin a context
+that has not seen the notice. `scripts/node-notice-rows.test.sh` pins the matcher on both rows.
 
 `hook::require` reads an entry with bash alone, from its `id` to the next one, so write `id` first in every entry.
 

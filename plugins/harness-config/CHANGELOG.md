@@ -5,11 +5,283 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [Unreleased]
+## [1.13.6] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [1.13.5] - 2026-10-08
 
 ### Changed
 
-- **`/harness-config:audit-automation-gaps` reads the enforcement hierarchy from the shared enforcement ladder.** The skill carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md` and points at it instead of listing the levels inline. The ladder adds a `make-impossible` rung above compiler settings and a `canonical-helper` rung below the linters. A consuming repository's own order in its project instructions still overrides the default.
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [1.13.4] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [1.13.3] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [1.13.2] - 2026-10-07
+
+### Fixed
+
+- The `audit-engine` and `check-hook-coverage` test suites pass on Git for Windows with `TMPDIR`
+  in either `/d/x` or `D:/x` form: the strictPluginOnlyCustomization cases name their fixture
+  directory without the quote characters a Windows path cannot hold, the audit-engine temp root is
+  in the shell's form so a `D:/` `TMPDIR` no longer hides its curl and jq shims, and the hook-coverage
+  fixtures use the native path form Claude Code writes into its registry and settings there.
+
+## [1.13.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [1.13.0] - 2026-10-07
+
+### Added
+
+- **`/harness-config:audit-instructions` audits agent definitions for three more defects**, each
+  citing `/playbooks:skill-authoring` `## Agents`: I40, a reference into the audited repository's
+  own history (`#1234`, `PR #1234`, "added in #N", an incident narrative); I41, text that fails the
+  deletion test "could the model already know this?"; and I42, a rigid step script for judgment
+  work, where the task needs high degrees of freedom. `instruction-scan.sh` seeds I40 on
+  `agents/*.md` paths and stays quiet on code spans, a cross-repository `owner/repo#N`, `TODO(#N)`,
+  fenced or indented code, and any line in a block that carries an as-of date and a recheck
+  trigger. I41 and I42 are lane-only.
+
+### Changed
+
+- The I3 row of the instruction-audit catalog, the `/harness-config:audit` per-entry listing cap
+  row, and the Category G guidance point to `/playbooks:skill-authoring` `## Descriptions` for the
+  per-entry description cap and name `/skill-quality:check` as its enforcer, in place of restating
+  the number.
+
+## [1.12.0] - 2026-10-07
+
+### Changed
+
+- **The audit reads upstream docs through the docs cache with `--max-age 0`.** `audit-engine.sh`
+  and `check-doc-citations.sh` call `fetch-docs.sh --cache --max-age 0`, so every run asks the
+  server for fresh bytes and a failed fetch is unread, never a stale cached copy. The audit skill's
+  Phase 1 and Phase 3 and the env-vars row of `audit-checklist.md` name the same call in place of
+  a raw `curl`
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
+### Fixed
+
+- **`check-doc-citations.sh` names an unread page's reason without a trailing carriage return.**
+  A Windows `jq` ends its line with CR, which the reason kept, so a skip line no longer matched its
+  documented form
+  ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).
+
+## [1.11.1] - 2026-10-07
+
+### Changed
+
+- **Two upstream restatements are now pointer records with an as-of date and a recheck trigger
+  ([#6485](https://github.com/melodic-software/claude-code-plugins/issues/6485)).** The
+  `audit-permission-grants` env-assignment criterion links the permissions page for which variables
+  are stripped and how allow and deny rules match, keeping its own rule: never assume an allow rule
+  matches past an assignment the page does not cover. The `audit-instructions` inventory links the
+  sub-agents page for the auto-memory dependency, keeping its own rule: enumerate agent memory only
+  when auto memory is on.
+
+## [1.11.0] - 2026-10-04
+
+### Added
+
+- **`scripts/fetch-docs.sh --profile generic` reads any https docs page** with no index. It prefers
+  markdown: the URL with `Accept: text/markdown`, then the URL with a `.md` suffix, then a
+  same-origin link for the page in the origin's `llms.txt`. With none, the page's HTML is converted
+  by `html2md.py` beside the script, run by the first of `python3` and `python` whose probe prints
+  `3`; with no such interpreter the page is unread with reason `no-python`. A request that lands off
+  the requested origin or path is unread (`redirected-off-origin`, `redirected-off-path`). The slug
+  is `host/path`, and the manifest's `index` is null
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`--profile platform`** reads platform.claude.com pages through its `llms.txt`.
+- **The docs cache is configurable without flags.** `scripts/docs-cache.sh` resolves nine keys
+  (`cache_dir`, `ttl_seconds`, `whole_page_bytes`, `escalate_section_percent`, `escalate_bytes`,
+  `size_cap_bytes`, `prune_grace_seconds`, `max_page_bytes`, `cache_enabled`) key by key from a flag, then its
+  `DOCS_CACHE_*` variable, then the machine file
+  `${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json`, then the bundled default.
+  `docs-cache.sh config` prints each value with the layer that supplied it. A malformed file or a
+  bad value is skipped with a warning; an unknown key is ignored. `fetch-docs.sh --cache` takes
+  `ttl_seconds` as its `--max-age` when none is passed, and with `cache_enabled` false reads and
+  writes no cache and sets the manifest's new top-level `cache_disabled` to the layer that said so.
+- **Summaries and notes name one checkable section.** `docs-cache.sh summary put` and `note put`
+  refuse a section whose own body is empty or shared with another section, and a summary or note
+  whose section hash two sections share is withheld. A removal quarantine (404, 410, a redirect
+  off the page, a slug gone from the index) lifts when the page is read or confirmed again under
+  the title it had; a retitle quarantine still never lifts. A quoted span split across a line
+  break is checked. Escalation counts a section asked with its parent once, a note file that is
+  not JSON is skipped with a warning, and a prune takes its lock whole and releases only its own.
+- **Revalidation with HTTP validators.** With `--cache`, an entry stored with an `ETag` or
+  `Last-Modified` is revalidated with `If-None-Match` or `If-Modified-Since`; a 304 serves the entry
+  with `status: 304` and moves only `validated`. A `Last-Modified` equal to the response's `Date`
+  is ignored. A host with neither is re-downloaded: the same sha256 moves `validated`, new bytes are
+  a new entry with a new `retrieved`.
+- **Manifest records gain `format` (`markdown` or `html-converted`), `title` and `quarantined`.**
+  The cache key includes the format, so one URL that negotiates to markdown and to HTML is two keys.
+- **`scripts/docs-cache.sh` records each entry's title** (its first heading, else the HTML
+  `<title>`) and **quarantines a key** when a new entry's title differs from the one it replaces;
+  `info` reports `title`, `etag`, `last_modified` and `quarantine`.
+- **`docs-cache.sh read <ref>`** prints a page of at most `--whole-page-bytes` (default 51200)
+  whole; a larger one prints its section map plus the stored section summaries and the notes whose
+  cited sections are unchanged. `slice` on such a page prints the whole page, and says so on stderr,
+  when the ids ask for more than `--escalate-percent` (25) of its sections or `--escalate-bytes`
+  (61440) bytes.
+- **Section summaries and notes.** `summary put|get` stores a one-line summary per section hash;
+  `note put|get|list` stores a note with its provenance (writer model, session, date, question, page
+  sha256) and cited sections. A note is served while every cited section's hash is unchanged, under
+  whatever id or heading the section has now, and is refused when a quoted span is not in a cited
+  section's own body. Summaries and notes print only inside a nonce-delimited untrusted-data block,
+  never with page bytes, never through `slice` or `read --raw`, and never for a quarantined key.
+- **`docs-cache.sh prune`** evicts the least recently used page bytes, then summaries, then notes,
+  down to `--max-bytes` (default 200 MB), under a `mkdir` lock, skipping keys accessed within
+  `--grace` (300) seconds; every write runs it.
+- **`fetch-docs.sh --cache` serves stale bytes when offline.** With `--max-age` above 0, a transport
+  failure or a 5xx serves the cached bytes with `stale: true`, the failure as `reason` and their
+  `age_seconds`; `--max-age 0` still leaves the page unread. A 404, a 410, a redirect off the origin or
+  path, or a slug the index no longer lists quarantines the page's cache keys. Records gain `stale`
+  and `server_date` (the response's `Date`, recorded and never used for age).
+
+### Fixed
+
+- **Cache correctness fixes from review.** A docs URL in browser form (no `.md`, or with a
+  `#fragment`) reads the indexed page instead of quarantining it; a page found removed is fetched
+  again, never served from the cache, fresh or stale; headings keep a real trailing `#`; prune
+  counts and clears temp items older than the grace window, takes over a lock left without a start
+  time, and renames an evicted entry before dropping its pointer; and the effort-pin audit always
+  reads only its section, whatever the machine's escalation thresholds.
+- **Second review round.** html2md keeps heading text wrapped in an in-page anchor (mdBook,
+  VuePress) and drops only permalink-glyph anchors, and runs on Python 3.8 again; fetch-docs reads a
+  browser-form URL with a query string or trailing slash; every prune removes temp leftovers older
+  than the grace window, puts back a lock another prune took over, and keeps the pointer of a page
+  a writer stored again during eviction; and a page with no title lifts its removal quarantine
+  when it is stored or confirmed again.
+- **Third review round.** html2md drops screen-reader-only and `aria-hidden` text inside a heading,
+  so a permalink anchor no longer adds "Permalink to this heading"; prune makes its grace-window
+  reference file outside the store, so one prune never sweeps another's, and ranks nothing when
+  the store is under the cap after the temp sweep.
+- **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
+  `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
+  `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and
+  storing nothing; `docs-cache.sh` refuses a summary or note with a line shaped like its block's
+  BEGIN or END marker, its block's opening line says only the END line with this block's nonce
+  closes it, and a note's writer and session print as `(self-reported)`.
+- **A malformed summary file no longer hides the other summaries.** `scripts/docs-cache.sh` parses
+  each summary file on its own and skips one that is not JSON with a warning on stderr, as it
+  already did for notes.
+- **The curl prerequisite no longer claims the audit runs from cached docs.** Without curl, a fresh
+  cache entry is used with its age when one exists; otherwise the page is reported unread.
+- **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
+  the first 16 hex digits of the key and sha256 (store layout version 2, kept apart from a version-1
+  store), so a meta.json path stays under the 260-character limit. A write whose
+  paths would still pass the limit is refused with a `path too long` reason, and an entry a write
+  placed but cannot read back is removed instead of left behind.
+- **A writer that loses a race no longer renames its temp directory into the winner's entry.**
+- **Section maps follow CommonMark fences and headings:** only a bare fence of the same character
+  and at least the opener's length closes a fence, so a fence line with an info string or a shorter
+  run stays inside it, and a heading may be indented up to three spaces.
+- `fetch-docs.test.sh` no longer writes fixture pages into a caller's `DOCS_CACHE_DIR`.
+- **`--profile platform` reads its index again when fetched:** the index at
+  `https://platform.claude.com/llms.txt` sits outside `/docs/`, and an index request that ends on its
+  own URL is no longer refused as `redirected-off-origin`. Pages still must land under `/docs/`.
+- **A cache directory holding a store of another layout version no longer locks the cache out:** the
+  store moves to `v2/` inside it and the other version is left untouched.
+- **A cache hit keeps the validated time it was chosen with** when another writer switches the key
+  between the lookup and the read, instead of reporting `validated: null` and an age equal to the
+  epoch.
+- **A refused cache write says why:** the warning carries the reason and the record gains
+  `cache_error`.
+- **`html2md.py` widens a code fence past any backtick run inside it**, so a ``` line in a `<pre>`
+  no longer closes the fence and turns later lines into headings; the Python 3 prerequisite's
+  degrade text says the docs fetch needs `python3` or `python` on PATH, not the `py` launcher.
+
+## [1.10.0] - 2026-10-04
+
+### Added
+
+- **`scripts/docs-cache.sh`: a user-scope cache for upstream docs pages** (a synced copy of the
+  shared `lib/docs-cache.sh`). It stores each page's raw bytes in an immutable entry with a
+  section map, where each section's sha256 covers its own body only, and prints the map or the
+  sections a caller names. The cache lives under `${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache`
+  unless `--cache-dir` or `DOCS_CACHE_DIR` names another directory
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`scripts/fetch-docs.sh --cache [--max-age <seconds>] [--cache-dir <dir>]`.** An entry validated
+  within `--max-age` (default 86400) is served with no request and `source: cache`; anything else is
+  fetched and stored. Each manifest record adds `validated`, `age_seconds` and `cache_key`;
+  `retrieved` is when the bytes were first fetched, so a refetch of unchanged bytes moves only
+  `validated`. `--max-age 0` always fetches, and a failed fetch is unread, never served from the
+  cache. A caller that does not pass `--cache` reads the same pages; its records gain the three
+  fields, `cache_key` null.
+
+### Changed
+
+- **`check-effort-pins.sh` reads `model-config` through the cache with `--max-age 0` and hashes the
+  "Adjust effort level" section sliced from the cache entry** instead of scanning the whole page.
+  Its output lines and exit codes are unchanged, and the hash equals the earlier one on the
+  committed fixture and on the live page.
+
+## [1.9.3] - 2026-10-04
+
+### Changed
+
+- `unhobble` says changelog parity also accepts a changelog fragment for a plugin in fragment mode.
+
+## [1.9.2] - 2026-10-04
+
+### Fixed
+
+- **`/harness-config:audit`'s engine no longer runs for many minutes with no output on a large
+  configuration ([#6258](https://github.com/melodic-software/claude-code-plugins/issues/6258)).**
+  The cause was process starts, which cost 140 to 160 ms each on an idle Windows host and about
+  four times that under load: the engine started 4,247 external processes on a configuration with
+  83 plugins and 259 hooks, one or more `jq` and hashing processes for every row, and its hook
+  inventory several for every plugin and one for every hook. With the docs read from disk and the
+  drift check skipped, that run took 400 to 411 seconds repo-rooted and 344 seconds home-rooted.
+  The engine now builds every row in one `jq` pass, hashes in one process per hash, and decodes
+  the plugin rows and reads every `plugin.json` in one pass each; the inventory reads each
+  marketplace catalog and the plugin registry once and builds each output array in one `jq` call.
+  The repo-rooted run now starts 810 processes, and the two runs take 76 to 86 and 63 seconds, with
+  byte-identical output and finding ids. The engine also writes one `audit-engine:` progress line per category to stderr
+  (`SETTINGS_AUDIT_ENGINE_PROGRESS=0` turns them off), and the audit skill states the expected
+  duration.
+
+## [1.9.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [1.9.0] - 2026-10-04
 

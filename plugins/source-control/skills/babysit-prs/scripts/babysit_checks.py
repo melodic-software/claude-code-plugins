@@ -87,6 +87,9 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "name": name,
+        # The check run's own id: GraphQL `databaseId`, which `rest_check_rollup`
+        # fills from REST; `gh pr view --json statusCheckRollup` omits it.
+        "id": str(check.get("databaseId") or ""),
         "type": typename,
         "category": check_category(effective_state),
         "effective_state": effective_state,

@@ -1,0 +1,13 @@
+---
+bump: minor
+---
+
+### Added
+
+- **Collision-hotspot lens in `reduce`.** `scripts/collision-hotspots.sh` reads recent pull requests through `gh`, pairs those that were open at the same time and share a file, replays each pair with `git merge-tree --write-tree`, and ranks files by measured conflicts once at least 3 pairs touched them. Changelogs, lockfiles and version manifests are left out of the ranking and named on one `known bump hotspots` line; replays are capped by `--max-pairs` (default 200); PR heads are fetched into a per-run ref namespace that is deleted on exit. Without `gh`, `jq` or a `git` with `merge-tree --write-tree`, the scan falls back to co-change mining and reports a `gap:` line. The plugin now declares `gh` and `jq` in `prerequisites.json` and ships the prerequisites checker copies.
+- **One-writer-per-value candidate in `reduce`.** The coupling model's common-coupling entry now names the duplicate writer: one durable key, path or table that more than one owner writes. It is always a structural route-lane ledger entry, never part of the apply batch. A confirmed one hands its ownership rule to a review-findings file under `<memory_dir>/coupling/<branch-slug>/`, written with the memory-tier write discipline; the ledger and report name the file and offer `/review:audit-enforceability` when it is available.
+- **Second-list check in `reduce`'s hotspot lens.** `scripts/derivable-list.py` reads each ranked hotspot and flags a hand-kept list of at least 5 entries where at least 80% name a file or folder git tracks (both judgment values, stated in the skill, not settings), listing each entry that names nothing. It takes the ranked paths on stdin or from a file (`--paths-from`), never as command-line words, and skips a tracked symlink that resolves outside the root. The plugin now declares Python 3.9 or later in `prerequisites.json` for `reduce`. A confirmed second list is report-only and route-lane: the report compares keeping the list, build-time discovery where the stack has a loader, and generating the list from the tree with a `--check` drift step, in the new remediation catalog section "Second lists". The control-coupling remedy's "registration table" now points there when each case already has its own file.
+
+### Changed
+
+- **Shared mutable state: split the write target before adding a lock.** The remediation catalog's shared-mutable-state entry gains a first rung: when several writers update one file, row or cache key and the proposed fix is a lock, check whether each writer can own its own target so nothing is shared. The entry's "not when" covers a store holding one value every writer must agree on, which keeps one target and serializes the writes.

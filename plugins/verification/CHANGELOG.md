@@ -3,14 +3,21 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.8.0] - 2026-10-06
 
-### Added
+### Changed
 
-- **`live_workers` setting for `/verification:confirm`.** A per-user `userConfig` option and a repository key in `docs/conventions/verification.yaml` (a whole number, default 1; the repository value, read from origin's default branch, wins over the user's). Above 1, Stage 2 step 1 splits the live drive by feature-map entry point, one worktree and its own session names per worker; more than one worker on one machine needs a Workspace environment entry on the default branch, else one worker runs and the report says why. The missing-entry-point check reads every worker's merged report, the report lists measured tokens and wall time per worker, and a cloud execution target adds "live-UI step unverified on this host". An invalid value is named and its layer dropped. `/verification:setup apply` writes it, with integer values validated against the schema's minimum. An older release ignores the key and runs one worker; this is not a floor, and the report's worker line shows the count that ran.
-- **`/verification:confirm` holds the verdict for an undriven entry point.** When `/testing:run-e2e` reports per entry point from a feature map, an entry point the map lists for a changed feature that is missing from the report keeps the verdict below `CONFIRMED`.
-- **`/verification:confirm` picks the check that proves each kind of change.** `context/outcome.md` gains a check-to-change table (storage: read the written value back; parser or migration: replay a saved input; command-line tool: run the real command; user interface: drive the edited screens in the live app; performance: before and after through `/verification:measure`), pointed at from Stage 2 step 1, and a new Gotcha says to doubt the observation before the code when a check fails.
-- **`proof_level` setting (`path`, `live`, `strict`) for `/verification:confirm`.** A per-user `userConfig` option and a repository key in `docs/conventions/verification.yaml` (schema `schemas/verification.schema.json`); the stricter wins, and the repository value is read from origin's default branch so a branch cannot lower it. `live` drives any runnable change in the live app; `strict` adds per-phase unit, live and perf proof boxes to `context/outcome.md`, with a merge-base A/B run when no baseline exists and the performance plugin is enabled. An invalid value is named and dropped, and resolution never prompts, so pipeline lanes get a level. `/verification:setup` gains a narrow-write `apply` and a settings-file `check` row. Upgrade every member before setting a repository floor: an older release does not read the file and falls back to `path`.
+- `/verification:confirm` ranks test evidence by independence. Tests the producing session wrote are labeled self-authored, and tests added in the diff under review count as producer claims whose expected-value source the fresh-context verifier checks. A criterion proved only by a self-authored test with no named source is not COMPLETE.
+- A refactor Replace needs a differential run: inputs run, mismatches, mismatches explained by an intentional-differences ledger id, and unexplained mismatches. It is never CONFIRMED with an unexplained mismatch or without a differential run. A recorded baseline proves sameness, not correctness.
+- A fix for a symptom reported at the user level (UI, API response) should get a user-flow reproduction that fails before the fix; with only a unit-level reproduction the verdict is PARTIALLY CONFIRMED.
+- `/verification:measure` gives behavior baselines (outputs recorded before a rewrite) a home under `baselines/`, with the same before-the-change rule.
+- `/verification:confirm` counts a command result as evidence only when this session ran it or the harness recorded it, never on an agent's say-so.
+
+## [0.7.5] - 2026-10-04
+
+### Changed
+
+- `/verification:confirm`'s UI evidence contract requires the render checks `/testing:run-e2e` defines (axe scan, geometry assertions, pixel baseline when one exists, vision review as leads only) and accepts a geometry assertion as a behavior assertion. "No issues found" from a vision review is never a pass.
 
 ## [0.7.4] - 2026-10-03
 

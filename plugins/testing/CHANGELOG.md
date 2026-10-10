@@ -3,27 +3,125 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.23.2] - 2026-10-09
 
 ### Changed
 
-- **`/testing:write`'s vertical-slice and interface-check passages are reworded.** They no longer share phrasing with an upstream TDD skill. The rules are unchanged.
-- `/testing:diagnose` names `/debugging:analyze-profile` in its Skip clause for a captured profile, trace or heap snapshot, and its `## Next` now leads with `/verification:confirm fix` after the loop exits green, matching its own hand-off table, with `/testing:write` for missing feature tests.
+- The task-end test judge's Stop hook runs with `asyncRewake`, so a turn ends without waiting for it. Only an attended FLAG (or an UNKNOWN that started as a FLAG) wakes Claude, with the relay on stderr and exit 2; every other result reaches Claude on its next turn. A `claude -p` or Agent SDK session ends before the judge finishes and gets no task-end verdict; CI is its gate.
+- The SubagentStop hook is removed: a subagent's tests are judged at the parent's Stop with the parent's own.
 
-- **The testing config's team layer is `docs/conventions/testing.yaml`.** `scripts/resolve-config.sh` reads it first, validated by the new `schemas/testing.schema.json`; the `docs/conventions/testing.md` config block is read as a fallback for this release only, and `.claude/testing.yaml` stays a fallback. A warning names each shadowed file. `/testing:setup apply` writes the team file in use and creates `testing.yaml` when there is none. An older release never reads `testing.yaml`, so keep the old block or file until every member has upgraded.
-- **`/testing:run-e2e` under `e2e_driver: auto` now prefers the repository's own harness.** When a spec or script covers the changed flow, that harness drives the run; otherwise a CLI, TUI or service is driven by the run-e2e pseudo-terminal and HTTP recipe and a browser by the playwright CLI path, as before.
+## [0.23.1] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** The shared `hook-utils.sh` copy picks up recheck triggers on its upstream records.
+
+## [0.23.0] - 2026-10-06
 
 ### Added
 
-- **`/testing:run-e2e` starts its own instance beside an answering app when a Workspace environment entry exists.** Under `reuse_running_instance: false` in either mode, and `auto` on an unattended run, the run starts its own instance through the entry's `up`, drives the URL `info` reports, and never drives an app it did not start; `true`, and `auto` when attended, still reuse the answering app, and with no entry the earlier rules stay (labelled reuse for unattended `auto`, a stop for `false`). Session names gain a workspace part from `WORKSPACE_ID`, slugged and cut to 24 characters, so the run id always survives the 64-character cut. A testing release without this change keeps the labelled reuse.
-- **`/testing:refresh-feature-map` keeps a feature map current.** A new model-invocable skill checks an existing map against the app: a subagent for each feature reads the source without editing, then one `/testing:run-e2e` pass drives every entry point, doctor first. It edits only files in the map directory, sends a behavior the app lost to `/bugs:write` (when the bugs plugin is enabled) or the report instead of the map, and ends clean, changed or blocked. A changed pass commits to the fixed branch `feature-map-upkeep/<map slug>` and opens one pull request through `/source-control:pull-request`, or updates the one already open, only when unattended or after the person confirms. `scripts/upkeep-skip.sh` records a clean pass's commit under the plugin data directory and skips the next pass until HEAD moves, or when this host has no record and no commit landed in the window. An unattended pass refuses a `chrome` map. A plugin-level `evals/` case covers the edit scope.
-- **`/testing:map-features` writes a feature map.** A new user-invoked skill writes a project skill (default `.claude/skills/feature-map/`) for one app: an index naming the launch recipe (the repository's `run-<name>` skill, a recorded `.claude/skills/verify/SKILL.md`, or run-e2e's start path, offering `/run-skill-generator` when none exists), the recorded driver and a doctor command, and a file for each feature with Parts, Entry points, Drive and Traps sections, named by the slug rule. It refuses a location that is absolute, contains `..`, or sits in a `run-*` or `*verify` directory, stops with a gap report when the checkout does not build or start, and reports done only after one mapped feature passes through `/testing:run-e2e`. The format is `reference/feature-map.md`; a plugin-level `evals/` case covers the location refusals and the slug rule.
-- **`feature_map_dir` setting.** `resolve-config.sh e2e` resolves it from `.claude/testing.local.yaml` or `docs/conventions/testing.yaml` (schema updated) and reports its layer; it has no `userConfig` option, the user-global file is not read for it, and a refused value is named with its file and dropped. `/testing:setup apply` keeps it when it rewrites `testing.yaml`. An older release refuses the key as unknown, which stops its test scan: upgrade every member before setting it.
-- **`/testing:run-e2e` drives through the feature map.** When a map exists, a run executes its doctor before the first drive and after any failed drive, maps changed files to features, drives every entry point those features list, and reports one line per entry point. The map's recorded driver comes after a session instruction and before `e2e_driver`; a `chrome` map is attended-only.
-- **`/testing:run-e2e` reads its evidence back and cleans up only what it opened.** A failed drive step re-runs the health check before it is reported as a product failure; a new "Evidence the run reads back" section in `context/e2e.md` requires the user path (never a test-only endpoint), a read-back of every stored or sent effect, stubs only at a boundary production already isolates, and observing what a dry run touches. Each run names its browser sessions `<run id>-<scenario part>` under one slug rule (`^[a-z0-9-]{1,64}$`, the raw scenario never reaches a shell), closes only those at teardown, and checks every evidence path still exists afterwards.
-- **`/testing:run-e2e` runs the consumer's Workspace environment `up` and `info`.** When the default branch declares the entry, the run starts the app with `up`, reads `info`'s `KEY=value` lines as data and drives the address it reports instead of assuming `localhost:<port>`. With no entry it keeps the documented start command and says parallel workspaces may collide. No verb runs for a fork pull request or an `untrusted-provenance` worktree.
-- **`/testing:run-e2e` gains `e2e_driver` and `reuse_running_instance`.** `e2e_driver` (`auto`, `harness`, `run`, `playwright`, `chrome`) picks who drives a run, ranked in `context/e2e.md`; `chrome` is refused on an unattended run. `reuse_running_instance` (`auto`, `true`, `false`) decides whether a run drives an app already answering; unattended evidence from such an app is labelled. Set per repository in `docs/conventions/testing.yaml` and per user through the new `userConfig` options of the same names; `resolve-config.sh e2e` resolves them, reports the supplying layer, and names an unknown value and uses the default instead of stopping. Set them only in `testing.yaml` or a personal layer on an upgraded machine: an older release refuses them in the files it reads, which stops its test scan.
-- **`/testing:write` routes code with an invariant to property-based guidance.** A new Step 0 row loads `context/property-based.md` for a round trip, idempotence, an order or size law, a simpler reference model, or a parser or serializer: questions that find the rule a property checks, how to write generators and handle a failing case, the rule that the oracle never reruns the code under test (pointing at `/testing:test-value`), and how the audit's property-file exemption from `rule-recomputed-derived` applies. Per-language references for Hypothesis, fast-check, and FsCheck or CsCheck load only when the code under test is in that language.
+- `/testing:write` gains a property-test route, a characterization, approval and differential route, an opt-in blind test author mode (a separate agent writes acceptance tests from the spec without reading the implementation), outside-in user-flow-first guidance, and concrete determinism controls. The 100ms/5s speed bar is relabeled as this repository's own heuristic.
+- `/testing:plan` adds property and characterization (pin) rows.
+- `/testing:test-value` section 1 adds where a property comes from and how it shows it can fail, the rewrite-pin carve-out with a sabotage check, grounding canned responses from unmanaged dependencies, and the oracle record for tests the same agent wrote from its own code. The snapshot row covers volatile values and blind re-approval.
+- The test-judge flags, or marks UNKNOWN, an unsourced canned response from an external API. Judge calibration is scored on holdout rows only from this change on.
+- `/testing:run-e2e` runs a committed flow suite first as the oracle, starts a trace before driving, and hands `/testing:diagnose` a failure packet shaped as its next input. App-sourced fields sit inside an untrusted-data block, query strings and secret field values are redacted when the packet is written, and trace files stay out of PRs and public artifacts.
+- `/testing:diagnose` caps diagnostic reruns of an unchanged test, keeps first-failure artifacts before any rerun, and replays with the printed seed.
+- `/testing:cleanup` quarantines carry an owner, a tracking issue and an expiry, and expired quarantines are reported for re-enable, escalation or renewal.
+- `/testing:audit` `rule-flaky-passes-suite` also reads pytest-rerunfailures reruns without `--fail-on-flaky`, Vitest `test.retry` and Jest `jest.retryTimes`. A multi-line config value can no longer inject a line into the scanner's record stream.
+
+### Changed
+
+- `/testing:audit` scopes the `rule-recomputed-derived` property exemption to the test that holds the marker instead of the whole file, so an example test beside a property test is now judged and can produce new report-only findings. Go property markers are now call forms, and FsCheck and CsCheck markers are added.
+
+## [0.22.20] - 2026-10-04
+
+### Changed
+
+- `/testing:run-e2e` owns one browser-tool rubric: Playwright CLI headless by default (Linux-side Chromium on WSL2), Playwright MCP for long stateful exploration, Chrome DevTools MCP for deep performance and network debugging, a committed spec in the project's own browser-test framework (`@playwright/test` when it has none) for durable regression, and Claude in Chrome for the user's logged-in browser on native hosts (from WSL, read the upstream WSL note first; live test pending). It replaces the token table and the fit-triage table.
+- UI verification now inspects the render: an axe scan (necessary, not sufficient), geometry assertions at two or more widths, a pixel baseline when one exists, and a vision review of cropped screenshots whose findings are leads only.
+
+## [0.22.19] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.22.18] - 2026-10-04
+
+### Added
+
+- The test judge now relays a subagent's judged tests to that subagent when it stops (a `SubagentStop` hook). The parent's Stop skips tests whose subagent is still running, and relays a finished subagent's tests that were never relayed. A background judge run keeps the subagent's identity, so the judge class is chosen to differ from the subagent's model as well as the main session's ([#6060](https://github.com/melodic-software/claude-code-plugins/issues/6060)).
+
+### Fixed
+
+- An UNKNOWN verdict blocks an attended Stop only when it started as a FLAG. A quote that is no longer in the file but was in the judged snapshot is reported as stale, not as made up ([#6206](https://github.com/melodic-software/claude-code-plugins/issues/6206)).
+- Identical test bodies in files that are otherwise the same are judged once per Stop and share the verdict, and a PASS is reused for such a body later in the session. A judge repair that changes only comments or blank lines is rejected. The `test_judge_model` description now notes that haiku was not part of the calibration ([#6044](https://github.com/melodic-software/claude-code-plugins/issues/6044)).
+
+## [0.22.17] - 2026-10-04
+
+### Added
+
+- `/testing:audit` scans C# Reqnroll step definition files (`*StepDefinitions.cs`) and template test files (`UnitTest*.cs`), and TypeScript `.mts` and `.cts` test files; the test hooks now reach them too. Reqnroll step attributes are not yet read as test starts ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A new report-only rule, `rule-throw-only-oracle`, reports a C# test whose every assertion only checks that a value it bound, in one statement, to `new T(...)` with nothing chained or cast after it exists or has its own type, so only a throwing constructor can fail it. The test-scan hook counts it among the tests that check little ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A bare `return;` before every assertion of a C# test is reported as `rule-conditional-assertion`, with xUnit, NUnit and MSTest skip calls offered instead; a `return` inside a filtered `catch`, a local function or a lambda is not reported ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+### Fixed
+
+- A Python or Go test whose name or parameters contain an assertion word, such as `test_check_x` or `expected`, no longer counts as asserting, so a zero-assertion test is reported ([#6211](https://github.com/melodic-software/claude-code-plugins/issues/6211)).
+- Each `;`-separated statement on a line of C#, JavaScript, TypeScript, Python or bash is judged on its own, so a weak assertion after an inert one on the same line is reported ([#6218](https://github.com/melodic-software/claude-code-plugins/issues/6218)).
+- `rule-source-text-read` fires on Windows: git and Git Bash spell the repository path differently, and the scanner now compares them in one spelling.
+- The scanner reads C# names correctly under gawk 5.4.0, which fails to match one of its regular expressions.
+- A TypeScript non-null assertion before a division, `total! / count` or `total ! / count`, no longer hides the rest of the line as a regular expression, which caused a false zero-assertion and swallowed the next test.
+- A line of more than 16 statements, such as minified code, is judged whole, so its scan time stays linear in its length and the hooks' scan timeout is not reached.
+
+## [0.22.16] - 2026-10-04
+
+### Fixed
+
+- The test-judge suites pass every fixture path to jq with Git Bash path conversion off for that call (`record`, the stub judge, and each inline payload and verdict builder), so on Windows the fixtures write the same path form the expected project key hashes and the hooks under test read ([#6266](https://github.com/melodic-software/claude-code-plugins/issues/6266)). Linux runs are unchanged.
+
+## [0.22.15] - 2026-10-04
+
+### Fixed
+
+- The Bash route of the test-scan hook no longer scans or records a test file that git reports unchanged from HEAD when git last moved HEAD with a checkout, pull, merge, reset, rebase, cherry-pick or clone (line-ending conversion is applied as `git diff` applies it), so the test judge no longer reviews tests the session did not write at the next Stop. A test edited and committed in one Bash call is still recorded. Files git brought in no longer take the four scan slots from a test the same call wrote, and the per-file scan time is what the git checks leave of the hook's budget. The file's repository is found from either path separator. A test edited, committed and then followed by a checkout, pull or merge in one Bash call is still skipped ([#6016](https://github.com/melodic-software/claude-code-plugins/issues/6016)).
+
+## [0.22.14] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The `test-scan` hook lists findings without their thresholds, gives one Action per rule rather than per finding, lists at most 10 findings, and points to `/testing:test-value` once per file and only when there are findings. `test-scan` and `test-weaken` no longer tell Claude to state a reason before continuing. `test-weaken` names at most five changed expected values, and its deny reason under `test-weaken-block: error` is shorter. `cant-fail-scan.sh --brief` prints the hooks' form, and the `rule-zero-assertion` Action is one sentence.
+
+### Fixed
+
+- **The task-end test judge no longer floods the end of a task ([#6226](https://github.com/melodic-software/claude-code-plugins/issues/6226)).** Tests left to a background job (past the 10-test cap, late, or held by another job) and tests whose judge run failed are counts in one line, never a list of test names. A run where every verdict is a PASS shows one line, `test judge: N tests PASS.`, with the deferred count in the same line. A blocking Stop shows only its reason, with the findings path relative to the project, and no repeated summary. A forced Stop turn and an earlier session whose verdicts were all PASS say nothing.
+
+## [0.22.13] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The `test-scan-bash` row starts the launcher with `--skip-unless-stdin-contains bashEditDiff`, so a Bash payload with no change diff starts node only (#6253). The shared `exec-bash.mjs` launcher copy also gains `--skip-if-all-false`, which no testing row uses (#6252).
+
+### Fixed
+
+- The `test-judge.test.sh` link fixtures now run only when a real native symlink can be made, so cleanup of a self-nesting tree can no longer spin (#6248).
+- The link cases fail, not skip, when the native-link probe fails in CI (#6248).
+- The judge test helper runs `jq` with MSYS path conversion off on each call, so the Stop path hashes the project key the recorder wrote on Windows (#6266).
+
+## [0.22.12] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.22.11] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
 
 ## [0.22.10] - 2026-10-04
 

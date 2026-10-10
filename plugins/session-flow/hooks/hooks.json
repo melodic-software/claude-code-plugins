@@ -17,6 +17,7 @@
         ]
       },
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",

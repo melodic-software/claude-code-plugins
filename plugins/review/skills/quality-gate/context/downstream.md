@@ -31,10 +31,11 @@ command that may not resolve
 
 1. **Gather inputs**: the resolved review diff base (SKILL.md "Shared inputs") and the changed
    symbol list from Step 1.
-2. **Choose the worker**: a general read-only subagent. This mode has no dedicated agent, unlike
-   `architecture` and `security`: its checks are not a fixed per-ecosystem baseline but a search
-   shaped by what the diff changed, so the brief carries the specifics instead of an agent
-   definition.
+2. **Choose the worker**: this plugin's `brief-reviewer` agent (`review:brief-reviewer`), never a
+   general-purpose subagent, so the worker cannot fan out. This mode has no checklist
+   agent, unlike `architecture` and `security`: its checks are not a fixed per-ecosystem baseline
+   but a search shaped by what the diff changed, so the brief below carries the specifics and
+   `brief-reviewer` runs it as given.
 3. **Dispatch** with the brief below.
 4. **Verify every finding before presenting**: open the named file, confirm the caller or reader
    exists and behaves as claimed. Worker output is synthesis, not evidence, and this mode's findings

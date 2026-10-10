@@ -3,11 +3,43 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.2.2] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.2.1] - 2026-10-04
+
+### Changed
+
+- **`reference/pr-scope-budget.md` regenerated.** The convention's Adopters table now lists
+  `/code-tidying:tidy` and `/coupling:reduce` as pointing at their own plugin-shipped copies.
+  The convention now owns only the budget and the rule that a run never grows a PR past the hard
+  cap; what happens to the remainder belongs to each adopter.
+- **`/improvement:improve` states its own overflow handling.** Interactive runs offer a smaller
+  complete slice or `/planning:plan`; unattended runs file the remainder as a deduplicated work
+  item; the PR body names any deferred item by number.
+
+## [0.2.0] - 2026-10-04
 
 ### Added
 
-- **Copy count and clone trend in `find`.** When `/code-metrics:audit-duplication` is available, `find` runs it with `--json --keep --all` and reads each clone class's copy count and the trend's new and grown classes, never an earlier report; copy count ranks spread in the code dimension. That run keeps one report in code-metrics' data directory as the next trend baseline, and the skill body and README now name both writes. A growing class becomes a candidate whose next step is a lint proposal: `find` writes it to a review-findings file under `<memory_dir>/improvement/<branch-slug>/` with the memory-tier write discipline, names the file in the candidate row, and offers `/review:audit-enforceability` when that skill is available. No CI ceiling is proposed on a total clone count. Without code-metrics the run records a `gap:` line.
+- **`/improvement:improve`: improve one thing in any target and ship it as one small draft PR.**
+  The target can be anything from a method to a feature, a skill, or a doc. The skill measures it
+  against the repo's written standards, resolved through the shipped standards contract, and
+  against current upstream guidance when the focus asks for it. It fixes the smallest complete gap
+  within the PR scope budget and hands anything larger to planning. With no arguments it reads the
+  conversation and confirms target and focus with the user before acting. `--unattended` runs
+  check repo standards only and stop at three open improve PRs.
+- `reference/standards-contract.md` and `reference/pr-scope-budget.md`, generated copies of the
+  repository's standards and PR scope budget conventions.
+
+### Changed
+
+- `/improvement:find` hands a pick that fits one small PR to `/improvement:improve`, gains a
+  `## Next` section, and no longer claims the "improve X" trigger, which now belongs to
+  `improve`.
 
 ## [0.1.24] - 2026-10-02
 

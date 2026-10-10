@@ -2,10 +2,8 @@ import type { EngineInterface, PromptOrigin, Register, Timer, ToolCallInput } fr
 import { RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
-const SOURCE_NOTE = '(a measurement from the last API response)'
-const STEER =
-  "A zone is a measurement, not an instruction: degradation shows in the work itself (drift, repetition, dropped constraints), never in a zone word, and continuation is the operator's call."
-const DEGRADED_LABEL = 'dumb (evidence-degraded: this session was compacted)'
+const PREFIX = 'context-guard: '
+const NEXT_ZONE: Partial<Record<Zone, Zone>> = { smart: 'acceptable', acceptable: 'dumb' }
 const SESSION_ID = /^[A-Za-z0-9_-]+$/
 const GATED_TOOLS = ['Write', 'Edit', 'NotebookEdit', 'Agent', 'Workflow']
 const PERSON_ORIGINS = ['composer', 'bridge']
@@ -18,8 +16,8 @@ const DATA_ITEMS = ['zone', 'percent', 'tokens', 'window']
 const ACTIONS = ['none', 'save-state', 'handoff', 'block'] as const
 const ACTION_TEXT: Record<Action, string> = {
   none: '',
-  'save-state': 'compaction distance is short, so each expensive conclusion goes to a durable note as it stabilizes',
-  handoff: 'hand off at the next clean stopping point',
+  'save-state': 'save-state',
+  handoff: 'handoff',
   block: 'new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed',
 }
 
@@ -36,6 +34,7 @@ type Config = {
   grace: number
   blockUnattended: boolean
   band: boolean
+  toast: boolean
 }
 // The snapshot body: reference/reader-contract.md "Snapshot file shape".
 type Snapshot = {
@@ -52,8 +51,11 @@ type Snapshot = {
   }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
+// shown: the person's channel has handled it: the batch's last crossing got the transcript line
+// (and the toast, when on), or it came from 'unobserved' and was deliberately skipped.
+type Crossing = { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; shown?: boolean; armedBefore: number }
 type Event =
-  | { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; armedBefore: number }
+  | Crossing
   | { kind: 'restate'; zone: Zone; degraded: boolean }
   | { kind: 'approach'; zone: Zone; toward: string }
   | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold }
@@ -64,17 +66,20 @@ type Session = {
   approached: Set<string>
   compacted: boolean
   pending: Event[]
-  restate: 'all' | 'loud' | undefined
+  restate: boolean
   reading: Reading | undefined
   grace: number
   written: { sig: string; at: number } | undefined
   body: Snapshot | undefined
   offered: Event[]
 }
+// A crossing's notice is drawn only where a toast may not show (any surface but the terminal);
+// operator mode's held line is drawn on every surface.
+type Notice = { text: string; kind: 'crossing' | 'operator' }
 type State = {
   origin: PromptOrigin | undefined
   forceAutomatic: boolean
-  notice: string | undefined
+  notice: Notice | undefined
   bandShown: boolean
   band: string | undefined
   reading: Reading | undefined
@@ -84,7 +89,7 @@ type State = {
   writing: Promise<void>
   loggedOnce: Set<string>
   sessions: Map<string, Session>
-  carry: 'all' | undefined
+  carry: boolean
   settings: Settings
   zonesText: string | null
   zonesKey: string | undefined
@@ -120,7 +125,8 @@ export const parseConfig = (options: Record<string, unknown>): Config & { bad: s
     blocking: options.zone_hook_mode === 'blocking',
     grace,
     blockUnattended: options.zone_block_unattended === 'same-as-typed',
-    band: options.context_guard_band !== false,
+    band: options.context_guard_band === true,
+    toast: options.context_guard_toast !== false,
     bad,
   }
 }
@@ -199,9 +205,9 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   s.reading = reading
   const { zone, percent } = reading
   if (zone === undefined) return
-  if (s.restate !== undefined) {
-    if (s.restate === 'all' || zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
-    s.restate = undefined
+  if (s.restate) {
+    if (zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
+    s.restate = false
     s.armed = Math.max(s.armed, RANK[zone])
     s.last = zone
     for (const t of settings.thresholds) if (percent !== undefined && percent >= t.at) s.fired.add(t.at)
@@ -237,8 +243,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
     return percent !== undefined && percent >= edgePercent - settings.margin && percent <= edgePercent
   }
   const boundaries = [
-    { key: 'acceptable', toward: 'the acceptable zone', near: s.armed < 1 && near(smart, tok?.smart) },
-    { key: 'dumb', toward: 'the dumb zone', near: s.armed < 2 && near(acceptable, tok?.acceptable) },
+    { key: 'acceptable', toward: 'acceptable', near: s.armed < 1 && near(smart, tok?.smart) },
+    { key: 'dumb', toward: 'dumb', near: s.armed < 2 && near(acceptable, tok?.acceptable) },
     ...settings.thresholds.map(t => ({
       key: `t${t.at}`,
       toward: 'an operator threshold',
@@ -253,7 +259,8 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   }
 }
 
-const label = (zone: Zone, degraded: boolean) => (degraded && zone === 'dumb' ? DEGRADED_LABEL : zone)
+// The verdict as Claude and the person read it: acceptable zone (2 of 3), dumb zone (3 of 3, compacted).
+const verdictText = (zone: Zone, degraded: boolean) => `${zone} zone (${RANK[zone] + 1} of 3${degraded && zone === 'dumb' ? ', compacted' : ''})`
 
 const dataText = (r: Reading | undefined, cfg: Config) => {
   const items: string[] = []
@@ -268,44 +275,56 @@ const sentence = (source: string, rule: Rule) => {
   return text === '' || rule.action === 'none' && rule.text === undefined ? '' : ` context-guard (${source}): ${text}.`
 }
 
-// The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone,
-// then the dumb zone's default save-state note.
-const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule; via: 'zones' | 'option' | 'default' }[] => {
+// The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone.
+const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule }[] => {
   const set = settings.actions[zone]
-  if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set, via: 'zones' }]
-  if (zone !== 'dumb') return []
-  return [
-    ...(cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' as const }, via: 'option' as const }] : []),
-    { source: 'default for the dumb zone', rule: { action: 'save-state' as const }, via: 'default' as const },
-  ]
+  if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set }]
+  return zone === 'dumb' && cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' } }] : []
 }
 
-// The block in force for this session now, if any: its zone's, or a passed threshold's.
+// The zone whose block is in force for this session now, if any: its zone's, or a passed threshold's.
 const blockFor = (s: Session, settings: Settings, cfg: Config) => {
   const zone = s.reading?.zone
   if (zone === undefined) return undefined
-  const rule = zoneRules(zone, settings, cfg).find(r => r.rule.action === 'block')
-  if (rule) return { zone, source: rule.source, via: rule.via }
-  const t = settings.thresholds.find(th => th.action === 'block' && s.fired.has(th.at))
-  return t ? { zone, source: 'operator setting for a threshold', via: 'zones' as const } : undefined
+  if (zoneRules(zone, settings, cfg).some(r => r.rule.action === 'block')) return zone
+  return settings.thresholds.some(th => th.action === 'block' && s.fired.has(th.at)) ? zone : undefined
 }
 
-export const renderEvent = (e: Event, r: Reading | undefined, cfg: Config, settings: Settings) => {
-  const data = dataText(r, cfg)
+export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Settings) => {
+  const data = dataText(s.reading, cfg)
   const action = (zone: Zone) =>
     zoneRules(zone, settings, cfg)
       .map(z => sentence(z.source, z.rule))
       .join('')
+  // A line states facts only: what to do about them is left to the model and the user.
+  const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
+  // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
+  const near = (zone: Zone) => {
+    const toward = NEXT_ZONE[zone]
+    return toward !== undefined && s.approached.has(toward) ? `, nearing ${toward}` : ''
+  }
   switch (e.kind) {
     case 'crossing':
-      return `context-guard: this session crossed from the ${e.from} into the ${label(e.zone, e.degraded)} context zone${data} ${SOURCE_NOTE}. ${STEER}${action(e.zone)}`
     case 'restate':
-      return `context-guard: this session is in the ${label(e.zone, e.degraded)} context zone${data} ${SOURCE_NOTE}. ${STEER}${action(e.zone)}`
+      return `${line(e.zone, e.degraded, near(e.zone))}${action(e.zone)}`
     case 'approach':
-      return `context-guard: this session is in the ${e.zone} context zone${data}, approaching ${e.toward} ${SOURCE_NOTE}.`
+      return line(e.zone, false, `, nearing ${e.toward}`)
     case 'threshold':
-      return `context-guard: this session passed an operator threshold in the ${label(e.zone, e.degraded)} context zone${data} ${SOURCE_NOTE}. ${STEER}${sentence('operator setting for a threshold', e.rule)}`
+      return `${line(e.zone, e.degraded, ', past an operator threshold')}${sentence('operator setting for a threshold', e.rule)}`
   }
+}
+
+// The verdict lines due at one carrier: a line that another one already starts with (an approach
+// line its crossing repeats, with or without an action after it) is sent once.
+const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
+  const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
+  return lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+}
+
+// Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
+const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
+  for (const line of lines) $.ui.log(line, { to: 'debug' })
+  return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
 }
 
 const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || undefined
@@ -333,7 +352,7 @@ const sessionFor = (st: State, sid: string) => {
   let s = st.sessions.get(sid)
   if (s === undefined) {
     s = newSession(st.carry)
-    st.carry = undefined
+    st.carry = false
     st.sessions.set(sid, s)
   }
   return s
@@ -386,7 +405,7 @@ async function refresh($: EngineInterface, st: State) {
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
   st.reading = reading
-  const band = bandText(reading, undefined)
+  const band = bandText(reading)
   if (band !== st.band) {
     st.band = band
     $.ui.invalidate('ui.render')
@@ -402,13 +421,13 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
   return (await $.session.surfaces()).length > 0
 }
 
-// The continuation menu is the operator's: a transcript line Claude does not read, and a band
-// notice until the person's next prompt. It never goes into Claude's context.
-const menuText = (from: string, to: string) =>
-  `context-guard: context zone ${from} → ${to}. Response quality can degrade as context fills (bands tunable: zones.json). ` +
-  'Continuation options, yours to choose: continue; /compact; /clear; /session-flow:handoff (if installed) or a hand-written ' +
-  'resume note, then /clear. To pick one, route the next step with /session-flow:workflow (if installed); without it, see ' +
-  'https://code.claude.com/docs/en/context-window#when-your-context-fills-up.'
+// The continuation menu is the person's: a toast, and a transcript line Claude does not read. It
+// never goes into Claude's context. The engine titles the toast with the plugin's name.
+const toastText = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
+const menuLine = (from: string, to: string) =>
+  `context-guard: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-guard`
+const menuZone = (zone: Zone, degraded: boolean) => (degraded && zone === 'dumb' ? 'dumb (compacted)' : zone)
+const noticeShows = (st: State, surface: string) => st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
 // The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
 // One fire of a hook, for its telemetry envelope: the event, when it started, and the optional
@@ -465,31 +484,68 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     s.pending = []
     return []
   }
-  if (cfg.lines && (await operatorHolds($, st, cfg))) return []
-  const taken = s.pending.splice(0)
-  // A restatement says the current verdict, so a crossing or an earlier restatement due at the same
-  // carrier merges into it rather than reaching Claude twice.
-  const lastRestate = taken.findLastIndex(e => e.kind === 'restate')
-  const events = lastRestate < 0 ? taken : taken.filter((e, i) => i === lastRestate || (e.kind !== 'crossing' && e.kind !== 'restate'))
+  const holds = cfg.lines && (await operatorHolds($, st, cfg))
+  // A restatement says the verdict as of when it was recorded, so a crossing or an earlier
+  // restatement before it merges into it rather than reaching Claude twice. A crossing recorded
+  // after it is the newer verdict and replaces it. No await from here until s.pending is replaced.
+  const pending = s.pending
+  const lastRestate = pending.findLastIndex(e => e.kind === 'restate')
+  const keep = pending.findLastIndex(e => e.kind === 'crossing') > lastRestate ? -1 : lastRestate
+  const merged =
+    lastRestate < 0 ? pending : pending.filter((e, i) => i > lastRestate || i === keep || (e.kind !== 'crossing' && e.kind !== 'restate'))
+  // A hold keeps lines for the suggestion, except a crossing the person was already shown (read in an
+  // unattended turn): offering it again would repeat it, so it goes to Claude as in automatic mode.
+  const seen = (e: Event) => e.kind === 'crossing' && e.shown === true
+  const events = holds ? merged.filter(seen) : merged
+  s.pending = holds ? merged.filter(e => !seen(e)) : []
+  if (holds && events.length === 0) return []
   st.forceAutomatic = false
-  const crossed = events.filter(e => e.kind === 'crossing' && !e.handedOff).at(-1)
-  if (crossed?.kind === 'crossing') {
-    st.notice = menuText(crossed.from, label(crossed.zone, crossed.degraded))
-    $.ui.log(st.notice)
-    $.ui.invalidate('ui.render')
+  let lines: string[] = []
+  if (cfg.lines && events.length > 0) {
+    await emitTelemetry($, 'zone-crossing-inject', 'ok', crossingData(s, events, { injected: true }), fire)
+    lines = renderAll(events, s, cfg, st.settings)
   }
-  if (!cfg.lines || events.length === 0) return []
-  await emitTelemetry($, 'zone-crossing-inject', 'ok', crossingData(s, events, { injected: true }), fire)
-  return events.map(e => renderEvent(e, s.reading, cfg, st.settings))
+  // The person's channel runs after Claude's lines are built, so a failing toast never drops one.
+  showCrossing($, st, cfg, events)
+  return lines
+}
+
+// Shows the person the last crossing among events not yet shown: a toast, a transcript line and the
+// crossing notice. Each crossing is shown once. A handed-off suggestion already reached the person,
+// and a crossing from 'unobserved' (a first reading already past smart) is never shown.
+function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[]) {
+  const due = events.filter((e): e is Crossing => e.kind === 'crossing' && !e.handedOff && !e.shown)
+  const crossed = due.at(-1)
+  const showable = crossed !== undefined && crossed.from !== 'unobserved'
+  const to = showable ? menuZone(crossed.zone, crossed.degraded) : ''
+  if (showable) {
+    st.notice = { text: menuLine(crossed.from, to), kind: 'crossing' }
+    $.ui.log(st.notice.text)
+  }
+  for (const e of due) e.shown = true
+  if (!showable) return
+  // The engine drops a failing toast itself; it never throws into the module.
+  if (cfg.toast) $.ui.toast(toastText(crossed.from, to))
+  $.ui.invalidate('ui.render')
+}
+
+// A crossing read with a turn's final answer has no carrier until the next prompt, so the person
+// sees it at the measurement; Claude's line still waits for that carrier. A turn operator mode
+// holds keeps it for the suggestion.
+async function showPending($: EngineInterface, st: State, cfg: Config) {
+  const s = st.sessions.get(await $.session.id())
+  if (s === undefined || !cfg.enabled) return
+  if (cfg.lines && (await operatorHolds($, st, cfg))) return
+  showCrossing($, st, cfg, s.pending)
 }
 
 // Offers the held lines as the prompt box's suggestion. With text in the box it waits (false);
 // where a suggestion cannot show, the lines go to Claude at the next carrier.
 async function offer($: EngineInterface, st: State, s: Session, fire: Fire) {
-  if (st.notice === undefined) return true
+  if (st.notice?.kind !== 'operator') return true
   const box = await $.prompt.read()
   if (box.text.trim() !== '') return false
-  const { isShown } = await $.prompt.suggest({ text: st.notice })
+  const { isShown } = await $.prompt.suggest({ text: st.notice.text })
   if (isShown) {
     await emitTelemetry($, 'zone-crossing-inject', 'ok', crossingData(s, s.pending, { injected: false, suggested: true }), fire)
     // Shown is not taken: kept until the next turn says whether a person saw it.
@@ -507,15 +563,50 @@ function stopTimer(timer: Timer | undefined) {
   return undefined
 }
 
-// The band row: [<model>] ctx <n>% (<zone>).
-export const bandText = (r: Reading | undefined, model: string | undefined) => {
+// The band row: ctx <n>% (<zone>).
+export const bandText = (r: Reading | undefined) => {
   const zone = r?.zone === undefined ? '' : ` (${r.degraded && r.zone === 'dumb' ? 'dumb, compacted' : r.zone})`
-  return `[${model || 'Claude'}] ctx ${r?.percent === undefined ? '-' : `${r.percent}%${zone}`}`
+  return `ctx ${r?.percent === undefined ? '-' : `${r.percent}%${zone}`}`
+}
+
+const USAGE = 'usage: /context-guard [band [on|off]]'
+const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-guard/README.md'
+const DOCS = 'https://code.claude.com/docs/en/context-window#when-your-context-fills-up'
+
+// /context-guard with no argument: the verdict with its figures and the settings in force. The reply
+// is stored as a transcript row Claude reads, so it carries no menu, router pointer or link; those
+// go to a transcript line Claude does not read.
+const POINTER = `context-guard: next step: route it with /session-flow:workflow (if installed), or see ${DOCS} · more: ${README}`
+async function statusText($: EngineInterface, st: State, cfg: Config) {
+  const { s, body, settings } = await refresh($, st)
+  await showPending($, st, cfg)
+  const r = s.reading
+  const w = body.context_window
+  const verdict = r?.zone === undefined ? 'zone unknown' : verdictText(r.zone, r.degraded)
+  const figures =
+    w.used_percentage === null
+      ? `no reading yet (a ${w.context_window_size}-token window)`
+      : `${w.used_percentage}% of a ${w.context_window_size}-token window used (${w.total_input_tokens ?? '?'} tokens)`
+  const home = await homeDir($)
+  const zones = home === undefined ? 'zones.json: no home directory' : `${home}/.claude/${CONTRACT_DIR}/zones.json (${st.zonesText === null ? 'absent' : 'present'})`
+  const { smart, acceptable } = settings.bands
+  const t = tokenShape(w, body.cli_version, settings.bands)
+  const bands = t
+    ? `Bands (the worse decides): smart up to ${smart}% and ${t.smart} tokens, acceptable up to ${acceptable}% and ${t.acceptable} tokens`
+    : `Bands: smart up to ${smart}%, acceptable up to ${acceptable}%`
+  return [
+    `${verdict}, ${figures}`,
+    `${bands}; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
+    `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
+    `Settings: ${zones}`,
+  ].join('\n')
 }
 
 async function statusJson($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
+  await showPending($, st, cfg)
   const w = body.context_window
+  const t = tokenShape(w, body.cli_version, settings.bands)
   return JSON.stringify({
     source: 'the last API response',
     zone: s.reading?.zone ?? 'unknown',
@@ -524,7 +615,12 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     total_input_tokens: w.total_input_tokens ?? null,
     total_output_tokens: w.total_output_tokens ?? null,
     context_window_size: w.context_window_size,
-    bands: { smart_max_used_percentage: settings.bands.smart, acceptable_max_used_percentage: settings.bands.acceptable },
+    bands: {
+      smart_max_used_percentage: settings.bands.smart,
+      acceptable_max_used_percentage: settings.bands.acceptable,
+      smart_max_tokens: t?.smart ?? null,
+      acceptable_max_tokens: t?.acceptable ?? null,
+    },
     approach_margin: settings.margin,
     gate: { mode: cfg.blocking ? 'blocking' : 'advisory', grace_calls: cfg.grace, calls_counted: s.grace },
   })
@@ -589,15 +685,13 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Read-only. Returns this session's context-window figures as the last API response reported them, with " +
-        "context-guard's zone (smart, acceptable, dumb or unknown), whether a compaction degraded the evidence, the " +
-        'bands in force and the gate state, as JSON. Takes no input.',
+        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb), and the gate's mode (advisory or blocking) with its grace calls and calls counted. Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. By default context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
-      name: 'band',
-      description: 'Show or hide the context-guard band row for this session: show, hide, or nothing to toggle',
-      argumentHint: '[show|hide]',
+      name: 'context-guard',
+      description: 'Context zone status and details; band on or off sets the band row for this session, bare band toggles it',
+      argumentHint: '[band [on|off]]',
     }),
   ])
   if (tool.status === 'rejected') {
@@ -624,12 +718,10 @@ async function gate($: EngineInterface, st: State, cfg: Config, e: ToolCallInput
   if (/handoff/i.test(target)) return undefined
   s.grace += 1
   if (s.grace <= cfg.grace) return undefined
-  await emitTelemetry($, 'zone-gate', 'blocked', { zone: block.zone, grace: cfg.grace, calls_seen: s.grace }, fire)
-  const off = block.via === 'option' ? 'zone_hook_mode advisory turns the gate off.' : 'The actions entry in zones.json sets this gate.'
+  await emitTelemetry($, 'zone-gate', 'blocked', { zone: block, grace: cfg.grace, calls_seen: s.grace }, fire)
   return (
-    `context-guard blocking mode (${block.source}): this session is in the ${block.zone} context zone and the grace budget of ` +
-    `${cfg.grace} matched calls is spent, so new ${e.tool} work is denied. Handoff-path writes, read-only tools, Bash and Skill ` +
-    `calls stay allowed; /session-flow:handoff (if installed) writes a save-point this gate exempts. ${off}`
+    `${PREFIX}${e.tool} denied: ${block} zone, grace budget of ${cfg.grace} calls spent. ` +
+    'Reads, Bash, Skill and handoff-path writes still run.'
   )
 }
 
@@ -648,7 +740,7 @@ export const register: Register = (on, options) => {
     writing: Promise.resolve(),
     loggedOnce: new Set(),
     sessions: new Map(),
-    carry: undefined,
+    carry: false,
     settings: parseSettings(null),
     zonesText: null,
     zonesKey: undefined,
@@ -665,7 +757,7 @@ export const register: Register = (on, options) => {
     if ((await $.session.turns()) > 0) {
       const s = await current($, st)
       s.pending = []
-      s.restate = 'loud'
+      s.restate = true
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -677,7 +769,7 @@ export const register: Register = (on, options) => {
     // a fresh read: usage at exit can come back empty, and a session never refreshed writes nothing.
     await queueWrite($, st)
     st.sessions.delete(e.sessionId)
-    st.carry = e.reason === 'resume' ? 'all' : undefined
+    st.carry = e.reason === 'resume'
     st.origin = undefined
     st.recheckTool = true
     return next(e)
@@ -688,7 +780,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in result && result.skip)) {
       const s = await current($, st)
       s.compacted = true
-      s.restate = 'all'
+      s.restate = true
       s.grace = 0
     }
     return result
@@ -718,13 +810,13 @@ export const register: Register = (on, options) => {
       if (tools !== undefined && !tools.some(t => t.name === `mcp__${$.plugin.name}__status`)) await registerSurfaces($, st)
     }
     await refresh($, st)
-    const lines = await takeLines($, st, cfg, { event: 'prompt.submit', startMs })
-    return next(lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] })
+    return next(withLines($, e, await takeLines($, st, cfg, { event: 'prompt.submit', startMs })))
   }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
     await refresh($, st)
     await queueWrite($, st)
+    await showPending($, st, cfg)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -743,9 +835,9 @@ export const register: Register = (on, options) => {
     st.writeTimer = stopTimer(st.writeTimer)
     if (cfg.enabled && cfg.lines && (await operatorHolds($, st, cfg))) {
       const s = await current($, st)
-      const lines = s.pending.map(ev => renderEvent(ev, s.reading, cfg, st.settings))
+      const lines = renderAll(s.pending, s, cfg, st.settings)
       if (lines.length > 0) {
-        st.notice = `FYI, ${lines.join(' ')}`
+        st.notice = { text: `FYI, ${PREFIX}${lines.map(l => l.replace(PREFIX, '')).join(' ')}`, kind: 'operator' }
         $.ui.invalidate('ui.render')
         const fire: Fire = { event: 'turn.complete', startMs }
         if (!(await offer($, st, s, fire))) {
@@ -762,26 +854,33 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('command.run', async ($, e, next) => {
-    if (e.command !== 'band' && e.command !== `${$.plugin.name}:band`) return next(e)
-    const arg = e.args.trim().toLowerCase()
-    st.bandShown = arg === 'show' ? true : arg === 'hide' ? false : !st.bandShown
+  on('command.run', { command: 'context-guard' }, async ($, e, next) => {
+    const [sub, arg, ...rest] = e.args.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (sub === undefined) {
+      const text = await statusText($, st, cfg)
+      $.ui.log(POINTER, { to: 'transcript' })
+      return { text }
+    }
+    if (sub !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
+    st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')
-    return { text: `context-guard: band row ${st.bandShown ? 'shown' : 'hidden'} for this session` }
+    // Claude Code puts the plugin's name before a command's reply, so no reply carries it again.
+    return { text: `band row ${st.bandShown ? 'on' : 'off'} for this session` }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
-    if (e.props.hasSurvey || (!st.bandShown && st.notice === undefined)) return theirs
+    const notice = noticeShows(st, e.surface) ? st.notice?.text : undefined
+    if (e.props.hasSurvey || (!st.bandShown && notice === undefined)) return theirs
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {st.bandShown ? (
           <Text dimColor wrap="truncate">
-            {bandText(st.reading, await $.session.model().catch(() => undefined))}
+            {bandText(st.reading)}
           </Text>
         ) : null}
-        {st.notice !== undefined ? <Text wrap="truncate">{`context-guard notice: ${st.notice}`}</Text> : null}
+        {notice !== undefined ? <Text wrap="wrap">{notice}</Text> : null}
         {theirs}
       </Box>
     )
@@ -791,7 +890,10 @@ export const register: Register = (on, options) => {
     if (e.tool === `mcp__${$.plugin.name}__status`) return { result: await statusJson($, st, cfg) }
     const fire: Fire = { event: 'tool.call', startMs: await $.clock.now(), toolUseId: (e as { tool_use_id?: unknown }).tool_use_id, agentId: e.agentId }
     const deny = await gate($, st, cfg, e, fire)
-    if (deny !== undefined) return { deny }
+    if (deny !== undefined) {
+      $.ui.log(deny, { to: 'debug' })
+      return { deny }
+    }
     const result = await next(e)
     // The gate's envelope timed the call before the tool ran; the line work after it starts its own clock.
     const after: Fire = { ...fire, startMs: await $.clock.now() }
@@ -799,7 +901,6 @@ export const register: Register = (on, options) => {
     await queueWrite($, st)
     if (e.agentId !== undefined) return result
     if (result.deny !== undefined || result.isError) return result
-    const lines = await takeLines($, st, cfg, after)
-    return lines.length === 0 ? result :{ ...result, context: [...(result.context ?? []), ...lines] }
+    return withLines($, result, await takeLines($, st, cfg, after))
   }).catch(($, e, next) => next(e))
 }

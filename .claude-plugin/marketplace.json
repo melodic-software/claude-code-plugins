@@ -62,7 +62,6 @@
       "name": "typos-format",
       "source": "./plugins/typos-format",
       "category": "development",
-      "defaultEnabled": false,
       "tags": ["typos", "spelling", "formatter", "linter", "hook"],
       "relevance": {
         "topic": "Spelling / typo fixing",
@@ -145,14 +144,12 @@
       "name": "architecture",
       "source": "./plugins/architecture",
       "category": "design",
-      "defaultEnabled": false,
       "tags": ["architecture", "refactoring", "deep-modules", "ousterhout", "module-design", "testability", "c4", "landscape", "dependencies", "components", "containers", "context", "flow", "events", "data", "deployment", "portfolio", "adr", "decision-record", "skill"]
     },
     {
       "name": "mcp-tools",
       "source": "./plugins/mcp-tools",
       "category": "quality",
-      "defaultEnabled": false,
       "tags": ["mcp", "tools", "audit", "quality", "scorecard", "skill"],
       "relevance": {
         "topic": "MCP servers",
@@ -165,14 +162,12 @@
       "name": "prototype",
       "source": "./plugins/prototype",
       "category": "design",
-      "defaultEnabled": false,
       "tags": ["prototype", "spike", "throwaway", "design", "ui", "state-machine", "skill"]
     },
     {
       "name": "knowledge",
       "source": "./plugins/knowledge",
       "category": "discovery",
-      "defaultEnabled": false,
       "tags": ["knowledge", "distill", "book", "pdf", "epub", "youtube", "video", "transcript", "course", "dometrain", "teachable", "skill", "reference", "synthesis", "ingest"],
       "relevance": {
         "topic": "books and PDFs",
@@ -238,7 +233,6 @@
       "name": "harness-memory",
       "source": "./plugins/harness-memory",
       "category": "claude-code",
-      "defaultEnabled": false,
       "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
     },
     {
@@ -264,7 +258,6 @@
       "name": "playwright",
       "source": "./plugins/playwright",
       "category": "testing",
-      "defaultEnabled": false,
       "tags": ["playwright", "e2e", "browser-automation", "testing", "tooling", "skill"],
       "relevance": {
         "topic": "Playwright",
@@ -289,7 +282,6 @@
       "name": "coupling",
       "source": "./plugins/coupling",
       "category": "maintenance",
-      "defaultEnabled": false,
       "tags": ["coupling", "cohesion", "decouple", "connascence", "dependency-injection", "refactoring", "skill"]
     },
     {
@@ -459,7 +451,6 @@
       "name": "performance",
       "source": "./plugins/performance",
       "category": "verification",
-      "defaultEnabled": false,
       "tags": ["performance", "benchmarking", "baseline", "measurement", "optimization", "noise-characterization", "drift-immune-counter", "interleaved-ab", "skill"]
     },
     {
@@ -480,14 +471,12 @@
       "name": "codebase-health",
       "source": "./plugins/codebase-health",
       "category": "quality",
-      "defaultEnabled": false,
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
       "name": "code-metrics",
       "source": "./plugins/code-metrics",
       "category": "quality",
-      "defaultEnabled": false,
       "tags": ["code-metrics", "complexity", "cyclomatic", "cognitive-complexity", "halstead", "duplication", "coverage", "crap", "type-coverage", "lines-of-code", "measurement", "audit", "skill"]
     },
     {
@@ -501,7 +490,6 @@
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
-      "defaultEnabled": false,
       "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "illustrate", "onboarding", "quiz", "comprehension", "skill"]
     },
     {
@@ -597,14 +585,12 @@
       "name": "adhd",
       "source": "./plugins/adhd",
       "category": "personal",
-      "defaultEnabled": false,
       "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
     },
     {
       "name": "github",
       "source": "./plugins/github",
       "category": "operations",
-      "defaultEnabled": false,
       "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
     },
     {
@@ -612,7 +598,6 @@
       "source": "./plugins/x",
       "category": "discovery",
       "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
-      "defaultEnabled": false,
       "relevance": {
         "topic": "X (Twitter) content",
         "signals": {
@@ -624,14 +609,12 @@
       "name": "wizard",
       "source": "./plugins/wizard",
       "category": "development",
-      "defaultEnabled": false,
       "tags": ["wizard", "setup", "provisioning", "credentials", "ci-secrets", "migration", "cutover", "bash", "skill"]
     },
     {
       "name": "mutation-testing",
       "source": "./plugins/mutation-testing",
       "category": "testing",
-      "defaultEnabled": false,
       "tags": [
         "mutation-testing",
         "test-quality",
@@ -677,7 +660,6 @@
       "name": "overengineering",
       "source": "./plugins/overengineering",
       "category": "quality",
-      "defaultEnabled": false,
       "tags": [
         "overengineering",
         "enforcement-surface",
@@ -697,7 +679,6 @@
       "name": "improvement",
       "source": "./plugins/improvement",
       "category": "quality",
-      "defaultEnabled": false,
       "tags": [
         "improvement",
         "evidence",
@@ -760,6 +741,25 @@
         "prose",
         "skill"
       ]
+    },
+    {
+      "name": "user-interface",
+      "source": "./plugins/user-interface",
+      "category": "presentation",
+      "tags": ["user-interface", "ui", "terminal", "cli", "tui", "design-system", "accessibility", "skill"]
+    },
+    {
+      "name": "user-experience",
+      "source": "./plugins/user-experience",
+      "category": "design",
+      "tags": ["user-experience", "ux", "user-research", "personas", "jobs-to-be-done", "skill"]
+    },
+    {
+      "name": "developer-experience",
+      "source": "./plugins/developer-experience",
+      "category": "development",
+      "defaultEnabled": false,
+      "tags": ["developer-experience", "dx", "tooling", "cli", "scripts", "audit", "skill"]
     }
   ]
 }

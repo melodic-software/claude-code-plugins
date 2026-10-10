@@ -1,8 +1,9 @@
 {
-  "description": "Inside a multi-agent:drift-checker subagent, denies any WebFetch that is not an https URL on a first-party docs host with no query string. Every other agent and the main thread pass through.",
+  "description": "Inside a multi-agent:drift-checker subagent, denies any WebFetch that is not an https URL on a first-party docs host with no query string. Inside a multi-agent:docs-fetcher subagent, denies any Bash command but the plugin's docs-raw.sh on such a URL. Every other agent and the main thread pass through.",
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",
@@ -23,6 +24,25 @@
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"],
             "timeout": 10,
             "statusMessage": "Checking the drift-checker fetch host..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs",
+              "multi-agent:docs-fetcher",
+              "code.claude.com",
+              "platform.claude.com",
+              "docs.claude.com",
+              "docs.anthropic.com",
+              "www.anthropic.com"
+            ],
+            "timeout": 10
           }
         ]
       }

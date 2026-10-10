@@ -4,7 +4,7 @@ argument-hint: "[library|module|data|integration|system] [status|thread <name>|d
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: design
   summary: Resolve types, contracts, and module boundaries before planning
 ---
 
@@ -36,7 +36,7 @@ This is the step between research and planning: exploration maps existing code, 
 
 The depth of design exploration scales to the work:
 
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:plan` via the Skill tool
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:design-handoff` via the Skill tool, which writes PLAN.md's one-line `## Design` record and hands off to `/planning:plan`
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
@@ -53,7 +53,8 @@ tier: C
 reason: <one line, e.g. single-file bugfix, docs-only>
 ---
 
-Optional: type sketch pointer if tier B, linking to type-inventory.md
+Tier B (required): the type sketch, inline or as a link to type-inventory.md.
+/planning:design-handoff quotes it into PLAN.md's `### Contracts`.
 ```
 
 ## Gates
@@ -85,7 +86,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs stay together, because `/planning:plan`'s gate reads them from there. Placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Paste the design's durable content (decisions, typed contracts, topology) into the pull request body or the linked issue. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs stay together, because `/planning:plan`'s gate reads them from there. Placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). `/planning:design-handoff` writes the design's durable content (module layout, contracts, variation verdicts, conventions followed) into PLAN.md's `## Design` section, the copy that reaches the plan, the implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
@@ -126,7 +127,7 @@ For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: si
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch where the feature's tests will attach. Reuse a seam that already exists before adding one; put any new seam as high in the stack as it can go; aim for the smallest set of seams that covers the surface, with a single seam as the target. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+For any feature with a testable surface, open a **test-seam posture** thread: sketch where the feature's tests will attach. Reuse a seam that already exists before adding one; put any new seam as high in the stack as it can go; aim for the smallest set of seams that covers the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
@@ -265,6 +266,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if enabled). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
+- **Self-answer before asking.** Each candidate question first passes [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md): a fact it settles is stated with its basis and source tag, not asked
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
 - **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
 - **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write. Another turn or agent may have modified them. And prefer appending or refining over wholesale rewrites
@@ -279,14 +281,14 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Code writing**. That's the implementation stage
 - **External research**. That's the research capability (this skill synthesizes research results into design decisions)
 - **Diagram craft**. This skill selects the dialect a typed artifact is written in; it teaches no dialect. Layout, readability, and syntax idiom route to the visualization capability (`/visualization:visualize` if that plugin is enabled); without it, the plainest correct form of the dialect is emitted
-- **UI/UX design**. Use dedicated frontend design and UI/UX tooling
+- **UI/UX design**. User research, flows and information architecture are `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if enabled)
 - **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
 - **Product intent**. That's `/planning:prd` (problem, users, success metrics)
 - **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)
 
 ## Next
 
-/planning:design-handoff gates the finished design for /planning:plan.
+/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design` for /planning:plan.
 
 ## Relationship to other skills
 
@@ -295,7 +297,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 | `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is not enabled |
-| `/work-items:decompose` (if enabled) | **After.** The intended reader of a typed artifact's `scope` and `dialect` label, which it will use to inline the artifact into the spec container with a provenance note. That reading is not implemented in decompose yet, so the label is currently inert everywhere: it is written here so the consuming change has a stable shape to land against |
+| `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline the artifact into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
 | `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |

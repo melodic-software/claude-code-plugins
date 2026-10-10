@@ -25,7 +25,7 @@
 #
 # The caller strips a trailing \r before calling, so the masker never sees one.
 
-function mask_js(s,    out, i, c, c2, n, inclass) {
+function mask_js(s,    out, i, c, c2, n, inclass, j, w) {
   out = ""; n = length(s); i = 1
   last_sig = ""  # per line: a regex literal cannot span lines, nor can the operator before it
   while (i <= n) {
@@ -72,7 +72,17 @@ function mask_js(s,    out, i, c, c2, n, inclass) {
       }
     }
     out = out c; i++
-    if (c != " " && c != "\t") last_sig = c
+    # A "!" after a closing bracket, or after a name that is not a keyword
+    # (spaces between allowed), is TypeScript's non-null assertion, a postfix
+    # on a value, so a "/" after it divides; return !/re/ stays a regex.
+    if (c == "!") {
+      j = i - 2
+      while (j > 0 && substr(s, j, 1) ~ /[ \t]/) j--
+      w = ""
+      while (j > 0 && substr(s, j, 1) ~ /[A-Za-z0-9_$]/) { w = substr(s, j, 1) w; j-- }
+      if (w == "" ? substr(s, j, 1) ~ /[])]/ : w !~ /^(return|typeof|case|do|else|in|of|void|delete|throw|new|yield|await|instanceof)$/) last_sig = ")"
+      else last_sig = c
+    } else if (c != " " && c != "\t") last_sig = c
   }
   S_str = 0  # ' and " never span lines
   return out

@@ -4,6 +4,114 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.9] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [0.20.8] - 2026-10-08
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+- **Dependency bump.** Bump source-map-js from 1.2.1 to 1.2.2 in the course-digest extraction package (#6513).
+
+- **Dependency bump.** Bump source-map-js from 1.2.1 to 1.2.2 in the video-digest extraction package (#6468).
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.20.7] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.20.6] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.20.5] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The docpage-digest gate harness, `test_check_html_rows`, and the map-corpus discovery and inventory tests register temp-dir cleanup right after creating the dir.
+
+## [0.20.4] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.20.3] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure checks every part of the question against the sections it read
+  before answering ([#6487](https://github.com/melodic-software/claude-code-plugins/issues/6487)).**
+  Step 3 of `reference/docs-lookup-procedure.md`, synced from the shared copy, now has the reader
+  slice the sections for any part of the question none of its slices covers, and the section of
+  every item when the question asks the same thing for each of many events, options or keys.
+
+## [0.20.2] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.20.1] - 2026-10-07
+
+### Changed
+
+- **Test suites only; nothing shipped changes.** The course-digest `cli-entry` and `cli-browser-artifacts` tests remove their temp dirs after each test; `cli-entry` drops its junction into the source `extraction/` dir first.
+
+## [0.20.0] - 2026-10-07
+
+### Changed
+
+- **`docpage-digest` fetches absence-establishing pages through the shared docs lookup ([#6484](https://github.com/melodic-software/claude-code-plugins/issues/6484)).** The Anthropic profile's complete-fetch rule now runs `scripts/fetch-docs.sh --cache --max-age 0` instead of `curl`: fresh bytes are required, the page's `bytes` come from the manifest, and an `unread` or `stale` record is unread for the claim, never evidence of absence.
+- **`map-corpus` link-map format points page reads at the fetch-route rungs.** WebFetch stays the discovery channel for `llms.txt` and sitemaps; the page itself is read by the upstream-drift convention's rungs.
+- **`prerequisites.json` declares `curl` and `jq`** as required for `docpage-digest`'s docs fetch.
+
+## [0.19.9] - 2026-10-06
+
+### Changed
+
+- **`video-digest` prerequisites say what to try when the usual install falls short, and to run the newest safe release.** The Prerequisites section points at the project's own release builds and conda-forge when a distro package sits below the ffmpeg or ImageMagick floor, and at the `default` and `curl-cffi` extras when yt-dlp comes from pip. The floors are minimums: a run upgrades a tool to its latest stable release when it comes from an official channel and no security advisory is open against it. `prerequisites.json` carries the yt-dlp 2026.6 floor as a version check, so `/harness-ops:prerequisites` reports an outdated yt-dlp, and adds the pip and conda install hints.
+- **`video-digest` states that a watch with no video stops.** When the media download fails, `run-watch.js` already exits non-zero before writing a slice. The skill now says to stop there and report, never to continue without frames or switch to the `transcript` action unasked, and `context/gotchas.md` gains the HTTP 403 media-stream case with its fix paths.
+
+## [0.19.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.19.7] - 2026-10-04
 
 ### Changed

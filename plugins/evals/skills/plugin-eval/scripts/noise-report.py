@@ -3,6 +3,7 @@
 
     noise-report <aggregate-result.json> [--threshold T]
                  [--interval-method normal|wilson|jeffreys] [--grader-agreement]
+                 [--baseline <before.json> [--margin M]]
 
 Reads one result file and prints, one finding per line:
 
@@ -18,6 +19,16 @@ Reads one result file and prints, one finding per line:
                       the --interval-method interval (default normal)
     judge agreement   with --grader-agreement: per llm grader, how often its
                       judge votes agreed, read from votes the result holds
+
+With --baseline, the same file is compared to an earlier result of the suite,
+paired by case name:
+
+    compare           a case absent or not comparable in either result
+    <arm>-arm change  this minus baseline, paired over cases, 95% normal interval
+    case drop         a case whose with-arm score fell by a third or more
+    compare verdict   n too small to call | non-inferior at margin M (the
+                      with-arm interval's lower end is at or above -M) | not
+                      shown non-inferior at margin M (default 0.05)
 
 A partial result prints one line and nothing else. Score intervals are always
 normal; --interval-method changes only the pass-count interval. The reasons are
@@ -40,6 +51,7 @@ MIN_PYTHON = (3, 8)
 Z95 = 1.959963984540054
 MIN_CASES = 3
 CEILING = 0.95
+DROP = 1.0 / 3.0  # a case falling this far needs a measured cause before shipping
 ARMS = ("with", "without")  # cases[].arms.<arm>[]
 
 # Result-file field paths read here that the plugin-evals docs page does not
@@ -356,6 +368,20 @@ def agreement(cases):
     return lines
 
 
+def load_result(path):
+    """The parsed result document, or None after naming why it cannot be read."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            result = json.load(handle)
+    except (OSError, ValueError) as error:
+        sys.stderr.write("error: cannot read %s (%s)\n" % (path, error))
+        return None
+    if not isinstance(result, dict):
+        sys.stderr.write("error: %s is not a result document\n" % path)
+        return None
+    return result
+
+
 def main(argv=None):
     if sys.version_info < MIN_PYTHON:
         sys.stderr.write(
@@ -378,19 +404,24 @@ def main(argv=None):
         " any other value falls back to normal",
     )
     parser.add_argument(
+        "--baseline",
+        help="an earlier aggregate-result.json (the before version) to compare this"
+        " result against, paired by case name",
+    )
+    parser.add_argument(
+        "--margin",
+        type=float,
+        default=0.05,
+        help="non-inferiority margin for --baseline (default 0.05)",
+    )
+    parser.add_argument(
         "--grader-agreement",
         action="store_true",
         help="report judge-vote agreement per llm grader",
     )
     args = parser.parse_args(argv)
-    try:
-        with open(args.result, encoding="utf-8") as handle:
-            result = json.load(handle)
-    except (OSError, ValueError) as error:
-        sys.stderr.write("error: cannot read %s (%s)\n" % (args.result, error))
-        return 2
-    if not isinstance(result, dict):
-        sys.stderr.write("error: %s is not a result document\n" % args.result)
+    result = load_result(args.result)
+    if result is None:
         return 2
     if result.get("partial") is True:
         print(
@@ -412,15 +443,27 @@ def main(argv=None):
         lines += agreement(
             [c for c in cases if isinstance(c, dict)] if isinstance(cases, list) else []
         )
+    if args.baseline is not None:
+        baseline = load_result(args.baseline)
+        if baseline is None:
+            return 2
+        if baseline.get("partial") is True:
+            lines.append(
+                "partial baseline (%s): it did not finish, so no comparison is computed"
+                % baseline.get("partialReason")
+            )
+        else:
+            lines += compare(result, baseline, args.margin)
     for line in lines:
         print(line)
     return 0
 
 
-def report(result, threshold, method):
+def case_rows(result):
+    """Comparable case scores by case name, and a line per case left out or checked."""
     cases = result.get("cases")
     cases = [c for c in cases if isinstance(c, dict)] if isinstance(cases, list) else []
-    lines, notes, rows = [], [], []
+    lines, notes, rows = [], [], {}
     two_arm = any(arm_runs(case, "without") for case in cases)
     for case in cases:
         reason = incomparable(case)
@@ -434,8 +477,13 @@ def report(result, threshold, method):
         if reason is not None:
             lines.append("not comparable: case %s (%s)" % (case.get("name"), reason))
             continue
-        rows.append(row)
-    lines.extend(notes)
+        rows[case.get("name")] = row
+    return rows, lines + notes
+
+
+def report(result, threshold, method):
+    rows, lines = case_rows(result)
+    rows = list(rows.values())
     scores = {arm: [row[arm] for row in rows if row[arm] is not None] for arm in ARMS}
     if not scores["with"]:
         lines.append("no comparable case in this result, so there is nothing to report")
@@ -462,6 +510,65 @@ def report(result, threshold, method):
     for arm in ARMS:
         if scores[arm]:
             lines.append(pass_count_line(arm, scores[arm], threshold, method))
+    return lines
+
+
+def change_line(arm, pairs):
+    """The paired change line for one arm, and the interval's lower end."""
+    m, lo, hi = normal_interval([after - before for before, after in pairs], -1.0, 1.0)
+    line = (
+        "%s-arm change (this minus baseline), paired over %d cases: %+.2f,"
+        " 95%% interval %+.2f to %+.2f" % (arm, len(pairs), m, lo, hi)
+    )
+    return line, lo
+
+
+def compare(result, baseline, margin):
+    """Compare this result to a baseline result, paired by case name."""
+    rows, _ = case_rows(result)
+    base, _ = case_rows(baseline)
+    lines = []
+    for name in sorted(set(rows) ^ set(base), key=str):
+        where = "the baseline" if name in rows else "this result"
+        lines.append(
+            "compare: case %s left out (absent or not comparable in %s)" % (name, where)
+        )
+    names = [name for name in rows if name in base]
+    if len(names) < MIN_CASES:
+        lines.append(
+            "compare verdict: n too small to call (cases scored in both results: %d;"
+            " %d or more are needed)" % (len(names), MIN_CASES)
+        )
+        return lines
+    low = None
+    for arm in ARMS:
+        pairs = [
+            (base[name][arm], rows[name][arm])
+            for name in names
+            if base[name][arm] is not None and rows[name][arm] is not None
+        ]
+        if len(pairs) >= 2:
+            line, lo = change_line(arm, pairs)
+            lines.append(line)
+            if arm == "with":
+                low = lo
+    drops = [
+        name for name in names if base[name]["with"] - rows[name]["with"] >= DROP - 1e-9
+    ]
+    for name in drops:
+        lines.append(
+            "case drop: case %s with-arm fell from %.2f to %.2f, a third or more;"
+            " name its cause and prove it before shipping"
+            % (name, base[name]["with"], rows[name]["with"])
+        )
+    if low >= -margin - 1e-9:
+        verdict = "non-inferior at margin %.2f (the interval's lower end %+.2f is at or above %+.2f)"
+    else:
+        verdict = "not shown non-inferior at margin %.2f (the interval's lower end %+.2f is below %+.2f)"
+    verdict = verdict % (margin, low, -margin)
+    if drops:
+        verdict += ", and %d case(s) dropped by a third or more" % len(drops)
+    lines.append("compare verdict: " + verdict)
     return lines
 
 

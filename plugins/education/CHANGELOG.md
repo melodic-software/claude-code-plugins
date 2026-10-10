@@ -3,38 +3,38 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Added
-
-- **`explain_starting_rung` sets where `/education:explain` starts.** `plain` (the default) keeps
-  today's ladder: an everyday analogy first, higher rungs on request. `peer` starts at rung 3 with
-  one precise sentence of definition and full detail, and offers the plain version instead of a
-  higher rung. Set it per user in `userConfig` or per repository in
-  `docs/conventions/education.yaml` (schema `schemas/education.schema.json`), which wins and is
-  read through a bundled copy of the shared reader. The reply's last line names the value and the
-  layer that supplied it; a value outside the two is named with its file and key, that layer is
-  dropped, and the run continues. Keys: `reference/config.md`.
-- **`/education:setup apply` writes `docs/conventions/education.yaml`.** It writes only the keys
-  named on the command line, after validating each value and the whole resulting file against the
-  schema. An existing value that is empty, null or outside the list is replaced; a key set twice, an
-  empty quoted string, a non-scalar value, a symlinked or hard-linked path, or a directory or file in
-  the way is refused with one line and nothing written. Changing an existing
-  file shows a diff and needs the operator's yes. `check` now also validates that file and reports
-  the effective `explain_starting_rung`. The `userConfig` options still change only through Claude
-  Code's plugin configuration prompt.
+## [0.14.5] - 2026-10-07
 
 ### Changed
 
-- **`/education:explain` grounds a codebase subsystem through the discovery skills and drops
-  framing labels.** When `/discovery:explore` and `/discovery:trace-intent` are available, an
-  explanation of a subsystem uses explore's walkthrough for what the code does and trace-intent for why,
-  keeping trace-intent's hedges on inferred reasons; without them it reads the files itself. The
-  reply carries no framing labels, pacing narration or comprehension questions; the one-line rung
-  offer and the `/education:teach` handoff line stay.
+- `/education:illustrate` treats `medium: hosted` as `artifact`: the view is never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
 
-- **`/education:teach` workspace formats are written in this repository's own words.** A word-overlap check against the skill they were adapted from found long runs of its text in `context/mission.md`, `glossary.md`, `resources.md` and `assessment.md`, and in the lesson definitions in `pedagogy.md` and `lessons.md`. Each file now states the same rules with its own wording, order and examples; `pedagogy.md` drops a quoted phrase. File names and the rules themselves are unchanged; the template headings changed in the next entry.
-- **`/education:teach` mission, glossary, resources and assessment formats are reorganized around how the skill coaches.** `context/mission.md` maps each opening-interview question to the part of the file it fills and uses a Result, Checks and Boundaries template; `glossary.md` becomes an entry procedure with a one-row-per-term table; `resources.md` opens with the readers that use the file, turns its trust rules into admission tests a source must pass, and uses Knowledge and Wisdom tables and a Not Yet Covered list; `assessment.md` lists the evidence each coaching moment (dialog, exercise, quiz, session close) produces and moves the `Status: superseded by` line into its Supersession section. Workspaces written in the earlier layout are read as they are and converted when next edited. Every rule, the `# Mission: {Topic}` title, the `Repo Sources` heading and the supersession status line are unchanged.
+## [0.14.4] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.14.3] - 2026-10-04
+
+### Changed
+
+- `teach` lessons name one `RESOURCES.md` entry as their primary source, with any other source
+  as further reading, and the lesson template gains a `**Primary source:**` line.
+- `teach` resume compares the learning records against each `MISSION.md` "Success Looks Like"
+  item; when all are met, it says so item by item and asks the learner whether to close the
+  mission or revise it before teaching anything new. Three `pocock-24` evals grade both
+  behaviors and a not-yet-met control.
+
+## [0.14.2] - 2026-10-04
+
+### Fixed
+
+- `quiz-me` no longer leaves the correct choice where the author wrote it. Authors tend to put
+  it first, and an instruction alone did not stop that, so the report builder now shuffles each
+  question's choices with a seed taken from the question's text (a rebuild gives the same page),
+  and the answer key names the rendered choice number next to the answer.
 
 ## [0.14.1] - 2026-10-04
 

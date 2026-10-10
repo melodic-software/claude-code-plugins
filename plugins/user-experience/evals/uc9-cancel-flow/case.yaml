@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: uc9-cancel-flow
+description: "Use case 9 (live, consumer): is the cancel flow OK, as a fair-choice check comparing exit with entry, with severities and no legal verdict"
+tags: [use-case, uc9]
+runs: 3
+expected_outcome: "Findings with severity comparing the cancel path to the one-screen sign-up (required survey, unequal prominence, repeated asks, phone-only confirmation), a shorter cancel flow, and no legal verdict"
+execution:
+  prompt: "Is our cancel flow OK? It is for a monthly guitar-lessons subscription app. Signing up is one screen: email, card, and a 'Start free trial' button. Cancelling goes: Settings, then Account, then Manage plan, then a required 'Why are you leaving?' survey, then an offer screen with a large green 'Keep 50% off' button and a small grey 'Continue cancelling' text link, then 'Are you sure? You will lose your practice history', and finally a message to call support during business hours to confirm. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

@@ -44,7 +44,7 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
   it resolves to), and `create-item` only when `--parent` or `--blocked-by` is passed.
   A plain `create-item` (title, body, labels, `--type`, repo) and `get-item` run on an older `gh`:
   `get-item` omits the native `--json` fields, so `parent_id` is `null`, `blocked_by_count`
-  is `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
+  and `blocked_by_wont_do_count` are `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
   drops the 2.94 `gh issue create --type` flag and applies the coarse `type:` label. The lease verbs (`claim`, `renew-lease`, `release`, `reclaim`) read
   assignees and comments only. `capabilities` never shells out. The dispatcher gates
   before dispatch.
@@ -146,7 +146,8 @@ user-global layer.
   credential from the merged view), and the self-describing `docs`
   pointer. Everything else is shared coordination state and team-layer-only: `provider`,
   `config.role_labels`, `config.container_label`, `config.storage_dir`,
-  `config.jira.site`/`project_keys` and the JQL-shaping keys. An overlay value for any such key is a
+  `config.jira.site`/`project_keys`, the JQL-shaping keys, and the won't-do classifiers
+  `config.jira.resolutions` and `config.github.wont_do_labels`. An overlay value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge, including a
   non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
   `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
@@ -220,7 +221,8 @@ core-side step below. The container is addressed by its qualified id, which carr
 there is no `--repo` flag. `--state` defaults to `all`.
 
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
-the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` AND no
+the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
+blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
 "Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
 excluded, as are items carrying a **human-floor work class**: `work-class: structural` (C4)
@@ -252,7 +254,7 @@ adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>]
 adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
-- `list-items` returns RAW candidates (state, assignees, labels, open-blocker count) and
+- `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
   silently). Exceeding the ceiling is a documented truncation, not an error.
@@ -321,6 +323,7 @@ Normalized item object:
   "labels": ["name"],
   "type": "Task",
   "blocked_by_count": 0,
+  "blocked_by_wont_do_count": 0,
   "parent_id": null,
   "url": "https://…"
 }
@@ -333,9 +336,40 @@ Normalized item object:
   the `local-markdown` adapter has no native-type registry, so `--type` is stored and
   echoed verbatim (an offline-parity scalar). Additive field: items predating it read
   as `null`.
-- `blocked_by_count` counts **open** blockers only. (Tier-0 verified 2026-07-12:
-  GitHub's `blockedBy.totalCount` keeps counting CLOSED blockers, which would break
-  frontier graduation, so the adapter counts `state == "OPEN"` nodes.)
+- `blocked_by_count` counts **open** blockers plus blockers **closed as won't-do**
+  (not planned, or a duplicate): the work a won't-do blocker stood for will not be done,
+  so its dependent must not graduate onto the frontier. Any other closed blocker is
+  resolved. `blocked_by_wont_do_count` counts the won't-do blockers again; a non-zero
+  value means the dependent waits on nothing that will finish and needs re-triage.
+  Reading a close reason is optional per adapter, and an adapter that cannot read one
+  keeps the closed-means-resolved count and reports `blocked_by_wont_do_count: 0`:
+
+  | Adapter | Resolved | Won't-do (blocks, counted) |
+  |---|---|---|
+  | GitHub | `stateReason` `COMPLETED` or `null`, carrying no `wont_do_labels` label | `NOT_PLANNED`, `DUPLICATE`, or any close carrying a `wont_do_labels` label |
+  | Linear | state type `completed`, while `done_state_types` lists it | other done types (`canceled`, `duplicate`) |
+  | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
+  | Jira | done-category blocker with no resolution, a resolution id in `resolutions.completed`, or any resolution when `resolutions` is absent | resolution id in `resolutions.wont_do` |
+  | Gitea | any closed blocker (won't-do detection unsupported) | none |
+
+  No adapter carries a built-in list of a consumer's won't-do markers: Jira resolutions
+  and GitHub labels are named per tracker, so the team binding classifies them
+  (`config.jira.resolutions`, `config.github.wont_do_labels`, both optional and
+  written by `/work-items:setup`).
+
+  GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
+  blockedBy` projection has no `stateReason` or labels, so the adapter reads each closed
+  blocker's `stateReason` and labels through `gh api graphql`. The optional team binding
+  key `config.github.wont_do_labels` (an array of label names, no default, matched
+  case-insensitively; a present value must be an array of non-empty strings, exit `3`)
+  makes a closed blocker carrying any listed label won't-do whatever its `stateReason`,
+  for repos that mark won't-do with a label; absent, only the reasons above count. When
+  that query fails, or returns no node for a blocker, the closed blocker keeps blocking
+  (fail closed) without counting as won't-do, and a warning goes to stderr. A `null`
+  reason is an issue closed before GitHub recorded reasons. Jira reads done blockers'
+  resolutions with one extra search and fails closed the same way ("jira adapter"
+  below); it also keeps a done blocker blocking, without counting it as won't-do, when
+  its resolution id is in neither list.
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
@@ -588,8 +622,10 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   single-writer monotonic counter (max existing file number + 1). Frontmatter carries
   `id`/`title`/`state`/`assignees`/`labels`/`parent` as one-line JSON values
   (YAML-flow-compatible, robust to special characters). Dependency edges are
-  structured `Blocked by: <id>` body lines; `blocked_by_count` counts only blockers
-  whose file exists and is `open`. The lease is the same inline marker used
+  structured `Blocked by: <id>` body lines; `blocked_by_count` counts blockers whose
+  file exists and that are `open`, or `closed` with any non-empty `state_reason` other
+  than `completed` (such as `not_planned` or `duplicate`); those closed ones also count
+  in `blocked_by_wont_do_count`. A closed item with no `state_reason` was completed. The lease is the same inline marker used
   everywhere (see "Lease protocol"), appended to the item file.
 - **Identity.** No authenticated provider user exists offline, so `claim` records the
   holder from `git config user.name` (falling back to `$USER`, then `local`) and
@@ -695,7 +731,8 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
         "auth_email": "ci@company.com",
         "auth_env": "JIRA_API_TOKEN",
         "blocked_by_link_type": "Blocks",
-        "done_category_keys": ["done", "completed"]
+        "done_category_keys": ["done", "completed"],
+        "resolutions": { "completed": ["10000"], "wont_do": ["10001", "10002"] }
       }
     }
   }
@@ -715,14 +752,38 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
   with real instances, and both known keys are defaulted so the adapter is independent of that
-  deferred fact).
+  deferred fact). `resolutions` classifies the instance's resolutions by **id**:
+  `completed` lists the ids that resolve a done blocker, `wont_do` the ids that make it
+  won't-do. It has no default and is team-binding only: absent, won't-do detection is off,
+  no resolution lookup is made, and every done blocker is resolved. A present value must
+  be an object with exactly those two keys, each an array of non-empty string ids, with no
+  id in both (exit `3` otherwise). Ids, not names, because Jira admins can rename, add,
+  and delete resolutions
+  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
+  as of 2026-10-10; recheck when that page changes how resolutions are identified), so no
+  name list fits every instance and a rename must not reclassify a resolution.
+  `/work-items:setup apply` writes the key from the instance's own resolution list.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
   them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
-  `blocked_by_link_type` links only (parity with the GitHub adapter's open-only count; the
-  linked issue's status is inlined in `issuelinks`, so no second round-trip); `parent_id` comes from
+  `blocked_by_link_type` links (the linked issue's status is inlined in `issuelinks`) plus
+  done ones that are not resolved, and `blocked_by_wont_do_count` counts the done ones whose
+  resolution id is in `resolutions.wont_do`. `issuelinks` carries no resolution, so when
+  `resolutions` is present the adapter reads every done blocker's resolution (`id` and
+  `name`) in one `POST /search/jql` per page, or per issue for `get-item` (`key in (...)`,
+  `fields: ["resolution"]`, up to 100 keys per query), skipped when there is no done
+  blocker. Only blockers in `project_keys` are looked up; a done blocker in another project
+  stays resolved. A done blocker with no resolution, or a resolution id in `completed`, is
+  resolved. One whose id is in neither list (a resolution added after setup) keeps
+  blocking (fail closed), is not counted as won't-do, and a stderr warning names the
+  resolution and its id. When a lookup query fails, every blocker in that query keeps
+  blocking without counting as won't-do: Jira answers a `key in (...)` naming one key it
+  cannot resolve (a deleted issue, say) with a `400` for the whole query, so one bad key
+  fails its whole chunk of up to 100 closed, with no retry. A blocker the search did not
+  return keeps blocking the same way. Both warn on stderr, and the second names the
+  missing keys; `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.
@@ -794,6 +855,8 @@ from GitHub's API, and all documented in `adapters/gitea/README.md`:
   unknown one rather than dropping it.
 - `blocked_by_count` costs one extra request per item: the issue carries no dependency data and
   there is no bulk endpoint.
+- A closed issue records no close reason, so a closed blocker is resolved and won't-do
+  detection is unsupported (`blocked_by_wont_do_count` is `0`).
 - `POST /issues/{index}/dependencies` makes the **URL** issue depend on the **body** issue; the
   sibling `/blocks` endpoint is the same edge inverted.
 - `limits.dependencies_per_type` is `null`: Gitea rejects only duplicate and circular edges and

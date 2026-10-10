@@ -107,8 +107,12 @@ emitted=0
     # stand — an all-invalid page would then collapse to items:[] with exit 0, telling
     # list-frontier there is no work. On any normalizer failure, fail loud (exit 8)
     # instead of emitting a partial page.
+    # One resolution lookup per page covers every done blocker on it. It runs in a
+    # command substitution, so this page's WIT_JIRA_BODY is left intact.
+    res="$(jq -c '.issues' <<<"$WIT_JIRA_BODY" | wit_jira_blocker_resolutions)"
     page_items="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
       --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
+      --argjson res "$res" \
       ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY")" || {
       printf 'jira: list-items — an issue in a %s page could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
       exit "$EX_UNAVAILABLE"

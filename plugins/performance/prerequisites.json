@@ -26,7 +26,8 @@
       "kind": "runtime",
       "need": "required",
       "for": [
-        "skill:climb"
+        "skill:climb",
+        "skill:go-faster"
       ],
       "detect": {
         "any": [
@@ -40,9 +41,10 @@
           ],
           "pattern": "Python ([0-9.]+)",
           "min": "3.10"
-        }
+        },
+        "reject_store_alias": true
       },
-      "degrade": "Without Python 3.10 or later, climb cannot apply its keep rule or write its attempt log, so it stops before the first attempt; the other performance skills are unaffected.",
+      "degrade": "Without Python 3.10 or later, climb cannot apply its keep rule or write its attempt log, so it stops before the first attempt. Without any Python 3, a pointer page that serves only HTML cannot be converted and is recorded unread with reason no-python, so /performance:go-faster falls back to WebFetch for it; pages served as markdown read normally.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -69,6 +71,48 @@
         "brew": "git",
         "winget": "Git.Git",
         "apt": "git"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh records a catalog row's pointer unread with reason curl-missing, so /performance:go-faster falls back to WebFetch for it.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, fetch-docs.sh exits before reading anything, so /performance:go-faster falls back to WebFetch for a catalog row's pointer.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
       },
       "check": "/harness-ops:prerequisites"
     }

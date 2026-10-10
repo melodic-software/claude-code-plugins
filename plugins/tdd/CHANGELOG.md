@@ -3,11 +3,11 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.5.0] - 2026-10-06
 
-### Changed
+### Added
 
-- **`test-doubles.md`'s boundary-interface section is rewritten with its own example.** The section is now headed "One Function per Remote Operation" and uses a shipping-service example in place of the upstream user-and-orders one; the "Replace, Don't Layer" paragraph is reworded. The guidance and its subordination to "mock only unmanaged dependencies" are unchanged.
+- `/tdd:principles` adds two web-sourced references with routing rows: property-based testing (properties as what must never happen, shrinking, the patterns with their evidence levels, agent-authorship evidence with its qualifiers) and characterization testing (Feathers' recipe, approval and golden-master tests, the sabotage check, pins prove sameness, not correctness). The Sources section now separates the cover-to-cover book readings from these web sources.
 
 ## [0.4.11] - 2026-10-03
 

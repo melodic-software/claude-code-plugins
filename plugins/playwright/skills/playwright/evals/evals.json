@@ -5,11 +5,11 @@
       "id": 1,
       "name": "e2e-flow-uses-named-session-lifecycle",
       "prompt": "Drive an E2E check of the login flow at http://localhost:3000 — sign in and confirm the dashboard loads.",
-      "expected_output": "Runs a named-session lifecycle: open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close that session by name — reading the YAML snapshot file rather than dumping it into context. It does not run kill-all or close-all at the start.",
+      "expected_output": "Runs a named-session lifecycle: open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close that session by name — reading the YAML snapshot file rather than dumping it into context, and never running the machine-wide kill-all or close-all as routine setup or teardown.",
       "files": [],
       "expectations": [
         "Uses a named session (`-s=<flow>`) for the multi-step flow rather than the default unnamed session",
-        "Does not run `kill-all` or `close-all` at the start, and closes its own session by name at the end",
+        "Closes its own session by name at the end and does not run `kill-all` or `close-all` as routine setup or teardown",
         "Reads the snapshot YAML file from disk to locate element refs instead of dumping the snapshot into context"
       ]
     },
@@ -60,6 +60,18 @@
         "Tries `playwright-cli -s=cart close` on the stuck session first",
         "Does not run `kill-all` while the other worktree's session may be live",
         "Leaves the checkout session alone"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "github-flow-loads-shared-login-state",
+      "prompt": "/playwright:playwright — open https://github.com/notifications and list the first three unread notifications.",
+      "expected_output": "Opens a named session, loads the owner's saved GitHub state file from the XDG state directory with `state-load` after `open` and before navigating, and carries on logged out (or asks the owner to save a login) when the file is missing. Never saves, reads, prints, or copies the state file and never logs in itself.",
+      "files": [],
+      "expectations": [
+        "Runs `state-load` on `github.json` under `${XDG_STATE_HOME:-$HOME/.local/state}/playwright-cli/` after `open` and before navigating to github.com",
+        "When the state file is missing or the page lands on a sign-in screen, continues logged out or asks the owner to save or refresh the login instead of logging in itself",
+        "Does NOT run `state-save` and does NOT read, print, or copy the contents of the state file"
       ]
     }
   ]

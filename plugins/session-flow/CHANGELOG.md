@@ -1,29 +1,89 @@
 # Changelog: session-flow plugin
 
-## [Unreleased]
+## [0.51.1] - 2026-10-10
 
 ### Fixed
 
-- **`/session-flow:orchestrate` no longer reads an empty `worker_continuation:` in `docs/conventions/session-flow.yaml` as unset.** It reads the key with `parse-concern-value.sh --strict` and a key-presence check, so a present-but-empty or non-scalar value, or a file the parser rejects, is named and the repository layer dropped, resolving the default `resume`, never the lower user option. A new eval covers the empty value. `scripts/transcript_dirs.test.sh` now runs its cases on Git Bash, MSYS2 and Cygwin instead of skipping: there the expected names start from the temp dir's `cygpath -w` form and the script runs through the native `cygpath`; on Linux and macOS a failing stub shadows any `cygpath` on PATH for the POSIX cases. The `transcript_scope` option description names `/session-flow:recall` beside find-handoff, and the `--check` key list in `reference/config.md` and the setup skill's key lists include `retro_lenses`.
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
 
-### Changed
-
-- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in `skills/retro/scripts/`.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
-- **`/session-flow:handoff` and the save-point engine word the purpose argument and the link-don't-copy rule in their own terms.** Both no longer share phrasing with the upstream handoff skill. Behavior is unchanged.
+## [0.51.0] - 2026-10-09
 
 ### Added
 
-- **`/session-flow:retro` session mode can run three review lenses in parallel (`retro_lenses`, default `1`).** Under `3`, Phase 2 spawns three subagents in one turn, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings into one list before the Phase 2 tables, recommendations and scores; no session-length threshold applies. Under `1` the analysis stays one pass. The setting is a new user config option and a `retro_lenses` key in `docs/conventions/session-flow.yaml` (schema `schemas/session-flow.schema.json`), which wins; it is read after `setup-apply.mjs --check` through the plugin's `parse-concern-value.sh` copy, an unquoted `3` is valid, any other value is named with its file, key and value and that layer dropped, and the run reports the supplying layer. `setup-apply.test.sh` covers the key.
-- **`/session-flow:recall` reports what past sessions tried on a topic.** It resolves `transcript_scope` (default `worktree`, read the same way as find-handoff), lists directories with `scripts/transcript_dirs.sh`, and scans them with the new `skills/recall/scripts/recall_scan.py`: literal, case-insensitive terms, records read through `transcript_reader.py`, every snippet redacted through audit-sessions' `redact.py` before it prints, at most 240 characters a snippet, 10 matches a session and 200 a run, `scanned:` and `capped:` lines on stderr, exit 1 with nothing printed when redaction fails closed and 2 on a missing directory. Subagents condense each matching session from those redacted lines only. It adds reverted commits from git, closed unmerged pull requests through `gh`, and open items through `/work-items:track` when available, and reports Tried, Kept, Dropped or reverted, and Still open in chat, opening with the scope it searched; it widens to the repository's other worktrees on no match and asks before reading other projects. `/session-flow:orient` names recall in a Skip clause; `prerequisites.json` adds `skill:recall` to the `python3` and `gh` rows and a new optional `git` row; the plugin gains its first plugin-level eval suite (`evals/`, three recall cases).
-- **`/session-flow:find-handoff` scans transcripts by scope (`transcript_scope`, default `worktree`).** The scan starts with this worktree's project directories, widens on a miss to the repository's other worktrees, and asks before reading any other project's transcripts; an unattended run reports the miss instead. `repo` starts with every worktree; `all` widens to every project without asking. The new `scripts/transcript_dirs.sh --scope <worktree|repo|all>` maps a scope to directories: it reads the store under `CLAUDE_CONFIG_DIR` (no longer a fixed home path), honours `CLAUDE_CODE_PROJECT_DIR_NAME`, handles Windows paths through `cygpath`, and keeps a directory whose name only extends a worktree's (a subdirectory session, a hashed long name) when the `cwd` its newest transcript records lies under that worktree, read through the new `transcript_reader.first_cwd`. Without Python 3.10+ it lists exact-name matches only and prints one `gap:` line. The setting is a new user config option and a `transcript_scope` key in `docs/conventions/session-flow.yaml` (schema `schemas/session-flow.schema.json`); unlike the other keys, the narrower layer wins and an unset user option counts as `worktree`, so a repository can narrow the scan but never widen it. A candidate the marker grep cannot settle is read by a subagent that returns only a timeline of handoff markers, never raw transcript text. `prerequisites.json` declares Python 3 as optional for find-handoff.
-- **`/session-flow:handoff` can make one local WIP commit when you ask to pause (`wip_commit`, default off).** Only a handoff started by the user's own pause request in the session commits; one another skill invokes (keep-going at a usage limit), one a hook or context measurement suggests, a phase-boundary handoff and a run under `orchestrator` commit authority never do. The commit stages only the tracked files the work changed (`git add -u -- <path>...`) under a `chore(wip): <one-line state>` subject with every hook running, and is never pushed. It is refused, with the reason in the save-point, during a merge, rebase, cherry-pick or revert, on a detached HEAD, on the default branch (or when origin has no HEAD), over a partially staged path, and when a path outside the work holds staged changes. A rejecting hook leaves the work uncommitted and the save-point quotes it. The save-point records the SHA under "Side effects already applied" and the untracked paths under "File roles in this work". The setting is a new user config option and a `wip_commit` key in `docs/conventions/session-flow.yaml` (schema `schemas/session-flow.schema.json`), which wins; only an unquoted `true` or `false` is valid. `/session-flow:setup apply` validates and writes the boolean key and refuses a quoted one.
-- **`/session-flow:orchestrate` gains measurement, liveness, landing, gap and sampled-brief rules, and a `worker_continuation` setting.** Imperative 2: a measuring worker gets exact commits and a sampling method and returns both, or its numbers are not evidence. Imperative 4: liveness covers writing workers only and is read from side effects, never by messaging the worker; a writing worker past its stated runtime with none is stopped and respawned with consolidated scope; resume messages restate the scope fence, and an interrupted worker is respawned; each verified unit lands as a local commit at once, with no budget cutoff. The Discipline line enters an item whose return lacks a required field as a gap, never a pass, unless a single consolidated-scope respawn supplies the field. Tiered delegation checks one sampled brief per wave beside the wave. `worker_continuation` (`resume` default, or `respawn`) is read only in the priming addendum, per user from the new user config option and per repository from `docs/conventions/session-flow.yaml` (schema `schemas/session-flow.schema.json`), which wins; an invalid value is named and its layer dropped, so a valid higher layer still wins, else the default `resume`, never a lower layer's value. Settings page: `reference/config.md`.
-- **`/session-flow:setup apply` writes `docs/conventions/session-flow.yaml`.** Setup was check-only; it now owns that one tracked file. `apply` checks every value against `schemas/session-flow.schema.json`, refuses a key given twice, validates the existing file first and overwrites only a value out of the list, empty or null (a repeated or unknown key, a map or list in block or flow form, or an empty quoted string is refused with the file untouched), validates the whole result before writing, refuses an invalid value or key, refuses a symlink, a hard-linked target and a `docs/conventions` resolving outside the repository, writes through a temp file renamed into place, and prints the diff and waits for the operator's yes before changing a file that exists. `check` validates the file and reports a problem as WARN. Observer settings are still reported only, never written.
-- **`/session-flow:audit-sessions style` finds preferences you repeat across sessions.** The new `sweep.py --excerpts` reads only the store and prints one JSON line per stored typed-turn excerpt (`project`, `session`, `started`, `excerpt`) inside `--since` and `--scope`; a record collected while redaction failed closed adds none and makes the exit 1. The pass takes `--scope` explicitly and states it, reads since the target file's last edit, keeps a preference only when two or more sessions show it, shows each one's projects and excerpts, and hands each preference the user confirms to `/session-flow:retro codify` with a user-scope target (user `CLAUDE.md`, a user rule or an output style), never a repository file.
-- **`/session-flow:retro` session mode keeps only durable findings and fixes placement first.** Phase 3 keeps a finding only when it will hold in six months, is specific and would change a decision, and drops SHAs and one-off facts; Phase 4 proposes moving or rewording guidance that existed but did not fire before proposing a new rule.
-- **`/session-flow:keep-going` retries by failure mode and names a verdict on another agent's trail.** A restart is shaped by why the work died, at most two retries, then the item is abandoned and the work replanned; work whose session is gone is found by its branch, PR or worktree, not an agent id; resuming another agent's trail names one of continue, ship the finished recommendation, ratify or restart, and the report lists what was inherited versus redone.
-- **The enforcement ladder ships with `/session-flow:retro`.** A generated copy of the enforcement-ladder convention sits at `skills/retro/reference/enforcement-ladder.md`: the strongest-first rung list and codify's selection rule, for routing a repeated correction to a rung.
-- **`/session-flow:retro codify` picks a lesson's rung before its place, and mines review comments.** A Strength step reads the ladder copy: a lesson a check could assert goes to a review-findings file under `<memory_dir>/codify/<branch-slug>/`, listed in the approval table with an offer of `/review:audit-enforceability`; an `invalid-state` lesson goes to `/architecture:improve` or `/planning:design`; a tool-call or commit-time lesson to `/harness-config:audit-automation-gaps hooks`; a judgment lesson to `CLAUDE.md` or a rules file, or to `REVIEW.md` when it binds review only. `codify reviews` runs the new `skills/retro/scripts/fetch-review-comments.sh`, which reads the last N merged PRs' review bodies and inline comments, keeps human comments that are not replies or by the PR author and bot comments whose line changed later in the PR (a resolved thread alone does not count), and prints JSON lines capped at 64 KB; bodies are handled as untrusted data, and only a lesson cited in two or more PRs is routed. Two settings, per user in the new user config options and per repository in `docs/conventions/session-flow.yaml`, which wins: `encode_policy` (`promote-when-must-hold` default, or `strongest-first`) and `review_mining_prs` (integer 2-200, default 20). `/session-flow:setup apply` validates and writes both; an integer key refuses a quoted number. Session mode and `running-retro` route a repeated correction through the Strength step. `gh` and `jq` are declared for `skill:retro`.
+- **`/session-flow:audit-friction`**: audits permission and autonomy friction across this machine's sessions (last 7 days by default; `--since`, `--until`, `--days`, `--project`, `--session`, `--source <dir>`). `friction.py mine` aggregates a window, `cause` maps each denial and approved prompt to the permission rules that could match it, `estimate` sizes the `consequential` (default), `full` and `probes` verification modes with agent counts and token and wall-clock ranges, and `diff` compares a later window with a saved baseline. Agents classify the friction into five classes, plan and verify the fixes; the run ends in one decision brief, user-run scripts for edits auto mode blocks, and a PR-draft list. It ships a default decision policy (#6691).
+
+### Changed
+
+- **audit-sessions records per-event friction.** Each stored session record gains a `friction` block: every classifier, hook and rule denial (with the classifier category or hook name), approved permission prompt, ask, hand-off, `!` command, correction and interrupt, with the command shape and every stored string redacted, plus tool-wait, polling, CI-wait and merge-conflict counts. The collector's code changed, so the next collect re-reads every transcript once. The sweep's `permission` lens now suggests `/session-flow:audit-friction`.
+- **The shared transcript reader parses permission outcomes**: `permission_event` for a transcript's tool results and `permission_denials` for a stream-json `result` record, which it now counts as a known record type.
+
+## [0.50.0] - 2026-10-08
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **`retro` verifies capability claims through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** The ecosystem-improvement catalog's research rule now reads a docs page with `scripts/fetch-docs.sh --cache` and a `docs-cache.sh slice`, `--max-age 0` when a recommendation rests on a feature being absent; WebSearch only finds the page, and WebFetch is the fallback only when the manifest records the page unread for `curl-missing` or no manifest was written.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` declares `curl` and `python3` as optional for `retro` and adds `retro` to the `jq` entry.
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.49.1] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+- `/session-flow:audit-sessions` re-collects the transcript store only when the collector inputs have changed (#6257).
+
+## [0.49.0] - 2026-10-04
+
+### Changed
+
+- **The workflow ladder gains a Design stage plus conditional PRD and Decompose stages ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Stages now run explore, research, PRD, contract, design, plan, decompose, implement, test, review, verify, then ship and an optional retro, each new stage with its trigger and skip conditions. The stage definitions, checklist template, spec-first table, quick-retro table, and README match the renumbered ladder. A conditional stage whose trigger does not hold is marked SKIPPED on its checklist box, so the leftover-checklist sweep does not read it as unfinished.
+
+## [0.48.10] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.48.8] - 2026-10-04
 

@@ -28,6 +28,14 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
   and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
   vendored scripts) is honored even on a single edited file.
+- **Pre-existing drift is left alone.** shfmt runs only when the file was already
+  shfmt-clean under your `.editorconfig` before the edit: the hook checks the
+  pre-edit bytes (the Write/Edit `tool_response.originalFile`) with
+  `shfmt -d --filename`. A file that drifted from your style, for example
+  flush-left `case` arms written before `switch_case_indent = true` was added,
+  keeps its existing layout, so a small edit stays a small diff. A new file is
+  formatted. The check costs one `jq` and one `shfmt` on an edit to an existing
+  file under the opt-in.
 - **A rewrite that would change an array subscript is put back.** shfmt parses an
   unquoted subscript as arithmetic and spaces it, because it cannot know the
   array is associative, so `${m[a-b]}` would become the different key
@@ -39,7 +47,7 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   and after, including the blanks inside the brackets, since `${m[ key ]}` is a
   different key from the `${m[key]}` shfmt prints. If any differs, the hook
   restores the file byte for byte and names each changed subscript and its line in
-  one notice. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
+  one notice to Claude. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
   indexed, write it as shfmt prints it, which depends on the release: v3.13.0
   printed `${a[i+1]}` where the releases around it print `${a[i + 1]}` (reverted in
   v3.13.1, per the [mvdan/sh changelog](https://github.com/mvdan/sh/blob/master/CHANGELOG.md)).
@@ -52,7 +60,9 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   no tree and costs no extra process.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate.
+  your hard gate. A finding set is reported once per file: an unchanged set on a
+  re-edit sends nothing, and it is sent again after a clean run or after the
+  context is compacted or cleared.
 - **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
   up from the file's directory; shfmt reads `.editorconfig` the same way. No
   working-directory assumptions. The tools are anchored to the edited file.
@@ -80,9 +90,8 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-The `jq` notice appears once per session and agent, renewed every eighth skip. The `shellcheck`
-and `shfmt` notices appear once per session, shared by all agents, renewed every eighth skip
-with the install route kept.
+Each missing-tool notice appears once per session and agent; the `shellcheck` and `shfmt` notices carry
+the install route on your copy only.
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
@@ -105,8 +114,8 @@ with the install route kept.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
 `prerequisites.json`, and the PostToolUse notices name the same install route. The probe and the
-PostToolUse notice for a tool share one latch, so the probe's notice counts as the first and the
-first PostToolUse notice stays silent until the renewal. Run `/bash-format:check` to see which
+PostToolUse notice for a tool share one latch: the probe's notice is yours, and Claude hears at the
+hook's first skip. Run `/bash-format:check` to see which
 binaries resolve; it is read-only and installs nothing.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)
@@ -244,7 +253,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

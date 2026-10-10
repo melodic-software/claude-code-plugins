@@ -41,6 +41,13 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the settings opt-in walk
@@ -178,7 +185,7 @@ fi
 # landed here: the disclosure is TAKEN at each exit arm and composed into that
 # arm's one JSON document, and the guard's EXIT trap releases the snapshot on
 # arms that never take it.
-PS_REWRITE_MESSAGE_TEXT="powershell-format: reformatted $FILE_BASE via Invoke-Formatter (structural layout only)."
+PS_REWRITE_MESSAGE_TEXT="powershell-format: reformatted $FILE_BASE."
 hook::rewrite_guard_begin "$FILE"
 
 # Single pwsh invocation — probe the module, gate code-loading settings, format
@@ -601,7 +608,7 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
         if ($results.Count -gt 0) {
             foreach ($r in $results) {
                 [Console]::Error.WriteLine(
-                    "PSScriptAnalyzer: L$($r.Line) [$($r.Severity)] $($r.RuleName): $($r.Message)"
+                    "L$($r.Line) [$($r.Severity)] $($r.RuleName): $($r.Message)"
                 )
             }
             exit 1
@@ -614,21 +621,23 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
 ' 2>&1)
 PWSH_EXIT=$?
 
+PS_CTX=""
 case $PWSH_EXIT in
 0)
   # Clean — the analyzer ran to judgment with no findings, so the disclosure
-  # is the whole document, or there is none.
+  # is the whole document, or there is none. The empty set clears the delta
+  # record, so findings that come back are sent again.
+  hook::findings_to PS_CTX "" "" --delta "$INPUT" "$FILE"
   hook::finish --disclose "$PS_REWRITE_MESSAGE_TEXT" ok findings array '[]'
   ;;
 1)
   # Findings — advisory context, exit 0. Status "ok": the analyzer RAN and
   # produced a judgment (findings live in data.findings), mirroring the sibling
   # formatter plugins where status reflects whether the tool ran, not clean-ness.
-  PS_CTX=""
+  # --delta sends a finding set once per (session, agent, file).
   FINDINGS_JSON='[]'
-  hook::findings_to PS_CTX \
-    "powershell-format: $FILE_BASE has PSScriptAnalyzer findings (advisory):" \
-    "$PSSA_OUTPUT" FINDINGS_JSON
+  hook::findings_to PS_CTX "powershell-format: $FILE_BASE has findings:" \
+    "$PSSA_OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document. Emitting the
   # context and the systemMessage as two objects would break the single-JSON-doc
   # stdout contract, which is what hook::finish exists to uphold.
@@ -653,8 +662,8 @@ case $PWSH_EXIT in
   # Trust gate — the settings file can make the analyzer execute
   # repository-supplied code (CustomRulePath), or could not be verified
   # code-free, and this exact settings-plus-rule-module content state carries
-  # no approval marker. Skip the run with a visible notice, once per session and
-  # agent, on both channels; the notice key carries the state signature so a
+  # no approval marker. Skip the run with a notice, once per channel (the user's
+  # copy carries the approval command); the notice key carries the state signature so a
   # settings or rule-module change re-notices within the same session. When the
   # approval store is unavailable or the state is unverifiable the gate fails
   # closed: analysis stays disabled rather than trusted. The pwsh block reports the
@@ -690,21 +699,28 @@ case $PWSH_EXIT in
     [[ -n "$trust_state_base" ]] &&
       TRUST_DIR="${trust_state_base%/}/trust-approvals/$TRUST_MARKER_NAME"
   fi
+  # The approval is the user's security decision, so the model's copy states the
+  # verdict and never carries the mkdir command that grants it.
+  TRUST_LEAD="powershell-format trust gate: PSScriptAnalyzer skipped;"
   if [[ "$TRUST_VERDICT" == "GATE" && -n "$TRUST_DIR" ]]; then
     APPROVE_HINT="Review that file and every rule module it references; to approve this exact settings-and-rule-module content state and enable analysis, run: mkdir -p '$TRUST_DIR' (any change to the settings or a referenced rule module revokes the approval)."
+    TRUST_MODEL="$TRUST_LEAD $SETTINGS_REL loads repository rule modules and is not approved. Approval is the user's."
     NOTICE_KEY="powershell-format-trust-${TRUST_DIR##*[/\\]}"
   elif [[ "$TRUST_VERDICT" == "UNVERIFIABLE" ]]; then
     APPROVE_HINT="The settings state cannot be verified (settings unparsable by the restricted data parser, or a declared CustomRulePath entry does not resolve to hashable content), so analysis stays disabled for this repository."
+    TRUST_MODEL="$TRUST_LEAD $SETTINGS_REL cannot be verified free of repository rule modules, so it cannot be approved as written; lint stays off."
     NOTICE_KEY="powershell-format-trust-unverifiable"
   elif [[ "$TRUST_VERDICT" == "UNPINNABLE" ]]; then
     APPROVE_HINT="A rule module loads code through a target this hook cannot pin to a file (a variable, an env lookup, a composed expression, or an interpolated string it cannot expand), so the code that would execute cannot be bound to an approval and analysis stays disabled for this repository."
+    TRUST_MODEL="$TRUST_LEAD a rule module $SETTINGS_REL references loads code no approval can pin, so it cannot be approved as written; lint stays off."
     NOTICE_KEY="powershell-format-trust-unpinnable"
   else
     APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so analysis stays disabled for this repository."
+    TRUST_MODEL="$TRUST_LEAD $SETTINGS_REL loads repository rule modules and there is no approval store, so it cannot be approved; lint stays off."
     NOTICE_KEY="powershell-format-trust-nostore"
   fi
   if hook::notice_once "$NOTICE_KEY" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse \
+    hook::emit_skip_notice PostToolUse "$TRUST_MODEL" \
       "powershell-format trust gate: PSScriptAnalyzer run skipped — $SETTINGS_REL declares CustomRulePath (analysis would load and execute repository-supplied rule modules) or cannot be verified code-free. $APPROVE_HINT"
   fi
   # No disclosure decision is owed here: every `exit 6` in the pwsh block above
@@ -718,10 +734,9 @@ case $PWSH_EXIT in
   # judgment was made. Surface via additionalContext (NOT stderr — an advisory
   # hook's exit-0 stderr can trip a false "Hook Error" label). Record as
   # "skipped" (the analyzer never ran to judgment).
-  PS_CTX=""
-  hook::findings_to PS_CTX \
-    "powershell-format: pwsh failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
-    "$PSSA_OUTPUT"
+  [[ -n "$PSSA_OUTPUT" ]] || PSSA_OUTPUT="exit $PWSH_EXIT"
+  hook::findings_to PS_CTX "powershell-format: pwsh failed on $FILE_BASE:" \
+    "$PSSA_OUTPUT" --max 10 --delta "$INPUT" "$FILE"
   # Invoke-Formatter writes back BEFORE Invoke-ScriptAnalyzer runs, and both sit
   # inside the same try/catch that raises exit 4 — so a rewrite can already be on
   # disk when pwsh breaks. The disclosure is still owed and composes with the

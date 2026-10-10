@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No, not yet. WSL2 supports the sandbox, but only when both of its packages are installed: bubblewrap and socat. Your `command -v socat` came back empty, so the sandbox backend is not available on this machine as it stands.\n\nThat matters because granting Bash puts every command under the sandbox. With no working backend the CLI refuses each run that grants Bash instead of running it unconfined, so that case reports a run error and usually scores 0. You would pay for runs that measure nothing.\n\nInstall socat (`sudo apt-get install socat`), restart Claude Code, and run `/sandbox` to confirm there is no Dependencies tab. Then pay for the run.",
+      "why": "P-canonical: verdict (not usable yet despite WSL2), cause (socat missing, WSL2 needs it with bubblewrap, each Bash-granting run refused and usually 0), and fix (install socat first)."
+    },
+    {
+      "answer": "Hold off. Being on WSL2 is necessary but not sufficient: Claude Code's sandbox there is built from bubblewrap plus socat, and you only have the first. Without socat the sandbox can't come up, and the eval CLI rejects every run in which Bash is allowed rather than letting it execute unprotected. Those runs come back as errors worth zero.\n\nAdd the socat package with your distribution's package manager, relaunch Claude Code, and then the Bash case can actually be measured.",
+      "why": "P-alt: the same three points paraphrased: hold off, socat is required alongside bubblewrap so Bash-allowed runs are rejected as zero-scoring errors, add socat first."
+    },
+    {
+      "answer": "Not quite. The preflight would report `sandbox_backend: absent (missing: socat)`. WSL2 uses the same sandbox as Linux, which needs bubblewrap and socat; bwrap resolves but socat does not, so each run that grants Bash is refused and usually scores 0 rather than running unconfined.\n\nInstall socat and restart before paying.\n\nTwo extras: on Ubuntu 24.04 and later, also check `sysctl kernel.apparmor_restrict_unprivileged_userns`, since an AppArmor restriction can stop bwrap even with both installed. And your read-only cases are unaffected either way.",
+      "why": "P-caveat: all three points, plus true extra notes about the AppArmor check and read-only cases that do not touch the graded points."
+    },
+    {
+      "answer": "No. socat is missing, and on WSL2 the sandbox needs it as well as bubblewrap. Until it is installed every Bash-granting run is refused and scores 0. Install socat first, then run.",
+      "why": "P-plain: terse, but verdict, cause and fix are all stated."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, you're good. WSL2 runs a real Linux kernel, and Claude Code's sandbox on WSL2 uses bubblewrap, which you have at /usr/bin/bwrap. That is the piece that enforces filesystem isolation, so the Bash case will run sandboxed and score normally.\n\nGo ahead and pay for the run with --allow-tools Bash.",
+      "why": "F-wrong: says WSL2 with bubblewrap is enough and tells the user to pay; socat is never named as required."
+    },
+    {
+      "answer": "Mostly. socat is missing, but on WSL2 socat is only the relay for network traffic out of the sandbox. Filesystem isolation comes from bubblewrap, which you have, so your Bash case will still run; it just won't be able to reach the network. If your helper script is local-only, go ahead and pay for the run.",
+      "why": "F-near: names socat as missing, then says it is optional and the Bash case still runs, an explicit FAIL condition."
+    },
+    {
+      "answer": "Not yet: socat is missing, and WSL2's sandbox needs socat alongside bubblewrap, so each run that grants Bash would be refused and score 0. Don't pay for it in this state.\n\nThe quickest way around it is to turn the sandbox off for this project in your Claude Code settings. Bash then runs directly, the case executes, and you can pay for the run today without installing anything.",
+      "why": "F-near: verdict and cause right, but the fix offered is disabling the sandbox, an explicit FAIL condition, and socat is never installed."
+    },
+    {
+      "answer": "No, don't pay yet. socat is missing, and the WSL2 sandbox needs socat as well as bubblewrap, so each Bash-granting run would be refused and score 0. Install socat first.\n\nActually, I overstated that. Current releases fall back to running Bash without the network relay when socat is absent, so the Bash case runs fine on WSL2 with bubblewrap alone. You can pay for the run as it is.",
+      "why": "F-retract: states all three points, then retracts them and says the run is fine without socat."
+    }
+  ]
+}

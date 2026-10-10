@@ -43,6 +43,13 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the config opt-in walk
@@ -142,15 +149,12 @@ if [[ -z "$RUFF_BIN" ]]; then
   command -v ruff >/dev/null 2>&1 && RUFF_BIN=ruff
 fi
 
-# The repo opted in via a Ruff config but no binary is available → visible
-# once-per-session skip notice, not a silent gap (dim-9 doctrine).
+# The repo opted in via a Ruff config but no binary is available: a skip notice
+# once per channel, composed from prerequisites.json, not a silent gap.
 if [[ -z "$RUFF_BIN" ]]; then
-  if hook::notice_once "ruff-format-ruff" "$INPUT" prerequisite; then
-    RUFF_NOTICE=""
-    hook::tool_missing_notice_to RUFF_NOTICE \
-      "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit" \
-      matching "; a project .venv install is the reliable route. Run /ruff-format:check. It does not install. Install: pip install ruff in the project .venv, https://docs.astral.sh/ruff/installation/"
-    hook::emit_skip_notice PostToolUse "$RUFF_NOTICE"
+  RUFF_MODEL="" RUFF_USER=""
+  if hook::prereq_notice_to RUFF_MODEL RUFF_USER ruff "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "$RUFF_MODEL" "$RUFF_USER"
   fi
   emit_skipped
 fi
@@ -180,6 +184,29 @@ fi
 # cache. Discovery is file-anchored, so the config that governs is the repo's
 # own regardless of flags.
 RUFF_COMMON=(--force-exclude --no-cache --quiet)
+RUFF_FIX=(--no-unsafe-fixes --unfixable F401)
+
+# Pre-existing drift gate: each pass below runs only when the file was already
+# clean for that pass before this edit. A file that drifted from the repo's
+# Ruff config (written before the config changed, say) is not, and a pass over
+# it rewrites every drifted line, so a small edit lands as a whole-file diff.
+# The pre-edit bytes are the Write/Edit `tool_response.originalFile`, checked
+# through stdin under the file's own name so the same config governs. No
+# original (a Write that created the file, or a payload without the field)
+# leaves nothing to preserve, and both passes run.
+PRE_EDIT=$(jq -j '(.tool_response | objects | .originalFile | strings | "1" + . + ".") // "0"' <<<"$INPUT" 2>/dev/null) || PRE_EDIT=0
+PRE_EDIT_KNOWN=0
+if [[ "$PRE_EDIT" == 1* ]]; then
+  PRE_EDIT="${PRE_EDIT#1}"
+  PRE_EDIT="${PRE_EDIT%.}"
+  PRE_EDIT_KNOWN=1
+fi
+# was_clean <ruff subcommand and check flags...>: 0 when the pre-edit bytes
+# pass that check, or when there are no pre-edit bytes.
+was_clean() {
+  ((PRE_EDIT_KNOWN)) || return 0
+  printf '%s' "$PRE_EDIT" | (cd "$RUN_DIR" && "$RUFF_BIN" "$@" "${RUFF_COMMON[@]}" --stdin-filename "$RUFF_ARG" -) >/dev/null 2>&1
+}
 
 # Pass 1: apply safe lint fixes, keeping F401 unfixable per the header
 # rationale. --no-unsafe-fixes is explicit, not the default restated: a
@@ -195,10 +222,12 @@ RUFF_COMMON=(--force-exclude --no-cache --quiet)
 # single-document composition live in the shared rewrite-guard lib (#3406,
 # #3409): the disclosure is TAKEN at each exit arm and composed into that
 # arm's one JSON document, never emitted mid-run as a second document.
-RUFF_REWRITE_MESSAGE="ruff-format: auto-fixed and/or reformatted $FILE_BASE via Ruff."
+RUFF_REWRITE_MESSAGE="ruff-format: reformatted $FILE_BASE."
 hook::rewrite_guard_begin "$FILE"
-(cd "$RUN_DIR" && "$RUFF_BIN" check --fix --no-unsafe-fixes --unfixable F401 "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
-(cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true
+was_clean check --diff "${RUFF_FIX[@]}" &&
+  { (cd "$RUN_DIR" && "$RUFF_BIN" check --fix "${RUFF_FIX[@]}" "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
+was_clean format --check &&
+  { (cd "$RUN_DIR" && "$RUFF_BIN" format "${RUFF_COMMON[@]}" "$RUFF_ARG") >/dev/null 2>&1 || true; }
 
 # Verify pass — a pure reporter. --no-fix matters: a consumer config may set
 # fix=true, which would make a bare `ruff check` re-apply fixes here, including
@@ -209,17 +238,24 @@ hook::rewrite_guard_begin "$FILE"
 # failed (bad config, internal error).
 OUTPUT=$(cd "$RUN_DIR" && "$RUFF_BIN" check --no-fix --output-format concise "${RUFF_COMMON[@]}" "$RUFF_ARG" 2>&1)
 RC=$?
+((RC == 0)) && OUTPUT=""
+# The heading names the file once, so each line drops Ruff's path prefix, in
+# either separator.
+OUTPUT=$'\n'"$OUTPUT"
+OUTPUT="${OUTPUT//$'\n'"$RUFF_ARG:"/$'\n'}"
+OUTPUT="${OUTPUT//$'\n'"${RUFF_ARG//\//\\}:"/$'\n'}"
 
-if [[ $RC -eq 0 ]]; then
-  # Clean: the disclosure is the whole document, or there is none.
-  hook::finish --disclose "$RUFF_REWRITE_MESSAGE" ok findings array '[]'
-fi
-
-if [[ $RC -eq 1 && -n "$OUTPUT" ]]; then
-  RUFF_CTX=""
+# --delta sends a finding set once per (session, agent, file); the clean run
+# goes through it too, so findings that come back after a fix are sent again.
+RUFF_CTX=""
+if [[ $RC -eq 0 || ($RC -eq 1 && -n "${OUTPUT//$'\n'/}") ]]; then
   FINDINGS_JSON='[]'
-  hook::findings_to RUFF_CTX "ruff-format: $FILE_BASE has Ruff findings (advisory):" \
-    "$OUTPUT" FINDINGS_JSON
+  # The heading names the repo-relative path, or the basename when that did not
+  # resolve; never the absolute path the tool is handed as a fallback.
+  RUFF_SHOWN="$RUFF_ARG"
+  [[ "$RUFF_ARG" == "$FILE" ]] && RUFF_SHOWN="$FILE_BASE"
+  hook::findings_to RUFF_CTX "ruff-format: $RUFF_SHOWN has findings:" \
+    "$OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document (#3406).
   # Status "ok" — the linter RAN and produced a judgment (findings live in
   # data.findings), mirroring the sibling formatter plugins where status
@@ -233,10 +269,9 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran to judgment), the same status as the
 # no-config / no-binary paths.
-RUFF_CTX=""
-hook::findings_to RUFF_CTX \
-  "ruff-format: ruff failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
-  "$OUTPUT"
+[[ -n "${OUTPUT//$'\n'/}" ]] || OUTPUT="exit $RC"
+hook::findings_to RUFF_CTX "ruff-format: ruff failed on $FILE_BASE:" \
+  "$OUTPUT" --max 10 --delta "$INPUT" "$FILE"
 # The fix/format passes may already have rewritten the file before the verify
 # pass broke, so the disclosure is still owed and composes with the tool-break
 # context as one document (#3406); the take inside hook::finish is also what

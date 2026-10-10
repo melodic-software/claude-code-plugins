@@ -103,7 +103,8 @@ reading only the mechanism doc:
 
 `/source-control:pull-request create`'s §2.4.2 pre-`gh pr create` gate checks, for every section in
 the resolved `pr_body_required_sections` list, that a `## <heading>` section exists in the assembled
-body **and** its content is non-empty. On failure it names the exact missing or empty section and the
+body **and** its content is non-empty. It judges the body with the same checker as the
+`pr-body-linkage-gate.sh` hook, so the two cannot disagree on what a heading or content is. On failure it names the exact missing or empty section and the
 resolved config source (the winning layer's file path and the `pr_body_required_sections` key),
 never a bare "PR body invalid", so the actor who never saw the convention learns where it lives on
 first failure, not by asking someone.

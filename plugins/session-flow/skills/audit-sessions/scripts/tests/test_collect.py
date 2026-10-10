@@ -271,7 +271,7 @@ def test_changed_excerpt_words_reingests(data_dir, multi):
 @pytest.mark.parametrize(
     "edit",
     [
-        pytest.param(lambda rec: rec.update(collector_version="0.0.1"), id="other-collector-version"),
+        pytest.param(lambda rec: rec.update(collector_digest="0" * 64), id="other-collector-digest"),
         pytest.param(lambda rec: rec.pop("excerpt_limits", None), id="written-before-excerpt-limits"),
     ],
 )
@@ -286,6 +286,186 @@ def test_record_from_another_collection_policy_is_reingested(data_dir, multi, ed
     data = envelope(collect(data_dir, root))["data"]
     assert (data["ingested"], data["skipped_unchanged"]) == (1, 2)
     assert "excerpt_limits" in records(data_dir)["sess-a2"]
+
+
+def test_record_without_digest_is_reingested_once(data_dir, multi):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    store = data_dir / "audit-sessions" / "store" / "v1" / "sessions"
+    (path,) = store.glob("p-*/sess-a2.json")
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    del rec["collector_digest"]
+    path.write_text(json.dumps(rec), encoding="utf-8")
+    data = envelope(collect(data_dir, root))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (1, 2)
+    data = envelope(collect(data_dir, root))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (0, 3)
+    rec = records(data_dir)["sess-a2"]
+    assert rec["collector_version"] and len(rec["collector_digest"]) == 64
+
+
+def test_new_transcript_is_ingested_and_the_rest_skipped(data_dir, multi):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    shutil.copy(root / "proj-b" / "sess-b1.jsonl", root / "proj-b" / "sess-b2.jsonl")
+    data = envelope(collect(data_dir, root))["data"]
+    assert (data["ingested"], data["skipped_unchanged"], data["store_records"]) == (1, 3, 4)
+
+
+def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    assert envelope(collect(data_dir, root))["data"]["skipped_unchanged"] == 3
+    skipped = records(data_dir)
+    assert envelope(collect(data_dir, root, "--force"))["data"]["ingested"] == 3
+    forced = records(data_dir)
+    for rec in (*skipped.values(), *forced.values()):
+        rec.pop("ingested_at")
+    assert skipped == forced
+
+
+# --- the collector digest: what forces a full re-ingest ---
+
+# The files that decide what a record holds, relative to the plugin root, as the requirement lists them.
+HASHED_INPUTS = (
+    "skills/audit-sessions/scripts/collect.py",
+    "skills/audit-sessions/scripts/census.py",
+    "skills/audit-sessions/scripts/friction_scan.py",
+    "skills/audit-sessions/scripts/redact.py",
+    "scripts/transcript_reader.py",
+    "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
+    "lib/state-key.sh",
+)
+PLUGIN_ROOT = SCRIPTS.parents[2]
+
+
+@pytest.fixture
+def plugin_copy(tmp_path):
+    """A copy of the plugin files collect.py runs or reads, laid out as in the plugin."""
+    dest = tmp_path / "plugin" / "session-flow"
+    for relative in (*HASHED_INPUTS, ".claude-plugin/plugin.json"):
+        (dest / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(PLUGIN_ROOT / relative, dest / relative)
+    return dest
+
+
+def collect_with(plugin: Path, data_dir: Path, root: Path, *extra: str) -> dict:
+    script = plugin / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    args = [sys.executable, str(script), "collect", "--data-dir", str(data_dir), "--projects-root", str(root), *extra]
+    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert result.returncode == 0, result.stderr
+    return envelope(result)["data"]
+
+
+def counts(data: dict) -> tuple[int, int]:
+    return data["ingested"], data["skipped_unchanged"]
+
+
+def test_collector_inputs_are_the_listed_files():
+    import collect as collector
+
+    assert collector.COLLECTOR_INPUTS == HASHED_INPUTS
+
+
+@pytest.mark.parametrize("relative", HASHED_INPUTS)
+def test_change_to_a_collector_input_reingests_every_session(data_dir, multi, plugin_copy, relative):
+    root, _ = multi
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (3, 0)
+    with (plugin_copy / relative).open("ab") as handle:
+        handle.write(b"\n")
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (3, 0)
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
+
+
+def test_plugin_version_change_alone_skips_every_session(data_dir, multi, plugin_copy):
+    root, _ = multi
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (3, 0)
+    manifest_path = plugin_copy / ".claude-plugin" / "plugin.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["version"] = "999.0.0"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
+    # Skipped records keep the version that wrote them; it is provenance, not policy.
+    assert records(data_dir)["sess-a1"]["collector_version"] != "999.0.0"
+    assert counts(collect_with(plugin_copy, data_dir, root, "--force")) == (3, 0)
+    assert records(data_dir)["sess-a1"]["collector_version"] == "999.0.0"
+
+
+def test_line_ending_change_alone_skips_every_session(data_dir, multi, plugin_copy):
+    root, _ = multi
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (3, 0)
+    script = plugin_copy / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    lf = script.read_bytes().replace(b"\r\n", b"\n")
+    script.write_bytes(lf.replace(b"\n", b"\r\n"))
+    assert counts(collect_with(plugin_copy, data_dir, root)) == (0, 3)
+
+
+AUDIT_DRIVER = """\
+import json, os, runpy, sys
+script, out = sys.argv[1], sys.argv[2]
+opened, commands = set(), []
+def hook(event, args):
+    if event == "open" and isinstance(args[0], (str, bytes, os.PathLike)):
+        opened.add(os.fsdecode(args[0]))
+    elif event == "subprocess.Popen":
+        argv = args[1]
+        commands.append(argv if isinstance(argv, str) else " ".join(map(os.fsdecode, argv)))
+sys.addaudithook(hook)
+sys.path.insert(0, os.path.dirname(script))
+sys.argv = [script, *sys.argv[3:]]
+try:
+    runpy.run_path(script, run_name="__main__")
+except SystemExit:
+    pass
+opened.update(m.__file__ for m in list(sys.modules.values()) if getattr(m, "__file__", None))
+with open(out, "w", encoding="utf-8") as handle:
+    json.dump({"opened": sorted(opened), "commands": commands}, handle)
+"""
+
+
+def unhashed_plugin_files(plugin: Path, data_dir: Path, root: Path, tmp_path: Path) -> set[str]:
+    """Plugin files a collect run imports, opens or executes that are not hashed (plugin.json is provenance)."""
+    driver, out = tmp_path / "audit_driver.py", tmp_path / "touched.json"
+    driver.write_text(AUDIT_DRIVER, encoding="utf-8")
+    plugin = plugin.resolve()
+    script = plugin / "skills" / "audit-sessions" / "scripts" / "collect.py"
+    args = [sys.executable, str(driver), str(script), str(out), "collect", "--data-dir", str(data_dir),
+            "--projects-root", str(root)]
+    result = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert envelope(result)["data"]["ingested"] == 3
+    trace = json.loads(out.read_text(encoding="utf-8"))
+    commands = os.path.normcase(" ".join(trace["commands"]))
+    base = os.path.normcase(str(plugin)) + os.sep
+    touched = {os.path.normcase(str(p)) for p in plugin.rglob("*") if p.is_file() and os.path.normcase(str(p)) in commands}
+    touched.update(os.path.normcase(str(Path(name).resolve())) for name in trace["opened"])
+    relative = {Path(p[len(base):]).as_posix() for p in touched if p.startswith(base) and "__pycache__" not in p}
+    return relative - {casefold(p) for p in (*HASHED_INPUTS, ".claude-plugin/plugin.json")}
+
+
+def casefold(relative: str) -> str:
+    """A relative path as `unhashed_plugin_files` reports it: posix separators, platform case folding."""
+    return Path(os.path.normcase(relative)).as_posix()
+
+
+def test_every_plugin_file_collect_reads_is_hashed(data_dir, multi, tmp_path):
+    root, _ = multi
+    assert unhashed_plugin_files(PLUGIN_ROOT, data_dir, root, tmp_path) == set()
+
+
+def test_unhashed_import_or_read_is_caught(data_dir, multi, plugin_copy, tmp_path):
+    root, _ = multi
+    scripts = plugin_copy / "skills" / "audit-sessions" / "scripts"
+    (scripts / "extra.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (plugin_copy / "lib" / "rules.txt").write_text("x\n", encoding="utf-8")
+    collect_py = scripts / "collect.py"
+    source = collect_py.read_text(encoding="utf-8")
+    hook = 'import extra  # noqa\n(PLUGIN_ROOT / "lib" / "rules.txt").read_text()\nSCHEMA = '
+    collect_py.write_text(source.replace("SCHEMA = ", hook, 1), encoding="utf-8")
+    assert unhashed_plugin_files(plugin_copy, data_dir, root, tmp_path) == {
+        casefold("skills/audit-sessions/scripts/extra.py"),
+        casefold("lib/rules.txt"),
+    }
 
 
 def test_session_and_since_filters(data_dir, multi):
@@ -442,7 +622,7 @@ def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subpro
     # The same manifest, so the copy reports the same collector version as the real script.
     shutil.copytree(SCRIPTS.parents[2] / ".claude-plugin", tmp_path / "plugin" / ".claude-plugin")
     shutil.copy2(SCRIPTS.parents[2] / "scripts" / "transcript_reader.py", tmp_path / "plugin" / "scripts")
-    for name in ("collect.py", "census.py", "redact.py"):
+    for name in ("collect.py", "census.py", "friction_scan.py", "redact.py"):
         shutil.copy2(SCRIPTS / name, skill / "scripts")
     (skill / "vendor" / "gitleaks").mkdir(parents=True)
     rules = {"rules": [{"id": "broken", "regex": "(unclosed", "keywords": []}], "source_version": "test"}

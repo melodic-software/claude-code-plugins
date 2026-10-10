@@ -31,7 +31,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the session-flow hooks skip their work for the session and say so once, and /session-flow:retro codify reviews cannot read review comments.",
+      "degrade": "Without jq, the session-flow hooks skip their work, fetch-docs.sh exits before reading anything so /session-flow:retro reads a docs page with WebFetch instead, and /session-flow:retro codify reviews cannot read review comments.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
@@ -65,15 +65,24 @@
       "need": "optional",
       "for": [
         "skill:find-handoff",
-        "skill:recall"
+        "skill:recall",
+        "skill:retro"
       ],
       "detect": {
         "any": [
           "python3",
           "python"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.10"
+        },
+        "reject_store_alias": true
       },
-      "degrade": "Without Python 3.10+, /session-flow:find-handoff lists only transcript directories whose name matches a worktree exactly, so sessions started in a subdirectory or stored under a hashed long name are not scanned, and it says so. /session-flow:recall cannot scan transcripts and reports from git, pull requests and the tracker alone.",
+      "degrade": "Without Python 3.10+, /session-flow:find-handoff lists only transcript directories whose name matches a worktree exactly, so sessions started in a subdirectory or stored under a hashed long name are not scanned, and it says so. /session-flow:recall cannot scan transcripts and reports from git, pull requests and the tracker alone. /session-flow:retro skips transcript metrics. Without any Python 3, a docs page that serves only HTML cannot be converted and is recorded unread with reason no-python; pages served as markdown read normally.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -100,6 +109,27 @@
         "brew": "git",
         "winget": "Git.Git",
         "apt": "git"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:retro"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, fetch-docs.sh records a docs page unread with reason curl-missing, so /session-flow:retro reads it with WebFetch instead.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
       },
       "check": "/harness-ops:prerequisites"
     }

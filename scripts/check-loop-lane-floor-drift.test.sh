@@ -78,7 +78,7 @@ done <<<"$(bash "$SUT" --list 2>/dev/null | grep '^carrier exempt' || true)"
 # bullets: this suite tests the gate's comparison, not the guard's values.
 floor_block() {
   cat <<'EOF'
-- **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+- **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 - **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
 - **Pause end:** the **tripped** window's `resets_at`
 - **Staleness rule:** a snapshot older than **10 minutes** is stale. Treat the
@@ -92,7 +92,7 @@ EOF
 # templates legitimately do, and what `values` mode exists to tolerate.
 floor_block_quoted() {
   cat <<'EOF'
-> - **Tee file (fixed path):**
+> - **Snapshot file (fixed path):**
 >   `~/.claude/rate-limit-guard/rate-limits.json`
 > - **Pause threshold (fixed):** pause when **either** window
 >   reports `used_percentage >= 90`
@@ -319,7 +319,7 @@ fi
 # comparison would be empty-against-empty and the gate would pass forever.
 
 seed_tree
-mutate "$TMP/$SOURCE_REL" 's/- \*\*Tee file (fixed path):\*\*/- **Tee file path:**/'
+mutate "$TMP/$SOURCE_REL" 's/- \*\*Snapshot file (fixed path):\*\*/- **Snapshot file path:**/'
 out="$(run --check)"
 rc=$?
 if ((rc == 2)) && grep -q 'opens the floor block 0 time(s)' <<<"$out"; then

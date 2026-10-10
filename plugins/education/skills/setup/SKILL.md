@@ -25,7 +25,7 @@ repository file and nothing else. Re-running either reads the current state agai
 `<key>=<value>` arguments, nothing asks a question; the one confirmation is a diff to an existing
 file (`apply` step 4).
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## `check` (read-only)
 

@@ -65,8 +65,10 @@ f=""
 # and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
+  "check-app-key-references.sh|-|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
+  "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-conformance-registry.sh|-|-|-"
   "check-convention-yaml.sh|CHECK_JSONSCHEMA_BIN=/nonexistent/check-jsonschema|--check|convention_yaml"
@@ -99,6 +101,7 @@ REGISTRY=(
   "check-publisher-token-alignment.sh|-|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
+  "check-read-caller-keys.sh|node|-|-"
   "check-shell-portability.sh|-|-|-"
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
@@ -143,52 +146,54 @@ capture() {
   return 0
 }
 
-# hidden_path <tool> — sets HIDDEN_PATH to a PATH directory mirroring this host's
-# PATH with one tool missing. Mirroring is the only portable way to remove ONE
-# name: the tools share directories with everything else the member needs, so
-# dropping a directory would starve the member of the coreutils it runs on and
-# the exit code would stop meaning what the assertion reads it as.
+# hidden_path <tool> — sets HIDDEN_PATH to this host's PATH with one tool missing.
+# Entries without the tool pass through untouched. Each entry that holds it is
+# replaced, in place so precedence holds, by a directory of per-file symlinks to
+# everything in it but the tool: dropping the entry would starve the member of
+# the coreutils it shares a directory with (awk and sed both live in /usr/bin),
+# and the exit code would stop meaning what the assertion reads it as.
+#
+# Only regular files are linked, and MSYS is forced to native symlinks: Git
+# Bash's default `ln -s` deep-copies its target, which once copied C:\WINDOWS into
+# $TMPDIR on every run. Where native links are not allowed, `ln` fails and the
+# suite reports it rather than copying.
 #
 # The answer comes back through a global rather than stdout because the cache and
-# the cleanup list must survive the call: `$(hidden_path jq)` would run this in a
-# subshell, so every caller would rebuild the mirror and every mirror would
+# the cleanup root must survive the call: `$(hidden_path jq)` would run this in a
+# subshell, so every caller would rebuild the mirrors and every mirror would
 # outlive the run in $TMPDIR.
 declare -A HIDDEN_PATHS=()
 HIDDEN_PATH=""
+HIDDEN_ROOT=""
 hidden_path() {
-  local tool="$1" dir entry
+  local tool="$1" entry file mirror n=0
   if [[ -n "${HIDDEN_PATHS[$tool]:-}" ]]; then
     HIDDEN_PATH="${HIDDEN_PATHS[$tool]}"
     return 0
   fi
-  dir="$(mktemp -d)" || return 2
-  local -a parts=()
+  [[ -n "$HIDDEN_ROOT" ]] || HIDDEN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hidden-path.XXXXXX")" || return 2
+  local -a parts=() kept=()
   IFS=':' read -r -a parts <<<"$PATH"
-  local i
-  # Later PATH entries are linked first so that earlier ones overwrite them:
-  # `ln -sf` keeps the last link written, and PATH precedence is first-wins.
-  for ((i = ${#parts[@]} - 1; i >= 0; i--)); do
-    entry="${parts[i]}"
-    [[ -d "$entry" ]] || continue
-    ln -sf "$entry"/* "$dir"/ 2>/dev/null || true
+  for entry in "${parts[@]}"; do
+    if [[ ! -e "$entry/$tool" && ! -e "$entry/$tool.exe" ]]; then
+      kept+=("$entry")
+      continue
+    fi
+    mirror="$HIDDEN_ROOT/$tool.$((n++))"
+    mkdir "$mirror" || return 2
+    for file in "$entry"/*; do
+      [[ ! -f "$file" || "${file##*/}" == "$tool" || "${file##*/}" == "$tool.exe" ]] && continue
+      MSYS=winsymlinks:nativestrict ln -s "$file" "$mirror/" || return 2
+    done
+    kept+=("$mirror")
   done
-  rm -f "$dir/$tool"
-  HIDDEN_PATHS["$tool"]="$dir"
-  HIDDEN_PATH="$dir"
-  if [[ -e "$dir/$tool" ]]; then
-    return 2
-  fi
+  HIDDEN_PATH="$(IFS=':' && printf '%s' "${kept[*]}")"
+  HIDDEN_PATHS["$tool"]="$HIDDEN_PATH"
 }
 
 cleanup_hidden_paths() {
-  local key
-  if ((${#HIDDEN_PATHS[@]} == 0)); then
-    return 0
-  fi
-  for key in "${!HIDDEN_PATHS[@]}"; do
-    [[ -n "${HIDDEN_PATHS[$key]}" ]] && rm -rf "${HIDDEN_PATHS[$key]}"
-  done
-  HIDDEN_PATHS=()
+  [[ -n "$HIDDEN_ROOT" ]] && rm -rf "$HIDDEN_ROOT"
+  return 0
 }
 
 # Installed BEFORE the first fixture_tree::build so the builder chains this trap
@@ -409,12 +414,23 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
+recipe::changelog_fragments() { # <clean|violation>
+  local listed=alpha
+  [[ "$1" == violation ]] && listed=""
+  fixture_tree::build f --sut "$SELF_DIR/check-changelog-fragments.sh" --plugins || return 2
+  mkdir -p "$f/plugins/alpha/.claude-plugin" "$f/.changes/alpha"
+  printf '%s\n' '{"name":"alpha","version":"0.1.0"}' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+  printf '%s\n' "$listed" >"$f/scripts/fragment-plugins.txt"
+  printf -- '---\nbump: none\n---\n\nTests only.\n' >"$f/.changes/alpha/feat-x-0123abcd.md"
+  capture run_in "$f" bash scripts/check-changelog-fragments.sh --check
+}
+
 recipe::pipefail_grep_q() { # <clean|violation>
   # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
   local body='grep -q x <<<"$v"'
   # shellcheck disable=SC2016  # see above
   [[ "$1" == violation ]] && body='echo "$v" | grep -q x'
-  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --no-lib || return 2
+  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --git || return 2
   printf '%s\n' "$body" >"$f/scripts/sample.sh"
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }
@@ -448,6 +464,7 @@ declare -A VIOLATION_NEEDLE=(
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
+  [changelog_fragments]='NOT IN FRAGMENT MODE:'
   [docs_naming]='is not lower-kebab-case'
   [convention_yaml]='docs/conventions/alpha.yaml: no schema'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
@@ -496,7 +513,7 @@ for row in "${REGISTRY[@]}"; do
     capture run_in "$REPO_ROOT" env "$prereq" bash "$SELF_DIR/$name" ${args[@]+"${args[@]}"}
   else
     if ! hidden_path "$prereq"; then
-      fail "$name: could not build a PATH without $prereq"
+      fail "$name: could not build a PATH without $prereq (no native symlinks here? Git Bash needs Developer Mode)"
       continue
     fi
     capture run_in "$REPO_ROOT" env PATH="$HIDDEN_PATH" bash "$SELF_DIR/$name" ${args[@]+"${args[@]}"}

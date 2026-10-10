@@ -21,6 +21,16 @@ detect-then-judge for these pages and stays reasoning-only for every other recor
 record a docs site keep their own forms. `docs/upstream/` pages adopt the git form as they are
 converted, and each joins the Adopters table once it conforms.
 
+## [2.2.0] - 2026-10-07
+
+Additive guidance; minor under this contract's own rule. Rung 1 now covers any publisher through
+the docs lookup (`/discovery:read-docs` over `lib/fetch-docs.sh` and `lib/docs-cache.sh`): raw
+`.md`, `Accept: text/markdown`, a `.md` suffix, the origin's `llms.txt` link, or converted HTML.
+WebFetch is rung 2, for finding a page and small questions, with a pointer record to the tools
+reference WebFetch section and a dated truncation measurement (2026-10-04). The hashing section
+states that cached section hashes now expire notes, and that a stamp hash store stays deferred
+([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+
 ## [2.1.0] - 2026-10-02
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or

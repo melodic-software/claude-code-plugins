@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service on Node.js; pnpm. Commands are the package.json scripts.\n\n## Troubleshooting\n\n- `pnpm test` fails with `Error: Cannot find module '@ledgerline/schema'`: the package is installed; its generated code is stale after a schema change. Run `pnpm gen:schema`, then rerun the tests.\n```\n\n- Welcome line: says nothing an agent acts on.\n- Project structure: visible from the tree.\n- Commands list: same as package.json scripts.\n- Style: generic advice; ESLint enforces the rest.\n- Final notes: filler.",
+      "why": "gen:schema inside the fenced file"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n## Project structure\n\n- `src/` contains the application source code.\n- `test/` contains the tests.\n- `package.json` defines the dependencies and scripts.\n- `tsconfig.json` configures the TypeScript compiler.\n\n## Troubleshooting\n\n- `Cannot find module '@ledgerline/schema'`: generated code is stale. Run `pnpm gen:schema`.\n```\n\n- Commands: in package.json.\n- Style, welcome, final notes: generic.",
+      "why": "regex checks presence only; filler is the judge's job"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service, pnpm. Commands are the package.json scripts. Follow `eslint.config.js`.\n```\n\n- Structure, commands: derivable.\n- Style: generic.\n- Troubleshooting: an agent can read the error and investigate.\n- Welcome and final notes: filler.",
+      "why": "row cut; gen:schema absent from the file"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript service, pnpm.\n\n- If tests fail with a module error, rerun `pnpm install`.\n```\n\n- Structure, commands, style: derivable or generic.\n- Troubleshooting: shortened.",
+      "why": "fix replaced by pnpm install"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nLedgerline: TypeScript, pnpm.\n```\n\n- Troubleshooting: cut; `pnpm gen:schema` is discoverable.",
+      "why": "gen:schema only in the cut list, not in the file"
+    }
+  ]
+}

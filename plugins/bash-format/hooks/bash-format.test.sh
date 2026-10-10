@@ -22,6 +22,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/bash-format.sh"
+# Claude Code sets the plugin root for every hook; the missing-tool notices read
+# prerequisites.json from it.
+export CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}"
 
 PASS=0
 FAIL=0
@@ -125,8 +128,56 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   else
     ok "ctx free of medley-policy prose"
   fi
+  # The heading names the file; the lines carry no absolute path.
+  if [[ "$CTX" == "bash-format: violation.sh has findings:"$'\n'"  3:"* && "$CTX" != *"$REPO"* ]]; then
+    ok "violation -> lines drop ShellCheck's absolute path prefix"
+  else
+    fail "violation -> report shape: $CTX"
+  fi
 else
   fail "violation -> no additionalContext JSON: $OUT"
+fi
+
+# --- Case 3b: an unchanged finding set is sent once ---------------------------
+# With a data directory the set is sent on the first edit and not on the next;
+# telemetry still records it. A SessionStart compact resets the record, and a
+# clean run clears it, so the set is sent again when it returns.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+D1=$(run_delta "$REPO/violation.sh")
+TELD="$(mktemp "$WORK/teld.XXXXXX")"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/violation.sh" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *SC2154* && -z "$D2" ]]; then
+  ok "delta: an unchanged finding set is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | map(test("SC2154")) | any' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/violation.sh")
+if [[ "$(delta_ctx "$D3")" == *SC2154* ]]; then
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D3'"
+fi
+VIOLATION_SRC="$(cat "$REPO/violation.sh")"
+cp "$REPO/clean.sh" "$REPO/violation.sh"
+run_delta "$REPO/violation.sh" >/dev/null
+printf '%s\n' "$VIOLATION_SRC" >"$REPO/violation.sh"
+D4=$(run_delta "$REPO/violation.sh")
+if [[ "$(delta_ctx "$D4")" == *SC2154* ]]; then
+  ok "delta: a finding that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D4'"
 fi
 
 # --- Case 4: non-shell extension -> exit 0 silently -------------------------
@@ -161,7 +212,7 @@ EOF
   else
     fail "shfmt gate ON -> not formatted: $(cat "$REPO_YES/src/fmt.sh")"
   fi
-  if printf '%s' "$OUT" | grep -q 'bash-format: reformatted'; then
+  if printf '%s' "$OUT" | jq -e '.systemMessage == "bash-format: reformatted fmt.sh."' >/dev/null 2>&1; then
     ok "shfmt gate ON -> user-channel mutation disclosure"
   else
     fail "shfmt gate ON -> missing systemMessage disclosure: $OUT"
@@ -327,18 +378,20 @@ EOF
     else
       fail "$label -> file rewritten: $(cat "$f")"
     fi
-    if [[ -n "$SUB_MSG" && "$SUB_MSG" != *reformatted* ]]; then
-      ok "$label -> a notice and no reformatted disclosure"
+    # The model rewrites the key; the user has nothing to act on, and the file
+    # is unchanged, so there is no disclosure either.
+    if [[ -n "$SUB_CTX" && -z "$SUB_MSG" ]]; then
+      ok "$label -> a notice to the model only, and no reformatted disclosure"
     else
-      fail "$label -> expected a notice without a reformatted disclosure: $SUB_OUT"
+      fail "$label -> expected a model-only notice: $SUB_OUT"
     fi
   }
-  # sub_names <label> <needle>...: each needle is in the notice on both channels.
+  # sub_names <label> <needle>...: each needle is in the model's notice.
   sub_names() {
     local label="$1" n
     shift
     for n in "$@"; do
-      if [[ "$SUB_MSG" == *"$n"* && "$SUB_CTX" == *"$n"* ]]; then
+      if [[ "$SUB_CTX" == *"$n"* ]]; then
         ok "$label -> notice states $n"
       else
         fail "$label -> notice lacks $n: $SUB_OUT"
@@ -379,20 +432,20 @@ EOF
   sub_case "two keys" two.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-b]}"\necho "${m[c-d]}"\n'
   # shellcheck disable=SC2016  # the subscripts are literal text in the notice
   sub_names "two keys" '`[a-b]` on line 6 as `[a - b]`' '`[c-d]` on line 7 as `[c - d]`'
-  if [[ "$(grep -o 'shfmt would rewrite' <<<"$SUB_MSG" | wc -l)" -eq 1 ]]; then
+  if [[ "$(grep -o 'shfmt would rewrite' <<<"$SUB_CTX" | wc -l)" -eq 1 ]]; then
     ok "two keys -> one notice"
   else
-    fail "two keys -> expected exactly one notice: $SUB_MSG"
+    fail "two keys -> expected exactly one notice: $SUB_CTX"
   fi
   # Past five changed subscripts the notice counts the rest.
   # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
   sub_case "seven keys" seven.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-1]}" "${m[a-2]}" "${m[a-3]}" "${m[a-4]}" "${m[a-5]}" "${m[a-6]}" "${m[a-7]}"\n'
   # shellcheck disable=SC2016  # the subscripts are literal text in the notice
   sub_names "seven keys" '`[a-5]` on line 6 as `[a - 5]`, and 2 more'
-  if [[ "$SUB_MSG" != *'[a-6]'* ]]; then
+  if [[ "$SUB_CTX" != *'[a-6]'* ]]; then
     ok "seven keys -> the sixth is counted, not named"
   else
-    fail "seven keys -> named past the cap: $SUB_MSG"
+    fail "seven keys -> named past the cap: $SUB_CTX"
   fi
 
   # A syntax tree the guard cannot read fails closed: the rewrite is put back.
@@ -655,7 +708,7 @@ if cmp -s "$REPO_FLAKE/x.sh" "$WORK/probe-flake.expected"; then
 else
   fail "unclassified probe failure mutated the file: $(cat "$REPO_FLAKE/x.sh")"
 fi
-if [[ "$FLAKE_OUT" == *"capability probe failed unexpectedly"* ]]; then
+if [[ "$(jq -r '.systemMessage // empty' <<<"$FLAKE_OUT")" == "bash-format: shfmt probe failed ("*"); x.sh not formatted." && "$FLAKE_OUT" != *additionalContext* ]]; then
   ok "unclassified probe failure is said out loud, not a silent skip"
 else
   fail "unclassified probe failure skipped silently: $FLAKE_OUT"
@@ -815,17 +868,22 @@ run_no_tools() {
 OUT_SC=$(run_no_tools "$REPO/clean.sh")
 RC_SC=$?
 if [[ $RC_SC -eq 0 ]]; then ok "shellcheck-absent -> exit 0"; else fail "shellcheck-absent exit $RC_SC"; fi
-if jq -e '(.systemMessage | contains("shellcheck")) and (.hookSpecificOutput.additionalContext | contains("shellcheck"))' <<<"$OUT_SC" >/dev/null 2>&1; then
-  ok "shellcheck-absent -> visible notice on both channels"
+# The manifest's degrade and check reach the model; its install route reaches
+# the user only.
+if jq -e '(.hookSpecificOutput.additionalContext | contains("bash-format: shellcheck not on the hook PATH. Without shellcheck,") and contains("/bash-format:check") and (contains("koalaman") | not))
+    and (.systemMessage | contains("koalaman/shellcheck"))' <<<"$OUT_SC" >/dev/null 2>&1; then
+  ok "shellcheck-absent -> manifest notice, install route on the user channel only"
 else
   fail "shellcheck-absent: notice missing or malformed: $OUT_SC"
 fi
+# The probed PATH goes to stderr (the debug log), never to a channel.
 if jq -e '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+  ((.systemMessage | contains("PATH probed:")) | not) and
+  (.hookSpecificOutput.additionalContext | contains("No further notice this session")) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
 ' <<<"$OUT_SC" >/dev/null 2>&1; then
-  ok "shellcheck-absent -> notice-only latch + PATH diagnostic (#2732)"
+  ok "shellcheck-absent -> notice-only latch, no PATH on either channel (#2732)"
 else
   fail "shellcheck-absent latch/PATH diagnostic wrong: $OUT_SC"
 fi
@@ -972,6 +1030,15 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   else
     fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true BASH_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
+  # The SessionStart compact|clear row that resets the findings delta gate.
+  # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
+  RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/bash-format.sh", "--reset-digests"]'
+  if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
+    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+  else
+    fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+  fi
+  HANDLERS="$(jq -c "[.[] | select(($RESET_SEL) | not)]" <<<"$HANDLERS")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -1022,11 +1089,7 @@ if [[ $HAVE_SHFMT -eq 1 ]]; then
   fi
 fi
 
-# --- Notice text is bound to prerequisites.json --------------------------------
-# The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest declares shfmt and shellcheck,
-# and each tool's missing-binary notice call states that tool's name, check and
-# install, verbatim.
+# --- The manifest lists the plugin's tools --------------------------------------
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
@@ -1036,27 +1099,8 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   else
     fail "manifest: expected tools shfmt, shellcheck, jq and node: $(cat "$MANIFEST")"
   fi
-  # assert_hook_states <tool> <field> <needle> <haystack>
-  assert_hook_states() {
-    if [[ -n "$3" ]] && grep -qF -- "$3" <<<"$4"; then
-      ok "manifest binding: $1 notice states the manifest's $2 ($3)"
-    else
-      fail "manifest binding: $1 notice does not state the manifest's $2 (needle='$3')"
-    fi
-  }
-  for MF_TOOL in shfmt shellcheck; do
-    case "$MF_TOOL" in
-    shfmt) NOTICE_VAR=SHFMT_NOTICE ;;
-    *) NOTICE_VAR=SC_NOTICE ;;
-    esac
-    IFS=$'\t' read -r MF_CHECK MF_INSTALL < <(jq -r --arg n "$MF_TOOL" '.requires[] | select(.id == $n) | [.check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
-    NOTICE_CALL="$(sed -n "/hook::tool_missing_notice_to $NOTICE_VAR/,/[^\\\\]\$/p" "$HOOK")"
-    assert_hook_states "$MF_TOOL" name "'$MF_TOOL'" "$NOTICE_CALL"
-    assert_hook_states "$MF_TOOL" check "$MF_CHECK" "$NOTICE_CALL"
-    assert_hook_states "$MF_TOOL" install "$MF_INSTALL" "$NOTICE_CALL"
-  done
 else
-  fail "manifest binding needs jq and $MANIFEST"
+  fail "manifest check needs jq and $MANIFEST"
 fi
 
 # --- SessionStart probe honors bash_format_enabled ----------------------------
@@ -1076,7 +1120,7 @@ else
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && "$base" != jq && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      ln -s "$exe" "$PG_WORK/sysbin/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
   PG_ARGS=()
@@ -1118,6 +1162,59 @@ else
     fi
   done
   rm -rf "${PG_WORK:?}"
+fi
+
+# --- Pre-existing drift: format only a file that was clean before the edit ---
+# The repo's .editorconfig asks for indented case arms; a file written before
+# that rule has flush-left arms. A one-line edit to it must not become a
+# whole-file reformat, while an edit to a file that was already clean is still
+# formatted. The pre-edit bytes arrive as tool_response.originalFile.
+if [[ $HAVE_SHFMT -eq 1 ]]; then
+  REPO_DRIFT="$WORK/drift"
+  new_repo "$REPO_DRIFT"
+  printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\nswitch_case_indent = true\n' >"$REPO_DRIFT/.editorconfig"
+  run_edit() {
+    local payload
+    payload=$(jq -n --arg f "$1" --arg o "$2" --arg t "${3:-Edit}" \
+      '{tool_name: $t, tool_input: {file_path: $f}, tool_response: {filePath: $f, originalFile: (if $t == "Write" and $o == "" then null else $o end)}}')
+    (
+      cd "$UNRELATED" || return 1
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" <<<"$payload"
+    )
+  }
+
+  printf -v DRIFT_ORIG '#!/usr/bin/env bash\ncase x in\na) echo a ;;\nesac\n'
+  printf -v DRIFT_EDITED '%secho end\n' "$DRIFT_ORIG"
+  printf '%s' "$DRIFT_EDITED" >"$REPO_DRIFT/drifted.sh"
+  OUT=$(run_edit "$REPO_DRIFT/drifted.sh" "$DRIFT_ORIG")
+  if cmp -s "$REPO_DRIFT/drifted.sh" <(printf '%s' "$DRIFT_EDITED"); then
+    ok "drift: edit to a file not shfmt-clean before the edit -> bytes left as written"
+  else
+    fail "drift: pre-existing drift was reformatted: $(cat "$REPO_DRIFT/drifted.sh")"
+  fi
+  if [[ "$OUT" != *reformatted* ]]; then
+    ok "drift: no rewrite disclosure when nothing was rewritten"
+  else
+    fail "drift: disclosed a rewrite that did not happen: $OUT"
+  fi
+
+  printf -v CLEAN_ORIG '#!/usr/bin/env bash\ncase x in\n  a) echo a ;;\nesac\n'
+  printf '%sif true; then\necho hi\nfi\n' "$CLEAN_ORIG" >"$REPO_DRIFT/clean.sh"
+  run_edit "$REPO_DRIFT/clean.sh" "$CLEAN_ORIG" >/dev/null
+  printf -v CLEAN_WANT '%sif true; then\n  echo hi\nfi\n' "$CLEAN_ORIG"
+  if cmp -s "$REPO_DRIFT/clean.sh" <(printf '%s' "$CLEAN_WANT"); then
+    ok "drift: edit to a file shfmt-clean before the edit -> the edit is formatted"
+  else
+    fail "drift: clean file's edit not formatted: $(cat "$REPO_DRIFT/clean.sh")"
+  fi
+
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_DRIFT/new.sh"
+  run_edit "$REPO_DRIFT/new.sh" "" Write >/dev/null
+  if grep -q '^  echo hi$' "$REPO_DRIFT/new.sh"; then
+    ok "drift: Write that created the file (originalFile null) -> formatted"
+  else
+    fail "drift: newly created file not formatted: $(cat "$REPO_DRIFT/new.sh")"
+  fi
 fi
 
 echo

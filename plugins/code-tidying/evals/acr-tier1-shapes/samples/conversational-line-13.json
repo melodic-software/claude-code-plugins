@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "billing.py: 4 finding(s) \u2014 T1=3, T2=1\n\n| Tier | Shape | Line | Excerpt | Treatment |\n|------|-------|------|---------|-----------|\n| 1    | history-narration | 7 | \"# used to round per line; now rounds once at the end\" | Delete \u2014 version control owns history |\n| 1    | conversational-antecedent | 13 | \"# as you asked, keep the rate lookup outside the loop\" | Delete \u2014 invisible to future readers |\n| 1    | plan-reference | 18 | \"# in this PR the discount is capped at the subtotal\" | Delete \u2014 the plan is not part of the code |\n| 2    | ticket-pr-residue | 23 | \"# see PR #482 for the currency table design\" | Review. Delete a bare back-reference |\n\nTotal: 1 file(s) audited, 3 Tier 1, 1 Tier 2 findings."
+    },
+    {
+      "answer": "Findings for billing.py (T1: 3, T2: 1)\n- Line 7 \u2014 history-narration, Tier 1: delete.\n- Line 13 \u2014 conversational-antecedent, Tier 1: delete.\n- Line 18 \u2014 plan-reference, Tier 1: delete.\n- Line 23 \u2014 ticket-pr-residue, Tier 2: review."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "I reviewed billing.py. Comments worth cleaning up:\n- Line 7 narrates old behavior (\"used to round per line\"); remove it.\n- Line 13 addresses the requester (\"as you asked\"); remove it.\n- Line 18 references the PR; remove it.\n- Line 23 points at PR #482; consider removing it.\nThe comment on line 28 explains a real constraint and should stay."
+    },
+    {
+      "answer": "| 1 | conversational-antecedent | 31 | x |",
+      "why": "wrong line"
+    }
+  ]
+}

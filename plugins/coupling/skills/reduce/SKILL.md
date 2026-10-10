@@ -175,7 +175,8 @@ session happens to be on: inherited unrelated commits would break the structure-
 invariant. Never commit directly on the default branch. Before editing any target, require
 it clean in `git status --porcelain`; a target carrying pre-existing local modifications
 defers its finding with the reason recorded. Foreign edits are never mixed into the batch.
-Budget per run: target ≤200 changed lines across ≤8 files, hard cap 400/15; overflow stays
+Budget per run: the target and hard cap in
+[`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](../../reference/pr-scope-budget.md); overflow stays
 `proposed` in the ledger for the next run. A confirmed `change apply` site set is the one
 exception (see the Apply sequence in [`reference/change-mode.md`](reference/change-mode.md)). Use the Edit tool; one atomic commit per logical
 reduction; stage listed paths only and inspect the staged diff before each commit. Never

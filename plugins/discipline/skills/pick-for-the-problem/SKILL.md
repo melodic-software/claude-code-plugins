@@ -27,7 +27,7 @@ technology-selection or dependency-adoption rule in its own `CLAUDE.md` /
 `.claude/rules/`, re-anchor THAT. Otherwise re-anchor this portable
 baseline.
 
-**The four selection sins**, an unexamined choice usually traces to one:
+**The five selection sins**, an unexamined choice usually traces to one:
 
 - **Habit**. "I always use X." The reach is muscle memory, not analysis.
 - **Availability**. "X is already at hand." Convenience picked it, not fit.
@@ -35,6 +35,8 @@ baseline.
   state is treated as the requirement.
 - **Preconception**. "I came in believing X is the answer." The verdict
   preceded the problem.
+- **Popularity**. "Everyone uses X; the top template ships it." Adoption
+  stood in for correctness, unchecked against the principle X claims to serve.
 
 **The discipline that replaces them:**
 

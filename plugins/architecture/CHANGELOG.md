@@ -3,18 +3,56 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.22.7] - 2026-10-10
 
-### Added
+### Fixed
 
-- **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
-- **`/architecture:improve boundaries`.** A second lens reads the boundary rules a repository records, from the places the enforcement ladder's "Where boundary rules live" list names, and the project edges `/architecture:map-dependencies` cites, then reports each edge that crosses a rule. With no rule recorded it asks which directions are forbidden instead of inferring one. Each rule the user confirms goes to a review-findings file under `<memory_dir>/improve/<branch-slug>/` under the `architecture` dimension, and the report offers `/review:audit-enforceability` on it.
+- `landscape-record.sh --drift-against` no longer reports drift that is not there ([#6376](https://github.com/melodic-software/claude-code-plugins/issues/6376)).
+  It checked each repository and edge key with `printf | grep -qxF` under `pipefail`. Bash writes that `printf` one line at a
+  time, so when `grep -q` matched an early line and exited, the next write failed with a broken pipe, the pipeline failed, and
+  a key present in both collections was reported as removed or added, exiting 3. The check now reads a here-string, which has
+  no writer to race. This is also why `landscape-record.test.sh` failed intermittently; the timestamp fix in 0.22.0 for
+  [#5785](https://github.com/melodic-software/claude-code-plugins/issues/5785) did not reach this cause.
+
+## [0.22.6] - 2026-10-04
 
 ### Changed
 
-- **The deepening lens's vocabulary, dependency categories, report format and phase text are in our own words.** `vocabulary.md`, `dependencies.md`, `html-report.md` and `actions/deepening.md` no longer share sentences with the upstream module-design text they were adapted from; examples use invoice, mail and shipping-rate domains, the diagram patterns are renamed (call flow, round-trip sequence, layer stack, size bars, collapsed call tree, boxes and arrows by hand), the `.deep` scaffold class takes the palette's slate, the Phase 2 closing question reads "Which candidate should we explore?", and the interview, the `agreed-shape` field and the Design-It-Twice brief all name "what the seam hides". Every term, rule, badge, category label and artifact field is unchanged.
-- **The Design-It-Twice procedure and the scan briefing are in our own words.** `interface-design.md` is ordered by who reads each output (the user's framing, the subagents' briefs, the parent's comparison), with the framing items, the four design constraints, the six return parts and the three comparison axes as tables worked through the `TaxCalculator` example; `scan-briefing.md` gives the friction checklist as a table of signals with tax examples and points at `vocabulary.md` and `dependencies.md` for the terms and category labels instead of restating them. The four constraint names, the six parts and their order, the axes, the briefing's five parts, the return schema and its field values are unchanged.
-- **The deepening scan looks for three more signals and asks two reader questions.** `scan-briefing.md` adds a special case held in a general module, a long call trace judged against the rest of the codebase (no fixed count), and state kept at a wider scope than its readers need; its badge section has scan agents ask what produces the candidate's central value and which code may change it, as evidence for the rating rather than a third heuristic. `vocabulary.md` adds a check against splitting modules by run order (temporal decomposition), and the Design-It-Twice procedure has the parent write down which comparison axis counts most, and what would settle the pick, before any design returns.
+- The rendered-view reference treats `medium: hosted` as `artifact`: `map-*` views are never sent to a page host.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+## [0.22.5] - 2026-10-04
+
+### Added
+
+- **A `claude plugin eval` suite for `improve` on codebases with nothing to deepen.** Four cases under
+  `evals/`, tagged `row19`: the `deep-module-not-over-flagged` case converted from `evals.json`, two
+  scaffolded repositories whose modules are already deep (the reply must say there is no candidate
+  and show no Strong or Worth exploring card), and a control repository with a shallow pass-through
+  chain that the reply must name. No skill text changed. The cases carry no `tool_used: Skill`
+  grader: every prompt starts with `/architecture:improve`, which loads the skill without a Skill
+  tool call, so that grader failed every with-plugin run; the slash command guarantees the load,
+  and the cases measure the verdict, not triggering. The `says-already-deep` regex also matches
+  the with-plugin wording a paid run produced ("already the deep module", "would push complexity
+  outward").
+
+## [0.22.4] - 2026-10-04
+
+### Changed
+
+- **Design-significant map views and `/architecture:improve` hand off to `/planning:design` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** The components, containers, context, data, deployment, events, and flow maps name `/planning:design` with the matching scope in `## Next`, and an agreed deepening shape hands off to `/planning:design` instead of an unnamed planning skill.
+
+## [0.22.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.22.2] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/architecture:improve`'s Design-It-Twice recommend step grounds the winning interface's pattern the same way.
 
 ## [0.22.1] - 2026-10-04
 

@@ -3,19 +3,48 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Added
-
-- **A `feature-map-upkeep` routine class.** `reference/routines.md` lists it under Code quality / knowledge with status `join: proven recurring manual pattern`, and its Class parameters bullet sets isolation by driver, the cloud setup note and the cadence. No leaf under `routines/` is written until a consumer records a manual run.
-- **The eng-metrics digest reports trust inputs.** A `## Trust inputs` section in `reference/routines/eng-metrics-digest.md` names the inputs the work-class suggested default predicates use (autonomous completions, deterministic-gate pass rate, human-reverted merges, demotion events, missed-blocking AI-review findings) by pointer to their owner, and the output contract says the narrative includes them. The digest reports them and decides no promotion.
-- **A GitHub label kick for the trigger.** `skills/setup/templates/trigger-adapters.md` gains a kick with no enqueue for the autonomous-eligible label (`on: issues` type `labeled`). Only a trusted human's label kicks: the event's `sender` is a `User` whose repository permission is `admin` or `write`, read through the permissions API, never from issue text; a bot, App or untrusted label does nothing. The kick fires a `cloud-routine` drain through the routine's `/fire` trigger only when the `execution_target` for `work-items:work-loop` is `cloud-routine` and the execution-target convention admits that stage to cloud hosts, which it does not today. For a `local-worktree` or `local-background` target the job does nothing and the scheduled drain picks the item up; for `cloud-session`, `cloud-project` or a refused `cloud-routine` the job does nothing and the scheduled drain also skips the lane, so the item waits until the target is local. An App acting through a write user's user access token labels as that user and passes the check; the App exclusion holds for installation tokens only. No workflow ships in this repository.
+## [0.26.13] - 2026-10-07
 
 ### Changed
 
-- **The label kick's notes say a bot-applied label leaves the drain idle.** `skills/setup/templates/trigger-adapters.md` adds a note that a label an App applies through its installation token carries the App's `[bot]` login, which the drain refuses, so an App-run triage lane never makes an item admissible; the role and `work-class:` labels must come from a user with `write` or higher.
-- **The label kick's notes say the drain now checks the labeler.** `skills/setup/templates/trigger-adapters.md` no longer leaves a triage user's label to the drain as an open question: `/work-items:work-loop` admits an item only when whoever last applied its role and `work-class:` labels holds `write` or higher.
-- **`reference/trigger-dispatch.md` points host choice at the execution-target convention.** "Executor surface classes" says which host runs each local-lane stage is set by `docs/conventions/execution-target/`, separate from `executor_class`, and changes no merge policy.
+- **Upstream records (#6498).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.26.12] - 2026-10-07
+
+### Changed
+
+- **Docs links (#6498).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.26.11] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.26.10] - 2026-10-04
+
+### Changed
+
+- **Shorter lane-stop gate text (#6225).** The Stop block reason keeps every directive and the completion token in about half the length. The gate-off notices (stale arm record, enablement claimed only on the environment channel) and the missing-jq notice go to the user only and are shorter: on Stop, context for the model would continue the conversation for a notice only the operator can act on.
+
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.26.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced (#5924); no change to this plugin's hooks.**
+
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text (#6225).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
 
 ## [0.26.6] - 2026-10-04
 

@@ -347,7 +347,8 @@ as one fleet-wide edit.
 
 1. **Apply**. Bake the description phrases and Boundary sections for that plugin's rows only.
 2. **Verify**, the overlap self-check passes; `/skill-quality:check` passes for every touched
-   skill; the plugin version takes its bump; the plugin's CHANGELOG carries the entry.
+   skill; the plugin carries the repo's release record: a version bump plus CHANGELOG entry, or a
+   changelog fragment where the repo uses them (see the repo's AGENTS.md).
 3. **PR**. Open one PR for that unit, with the affected store rows quoted in the body so a
    reviewer gates the routing change on the same evidence the verdict rested on.
 4. **Close**, the unit is closed **only when its PR merges green**. A merged-but-red or an open PR
@@ -372,12 +373,13 @@ whatever gate they run, or runs it by hand.
 
 ## Verifying an upstream claim
 
-Any claim about what Claude Code itself ships must come from the raw markdown endpoint. `curl -sSL`
-`https://code.claude.com/docs/en/skills.md` to a file, then read the file. A summarizing fetch
-returns a small model's answer *about* the page, so absence from that answer is not evidence of
-absence. A `200` is also not proof you got the page you asked for: retired slugs are silently
-aliased, so confirm the slug against `https://code.claude.com/docs/llms.txt` and read the body's
-own first heading before citing it.
+Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> skills`, then
+search `<dir>/skills.md` locally. `--max-age 0` asks the server every time, so the claim rests on
+fresh bytes; treat a page `<dir>/manifest.json` reports `unread` as no evidence. A summarizing fetch returns a small model's answer *about* the page, so absence from
+that answer is not evidence of absence. A `200` is also not proof you got the page you asked for:
+retired slugs are silently aliased, so the fetcher confirms the slug against the docs index
+(`llms.txt`); still read the body's own first heading before citing it.
 
 Two upstream dependencies of this skill, each with the trigger that obliges re-deriving it:
 

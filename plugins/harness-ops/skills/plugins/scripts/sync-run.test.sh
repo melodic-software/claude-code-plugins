@@ -37,6 +37,12 @@ assert_contains() {
   *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "expected not to contain: $3 — got: $2" ;;
+  *) pass "$1" ;;
+  esac
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -1554,6 +1560,47 @@ assert_contains "disabled install: the enable command is in the report" "$REPORT
   "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
 assert_eq "disabled install: policy all enables nothing the publisher left off" "0" \
   "$(grep -c 'plugin enable' "$case_dir/claude.log" || true)"
+# Every install is already not enabled, so the policy clause does not tell the
+# user to disable it.
+assert_golden "disabled install: the report matches the golden" installed-all-disabled.txt "$REPORT_TEXT"
+
+# One install left off and one loading: the clause gives the disable remedy.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"},
+  {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=beta@market1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_contains "mixed disabled install: the row gives the disable remedy beside the disabled id" "$REPORT_TEXT" \
+  "Installed: 2 new catalog plugin(s): beta@market1, gamma@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling) (installed but not enabled: beta@market1)"
+
+# What the policy clause promises under install_new: all. beta is installed and
+# disabled, so it stays installed. gamma was uninstalled, which leaves neither a
+# record nor a key, so it is installed again. delta has a user-scope false and no
+# record, so it stays out.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+catalog_plugin "$case_dir" market1 delta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"},
+  {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}, {"name": "delta", "source": "delta"}]}'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {\"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+                \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"}]}
+}"
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": false, "delta@market1": false}}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_exit "recurrence: exit 0" 0 "$REPORT_RC"
+assert_eq "recurrence: only the uninstalled plugin is installed again" "plugin install gamma@market1 -s user" \
+  "$(grep 'plugin install' "$case_dir/claude.log")"
 
 # An `ask` pick is the user's choice, so a pick the CLI installs disabled is then
 # enabled at user scope. The CLI notice decides, not the catalog: beta prints the
@@ -1760,6 +1807,27 @@ assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
 assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
   "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
+  "Remediation: remove that version's directory"
+
+# A plugin whose clone holds changelog fragments is labeled a pending release,
+# and its row gets no delete-cache repair; a mixed finding keeps the repair for
+# the other rows only.
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 9, "stale_content": 1,
+  "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true}],
+  "stale_ids": ["a@m"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: the pending row is labeled" "$cache_text" \
+  "  - a@m 1.0.0: 2 file(s) differ (unreleased changes pending)"
+assert_contains "cache content: the pending note is shown" "$cache_text" "Unreleased changes pending:"
+assert_not_contains "cache content: no delete-cache repair for a pending release" "$cache_text" "Remediation"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 8, "stale_content": 2,
+  "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true},
+  {"id": "b@m", "version": "2.0.0", "files_differ": 1, "unreleased_changes": false}], "stale_ids": ["a@m", "b@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: mixed, the repair names the rows it covers" "$cache_text" \
+  "Remediation, for the rows not marked unreleased: remove"
+assert_not_contains "cache content: mixed, the other row is not labeled" "$cache_text" \
+  "  - b@m 2.0.0: 1 file(s) differ (unreleased"
 
 # ============================================================================
 # Case: the Divergences split follows the total it sums to, with and without a

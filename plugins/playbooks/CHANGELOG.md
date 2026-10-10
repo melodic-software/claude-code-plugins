@@ -4,35 +4,85 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [Unreleased]
+## [0.21.1] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [0.21.0] - 2026-10-08
 
 ### Added
 
-- **`described_problem` setting: `report` (default) or `fix`.** With `fix`, `fable-5` treats a
-  described problem as a request to fix it: it makes the change and presents the result. A question
-  or thinking out loud still gets an assessment only, and a destructive or outward-visible step
-  still waits for consent. It is set per user in the new `described_problem` user config option,
-  and per repository in the `described_problem` key of `docs/conventions/playbooks.yaml`, which
-  wins; the schema ships at `schemas/playbooks.schema.json` and the settings page at
-  `reference/config.md`. The skill states which layer supplied the value, and an invalid value
-  resolves `report`. The model-adaptation chapters do not read it.
+- `/playbooks:skill-authoring` gains `reference/rewrite-a-plugin.md`, the order of work for running the skill rewrite protocol across one plugin per pull request: inventory, cases and probes first, concurrent before and after passes, the two-version compare, two meaning-diff labelers, a per-skill decision table, and the CI checks eval files trip. The protocol in `skill-criteria.md` links it and names the two-version noise report for step 4.
 
 ### Changed
 
-- **`fable-5` stages a shared-surface change only for consumers it cannot update.** The planning
-  chapter's census no longer stages a surface because it has more than 10 consumers: staging (new
-  shape beside the old, migrate, retire) is for external, unenumerable or persisted consumers, and a
-  high internal count alone is not a reason, matching the execution chapter's rule on compatibility
-  shims. A new eval case covers a large internal count. The implementation plugin's
-  `refactor_compat` setting governs the same choice in refactor mode; an older implementation
-  release has no option for it and ignores the repository key.
-- **`skill-authoring` states the one-skill-per-call rule in its own words.** The rule is unchanged.
-- **`skill-authoring` ends with a closing report.** The last reply of a run that creates or changes
-  a skill lists the checks with their results (or not run), the choices made with their reasons,
-  and what the skill does.
-- **`skill-authoring`'s authoring guidance states the rule first.** An instruction says what to do,
-  and gives its reason only where it would mislead without one; the degrees-of-freedom table no
-  longer asks for a reason beside each high-freedom instruction.
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **`fable-5` reads a chapter's Pointer through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** Chapter routing now says to read a pointed vendor docs section with `scripts/fetch-docs.sh --cache` and the section's `docs-cache.sh slice`, with WebFetch only when the manifest records the page unread for `curl-missing` or no manifest was written. The Opus 5.5 chapter's unattended-run Pointer names the same route.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` adds `fable-5` to the optional `curl` and `jq` entries and declares `python3` as optional.
+
+- **`skill-authoring` criteria: evals decide a cut ([#6476](https://github.com/melodic-software/claude-code-plugins/issues/6476)).** The deletion test now proposes and the evals decide: a cut to an existing skill ships only with eval evidence of no loss. New body rules keep contract sections (argument grammar, mode selection, ask-or-proceed, stop gates) explicit, scope a skill as one vertical slice grown by progressive disclosure instead of split, and aim for a short hub that routes each task to the file it needs. Descriptions keep a quoted user idiom when probes show it moves triggering. The rewrite protocol adds cases before the rewrite, a blind held-out probe set per round, concurrent before/after runs per model, a 5-point non-inferiority margin, separate description and body decisions, and which artifacts a run commits.
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+- `rewrite-a-plugin.md`'s two harness pointers now link the exact plugin-evals sections (`#grader-types`, `#grant-tools`), as the upstream-drift convention requires.
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.20.0] - 2026-10-07
+
+### Added
+
+- `/playbooks:skill-authoring` gains `reference/skill-criteria.md`, the house standard for skills and plugin agents under stable headings (Frontmatter, Descriptions, Body, Reference files, Metadata, History and provenance, Agents, Measurement, Sources) that other skills cite by heading. It sets official Anthropic guidance above Pocock's concise style, applies the deletion test, records every upstream figure as a dated pointer, and defines the rewrite measurement loop.
+
+### Removed
+
+- `reference/authoring-guidance.md` and `reference/authoring-checklist.md`: their still-current content, including the pre-share checklist, is folded into `reference/skill-criteria.md`.
+
+## [0.19.5] - 2026-10-04
+
+### Changed
+
+- `update` names the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
+## [0.19.4] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.19.3] - 2026-10-03
 

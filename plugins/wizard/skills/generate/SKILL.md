@@ -44,7 +44,7 @@ code, nothing else. The library already covers:
 | Prompts | Read only from `/dev/tty` and fail closed, so a pipe, a CI job or a pasted block cannot answer them |
 | Opening pages | Accepts `https://` URLs only and prints each one before opening it, on macOS, Linux, WSL and Git Bash |
 | Secret input | `ask_secret` hides what is typed |
-| `.env` writes | Values quoted, file mode `0600`, rewritten atomically, with a warning when the file is not gitignored |
+| `.env` writes | Values quoted, file mode `0600`, rewritten atomically (through a symlinked `.env` too), with a warning when the file is not gitignored |
 | CI writes | `gh secret` / `gh variable` with the value on stdin, after the person confirms the target repository |
 | Progress and wrap-up | A stage counter, and a closing summary that lists names, never values |
 

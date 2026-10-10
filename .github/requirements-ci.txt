@@ -18,7 +18,7 @@ pytest==9.1.1 \
 # (#2569): YAML has no jq, and a hand-rolled walk lost three review rounds to
 # spellings it had not anticipated. Unlike the pure-Python pins above this is a
 # C-extension wheel, so its hashes are ABI-specific — the cp314 set covers the
-# CI interpreter (3.14, pinned in the root .python-version that every ci.yml
+# CI interpreter (3.14, pinned in the root .python-version that every pr-require-checks.yml
 # setup-python step resolves; a bump there and the cpXY hash sets here move
 # together) on Linux x64 plus the platforms the fleet develops on;
 # the cp311 set covers the cloud VM system Python (3.11) and the same fleet
@@ -149,7 +149,7 @@ ruff==0.16.9 \
 # zizmor is the Actions security lint, previously reached through the
 # ci-workflows zizmor reusable workflow. 1.27.0 is the version that reusable
 # takes by default at the SHA this repository pinned it to, so the lint step in
-# ci.yml is a like-for-like replacement and no security-lane behaviour changed
+# pr-require-checks.yml is a like-for-like replacement and no security-lane behavior changed
 # inside a performance change. The reusable downloaded a native release archive
 # and verified a SHA-256 input; this pin lands on the reviewed Dependabot pip
 # surface instead. Like pyyaml above this is a platform-specific wheel, so the

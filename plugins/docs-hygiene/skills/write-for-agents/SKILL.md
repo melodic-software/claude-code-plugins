@@ -1,5 +1,5 @@
 ---
-description: "Write agent-consumed markdown: CLAUDE.md or AGENTS.md content, .claude/rules files, agent-loaded reference docs, navigation pointers, and doc-plus-pointer extractions. Use when: 'add this to CLAUDE.md', 'write a rule for X', 'write this up for the agent', 'add a pointer to the docs', 'move this section into its own doc', 'draft an AGENTS.md section', or any edit to markdown an agent loads. SKILL.md authoring is playbooks:skill-authoring; human-facing docs are docs-hygiene:write-for-humans."
+description: "Write or trim agent-consumed markdown: CLAUDE.md or AGENTS.md content, .claude/rules files, agent-loaded reference docs, navigation pointers, and doc-plus-pointer extractions. Use when: 'add this to CLAUDE.md', 'trim this AGENTS.md', 'cut it down to what earns its place', 'prune what an agent could derive', 'write a rule for X', 'write this up for the agent', 'add a pointer to the docs', 'move this section into its own doc', 'draft an AGENTS.md section', or any edit to markdown an agent loads. SKILL.md authoring is playbooks:skill-authoring; human-facing docs are docs-hygiene:write-for-humans."
 argument-hint: "[<file or section being written>]"
 user-invocable: true
 disable-model-invocation: false
@@ -160,7 +160,8 @@ rationale in two or three sentences or the evidence as a list.
 
 - **Does not author skills.** Deciding a skill should exist, what it triggers on, what its
   frontmatter declares, how its actions are shaped, and how its body is structured is
-  `playbooks:skill-authoring` + `skill-quality:check` territory. Prose inside an already-authored
+  `/playbooks:skill-authoring` territory (description shape and caps: `## Descriptions`; body
+  size: `## Body`), enforced by `/skill-quality:check`. Prose inside an already-authored
   SKILL.md is still this skill's: a SKILL.md is agent-consumed markdown, which is exactly and only
   what this doctrine governs. Read the boundary as authorship against wording, not as a whole file
   this skill may not look at, or the largest agent-facing surface most repos have ends up governed

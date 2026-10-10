@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests for scripts/selection-audit.sh: the strace read parser, the trace audit
-# end to end against a stub selector and a stub ci.yml fallback (a suite that
+# end to end against a stub selector and a stub pr-require-checks.yml fallback (a suite that
 # reads a file the selector does not map to it is a gap, and so is an unmapped
 # read by a suite the fallback does not run; a mapped, a fallback-run, an
 # unchecked and an untracked read are not), the replay verdicts including
@@ -24,7 +24,7 @@ git_repo() {
     git -C "$1" config commit.gpgsign false
 }
 
-# ci_fallback <repo> <suite>...: a ci.yml whose UNMAPPED branch calls
+# ci_fallback <repo> <suite>...: a pr-require-checks.yml whose UNMAPPED branch calls
 # run-plugin-tests.sh, and a run-plugin-tests.sh whose --list is the suites given.
 ci_fallback() {
   local repo="$1"
@@ -33,7 +33,7 @@ ci_fallback() {
   printf '%s\n' "          if grep -q '^UNMAPPED:' \"\$err\"; then" \
     '            scripts/run-plugin-tests.sh --jobs 3' \
     '            scripts/run-outside-node-suites.sh' \
-    '          else' '            exit 1' '          fi' >"$repo/.github/workflows/ci.yml"
+    '          else' '            exit 1' '          fi' >"$repo/.github/workflows/pr-require-checks.yml"
   # shellcheck disable=SC2016 # the stub's $1 is its own argument, written literally
   printf '%s\n' '#!/usr/bin/env bash' '[[ "$1" == --list ]] || exit 2' "printf '%s\\n' $*" \
     >"$repo/scripts/run-plugin-tests.sh"
@@ -76,6 +76,9 @@ else
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
+  # An eval fixture is data no lane runs, so the corpus leaves it untraced.
+  mkdir -p "$t/plugins/x/evals/fixtures"
+  printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
@@ -117,7 +120,7 @@ EOF
     fail "trace: verdicts.tsv [$(cat "$TMP_ROOT/out/verdicts.tsv" 2>/dev/null)]"
   fi
   if [[ "$(cut -f1,2 "$TMP_ROOT/out/suites.tsv")" == $'suites/quiet.test.sh\t0\nsuites/reader.test.sh\t0\nsuites/zz-outside.test.sh\t0' ]]; then
-    ok "trace: suites.tsv records every traced suite and its exit"
+    ok "trace: suites.tsv records every traced suite and its exit, and no eval fixture"
   else
     fail "trace: suites.tsv [$(cat "$TMP_ROOT/out/suites.tsv")]"
   fi
@@ -131,15 +134,26 @@ EOF
     fail "trace: --shard 0/3 exit $rc, suites [$(cat "$TMP_ROOT/out-shard/suites.tsv" 2>/dev/null)]"
   fi
 
-  rm "$t/.github/workflows/ci.yml"
+  rm "$t/.github/workflows/pr-require-checks.yml"
   rc=0
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" \
     bash "$AUDIT" trace --out "$TMP_ROOT/out-noci") >/dev/null 2>&1 || rc=$?
-  git -C "$t" checkout -q -- .github/workflows/ci.yml
+  git -C "$t" checkout -q -- .github/workflows/pr-require-checks.yml
   if [[ "$rc" -eq 2 ]]; then
-    ok "trace: exits 2 when ci.yml's unmapped fallback cannot be read"
+    ok "trace: exits 2 when pr-require-checks.yml's unmapped fallback cannot be read"
   else
-    fail "trace: no ci.yml fallback exit $rc, want 2"
+    fail "trace: no pr-require-checks.yml fallback exit $rc, want 2"
+  fi
+
+  mv "$t/.github/workflows/pr-require-checks.yml" "$t/.github/workflows/ci.yml"
+  rc=0
+  (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" \
+    bash "$AUDIT" trace --shard 0/3 --out "$TMP_ROOT/out-oldci") >/dev/null 2>&1 || rc=$?
+  mv "$t/.github/workflows/ci.yml" "$t/.github/workflows/pr-require-checks.yml"
+  if [[ "$rc" -eq 0 && "$(cut -f1 "$TMP_ROOT/out-oldci/suites.tsv")" == suites/quiet.test.sh ]]; then
+    ok "trace: a tree from before the rename reads the fallback from ci.yml"
+  else
+    fail "trace: ci.yml-named fallback exit $rc, want 0"
   fi
 fi
 
@@ -210,11 +224,11 @@ else
   fail "replay left a worktree: $(git -C "$r" worktree list)"
 fi
 
-# A tree whose ci.yml plans its lanes with scripts/plan-test-lanes.sh: the
+# A tree whose pr-require-checks.yml plans its lanes with scripts/plan-test-lanes.sh: the
 # selector itself adds an unmapped file's language corpus (--unmapped-corpus,
 # exit 4), so a suite in that corpus is selected and one outside it is not.
 # shellcheck disable=SC2016 # workflow text, written literally
-printf '%s\n' '          scripts/plan-test-lanes.sh --base "$DIFF_BASE"' >"$r/.github/workflows/ci.yml"
+printf '%s\n' '          scripts/plan-test-lanes.sh --base "$DIFF_BASE"' >"$r/.github/workflows/pr-require-checks.yml"
 cat >"$r/scripts/affected-tests.sh" <<'EOF'
 #!/usr/bin/env bash
 # Stub selector: `odd2` is unmapped, and --unmapped-corpus adds its corpus, suites/y.test.sh.

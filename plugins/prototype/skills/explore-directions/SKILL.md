@@ -342,7 +342,8 @@ four-part records live in [reference/native-playground.md](reference/native-play
 
 ## Next
 
-- A direction wins and is folded in: `/planning:plan`.
+- A direction wins and its components, state, or contracts need deciding: `/planning:design`.
+- A direction wins with no design question open: `/planning:plan`.
 - The open question is logic or state rather than appearance: `/prototype:pressure-test`.
 
 ## Anti-patterns

@@ -269,9 +269,11 @@ the chain record's "course side UNVERIFIED" caveat on the clear step.
 | Ungrillable question → prototype detour (upstream pauses the interview to build a disposable version, then returns with a one-line answer) | Absent from the interview (grep-confirmed by both audit validators); our route exists only downstream (wayfind / plan / brainstorm) | **ADOPT** (delivered) | Chain audit finding, upstream-repo-grounded. Filed: [#2998](https://github.com/melodic-software/claude-code-plugins/issues/2998); delivered by [#3045](https://github.com/melodic-software/claude-code-plugins/pull/3045) — `interview` now carries the detour in "Mid-interview composition" (routing look-and-feel to `/prototype:explore-directions`, logic/state/data-shape to `/prototype:pressure-test`) plus a **Needs-an-artifact** arm in the `context/loop.md` categorization taxonomy; planning 0.32.0. As-of 2026-08-19 |
 | Plan-mode-off while grilling | Beyond upstream's taste point, a mechanical edge the audit surfaced: the ask-time register write is load-bearing and plan mode's read-only enforcement blocks it | **ADOPT** (delivered) | Includes reconciling `planning:plan`'s clarifying-rounds-in-plan-mode sentence with the lane 4 asset-rush doctrine. Filed: [#2998](https://github.com/melodic-software/claude-code-plugins/issues/2998); delivered by [#3045](https://github.com/melodic-software/claude-code-plugins/pull/3045) — the gotcha lands in `interview/context/gotchas.md`, and `plan`'s plan-mode round is now scoped to a scoping confirm with substantive rounds routed to `/planning:interview` outside plan mode; planning 0.32.0. As-of 2026-08-19 |
 | Provenance correction (adjacent, from the chain audit) | SSOT PR-#532 row | **CORRECTED in SSOT** | The row's "ADR 3-gate + glossary purity are house additions" claim is contradicted on current upstream main (`domain-modeling` carries both near-identically); annotated as convergent-or-derived, direction unverifiable. As-of 2026-08-18 |
-| Round template separates consecutive questions with a horizontal rule `---` (upstream commit `85f83d3f`) | `interview` round shape is the per-question block in SKILL.md "Relentless mode" (`Q<N>:` lead, recommendation, `Basis:`, alternatives); no rule between blocks | **REJECT** (cosmetic, not adopted) | The only change to `grilling/SKILL.md` between `068b6e0` and `3cca18b3`; it alters no behavior. Each of our blocks opens with its own `Q<N>:` lead and ends in an Alternatives list, and a rule directly under a line of text renders as a heading in Markdown, so the marker adds a rendering hazard for a break the blocks already carry. Reopen if a user reports rounds running together. As-of 2026-09-29 |
+| Round template separates consecutive questions with a horizontal rule `---` (upstream commit `85f83d3f`) | `interview` round shape is the per-question block in SKILL.md "Relentless mode" (`Q<N>:` lead, recommendation, `Basis:`, alternatives); no rule between blocks | **REJECT** (cosmetic, not adopted) | The only change to `grilling/SKILL.md` between `068b6e0` and `3cca18b3`; it alters no behavior. Each of our blocks opens with its own `Q<N>:` lead and ends in an Alternatives list, so the marker adds nothing the blocks do not already carry. Corrected 2026-10-04: an earlier reason here said the rule renders as a heading; upstream puts a blank line before it, so it renders as a thematic break, and the REJECT stands on the cosmetic ground only. Reopen if a user reports rounds running together. As-of 2026-10-04 |
 
-Re-fetch as-of 2026-09-29: `mattpocock/skills` HEAD `3cca18b3` (2026-09-04). The `grilling` and
+Re-fetch as-of 2026-10-04: `mattpocock/skills` `main@d81f3a1` (2026-09-29, the v1.3 content,
+tagged v1.3.0 on 2026-10-04); no commit after `3cca18b3` (2026-09-04) touches either skill body.
+The `grilling` and
 `grill-me` skill bodies differ from the `068b6e0` baseline only by the round-template separator,
 graded in the last table row above. The closure language is still a stop-condition declaration plus
 a confirmation gate, so the PARITY grading of the interview-end row stands.
@@ -500,3 +502,15 @@ steering lessons' claims are enumerated in lanes 7–9 with their leftover claim
 swept (lane 9's L1–2 leftover row and verdict table). The one formerly-tracked coverage gap —
 lane 5's "course side UNVERIFIED" clear-step row — was resolved at harvest against the
 committed lesson paste (see lane 5).
+
+Scope note (2026-10-04): this index covers only the 15 lessons above. The crash course's Concepts
+and Getting To Know Claude Code sections and the first half of Fundamentals are not covered here;
+the Cohort 003 lesson bodies are public (`ai-hero-dev/cohort-003-skill-building`, `exercises/`), so
+a later lane can grade them from public text. Course-wide counts:
+[`aihero-shipping-course.md`](aihero-shipping-course.md).
+
+Posts read in the 2026-10-04 `pocock-upstream-sync` audit with nothing adopted (aihero.dev
+slugs): `a-complete-guide-to-agents-md`, `how-to-use-claude-code-hooks-to-enforce-the-right-cli`,
+`how-to-improve-your-llm-powered-app`, `building-effective-agents`, `logging-a-huge-mcp-footgun`,
+`what-are-evals`, `tracer-bullets`, `never-run-claude-init`, `5-agent-skills-i-use-every-day`,
+`my-grill-me-skill-has-gone-viral`, `this-hook-stops-claude-code-running-dangerous-git-commands`.

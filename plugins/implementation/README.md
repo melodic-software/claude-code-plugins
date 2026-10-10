@@ -8,8 +8,8 @@ concern: turning approved plans into verified code.
 
 | Skill | What it does |
 |---|---|
-| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary records with the continuation routed through `/session-flow:workflow`. |
-| `/implementation:implement-dispatch` | Orchestrated execution variant. Composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
+| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/replace/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary records with the continuation routed through `/session-flow:workflow`. |
+| `/implementation:implement-dispatch` | Orchestrated execution variant. Composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. Existing test files are read-only to workers outside a test-authoring phase, and an opt-in holdout step has the phase-verifier run acceptance tests the workers never see. |
 
 Three plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`
 frontmatter structurally binds the capability tier, so workers never silently inherit a fast
@@ -229,7 +229,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

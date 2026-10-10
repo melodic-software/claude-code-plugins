@@ -10,14 +10,14 @@ Copy into your project's working-notes location (or track inline). Tick each box
 - [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; `gh pr ready`
 - [ ] Phase 3: Monitor. Push channel (when available) OR Monitor watch fallback; CI watch + comment response loop; research before any fix
 - [ ] Phase 3.5: Comments. Evaluate/respond to PR comments only (sub-phase of monitor)
-- [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch` in a regular checkout, or `gh pr merge --squash` plus, once the PR is `MERGED`, `git push "$REMOTE" --delete --end-of-options '<branch>'` in a linked worktree, only for a head branch that passes the name rule in `reference/merge.md` 4.2; worktree cleanup; verify
+- [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch` in a regular checkout, or `gh pr merge --squash` plus, once the PR is `MERGED`, `git push "$REMOTE" --delete --end-of-options '<branch>'` in a linked worktree, only for a head branch that passes the name rule in `reference/merge.md` 4.2; worktree transition (reuse it, or release this session's lock), never removal, which is `/source-control:worktree cleanup`; verify
 
 ## Skip criteria
 
 - Phase 1 sub-steps may use `prep quick` / `prep review-only` / `prep simplify-only` variants for partial coverage
 - Phase 2.5 SKIPPED only when the PR is already out of draft, the base is merged in, the security review covered the PR diff, and the verify gate ran clean on the current HEAD
 - Phase 3.5 SKIPPED when no review comments received
-- Phase 4 NEVER skipped (merge + cleanup non-negotiable)
+- Phase 4 NEVER skipped (merge + worktree transition non-negotiable)
 
 ## Non-negotiable gates
 

@@ -145,12 +145,17 @@ def block($d):
 
       (if $audit then
          (if $d.install_new == "all" and (.install_gap | length) > 0 and .install_enable_deferred != true then
-            "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all, meaning these reinstall on every sync unless you also disable them)",
+            "Would install: \(.install_gap | length) new catalog plugin(s) (policy install_new: all: once installed, a later sync would reinstall any of these you uninstall; to keep one out, disable it instead of uninstalling)",
             (.install_gap[] | "  would run: claude plugin install \(.) -s user")
           else empty end)
        elif ($installed_ok | length) > 0 then
          "Installed: \($installed_ok | length) new catalog plugin(s): \($installed_ok | ids)"
-         + (if $d.install_new == "all" then " (policy install_new: all, meaning these reinstall on every sync unless you also disable them)" else "" end)
+         + (if $d.install_new != "all" then ""
+            elif (($installed_ok | map(.id)) - (.installed_disabled // []) | length) == 0 then
+              " (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off unless a project or local setting enables them)"
+            else
+              " (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling)"
+            end)
          + (if ((.installed_disabled // []) | length) > 0 then
               " (installed but not enabled: \(.installed_disabled | join(", ")))"
             else "" end)
@@ -215,10 +220,17 @@ def block($d):
        | if $c == null then empty
          elif ($c.stale_content // 0) > 0 then
            "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
-           ($c.stale[] | if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end),
+           ($c.stale[] | (if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end)
+                         + (if .unreleased_changes == true then " (unreleased changes pending)" else "" end)),
            (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
-           "  Remediation: remove that version's directory under the plugin cache, then re-run",
-           "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
+           (if any($c.stale[]; .unreleased_changes == true) then
+              "  Unreleased changes pending: the marketplace holds changelog fragments for that plugin, so its files",
+              "  changed without a version bump; its next release brings the cache up to date. Leave its cache alone."
+            else empty end),
+           (if any($c.stale[]; .unreleased_changes != true) then
+              "  Remediation\(if any($c.stale[]; .unreleased_changes == true) then ", for the rows not marked unreleased" else "" end): remove that version's directory under the plugin cache, then re-run",
+              "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
+            else empty end)
          elif ($c.unverifiable // 0) > 0 then
            "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
          else empty end),

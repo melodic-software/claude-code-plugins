@@ -1,5 +1,5 @@
 ---
-description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection, project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code ('test this', 'write a unit test'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
+description: "Write and place tests across all ecosystems. TDD cadence (Red→Green→Refactor in vertical slices), test naming, test-type selection (including property, characterization and old-versus-new tests), project placement, and fixture patterns. Use when: the user wants tests written or coverage added for code ('test this', 'write a unit test'), asks where a test should go, or code was just written without tests; for diagnosing failures use /testing:diagnose, for coverage-gap analysis /testing:plan, for running tests /toolchain:check."
 argument-hint: "[task]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,9 +33,9 @@ Authoring discipline for tests: what to test, how to name it, which test type fi
 
 ## Arguments
 
-`$ARGUMENTS`, optional task description. `organize` (or a placement-shaped question) routes to the placement guidance; anything else is authoring.
+`$ARGUMENTS`, optional task description. `organize` (or a placement-shaped question) routes to the placement guidance; `blind` opts into the blind test author mode; anything else is authoring.
 
-Examples: /testing:write, /testing:write the new handler, /testing:write organize.
+Examples: /testing:write, /testing:write the new handler, /testing:write organize, /testing:write blind the checkout acceptance criteria.
 
 ## Step 0: Route
 
@@ -43,9 +43,11 @@ Examples: /testing:write, /testing:write the new handler, /testing:write organiz
 |--------|-------------|
 | Writing new tests, TDD, "test this code" | [context/write.md](context/write.md) |
 | "Where should this test go", new test project decision, fixture patterns | [context/organize.md](context/organize.md) |
-| The code under test has an invariant: a round trip, idempotence, an order or size law, a simpler reference model, a parser or serializer | [context/property-based.md](context/property-based.md), with [context/write.md](context/write.md) for the cadence |
+| Property or invariant tests; parsers, serializers, pure transforms, collections or stateful classes; a shrunk counterexample to pin | [context/property.md](context/property.md), after write.md |
+| Replace, rewrite, migrate or port; pin legacy behavior before a refactor; approval, snapshot, golden master or old-versus-new tests | [context/characterization.md](context/characterization.md), after write.md |
+| `blind`, or acceptance tests a separate agent writes from the spec without reading the implementation | [context/blind-author.md](context/blind-author.md), after write.md |
 
-Read the relevant context file before proceeding. The authoring and placement files draw on the consuming project's testing conventions for per-ecosystem naming, locations, and fixtures.
+Read the relevant context file before proceeding. All draw on the consuming project's testing conventions for per-ecosystem naming, locations, and fixtures.
 
 ## Step 1: Prerequisites
 
@@ -64,7 +66,7 @@ Read the relevant context file before proceeding. The authoring and placement fi
 ## Handoff
 
 - Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is absent), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is enabled
-- **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session). Rubber-duck checkpoint before commit. Lightweight cross-model critique catches false-green or brittle tests before slow CI runs, the author writing tests for their own code is the producer verifying its own work, and this cross-model pass is that independence seam. Skip for trivial test additions
+- **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session). Rubber-duck checkpoint before commit. Lightweight cross-model critique catches false-green or brittle tests before slow CI runs, the author writing tests for their own code is the producer verifying its own work, and this cross-model pass is that independence seam. Skip for trivial test additions. For non-deterministic dependencies, build in the determinism controls in context/write.md first. For unattended or HIGH-risk work with written acceptance criteria, recommend the blind test author mode (context/blind-author.md), which moves the independence earlier: the acceptance tests come from an agent that never read the code
 - After an `organize` decision: proceed to authoring for the new test project
 - Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool
 

@@ -3,19 +3,35 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Added
-
-- **Clone trend in `audit-duplication`.** A run compares its clone-class count with the newest earlier kept report of the same project and scope mode that measured something. The document gains `trend` (`clone_groups`, `previous_clone_groups`, `delta`, `previous_generated_at`, `previous_document`, plus `new_classes` and `grown_classes`, each class named by its first instance with its copy count) and the markdown ends with a `Clone trend:` line; the first run in a project prints neither. Earlier reports are read as untrusted input: only a regular file of at most 5 MB with the same `schema`, a one-line timestamp and integer counts from 0 to 10^9 qualifies, and anything else is passed over for the next older report. A class's copy count stays its number of instances. New `--keep` flag: a `--json` run also keeps its document as the next run's baseline.
-- **`/code-metrics:audit-suppressions`.** Lists every lint and type-checker suppression in the lines the change's commits add (the default), the named paths, or the tree (`--all`), with its tool, rule ids and reason, and whether it is justified: a reason on the line, plus a rule id where the tool's syntax can name one (TypeScript directives cannot, so a reason alone justifies them). Covers ESLint, TypeScript, `noqa`, mypy, pylint, Pyright, Ruff, ShellCheck, C# `#pragma warning` and `SuppressMessage`, golangci-lint `nolint`, PowerShell `SuppressMessageAttribute`, markdownlint, RuboCop and Java `@SuppressWarnings`; a marker in a string, a Markdown code span or a fenced block is not counted. The new key `suppressions.correctness_rules` (default `[]`) lists rule ids whose suppressions are marked and counted; a list item that is not a string is dropped by name like any other wrong shape. The scanner is one shared file, `lib/suppression-scan.py`, copied into the skill; its `--count` prints `suppressions=<n>` and `unjustified=<n>`. Reports only, never gates. The plugin gains a plugin-level eval suite with four cases.
-- **`/code-metrics:audit-suppressions --findings`.** Writes the report plus one review-findings file into the branch's findings directory (`.work/reviews/<branch-slug>/`, or the memory root `--memory-dir` names) for `/review:fanout fix`, without asking anything. Each unjustified suppression is a row under `code-metrics/audit-suppressions/rule-no-reason` or `code-metrics/audit-suppressions/rule-no-rule-id` (IMPORTANT, `Confidence` high, not auto-applicable), with a repo-relative `Location`, an `Action` naming where that tool keeps its reason, and `## Surfaces` counting each rule's declined candidates. A justified suppression is no row. With no current branch it writes nothing and exits 2. Bare invocation and `--json` are unchanged.
-- **`schemas/code-metrics.schema.json`.** A JSON Schema for every configuration key, so a repository's CI can check its team file.
+## [0.5.10] - 2026-10-07
 
 ### Changed
 
-- **The team layer is `docs/conventions/code-metrics.yaml`.** The resolver reads it first; `.claude/code-metrics.yaml` is read only while that file is absent, and with both present the docs file is the whole team layer and one warning names both paths. `/code-metrics:setup apply` writes the docs file and, on its first write, carries every key of an existing `.claude/code-metrics.yaml`, so resolved values do not change; `apply` with no key does that move alone. `setup check` warns while only the older file exists.
-- **An invalid configuration value no longer stops an audit.** A layer outside the YAML subset is named with its line and read as absent. A value of the wrong shape (a quoted reference, a scalar where a list or mapping belongs, a control character, an exclude glob the matcher cannot compile) is named with its file, key and value and dropped; the key resolves from a valid higher layer, else the bundled default, never from a lower layer. These cases used to exit 2.
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.5.9] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The replica-collapse test removes its temp dir with `addCleanup` right after creating it.
+
+## [0.5.8] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.5.7] - 2026-10-07
+
+### Changed
+
+- **Test helper only; nothing shipped changes.** `tool-free-path.sh` forces native symlinks, so under Git Bash a link fails instead of copying a PATH directory into the temp dir.
+
+## [0.5.6] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.5.5] - 2026-10-03
 

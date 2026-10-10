@@ -125,8 +125,10 @@ session. Do not fabricate a map.
 
 1. **Session-start reclaim + map hygiene.** Reclaim any of your own stale in-progress items
    (idempotent). Check the map's invariants: every closed **in-scope** decision has a *Decisions-so-far*
-   pointer line (closed-as-out-of-scope items have an Out-of-scope line instead, not a pointer);
-   no item resolved-in-comment but still open. Fix violations before proceeding.
+   pointer line (closed-as-out-of-scope items have an Out-of-scope line instead, not a pointer;
+   closed-as-moot items have only their closing comment);
+   no item resolved-in-comment but still open; no Not-yet-specified prose that an item already
+   charts (delete it). Fix violations before proceeding.
 2. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (a *closed*
    blocker no longer holds an item back. Count open blockers, not the raw edge count). In a
    non-interactive session, further filter OUT `needs-human` items; if that empties the
@@ -157,8 +159,20 @@ session. Do not fabricate a map.
    Out-of-scope line linking it, then close it. It does **not** get a Decisions-so-far
    pointer. Fog stays in
    Not-yet-specified and never graduates into Out-of-scope. If the resolution sharpened
-   previously-foggy uncertainty, chart the new sharp items now.
-6. **Map closure → destination handoff.** When the frontier is empty and every decision item
+   previously-foggy uncertainty, chart the new sharp items now and delete that prose from
+   Not-yet-specified.
+6. **Sweep the map after every resolution.** Reread the open items and the closed decisions
+   against what was just decided:
+   - An open item whose premise the resolution invalidated: rewrite its question if one still
+     stands, then reset its type label, mode label and blocked-by edges as chart steps 3-4
+     require; otherwise close it as not planned with a comment linking the resolution that made
+     it moot. A moot item gets no line in either index.
+   - A closed decision the resolution shows was wrong: open a new decision item that links the
+     old one, with its type and mode labels set as chart step 4 requires, and work it like any
+     other. When it resolves, add its pointer to Decisions-so-far and change the old decision's
+     line to `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`.
+     Never reopen the old item or edit its resolution comment.
+7. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
    onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`
    for a PLAN). A map's job ends where the pipeline's begins.
@@ -183,8 +197,8 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | External-evidence item | `/discovery:research` | `research`-typed items route here (autonomous) |
 | The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 
-For pre-implementation efforts, the routed items above compose into a known five-pass order
-(blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
+For pre-implementation efforts, the routed items above compose into a known order (blindspot →
+brainstorm/prototype → PRD → interview → reference port → design → plan → decompose); the workflow section of
 `docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
 
 ## What this skill does NOT do

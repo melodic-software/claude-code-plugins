@@ -11,12 +11,10 @@ disk-hygiene gh
 go-format go
 guardrails gh
 harness-ops claude
-harness-ops curl
 harness-ops duckdb
 harness-ops gh
 harness-ops npm
 harness-ops npx
-harness-ops python3
 playwright jq
 playwright npm
 playwright npx

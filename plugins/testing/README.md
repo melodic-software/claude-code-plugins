@@ -13,7 +13,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:map-features` | User-invoked. Writes a feature map for one app: a project skill (default `.claude/skills/feature-map/`) whose index names the launch recipe, the recorded driver and a doctor command, with a file for each feature listing its parts, entry points, drive steps and traps. Refuses a location inside a `run-<name>` or `verify` skill. Reports done only after one mapped feature passes through `/testing:run-e2e`. Format: `reference/feature-map.md`. |
 | `/testing:refresh-feature-map` | Model-invocable. Keeps an existing feature map accurate: read-only source checks per feature, then one live pass through `/testing:run-e2e`. Edits stay in the map directory; a behavior the app lost goes to `/bugs:write` or the report, never into the map. A clean pass records its commit under the plugin data directory and the next pass skips until HEAD moves. Map corrections go to one fixed branch per map, `feature-map-upkeep/<map slug>`, and one pull request, updated rather than duplicated, opened only when unattended or after you confirm. An unattended pass refuses a `chrome` map. |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
-| `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
+| `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
@@ -69,8 +69,8 @@ below):
 
 - `test_guards_enabled` (default `false`) turns on two hooks. `test-scan` (PostToolUse) runs the
   can't-fail scanner on each test file Claude writes or edits and returns the findings as
-  context. `test-weaken` (PreToolUse) asks Claude for a reason when an edit removes or skips tests
-  or assertions.
+  context. `test-weaken` (PreToolUse) tells Claude which tests, assertions or expected values an
+  edit removes, skips or changes.
 - `test_judge_enabled` (default `false`, and only effective with `test_guards_enabled`, whose scan
   records the tests it judges) turns on the task-end test judge, described below.
   `test_judge_model` (default `sonnet`) and `test_judge_fallback_model` (default `opus`) name the
@@ -91,13 +91,25 @@ A separate headless `claude -p` run asks one question of each test block the ses
 changed: where did its expected value come from? It answers FLAG (the value restates the
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
-waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an
-interactive session, when a verdict is a FLAG or an UNKNOWN for a reason other than "no repository"
-or no judge class, it also asks Claude once to show you each verdict and proposed diff and wait.
-When every verdict is a PASS or one of those two UNKNOWN verdicts, there is nothing to decide and the stop
-is not blocked; that case, and an unattended session, get the counts and the file only. A session that ended before its verdicts were shown gets them named at
-the next session start. The writing agent never supplies the judge's prompt, model or output, and
+runs in the background, so the turn ends without waiting for it. It waits for any run still going,
+judges what is left (10 tests per task end, the rest at the next one), and writes a review-findings
+file (under `.work/reviews/<branch>/`). In an interactive session, when a verdict is a FLAG, or an
+UNKNOWN that started as a FLAG and failed the checks below, it wakes Claude once to show you each
+verdict and proposed diff and wait; nothing else wakes Claude. Every other UNKNOWN (no repository,
+no judge class, the judge's own UNKNOWN, a PASS that failed the checks) carries no finding.
+Otherwise there is nothing to decide: when every verdict is a PASS, Claude gets one line with the
+count on its next turn, and in the other cases, or in an unattended session, the counts and the
+file. The hook uses `asyncRewake` ([hooks reference: run hooks in the
+background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background), as of 2026-10-09;
+recheck when an `asyncRewake` hook's wake condition, timeout or output delivery changes).
+A `claude -p` or Agent SDK session ends before the async Stop judge finishes (Claude Code kills
+unfinished async hooks at print-mode teardown), so it gets no task-end verdict; CI is its gate.
+Each UNKNOWN records its reason kind and the verdict it started as. Tests left for a later task end are
+counted, never named. Tests a subagent wrote are judged at the parent's Stop with the parent's own,
+by the same rules; a file a subagent still running in the background wrote waits for a later Stop.
+A session that ended before a FLAG or UNKNOWN verdict was shown gets it named at the next session
+start. The writing agent never supplies the
+judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
 three wrote them the tests are reported UNKNOWN. `test_judge_effort` has no effect on a judge model that
@@ -107,8 +119,16 @@ effort levels.
 Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
-diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
-evidence, source or diff. The repository is the git toplevel of the test file's own directory,
+diff does not apply, touches another file or changes only comments and blank lines (by the comment
+syntax of the file's language), is shown as UNKNOWN with only that reason, never its
+evidence, source or diff. Within the session, a test whose body matches one already judged PASS
+(its name taken out and runs of whitespace collapsed), in a file whose lines outside the test are
+the same, under the same judge model, effort and prompt in the same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
+FLAG in an earlier run is judged again, since its diff edits one file. Within one task end,
+identical bodies are judged once and share the verdict, a FLAG included; a shared FLAG carries no
+diff of its own, and its findings entry points at the diff proposed for the test that was judged. The judge's copy of the test file is kept under its blob id, so a quote
+the file held when the judge read it but an edit has since removed is reported as stale, not as
+made up. The repository is the git toplevel of the test file's own directory,
 whatever the hook's working directory, and the judge resolves it again from the file before it
 runs, so a test file in a linked worktree is judged in that worktree. In the findings file each judge field is kept on one line
 and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
@@ -126,7 +146,7 @@ steps can still race them; that residual is accepted. A
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
 `cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn,
-taken only when there is a FLAG or an UNKNOWN to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+taken only when there is a FLAG (or an UNKNOWN that started as one) to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
 blocks on its own failure; it never applies a fix; and its malfunction guards (a
 $0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
 machine).
@@ -149,9 +169,9 @@ it is reported UNKNOWN, "no repository". The judge runs from the repository with
 `]` in the repository's path is escaped with a backslash, so the rule's gitignore pattern names
 that one directory. A test file outside the
 repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
-malfunction and the test is named as not judged. A run in which Claude Code denied the judge a
+malfunction and the test is counted as not judged. A run in which Claude Code denied the judge a
 tool call (the result's `permission_denials`) and that gives no test a FLAG or PASS is a
-malfunction too: its UNKNOWN verdicts are dropped and those tests are named as not judged, so
+malfunction too: its UNKNOWN verdicts are dropped and those tests are counted as not judged, so
 they do not stop the task. A denial names a tool call, not a test, and one run judges every
 in-doubt test of the file, so a denied run that gives any FLAG or PASS keeps all its verdicts,
 UNKNOWN included, and the denial is only logged. A symbolic link inside the repository that points outside
@@ -261,7 +281,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
 | `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
-| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
+| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. The judge was not calibrated on haiku, so its verdicts may be less consistent. |
 | `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
@@ -324,7 +344,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

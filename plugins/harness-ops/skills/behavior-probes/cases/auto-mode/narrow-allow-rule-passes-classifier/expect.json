@@ -1,0 +1,13 @@
+{
+  "claim": "In auto mode, a narrow permissions.allow rule that matches the command string literally lets a force push run that the classifier otherwise denies.",
+  "tags": ["permission rule", "allow rule", "permissions.allow", "auto mode", "classifier"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --force origin main\"",
+    "example": { "command": "git push --force origin main" }
+  },
+  "outcome": "ran",
+  "match": "forced update"
+}

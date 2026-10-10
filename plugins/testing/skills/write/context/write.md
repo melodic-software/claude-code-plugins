@@ -42,6 +42,8 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
    You cannot test everything. Focus testing effort on critical paths and complex logic, not every possible edge case.
 
+   When the change has acceptance criteria and a user-visible flow, the tracer bullet is the critical user-flow test, written before the code: see [Outside-in](#outside-in-the-user-flow-test-first).
+
 2. **Choose the test type**. Match the behavior to the right level. Location and framework come from the consuming project's testing conventions (or its existing test projects when undocumented); the role of each row is universal:
 
    | Behavior | Test type | Location / framework source |
@@ -51,6 +53,8 @@ When invoked from `/implementation:implement` (plan already approved) or as part
    | Service orchestration, runtime composition | Integration (orchestrator) | project's orchestrator (Aspire, docker-compose, tilt) + framework |
    | Layer dependencies, naming, conventions | Architecture | project's architecture-test project, when one exists |
    | Critical user journeys end-to-end | E2E | project's browser-automation tooling (see `/testing:run-e2e`) |
+   | Parsers, serializers, pure transforms, collections and stateful classes | Property, beside examples | the project's property library; see [property.md](property.md) |
+   | Behavior to keep through a replace, migrate or legacy refactor | Characterization, approval or differential (pins) | the project's approval or snapshot tooling; see [characterization.md](characterization.md) |
 
 3. **Write the failing test first** (Red). The test name IS the specification. Use the project's documented naming pattern; when undocumented, mirror the ecosystem's idiom. The forms below are illustrative (.NET/xUnit). Adapt casing/separators to the target ecosystem:
    - Unit: `{Method}_Should{Behavior}_When{Condition}`
@@ -88,8 +92,33 @@ Every test should score well on all four:
 
 - **Protection against regressions**. Does this test catch real bugs? Tests that only verify trivial behavior (getters, constructors) score low
 - **Resistance to refactoring**. Will this test break when implementation changes but behavior stays the same? Test behavior (observable output), not implementation (internal steps)
-- **Fast feedback**. Does this test run quickly? Unit tests: <100ms. Integration: <5s. Slow tests get skipped
+- **Fast feedback**. Does this test run quickly? Slow tests get skipped. As a rough bar, a unit test well under 100ms and an integration test under 5s; that bar is this repository's own heuristic, not a sourced standard (Khorikov's pillar sets no number)
 - **Maintainability**. Is this test easy to understand and change? No test should be harder to read than the code it tests
+
+## Determinism controls
+
+A test that passes or fails by chance teaches the agent running it to retry instead of fix. Build these in when the test is written, not after it flakes:
+
+- **Clock**: inject the clock (a parameter, an interface, the framework's time provider) or use the test framework's fake clock. Code under test never reads wall time directly
+- **Randomness**: seed the random generator per test and print the seed in the failure output, so a failure replays with the same seed
+- **Network**: blocked by default in unit tests; an integration test opts in to the hosts it needs. External services are faked from a recorded or documented response, not a guessed one
+- **No sleep**: wait on a condition with a timeout, or advance the fake clock. A fixed sleep is slow when it is long enough and flaky when it is not
+- **Order independence**: each test builds its own state and leaves nothing another test reads. Run the suite in shuffled order (with a printed seed) to prove it
+- **Parallel safety**: unique temp directories, ports, database names and file paths per test; no shared mutable singletons
+
+Runner-level switches exist for several of these (a fake clock in Playwright, seeded shuffling and per-test reseeding in pytest-randomly and `go test -shuffle`, socket blocking in pytest-socket). Read the current options at the source: [Playwright clock](https://playwright.dev/docs/clock), [pytest-randomly](https://github.com/pytest-dev/pytest-randomly), [pytest-socket](https://github.com/miketheman/pytest-socket). As of 2026-10-06. Recheck trigger: a tool renames or drops the switch. Whether to fake a dependency at all follows `/tdd:principles` (when the `tdd` plugin is enabled).
+
+## Outside-in: the user-flow test first
+
+When the change has acceptance criteria and a user-visible flow (a page, an API call, a CLI command):
+
+1. **Write the critical user-flow test before the code**, from the acceptance criteria: the steps a user takes and the outcome the criteria state. It fails (Red). One test per critical journey, not one per criterion
+2. **Keep it as the oracle for the whole task.** Run it after each slice; the task is not done until it passes. Never change its expectation to match what the code does. If the criteria turn out wrong, change them with the user first, then the test
+3. **Work inside it** with unit and integration tests in vertical slices, as above. The pyramid below still decides how many of each
+
+Name the costs. E2E tests are slower and flakier, and a failure does not say which component broke (poor fault isolation): the standard criticism, made in Wacker's 2015 Google Testing Blog post. Offset them: keep the flow count small, retain a trace on failure, and use the failure evidence `/testing:run-e2e` captures (failing step, expected against actual, trace, console and network errors) so the failure report becomes the next prompt. Fault isolation comes from the unit tests inside.
+
+Basis: LLM-written test oracles were measured to assert what the code does rather than what it should do (three papers, measured on LLM test generators over benchmark repositories; the transfer to an interactive agent is inferred). A test written from acceptance criteria before the code exists cannot copy the code's behavior. Recorded in the agent-self-check research slice, 2026-10-06, prompted by Addy Osmani's 2026-10-05 post (<https://x.com/addyosmani/status/2106995301802541481>). Recheck trigger: a measurement on interactive coding agents that contradicts it. For acceptance tests written by a separate agent, see [blind-author.md](blind-author.md).
 
 ## Verify through the interface, not around it
 

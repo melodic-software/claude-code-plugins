@@ -191,6 +191,7 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 - The question is which systems exist across repositories: `/architecture:map-landscape`.
 - The context settles a dependency decision worth keeping: `/architecture:record-decision`.
 - One repository on the context needs its own module-level pass: `/architecture:improve`.
+- The context opens a new external contract or integration to decide: `/planning:design integration`.
 
 ## Gotchas
 

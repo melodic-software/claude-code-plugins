@@ -34,7 +34,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the source-control hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the source-control hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
@@ -58,6 +58,25 @@
         "xcode-select": "xcode-select --install"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:worktree",
+        "hook:worktree-create-gate.sh"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, worktree creation still succeeds but skips npm ci for a package-lock.json and warns; run npm ci in the new worktree yourself.",
+      "install": {
+        "docs": "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm"
+      },
+      "check": "/source-control:check"
     }
   ]
 }

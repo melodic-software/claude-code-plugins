@@ -81,7 +81,7 @@ Blazor's enhanced-nav intercepts link clicks. If a test expects page navigation 
 
 ## Cleanup discipline
 
-Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. Between test batches, close each session the batch opened (`playwright-cli -s=<name> close`) so no browser is left holding file locks; leave other sessions alone, since another run or worktree may own them. `kill-all` stops every daemon on the machine: it is the recovery step in the skill's "Recover from stale sessions", for stale daemons or socket errors when no other run may be live, never a routine cleanup.
+Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. Between test batches, close each session the batch opened (`playwright-cli -s=<name> close`) so no browser is left holding file locks; leave other sessions alone, since another run or worktree may own them. `close-all` and `kill-all` reach every playwright-cli browser on the machine, other agents' included: they are the recovery step in the skill's "Recover from stale sessions", for a daemon that will not close or a socket error when no other run may be live, never a routine cleanup.
 
 ## Cross-worktree notes
 

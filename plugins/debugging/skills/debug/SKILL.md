@@ -321,6 +321,12 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - Stopped at a diagnosis on request: /implementation:implement fix.
 - Artifact with no reproduction: /debugging:analyze-profile.
 
+## Next
+
+- The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
+- The root cause is a design flaw that a focused patch cannot fix: `/planning:plan`.
+- No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
+
 ## When to escalate
 
 **Second failed fix.** Name the belief behind every attempt so far in a single sentence, then check that belief directly with the loop, once a second fix fails the Phase 1 loop and before a third is written. If the symptom is skewed across actors, run the Phase 3 tally first. This step is advisory; Phase 1 stays the only hard gate.
@@ -329,5 +335,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Go back to Phase 1 and hold the loop to the exit check again
-- The bug may need redesign rather than a patch. Switch to broader replanning (an architecture/plan-review capability, if available)
+- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan` when the `planning` plugin is installed, or your environment's own plan-review capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

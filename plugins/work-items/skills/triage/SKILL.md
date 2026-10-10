@@ -58,7 +58,7 @@ read it before applying that stamp in step 5.
 Three rules bound what enters this flow:
 
 - **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate**: fetch it and run the relevant tests; it never creates an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
-- **Never re-triage already-triaged output.** Items born triaged. Published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker. Already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (bare `needs-triage`) or being unlabeled puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
+- **Never re-triage already-triaged output.** Items born triaged. Published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker. Already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its intake buckets; only the blocked-by-won't-do bucket can list one, as a report for the operator). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (bare `needs-triage`) or being unlabeled puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 - **Lane infrastructure is never intake.** The loop-lane convention's per-lane telemetry tracking issues, the surfaces holding that convention's sentinel-marked status comment, are lane infrastructure, not backlog: an open one is a lane operating. **Identify one the way the lane resolves its own telemetry home**, never by title alone: the issue the lane's launch config pins (`lanes[].telemetry.issue` in the `harness-ops` lane config, read from `<repo>/.work/lanes/lanes.json`, or from `<repo>/.work/lanes.json` when only that file exists), else the default `Lane telemetry: <lane>` title (`/work-items:work-loop`, "Telemetry and durable loop state"); and, independent of both, **any issue carrying the convention's sentinel status comment** (`<!-- harness-ops:lane-telemetry marker=… -->`). The two signals cover each other: a config pinned to an operator-titled issue defeats the title test, and an issue pinned but not yet written to carries no sentinel, a title-only test admits exactly the first case and then relabels or closes the surface holding durable lane state. **Also exclude `work-map` container items**. Ordinary open issues carrying the tracker seam's container label (`WIT_CONTAINER_LABEL`, default `work-map`): they are never claimable frontier work (`list-frontier` drops them unconditionally per the seam contract) and their openness means the map exists, not that backlog is waiting. The exclusion never keys on labels either for telemetry (since the raw marker rides in as a creation-time filing default and a lane can re-add it at any cycle, so it holds **whatever labels they carry, the raw marker included**). A telemetry issue never enters the attention view, and one named explicitly is reported as lane infrastructure and stopped on, never state-machined, relabeled, or closed, since the lane reads that surface to operate. Container items are filtered from the attention view the same way. The lanes' own snapshots exclude the same populations by pointing here; it is defined here because this skill defines the intake population every lane composes.
 
 ## Triage states
@@ -98,19 +98,22 @@ Claiming stays coordination state, not a label. Assignee + lease via the seam (`
 
 ## Attention view (no number)
 
-The view answers one question per open item: is triage the next thing it is waiting for? An item
-qualifies through exactly one of three routes, and each route is a bucket (the bucket names are the
-`state` values the board page reads):
+The view answers one question per open item: is triage, or an operator decision triage reports, the
+next thing it is waiting for? An item qualifies through exactly one of four routes, and each route is
+a bucket (the bucket names are the `state` values the board page reads):
 
 | Bucket | Selected by | What the item is waiting for |
 |---|---|---|
 | `unlabeled` | no labels at all | a first look: no person or lane has classified it |
 | `raw marker` | the bare raw marker (`needs-triage`) | the evaluation someone asked for when they applied the marker |
 | `needs-info reply` | `status:needs-info` plus a reporter comment newer than the last triage note | a second evaluation, now that the missing information may have arrived |
+| `blocked by won't-do` | `blocked_by_wont_do_count` above zero | an operator decision: a blocker was closed as won't-do, so the item waits on work that will not happen and never reaches the frontier on its own |
+
+Report a `blocked by won't-do` item for the operator to decide (drop the edge, re-scope, or close); an already-triaged item is not re-run through the state machine. The field and which close reasons count per adapter: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract". An adapter that cannot read close reasons reports `0`, so this bucket stays empty there.
 
 Within each bucket, list the oldest item first, one line per item.
 
-List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or a needs-info comment from an earlier pass, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
+List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. The `blocked by won't-do` bucket reads the count from the listing rows, whatever labels the item carries: an item already triaged still lands there, and one that also fits an earlier bucket is listed once, under the earlier bucket. **Defensive skip** (the first three buckets only): drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or a needs-info comment from an earlier pass, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
 
 ### Board page
 
@@ -224,6 +227,8 @@ as `Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)` followed by the rec
 raw marker stays on the item until step 5 replaces it, so a pass that stops here leaves the item in
 the attention view with its evidence already posted.
 
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the brief routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `status:needs-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+
 ### 4. Interview (if needed)
 
 Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time, resolve the most load-bearing ambiguity first. Each question is a decision question and carries the same brief-before-ask restatement as the direction gate above: which item it concerns, the decision being asked, and the consequence of each option **you present**. An open-ended question presents no option set to enumerate consequences for, state instead what the answer will determine, and never narrow a genuinely open question into a closed list just to satisfy the restatement. Post questions as item comments. Mark `status:needs-info` until the reporter responds.
@@ -246,6 +251,7 @@ admission gate enforces the window.
 ## Next
 
 - An autonomous-eligible item: `/work-items:work`.
+- A verified bug whose root cause is unknown: `/debugging:debug`.
 - A human-gated item lands in the operator's queue: `/work-items:attend-queue`.
 - A briefed item too large for one slice: `/work-items:decompose`.
 

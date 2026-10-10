@@ -1,8 +1,9 @@
 {
-  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; and verifies CLI flags, skill references and cited paths after a write.",
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations, shell write-gate bypasses and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; runs the Write and Edit secret and hardcoded-path guards on repository files a Bash or PowerShell command changed; and verifies CLI flags, skill references and cited paths after a write.",
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",
@@ -77,6 +78,16 @@
             ],
             "timeout": 60,
             "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, and credential-read guards..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/check-bash-file-changes.mjs",
+              "snapshot"
+            ],
+            "timeout": 10,
+            "statusMessage": "Recording which repository files are changed before the command..."
           }
         ]
       },
@@ -108,6 +119,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -122,6 +135,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -136,6 +151,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -150,6 +167,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -164,6 +183,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -171,6 +192,38 @@
             ],
             "timeout": 30,
             "statusMessage": "Verifying CLI flags, skill references, and cited paths..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/check-bash-file-changes.mjs",
+              "check"
+            ],
+            "timeout": 60,
+            "statusMessage": "Checking repository files the command changed for secrets and hardcoded paths..."
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/check-bash-file-changes.mjs",
+              "check"
+            ],
+            "timeout": 60,
+            "statusMessage": "Checking repository files the command changed for secrets and hardcoded paths..."
           }
         ]
       }

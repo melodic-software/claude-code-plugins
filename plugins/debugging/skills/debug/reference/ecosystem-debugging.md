@@ -14,7 +14,9 @@ The rows below are idiomatic defaults, not policy. Where your project defines it
 ## Python (`python`)
 
 - **logging**: Prefix `logger.debug()` or `print()` with the `[DEBUG-<hex>]` tag.
+- **timing-injection**: Pass a clock into the code under test, or freeze it in the test with a clock-faking library (`freezegun`, `time-machine`). For order and randomness, run with `pytest-randomly` and replay a failure with the seed it printed (`--randomly-seed=<n>`, or `last`); it also reseeds `random` per test. For the network, run with `pytest-socket`'s `--disable-socket` so any real connection fails loudly instead of flaking. Pointers: <https://github.com/spulec/freezegun>, <https://time-machine.readthedocs.io/>, <https://github.com/pytest-dev/pytest-randomly#readme>, <https://github.com/miketheman/pytest-socket#readme>. As of: 2026-10-06. Recheck trigger: a plugin renames the flag or seed form used here, or a clock library is retired.
 
 ## TypeScript (`typescript`)
 
 - **logging**: Prefix `console.log()` with the `[DEBUG-<hex>]` tag.
+- **timing-injection**: In unit tests, use the runner's fake timers (Jest `jest.useFakeTimers()`, Vitest `vi.useFakeTimers()`) and advance time explicitly instead of sleeping. In Playwright, control the page's clock with `page.clock`; fix `Date.now` with `setFixedTime` first, and reach for `install` plus `runFor` or `fastForward` only when timers must fire. Mock the network at the seam with `page.route` so the loop never depends on a live backend. Pointers: <https://jestjs.io/docs/timer-mocks>, <https://vitest.dev/guide/mocking/timers>, <https://playwright.dev/docs/clock>, <https://playwright.dev/docs/mock>. As of: 2026-10-06 (Playwright 1.63). Recheck trigger: a runner renames its fake-timer API, or Playwright changes the clock page's recommended first call.

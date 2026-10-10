@@ -79,7 +79,7 @@ source "$HOOK_DIR/worktree-path-lib.sh"
 source "$HOOK_DIR/../scripts/worktree-root-resolve.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PreToolUse" "source-control-worktree-add-containment-gate" "$INPUT"
+hook::require jq "PreToolUse" "source-control" "$INPUT"
 
 # ONE `jq` for the field and no `tr` behind it. The payload is fed through
 # `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
@@ -195,18 +195,13 @@ configured_root() {
 block() {
   local target="$1" kind="$2" detail="$3" hint="$4" root
   root=$(configured_root "$hint")
-  echo "BLOCKED: git worktree add target lands inside $kind." >&2
-  echo "  target:  $target" >&2
-  echo "  inside:  $detail" >&2
+  local msg="BLOCKED: git worktree add target $target is inside $kind $detail."
   if [[ -n "$root" ]]; then
-    echo "Place worktrees at the configured external root instead: $root" >&2
-    echo "  e.g. git worktree add \"$root/<owner>-<repo>-<slug>\" ..." >&2
+    msg+=" Add it under $root instead, e.g. git worktree add \"$root/<owner>-<repo>-<slug>\" ..., or use /source-control:worktree create."
   else
-    echo "No external worktree root is configured. Set one every tool can read:" >&2
-    echo "  git config --global worktreeroot.path <dir-outside-every-repo>" >&2
+    msg+=" No external worktree root is configured; ask the user to set one (git config --global worktreeroot.path <dir-outside-every-repo>), or use /source-control:worktree create."
   fi
-  echo "A worktree nested inside a checkout can pick up that checkout's path-scoped rules as well as its own, and a git-directory placement mixes the checkout into git metadata — measurement, disputed arms and expiry: skills/worktree/SKILL.md \"The nesting invariant, dated measurement\"." >&2
-  echo "Or use /source-control:worktree create, which places (and locks) the worktree for you. Convention: the source-control plugin's reference/worktree-root-convention.md. Kill switch: the worktree_add_containment_gate_enabled plugin option." >&2
+  echo "$msg" >&2
   exit 2
 }
 

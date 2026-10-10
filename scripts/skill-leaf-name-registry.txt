@@ -149,9 +149,11 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # never installing. It is its own skill because `setup` is manual-only.
 # multi-agent joins on the same grounds: it reports whether node resolves for its
 # drift-checker fetch gate hook and whether that hook is registered.
+# discovery joins on the same grounds: it reports whether node resolves for its
+# WebFetch truncation hook and whether that hook is registered.
 # explainer-video joins on the same grounds: it reports whether Python, the
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
-check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
+check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,discovery,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
 
 # The prerequisites check, for a plugin whose `check` already means something
 # else (docs/conventions/prerequisites/). instruction-placement gates rule
@@ -177,8 +179,12 @@ diagnose computer-use,songwriting,testing
 
 # Kept on merit. planning:design designs an implementation approach for a code
 # change; evals:design designs an evaluation suite (success criteria + graded
-# cases). Unrelated artifacts; the namespace supplies the object in both.
-design evals,planning
+# cases). user-interface:design designs what a person or agent interacts with
+# (CLI output, TUIs, mods, web and app UI), and its description's first clause
+# names that object. It is the plugin's one listed entry skill, so a longer leaf
+# would only repeat the namespace. Three unrelated artifacts; the namespace
+# supplies the object in each.
+design evals,planning,user-interface
 
 # Noun reserved for knowledge routers (plugin-philosophy.md, Naming). Each
 # routes its own domain's method literature: event-storming:methodology the
@@ -272,3 +278,19 @@ sync dometrain,repo-fleet-hygiene
 # namespace supplies which kind, each description's first clause names it, and
 # explainer-video's routes hand-drawn film to animation:produce.
 produce animation,explainer-video
+
+# Kept on merit. architecture:improve scans module structure for deepening
+# opportunities and interviews one through Design-It-Twice, editing nothing;
+# improvement:improve ships one improvement of any kind in any target as a draft
+# PR. Both improve something; the namespace supplies the object, each
+# description's first clause names it, and improvement:improve routes a
+# structural fix to its owning lane rather than repeating architecture's lens.
+improve architecture,improvement
+
+# Kept on merit. adhd:shape sets a standing output posture for the session's
+# responses; user-experience:shape is the front door for the user experience of
+# the app being built (stage, the project's own evidence, the hand-off to a job
+# skill). Different objects shaped: the namespace supplies which, and each
+# description's first clause names it ("Shape the assistant's output" beside
+# "Shape the user experience of the app being built").
+shape adhd,user-experience

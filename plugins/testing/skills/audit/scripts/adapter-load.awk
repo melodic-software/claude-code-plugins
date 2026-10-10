@@ -37,7 +37,9 @@
 # assertion.weak and snapshot match a whole assertion call (strings stand as
 # `_`), bounded the way mock.strip is: a line whose only assertions they cover
 # is a weak or a snapshot oracle (go: weak matches the joined if statement).
-# assertion.count matches a length or count check anywhere in a test body, and
+# assertion.exists matches, the same way, a call checking only that one named
+# value exists or has a type; on a value the test constructed with new it
+# checks only that the constructor did not throw. assertion.count matches a length or count check anywhere in a test body, and
 # assertion.fail a call that fails the test outright, which is the assertion
 # of the if or catch around it. property_markers match any raw line of a file
 # whose tests derive expected values on purpose (property-based tests), and
@@ -77,16 +79,16 @@
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
   for (i in t) KIND[t[i]] = "s"
-  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
+  split("files detect.any_regex test_start test_skip body_skip suite_skip additional_test_blocks assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers rules_off equality.call2 equality.receiver equality.pipeline", t, " ")
   for (i in t) KIND[t[i]] = "l"
   split("detect assertion mock equality", t, " ")
   for (i in t) KIND[t[i]] = "m"
-  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
+  split("detect.any_regex test_start test_skip body_skip suite_skip assertion.calls assertion.idioms assertion.async assertion.inert assertion.weak assertion.exists assertion.count assertion.fail delegation mock.create mock.verify mock.strip snapshot property_markers suppress_marker", t, " ")
   for (i in t) IS_RE[t[i]] = 1
   # Schema fields no engine code reads yet; accepting them would drop them silently.
   split("additional_test_blocks", t, " ")
   for (i in t) RESERVED[t[i]] = 1
-  RULE_RE = "^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|flaky-passes-suite|only-not-forbidden)$"
+  RULE_RE = "^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle|flaky-passes-suite|only-not-forbidden)$"
   KEY_RE = MODE == "config" ? "^[A-Za-z_][A-Za-z0-9_./-]*:" : "^[A-Za-z_][A-Za-z0-9_.]*:"
   nf = 0; nr = 0; nl = 0; ns = 0
 }
@@ -203,7 +205,7 @@ function check_value(key, v) {
   if (key in RESERVED) die(key " is reserved and not implemented yet")
   if (key == "advisory" && v != "true" && v != "false") die("advisory is true or false, got: " v)
   # The config rules read a Playwright config, which no test adapter claims.
-  if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle)$/)
+  if (key == "rules_off" && v !~ /^(zero-assertion|recomputed-expectation|mock-only-oracle|inert-assertion|constant-restatement|source-text-read|conditional-assertion|recomputed-derived|snapshot-only|weak-oracle|throw-only-oracle)$/)
     die("rules_off entries are test-body rule slugs such as recomputed-derived, got: " v)
   if (key == "equality.receiver" && v !~ /^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*$/)
     die("equality.receiver entries are <wrapper>.<matcher>, got: " v)

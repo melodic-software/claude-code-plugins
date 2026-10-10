@@ -118,6 +118,8 @@ settings file's `env` block, which applies to every session and the subprocesses
   [Exceptions to managed settings precedence](https://code.claude.com/docs/en/settings#exceptions-to-managed-settings-precedence),
   and [`env`](https://code.claude.com/docs/en/settings-reference#env).
 - **As of**: 2026-08-10
+- **Recheck trigger**: the settings page adds a scope to the precedence list or documents a
+  managed-settings exception for `env`.
 
 ## Out of scope for this skill (verified, deliberate)
 
@@ -136,6 +138,8 @@ settings file's `env` block, which applies to every session and the subprocesses
     [Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically),
     [Kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them).
   - **As of**: 2026-08-10
+  - **Recheck trigger**: either claude-directory section moves a path between the cleaned and kept
+    lists, or the `cleanupPeriodDays` default or minimum changes.
 
   This skill treats `claude project purge` as deleting, for one project, the transcripts and auto
   memory under `projects/`, its per-session `tasks/`, `debug/` and `file-history/` entries, its
@@ -148,6 +152,8 @@ settings file's `env` block, which applies to every session and the subprocesses
   - **Pointer**: [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
     and [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands).
   - **As of**: 2026-08-10
+  - **Recheck trigger**: the Clear local data section changes what `claude project purge` deletes
+    or keeps, or the docs give the command a version requirement.
 
   We record `CLAUDE_CODE_SKIP_PROMPT_HISTORY` as the true "no session persistence" lever, since it
   stops transcripts and prompt history being written, and the complement to deleting the files

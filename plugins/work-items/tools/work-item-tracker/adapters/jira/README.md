@@ -43,9 +43,18 @@ error). `list-frontier --parent` is unavailable (needs `list-sub-items`, which i
 ## View item
 
 `work-item-tracker.sh get-item jira:<site>/<PROJECTKEY>#<N>` returns the normalized item object
-(CONTRACT.md "JSON output contract"): `state`, `assignees`, `labels`, `type`, open-only
-`blocked_by_count`, `parent_id`, `url`. `blocked_by_count` counts only **open** inward blockers
-under the configured link type (`config.jira.blocked_by_link_type`, default `Blocks`).
+(CONTRACT.md "JSON output contract"): `state`, `assignees`, `labels`, `type`,
+`blocked_by_count`, `blocked_by_wont_do_count`, `parent_id`, `url`. `blocked_by_count` counts
+**open** inward blockers under the configured link type (`config.jira.blocked_by_link_type`,
+default `Blocks`) plus done blockers that are not resolved; `blocked_by_wont_do_count` counts
+the done ones resolved as won't-do. Won't-do detection is off until the team binding carries
+`config.jira.resolutions`, which classifies this instance's resolution ids as `completed` or
+`wont_do` (`/work-items:setup apply` writes it from the instance's resolution list; there is
+no built-in list, since admins rename and add resolutions). With it set, the adapter reads done
+blockers' resolutions in one extra search per call (per page for `list-items`). A done blocker
+whose resolution id is in neither list, a failed lookup, or a blocker the lookup did not return
+keeps blocking and warns on stderr; blockers outside `project_keys` are not looked up and stay
+resolved. CONTRACT.md "jira adapter" has the rules.
 
 ## Auth & prerequisites
 

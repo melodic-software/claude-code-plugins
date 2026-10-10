@@ -3,24 +3,69 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
-
-### Fixed
-
-- `tidy` no longer describes the PR body as fixed to `Summary` and `Test plan`; it hands `/source-control:pull-request create` the facts and that skill writes the body from the repo's configured sections.
-
-### Added
-
-- `audit-comment-residue` reports a new Tier 2 shape, `unjustified-workaround`: a comment that names a workaround and gives neither a link (a URL, an issue or PR number, an RFC) nor a removal condition (`until`, `remove when`, `once ... ships`). A link or condition on any line of the same comment run justifies the run, and a workaround comment's own issue reference is no longer reported as `ticket-pr-residue`.
-- `audit-comment-residue` and `dissolve-comments` take `--added-since <base>`, which limits the run to comments on lines the branch adds against the merge base of `<base>` and `HEAD`. The ranges come from the new read-only `scripts/added-lines.sh`.
-- `dissolve-comments` has a `report` token that applies nothing and asks nothing: every treatment is a proposal, a constraint comment gets a regression-test or lint-rule proposal, and lint-rule proposals are written as a findings file under `<memory_dir>/comment-pass/<branch-slug>/` for `/review:audit-enforceability`.
-- `dissolve-comments` lists each workaround comment it removes or proposes to remove as open root-cause work, in every mode.
+## [0.29.1] - 2026-10-07
 
 ### Changed
 
-- **`aggressive` keeps two more kinds of comment.** A comment on behavior a dependency, platform, vendor service or protocol forces, and a comment whose issue or RFC link explains a constraint, now survive `aggressive` within `class_c_max_lines`. Before, `aggressive` deleted another system's limit or an upstream's behavior as rationale. A survivor that names a workaround still needs a link or removal condition. `strip` is unchanged.
-- tidy's #14 example workaround comment carries a removal condition, so it no longer reads as an unjustified workaround.
-- **`dissolve-comments` re-checks a kept claim against the code.** Before a constraint, warning, contract or thread-safety comment is kept, step 5 reads the code it describes; a claim the code now contradicts is obsolete (class A) and is deleted or proposed under the mode's class-A rule. A claim the code cannot settle goes to `/discovery:trace-intent` when it is among the available skills; one still open is reported as unverified and then goes through the class-C criteria like any other comment.
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.29.0] - 2026-10-07
+
+### Changed
+
+- **Concise skill text, measured ([#6476](https://github.com/melodic-software/claude-code-plugins/issues/6476)).** `audit-comment-residue`, `audit-dead-code`, `dissolve-comments`, `setup` and `tidy` are rewritten shorter under `/playbooks:skill-authoring`'s skill criteria. Each rewrite was non-inferior to the previous text on before/after evals on Opus and Sonnet, run concurrently. `audit-comment-residue`'s shape definitions move to `reference/shapes.md`. `tidy`'s description keeps its quoted trigger phrases, which held-out probes on Sonnet showed it needs. `batch-simplify` keeps its previous body: the rewrite made an unrecognized scope word sweep files instead of asking. Only its description is updated.
+
+### Added
+
+- **Outcome eval cases for five skills.** 37 cases for `audit-comment-residue`, `audit-dead-code`, `batch-simplify`, `setup` and `tidy`, with their fixtures, join the existing `dissolve-comments` suite under `evals/`. `scripts/evals-fixtures.test.sh` now accepts a fixture seeded by a fixtures seed script a scaffold runs.
+
+## [0.28.12] - 2026-10-07
+
+### Changed
+
+- **Test suite only; nothing shipped changes.** The comment-census and rank-comment-targets tests register their temp-dir cleanup right after creating the dir, and the census tests clear git's read-only object files so the removal succeeds on Windows.
+
+## [0.28.11] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.28.10] - 2026-10-07
+
+### Added
+
+- Trigger probe sets under `probes/` for the five model-invoked skills, written blind from their current descriptions and frozen as the baseline for a later description rewrite. No skill behavior changes.
+
+## [0.28.9] - 2026-10-04
+
+### Changed
+
+- `batch-simplify` repo mode and `dissolve-comments` name the repo's release record (a version bump plus changelog entry, or a changelog fragment where the repo uses them) instead of always a version bump.
+
+## [0.28.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.28.7] - 2026-10-04
+
+### Changed
+
+- **`/code-tidying:tidy` reads its scope budget from the shared PR scope budget convention.** The
+  plugin ships a generated copy at `reference/pr-scope-budget.md`; Phase D, the self-update
+  exclusions and the README point there instead of restating the target and hard cap.
+  `reference/scope-budget.md` keeps only tidy's overflow priority order and deferred-items
+  template, and drops its own research lineage. The convention leaves overflow handling to each
+  adopter, so tidy's own overflow protocol stays in force. Spokes write the plugin directory as
+  `<plugin-root>`.
+
+## [0.28.6] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.28.5] - 2026-10-04
 

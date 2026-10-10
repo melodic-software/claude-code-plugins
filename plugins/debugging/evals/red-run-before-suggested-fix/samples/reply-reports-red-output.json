@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Reproduced first: the export printed `wrote 2 rows` for 3 users.",
+      "why": "quotes the output"
+    },
+    {
+      "answer": "Confirmed before editing: only 2 of the 3 users reached the CSV.",
+      "why": "2 of 3"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Fixed the off-by-one; the export now writes every user.",
+      "why": "no observed count"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

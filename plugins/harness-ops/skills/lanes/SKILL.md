@@ -94,7 +94,7 @@ nothing, kills nothing).
 
 **`--data-dir` is passed explicitly, not left to the script's own
 `$CLAUDE_PLUGIN_DATA` env-var fallback.** Per
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
 `${CLAUDE_PLUGIN_DATA}` is exported as a real environment variable only to hook
 processes and MCP/LSP subprocesses. For skill content it instead resolves by
 **inline text substitution anywhere the placeholder appears** in the rendered
@@ -242,7 +242,7 @@ data_dir="${CLAUDE_PLUGIN_DATA}"
 Copy it as it renders **here**, already substituted to an absolute path. Writing
 the placeholder, or a `${CLAUDE_PLUGIN_DATA:-…}` env fallback, inside
 `context/refresh.md` would not work: that file is read raw, and per
-[plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables)
+[plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
 `CLAUDE_PLUGIN_DATA` reaches only hook and MCP/LSP subprocesses as a real
 environment variable, never a script the Bash tool runs (the dated record for
 that claim is the `--data-dir` note above). The probe would then
@@ -301,8 +301,8 @@ Put that path in place of the placeholder before running a command or writing it
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
 Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

@@ -181,6 +181,7 @@ unambiguous; ask only where an item genuinely needs the user.
    below, which writes `config.role_labels` into the binding just seeded. It is anchored here, after
    the bind, before any schedule work, so it runs identically on the skipped first-time path (where no
    interview happens) and on the seeding path, and every later step resolves the post-remap labels.
+   Then run the "Won't-do classification" procedure below for the bound provider.
 3. **Migrate the work-class label axis.** Run the "Work-class label axis (migration)" procedure below.
    It discovers missing canonical members and provisions them when authorized. When any member is still
    missing after this pass, stop. Triage and the work-loop admission gate cannot operate correctly.
@@ -353,6 +354,41 @@ Re-running `apply` once every role resolves as intended changes nothing **in thi
 "already configured" for the role labels. That says nothing about the rest of `apply`: a schedule still
 carrying zero rows re-offers seeding on every run, by design.
 
+## Won't-do classification
+
+`apply` runs this right after the role-label pass, at **step 2**. A blocker closed as won't-do
+keeps its dependent blocked and lands it in triage's "blocked by won't-do" bucket. How a tracker
+marks won't-do differs per consumer, so the plugin ships no list: this pass reads the tracker's
+own vocabulary and the user classifies it. Field semantics are CONTRACT.md "JSON output
+contract" and "jira adapter". Skip it when `.work-item-tracker.json` is absent or the provider is
+neither `github` nor `jira`. In both branches nothing is written without the user's choice;
+with no interactive user, leave the key out (detection stays at its key-absent behavior) and
+report INFO naming `/work-items:setup apply` with a user present.
+
+- **`github`: optional won't-do labels.** List the repo's labels (`gh label list --limit 200
+  --json name,description`) and show them with the currently configured
+  `config.github.wont_do_labels`. Explain that a close as "not planned" or "duplicate" already
+  counts, and a listed label additionally counts on any close, for repos that mark won't-do with
+  a label such as `wontfix`. A suggestion from the names is fine; RECOMMENDED is to keep the
+  current value (none, when unset). On the user's pick, re-read the binding and merge only
+  `config.github.wont_do_labels`; an empty pick removes the key.
+- **`jira`: classify resolutions.** Modeled on the role-label pass above:
+  1. **Read the current binding** and present `config.jira.resolutions` when set.
+  2. **Discover** the instance's resolutions with the paginated
+     `GET /rest/api/3/resolution/search` (the call, its auth and its fields are
+     [`reference/providers.md`](reference/providers.md) "`jira`"). Show each resolution's name and
+     description, and mark the default one.
+  3. **Have the user sort each into `completed` or `wont_do`.** You may pre-select a suggestion
+     from the name (`Done` → completed; `Won't Do`, `Duplicate` → wont_do),
+     marked as a suggestion; the user confirms or changes every row. A resolution left unsorted
+     is unclassified: a done blocker carrying it keeps blocking and warns.
+  4. **Write the binding**: re-read `.work-item-tracker.json` immediately before writing and merge
+     only `config.jira.resolutions` as `{"completed": [ids], "wont_do": [ids]}`, ids as strings.
+     It is team binding only; never write it to the personal overlay.
+
+On a re-run, a Jira binding that already classifies every listed resolution reports "already
+configured"; otherwise offer only the resolutions it does not classify.
+
 ## Output
 
 A tracked `.work-item-tracker.json` binding (provider + non-secret config) and a tracked
@@ -370,8 +406,8 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## What this skill does NOT do
 

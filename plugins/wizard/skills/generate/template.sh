@@ -17,13 +17,15 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────────────────────
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-  BOLD=$(tput bold)
-  DIM=$(tput dim)
-  RESET=$(tput sgr0)
-  BLUE=$(tput setaf 4)
-  GREEN=$(tput setaf 2)
-  YELLOW=$(tput setaf 3)
-  RED=$(tput setaf 1)
+  # `|| true`: a terminfo entry may lack a capability, and tput then exits
+  # nonzero, which set -e would turn into a silent exit before any prompt.
+  BOLD=$(tput bold || true)
+  DIM=$(tput dim || true)
+  RESET=$(tput sgr0 || true)
+  BLUE=$(tput setaf 4 || true)
+  GREEN=$(tput setaf 2 || true)
+  YELLOW=$(tput setaf 3 || true)
+  RED=$(tput setaf 1 || true)
 else
   BOLD=""
   DIM=""
@@ -51,14 +53,16 @@ TOTAL_STAGES=0
 
 _STAGE_INDEX=0
 ENV_FILE="${ENV_FILE:-.env}"
+# Where ENV_FILE may resolve to without asking (_check_env_target).
+_WIZARD_PROJECT_DIR="$(pwd -P)"
 WRITTEN_ENV=()    # keys saved in ENV_FILE during this run
 WRITTEN_SECRET=() # CI secret names stored during this run
 WRITTEN_VAR=()    # CI variable names stored during this run
 SKIPPED=()        # manual follow-ups: no gh, a gh failure, a declined repo
 
 # Temp-file hygiene: write_env stages its rewrite in a mktemp file alongside
-# ENV_FILE (same filesystem, so the final mv is an atomic rename); the trap
-# removes it if the wizard dies mid-write.
+# ENV_FILE (same filesystem, so the final mv of a regular file is an atomic
+# rename); the trap removes it if the wizard dies mid-write.
 _WIZARD_TMP=""
 # if-form, not `[[ ]] &&`: a false condition must not leave a nonzero status
 # for the EXIT trap under set -e, which would turn a successful run into exit 1.
@@ -73,10 +77,12 @@ _valid_key() {
 }
 
 # _clear: blank the screen before a new stage. Skipped when stdout is not a
-# terminal, which keeps a captured log free of escape codes.
+# terminal, which keeps a captured log free of escape codes. Best effort: a
+# terminal without a clear capability (TERM=dumb, no terminfo) makes tput exit
+# nonzero, and that must never stop the wizard.
 _clear() {
   [[ -t 1 ]] || return 0
-  if command -v tput >/dev/null 2>&1; then tput clear; else printf '\033[2J\033[3J\033[H'; fi
+  if command -v tput >/dev/null 2>&1; then tput clear 2>/dev/null || true; else printf '\033[2J\033[3J\033[H'; fi
 }
 
 # banner "Title": the first screen, with the title and the stage count.
@@ -198,32 +204,133 @@ _ask_prompt() {
   fi
 }
 
+# _resolve_link PATH — print PATH's final target, following every symlink hop,
+# as an absolute physical path. Portable to older macOS: plain readlink (no
+# -f) and `cd -P`/`pwd -P`, never realpath.
+_resolve_link() {
+  local path="$1" link dir hops=0
+  while [[ -L "$path" ]]; do
+    hops=$((hops + 1))
+    ((hops <= 40)) || return 1
+    link=$(readlink -- "$path") || return 1
+    case "$link" in
+    /*) path="$link" ;;
+    *) path="$(dirname -- "$path")/$link" ;;
+    esac
+  done
+  dir=$(CDPATH='' cd -P -- "$(dirname -- "$path")" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s' "$dir" "$(basename -- "$path")"
+}
+
+# _check_env_target — an ENV_FILE that resolves outside the project, through a
+# symlinked file or a symlinked parent directory (a hostile repo can ship
+# `.env -> ~/.bashrc` or `sub -> ~`), is written to only after the human sees
+# the real destination and says yes; like open_url, the destination is printed
+# before anything is dispatched. A target inside the project under any .git
+# directory (`.env -> .git/config`, a nested repo's metadata) gets the same gate:
+# a secret appended there sits in a world-readable file, and a key name of the
+# repo's choosing is read as git configuration. Runs before any value is
+# prompted for. The path is re-resolved on every call and the yes is remembered
+# for that resolved target only, so a link repointed mid-run asks again. A
+# decline or an unanswerable gate aborts with nothing written.
+_ENV_TARGET_CONFIRMED=""
+# shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
+_check_env_target() {
+  local target rel
+  if ! target=$(_resolve_link "$ENV_FILE"); then
+    [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+    return 0 # its directory does not exist, so nothing can be written there
+  fi
+  [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
+  # Lowercased: on a case-insensitive filesystem .GIT/config is the git config.
+  rel=$(printf '/%s/' "${target#"$_WIZARD_PROJECT_DIR"/}" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+  if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
+    warn "$ENV_FILE resolves to a file outside this project: $target"
+  elif [[ "$rel" == */.git/* ]]; then
+    warn "$ENV_FILE resolves into git metadata: $target"
+  else
+    return 0
+  fi
+  confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
+  _ENV_TARGET_CONFIRMED="$target"
+}
+
+# _assignable_key KEY — ask, ask_secret and write_env assign $KEY in the
+# library's own shell, so KEY must not name the library's state (ENV_FILE,
+# SKIPPED, ...), a helper local (__wiz_*), or a variable the shell itself sets
+# or reads (PATH, IFS, PS4, BASH_ENV, ...: the "Shell Variables" list in the
+# bash manual), whose new value would change how the rest of the wizard runs.
+# LD_* and DYLD_* are refused too: when already exported, the dynamic loader
+# reads them in every command the wizard starts (gh, git, mktemp).
+# A key the shell already exports (GH_TOKEN, BROWSER, GIT_SSH_COMMAND, ...) is
+# refused: printf -v keeps the export flag, so the assigned value would reach
+# gh, git and the browser opener.
+# Gate KEY with _valid_key first.
+_assignable_key() {
+  local __wiz_decl
+  case "$1" in
+  __wiz_* | _WIZARD_* | _ENV_* | _STAGE_INDEX | ENV_FILE | TOTAL_STAGES | \
+    WRITTEN_ENV | WRITTEN_SECRET | WRITTEN_VAR | SKIPPED | GH_REPO | \
+    GH_REPO_DECLINED | BOLD | DIM | RESET | BLUE | GREEN | YELLOW | RED)
+    fatal "reserved key name: '$1' (the wizard library uses it; pick another name)"
+    ;;
+  BASH | BASHOPTS | BASHPID | BASH_* | COMP_* | COMPREPLY | COPROC | DIRSTACK | \
+    EPOCHREALTIME | EPOCHSECONDS | EUID | FUNCNAME | GROUPS | HISTCMD | HOSTNAME | \
+    HOSTTYPE | LINENO | MACHTYPE | MAPFILE | OLDPWD | OPTARG | OPTIND | OSTYPE | \
+    PIPESTATUS | PPID | PWD | RANDOM | READLINE_* | REPLY | SECONDS | SHELLOPTS | \
+    SHLVL | SRANDOM | UID | CDPATH | CHILD_MAX | COLUMNS | EMACS | ENV | EXECIGNORE | \
+    FCEDIT | FIGNORE | FUNCNEST | GLOBIGNORE | GLOBSORT | HISTCONTROL | HISTFILE | \
+    HISTFILESIZE | HISTIGNORE | HISTSIZE | HISTTIMEFORMAT | HOME | HOSTFILE | IFS | \
+    IGNOREEOF | INPUTRC | INSIDE_EMACS | LANG | LC_* | LINES | MAIL | MAILCHECK | \
+    MAILPATH | OPTERR | PATH | POSIXLY_CORRECT | PROMPT_COMMAND | PROMPT_DIRTRIM | \
+    PS0 | PS1 | PS2 | PS3 | PS4 | SHELL | TIMEFORMAT | TMOUT | TMPDIR | LD_* | DYLD_*)
+    fatal "reserved key name: '$1' (the shell itself uses it; pick another name)"
+    ;;
+  *) ;;
+  esac
+  # declare -p prints the attribute flags first (declare -x, -rx, ...).
+  __wiz_decl=$(declare -p -- "$1" 2>/dev/null) || return 0
+  __wiz_decl=${__wiz_decl#declare -}
+  if [[ "${__wiz_decl%% *}" == *x* ]]; then
+    fatal "exported key name: '$1' (already exported, so a value the wizard assigns would reach gh, git and the browser opener; pick another name)"
+  fi
+}
+
+# ask, ask_secret and write_env assign $KEY with printf -v, which writes the
+# innermost variable of that name: a helper local spelled like the key would
+# take the value instead of the caller. Their locals carry a __wiz_ prefix, a
+# name _assignable_key refuses as a key.
+
 # ask KEY "Prompt": store the typed answer in the shell variable named KEY.
 # Input is shown on screen, for public values; readline (-e) gives arrow-key
 # editing. A value already in .env is the default, and Enter accepts it.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask() {
-  local key="$1" prompt="$2" current input
-  _valid_key "$key"
-  current=$(_existing "$key" || true)
-  _ask_prompt "$prompt" "$current"
-  read -r -e -u 3 input || fatal "terminal closed while reading $key — aborting"
-  [[ -z "$input" && -n "$current" ]] && input="$current"
-  printf -v "$key" '%s' "$input"
+  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
+  _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
+  _check_env_target
+  __wiz_current=$(_existing "$__wiz_key" || true)
+  _ask_prompt "$__wiz_prompt" "$__wiz_current"
+  read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key — aborting"
+  [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
+  printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
 # ask_secret KEY "Prompt": the ask contract with nothing echoed. No readline
 # here, because -e would echo and -s has to take effect.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask_secret() {
-  local key="$1" prompt="$2" current input
-  _valid_key "$key"
-  current=$(_existing "$key" || true)
-  _ask_prompt "$prompt" "$current"
-  read -rs -u 3 input || fatal "terminal closed while reading secret $key — aborting"
+  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
+  _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
+  _check_env_target
+  __wiz_current=$(_existing "$__wiz_key" || true)
+  _ask_prompt "$__wiz_prompt" "$__wiz_current"
+  read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key — aborting"
   printf '\n'
-  [[ -z "$input" && -n "$current" ]] && input="$current"
-  printf -v "$key" '%s' "$input"
+  [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
+  printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
 # _check_env_ignored — warn loudly (once) when ENV_FILE is not gitignored in a
@@ -241,26 +348,37 @@ _check_env_ignored() {
 }
 
 # write_env KEY VALUE: leave exactly one KEY='VALUE' line in ENV_FILE, creating
-# the file when absent; running it twice changes nothing. Single quotes wrap the value, with
-# embedded single quotes escaped, so shells and dotenv loaders read it back
-# verbatim; the file is chmod 600 after every write.
+# the file when absent, and set $KEY in the shell, as ask does; running it twice
+# changes nothing. Single quotes wrap the value, with embedded single quotes
+# escaped, so shells and dotenv loaders read it back verbatim. A regular file is
+# replaced by an atomic rename of a 0600 temp file. A symlinked ENV_FILE (a
+# shared secret store) is written through instead, so the link survives, its
+# target gets the key and keeps its own mode; that write is not atomic. A link
+# pointing outside the project is written through only after _check_env_target's
+# confirmation.
 write_env() {
-  local key="$1" value="$2" escaped tmp
-  _valid_key "$key"
+  local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp
+  _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
+  _check_env_target
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
-  touch "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
-  tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
-  _WIZARD_TMP="$tmp"
-  chmod 600 "$tmp"
-  escaped=${value//\'/\'\\\'\'}
-  grep -vE "^${key}=" "$ENV_FILE" >"$tmp" || true
-  printf "%s='%s'\n" "$key" "$escaped" >>"$tmp"
-  mv -- "$tmp" "$ENV_FILE"
+  __wiz_tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
+  _WIZARD_TMP="$__wiz_tmp"
+  chmod 600 "$__wiz_tmp"
+  __wiz_escaped=${__wiz_value//\'/\'\\\'\'}
+  if [[ -f "$ENV_FILE" ]]; then grep -vE "^${__wiz_key}=" "$ENV_FILE" >"$__wiz_tmp" || true; fi
+  printf "%s='%s'\n" "$__wiz_key" "$__wiz_escaped" >>"$__wiz_tmp"
+  if [[ -L "$ENV_FILE" ]]; then
+    # umask 077: a dangling link's newly created target is owner-only too.
+    (umask 077 && cat -- "$__wiz_tmp" >"$ENV_FILE") || fatal "couldn't write through the symlink $ENV_FILE"
+    rm -f -- "$__wiz_tmp"
+  else
+    mv -- "$__wiz_tmp" "$ENV_FILE"
+  fi
   _WIZARD_TMP=""
-  chmod 600 "$ENV_FILE"
-  WRITTEN_ENV+=("$key")
-  printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"
+  printf -v "$__wiz_key" '%s' "$__wiz_value"
+  WRITTEN_ENV+=("$__wiz_key")
+  printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$__wiz_key" "$ENV_FILE"
 }
 
 # ── GitHub Actions helpers ────────────────────────────────────────────────

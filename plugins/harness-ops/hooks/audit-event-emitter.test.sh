@@ -260,13 +260,11 @@ INVALID_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJB" \
   bash "$HOOK" <<<"$EXP" 2>/dev/null)
 assert_file_absent "traversal override cannot write outside the project" \
   "$TEST_TMPDIR/outside/skill-usage.jsonl"
-assert_contains "invalid override emits a visible advisory" "$INVALID_OUTPUT" \
-  "harness-ops skipped skill-usage logging"
-assert_eq "invalid override advisory uses the hook protocol" "UserPromptExpansion" \
-  "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$INVALID_OUTPUT" 2>/dev/null)"
 assert_contains "invalid override advisory is user-visible (systemMessage)" \
   "$(jq -r '.systemMessage // empty' <<<"$INVALID_OUTPUT" 2>/dev/null)" \
-  "harness-ops skipped skill-usage logging"
+  "skill-usage logging skipped: skill_usage_dir is not a contained relative path"
+assert_eq "invalid override advisory does not reach the model" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$INVALID_OUTPUT" 2>/dev/null)"
 
 PROJU="$TEST_TMPDIR/exp-user"
 HOMEU="$TEST_TMPDIR/exp-home"

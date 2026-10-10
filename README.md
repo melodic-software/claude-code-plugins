@@ -13,11 +13,11 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
-When you consume this repo from a local `directory` source, the install cache keys on semver
-`version`, not commit, so several commits under one version leave early installs on a stale
-snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
-[#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+An install from GitHub is a copy keyed on the plugin's semver `version`, not the commit, so a change
+reaches it only when a release raises that version; until then `plugin update` reports "already at
+the latest version". A marketplace added from a local clone loads each plugin in place, so edits
+apply at the next session or `/reload-plugins`. See
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift").
 
 ### Enable plugin suggestions for an organization
 
@@ -44,11 +44,12 @@ marketplace source AND allowlist its name in the same file:
 The source declaration is required for any non-official marketplace: the allowlisted name is
 ignored if the locally registered marketplace came from a different source. That rule stops an
 unrelated catalog from registering under an allowlisted name to get its plugins suggested.
-Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugin-relevance).
+Reference: [Recommend plugins for your org](https://code.claude.com/docs/en/plugins/relevance#enable-suggestions-in-managed-settings).
 
-Plugins outside the everyday development loop (domain, personal, harness-maintenance, and
-external-service plugins) install disabled (`defaultEnabled: false` in the catalog entry) until
-the user opts in with `/plugin enable`. A plugin another enabled plugin depends on starts enabled
+A plugin whose catalog entry sets `defaultEnabled: false` installs disabled until the user opts in
+with `/plugin enable`. The flag is set per plugin, not per category: most domain, personal,
+harness-maintenance, and external-service plugins carry it, and a few general-purpose ones in
+those categories do not. A plugin another enabled plugin depends on starts enabled
 regardless, and an existing install keeps its setting when the catalog default changes.
 
 ## Finding your way
@@ -156,7 +157,7 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
-| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/machine-specific-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
+| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
 There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
 consumes CI step outcomes; it does not run the gates. A pre-commit hook or a make target that
@@ -167,9 +168,9 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.30.2 (`a267a27f7a321452267e20c82d57699b6c057cb0`), the pin in
-  `.github/workflows/ci.yml`.
-- **Recheck:** the `ci.yml` pin moves, or the composite's entry script changes its environment
+- **As of:** `ci-workflows` v0.39.3 (`ab83b01273026ab5c23c6f3b40e946d97a863fa2`), the pin in
+  `.github/workflows/pr-require-checks.yml`.
+- **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
 
 #### Running `machine-specific-paths` locally
@@ -178,7 +179,7 @@ The gate is a composite in `melodic-software/ci-workflows`. Its entry script run
 sources `machine-path-patterns.sh` from its own directory, so run it in place from a `ci-workflows`
 checkout.
 
-1. In the `Check for machine-specific paths` step of `.github/workflows/ci.yml`, read the pinned SHA
+1. In the `Check for machine-specific paths` step of `.github/workflows/pr-require-checks.yml`, read the pinned SHA
    from the `uses:` line and the `:(exclude)...` pathspecs from the `exclude:` input.
 2. Check out `ci-workflows` at that SHA:
    `git -C <ci-workflows-checkout> switch --detach <sha>` (or add a worktree at the SHA).
@@ -248,7 +249,7 @@ touch.
 
 This repo tracks policy and wiring only; authoritative behavior lives in the official docs, which must
 be read fresh rather than recalled. Start at the
-[Claude Code plugins guide](https://code.claude.com/docs/en/plugins).
+[Claude Code plugins overview](https://code.claude.com/docs/en/plugins/overview).
 
 ## What this marketplace actually publishes
 

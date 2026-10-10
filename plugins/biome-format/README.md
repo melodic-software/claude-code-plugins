@@ -33,7 +33,9 @@ formats on edit only when your repo has opted into Biome.
   generated or vendored code) is left untouched, with no advisory noise.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate.
+  your hard gate. A finding set is reported once per file: an unchanged set on a
+  re-edit sends nothing, and it is sent again after a clean run or after the
+  context is compacted or cleared.
 - **Config discovery from your repo.** The hook finds the governing `biome.json`
   by walking up from the edited file and runs Biome from that config's directory,
   so a single repo-root (or subtree) config governs files in subdirectories
@@ -53,16 +55,13 @@ formats on edit only when your repo has opted into Biome.
   downloaded on the fly; if it is not present while a Biome config governs the
   repo, the hook skips with a visible notice.
   **Biome 2.x is recommended** (tested against 2.5.1): the hook invokes
-  `check --write --error-on-warnings --reporter=github`, and on much older
+  `check --write --error-on-warnings --reporter=concise`, and on much older
   releases those flags may be absent, in which case the run is reported as a
   tool break rather than a finding.
 - A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
 
-Skip notices repeat by class:
-
-- `jq` and other non-binary prerequisites: once per session and agent, renewed every eighth skip.
-- The missing Biome binary, a prerequisite-class notice: once per session, renewed with the install
-  route every eighth skip.
+Each skip notice appears once per session and agent; the missing-Biome notice's user copy carries the install
+route.
 
 A `SessionStart` probe reports a missing Biome binary before the first edit. It reads the tool's
 id, check and install hints from `prerequisites.json`, resolves `biome` on `PATH` or as
@@ -193,7 +192,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

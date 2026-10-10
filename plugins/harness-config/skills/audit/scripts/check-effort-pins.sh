@@ -4,12 +4,14 @@
 # The repo pins effort levels in agent and skill frontmatter, lane configs,
 # lane launch lines and Workflow scripts. Each pin was chosen against the
 # model-config page's effort tables and per-model defaults. This script reads
-# that page through the plugin's shared fetcher, hashes the three parts a pin
-# rests on (the Levels column table under "Adjust effort level", the level
-# rows of the "Choose an effort level" table, and item 3 of the resolution
-# list, which states each model's default), and compares the hash with a
-# committed baseline. It then lists every pin and flags the ones a human must
-# re-decide. It never edits a pin and never rewrites the baseline.
+# that page fresh through the plugin's shared fetcher and docs cache, takes the
+# "Adjust effort level" section (with its child sections) from the cache's
+# section map, hashes the three parts a pin rests on (the Levels column table
+# under "Adjust effort level", the level rows of the "Choose an effort level"
+# table, and item 3 of the resolution list, which states each model's default),
+# and compares the hash with a committed baseline. It then lists every pin and
+# flags the ones a human must re-decide. It never edits a pin and never
+# rewrites the baseline.
 #
 # Output (stdout, one line each, in this order):
 #   table status=<same|changed|unread|unparsed> levels=<csv> sha256=<hex> baseline_sha256=<hex> reason=<text>
@@ -20,12 +22,14 @@
 # Exit codes:
 #   0  the page matches the baseline and every pin's level is in the table
 #   1  the page changed since the baseline, or a pin is flagged
-#   2  fatal (bad arguments, baseline missing or malformed, fetcher missing or failing)
+#   2  fatal (bad arguments, baseline missing or malformed, fetcher or docs cache missing or failing)
 #   3  no claim: the page was unread or its headings, tables or list changed shape
 #
 # Env overrides (the test seam):
-#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and model-config.md; when set no fetch happens
-#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh
+#   SETTINGS_AUDIT_DOCS_FIXTURE_DIR  directory of llms.txt and model-config.md; when set no fetch
+#                                    happens, and DOCS_CACHE_DIR must name a cache directory
+#   DOCS_CACHE_DIR                   docs cache directory (default: the docs cache's own)
+#   CLAUDE_PLUGIN_ROOT               plugin root holding scripts/fetch-docs.sh and scripts/docs-cache.sh
 
 set -uo pipefail
 export LC_ALL=C
@@ -55,6 +59,7 @@ die() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
 FETCH_DOCS="$PLUGIN_ROOT/scripts/fetch-docs.sh"
+DOCS_CACHE="$PLUGIN_ROOT/scripts/docs-cache.sh"
 BASELINE="$SCRIPT_DIR/../reference/effort-table.baseline"
 SOURCE_URL="https://code.claude.com/docs/en/model-config"
 SLUG="model-config"
@@ -105,8 +110,9 @@ FIXTURE_DIR="${SETTINGS_AUDIT_DOCS_FIXTURE_DIR:-}"
 WORK="$(mktemp -d)" || die "could not create a temp directory"
 trap 'rm -rf "$WORK"' EXIT
 
-# read_page: set PAGE to the page's markdown, or PAGE="" and UNREAD to the reason.
-PAGE="" UNREAD=""
+# read_page: set PAGE to the page's markdown, or PAGE="" and UNREAD to the
+# reason. A fetched page also sets ENTRY, the docs cache entry holding its bytes.
+PAGE="" UNREAD="" ENTRY=""
 read_page() {
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$SLUG.md" ]]; then
     PAGE="$DOCS_DIR/$SLUG.md"
@@ -115,15 +121,33 @@ read_page() {
   [[ -f "$FETCH_DOCS" ]] || die "shared fetcher not found: $FETCH_DOCS"
   local fetch_env=(-u FETCH_DOCS_FIXTURE_DIR FETCH_DOCS_CLAUDE_BIN='')
   [[ -z "$FIXTURE_DIR" ]] || fetch_env=(FETCH_DOCS_FIXTURE_DIR="$FIXTURE_DIR" FETCH_DOCS_CLAUDE_BIN='')
-  env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$WORK/docs" --mode search "$SLUG" >/dev/null ||
+  # --max-age 0: a drift check compares fresh bytes, never a cached copy.
+  env "${fetch_env[@]}" bash "$FETCH_DOCS" --out "$WORK/docs" --cache --max-age 0 --mode search "$SLUG" >/dev/null ||
     die "the shared fetcher failed"
-  local state reason
-  IFS=$'\t' read -r state reason < <(jq -r '.pages[0] | [.state, (.reason // "unread")] | @tsv' "$WORK/docs/manifest.json")
+  local state reason entry
+  IFS=$'\t' read -r state reason entry < <(jq -r '.pages[0] | [.state, (.reason // "unread"),
+    (if .cache_key then .cache_key + "-" + .sha256 else "" end)] | @tsv' "$WORK/docs/manifest.json")
   if [[ "$state" == read && -s "$WORK/docs/$SLUG.md" ]]; then
-    PAGE="$WORK/docs/$SLUG.md"
+    # A Windows jq ends its line with CR, which the last field keeps.
+    PAGE="$WORK/docs/$SLUG.md" ENTRY="${entry%$'\r'}"
   else
     UNREAD="${reason:-unread}"
   fi
+}
+
+# adjust_section <file>: write the "Adjust effort level" section, child sections
+# included, to <file>, sliced from the cache entry the page was stored in (the
+# page file on disk when there is none); return 1 when the page has no such heading.
+adjust_section() {
+  local src=(--file "$PAGE") id
+  [[ -f "$DOCS_CACHE" ]] || die "shared docs cache not found: $DOCS_CACHE"
+  [[ -z "$ENTRY" ]] || src=("$ENTRY")
+  id="$(bash "$DOCS_CACHE" map "${src[@]}")" || die "the docs cache could not map the page"
+  id="$(awk -F'\t' '$2 == 3 { n = split($7, p, " > "); if (p[n] == "Adjust effort level") { print $1; exit } }' <<<"$id")"
+  [[ -n "$id" ]] || return 1
+  # A whole-page threshold no page passes: a configured escalation limit never widens the slice.
+  bash "$DOCS_CACHE" --whole-page-bytes 999999999999999999 slice "${src[@]}" "$id" >"$1" ||
+    die "the docs cache could not slice the page"
 }
 
 # parse_page <file>: print L<TAB>level (level set, first-seen order), A<TAB>row
@@ -203,8 +227,10 @@ declare -A IN_TABLE=()
 read_page
 if [[ -z "$PAGE" ]]; then
   STATUS=unread REASON="$UNREAD"
+elif ! adjust_section "$WORK/section"; then
+  STATUS=unparsed REASON=no-adjust-heading
 else
-  parse_page "$PAGE" >"$WORK/parsed"
+  parse_page "$WORK/section" >"$WORK/parsed"
   if grep -q '^E' "$WORK/parsed"; then
     STATUS=unparsed REASON="$(cut -f2 "$WORK/parsed" | head -n 1)"
   else

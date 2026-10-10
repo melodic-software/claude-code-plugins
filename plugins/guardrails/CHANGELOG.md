@@ -3,6 +3,89 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.1] - 2026-10-10
+
+### Fixed
+
+- **`check-bash-file-changes` said nothing when it left a change unexamined.** It now reports each skip as `additionalContext` ("N changed files not examined: <reason>"), and adds it to the block reason when a finding blocks: files past the first 20 in path order or past the time budget, commits past the last 20 one command made, a `git status` that failed or listed more than 10000 paths (at the snapshot or the check), a new symbolic link, which is never followed, no snapshot recorded before the command, no bash to run the guards, and a `run_in_background` command, whose later writes are not checked. A run that skips nothing stays quiet ([#6709](https://github.com/melodic-software/claude-code-plugins/issues/6709)).
+
+## [0.50.0] - 2026-10-10
+
+### Added
+
+- **`check-bash-file-changes` gates what a shell command wrote, not how it was spelled.** A PreToolUse fire on Bash and PowerShell records `git status` and each dirty path's size and mtime for the repository holding the call's cwd; the PostToolUse and PostToolUseFailure fires run the guards of the PreToolUse Write | Edit row (secret-pattern-detection, hardcoded-path-check, block-windows-drive-tmp) on each file the command changed, as the Write of a new file or the Edit of the lines a tracked file adds. `node x.js` or `python3 x.py` writing a repository file now meets the same checks as an Edit of it, and a finding reaches Claude with the guard's own message. It fails open outside a git repository, and `bash_file_change_check_enabled` switches it off. `block-hook-bypass` is unchanged (#6674).
+
+## [0.49.1] - 2026-10-09
+
+### Changed
+
+- **block-root-delete-target outside-tree message.** The block now names the allowed roots and the session scratchpad first, says "do not retry the delete with another tool (find -delete, rmtree, git clean)", and keeps the user hand-off as the last resort.
+- **block-dangerous-git lease-width hint.** When the repository's hash format cannot be read, the hint is now `git -C <repo> push --force-with-lease=<ref>:<full-sha>`, a form the width probe follows, in place of "Run the push from inside the repository", whose `cd <repo> && git push` spelling the guard itself refuses from a session root that is not a repository.
+
+### Fixed
+
+- **block-credential-read missed jq and two credential files.** `cat`, `Get-Content`, `gc` and `type` of `.credentials.json` or `.docker/config.json`, `jq` of either file, and `jq env` / `jq '$ENV'` (which print every variable) now block. The pre-filter admits `docker` and `env`, so these shapes reach the matcher. `jq . package.json`, `jq -n '$ENV.HOME'`, a `.env` jq filter, a `$env` jq variable and an `--arg`/`--argjson` value still pass.
+
+## [0.49.0] - 2026-10-08
+
+### Added
+
+- **block-root-delete-target name-prefix entries ([#6542](https://github.com/melodic-software/claude-code-plugins/issues/6542)).** A `block_root_delete_target_allowed_roots` entry that ends in one `*` after a literal name, such as `D:/worktrees/.tmp-*`, now allows a recursive delete of a direct child of that directory whose name extends the prefix by at least one character, compared by real path. The directory, the bare prefix, a sibling, anything below a matching child, a glob, a `..` escape, a matching symlink, a name ending in a dot or a space (Windows trims them), and a trailing-slash operand whose child does not exist yet all stay refused. An entry holding a glob character granted nothing before, so no entry that already allowed something changes meaning.
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+- **Test suite only; nothing shipped changes.** The no-jq cases of `run-guards.test.sh` and `block-hook-bypass.test.sh` no longer hide a failed `ln -s` behind `2>/dev/null || true`: the first failed native link prints its error and the group reports a visible SKIP instead of running against an empty shim. No copy fallback.
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.48.1] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.48.0] - 2026-10-04
+
+### Fixed
+
+- **A blocked force push no longer advises a form the same guard blocks ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** `git push --force`, `-f` and a `+refspec` said "use --force-with-lease", which `block-dangerous-git` denies without an expected value. They now name `--force-with-lease=<ref>:<full-sha>` or `--force-with-lease --force-if-includes`, both of which pass.
+- **Without jq, the Bash row's deny reason names jq once per call, not once per guard.** Five fail-closed guards each printed the same four lines, and the dispatcher echoed the dropped notice documents into the same deny reason. On a block, dropped documents are no longer echoed to stderr.
+- **`block-exported-msys-pathconv` no longer denies every call on Linux and macOS when jq is missing.** Its host check now runs first, so on a non-Windows host it exits 0 before its jq, NUL and payload-parse checks. The call-level verdict on such a payload is unchanged: the other guards still refuse it.
+- **Skill names in deny reasons and advisories are the plugin-qualified ones:** `/source-control:commit` and `/source-control:pull-request`, not `/commit` and `/pull-request`, which can resolve to a different skill.
+
+### Changed
+
+- **Deny reasons carry what the agent acts on ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225), [#4679](https://github.com/melodic-software/claude-code-plugins/issues/4679)).** Rationale lines are cut from the `block-dangerous-git`, `block-no-verify`, `block-hook-bypass`, `block-root-delete-target`, `block-windows-drive-tmp`, `block-exported-msys-pathconv`, `block-credential-read`, `block-convention-violation`, scanner and PowerShell sink messages. No deny reason tells the model to set an `<x>_enabled` option; the kill switches stay in the README and in the user-channel notices. Allow-list tokens stay, phrased as the user's action.
+- **Refusals several guards share are printed once per call:** the NUL-payload and unparsable-payload refusals, the git alias refusals, and the PowerShell unparsable-command and sink-budget messages. The PowerShell message names only the token for the trigger that fired.
+- **The jq notice is one per session for the whole plugin.** Every fail-open guard passes the plugin name to `hook::require`, so the first guard to skip tells the model and the user once, and the user is not told again when the `SessionStart` prerequisites probe already did.
+- **Notices the model cannot act on go to the user only:** the "guard did not run" abort notice, a kill switch that is neither true nor false (now once per session), the missing bundled CLI-flag verifier, and the stale-path-verify shallow-clone and failed-history notices. None says the skip lasts the session.
+- **The `block-hook-bypass` levers notice is once per session**, not once per agent, and stderr no longer carries the README pointer: the `systemMessage` renders on a block.
+- **The three post-edit verifiers report a repo-relative path, list at most ten findings, and drop the per-finding fix and skip lines and the "Detect-then-judge" trailer.** `cli-flag-verify` says in one clause that a finding is unverified.
+- **`flag-commit-pr-skill-bypass` tells the model once per session and agent.** `workflow-resilience-check` is one line that names the helpers which clear it and points at the workflow-authoring skill.
+- `hardcoded-path-check` caps each matched line at 160 characters in its report.
+
+## [0.47.9] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The verify rows start the launcher with `--skip-if-all-false` over the three verifier options, so an edit with all three verifiers off starts node only and no bash (#6252). A test fails if a PreToolUse or `block-*` guard row carries a skip flag.
+- The shared `exec-bash.mjs` launcher copy also gains `--skip-unless-stdin-contains`; no guardrails row uses it (#6253).
+
+## [0.47.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.47.7] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. Without jq, a blocking guard's deny reason is one line naming jq and its install page, without the kill switch, which stays in the README. A hook payload cut short in transit is reported to the user only, in one line. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.47.6] - 2026-10-04
 
 ### Changed

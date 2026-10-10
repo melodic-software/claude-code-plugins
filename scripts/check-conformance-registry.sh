@@ -16,7 +16,7 @@
 #   - every backticked `/plugin:leaf` in `checks` resolves to
 #     plugins/<plugin>/skills/<leaf>/SKILL.md, and `/leaf` to
 #     .claude/skills/<leaf>/SKILL.md;
-#   - `ci` is yes, indirect or no; `yes` means .github/workflows/ci.yml names
+#   - `ci` is yes, indirect or no; `yes` means .github/workflows/pr-require-checks.yml names
 #     every scripts/ path in `checks`;
 #   - `scope` is plugin or fleet.
 #
@@ -38,7 +38,7 @@ case "${1:-}" in
 esac
 
 REGISTRY=docs/conformance-dimensions.md
-CI_FILE=.github/workflows/ci.yml
+CI_FILE=.github/workflows/pr-require-checks.yml
 if [[ ! -f "$REGISTRY" ]]; then
   printf 'check-conformance-registry: %s not found, nothing inspected\n' "$REGISTRY" >&2
   exit 2

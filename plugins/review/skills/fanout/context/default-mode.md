@@ -22,7 +22,7 @@ Deterministic diff-size thresholds, refined by a judgment layer. A 30-line chang
 |---|---|---|---|
 | **small** | <50 changed lines | never | `code-reviewer`; + `security-reviewer` when auth/input/secrets paths are touched |
 | **medium** | 50–300 | small diff but security-sensitive, boundary-crossing, or high blast radius | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
-| **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting | medium set + the project's ownerless review-criteria docs as slice-subagents (`leaf-roster.md`) |
+| **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
 
 ## Paved-path brief
 

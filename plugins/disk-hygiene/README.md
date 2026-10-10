@@ -71,8 +71,8 @@ at preview. Backups remain the recovery boundary for user data.
   without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model, once per session across plugins, and the notice names `/disk-hygiene:check`.
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning once per session across
+  plugins, and the notice names `/disk-hygiene:check`.
   `disk_hygiene_enabled` set to false silences it. It prints nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
   (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
   (`systemMessage` is a warning shown to the user).
@@ -179,8 +179,8 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
-| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user and the model at each session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
@@ -430,7 +430,10 @@ measurements below carry the conditions they were taken under.
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
   PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
   is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
-  `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
+  `--settings` scope (Claude Code 2.1.207+; [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs),
+  [`--settings`](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session), as of 2026-10-07;
+  recheck when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs`
+  scope changes), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
   can enforce audit-only (the sibling `managed-settings.d/` drop-in directory is merged over it). An absent
@@ -558,15 +561,17 @@ credential, dependency, or MCP surface reopens this review.
 
 ## Sources
 
-Verified 2026-07-16 against current primary documentation:
+Verified 2026-07-16 against current primary documentation. Recheck when the plugin loading page
+changes `--plugin-dir` behavior or the hooks page changes the `PreToolUse` decision output:
 
-- [Create plugins](https://code.claude.com/docs/en/plugins) and
-  [plugins reference](https://code.claude.com/docs/en/plugins-reference). Plugin structure, cache
-  isolation, manifests, versions, and local `--plugin-dir` testing.
+- [Create plugins](https://code.claude.com/docs/en/plugins/create) and
+  [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and
+  [plugin loading reference](https://code.claude.com/docs/en/plugins/loading). Plugin structure, cache isolation, manifests, versions, and
+  local `--plugin-dir` testing.
 - [Skills](https://code.claude.com/docs/en/skills). Side-effecting skills should be manual-only;
   supporting files, arguments, and skill-scoped hooks.
 - [Hooks](https://code.claude.com/docs/en/hooks). Current `PreToolUse` decision output.
-- [Create a marketplace](https://code.claude.com/docs/en/plugin-marketplaces). Relative plugin sources.
+- [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference#relative-path-plugin-source). Relative plugin sources.
 - [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
 . Expansion order and the brace, tilde, parameter, command, arithmetic, process, splitting, and
   filename-expansion families rejected by the literal-command guard.
@@ -656,7 +661,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 

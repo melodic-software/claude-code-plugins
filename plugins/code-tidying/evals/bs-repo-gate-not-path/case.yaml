@@ -1,0 +1,56 @@
+schema_version: "1.1"
+name: bs-repo-gate-not-path
+description: 'repo in-place with a directory named repo/ present: the first token is the scope, so this is a whole-repository sweep, and repo mode stops at the inventory confirmation gate before any group is dispatched'
+tags: [repo-mode, gate, argument-parsing]
+expected_outcome: 'The run treats ''repo'' as whole-repository mode (not the 48h default narrowed to repo/), presents an inventory summary (file counts, groups, exclusions by class) and asks for confirmation. No script anywhere is edited.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:batch-simplify repo in-place'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: greet-untouched
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:2"
+    target: { source: file, path: src/greet.sh }
+  - name: tool-untouched
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:2"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: helpers-untouched
+    type: regex
+    pattern: 'helpers: mode is'
+    match: "count:2"
+    target: { source: file, path: src/helpers.sh }
+  - name: legacy-untouched
+    type: regex
+    pattern: 'legacy: flag is'
+    match: "count:2"
+    target: { source: file, path: src/legacy.sh }
+  - name: asks-to-confirm
+    type: regex
+    pattern: 'confirm|proceed|go ahead|shall i|should i'
+    flags: i
+    target: last_message
+  - name: inventory-spans-whole-repo
+    type: regex
+    pattern: '\blib\b|\bsrc\b'
+    target: last_message
+  - name: whole-repo-inventory-gate
+    type: llm
+    criteria: 'PASS only if all hold: (1) the reply treats the request as a whole-repository sweep, not a sweep narrowed to the repo/ directory and not a 48-hour window; (2) it presents an inventory before doing any simplification, giving a file count and a grouping, and naming at least one excluded class (for example generated/vendor, CI workflow or agent configuration, markdown, append-only); (3) it asks the user to confirm before any group runs and reports no applied edits. FAIL if it reports having simplified or edited files, if it scoped the run to repo/ only, or if it presents no inventory.'
+    focus: last_message
+  - name: repo-universe-listed
+    type: tool_used
+    tool: Bash
+    input_match: 'ls-files'
+    arm: both

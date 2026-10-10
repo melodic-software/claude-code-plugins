@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "| api.md | FAIL | missing ## Verification commands; add it |"
+    },
+    {
+      "answer": "FAIL: .claude/tidy-lanes/api.md lacks the Verification commands section."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| api.md | PASS | all sections present |",
+      "why": "no FAIL"
+    },
+    {
+      "answer": "FAIL: docs-prose.md is malformed",
+      "why": "wrong lane failed"
+    }
+  ]
+}

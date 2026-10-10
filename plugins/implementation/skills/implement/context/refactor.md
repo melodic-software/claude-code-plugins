@@ -34,5 +34,11 @@ Rule: `same-wave` updates all call sites and removes the replaced shape in that 
 ## Common pitfalls
 
 - **Mixing structural and behavioral changes**: "while I'm refactoring this class, I'll also add that feature" makes the PR unreviewable and the refactor unrevertable
-- **Refactoring without tests**: if code lacks test coverage, add characterization tests first (separate commit), then refactor. Otherwise you have no safety net
+- **Refactoring without tests**: if code lacks test coverage, add characterization tests first (separate commit, recipe below), then refactor. Otherwise you have no safety net
+- **Rewriting instead of refactoring**: a second implementation that replaces the first (rewrite, port, migration) is replace mode, [replace.md](replace.md), not a refactor
+
+## Characterization tests (when the safety net is thin)
+
+A characterization test pins what the code does now, not what it should do. It proves the refactor kept behavior the same; it never proves that behavior correct. Author them through `/testing:write`, whose characterization route owns the recipe, the sabotage check, scrubbing and each pin's fate after the change (when the `testing` plugin is installed). The refactor-specific part is the order: **commit the pins alone, before the first structural commit, with the suite green**, so the history shows the baseline the refactor kept.
+
 - **Big-bang refactors**: moving 20 files in one commit. If something breaks, you can't tell which move caused it. Incremental commits are free on feature branches

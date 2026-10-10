@@ -88,7 +88,7 @@ Graceful degradation: where a named step below is not available in the consuming
 | When | Then | How |
 |------|------|-----|
 | A debugging pass finds an architectural root cause | Run this skill's deepening lens | Structured deepening review of the affected module |
-| A candidate shape is agreed | Hand off to a planning skill if the project has one; else summarize the agreed shape for planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
+| A candidate shape is agreed | Hand off to `/planning:design` (if enabled), whose handoff carries the shape into the plan; else summarize the agreed shape for design and planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` via the Skill tool when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
 | The boundaries lens wrote a findings file | Offer `/review:audit-enforceability <file>` when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |

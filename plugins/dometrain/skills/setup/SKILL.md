@@ -35,7 +35,7 @@ is built around that constraint, not around reading `/mcp` connection status dir
 
 Official contracts:
 
-- <https://code.claude.com/docs/en/plugins-reference#user-configuration>
+- <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>
 - <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
 - <https://code.claude.com/docs/en/mcp>
 

@@ -1,0 +1,12 @@
+version: 1
+activities:
+  run:
+    script: scripts/run.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: run

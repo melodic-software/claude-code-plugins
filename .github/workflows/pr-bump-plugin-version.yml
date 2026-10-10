@@ -1,0 +1,122 @@
+name: pr-bump-plugin-version
+
+# Dependabot can edit package manifests and lockfiles under plugins/** but cannot
+# bump plugins/<name>/.claude-plugin/plugin.json or write CHANGELOG.md. The
+# changelog-parity --check-bump gate correctly requires those (Claude Code
+# delivers updates only when the plugin version string changes). This workflow
+# supplies the bump on Dependabot PRs for a plugin not yet in changelog-fragment
+# mode. A plugin in fragment mode (ADR 0048) gets no commit here: every run on a
+# commit this workflow makes waits at action_required (#5786, below), so
+# dependabot-fragments.yml writes its fragment after the merge instead, and
+# check-changelog-fragments.sh --check-required exempts the Dependabot-only pull
+# request. Once every plugin is in fragment mode this workflow commits nothing.
+#
+# Commit messages include [dependabot skip] so Dependabot may force-push over
+# the bot commit when rebasing (GitHub docs: Managing pull requests for
+# dependency updates; verified 2026-09-27; recheck when that page stops
+# naming `[dependabot skip]` as the way to let Dependabot rebase over a
+# commit). The bump is created through the
+# GraphQL createCommitOnBranch mutation, not a local git commit and push, so
+# GitHub signs the commit and marks it Verified, which a required_signatures
+# ruleset accepts. A local commit pushed with GITHUB_TOKEN is unsigned.
+# Per the GitHub docs page "Triggering a workflow", a pull_request event from a
+# pull request that GITHUB_TOKEN updated creates runs in an approval-required
+# state, so every run on the bump commit waits in action_required (#5786). No
+# App token is used here: a Dependabot-triggered run sees only Dependabot
+# secrets, and the owner declined a dedicated bump App; the fragment path above
+# removes the commit instead.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - plugins/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-bump-plugin-version-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  bump-plugin-version:
+    # zizmor: ignore[bot-conditions] dependabot-only job; login is read from the PR user, not github.actor
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+      - name: Switch to PR head
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
+          git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
+      - name: Bump legacy plugin manifests and changelogs
+        id: bump
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          # Prefer the base tip's copy of the bump script, and of the fragment
+          # and entry libraries it sources from beside itself, so a Dependabot
+          # branch that has not yet rebased still runs the landed implementation.
+          bump_script=scripts/dependabot-plugin-bump.sh
+          if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
+            git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
+            bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
+            chmod +x "$bump_script"
+            mkdir -p "$RUNNER_TEMP/lib"
+            for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+              if git cat-file -e "origin/$BASE_REF:scripts/lib/$lib" 2>/dev/null; then
+                git show "origin/$BASE_REF:scripts/lib/$lib" > "$RUNNER_TEMP/lib/$lib"
+              fi
+            done
+          fi
+          bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
+      - name: Commit release metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git add -u -- plugins
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          # File contents go through stdin and files, never argv, so a large file fits.
+          adds="$RUNNER_TEMP/additions.jsonl"
+          dels="$RUNNER_TEMP/deletions.json"
+          payload="$RUNNER_TEMP/payload.json"
+          : >"$adds"
+          while IFS= read -r -d '' path; do
+            git show ":$path" | base64 -w0 | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
+          done < <(git diff --cached --name-only --diff-filter=AM -z)
+          git diff --cached --name-only --diff-filter=D -z |
+            jq -Rs 'split("\u0000") | map(select(length > 0) | {path: .})' >"$dels"
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg branch "$HEAD_REF" \
+            --arg oid "$(git rev-parse HEAD)" \
+            --arg headline "chore(plugins): release bump for Dependabot update [dependabot skip]" \
+            --slurpfile additions "$adds" \
+            --slurpfile deletions "$dels" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {input: {
+                branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+                expectedHeadOid: $oid,
+                message: {headline: $headline},
+                fileChanges: {additions: $additions, deletions: $deletions[0]}
+              }}
+            }' >"$payload"
+          gh api graphql --input - <"$payload" | jq -e '.data.createCommitOnBranch.commit.oid'

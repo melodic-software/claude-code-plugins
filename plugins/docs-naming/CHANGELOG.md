@@ -3,6 +3,18 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.7] - 2026-10-04
+
+### Changed
+
+- The README and `realign-file-names` say a renamed file in a versioned unit may need a changelog fragment, where the project releases from fragments, instead of a version bump and changelog entry.
+
+## [0.2.6] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.2.5] - 2026-10-03
 
 ### Changed

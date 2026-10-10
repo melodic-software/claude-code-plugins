@@ -37,9 +37,28 @@ skills repo cross-audited at `main@068b6e0` (post-v1.2.3 unreleased). The two au
 F3.x) are graduated to durable storage as comments on container #2933 — the memory-tier copies
 under `.work/` are session-local and uncommitted.
 
-**Recheck trigger:** a mattpocock/skills release whose changeset names `to-spec`, `to-tickets`,
-`implement`, `tdd`, `code-review`, `triage`, or `wayfinder` — the course's flow skills. Course
-page updates are not observable events; the skills-repo release stream is the proxy.
+**Public course repositories (recorded 2026-10-04):** the course's worked runs are public and
+pinnable, so they are primary sources beside the lesson pastes:
+`ai-hero-dev/ai-coding-crash-course` branch `live-run-through` @ `aa542a5`,
+`ai-hero-dev/cohort-004-project` `live-run-through` @ `67a9c0d`,
+`ai-hero-dev/cohort-003-project` `live-run-through` @ `2c2858e`, and
+`ai-hero-dev/cohort-003-skill-building` @ `06e2862` (Cohort 003 lesson bodies are public under
+`exercises/`). The `main` branches of the project repositories are starter code.
+
+**Crash-course coverage (surveyed 2026-10-04):** of the crash course's 60 lessons, 26 are covered
+by this record or `aihero-course.md`, 2 partly, and 32 not. The uncovered lessons sit in Before We
+Start, Concepts, Getting To Know Claude Code and the first half of Fundamentals, plus one Shipping
+lesson added 2026-08-26 ("More Exercises"). No per-lesson index is kept here yet. The post
+`heres-how-to-stream-claude-code-with-afk-ralph` was read: REJECTED as superseded by Claude
+Code's `stream-json` output and `claude --bg` with attach (as-of 2026-10-04).
+
+**Recheck trigger:** a mattpocock/skills changeset naming `to-spec`, `to-tickets`, `implement`,
+`tdd`, `code-review`, `triage`, or `wayfinder` (the course's flow skills), seen either in the open
+version PR (head branch `changeset-release/main`) or in a GitHub release of any tag spelling. The
+check commands and matching rules are the skills-repo SSOT's recheck trigger
+([`mattpocock-skills.md`](mattpocock-skills.md)). Course page updates are not observable events;
+the skills-repo changeset stream is the proxy. Fired 2026-10-04: v1.3.0 names all seven; the
+re-audit is the SSOT's `d81f3a1` audit.
 
 ## Spec container
 
@@ -142,7 +161,7 @@ consumer-configurable throughout.
 
 - **C5 ADOPTED**: prefactor look-ahead at decompose time ("make the change easy, then make the easy change"); prefactor slices are blockers of the slices they unblock. Qualitative — no token folklore.
 - **C6 ADOPTED**: "one fresh context window" granularity bar alongside S/M/L. Qualitative only; folklore token figures remain excluded-by-default.
-- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch.
+- **C7 ADOPTED as fallback**: when expand-contract batches cannot land green alone, share an integration branch all blocking a final integrate-and-verify item. Default remains expand → migrate → contract (`decompose` §2b). Those items require a separate integration-branch workflow; `/work-items:work` still targets the default branch. Upstream v1.3 added a parallel executor for the integration-branch idea (`implement-spec`, with an open frontier defect, upstream issue #936); ours stays operator-driven, and a parallel executor is TRACKED, not planned (SSOT `implement-spec` row).
 - **C8 ADOPTED**: "work the frontier" phrasing in the present/report step (unblocked slices first).
 - **C17 ADOPTED**: PR-variant brief in `plugins/work-items/reference/agent-brief.md` (current-behavior-of-the-diff, finish-what-exists). Does not replace the bug/feature template.
 
@@ -372,7 +391,11 @@ condition) belongs to the invocation-reach tracked strand in
 - **C23 ALREADY-PRESENT**: `domain-driven-design:curate-language` triggers already key on
   concrete artifacts (glossary, domain term, vocabulary), so upstream's artifact-anchored
   `domain-modeling` rewording (`domain-modeling/SKILL.md:3`, PR #848) had nothing to add. A
-  one-shot comparison, not a re-evaluation trigger.
+  one-shot comparison, not a re-evaluation trigger. Annotated 2026-10-04: upstream reworded the
+  trigger again before v1.3.0 (`e12e7ec`, `54bc6b6`, then `d80fa0f` for the `GLOSSARY.md` rename);
+  it now fires on discussing codebase terminology or editing a `GLOSSARY.md` or an ADR. C23 holds
+  for the glossary half. The ADR clause is a deliberate REJECT: `curate-language` owns no ADRs and
+  surfaces consequential decisions to the planning workflow (`curate-language/SKILL.md:107-108`).
 
 ## Lane E (#2949)
 

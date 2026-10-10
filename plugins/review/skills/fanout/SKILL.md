@@ -108,6 +108,12 @@ Otherwise resolve the review diff base ("Shared inputs") and confirm it yields a
 
 Either outcome spawns ZERO reviewers, a fan-out against an empty or wrong change set burns the whole roster to produce noise. The `fix` action is exempt: it consumes persisted findings and spawns no reviewers.
 
+**Pilot a wide fan-out.** Before dispatching more than about 4 surfaces, in either review mode, dispatch one surface alone, wait for its return, and confirm plan usage remains (the return carries no usage-limit error, and any usage reading the session has shows room for the rest) before dispatching the others. In default mode the pilot is the first of the per-surface Agent-tool calls; in run-everything mode it is one slice run before the workflow launch ([context/run-everything-mode.md](context/run-everything-mode.md) step 5). What a session, its agents and a workflow run do at a usage limit is upstream's rule:
+
+- **Pointer**: Agent-tool surfaces, [Wait for a usage limit to reset](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset); workflow leaves, [When a run hits your usage limit](https://code.claude.com/docs/en/workflows#when-a-run-hits-your-usage-limit)
+- **As of**: 2026-10-09
+- **Recheck trigger**: either section changes which sessions or runs wait and which stop or fail at a usage limit.
+
 ## Step 1: Detect lifecycle tier (default mode)
 
 Read the pre-computed facts (the pre-flight gate above has already screened out unresolvable and empty change sets). Classify the change into a tier (thresholds + the judgment layer in [context/default-mode.md](context/default-mode.md)):
@@ -155,8 +161,8 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## What this skill does NOT do
 

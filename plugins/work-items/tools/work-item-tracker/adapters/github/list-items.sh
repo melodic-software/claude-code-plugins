@@ -36,5 +36,7 @@ limit="$(jq -r '.limits.list_items_max' "$WIT_GH_ADAPTER_DIR/capabilities.json")
 wit_run_gh read issue list -R "$target_repo" --state "$state" --limit "$limit" \
   --json number,title,state,assignees,labels,issueType,blockedBy,url
 
-jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$target_repo" \
-  "{schema_version: \$sv, items: [.[] | $WIT_ITEM_JQ]}" <<<"$WIT_GH_OUT"
+wit_gh_load_wont_do_labels
+printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
+  jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$target_repo" \
+    "{schema_version: \$sv, items: [.[] | $WIT_ITEM_JQ]}"

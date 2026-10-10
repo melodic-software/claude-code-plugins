@@ -3,40 +3,92 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.8.7] - 2026-10-10
 
-### Added
+### Fixed
 
-- **`/performance:verify` names what limits the number before the verdict.** The report gains
-  `Limiter:` (the resource or bound holding the result, from a profiled run that is not reported)
-  and `Ruled out:` (at least one other explanation and the evidence that excludes it), plus a
-  bound check that a saving cannot exceed the changed code's share of the run. A report that cannot
-  fill one of the two lines is not `MET`. Two eval cases cover a result held by something other than the
-  change and a saving past the changed code's share.
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
 
-- **A profile-to-family table in `reference/techniques.md` section F.** Each row starts from what a
-  profile or trace shows and names the change to try, its counter and the catalog rows that apply.
-  Deletion candidates come from reading callers rather than from the profile, and a rescheduled
-  change is judged by the wait it removes. `/performance:target` cites
-  section F when it names a candidate's mechanism.
-- **`/performance:climb`**: a keep-or-revert loop on a frozen harness. Each attempt is one
-  hypothesis that names a mechanism, one commit in climb's own worktree on `climb/<goal-slug>`,
-  and a fresh measurement of both arms through `ab.sh`. `climb_log.py decide` applies a keep rule
-  written before the first attempt; a reverted attempt runs `git reset --keep` to the last kept
-  commit, and every attempt is logged to a tab-separated file in the memory slice. The plugin now
-  declares `python3` and `git` as required for climb in `prerequisites.json`, and its plugin-level
-  eval suite gains three climb cases. The glossary's Hill climbing entry and techniques.md
-  section I now point at climb for the loop inside one goal.
+## [0.8.6] - 2026-10-09
 
 ### Changed
 
-- `/performance:protect` hands the verified counter to `/review:ratchet` when that skill is among the session's available skills, and skips its own ceilings-file, CI-check and tightening steps. Without it, protect runs those steps itself against `.performance/ratchets.json` as before. The Output block names the ceilings file and which path wrote the ceiling. The plugin declares no dependency on review.
-- `/performance:target` hands a captured CPU profile, trace or heap snapshot to `/debugging:analyze-profile` when the debugging plugin is enabled, and counts its finding as measured evidence in the ranking.
-- `/performance:goal` takes an optional `min_attempts` when the work will run as a loop.
-  `/performance:snapshot` freezes a harness for a loop only after `discriminate.py` shows it sees a
-  known change and the harness prints its failure and work-unit tallies, and its `## Next`
-  names `/performance:climb`. `reference/harness-integrity.md` gains rule 8: a frozen harness
-  prints its error and work counts.
+- **The vendored transcript reader is regenerated** from session-flow's copy: it gains permission-outcome parsing and counts a stream-json `result` record as a known type. Nothing in performance calls the new functions.
+
+## [0.8.5] - 2026-10-07
+
+### Fixed
+
+- **`scripts/docs-cache.sh slice` prints each line once, in page order
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** A slice that
+  named a parent section and its child printed the child twice, because the parent's range already
+  holds it; one measured request for 59193 unique bytes printed 75892. Overlapping and repeated ids
+  now print their lines once, in the order they appear on the page.
+
+## [0.8.4] - 2026-10-07
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` keeps a map lookup's value in the caller's own variable
+  ([#6540](https://github.com/melodic-software/claude-code-plugins/issues/6540)).** Under
+  `--public-only`, the address check during an origin's `llms.txt` fetch no longer overwrites the
+  "no bundle" result, so an origin without `llms.txt` is never given a bundle channel.
+
+## [0.8.3] - 2026-10-07
+
+### Changed
+
+- **The docs lookup procedure no longer asks for a coverage check before answering
+  ([#6501](https://github.com/melodic-software/claude-code-plugins/issues/6501)).** The step that
+  sliced extra sections for each uncovered part of the question is removed from
+  `reference/docs-lookup-procedure.md`: its re-measure in
+  [#6538](https://github.com/melodic-software/claude-code-plugins/pull/6538) used more bytes than
+  its pre-registered cost limit allowed.
+
+## [0.8.2] - 2026-10-07
+
+### Fixed
+
+- **The shared docs lookup scripts run on Bash 3.2
+  ([#6496](https://github.com/melodic-software/claude-code-plugins/issues/6496)).** `scripts/fetch-docs.sh`
+  and `scripts/docs-cache.sh` no longer use `${x,,}`, `${x^^}`, `declare -A` or `printf '%(...)T'`,
+  which stock macOS Bash 3.2 rejects, so a docs lookup there no longer exits with `bad substitution`.
+
+## [0.8.1] - 2026-10-07
+
+### Security
+
+- `scripts/fetch-docs.sh` runs curl with `-q`, so a `~/.curlrc` option such as `insecure` or
+  `proxy` no longer reaches its requests, and takes `--public-only`, which refuses a host that
+  resolves to a non-global address and pins the request to the checked one
+  ([#6488](https://github.com/melodic-software/claude-code-plugins/issues/6488),
+  [#6486](https://github.com/melodic-software/claude-code-plugins/issues/6486)).
+
+## [0.8.0] - 2026-10-07
+
+### Changed
+
+- **`go-faster` fetches a catalog row's pointer through the shared docs lookup ([#6494](https://github.com/melodic-software/claude-code-plugins/issues/6494)).** `reference/areas.md` runs `scripts/fetch-docs.sh --cache --max-age 0 --profile generic` instead of WebFetch, so the citation rests on fresh, whole bytes; WebFetch stays the fallback when the manifest records the page unread for `curl-missing` or `no-python`, or no manifest was written. The sweeper's write rule names the fetcher's own output.
+- The plugin carries the synced lookup: `scripts/fetch-docs.sh`, `scripts/docs-cache.sh`, `scripts/html2md.py` and `reference/docs-lookup-procedure.md`. `prerequisites.json` declares `curl`, `jq` and `python3` as optional.
+
+## [0.7.0] - 2026-10-06
+
+### Added
+
+- The `/performance:go-faster` catalog adds `agent-loop-test-wall-time` (test wall time per iteration inside an agent turn) and `stop-hook-test-gate` (a Stop hook that runs tests, measured against the hooks reference's default command-hook timeout, with its block and flaky-block counts). Both build on the existing CI-level and hook rows, and any target is labeled as the repository's own.
+
+## [0.6.2] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.6.1] - 2026-10-04
+
+### Changed
+
+- **`/performance:go-faster`**: the CI/CD catalog entry points at this repository's renamed
+  gateway workflow, `.github/workflows/pr-require-checks.yml`.
 
 ## [0.6.0] - 2026-10-03
 

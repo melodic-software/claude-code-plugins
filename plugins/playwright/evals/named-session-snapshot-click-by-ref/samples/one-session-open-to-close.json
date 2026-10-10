@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "```bash\nplaywright-cli -s=cart open http://localhost:3000\nplaywright-cli -s=cart snapshot\nplaywright-cli -s=cart click e42\nplaywright-cli -s=cart screenshot --filename=after.png\nplaywright-cli -s=cart close\n```", "why": "one session from open to close"},
+    {"answer": "```bash\nplaywright-cli -s=add-to-cart open http://localhost:3000\nREF=$(playwright-cli -s=add-to-cart --raw snapshot | grep -m1 'Add to cart' | sed -E 's/.*ref=(e[0-9]+).*/\\1/')\nplaywright-cli -s=add-to-cart click \"$REF\"\nplaywright-cli -s=add-to-cart close\n```", "why": "a flag between the session and the command"},
+    {"answer": "playwright-cli --session cart open http://localhost:3000\nplaywright-cli --session cart find \"Add to cart\"\nplaywright-cli --session cart click <ref>\nplaywright-cli --session cart close", "why": "long form, ref from find"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "playwright-cli -s=a open http://localhost:3000\nplaywright-cli snapshot\nplaywright-cli click e42\nplaywright-cli -s=b close", "why": "unnamed snapshot and click, and closes a different session"},
+    {"answer": "playwright-cli -s=cart open http://localhost:3000\nplaywright-cli -s=cart snapshot\nplaywright-cli -s=cart click e42\nplaywright-cli -s=other close", "why": "closes a session it never opened"},
+    {"answer": "playwright-cli -s=cart open http://localhost:3000\nplaywright-cli -s=cart snapshot\nplaywright-cli -s=cart click e42", "why": "leaves the browser running"}
+  ]
+}

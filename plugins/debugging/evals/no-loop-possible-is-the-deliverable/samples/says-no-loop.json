@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I can't build a reproduction loop with what we have: no logs, no capture, no environment access.",
+      "why": "can't build"
+    },
+    {
+      "answer": "Right now there is no way to construct a repro for this.",
+      "why": "no way to construct a repro"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The lag is probably garbage collection pauses. Let's tune the heap.",
+      "why": "hypothesizes instead"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -209,7 +209,8 @@ often worth keeping, the shell never is.
 
 ## Next
 
-- The model holds and the logic module is ready to lift: `/implementation:implement`.
+- The model holds and it settles a type, contract, or boundary: `/planning:design`, to record it.
+- The model holds and no design question is open: `/planning:plan`, which schedules the logic module's lift.
 - The prototype invalidates the model: `/planning:design`.
 
 ## Anti-patterns

@@ -44,8 +44,8 @@ rules:
 ```
 
 The opt-in `test-weaken` hook runs before a Write or Edit to a test file and names what it removes:
-test blocks, assertions, a changed expected value, or an added skip. By default it only asks the
-agent for its reason. With `test-weaken-block: error`, an added skip or a removed test block is
+test blocks, assertions, a changed expected value, or an added skip. By default it only tells the
+agent. With `test-weaken-block: error`, an added skip or a removed test block is
 denied until the edit carries a `test-change: <reason>` comment; removed assertions and changed
 expected values are never denied. The agent can write that marker itself: it makes the reason
 visible to reviewers, it does not prove the reason.

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# 1. Greeting function name\n\nStatus: Accepted\n\nWe name the greeting function `say_hello`.\n",
+      "why": "byte-identical to the seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# 1. Greeting function name\n\nStatus: Accepted\n\nWe name the greeting function `greet`.\n",
+      "why": "historical entry rewritten"
+    },
+    {
+      "answer": "# 1. Greeting function name\n\nStatus: Accepted\n\nWe name the greeting function `say_hello`.\n\n",
+      "why": "trailing byte appended"
+    }
+  ]
+}

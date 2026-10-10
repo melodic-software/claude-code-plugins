@@ -19,6 +19,8 @@ mk_repo() {
   fixture_tree::build "$out" \
     --sut "$SCRIPT" \
     --sut "$SELF_DIR/check-changelog-parity.sh" \
+    --sut "$SELF_DIR/check-changelog-fragments.sh" \
+    --sut "$SELF_DIR/new-changelog-fragment.sh" \
     --plugins || return 1
   : >"${!out}/scripts/changelog-parity-baseline.txt"
 }
@@ -155,6 +157,102 @@ for shape in modified untracked; do
   fi
   rm -rf "$repo"
 done
+
+# --- a plugin in fragment mode gets nothing; a legacy one is still bumped ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+mk_plugin "$repo" beta 2.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+echo y >>"$repo/plugins/beta/server/package-lock.json"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "build(deps): bump the npm-minor-patch group
+
+Updates \`zod\` from 1.0.0 to 1.0.1"
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 99 --title 'build(deps): bump the npm-minor-patch group' 2>&1)"
+rc=$?
+vb="$(jq -r .version "$repo/plugins/beta/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$out" == *"alpha is in fragment mode"* && ! -e "$repo/.changes" ]] &&
+  [[ -z "$(git -C "$repo" status --porcelain -- plugins/alpha)" ]]; then
+  ok "a fragment-mode plugin gets no fragment, version or CHANGELOG edit on the pull request"
+else
+  fail "fragment-mode alpha was edited: rc=$rc out='$out' status=$(git -C "$repo" status --porcelain)"
+fi
+# shellcheck disable=SC2016  # the backticks are Markdown in the expected entry
+if [[ "$vb" == "2.0.1" ]] && grep -q '## \[2.0.1\]' "$repo/plugins/beta/CHANGELOG.md" &&
+  grep -qF -- '- **bump the npm-minor-patch group** (#99).' "$repo/plugins/beta/CHANGELOG.md" &&
+  grep -qF -- '  - `zod` 1.0.0→1.0.1' "$repo/plugins/beta/CHANGELOG.md"; then
+  ok "a legacy plugin in the same pull request is still bumped, with the same entry"
+else
+  fail "legacy beta: ver=$vb out='$out' changelog=$(cat "$repo/plugins/beta/CHANGELOG.md")"
+fi
+rm -rf "$repo"
+
+# --- fragment mode is read from the base, not from a branch that predates a flip ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+git -C "$repo" checkout -q main
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+git -C "$repo" add -A && git -C "$repo" commit -qm "flip alpha"
+git -C "$repo" checkout -q pr
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.0" && "$out" == *"alpha is in fragment mode"* ]]; then
+  ok "a plugin the base lists is not bumped on a branch whose own list predates the flip"
+else
+  fail "base list: rc=$rc ver=$ver out='$out'"
+fi
+rm -rf "$repo"
+
+# --- a branch older than the fragment library still bumps legacy plugins ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+rm "$repo/scripts/lib/changelog-fragments.sh"
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ "$ver" == "1.0.1" && "$out" == *"alpha 1.0.0 -> 1.0.1"* ]]; then
+  ok "without scripts/lib/changelog-fragments.sh the legacy bump still runs"
+else
+  fail "missing lib: rc=$rc ver=$ver out='$out'"
+fi
+rm -rf "$repo"
+
+# --- the workflow's extracted base script reads the base's list through the base's libraries ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+extract="$repo/.git/extract"
+mkdir -p "$extract/lib"
+cp "$SCRIPT" "$extract/dependabot-plugin-bump.sh"
+for lib in changelog-fragments.sh read-list.sh dependabot-entry.sh; do
+  cp "$SELF_DIR/lib/$lib" "$extract/lib/$lib"
+done
+rm "$repo/scripts/lib/changelog-fragments.sh"
+out="$(cd "$repo" && bash "$extract/dependabot-plugin-bump.sh" main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ $rc -eq 0 && "$ver" == "1.0.0" && "$out" == *"alpha is in fragment mode"* ]]; then
+  ok "an extracted base script on a branch older than the fragment library skips a listed plugin"
+else
+  fail "extracted base script: rc=$rc ver=$ver out='$out'"
+fi
+rm -rf "$repo"
 
 # --- no plugin paths: no-op ---
 mk_repo repo

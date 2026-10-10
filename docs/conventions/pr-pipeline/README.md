@@ -9,6 +9,7 @@
 - [Slots and order](#slots-and-order)
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
+- [Trust-root paths](#trust-root-paths)
 - [Loop caps](#loop-caps)
 - [Changing this config](#changing-this-config)
 - [Names](#names)
@@ -34,9 +35,11 @@ autonomy plugin, and this doc points at them.
 | `examples/` | Worked configs that show the shape. Script paths in them are placeholders until their lanes land. |
 | `CHANGELOG.md` | Contract versions. |
 
-A repository's config lives at `<root>/pr-pipeline.yaml`, where `<root>` defaults to
-`docs/conventions` and a repository may point the config reader elsewhere. Config values live only
-in that YAML file; agent instructions live only in Markdown.
+A repository's config lives at `docs/conventions/pr-pipeline.yaml` unless the lane passes another
+path as the config reader's `config-path` input. The reader reads that path at the base SHA; it
+must be relative with no `..`, have the basename `pr-pipeline.yaml`, and sit outside
+`.github/actions/**`. Config values live only in that YAML file; agent instructions live only in
+Markdown.
 
 ## Stages
 
@@ -48,7 +51,7 @@ no renumbering.
 | `intake` | Issues are triaged into work items. | issue events |
 | `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
-| `verify` | Checks, reviews and outcome verification on the refined commit, in three phases: mechanical, then judgment, then aggregate into `ci-status`. | dispatch from `refine` |
+| `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
 | `respond` | Address review feedback, fix failing CI, and update from the base branch. These lanes run concurrently. | see [Lanes](#lanes) |
 | `merge` | Merge, within the configured rung. | final check green, or a hold removed |
 | `post-merge` | Verify the default branch and sweep late comments into issues. | push to the default branch |
@@ -61,28 +64,41 @@ cancels every running pipeline lane for it.
 
 ## Lanes
 
-A lane is one workflow with one job. The lane name is its workflow file stem, and the lane never
-does another lane's job.
+A lane is one workflow with one model job; scripted jobs beside it report its check runs. The lane
+name is its workflow file stem, and the lane never does another lane's job. Each activity runs
+through one of two shared runners:
+[`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) for a `read`
+effect, with no App key and no OIDC token in its job, and
+[`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) for any other
+effect, which gets its effect-scoped App token from the lanes token broker before any head
+checkout. No workflow holds the App key. Their job contract is
+[`pr-run-activity.md`](pr-run-activity.md).
 
-| Lane | Stage | Starts on | Never |
-|---|---|---|---|
-| `pr-refine` | refine | ready | Changes behavior |
-| `pr-run-checks` | verify | dispatch from `pr-refine` | Writes to the branch |
-| `pr-review`, `pr-review-security` | verify | dispatch from `pr-refine` | Pushes fixes |
-| `pr-verify` | verify | dispatch from `pr-refine` | Pushes fixes |
-| `pr-explain` | verify | dispatch from `pr-refine`, alongside verify | Gates |
-| `pr-require-checks` | verify | each verify result | Runs work; it only produces `ci-status` |
-| `pr-address-feedback` | respond | dispatch from the last verify step | Resolves human threads |
-| `pr-fix-ci` | respond | a failed check, via `workflow_run` | Edits anything unrelated to the failure |
-| `pr-update` | respond | push to the default branch, the hourly sweep, a merge-queue dequeue | Force-pushes |
-| `pr-merge` | merge | final check green, or a hold removed | Merges above the rung or past a hold |
-| `post-merge-verify` | post-merge | push to the default branch | Edits PRs |
-| `post-merge-sweep-comments` | post-merge | push to the default branch | Reopens merged PRs |
+Each lane's stage, the effects and gating it may not use, and what it never does are in
+[`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
+reader applies.
+
+| Lane | Starts on |
+|---|---|
+| `pr-refine` | ready |
+| `pr-run-checks` | dispatch from `pr-refine` |
+| `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
+| `pr-verify` | dispatch from `pr-refine` |
+| `pr-explain` | dispatch from `pr-refine`, alongside verify |
+| `pr-require-checks` | each verify result |
+| `pr-address-feedback` | dispatch from the last verify step |
+| `pr-fix-ci` | a failed check, via `workflow_run` |
+| `pr-update` | push to the default branch, the hourly sweep, a merge-queue dequeue |
+| `pr-merge` | final check green, or a hold removed |
+| `post-merge-verify` | push to the default branch |
+| `post-merge-sweep-comments` | push to the default branch |
 
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions `pr-fix-ci`
 holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
 [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
+Lane commits are signed, and signing is enforced by the default-branch rule only:
+[ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 
 Every lane:
 
@@ -96,11 +112,15 @@ Every lane:
   who can trigger a lane, token lifetime and scope, workflow execution protections, the kill switch,
   and a `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
-  so a PR cannot change the rules it is judged by.
+  so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
+  skill activity loads nothing else from the head:
+  [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 - Checks the kill switch before its model step starts. A switch it cannot read counts as off.
 - Never holds `checks: write` or `workflows` permission in a job that runs the model. `ci-status`
   and the `<lane> / <activity>` check runs are written by scripted jobs with no model step, and
-  branch protection pins `ci-status` to the source that writes it. A base merge that touches
+  branch protection pins `ci-status` to the source that writes it
+  ([ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md)).
+  A base merge that touches
   `.github/workflows/` escalates to a human instead of being pushed by a lane.
 - Writes through one per-PR queue (a concurrency group that queues, never cancels). It pushes its
   own commits as fast-forward updates, never with force. When the head moved, it fetches, replays
@@ -120,13 +140,21 @@ itself never changes.
 
 Each activity declares:
 
-- `skill` (`<plugin>:<skill>`, with optional `args` passed verbatim in that skill's own syntax) or
-  `script` (a repository path).
+- `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
+  verbatim: after the skill name in that skill's own syntax, or to the script.
+- `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
+  run. When unset, `pr-run-activity`'s defaults apply.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
-  runner derives ordering and the token grant from it, and fails a `read` activity that leaves the
-  working tree dirty.
+  runner derives ordering from it, takes the token grant from
+  [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
+  `read` activity that leaves the working tree dirty. An activity that runs head code (tests,
+  linters, builds) takes effect `read`, because a write-effect activity must not execute head
+  code; a fix-and-push lane waits on a split design (a read-only run, then a separate
+  signed-commit step).
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
-  required check.
+  required check. A `gate` skill activity must not execute head code, since its verdict is read
+  in the same job after the skill ran; tests, linters and builds that gate run as a `script`
+  activity or under a separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is
   data, never instructions ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
@@ -157,11 +185,13 @@ and verify reruns on the new head. `refine` does not rerun on `respond` pushes.
 
 The schema checks each file's shape. The config reader also rejects:
 
-- an activity whose `effect` the lane's "Never" column forbids, such as a mutating activity in
-  `pr-run-checks` or a `merge` effect outside `pr-merge`;
-- a lane whose `stage` differs from the [Lanes](#lanes) table;
+- an activity whose `effect` or `gating` the lane's row in `lane-rules.json` forbids, such as a
+  branch-writing activity in `pr-run-checks` or a `merge` effect outside `pr-merge`;
+- a lane whose `stage` differs from its `lane-rules.json` row, or a lane with no row;
 - a `needs:` entry naming an activity that is not in the same lane;
-- a lane or activity name missing from the vocabulary ([Names](#names)).
+- a lane or activity name missing from the vocabulary ([Names](#names));
+- an activity named `run` or `report`, `pr-run-activity`'s own job names;
+- any `extends:` value ([Not settled yet](#not-settled-yet)).
 
 The reader also adds the config file's own path, `.github/**` and the trusted-actor list to
 `merge.diff-check.denied-paths`, whatever the config says.
@@ -176,8 +206,13 @@ Each activity reports:
 - An artifact bundle per [`record-bundle`](../record-bundle/README.md).
 - A check run named `<lane> / <activity>`, for example `pr-refine / simplify`.
 
-A skip reports as a neutral check with one reason: `not-applicable-paths`, `prerequisite-missing`,
-`cost-gated`, `awaiting-human`, `superseded-sha` or `disabled-by-config`. Silence is not a skip.
+A skip reports as a neutral check with one reason from the schema's `$defs/skip-reason`:
+`not-applicable-paths` (a `paths` predicate missed), `not-applicable` (a label, event or
+work-class predicate missed), `prerequisite-missing`, `cost-gated`, `awaiting-human`,
+`superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
+actor or author not on the trusted-actor list). Silence is not a skip, with three exceptions that
+post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
+by the lanes App; and a run on any other event whose run job gated no head SHA.
 
 Each review finding goes to an independent validator. Valid: fix it and reply with a citation.
 Invalid: reply with a cited disagreement. Unsure: escalate. A script resolves bot threads after
@@ -203,6 +238,30 @@ in [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-class
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority: either the local babysit lane (loop-lane) or `pr-merge`.
 
+## Trust-root paths
+
+A lane's token grant and the rules it is judged by come from these default-branch paths, so a
+change to any of them is a change to every lane's powers:
+
+- `docs/conventions/pr-pipeline.yaml` and `docs/conventions/pr-pipeline/**` (config and schema);
+- `.github/actions/**`, which holds `resolve-config/effect-grants.json`,
+  `resolve-config/lane-rules.json` and every action a lane job runs from its base checkout;
+- `.github/standards/**`, which holds the trusted-actor list and the runner-policy script;
+- `.github/workflows/**`;
+- `.github/CODEOWNERS`.
+
+The trust-root ruleset makes a change to a trust-root path that `.github/CODEOWNERS` assigns need
+an approving review from a human code owner, which the lanes App cannot give, with no App bypass;
+no lane goes live before it is in force. The exceptions are the paths `.github/CODEOWNERS` lists
+with no owner: the eight synced data files (the vocabulary, pyright and runner-policy data files)
+and the three synced hosted caller workflows (`pr-check-managed-files-hosted.yml`,
+`pr-review-hosted.yml`, `pr-review-security-hosted.yml`). The required `check-managed-files` job
+in `ci-status` guards them instead, failing any hand edit or deletion.
+The runner-policy script and both trusted-actors files stay owned. `pr-merge` never merges a PR that
+touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
+here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
+`pr-merge` is built.
+
 ## Loop caps
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
@@ -222,14 +281,14 @@ Lane and activity names are verb-first and literal; review-engine activity names
 `codex`) are the one exception. The allowed workflow stages, function words and engines are owned
 by the `github-actions-conventions` component in `melodic-software/standards`
 (`components/github-actions-conventions/vocabulary.json`); this doc and its schema never copy that
-list. Pipeline stage keys (the [Stages](#stages) table) belong to this convention.
+list. The config reader reads the synced copy from the base SHA's
+`.github/standards/github-actions-conventions/vocabulary.json`. Pipeline stage keys (the
+[Stages](#stages) table) belong to this convention.
 
 ## Not settled yet
 
-- The `extends:` grammar for layering a repository file on org defaults.
-- How the config reader resolves `<root>` and reads the vocabulary.
-- Whether judgment lanes in `verify` wait for the mechanical lanes, or start together and let
-  `pr-require-checks` aggregate.
+- Deferred: the `extends:` grammar for layering a repository file on org defaults. The reader
+  rejects any value until a second repository adopts.
 - The post-merge failure remedy (revert or fail forward, by change type). Until it is decided, the
   rung drop and `needs-human` issue above apply.
 

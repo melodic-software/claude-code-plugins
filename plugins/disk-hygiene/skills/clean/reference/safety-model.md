@@ -375,10 +375,9 @@ state: only the `--data-root` the guard validated may place it.
 
 **Handing the values over up front.** A plugin `UserPromptExpansion` hook matching
 `disk-hygiene:clean$` runs `engine_context.py` through the same launcher, with the same
-`--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
-`resolve_authorized_data_root_channel()` results as `additionalContext`, so the skill needs no denied call to
-learn them. The note names the channel that supplied the data root (`--authorized-data-root
-argument`, `plugin-cache layout`, or `local-directory marketplace install`). It grants nothing: the guard still judges every call, and a hook that fails prints
+`--plugin-root` argument, when the command expands. It prints the guard's interpreter, engine
+path and `resolve_authorized_data_root()` result as `additionalContext`, so the skill needs no
+denied call to learn them, and the guard's denials need not repeat them. It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
 belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
@@ -424,7 +423,8 @@ plus that id, never from a path read out of either file. The same proof supplies
 `<config>/settings.json`, so the kill switch is read on a directory install too. That read passes no
 exact `pluginConfigs` key: the user and managed reads match any `disk-hygiene` key, as broad as the
 managed read was before, so the channel can only add a deny. This couples to the
-undocumented contents of `known_marketplaces.json`, and is acceptable on the same terms as the cache
+contents of `known_marketplaces.json`, whose entry fields the docs list but whose stored `source`
+object they do not specify (record below), and is acceptable on the same terms as the cache
 coupling: its only failure mode is fail-closed, since any unproven step yields no authority.
 
 `<config>` is `<account home>/.claude`, with the home read from the OS account record (the password
@@ -452,12 +452,27 @@ the key's documented purpose is repo-or-org registration, and distinguishing use
 project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
 need. The directory channel stays pinned to harness-written `known_marketplaces.json`.
 **Claim:** `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this
-guard, at any settings scope. **Basis:** settings-reference `extraKnownMarketplaces` (scope Any
-file; purpose "people who open the repository"; `directory` source "for development only"),
-fetched 2026-09-28 as `https://code.claude.com/docs/en/settings-reference.md`. **As of:**
-2026-09-28. **Recheck:** when that key's scope stops including project files, when a release
-note says only the user can write it, or when `known_marketplaces.json` is documented as
-derived from it.
+guard, at any settings scope. **Basis:** settings-reference
+[`extraKnownMarketplaces`](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
+(scope Any file; project entries honored after workspace trust). **As of:** 2026-10-07.
+**Recheck:** when that key's scope stops including project files, or when a release note says only
+the user can write it.
+
+**A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** We assume a
+trusted repository's `.claude/settings.json` can put an entry in the file the directory channel
+reads (pointer:
+[Plugins and marketplaces that aren't on disk at session start](https://code.claude.com/docs/en/plugins/loading#plugins-and-marketplaces-that-arent-on-disk-at-session-start)).
+That gains a repository nothing: the proof also needs the entry's
+`installLocation` to contain the running plugin root and that location's own `marketplace.json`
+to list that root as `disk-hygiene`. A repository entry can satisfy both only for a plugin root
+inside a tree it supplies, so the guard proven is code the repository already controls. Authority
+stays inside `<config>/plugins/data/`, built from the config dir and the id, and the kill-switch
+read can only add a deny. An entry that overlaps a real directory install makes two candidates,
+which fails closed. No guard change follows. **Basis:** the loading section above and
+`_directory_marketplace_install` in `scripts/destructive_guard.py`. **As of:** 2026-10-07.
+**Recheck:** when that section stops requiring settings to declare a marketplace before it is
+cloned, or when the derivation stops requiring the marketplace's own manifest or exactly one
+candidate.
 
 The remaining shapes with no derivable authority are a `claude --plugin-dir <checkout>` development
 session whose checkout lies outside every registered directory marketplace, and a config relocated
@@ -468,7 +483,7 @@ from that install and derives the marketplace's canonical data root. `CLAUDE_CON
 reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
 account-home note above). Both fail closed (every engine invocation denied) while the
 destructive-action guard itself stays fully active. This is a deliberate safe-over-convenient
-tradeoff, not a security gap. The belt's denial names one recovery: run this plugin from a
+tradeoff, not a security gap. The guard-values note and an engine-call denial name one recovery: run this plugin from a
 marketplace install, or register the checkout as a local-directory marketplace
 (`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
 marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
@@ -477,12 +492,12 @@ even if it did the value would be the same repo-injectable channel the belt drop
 **Claim:** whether a launch-shell `CLAUDE_PLUGIN_DATA` reaches a skill-frontmatter hook is
 unmeasured; the recovery hint therefore does not recommend it. **Basis:** decision not to run
 the paid probe in #4669; hooks.md says both hook forms export `CLAUDE_PLUGIN_DATA` on the
-spawned process (the paragraph on exec and shell form); plugins-reference "Where each
+spawned process (the paragraph on exec and shell form); plugin manifest reference "Where each
 variable resolves" lists hook commands as exporting it and skill/command/agent content as
 not applicable, and does not say a launch-shell export survives into a skill-frontmatter
-hook. Fetched 2026-09-28 as `https://code.claude.com/docs/en/hooks.md` and
-`https://code.claude.com/docs/en/plugins-reference.md`. **As of:** 2026-09-28. **Recheck:**
-a live probe with version and platform, or a hooks.md / plugins-reference sentence that
+hook. Fetched 2026-10-07 as `https://code.claude.com/docs/en/hooks.md` and
+`https://code.claude.com/docs/en/plugins/manifest-reference.md`. **As of:** 2026-10-07. **Recheck:**
+a live probe with version and platform, or a hooks.md / manifest-reference sentence that
 states the skill-frontmatter inheritance.
 
 Verification records for the directory channel:
@@ -500,15 +515,18 @@ Verification records for the directory channel:
   "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
   by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
   changes, or a release note names the plugin data directory.
-- **Claim:** the docs name `~/.claude/plugins/known_marketplaces.json` only as where marketplace state
-  is stored, and `installLocation` only as a field of `claude plugin marketplace list --json` output;
-  the file's contents are undocumented. **Basis:** raw-markdown fetches of the plugins reference (no
-  mention) and
-  [plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces) ("Marketplace state is
-  stored once per user in `~/.claude/plugins/known_marketplaces.json`, not per project"; "an
-  `installLocation` field with the local cache path where the marketplace is stored"). The absence
-  covers those two pages only. **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when either
-  page documents the file's contents, or a release note names `known_marketplaces.json`.
+- **Claim:** the docs now list the top-level fields of each `known_marketplaces.json` entry
+  (`source`, `installLocation`, among others) and say one file serves every project, and that a local
+  `file` or `directory` marketplace's `installLocation` is the path the user gave; they do not specify
+  the nested `source` object as it is stored in this file, or promise the format stays stable. The
+  guard's coupling is to those documented fields plus the `directory` source shape the marketplace
+  reference defines for settings. **Basis:**
+  [Check which stage a plugin reached](https://code.claude.com/docs/en/plugins/loading#check-which-stage-a-plugin-reached),
+  [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk), and
+  [Marketplace sources](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-sources).
+  **As of:** 2026-10-07, Claude Code 2.1.292. **Recheck:** when those sections rename or drop the
+  `source` or `installLocation` field, document the stored `source` object, or a release note changes
+  `known_marketplaces.json`.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -548,12 +566,15 @@ resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginCo
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
 Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207, and a project or
 local `.claude/settings.json` is ignored, so a hostile repo cannot flip it. That scoping is verified
-2026-09-06 against Claude Code 2.1.263 and the plugins reference at
-`https://code.claude.com/docs/en/plugins-reference`, which states that Claude Code reads all
-`pluginConfigs` values from only user settings, `--settings`, and managed settings, that entries in a
+2026-09-06 against Claude Code 2.1.263 and the plugins reference, whose statement now lives at
+`https://code.claude.com/docs/en/settings-reference#pluginconfigs` (read 2026-10-07, Claude Code
+2.1.292), which gives `pluginConfigs` the scope "User or managed", states that entries in a
 project's `.claude/settings.json` or `.claude/settings.local.json` are ignored, and that those entries
-were read before v2.1.207. Recheck when that page stops carrying the ignored-project-scope statement, or
-when a release note names `pluginConfigs` scope. The **user** file is located
+were read before v2.1.207. The settings guide
+(`https://code.claude.com/docs/en/settings#change-a-setting-for-one-session`) says `--settings` "can set
+any key your user settings file can set", so `--settings` is a read source too (as of 2026-10-07). Recheck
+when the settings guide stops letting `--settings` set user-scope keys, or the `pluginConfigs` scope
+changes, or when that page stops carrying the ignored-project-scope statement. The **user** file is located
 from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge): the
 `plugins/cache` layout's sibling `settings.json`, or for a local-directory marketplace install
 `<config>/settings.json` under the account-record config dir above. It is **never** located
@@ -670,7 +691,7 @@ guard on the call itself (#3861), mirroring the watchdog's "could not decide" ru
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
 marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
-`systemMessage` and `additionalContext` notice rather than an `ask`. The Stop detector is kept as the end-of-turn
+`systemMessage` notice to the user rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
@@ -986,7 +1007,8 @@ shipped lane has not run end to end; treat that part as documented intent, not o
 
 ## Primary references
 
-Verified 2026-07-16: [Claude skills](https://code.claude.com/docs/en/skills),
+Verified 2026-07-16 (recheck when the hooks page changes the `PreToolUse` decision output or the
+skills page changes skill-scoped hooks): [Claude skills](https://code.claude.com/docs/en/skills),
 [PreToolUse hooks](https://code.claude.com/docs/en/hooks),
 [GNU Bash shell expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html),
 [Python 3.11 `os`](https://docs.python.org/3.11/library/os.html),

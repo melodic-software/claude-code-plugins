@@ -28,6 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PLUGIN_ROOT = SCRIPT_DIR.parents[2]
 PROBE_RELPATH = Path("skills", "setup", "scripts", "kill_switch_probe.py")
 GUARD_RELPATH = Path("skills", "clean", "scripts", "destructive_guard.py")
+CONTEXT_RELPATH = Path("skills", "clean", "scripts", "engine_context.py")
 
 
 def load_module(name: str, filename: str):
@@ -244,15 +245,16 @@ class ProbeTests(unittest.TestCase):
 
 
 class LaunchDisclosureParityTests(unittest.TestCase):
-    """The probe reports what the belt's denial guidance names, run for run.
+    """The probe reports the interpreter the belt's denial names and the data
+    root the guard-values note names, run for run.
 
-    Both sides run as subprocesses of the same interpreter from the same install
+    Every side runs as a subprocess of the same interpreter from the same install
     root, the way the ``clean`` belt admits the probe, with ``CLAUDE_PLUGIN_DATA``
     absent (it is not in the Bash tool's environment, and a skill hook gets none).
     """
 
-    _GUARD_INTERPRETER = re.compile(r'Python interpreter "([^"]+)" for engine/probe')
-    _GUARD_DATA_ROOT = re.compile(r'Pass --data-root "([^"]+)"')
+    _GUARD_INTERPRETER = re.compile(r'the interpreter must be "([^"]+)"')
+    _NOTE_DATA_ROOT = re.compile(r'^data_root: (?:"([^"]+)"|none\b)', re.MULTILINE)
 
     def setUp(self) -> None:
         self.environment = {
@@ -297,14 +299,28 @@ class LaunchDisclosureParityTests(unittest.TestCase):
         interpreter = self._GUARD_INTERPRETER.search(reason)
         self.assertIsNotNone(interpreter, reason)
         self.assertEqual(interpreter.group(1), reported["hook_python"])
-        data_root = self._GUARD_DATA_ROOT.search(reason)
-        if reported["data_root"] is None:
-            self.assertIsNone(data_root, reason)
-            self.assertIn("did not receive an authorized data root", reason)
-        else:
-            self.assertIsNotNone(data_root, reason)
-            self.assertEqual(data_root.group(1), reported["data_root"])
+        note = self.run_context(plugin_root)
+        data_root = self._NOTE_DATA_ROOT.search(note)
+        self.assertIsNotNone(data_root, note)
+        self.assertEqual(data_root.group(1), reported["data_root"])
         return reported
+
+    def run_context(self, plugin_root: Path) -> str:
+        """The guard-values note ``/disk-hygiene:clean`` expands with."""
+        completed = subprocess.run(
+            [
+                sys.executable,
+                os.fspath(plugin_root / CONTEXT_RELPATH),
+                "--plugin-root",
+                os.fspath(plugin_root),
+            ],
+            input="{}",
+            capture_output=True,
+            text=True,
+            env=self.environment,
+            check=True,
+        )
+        return json.loads(completed.stdout)["hookSpecificOutput"]["additionalContext"]
 
     def test_marketplace_cache_install_reports_the_denial_values(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -313,7 +329,7 @@ class LaunchDisclosureParityTests(unittest.TestCase):
             shutil.copytree(
                 PLUGIN_ROOT,
                 plugin_root,
-                ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"),
+                ignore=shutil.ignore_patterns("__pycache__", ".*_cache", ".venv", "node_modules", ".work"),
             )
             reported = self.assert_parity(plugin_root)
             self.assertEqual(

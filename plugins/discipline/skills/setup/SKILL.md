@@ -32,7 +32,7 @@ change through Claude Code's native flow (`check` step 8). Action routing: no ar
 or `check` runs the check; `apply` runs the check, then writes. Re-running either reads
 the current state again.
 
-Official contract: <https://code.claude.com/docs/en/plugins-reference#user-configuration>.
+Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
 
 ## `check` (read-only)
 

@@ -1,10 +1,13 @@
 # improvement
 
-A Claude Code plugin answering the question the fleet had no entry point for: **"what should we
-improve here, and how do we know?"** Two skills, one concern: finding improvement candidates across dimensions, at any size, and backing every one with evidence.
+A Claude Code plugin for improving anything, from one method to a whole feature, and knowing why
+the change is better. `find` answers **"what should we improve here, and how do we know?"** with a
+ranked, evidence-cited list. `improve` answers **"make this better"** by shipping one improvement,
+measured against a stated standard, as one small draft PR.
 
 | Skill | What it does |
 |---|---|
+| `/improvement:improve` | Improve-one-thing. Point it at any target (a symbol, file, feature, skill, doc, or process) with an optional focus such as performance, naming, or currency with current upstream guidance. It finds one gap against the repo's written standards (and upstream guidance when the focus asks for it), ships the smallest complete fix as one draft PR within the [PR scope budget](reference/pr-scope-budget.md), and hands larger changes to planning. With no arguments it reads the conversation and confirms target and focus with you first. Runnable unattended on a schedule. |
 | `/improvement:find` | Evidence-first improvement finder. Point it at a repo, a feature, a concept, or a process surface, with a vague or specific prompt, and it produces a ranked, evidence-cited list of improvement candidates led by the highest value-to-effort, deliberates on the picked candidate through an interview, and hands off to the planning pipeline. Runnable unattended as a tech-debt-sweep routine. |
 | `/improvement:setup` | Verifies or writes the `.claude/improvement.md` config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across all three layers; `apply` interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
 
@@ -18,8 +21,8 @@ any other improvement. Evidence gaps are recorded, never papered over.
 
 The finder never edits the target's tracked files: it discovers and deliberates, and execution
 requests route through the normal interview → discovery → planning → implementation → verification
-pipeline. Unattended, it keeps its report under its own plugin data directory and files work
-items. When code-metrics is enabled, in either mode, its duplication input keeps a report in
+pipeline, or to `/improvement:improve` when the pick fits one small PR. Unattended, it keeps its
+report under its own plugin data directory and files work items. When code-metrics is enabled, in either mode, its duplication input keeps a report in
 code-metrics' data directory (`reports/<state-key>/audit-duplication-<UTC stamp>.json`, the next
 run's trend baseline), and a growing clone class gets one review-findings file at
 `<memory_dir>/improvement/<branch-slug>/<UTC stamp>-clone-growth.md` in the git-ignored memory tier,
@@ -74,6 +77,22 @@ The prompt is the tuning surface for cap, scope/size band, and dismissed-candida
 [skills/find/context/unattended.md](skills/find/context/unattended.md)). Iterate on the wording
 after observing real runs; never fork the skill to tune a run.
 
+### Improve-one-thing prompt (daily or hourly)
+
+`/improvement:improve --unattended` ships one draft PR per run, measured against the repo's written
+standards only, and stops when three of its PRs are already open. A human merges every one.
+
+```text
+If /improvement:improve is unavailable in this session, stop and report that the
+improvement plugin is not installed in this environment. Do nothing else.
+
+Run /improvement:improve --unattended. This is a scheduled run with no user present.
+
+Tuning (edit these lines as you observe real runs):
+- Target: the most recently changed files.
+- Stop when 3 improve PRs are already open.
+```
+
 ### Alternative: GitHub Actions cron
 
 Where Routines are not available (or the schedule must live in the repo), wrap the same prompt in
@@ -103,6 +122,10 @@ jobs:
           prompt: |
             <the same Routine prompt template as above>
 ```
+
+These permissions fit the `find` prompt, which only files issues. The improve-one-thing prompt
+pushes a branch and opens a pull request, so its job needs `contents: write` and
+`pull-requests: write` in place of `contents: read`, plus `issues: write` for filed overflow.
 
 ### What is NOT a standing wrapper
 

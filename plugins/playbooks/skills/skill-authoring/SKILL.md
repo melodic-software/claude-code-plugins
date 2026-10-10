@@ -172,16 +172,14 @@ When the skill's job is *checking* work, read [`reference/verification-loops-in-
 the three routes that create the skill, shadow versus chain for a skill you cannot edit, the
 validator preference order and plan-validate-execute, and diagnosing an embedded check that does not run.
 
-## Authoring guidance and pre-share checklist (Melodic Software addition)
+## Skill criteria (Melodic Software addition)
 
-Read [`reference/authoring-guidance.md`](reference/authoring-guidance.md) when writing a
-description, choosing a freedom level, shaping arguments and `argument-hint` (the [skill argument shape convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/skill-argument-shape/README.md)),
-splitting a body into spokes, pointing at scripts or MCP tools, or planning evals: it cross-reads
-Anthropic's cross-product best-practices page against what Claude Code enforces. Its description contract
-(one description, `when_to_use` optional, key use case first, the two caps with their sources) is the fuller form of tip 5.
-
-Read [`reference/authoring-checklist.md`](reference/authoring-checklist.md) before publishing: every
-row is tagged mechanical (with its `skill-quality:check` number), judgment, or attestation.
+Read [`reference/skill-criteria.md`](reference/skill-criteria.md) when writing, rewriting or
+reviewing a skill or plugin agent: frontmatter, descriptions (the fuller form of tip 5), body,
+reference files, metadata, history and provenance, agents, and measurement, including the
+pre-share checklist whose rows are tagged mechanical (with the `skill-quality:check` number),
+judgment, or attestation. It is the house standard other skills cite by heading, and its Sources
+section holds the record behind every figure.
 
 ## Skill `model` (Melodic Software addition)
 

@@ -3,104 +3,56 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [Unreleased]
+## [0.24.2] - 2026-10-10
+
+### Changed
+
+- `implement-dispatch`: every worker brief now carries a clause to wrap each command that can block in a timeout, record a timeout as a FAIL, and never run an interactive command. Observed once, while implementing #6306 (PR #6669): a Phase 1 worker hung 2.5 hours on one unbounded Sanity Check command and had to be stopped; later briefs carried the clause and no phase hung again. Shipped on the maintainer's decision despite a single observation.
+
+## [0.24.1] - 2026-10-09
+
+### Fixed
+
+- **`/implementation:implement-dispatch` drops the `cd <worktree> && <command>` exception.** Brief item 8 and the worktree-cwd gotcha now send a working-directory-sensitive build, test or lint command through its own directory flag (`make -C`, `npm --prefix`) or the wrapper's absolute path, and leave a command with neither to the orchestrator's main-side gate. A `cd` into a worktree outside the session's working directories prompts, so the exception brought back the denial the literal-path rule avoids (#6666).
+
+## [0.24.0] - 2026-10-09
 
 ### Added
 
-- **No suppression to make a check pass.** `/implementation:implement` "Commit discipline" and the
-  `/implementation:implement-dispatch` worker brief both carry the rule: adding a lint or
-  type-checker suppression to turn a check green is not allowed, except for a proven false positive
-  whose suppression line states the reason and, where the tool can name one, the rule id. A
-  project's own instructions may override it. One eval case per skill.
-- **`refactor_compat` sets what a refactor does with the shape it replaces.** `same-wave` (the
-  default) updates all call sites and removes the replaced shape in that same change, unless code
-  outside the repository (a public API, a published package) relies on it; `deprecate` keeps an
-  adapter with a removal condition for every consumer. `/implementation:implement` refactor mode
-  resolves it in `context/refactor.md` and reports the supplying layer. It is set per user in the new
-  `refactor_compat` user config option and per repository in `docs/conventions/implementation.yaml`
-  (schema `schemas/implementation.schema.json`), which wins; an invalid value is named and that
-  layer dropped. An older release has no option for it and ignores the repository key. Three eval
-  cases cover the default, the `deprecate` option and the repository file winning.
-- **`integration_posture` sets how far a change reshapes the code around it.** `by-kind` (the
-  default) redesigns the code a feature lands in as though the feature had been there from the
-  start, keeps a fix or a config change minimal, and keeps a refactor to the plan's scope with
-  behavior unchanged; `day-one` and `minimal` override the feature, fix and config kinds, never a
-  refactor. `/implementation:implement` Step 0 resolves and applies it only when no approved plan
-  exists (with a plan, `/planning:plan` has already written any redesign as work items), and a
-  non-interactive run whose kind is ambiguous takes `minimal` and appends a `DEVIATIONS.md` entry.
-  Step 0's scope line now names fix and config modes, `context/feature.md` and
-  `context/bugfix.md` read the resolved value, and `/implementation:implement-dispatch` brief
-  item 3 carries it to each worker. It is set per user in the new `integration_posture` user
-  config option and per repository in `docs/conventions/implementation.yaml` (schema
-  `schemas/implementation.schema.json`), which wins; an invalid value is named and that layer
-  dropped, and the skill reports the supplying layer. Five eval cases cover the no-plan default,
-  the ambiguous unattended run, the repository file winning, and the `minimal` and `day-one`
-  values.
-- `/implementation:implement-dispatch` brief item 9: a worker that provisions its own worktree runs
-  the consumer's Workspace environment `setup` for it, read from the fetched default branch and
-  skipped when the item's input is untrusted.
-- **`verify_mechanical_phases` sends every phase to the fresh-context verifier.** Off (the
-  default), `/implementation:implement-dispatch` keeps the mechanical carve-out: the orchestrator
-  verifies a mechanical, behavior-preserving phase from the diff plus the build/test signal, and
-  that phase's fresh-context verdict is the PR's verify stage. On, `implementation:phase-verifier`
-  runs for every phase, mechanical ones included. `/implementation:implement` reads the same key
-  at Step 4 and, when it is on, has a fresh-context verifier check mechanical phases too. An
-  invalid value is named and falls back to `false`. It is set per user in the new
-  `verify_mechanical_phases` user config option and per repository in
-  `docs/conventions/implementation.yaml` (schema `schemas/implementation.schema.json`); `true` in
-  either layer wins, and the skill reports the layer that supplied the value. The new settings
-  page `reference/config.md` holds the resolution and root rules, and a plugin-level eval case
-  under `evals/` checks that a repository `true` dispatches the verifier for a rename phase.
-- **Planned breakage tells a declared red step from a regression.** When the plan's phase carries a
-  `**Planned breakage:**` line, `/implementation:implement` records the failure set at the span's
-  start and allows a red commit only when every new failure lies in the declared paths or test
-  filter, with a body naming the span; any other failure stops the run, and Step 5's end gate is
-  always green. `/implementation:implement-dispatch`'s build gate and phase-verifier brief apply
-  the same rule, and the early push carries a red commit only before a pull request exists.
-- **`drain_cadence` lets a long dispatch run hold worker returns.** `on-arrival` (the default)
-  keeps `/implementation:implement-dispatch` reading each return as it comes in. `batched` holds a
-  return that arrives while the orchestrator is composing a wave's fences, running a build gate or
-  making a phase-boundary commit, reads it when that step ends, and reads every held return before
-  the phase is marked `[DONE]`; the wave cap is unchanged. It is set per user in the new
-  `drain_cadence` user config option and per repository in `docs/conventions/implementation.yaml`,
-  which wins; an invalid value is named and dropped.
-- **`code_writing` chooses between inline editing and dispatch.** `inline` (the default) keeps
-  `/implementation:implement`'s current detection. `dispatch` adds a third orchestration signal:
-  after Step 1's prerequisite check, an interactive run hands every plan phase to
-  `/implementation:implement-dispatch`, which writes worker rows for the phases the plan leaves to
-  the main session and dispatches them as `implementation:implementer`. It is set per user in the
-  new `code_writing` user config option and per repository in
-  `docs/conventions/implementation.yaml`, which wins; an invalid value is named and dropped. A
-  plugin-level eval case under `evals/` checks that a repository `dispatch` reaches
-  implement-dispatch for a main-window phase.
-- **A lever check runs before one change is applied at many sites.** `/implementation:implement`
-  Step 2 gains a multi-site step: before a block that applies one change at three or more sites,
-  it invokes `/discipline:script-the-deterministic-work lever-check` when that skill is among the
-  available skills, which resolves the discipline plugin's `lever_scope` setting and answers
-  `build-a-lever` or `edit-by-hand`; without it, the `deterministic` rule applies (a lever only for
-  a mechanical change) and the run says so. A lever is piloted on one hand-edited site and diffed
-  before it runs on the rest. `/implementation:implement-dispatch` runs the same check before a
-  fan-out of one change and before its `/batch` offer, and when one run of the lever covers every
-  unit it dispatches one worker row for the lever instead of one row per unit. The setting has one
-  home, the discipline plugin; implementation declares no key for it. Three eval cases cover the
-  hand-off, the fan-out and an unavailable discipline skill.
-- **`per_unit_check` sets how a multi-site change is checked.** Once the lever or the hand edit
-  is ready, `/implementation:implement`'s multi-site step applies it under this key. `pilot` (the
-  default) changes a small first batch of units, checks them, then changes the rest with one check
-  at the end; the batch size points at the Claude Code best-practices "Fan out across files"
-  section. `every` checks each unit before the next. It is set per user in the new
-  `per_unit_check` user config option and per repository in `docs/conventions/implementation.yaml`
-  (schema `schemas/implementation.schema.json`), which wins; an invalid value is named and that
-  layer dropped, and the skill reports the supplying layer. Three eval cases cover the default
-  pilot, `every` and the repository file winning.
-- **Fix mode commits the focused fix first and each sibling fix later in the same PR**, replacing
-  the rule that fixed every sibling in one commit, and its report shows the red run before and the
-  green run after. `/implementation:implement` also checks data at the system's boundaries, syncs
-  the base before the first check, reverts a block that did not move the failing check (to the
-  span's start inside a planned breakage), lists design signals, names the default delivery
-  orders, and ends with the choices made and the open decisions; feature mode deletes dead code
-  first, names a domain structure before growing a conditional, and sweeps for a changed contract.
-  Five skill eval cases and three plugin eval cases cover them.
+- **`/implementation:implement-dispatch` pilots one row before a wave wider than about 4.** It dispatches that row alone and confirms plan usage remains before sending the rest, because a usage limit hit mid-wave stops every worker at once. Eval 17 covers the pilot and the withheld rows. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+- **Both worker agents can use Monitor.** `implementer` and `scoped-implementer` list `Monitor` in `tools`, and the push-early brief clause tells a worker to wait on CI with `run_in_background` or Monitor, never a foreground `sleep` or `until` loop or `--watch`; both agents carry a drift record pointing at the Monitor section of the tools reference. Evidence: foreground CI waits cost about 41, 21-25 and 19 agent-hours a week on three fleet lanes.
+
+### Changed
+
+- **Worktree briefs anchor on the literal path, one plain command per call.** Brief item 8 and the cwd gotcha now require `git -C <literal path>` and forbid `VAR=` prefixes, loops, `$( )` and `cd` into the shared clone; the open "or a re-`cd` per call" is gone, and `cd <literal worktree path> && <command>` remains only for a command with no path or directory flag that reads its configuration from the working directory. Those shapes leave the permission fast path, where a headless worker is blocked. Evidence: 1,933, 670 and 270 such blocks on three fleet lanes.
+
+## [0.23.1] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
+## [0.23.0] - 2026-10-06
+
+### Added
+
+- `/implementation:implement` gains a `replace` mode (rewrite, migrate, port): keep the old implementation runnable, run a differential harness over a recorded corpus, normalize nondeterminism, keep an intentional-differences ledger the user signs off, report counts, use shadow traffic only on read-only paths, then delete the old code. Evidence goes to `/verification:confirm`. A recorded baseline proves sameness, not correctness.
+- Refactor mode gains a characterization-test recipe: failing-assertion pins, scrubbing, a sabotage check, a separate commit, and what to do with each pin afterwards.
+- `/implementation:implement-dispatch` makes existing test files read-only to workers outside a test-authoring phase (a return that edits one fails verification), and recommends the `testing` plugin's `test_guards_enabled` option for unattended runs.
+- Opt-in holdout acceptance tests: written from the plan's acceptance criteria, stored outside every worker fence, and run by `phase-verifier` against the phase diff. Off by default; the hidden-tests trade-off is stated. The verifier runs them in an orchestrator-created throwaway worktree with runner configuration pinned from the holdout directory, treats test output as data, and reports any new or changed runner configuration or test setup file in a phase diff as a finding.
+- A new command-evidence reference ranks command results: a run the citing agent made, then a harness-recorded log, never a worker's prose. `phase-verifier` cites only a check it ran itself or a harness-recorded log, never prose. No hook ships; the reference names the precondition to probe first.
+
+## [0.22.1] - 2026-10-04
+
+### Fixed
+
+- **A self-provisioning worker confirms its branch base before the first edit.** Brief item 9 now tells a worker that provisions its own worktree to fetch and check that the new branch starts from the intended base, and to stop and report on a mismatch; both implementer agents carry the same duty when a brief omits it. Evidence: the `brief-confirms-worktree-base` eval case passed 2/3 with the plugin and 0/3 without, and one run where the skill fired still produced a brief with no base check (Pocock upstream sync row 9).
+
+## [0.22.0] - 2026-10-04
+
+### Added
+
+- **The implement-dispatch brief carries the phase's design excerpt ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Brief item 11 quotes the part of PLAN.md's `## Design` section the phase touches, or says `Design: none`, since a worker's worktree has no memory slice. Both implementer agents now treat that excerpt as binding like the acceptance criteria, and a phase that cannot honor it stops and reports.
 
 ## [0.21.3] - 2026-10-04
 

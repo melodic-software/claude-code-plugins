@@ -163,14 +163,23 @@ check "a run cut at its bound writes no verdict" '[[ "$(stub_calls)" == 1 && -z 
 # only Windows' timeout.exe may resolve): with neither timeout nor gtimeout on
 # PATH the judge still runs, and a hanging one is ended with its whole process
 # group.
-NOTO="$TMP/no-timeout-bin"
-mkdir -p "$NOTO"
+# Entries without either pass through; each one that holds one is replaced in
+# place by a dir of native symlinks to its other files (Git Bash's default
+# `ln -s` copies).
+NOTO="" n=0
 IFS=: read -ra dirs <<<"$PATH"
 for d in "${dirs[@]}"; do
+  if [[ ! -e "$d/timeout" && ! -e "$d/timeout.exe" && ! -e "$d/gtimeout" ]]; then
+    NOTO+="${NOTO:+:}$d"
+    continue
+  fi
+  m="$TMP/no-timeout-bin.$((n++))"
+  mkdir "$m"
   for x in "$d"/*; do
     b="${x##*/}"
-    [[ -x "$x" && ! -e "$NOTO/$b" && "$b" != timeout && "$b" != gtimeout ]] && ln -s "$x" "$NOTO/$b"
+    [[ -f "$x" && "$b" != timeout && "$b" != timeout.exe && "$b" != gtimeout ]] && MSYS=winsymlinks:nativestrict ln -s "$x" "$m/$b"
   done
+  NOTO+="${NOTO:+:}$m"
 done
 check "the test PATH has no timeout or gtimeout" '! PATH="$NOTO" command -v timeout && ! PATH="$NOTO" command -v gtimeout'
 stub_reset
@@ -305,6 +314,18 @@ payload s1 stop-hand "$Hd" | TEST_JUDGE_HANDOFF=1 bash "$HOOK"
 kill "$dying" 2>/dev/null
 check "a handoff job waits for the held lock, then judges the key" '[[ "$(stub_calls)" == 1 && -n "$(verdict_of s1 handoff)" ]]'
 wait
+
+# A write test-scan did not record, made by a subagent: the fallback record
+# keeps the payload's agent_id, so the judge's class differs from the
+# subagent's model too (sonnet main session, opus subagent: haiku).
+transcript s9 claude-sonnet-5
+subagent s9 a9 claude-opus-5-5
+stub_reset
+A9="$REPO/src/agentfallback.test.ts"
+js_file "$A9" agentfallback
+payload s9 wa9 "$A9" '{"agent_id": "a9"}' | bash "$HOOK"
+check "the fallback record keeps the subagent's agent_id: a haiku judge" \
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1 | sed -n "/^--model$/{n;p;}")" == haiku ]]'
 
 # TEST_JUDGE_ACTIVE=1 (inside a judge run) exits at once.
 stub_reset

@@ -30,9 +30,41 @@ finish() {
 }
 
 TMP="$(mktemp -d)"
-# Only the suite's own shell cleans up: a forked child that gets a signal before its
-# exec still holds this trap.
-trap '[[ "$BASHPID" == "$$" ]] && { jobs -p | xargs -r kill 2>/dev/null; rm -rf "$TMP"; }' EXIT
+# Every cleanup below kills and deletes by $TMP, so it must be a real directory
+# under the temp root before anything else runs.
+SYS_TMP="${TMPDIR:-/tmp}"
+SYS_TMP="${SYS_TMP%/}"
+if [[ -z "$TMP" || ! -d "$TMP" || "$TMP" != "$SYS_TMP"/?* ]]; then
+  echo "abort: mktemp gave '$TMP', not a directory under $SYS_TMP" >&2
+  exit 1
+fi
+# tmp_kill <signal> <text>: signal every process whose command line holds
+# <text>, a path under $TMP; anything else, or no $TMP, signals nothing. Git
+# Bash ships no pkill, but its /proc carries each command line.
+tmp_kill() {
+  [[ -n "$TMP" && -d "$TMP" && "$2" == "$TMP"/* ]] || return 0
+  if command -v pkill >/dev/null; then
+    pkill "-$1" -f "$2"
+    return 0
+  fi
+  local f p
+  while IFS= read -r f; do
+    p="${f#/proc/}"
+    p="${p%/cmdline}"
+    [[ "$p" == "$$" ]] || kill "-$1" "$p" 2>/dev/null
+  done < <(grep -lF -- "$2" /proc/[0-9]*/cmdline 2>/dev/null)
+  return 0
+}
+# Only the suite's own shell cleans up: a forked child that gets a signal before
+# its exec still holds this trap. It ends every process still naming $TMP, then
+# deletes under a time bound and names what it left rather than spinning on it.
+trap '[[ "$BASHPID" == "$$" && -n "$TMP" && -d "$TMP" ]] && {
+  jobs -p | xargs -r kill 2>/dev/null
+  tmp_kill TERM "$TMP/"
+  sleep 0.5
+  tmp_kill KILL "$TMP/"
+  timeout 60 rm -rf -- "$TMP" || echo "cleanup: $TMP was not removed within 60 s; left in place" >&2
+}' EXIT
 REPO="$TMP/repo"
 mkdir -p "$REPO/src" "$TMP/bin" "$TMP/stub"
 git -C "$REPO" init -q -b feat/judge-test
@@ -52,6 +84,9 @@ export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home
 export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
+# Every js_file test has the same body, so verdict reuse would answer most
+# judge runs these suites count; the reuse cases turn it back on.
+export TEST_JUDGE_REUSE=0
 DATA="$TMP/data"
 TDIR="$TMP/transcripts/-repo"
 mkdir -p "$TDIR"
@@ -65,7 +100,8 @@ PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 # else PASS. STUB_SLEEP delays the answer. STUB_MODE=denied answers UNKNOWN,
 # "the Read permission was denied", for a name holding "deny" and lists a
 # Read in the result's permission_denials; deniedtext gives the same answer
-# with no denial listed.
+# with no denial listed. For a FLAG, commentdiff proposes a diff that only adds
+# a // comment line, and realdiff one that changes the expected value.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 n="$(date +%s)-$$-$RANDOM"
@@ -100,6 +136,16 @@ while read -r _ ord range name; do
   badquote) first="this line is not in the file" ;;
   implquote) second="  ${STUB_IMPL_QUOTE:-}  " ;;
   otherfile) diff="$(printf 'other\n' | diff -u --label a/other.txt --label b/other.txt - <(printf 'changed\n'))" ;;
+  commentdiff | realdiff)
+    if [[ "$verdict" == FLAG ]]; then
+      if [[ "$STUB_MODE" == commentdiff ]]; then
+        awk -v n="$start" '{ print } NR == n { print "  // the expected value is 3" }' "$file" >"$STUB_DIR/mod"
+      else
+        awk -v n="$((start + 1))" 'NR == n { sub(/toBe\(3\)/, "toBe(1 + 2)") } { print }' "$file" >"$STUB_DIR/mod"
+      fi
+      diff="$(diff -u --label "a/$rel" --label "b/$rel" "$file" "$STUB_DIR/mod")"
+    fi
+    ;;
   denied | deniedtext)
     if [[ "$name" == *deny* ]]; then
       verdict=UNKNOWN first=""
@@ -107,14 +153,14 @@ while read -r _ ord range name; do
     fi
     ;;
   esac
-  verdicts+=("$(jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
+  verdicts+=("$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
     --arg why "$why" '{name: $n, ordinal: $o, verdict: $v, evidence: ([$q] + if $q2 == "" then [] else [$q2] end), source: "stub", diff: $d}
       + if $why == "" then {} else {reason: $why} end')")
 done < <(grep '^block ' <<<"$prompt")
 result="$(printf '%s\n' "${verdicts[@]}" | jq -cs '{verdicts: .}')"
 denials='[]'
 [[ "${STUB_MODE:-ok}" == denied ]] &&
-  denials="$(jq -cn --arg f "$file" '[{tool_name: "Read", tool_use_id: "toolu_stub", tool_input: {file_path: $f}}]')"
+  denials="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$file" '[{tool_name: "Read", tool_use_id: "toolu_stub", tool_input: {file_path: $f}}]')"
 jq -cn --arg r "Here you go: $result" --argjson d "$denials" \
   '{type: "result", subtype: "success", is_error: false, result: $r, permission_denials: $d}'
 EOF
@@ -166,7 +212,7 @@ subagent() {
 record() {
   local d="$DATA/sessions/$PKEY/$1"
   mkdir -p "$d"
-  jq -n --arg f "$3" --arg r "$REPO" --argjson b "$4" --arg a "${5:-}" --argjson l "${6:-null}" \
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg f "$3" --arg r "$REPO" --argjson b "$4" --arg a "${5:-}" --argjson l "${6:-null}" \
     --argjson ok "${7:-0}" --arg w "${8:-$(date -u +%FT%TZ)}" --argjson c "${CREATE:-false}" \
     '{file: $f, repo: $r, agent_id: (if $a == "" then null else $a end), create: $c, blocks: $b,
       lines: $l, ok_markers: $ok, written_at: $w}' >"$d/$2.json"
@@ -182,8 +228,11 @@ blocks() {
 }
 
 # payload <sid> <id> <file> [extra jq object]: a hook payload.
+# Git Bash rewrites a POSIX-looking argument to Windows form for a native jq, so
+# the paths are passed unconverted: the hooks key a project by the same
+# (cwd, transcript directory) spelling PKEY hashed.
 payload() {
-  jq -cn --arg s "$1" --arg u "$2" --arg f "$3" --arg t "$TDIR/$1.jsonl" --arg c "$REPO" --argjson x "${4:-{\}}" \
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg s "$1" --arg u "$2" --arg f "$3" --arg t "$TDIR/$1.jsonl" --arg c "$REPO" --argjson x "${4:-{\}}" \
     '{hook_event_name: "PostToolUse", tool_name: "Edit", session_id: $s, tool_use_id: $u, transcript_path: $t,
       cwd: $c, tool_input: {file_path: $f}, stop_hook_active: false} + $x'
 }

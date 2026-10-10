@@ -496,7 +496,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "7eedd384182f31c5becd3904e692ca0c30b7a70251a5100164c3a0de5ab336cc"
+  "e8074defcd9b941ce3a0abf509a9c2ae53fae5ae7b1ededccd5ed9c113cb1c2e"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -522,7 +522,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "c0b5fd911d385f2a6661e0d48575fb73fb17c45bb1f653fe1b44f0cab8a398df"
+  "895d860e306dc3b6a572fd85a099cc87b608d0e409aed7139f5662fb74ff4591"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -575,7 +575,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "eb0cfd3327f76313a4c9327be630acaf53dbbd0f82ab503f46228f48d983171e"
+  "ddbd75a97ad5e2bb4a97215dd7d52b18bb9775d9c26964d7e5a22cdd17287cbb"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
@@ -588,11 +588,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The `scope` row no longer carries a tracker link; the `lock` row is byte-identical.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
+# The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "7ff2e6d7f618fe5a4c8569761db3c4c6243b730e7648a95c611251054c328de5"
+  "d43f134f1ac8ba9d15a4f7e67f15ff474272ddbb27c91ac1d1971efffe281224"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -630,7 +631,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "a018902c52d8e8b35339925b39af5f3e5477d77eb8fd28eb95f518d7b1fae167"
+  "1ab3a273a066b409aa02325bc3c035045dc6cb3d159906444228e8bb68389bfd"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -642,7 +643,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "a39585b1e8142bec6752aca82d47e4e2b5e24a43dca278e8e7115c016de07483"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
+  "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -650,12 +651,12 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "08a4752216efdc690cca29b0c77808b9d994b8599dc3f539eff7afda83fde8a8"
+  "f447baca75915f8f0b0f98a7700c9bb9e5c82b4b75d45403192ca33fd2022d79"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
   "### Step 5. Human confirmation" \
-  "8fc756831ac1789cb62df067b1f35b257f9fb55ddddc67b641ee160fa6006492"
+  "58e23f0911f4ee7a3cc0ff33cf3ccadf7a539cc2b680e1dc7f1344fe0fb40240"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \
@@ -671,7 +672,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "53b25a698a2dab18f7393e5ebf5b2e830ff323d2be6a637a0f3eaedc5c47498d"
+  "2497fa0d34c9ea62a25b788c6bfd35970e9974b5b2aa23ca6c2a32073476054e"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

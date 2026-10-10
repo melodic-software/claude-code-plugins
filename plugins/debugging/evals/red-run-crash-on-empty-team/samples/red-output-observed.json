@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"platform: 7.0 h avg\\nTraceback (most recent call last):\\n...\\nZeroDivisionError: division by zero\"}",
+      "why": "the traceback in the trace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"platform: 7.0 h avg\\ndesign: 0.0 h avg\"}",
+      "why": "only the fixed output"
+    }
+  ]
+}

@@ -65,7 +65,7 @@ hook::ctx_reset
 
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
+hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -88,8 +88,8 @@ esac
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
+REPO_ROOT="" REPO_ROOT_RESOLVED=1
+hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 PLUGINS_DIR="$REPO_ROOT/plugins"
 
 # PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
@@ -147,6 +147,8 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # contrasting the two shapes). `Output` for Edit is `FileEditOutput`, whose
 # `structuredPatch` is `Array<{oldStart, oldLines, newStart, newLines, lines:
 # string[]}>` (<https://code.claude.com/docs/en/agent-sdk/typescript>, "Edit").
+# Recheck when the hooks page changes what `tool_response` carries for
+# PostToolUse, or the SDK page changes `FileEditOutput.structuredPatch`.
 #
 # OBSERVED, not merely documented: an independent reviewer captured a live
 # PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
@@ -199,9 +201,12 @@ esac
 # The manifest also decides WHERE that plugin's skills live. Its `skills` key
 # holds a path or an array of paths, each relative to the plugin root, and those
 # ADD to the conventional `skills/` directory rather than replacing it — verified
-# against the Plugins reference (<https://code.claude.com/docs/en/plugins-reference>,
-# "Path behavior rules", fetched 2026-08-10). Collect them per plugin so a skill
-# loaded from a declared location resolves like any other.
+# against the plugin manifest reference
+# (<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>,
+# fetched 2026-10-07). Collect them per plugin so a skill
+# loaded from a declared location resolves like any other. Recheck when the
+# manifest reference stops saying declared `skills` paths add to the default
+# `skills/` directory.
 #
 # One documented exception is NOT modeled: for a marketplace entry whose `source`
 # resolves to the marketplace root, declared subdirectories REPLACE the default
@@ -358,15 +363,18 @@ skill_frontmatter_name() {
 # plus every path its manifest declares, plus the plugin root when the manifest
 # declares nothing and the root itself is the skill.
 #
-# All three shapes come from the Plugins reference
-# (<https://code.claude.com/docs/en/plugins-reference>, fetched 2026-08-10):
+# All three shapes come from the plugin manifest reference
+# (<https://code.claude.com/docs/en/plugins/manifest-reference>, "Path rules", "How each key combines with its default
+# location" and "Standard layout", fetched 2026-10-07):
 # declared paths are relative to the plugin root and start with `./` (the `skills`
 # key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
 # default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
 # subdirectory and no `skills` key auto-loads as a single-skill plugin. That last
 # condition is honored as written rather than widened — a root SKILL.md sitting
 # beside a populated `skills/` is not loaded, and accepting it would suppress the
-# advisory for a command Claude Code does not actually offer.
+# advisory for a command Claude Code does not actually offer. Recheck when the
+# manifest reference changes the single-skill auto-load condition or how
+# declared paths combine with the default location.
 #
 # Call as: skill_roots <plugin-dir> <declared-paths> -> $roots
 # shellcheck disable=SC2154  # roots is the caller's frame, per the call contract
@@ -885,8 +893,12 @@ emit_tel() {
 }
 
 if ((${#UNRESOLVED[@]} > 0)); then
-  hook::ctx_append "skill-reference-verify: ${#UNRESOLVED[@]} skill reference(s) do not resolve in $FILE"
-  hook::ctx_append "This repo owns each plugin named below, so it can say the skill is not there:"
+  # The file as the model names it: repo-relative when it sits under the root
+  # spelled the same way, else as given. Outside a repo the root is the file's
+  # own directory, and a bare name would name a different file.
+  show_file="$FILE"
+  ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  lines=""
   # Name the directories the search ACTUALLY covered, from the same skill_roots
   # the resolution used. Naming only `skills/` understates the search for a plugin
   # whose manifest declares paths, and the advisory ends by telling the reader to
@@ -902,12 +914,14 @@ if ((${#UNRESOLVED[@]} > 0)); then
     for root in "${roots[@]}"; do
       searched+="${searched:+, }plugins/${root#"$PLUGINS_DIR/"}/"
     done
-    hook::ctx_append "  UNRESOLVED_SKILL: $r (no such skill under $searched)"
+    lines+="$r (no such skill under $searched)"$'\n'
   done
-  hook::ctx_append ""
-  hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."
-  hook::ctx_append "Confirm against the tree. A reference retained deliberately — documenting"
-  hook::ctx_append "a rename, or a capability another marketplace ships — is correct as written."
+  srv_ctx=""
+  hook::findings_to srv_ctx \
+    "skill-reference-verify: skill reference(s) in $show_file do not resolve; this repo owns the plugin:" \
+    "$lines" --max 10
+  hook::ctx_append "$srv_ctx"
+  hook::ctx_append "A reference kept on purpose (a rename record, another marketplace's skill) is correct as written."
   hook::ctx_flush PostToolUse
 fi
 

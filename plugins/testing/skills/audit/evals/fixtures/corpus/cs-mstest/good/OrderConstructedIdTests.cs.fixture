@@ -1,0 +1,15 @@
+// good-for: rule-throw-only-oracle
+// The constructed order is checked for the id its constructor sets.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderConstructedIdTests
+{
+    [TestMethod]
+    public void Constructor_KeepsTheId()
+    {
+        var order = new Order(42);
+        Assert.IsNotNull(order);
+        Assert.AreEqual(42, order.Id);
+    }
+}

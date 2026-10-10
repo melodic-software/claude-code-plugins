@@ -26,14 +26,15 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:wayfind"
+        "skill:wayfind",
+        "skill:draft-goal-condition"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, /planning:wayfind cannot read the container label from .work-item-tracker.json and falls back to work-map.",
+      "degrade": "Without jq, /planning:wayfind cannot read the container label from .work-item-tracker.json and falls back to work-map, and fetch-docs.sh exits before reading anything, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
       "install": {
         "docs": "https://jqlang.org/download/",
         "brew": "jq",
@@ -49,7 +50,8 @@
       "for": [
         "skill:interview",
         "skill:plan",
-        "skill:brainstorm"
+        "skill:brainstorm",
+        "skill:draft-goal-condition"
       ],
       "detect": {
         "any": [
@@ -57,7 +59,7 @@
           "python"
         ]
       },
-      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline; the plan and brainstorm views cannot reach the session and close the loop with a copied reply.",
+      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline; the plan and brainstorm views cannot reach the session and close the loop with a copied reply. A docs page that serves only HTML cannot be converted and is recorded unread with reason no-python.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -78,7 +80,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the planning surface and the plan and brainstorm view watchers do not start; the questions are answered in chat and the views close the loop with a copied reply.",
+      "degrade": "Without curl, the planning surface and the plan and brainstorm view watchers do not start; the questions are answered in chat and the views close the loop with a copied reply. fetch-docs.sh records a docs page unread with reason curl-missing, so /planning:draft-goal-condition reads the /goal page with WebFetch instead.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",

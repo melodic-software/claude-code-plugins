@@ -36,8 +36,9 @@ the agent could carry out itself.
   - https-only URL opening, with the full URL printed before dispatch.
   - Fail-closed prompts: a closed terminal aborts rather than falling through.
   - Key-name validation.
-  - Single-quoted, escaped `.env` values, with `chmod 600` after every write, an is-it-gitignored
-    check, and trap-cleaned atomic temp-file rewrites.
+  - Single-quoted, escaped `.env` values, an is-it-gitignored check, and trap-cleaned atomic
+    rewrites from a `0600` temp file. A symlinked `.env` is written through to its target, which
+    keeps its own mode.
   - GitHub writes that resolve and echo the target repo once, require explicit confirmation before
     the first write, pass `--repo` on every call, pipe values over stdin rather than argv, refuse
     empty values, and surface `gh` errors into the closing summary.

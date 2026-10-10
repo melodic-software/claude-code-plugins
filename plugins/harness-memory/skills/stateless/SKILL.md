@@ -83,8 +83,8 @@ on one being substituted in a file read through the Read tool, or on the Bash to
 carrying `CLAUDE_PLUGIN_ROOT`.
 
 - **Pointer**: for where each `${…}` reference resolves, see
-  [Where each variable resolves](https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves).
-- **As of**: 2026-09-27
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+- **As of**: 2026-10-07
 - **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Boundary, the built-in `/memory` command

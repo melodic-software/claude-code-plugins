@@ -54,7 +54,7 @@ Review against whichever architectural patterns the code actually uses. Apply th
 - **Dependency direction**: inner layers must not reference outer layers; follow the project's stated layer rules, or infer the intended direction from the existing dependency graph
 - **Boundary integrity**: modules/packages/services expose contracts, not internals; external references by ID or contract only
 - **Abstraction quality**: third-party libraries wrapped behind project-owned interfaces where that is the established idiom; no direct construction of infrastructure types inside domain/application code
-- **Pattern compliance**: whatever patterns the code claims to use (DDD, clean/hexagonal architecture, vertical slices, CQRS, MVC), verify they are applied consistently
+- **Pattern compliance**: whatever patterns the code claims to use (DDD, clean/hexagonal architecture, vertical slices, CQRS, MVC), verify they are applied consistently, match the pattern's canonical definition, and serve the principle the pattern exists for. A shape copied from a popular template that defeats that principle is a violation however common it is ([recommendation basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar))
 
 **Check when the codebase uses them:**
 

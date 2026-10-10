@@ -65,7 +65,9 @@ research-gated:
   truncates); every reviewer comment gets explore → research → classify →
   react → reply → fix → verify-on-GitHub treatment.
 - **merge**. 6-Gate readiness re-verification, squash merge, worktree
-  reuse/cleanup, post-merge CI health check. Never auto-merges.
+  reuse/cleanup, post-merge CI health check. Merges or enqueues without
+  asking only once the AI review checks pass on the pinned head commit; otherwise
+  merges on approval. Never arms auto-merge.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
 
@@ -183,19 +185,23 @@ invocation, or a call following a `cd`/`pushd` on the same command line, which
 moves the directory the workflow scan and any relative `--body-file` resolved
 against. Set `pr_body_linkage_gate_enabled` to `false` to turn it off.
 
-The registration carries an `if` filter, `Bash(*gh *)`, the same shape as the
-`Bash(*worktree*)` filter on the worktree gates, so the hook process is spawned only
-for a command line that carries `gh` followed by a space somewhere in its text (Claude Code checks each
+The registration is three entries, each with an `if` filter: `Bash(*pr *create*)`,
+`Bash(*pr *new*)` and `Bash(*pr *edit*)`. The hook process is spawned only for a command
+line whose text carries `pr` and a space, followed later by one of those words (Claude Code checks each
 subcommand of a compound command, and runs the hook regardless when it cannot tell what
 a command expands to). The leading wildcard is deliberate: the `if` field matches the
-command name, so the narrower `Bash(gh *)` never launched the gate for a wrapped call
+command name, so a narrower `Bash(gh pr create*)` never launched the gate for a wrapped call
 such as `env GH_TOKEN=x gh pr create`, `sudo gh pr create` or
-`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The wider filter is a
-superset of the hook's own first check (a `gh` word anywhere on the line), so nothing
-it would have judged is skipped; a plain `git status` still does not pay for it, and a
-non-`gh` line that happens to contain `gh` followed by a space (`echo high tide`) pays one bash start
-before the hook's own jq-free regex pre-filter dismisses it. What the filter still
-cannot see is a `gh` that only appears after a `$()`, a backtick or a `$VAR` expands;
+`bash -c "cd x && gh pr create"`, whose first word is not `gh`. The phrase form also
+reaches `gh -R o/r pr create` and the `gh pr new` alias. The space-then-wildcard between
+the words is deliberate too: `gh pr  create` (two spaces) still reaches the gate, and the
+space after `pr` keeps a bare `*` from matching `pr` and `create` inside unrelated words
+such as `cp report.txt prod_create/`; the `if` glob has no word boundaries. A tab or a
+line continuation right after `pr` does not match, so that spelling skips the hook, though
+the gate's tokenizer would accept it. Every other `gh` call
+(`gh pr view`, `gh run list`) no longer starts the gate, and a plain `git status` still
+does not pay for it. What the filter cannot see is a `pr create`, `pr new` or `pr edit`
+that only appears after a `$()`, a backtick or a `$VAR` expands;
 Claude Code spawns the hook regardless for such a command, so the gate still judges
 it, and the dotfiles fan-out harness reports those spawns as `RAN(best-effort)` on its
 `$()` sample.
@@ -263,7 +269,9 @@ must not assign both to whichever hook runs first. `echo git worktree
 add` is not a git call. `worktree-create.sh` already locks the trees it
 creates; this hook is the route for the adds that bypass the helper.
 Existing reasons are never rewritten. The lock is a claim other agents
-can read; it does not block concurrent writes (git-worktree(1)).
+can read; it does not block concurrent writes (git-worktree(1)). The hook
+tells the agent only when the target already carries another session's
+live claim; a successful claim adds nothing to the context.
 
 The worktree scripts (`worktree-claim.sh`, `landed-work.sh`, `worktree-facts.sh list`)
 require git 2.36.0 or newer for `git worktree list --porcelain -z`; on older git they
@@ -278,11 +286,13 @@ with a merged or landed branch before offering to remove a locked worktree. Set 
 off; the script remains the documented gate.
 
 This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
-with the `if` filter `Bash(*worktree*)`: the hook process is spawned only for a command
-whose text carries `worktree`, which is also each hook's own first check, so every
-`git worktree add` spelling they judged before (including `git -C <dir> worktree add`
-and wrapped forms) still reaches them, and every other Bash call no longer pays for
-two hook processes. The same best-effort caveat applies: a command containing `$()`, a
+with the `if` filter `Bash(*worktree *add*)`: the hook process is spawned only for a command
+whose text carries `worktree` and a space, followed later by `add`, so every `git worktree add`
+spelling they judged before (including `git -C <dir> worktree add`, wrapped forms, and extra
+spaces between the words) still reaches them, except a tab or a line continuation right after
+`worktree`, which skips the hook. Every other Bash call, including
+`git worktree list` and a path that merely contains `worktree`, no longer pays for two hook
+processes. The same best-effort caveat applies: a command containing `$()`, a
 backtick or `$VAR` spawns both processes whatever its text, since the filter cannot see
 what the substitution expands to.
 
@@ -341,7 +351,8 @@ fails when a gate feeds its payload to a reader by here-string.
 
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
   Code's native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
+  says the native binary ships or uses Node). Without `node` the hooks do
   not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
   whether `node` resolves.
 
@@ -613,7 +624,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
-- [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
 
 <!-- END GENERATED: plugin options -->
 
