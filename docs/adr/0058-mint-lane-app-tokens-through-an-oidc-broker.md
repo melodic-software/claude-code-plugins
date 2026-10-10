@@ -49,7 +49,9 @@ No workflow holds the App key. A write activity gets its token from a broker:
    permissions, lane, activity and repository equal what the job resolved (`effect-mismatch`).
 5. A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token with
    `DELETE /installation/token`, then calls `GET /installation/repositories` with it, and fails red
-   unless they return 204 and then 401.
+   unless they return 204 and then 401. It is a backstop for an honest activity that did not clean
+   up, not a control against a hostile one: the activity holds the token and can write the
+   runner's files.
 6. `pr-run-activity-read.yml` is unchanged: no key, no `id-token`, no broker call. Its guarantee is
    structural, so it stays.
 

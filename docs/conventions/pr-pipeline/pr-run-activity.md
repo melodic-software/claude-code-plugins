@@ -143,7 +143,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
     `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
-    unless they return 204 and 401.
+    unless they return 204 and 401. It is a backstop for an honest activity that did not clean
+    up, not a control against a hostile one: the activity holds the token and can write the
+    runner's files.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
