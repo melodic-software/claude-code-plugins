@@ -272,7 +272,7 @@ The script never rewrites the baseline itself.
 - **Pointer**: for the levels, per-model defaults and level guidance the check reads, see
   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-02
+- **As of**: 2026-10-10
 - **Recheck trigger**: the check reports `table status=unparsed`, or either section is renamed or
   moved.
 
