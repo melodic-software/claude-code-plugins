@@ -10,7 +10,7 @@ Acquisition tries without cookies first; on *"Sign in to confirm you're not a bo
 
 Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk.
 
-A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run; one observed throttle cleared within 13 minutes.
+A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run.
 
 ## Temp-session expiry
 
