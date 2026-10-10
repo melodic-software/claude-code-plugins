@@ -209,7 +209,7 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 
 **Grouping rules** and **dependency ordering** (root config → agent infra → scripts → shared libs → app code → cross-cutting tests → polyglot services): full priority lists in [context/reference.md](context/reference.md) "Grouping & dependency order (Phase 4)".
 
-### Phase 5: Create tasks
+### Phase 5: Track groups
 
 Track one entry per group, each with:
 
