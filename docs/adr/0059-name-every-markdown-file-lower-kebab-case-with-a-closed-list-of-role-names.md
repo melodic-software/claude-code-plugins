@@ -57,8 +57,9 @@ surfaces were repointed and each owning plugin took a patch release; ADR 0034's 
 historical record (released changelog entries unchanged).
 
 **Enforcement stays one checker.** `scripts/check-docs-naming.sh` walks `git ls-files -- docs/
-'*.md'`, applies the rule, the list, and the exclusions, and fails any two paths in that set that
-differ only by case. Its `docs/` half still matches the gate `/docs-naming:generate-file-name-gate`
+':(icase)*.md'` (the extension in any case), applies the rule, the list, and the exclusions, and
+fails any two paths in that set that differ only by case, folded with Python's Unicode lowercase
+so a non-ASCII pair collides as it would on a case-insensitive filesystem. Its `docs/` half still matches the gate `/docs-naming:generate-file-name-gate`
 emits from `.claude/docs-naming.json`, whose `exempt_basenames` now carries the same list; the
 co-located test compares the two. The markdown scope outside `docs/` lives only in the checker,
 because a docs-naming root takes every extension and so cannot express "markdown only".

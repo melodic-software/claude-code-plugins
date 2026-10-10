@@ -382,4 +382,14 @@ run_case "docs/x/fixtures/NOTES.md fails" 1 docs/x/fixtures/NOTES.md
 run_case "plugins/p/Foo.md beside plugins/p/foo.md fails" 1 plugins/p/Foo.md plugins/p/foo.md
 run_case "collision inside a fixture tree fails" 1 p/fixtures/A.md p/fixtures/a.md
 
+# 16. The .md extension matches in any case: an uppercase extension is in
+#     scope, and a pair differing only in the extension's case collides.
+run_case "plugins/p/NOTES.MD fails" 1 plugins/p/NOTES.MD
+run_case "p/fixtures/foo.MD beside p/fixtures/foo.md fails" 1 p/fixtures/foo.MD p/fixtures/foo.md
+
+# 17. A collision on a non-ASCII letter that differs only by case (UTF-8
+#     C3 84 / C3 A4, A-umlaut) fails: the fold is Unicode, not ASCII-only.
+run_case "p/fixtures/Ä.md beside p/fixtures/ä.md fails" 1 \
+  "p/fixtures/"$'\303\204'".md" "p/fixtures/"$'\303\244'".md"
+
 test_harness::report

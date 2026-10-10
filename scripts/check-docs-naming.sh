@@ -47,7 +47,7 @@
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one `path: reason` finding per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any offender, 2 environment or usage
-# (git missing, repo root unresolved, bad argument).
+# (git or python 3 missing, repo root unresolved, bad argument).
 set -euo pipefail
 
 # Parameter expansion, not dirname: with coreutils off PATH, bash 5.3 fails
@@ -74,6 +74,25 @@ if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
   exit 2
 fi
 
+# The case-collision pass folds with Python (see that pass). python3 first;
+# `python` only when it is Python 3, since on Windows either name can be a
+# zero-length store alias.
+PYTHON=""
+for candidate in python3 python; do
+  if command -v "$candidate" >/dev/null 2>&1 &&
+    "$candidate" -c 'import sys; sys.exit(sys.version_info[0] != 3)' >/dev/null 2>&1; then
+    PYTHON="$candidate"
+    break
+  fi
+done
+if [[ -z "$PYTHON" ]]; then
+  printf 'check-docs-naming: python 3 is required to fold paths for the case-collision check\n' >&2
+  exit 2
+fi
+FOLD_PY='import sys
+data = sys.stdin.buffer.read().decode("utf-8", "surrogateescape")
+sys.stdout.buffer.write(data.lower().encode("utf-8", "surrogateescape"))'
+
 NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$'
 # Space-delimited so one pattern match tests membership on stock macOS Bash 3.2,
 # which has no associative arrays. Keep in step with exempt_basenames in
@@ -81,13 +100,14 @@ NAME_RE='^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$'
 EXEMPT_NAMES=' README.md CHANGELOG.md INDEX.md LICENSE.md AGENTS.md CLAUDE.md SKILL.md CONTRIBUTING.md SECURITY.md REVIEW.md CODE_OF_CONDUCT.md CONTRACT.md STYLE.md TODO.md PLAN.md '
 offenders=()
 
-# Tracked paths in scope, read once. NUL-delimited, so a path git would
+# Tracked paths in scope, read once. The `icase` pathspec magic matches the
+# extension in any case, so `NOTES.MD` is in scope too. NUL-delimited, so a path git would
 # otherwise C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw
 # bytes. The basename pass and the case-collision pass both walk this array.
 paths=()
 while IFS= read -r -d '' path; do
   paths+=("$path")
-done < <(git ls-files -z -- docs/ '*.md')
+done < <(git ls-files -z -- docs/ ':(icase)*.md')
 
 # One pass for the basename rule. Exemptions are checked in the order the
 # header lists them; the regex only sees what nothing exempted.
@@ -115,10 +135,12 @@ done
 # excluded trees included: `docs/README.md` beside `docs/readme.md` still
 # collides). Lower-casing each path and looking for duplicates finds every
 # pair; each member of a colliding group is reported against the group's
-# folded form. The fold goes through one `tr` over the NUL-delimited list,
-# never `${path,,}`: that expansion is Bash 4+, and the checkouts this rule
-# protects include stock macOS Bash 3.2. The folded list stays index-aligned
-# with `paths` because it is read back in the order it was written.
+# folded form. The fold is Python's Unicode `str.lower()` over the
+# NUL-delimited list, so `Ä.md` beside `ä.md` collides as it does on NTFS and
+# APFS; `tr` folds ASCII only, and `${path,,}` is Bash 4+ where stock macOS
+# ships 3.2. Bytes that are not UTF-8 pass through unchanged
+# (surrogateescape). The folded list stays index-aligned with `paths` because
+# it is read back in the order it was written.
 #
 # `sort` and `uniq -d` see one `printf %q` record per folded path: a single
 # line, so an embedded newline stays inside its record, and the bytes compared
@@ -128,7 +150,7 @@ folded=()
 if ((${#paths[@]} > 0)); then
   while IFS= read -r -d '' one; do
     folded+=("$one")
-  done < <(printf '%s\0' "${paths[@]}" | tr '[:upper:]' '[:lower:]')
+  done < <(printf '%s\0' "${paths[@]}" | "$PYTHON" -c "$FOLD_PY")
 fi
 
 dups=""
