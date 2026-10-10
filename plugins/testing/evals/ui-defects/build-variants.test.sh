@@ -32,13 +32,15 @@ if grep -rEl 'https?://' "$FIXTURE/site" "$FIXTURE/variants" "$TMP/a"; then
   fail "external URL under site/ or variants/"
 fi
 
-mkdir -p "$TMP/neg"
+build "$TMP/neg"
 cp -R "$FIXTURE/site" "$TMP/neg/site"
-printf '%s\n' '{"base": "site/index.html", "defects": [{"id": "X", "name": "x", "patches": [{"find": "not in the page", "replace": ""}]}]}' >"$TMP/neg/defects.json"
-if "$PYTHON" "$FIXTURE/build-variants.py" --defects "$TMP/neg/defects.json" --out "$TMP/neg/variants" --map "$TMP/neg/map.json" 2>"$TMP/neg/err"; then
+printf '%s\n' '{"base": "site/index.html", "defects": [{"id": "A", "name": "a", "patches": []}, {"id": "X", "name": "x", "patches": [{"find": "not in the page", "replace": ""}]}]}' >"$TMP/neg/defects.json"
+if "$PYTHON" "$FIXTURE/build-variants.py" --defects "$TMP/neg/defects.json" --out "$TMP/neg/variants" --map "$TMP/neg/variant-map.json" 2>"$TMP/neg/err"; then
   fail "builder accepted a patch whose anchor is absent"
 fi
 grep -q 'matched 0 times' "$TMP/neg/err" || fail "unexpected builder error: $(cat "$TMP/neg/err")"
+diff -r "$TMP/a/variants" "$TMP/neg/variants" >/dev/null || fail "a failed build changed the previous variants"
+cmp -s "$TMP/a/variant-map.json" "$TMP/neg/variant-map.json" || fail "a failed build changed the previous map"
 
 "$PYTHON" - "$FIXTURE" "$TMP/a" "$TMP/b" <<'PY'
 import hashlib

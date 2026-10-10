@@ -52,21 +52,34 @@ def build(defects_path: Path, out: Path, map_path: Path) -> dict:
     base = base_path.read_text(encoding="utf-8")
     assets = sorted(p for p in site.rglob("*") if p.is_file() and p != base_path)
 
-    clear_output(out)
+    # Build into a staging sibling and swap it in only after every variant
+    # succeeds, so a failed build leaves the previous variants and map intact.
+    staging = out.with_name(out.name + ".tmp")
+    shutil.rmtree(staging, ignore_errors=True)
     mapping = {}
-    for entry in spec["defects"]:
-        page = apply_patches(base, entry).encode("utf-8")
-        variant_id = hashlib.sha256(page).hexdigest()[:12]
-        if variant_id in mapping:
-            raise SystemExit(f"{entry['id']}: same page as {mapping[variant_id]['id']}")
-        target = out / variant_id
-        target.mkdir(parents=True)
-        (target / "index.html").write_bytes(page)
-        for asset in assets:
-            dest = target / asset.relative_to(site)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes(asset.read_bytes())
-        mapping[variant_id] = {"id": entry["id"], "name": entry["name"]}
+    try:
+        for entry in spec["defects"]:
+            page = apply_patches(base, entry).encode("utf-8")
+            variant_id = hashlib.sha256(page).hexdigest()[:12]
+            if variant_id in mapping:
+                raise SystemExit(
+                    f"{entry['id']}: same page as {mapping[variant_id]['id']}"
+                )
+            target = staging / variant_id
+            target.mkdir(parents=True)
+            (target / "index.html").write_bytes(page)
+            for asset in assets:
+                dest = target / asset.relative_to(site)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(asset.read_bytes())
+            mapping[variant_id] = {"id": entry["id"], "name": entry["name"]}
+        clear_output(out)
+        if out.exists():
+            out.rmdir()
+        staging.mkdir(parents=True, exist_ok=True)
+        staging.rename(out)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
     map_path.write_bytes(
         (json.dumps(mapping, indent=2, sort_keys=True) + "\n").encode("utf-8")

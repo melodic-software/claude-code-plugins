@@ -5,13 +5,14 @@
 // With no ids it re-renders every variant directory already under crops/. Build the variants first
 // (build-variants.py). playwright-core comes from --playwright-core DIR, else from the playwright-cli
 // install on PATH, so the render reuses that install's Chromium. Only file: requests load.
-import { existsSync, mkdirSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ui-defects');
 const CROPS = join(FIXTURE, 'crops');
+const STAGE = join(FIXTURE, 'crops.tmp');
 
 const args = process.argv.slice(2);
 const at = args.indexOf('--playwright-core');
@@ -23,16 +24,18 @@ const ids = args.length
       .map((d) => d.name);
 
 function playwrightCore() {
-  const roots = [];
-  if (coreDir) roots.push(join(resolve(coreDir), 'x.js'));
+  // createRequire needs only a path's directory, so the synthetic --playwright-core path is not realpath'd.
+  const roots = coreDir ? [join(resolve(coreDir), 'x.js')] : [];
   for (const d of (process.env.PATH || '').split(delimiter).filter(Boolean))
     for (const e of process.platform === 'win32' ? ['.cmd', '.exe', ''] : [''])
       if (existsSync(join(d, `playwright-cli${e}`)))
-        for (const up of [['..'], ['..', 'lib', 'node_modules'], ['node_modules']])
-          roots.push(join(dirname(join(d, `playwright-cli${e}`)), ...up, '@playwright', 'cli', 'package.json'));
+        for (const up of [['..'], ['..', 'lib', 'node_modules'], ['node_modules']]) {
+          const r = join(dirname(join(d, `playwright-cli${e}`)), ...up, '@playwright', 'cli', 'package.json');
+          if (existsSync(r)) roots.push(realpathSync(r));
+        }
   for (const r of roots) {
     try {
-      const m = createRequire(realpathSync(r))('playwright-core');
+      const m = createRequire(r)('playwright-core');
       if (m?.chromium) return m;
     } catch {
       /* next */
@@ -44,10 +47,13 @@ function playwrightCore() {
 
 const { chromium } = playwrightCore();
 // Without these, a frame redrawn after relayout varies by 1/255 at rounded-corner edges between runs.
+// Render into STAGE and move the variants into crops/ only after every render succeeds, so an
+// interrupted run leaves the previous crops whole.
+rmSync(STAGE, { recursive: true, force: true });
 const browser = await chromium.launch({ args: ['--disable-partial-raster', '--disable-gpu-rasterization'] });
 for (const id of ids) {
   const url = pathToFileURL(join(FIXTURE, 'variants', id, 'index.html')).href;
-  mkdirSync(join(CROPS, id), { recursive: true });
+  mkdirSync(join(STAGE, id), { recursive: true });
   for (const width of [375, 1280]) {
     const context = await browser.newContext({ viewport: { width, height: 800 }, deviceScaleFactor: 1 });
     await context.route('**/*', (r) => (r.request().url().startsWith('file:') ? r.continue() : r.abort()));
@@ -60,7 +66,7 @@ for (const id of ids) {
     const shot = async (name) => {
       const height = await page.evaluate(() => document.documentElement.scrollHeight);
       await page.screenshot({
-        path: join(CROPS, id, name),
+        path: join(STAGE, id, name),
         fullPage: true,
         clip: { x: 0, y: 0, width, height },
         animations: 'disabled',
@@ -74,3 +80,8 @@ for (const id of ids) {
   }
 }
 await browser.close();
+for (const id of ids) {
+  rmSync(join(CROPS, id), { recursive: true, force: true });
+  renameSync(join(STAGE, id), join(CROPS, id));
+}
+rmSync(STAGE, { recursive: true, force: true });
