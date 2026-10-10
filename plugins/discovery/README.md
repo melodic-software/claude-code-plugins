@@ -54,8 +54,8 @@ section it needs. `INTENT.md` is private to its skill. It is deliberately not a
 lifecycle-protocol artifact kind.
 
 Those skills document an **inline escape hatch** and the conditions under which it
-is correct. Tight turn-by-turn iteration, cost on a lookup too small to justify
-the dispatch, or an invoking context that is itself a subagent. Running inline
+is correct: tight turn-by-turn iteration, a lookup too small to justify the
+dispatch cost, or an invoking context that is itself a subagent. Running inline
 relaxes no discipline.
 
 ## The WebFetch truncation hook
