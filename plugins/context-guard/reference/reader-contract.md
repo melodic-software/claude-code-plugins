@@ -431,7 +431,8 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-10-10
+- **As of**: 2026-10-10 for the `autoCompactWindow` row; 2026-08-19 for the other rows, including
+  the `DISABLE_COMPACT` note.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
 
