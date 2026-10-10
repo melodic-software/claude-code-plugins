@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D8: the first card's Save button has margin-top 8px, so it sits 8 px below Add to cart"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600
