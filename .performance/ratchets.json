@@ -118,6 +118,13 @@
       "field": "spawns",
       "ceiling": 1,
       "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+    },
+    {
+      "name": "js-complexity-share",
+      "command": "python3 scripts/js-complexity-share.py",
+      "field": "share",
+      "ceiling": 2.51,
+      "goal": "Production JavaScript functions (.js .jsx .mjs .cjs, scoped by scripts/js-complexity-share.py: test files, vendored files and sanctioned copies out) at cyclomatic complexity 20 or above, the code-metrics reference (ISO/IEC 5055:2021 section 8.2.117), stay at most this percent of the functions measured. A no-worse ratchet, not a target: the share rose 0.91 to 2.51 over 2026-07 to 2026-10, mostly from new files arriving complex. Measured 2.51 (51 of 2035) at 741092b72 with lizard 1.24.0, pinned in .github/requirements-ci.txt; the counter prints its lizard version. Correlation: unproven: a code-shape share, not a runtime cost"
     }
   ]
 }
