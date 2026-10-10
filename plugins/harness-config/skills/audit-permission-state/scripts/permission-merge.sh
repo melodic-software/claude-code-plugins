@@ -9,6 +9,15 @@
 # project deny blocks a user allow. That is the only election this script makes,
 # and every merged rule says which mechanic put it where it is.
 #
+# A deny or ask Read/Edit rule whose pattern starts with "!" is not merged: we
+# treat it as a carve-out scoped to its own source, one settings file, with
+# --disallowedTools a source of its own. Pointer: when the carve-out scope
+# matters, fetch https://code.claude.com/docs/en/permissions#read-and-edit live.
+# As of: 2026-10-10. Recheck trigger: that section changes what a carve-out
+# reaches. A bare "!" pattern is a known gap: the changelog (v2.1.269) changed
+# how it is handled and that section does not cover it, so the merge reports
+# it, tagged bare, and models no effect.
+#
 # Input: permission-state.sh records, on stdin. With no piped input the sibling
 # reader is run directly, and its exit status is propagated (a reader that could
 # not run must not become an empty merge).
@@ -18,6 +27,7 @@
 #   CAVEAT: <text>                                                what bounds the claim
 #   effective <kind> scopes=<a,b> precedence_basis=<token> <rule> one per live rule
 #   inert <kind> scopes=<a,b> outranked_by=<kind> <rule>          one per beaten entry
+#   carveout <kind> source=<scope>:<surface> [bare] <rule>        one per ! Read/Edit rule
 #
 #   token  uncontested | merged-across-scopes | evaluation-order
 #          | evaluation-order+merged-across-scopes
@@ -47,7 +57,8 @@ Usage: permission-state.sh | permission-merge.sh [--merge-only]
   --help        this message
 
 Records: "effective <kind> scopes=<a,b> precedence_basis=<token> <rule text>",
-"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>", and "CAVEAT: <text>".
+"inert <kind> scopes=<a,b> outranked_by=<kind> <rule text>",
+"carveout <kind> source=<scope>:<surface> [bare] <rule text>", and "CAVEAT: <text>".
 
 With --merge-only the reader's own NOTE records are dropped, including the one
 stating where the server-managed settings cache lives. Read both sections when
@@ -99,7 +110,8 @@ function text_of(start,   i, s) {
 # no pattern matcher.
 function tool_of(t,   p) { p = index(t, "("); return p ? substr(t, 1, p - 1) : t }
 
-# The single site every `inert` record is emitted from. Three call sites below
+# The site every merged-rule `inert` record is emitted from; an ignored `!`
+# carve-out is printed in END, which increments the same count. Three call sites below
 # report a beaten rule, and each one must also increment the summary count: a
 # count that tracked only one of them printed beaten=0 beside an inert record on
 # screen, leaving a reader unable to reconcile the summary with the records it
@@ -120,6 +132,17 @@ $1 == "rule" {
   kind = $4
   scope = $2
   text = text_of(5)
+  # A deny or ask Read/Edit rule whose pattern starts with "!" is a carve-out,
+  # not a rule: it narrows the earlier rules of its own settings file and no
+  # other, so merging it across scopes would claim a reach it does not have.
+  # It is held per source (scope plus surface) and reported on its own.
+  if ((kind == "deny" || kind == "ask") && text ~ /^(Read|Edit)\(!/) {
+    carve_src[++n_carve] = scope ":" $3
+    carve_scope[n_carve] = scope
+    carve_kind[n_carve] = kind
+    carve_text[n_carve] = text
+    next
+  }
   if (!(text in text_seen)) { text_seen[text] = 1; text_order[++n_texts] = text }
   tool[text] = tool_of(text)
   if (text == tool[text]) {
@@ -279,6 +302,20 @@ END {
       if (kinds[i] == win) continue
       if ((text SUBSEP kinds[i]) in kind_seen) emit_inert(kinds[i], text, "outranked_by=" win)
     }
+  }
+
+  # Carve-outs come after the merged rules because they qualify rules of their
+  # own source only. A bare "!" pattern is reported like any other carve-out;
+  # what Claude Code does with one is a known gap this merge does not model.
+  if (n_carve > 0)
+    print "CAVEAT: a carveout record narrows only the earlier rules of the same kind in its own source (one settings file; --disallowedTools is a source of its own, with no file to read). It never reopens a path that a rule from another source blocks, and this merge does not compute which paths it reopens. A carve-out whose pattern is a bare ! is a known gap: its effect is not modeled."
+  for (i = 1; i <= n_carve; i++) {
+    if (managed_rules_only && carve_scope[i] != "managed") {
+      print "inert " carve_kind[i] " scopes=" carve_scope[i] " ignored_by=allowManagedPermissionRulesOnly " carve_text[i]
+      n_inert++
+      continue
+    }
+    print "carveout " carve_kind[i] " source=" carve_src[i] (carve_text[i] ~ /^(Read|Edit)\(!\)$/ ? " bare" : "") " " carve_text[i]
   }
 
   # Every other stage ends in a summary. Without one, a machine with no rules

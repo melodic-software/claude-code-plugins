@@ -310,8 +310,16 @@ END {
     else if (unc)
       finding("error", "C6-winPath", scope, text " — a UNC path in a rule cannot match: rule paths are normalized to POSIX form before matching, so a UNC host/share prefix never matches. Express the target as a POSIX-form path")
 
-    # `:*` is recognized only at the end of a pattern; elsewhere the colon is a
-    # literal, so the rule silently matches nothing it was meant to.
+    # `:*` is recognized as prefix syntax only at the end of a pattern; elsewhere
+    # the colon is a literal and the `*` a wildcard, so `Bash(git:* push)`
+    # matches `git:<anything> push` and none of the git commands it was meant
+    # for. Claude Code warns about such a rule at startup, but the warning was
+    # not seen in a -p run, so the lint still reports it. Probed on Claude Code
+    # 2.1.296, 2026-10-10; evidence in the pull request that carries this change.
+    # Pointer: when the mid-pattern colon matters, fetch
+    # https://code.claude.com/docs/en/permissions#wildcard-patterns live.
+    # As of: 2026-10-10. Recheck trigger: that section changes how a
+    # mid-pattern `:*` matches, or a release makes it prefix syntax.
     #
     # The documented mechanic is about COMMAND PREFIX patterns -- "In a pattern
     # like `Bash(git:* push)`, the colon is treated as a literal character" --
@@ -356,12 +364,12 @@ END {
     param_form = (kind != "allow") ? is_param_shape \
       : (is_param_shape && (tool SUBSEP pfx) in param_only)
     if (mid_colon_star && !param_form && !((tool SUBSEP pfx) in documented_param))
-      finding("error", "C6-colonStar", scope, text " — the :* form is only recognized at the END of a pattern; here the colon is treated as a literal character and the rule will not match what it looks like it matches")
+      finding("error", "C6-colonStar", scope, text " — the :* prefix form is only recognized at the END of a pattern; here the colon is a literal character and the * a wildcard, so the rule matches only commands containing that literal colon (Bash(git:* push) matches git:<anything> push), not what it looks like it matches")
     # Mid-pattern `:*` with no trailing space is structurally identical to a live
     # parameter form (`Agent(model:*-haiku)`). Once the space is gone nothing in
     # the rule text distinguishes them; silence is fail-open on deny/ask rules.
     if (mid_colon_star && kind != "allow" && is_param_shape && !((tool SUBSEP pfx) in documented_param) && !((tool SUBSEP pfx) in param_only))
-      finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a dead command prefix or a parameter wildcard — verify which you intended")
+      finding("warning", "C6-colonStarAmbiguous", scope, text " — mid-pattern :* with no trailing space is indistinguishable from a documented parameter form; this rule may be a literal-colon command wildcard or a parameter wildcard — verify which you intended")
 
     # Parameter form is `Tool(param:value)`. Two distinct defects live here.
     colon = index(body, ":")
