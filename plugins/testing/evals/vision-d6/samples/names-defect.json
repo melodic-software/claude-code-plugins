@@ -13,10 +13,13 @@
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ count-mismatch ]: The count line says Showing 5 results but the list renders only 4 items.\n**VERDICT:** NEEDS WORK"
     },
     {
-      "answer": "FINDING [count-mismatch]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [count-mismatch]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING [count-mismatch]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [count-mismatch]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Notable count-mismatch in the first card.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -207,6 +210,90 @@
     {
       "answer": "FINDING [count-mismatch]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
+      "why": "second clause on the FINDING line breaks one defect per line"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: I don't see any count-mismatch.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The badge does not show any count-mismatch.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: There is no count-mismatch at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: No count-mismatch found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Nothing to report.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Not present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: N/A - nothing to report\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Zero count-mismatch detected.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Looks fine.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Text is not clipped.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: count-mismatch ruled out at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Renders without problems.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: It isn’t present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
     }
   ]
 }

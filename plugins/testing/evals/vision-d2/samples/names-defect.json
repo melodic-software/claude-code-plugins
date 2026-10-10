@@ -13,10 +13,13 @@
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ clipping ]: The first card's Add to cart label is cut off; the 64 px button shows only 'Add t'.\n**VERDICT:** NEEDS WORK"
     },
     {
-      "answer": "FINDING [clipping]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [clipping]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING [clipping]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [clipping]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [clipping]: Notable clipping in the first card.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -207,6 +210,90 @@
     {
       "answer": "FINDING [clipping]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
+      "why": "second clause on the FINDING line breaks one defect per line"
+    },
+    {
+      "answer": "FINDING [clipping]: I don't see any clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: The badge does not show any clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: There is no clipping at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: No clipping found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Nothing to report.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Not present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: N/A - nothing to report\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Zero clipping detected.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Looks fine.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Text is not clipped.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: clipping ruled out at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: Renders without problems.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: It isn’t present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
     }
   ]
 }

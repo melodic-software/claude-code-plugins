@@ -13,10 +13,13 @@
       "answer": "FINDING [overlap]: The badge covers the title.\nFINDING [ contrast ]: Body text is light grey on white and hard to read at both widths.\n**VERDICT:** NEEDS WORK"
     },
     {
-      "answer": "FINDING [contrast]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [contrast]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING [contrast]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [contrast]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: Notable contrast in the first card.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -207,6 +210,90 @@
     {
       "answer": "FINDING [contrast]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
+      "why": "second clause on the FINDING line breaks one defect per line"
+    },
+    {
+      "answer": "FINDING [contrast]: I don't see any contrast.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: The badge does not show any contrast.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: There is no contrast at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: No contrast found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Nothing to report.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Not present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: N/A - nothing to report\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Zero contrast detected.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Looks fine.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Text is not clipped.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: contrast ruled out at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: Renders without problems.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: It isn’t present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
     }
   ]
 }

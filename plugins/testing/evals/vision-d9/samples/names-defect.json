@@ -13,10 +13,13 @@
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ overflow ]: At 375 px the specs table runs past the right edge of the viewport.\n**VERDICT:** NEEDS WORK"
     },
     {
-      "answer": "FINDING [overflow]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [overflow]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING [overflow]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [overflow]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [overflow]: Notable overflow in the first card.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -207,6 +210,90 @@
     {
       "answer": "FINDING [overflow]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [overflow]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
+      "why": "second clause on the FINDING line breaks one defect per line"
+    },
+    {
+      "answer": "FINDING [overflow]: I don't see any overflow.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: The badge does not show any overflow.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: There is no overflow at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: No overflow found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Nothing to report.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Not present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: N/A - nothing to report\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Zero overflow detected.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Looks fine.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Text is not clipped.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: overflow ruled out at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: Renders without problems.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [overflow]: It isn’t present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
     }
   ]
 }

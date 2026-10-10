@@ -13,10 +13,13 @@
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ misalignment ]: In the first card the Save button sits about 8 px lower than Add to cart.\n**VERDICT:** NEEDS WORK"
     },
     {
-      "answer": "FINDING [misalignment]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [misalignment]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING [misalignment]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING [misalignment]: At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [misalignment]: Notable misalignment in the first card.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -207,6 +210,90 @@
     {
       "answer": "FINDING [misalignment]: - none\nVERDICT: NEEDS WORK",
       "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK",
+      "why": "second clause on the FINDING line breaks one defect per line"
+    },
+    {
+      "answer": "FINDING [misalignment]: I don't see any misalignment.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: The badge does not show any misalignment.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: There is no misalignment at either width.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: No misalignment found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Checked both widths; none found.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Nothing to report.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Not present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: None observed at 375 or 1280.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: N/A - nothing to report\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Zero misalignment detected.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Looks fine.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Text is not clipped.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: The title is fully visible, no clipping.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Checked carefully, free of defects.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: misalignment ruled out at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: Renders without problems.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: It isn’t present.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
     }
   ]
 }

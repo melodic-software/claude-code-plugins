@@ -14,6 +14,8 @@ Report each problem you find on its own line, one problem per line, in this form
 
 `FINDING [<category>]: <what is wrong and where>`
 
+A FINDING line names one problem that is present and carries no other commentary: no second problem, and nothing you checked and found fine.
+
 The category is exactly one of these, written as shown:
 
 - `broken-image`: an image fails to load or render
