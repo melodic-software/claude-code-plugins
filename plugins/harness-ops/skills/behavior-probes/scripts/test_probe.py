@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe  # noqa: E402
@@ -271,7 +272,7 @@ class SuiteTests(unittest.TestCase):
         (root / "bin" / "bash.exe").write_text("")
         git = str(root / "cmd" / "git.exe")
         with (
-            mock.patch.object(probe.os, "name", "nt"),
+            mock.patch.object(probe, "os", SimpleNamespace(name="nt")),
             mock.patch.object(probe.shutil, "which", return_value=git),
         ):
             self.assertEqual(
@@ -282,7 +283,7 @@ class SuiteTests(unittest.TestCase):
         from unittest import mock
 
         with (
-            mock.patch.object(probe.os, "name", "nt"),
+            mock.patch.object(probe, "os", SimpleNamespace(name="nt")),
             mock.patch.object(probe.shutil, "which", return_value=None),
         ):
             with self.assertRaisesRegex(RuntimeError, "Git for Windows bash"):
@@ -291,7 +292,7 @@ class SuiteTests(unittest.TestCase):
     def test_non_windows_bash_is_bare_bash(self):
         from unittest import mock
 
-        with mock.patch.object(probe.os, "name", "posix"):
+        with mock.patch.object(probe, "os", SimpleNamespace(name="posix")):
             self.assertEqual(probe.bash_argv0(), "bash")
 
     def test_scaffold_path_reaches_bash_with_forward_slashes(self):
