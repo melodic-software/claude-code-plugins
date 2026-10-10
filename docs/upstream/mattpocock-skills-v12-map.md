@@ -25,9 +25,9 @@ a handoff temp directory, to-tickets sub-issues); none of them changes the flow 
 his skills read and write `GLOSSARY.md` / `GLOSSARY-MAP.md` in place of `CONTEXT.md` /
 `CONTEXT-MAP.md`, and `implement-spec`, `pr` and `retro` graduated (rows 36-38).
 
-His session-start rule (X post, 2026-10-08): a change whose diff is quick to review and cheap to
-retry is built in one shot and aligned after the diff is read; medium-large work starts with
-`grill-with-docs`; `wayfinder` is reached only when a grilling session outgrows itself, never as
+His session-start rule (X post, 2026-10-08), called the quick-change rule here: a change whose
+diff is quick to review and cheap to retry is built in one shot and aligned after the diff is
+read; work whose diff fails either test starts with `grill-with-docs`; `wayfinder` is reached only when a grilling session outgrows itself, never as
 the first step. His main flow, as `ask-matt` routes it: `grill-with-docs` → `to-spec` →
 `to-tickets` → `implement` (or `implement-spec`) → `code-review` → `pr` → `retro`, with triage,
 bug diagnosis and wayfinder as on-ramps.
@@ -37,12 +37,12 @@ Our decisions, owned by `/session-flow:workflow` and the skills it routes to:
 - A quick-to-review, cheap-to-retry change goes straight to implement, then review and verify; the
   two tests decide, not size, and verification rigor stays size-independent. A diff that turns out
   not to be quick to review goes back to the interview.
-- New medium-large work starts with `/planning:interview`; explore and research are detours the
-  interview triggers.
+- New work whose diff fails either test starts with `/planning:interview` (after `/planning:prd`
+  when the PRD trigger holds); explore and research are detours the interview triggers.
 - `/planning:wayfind` is an escalation from an interview that outgrew one session, and charting
   seeds from that interview's ledger. A brand-new effort is sent to the interview first.
-- Our chain: `/planning:interview` → `/planning:prd` or `/planning:plan` (after `/planning:design`
-  when design-significant) → `/work-items:decompose` → `/implementation:implement` → review →
+- Our chain: `[/planning:prd →] /planning:interview → [/planning:design →] /planning:plan` →
+  `/work-items:decompose` → `/implementation:implement` → review →
   `/source-control:pull-request` → `/session-flow:retro`. Test and verify stay as their own
   stages.
 
@@ -51,10 +51,10 @@ Our decisions, owned by `/session-flow:workflow` and the skills it routes to:
   checking where wayfinder sits, fetch
   <https://github.com/mattpocock/skills/blob/main/docs/engineering/wayfinder.md> live; correlate
   the session-start rule with <https://x.com/mattpocockuk/status/2108216899439894574>. No docs page
-  covers the tiny-diff one-shot rule as of 2026-10-10.
+  covers the quick-change rule as of 2026-10-10.
 - **As of**: 2026-10-10 (v1.3.1; `main@49dd158`)
 - **Recheck trigger**: either recheck event in `mattpocock-skills.md` that touches `ask-matt`,
-  `grill-with-docs` or `wayfinder`, or a docs page starting to cover the tiny-diff rule, at which
+  `grill-with-docs` or `wayfinder`, or a docs page starting to cover the quick-change rule, at which
   point the pointer moves there.
 
 Sources: his-repo full inventory (35 skills, every SKILL.md read), our-repo provenance sweep (git log + grep + docs), v1.2.0 release notes, v1.2 changelog article, video transcript. As-of 2026-08-08.

@@ -124,6 +124,20 @@
         "Output creates no map issue and no decision items",
         "Output says wayfind is reached from the interview when the effort outgrows one session"
       ]
+    },
+    {
+      "id": 11,
+      "name": "chart-seeds-from-interview-ledger",
+      "prompt": "/planning:wayfind chart the data-retention program. Our interview ledger is at .work/data-retention/interview-checklist.md: it settled 'retain audit logs 7 years' and 'EU data stays in the EU region', and left open 'Which stores hold personal data?' and 'Do backups count as retained copies?'. We also still can't say what 'deletion' should mean for derived analytics.",
+      "expected_output": "Chart mode seeds the map from the ledger: the two settled answers go into one seed decision item whose resolution comment lists them, closed at once with one Decisions-so-far pointer; the two open questions become decision items; the derived-analytics deletion worry stays Not-yet-specified prose. It does not open one closed issue per settled answer and does not cite the .work path in Notes.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output puts both settled answers in one seed item with a single Decisions-so-far pointer, not one closed issue per answer",
+        "Output charts the two open questions as decision items",
+        "Output keeps the derived-analytics deletion worry as Not-yet-specified prose",
+        "Output does not point Notes at the .work path"
+      ]
     }
   ]
 }

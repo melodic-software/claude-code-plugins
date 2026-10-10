@@ -27,7 +27,7 @@
     {
       "id": 3,
       "name": "never-invent-skill-names",
-      "prompt": "I'm ready to explore the codebase for this feature — route me to the right stage.",
+      "prompt": "The contract for this feature is already locked in PLAN.md's Brief, and it names the modules I haven't read yet. I'm ready to explore the codebase for it — route me to the right stage.",
       "expected_output": "The skill suggests the explore stage but only names a stage skill that actually exists in the consuming repo (its skill listing / CLAUDE.md). If no explore skill exists, it describes inline exploration work per the stage definition rather than inventing a skill name.",
       "files": [],
       "expectations": [
@@ -313,6 +313,53 @@
         "It states that model-config's effort table could not be read",
         "It advises no effort level: no level name is recommended for the stage, from memory or otherwise",
         "It does not set or change the session's effort itself"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "quick-change-on-ramp",
+      "prompt": "What stage should I start at? I need to change the retry count constant in http_client.py from 3 to 5. One line, and reverting it is trivial.",
+      "expected_output": "The diff is quick to review and cheap to retry, so the skill routes the quick-change on-ramp: it enters at implement (stage 8), skipping the contract, design and plan stages, then reviews the diff and aligns on it, with test and verify at full rigor.",
+      "files": [],
+      "expectations": [
+        "The skill routes to implement as the entry stage",
+        "It does not suggest the contract interview, design, or plan for this change",
+        "It keeps test and verify at full rigor after the diff"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "new-non-quick-work-starts-at-interview",
+      "prompt": "Nothing done yet. We need to add per-tenant rate limiting to the public API, touching the gateway, the config schema, and the billing hooks. What stage first?",
+      "expected_output": "The diff will not be quick to review or cheap to retry and nothing is done, so the skill suggests the contract interview (stage 4) as the first stage, not explore, with explore and research as detours the interview triggers.",
+      "files": [],
+      "expectations": [
+        "The skill suggests the contract interview as the first stage",
+        "It does not suggest stage 1 Explore as the starting stage",
+        "It says explore and research run as detours the interview triggers"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "quick-change-diff-not-quick-returns-to-interview",
+      "prompt": "I started this as a quick one-line fix and went straight to implement, but the diff is now 400 lines across six files and I can't review it at a glance. What now?",
+      "expected_output": "The diff is no longer quick to review, so the skill stops the quick-change on-ramp and routes to the contract interview before more building.",
+      "files": [],
+      "expectations": [
+        "The skill routes to the contract interview",
+        "It does not route straight to review, test, or the PR as if the on-ramp still applied"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "entry-skill-session-is-placed",
+      "prompt": "This session started with a debugging run: we reproduced the bug, found the root cause, and the regression test now fails as expected. Where am I in the workflow?",
+      "expected_output": "The skill places the session on the ladder from the debugging evidence: the reproduction and root cause credit explore, and a failing regression test is in hand, so it suggests implement next rather than starting over at stage 1 or the interview.",
+      "files": [],
+      "expectations": [
+        "The skill places the session from the debugging evidence instead of starting at stage 1",
+        "It suggests implement as the next stage",
+        "It does not send the session to the contract interview"
       ]
     }
   ]

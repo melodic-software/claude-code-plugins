@@ -1,5 +1,5 @@
 ---
-description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Already sharp tickets: /planning:interview or /work-items."
+description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. Not the first step: a new effort starts at /planning:interview. Already sharp tickets: /work-items."
 argument-hint: "[chart|work] [topic]"
 user-invocable: true
 disable-model-invocation: false
@@ -87,23 +87,23 @@ applies: when the invocation says the run is unattended (a loop, a spawned worke
 session. Do not fabricate a map.
 
 1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
-   commits, the topic). **New-effort gate:** when neither the slice nor this conversation holds
-   an interview of the effort, it has not been grilled yet; STOP and recommend
-   `/planning:interview` first, and chart only if the user still asks for a map after hearing
-   that. **Seed from the interview:** when the slice holds an interview ledger
-   (`interview-checklist.md`), its settled answers become *Decisions-so-far*, each charted as a
-   decision item that carries the answer as its resolution comment and is closed at once (the
-   work-mode step 5 sequence), and its open, deferred and blocked questions become candidate
-   decision items. Distill its self-answered facts into *Notes* as text, never as a path. Sort
-   every remaining uncertainty through the fog test: sharp → candidate decision item; foggy →
-   *Not-yet-specified* prose. **No-fog bail-out:** if the survey
+   commits, the topic). **Seed from the interview:** when the slice holds an interview ledger
+   (`interview-checklist.md`), its settled answers go into one seed decision item whose
+   resolution comment lists them; it is closed at once with one *Decisions-so-far* pointer (the
+   work-mode step 5 sequence). Its open, deferred and blocked questions become candidate
+   decision items, and its self-answered facts are distilled into *Notes* as text, never as a
+   path. Sort every remaining uncertainty through the fog test: sharp → candidate decision
+   item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet. Every uncertainty is already sharp, or the
    whole effort fits one session. This effort does not need a map. STOP and route out
    instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
    Skill tool; a set of
    sharp tickets → `/work-items:decompose` (or `/work-items:track add` for one ticket); small enough to just do → say so. (The trigger is too-big
    AND foggy. Both, never either alone.) Seeded rows are sharp by construction, so the fog must
-   come from the survey; a seeded interview with none goes back to its own handoff and resume.
+   come from the survey; a seeded interview with no fog goes back to its own handoff and resume.
+   **New-effort gate**, checked after the bail-out: when neither the slice nor this conversation
+   holds an interview of the effort, STOP and recommend `/planning:interview` first; chart only
+   if the user still asks for a map after hearing that.
 2. **Create or extend the map issue.** On first use in a repo, resolve the container label
    (the seam's `config.container_label` key, default `work-map`. Snippet in
    `context/tracker-mechanics.md`), then **verify** the wayfind label

@@ -5,9 +5,12 @@ repo defines a skill for a stage, invoke it; otherwise execute the stage inline 
 here. A conditional stage runs only when its trigger holds; otherwise it is skipped and marked SKIPPED, with the reason, on its checklist box.
 
 These definitions govern the full path. A change whose diff is quick to review and cheap to retry
-takes the quick-change on-ramp (SKILL.md "On-ramps") from stage 8 instead, and returns to stage 4
-if its diff turns out not to be quick to review. New medium-large work enters at stage 4: the
-interview runs first, and stages 1-2 run as detours it triggers.
+takes the quick-change on-ramp (SKILL.md "On-ramps") instead: it enters at stage 8, where reading
+the code it needs is part of implement, and returns to stage 4 if its diff turns out not to be
+quick to review. A diff that adds types, public contracts, or module boundaries is not cheap to
+retry and takes the full path. New work whose diff fails either test enters at stage 4 (after
+stage 3 when the PRD trigger holds): the interview runs first, and stages 1-2 run as detours it
+triggers.
 
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
@@ -68,8 +71,8 @@ Drive fuzzy intent to a zero-ambiguity contract before behavior-changing work: g
 acceptance criteria, captured assumptions. Persist it (a plan file in the repo's artifact location)
 so later stages aim at an explicit target instead of inferring one mid-task.
 
-- Trigger conditions: intent is fuzzy, scope is uncalibrated, or the work changes behavior,
-  structure, or contracts
+- Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
+  changes behavior, structure, or contracts
 - Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
   on-ramp), or follow-ups where the contract IS the conversation
 - Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a

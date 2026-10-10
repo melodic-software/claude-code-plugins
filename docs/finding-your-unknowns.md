@@ -76,9 +76,10 @@ metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
 The corpus composes its pre-implementation demos into one ordered flow, and this repo adds the
 design, PRD, and decompose passes its own stage ladder (`/session-flow:workflow`) carries. This
-repo ships a skill per pass; the composition itself is judgment, not a gate. New medium-large
-work starts at the interview; the passes before it run only when their unknown is present. Run
-the passes whose unknowns you actually have, in this order when you run several:
+repo ships a skill per pass; the composition itself is judgment, not a gate. New work whose
+diff will not be quick to review and cheap to retry starts at the interview; the passes before
+it run only when their unknown is present. Run the passes whose unknowns you actually have, in
+this order when you run several:
 
 1. **Blindspot pass**, `/discovery:blindspot`: surface unknown unknowns in the task's
    blast radius.

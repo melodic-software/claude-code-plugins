@@ -85,8 +85,8 @@ Conditional stages run only on their trigger (`context/steps.md`): PRD for a use
 business-driven change where alignment on the problem matters; Decompose when the plan holds more
 than one independently shippable ticket. Design runs for design-significant work and records a
 one-line early exit otherwise, so a bug fix passes through it in one step. Discover and shape
-interleave: on new medium-large work the contract interview runs first and gives explore and
-research their scope, as detours it triggers.
+interleave: on new work that does not qualify as a quick change, the contract interview runs
+first and gives explore and research their scope, as detours it triggers.
 
 Stages 1-7 expand, for unfamiliar territory, into a known pre-implementation order (blindspot →
 brainstorm/prototype → PRD → interview, escalating to wayfind when it outgrows one session →
@@ -121,10 +121,12 @@ satisfies, then continue from there.
 
 ### 3. Suggest next stage
 
-Based on what's been done, recommend the next stage with rationale. For new medium-large work
-with nothing done, suggest the contract interview (stage 4), not stage 1; explore and research
-then run as detours the interview triggers. A change that is quick to review and cheap to retry
-takes the quick-change on-ramp below instead. If the consuming repo has a
+Based on what's been done, recommend the next stage with rationale. For new work whose diff fails
+either quick-change test, with nothing done, suggest the contract interview (stage 4, after stage
+3 when the PRD trigger holds), not stage 1; explore and research then run as detours the
+interview triggers. This fresh-start suggestion takes precedence over tie-break rule 3 ("the
+earlier stage wins"). A change that passes both tests takes the quick-change on-ramp below
+instead. If the consuming repo has a
 skill for that stage, name it; otherwise describe the inline work. Add that stage's effort advice per "Effort per stage" in `context/steps.md`.
 
 ### 4. Route the continuation mechanism at a phase boundary
@@ -160,9 +162,11 @@ merges in at a later stage. Recognize the CLASS of arrival and merge at the righ
 forcing every session through stage 1. Common classes:
 
 - **A quick change**, one whose diff will be quick to review and cheap to retry. Those two tests
-  decide, not size. Skip stages 3-7: go straight to implement, then review the
-  diff and align on it there, and keep test and verify at full rigor. If the diff turns out not
-  to be quick to review, stop and route to the contract interview. Basis for adopting this rule:
+  decide, not size; a diff that adds types, public contracts, or module boundaries is not cheap
+  to retry and takes the full path. It enters at stage 8 (reading the code it needs is part of
+  implement), then the diff is reviewed and aligned on there, with test and verify at full
+  rigor. If the diff turns out not to be quick to review, stop and route to the contract
+  interview. Basis for adopting this rule:
   the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills-v12-map.md`
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
