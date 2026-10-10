@@ -365,6 +365,13 @@ run_queue() { # <label> <want-rc> <needle> <pr-head>
 run_queue "--check-required exempts a queued Dependabot pull request by its own commits" 0 "Dependabot-only change to plugins/alpha/" "$dependabot_head"
 run_queue "--check-required does not exempt a queue squash commit read as the pull request" 1 "MISSING FRAGMENT" ""
 git_test_config "$f" checkout -q dependabot/npm
+printf 'v4\n' >"$f/plugins/alpha/skills/a.md"
+commit "$f" "a commit pushed onto the queued Dependabot branch"
+foreign_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q queue-dependabot
+run_queue "--check-required does not exempt a queued pull request carrying another author's commit" 1 "MISSING FRAGMENT" "$foreign_head"
+git_test_config "$f" checkout -q dependabot/npm
+git_test_config "$f" reset -q --hard "$dependabot_head"
 out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
   env -u GITHUB_REPOSITORY bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
 if [[ $? -eq 1 && "$out" == *"MISSING FRAGMENT"* ]]; then

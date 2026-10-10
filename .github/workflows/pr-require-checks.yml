@@ -1532,7 +1532,7 @@ jobs:
         id: changelog_parity_check
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check
-      # The merge queue runs the bump and fragment gates too (#6443 merged a
+      # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
       # hand bump the queue never checked), against HEAD^1: the queued squash
       # commit is this pull request's own change on top of main and every entry
       # ahead of it. The group event names no pull request, so this step reads
@@ -1674,12 +1674,23 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The Dependabot exemption, read as changelog_fragments_required reads it.
+          CHANGELOG_PR_AUTHOR: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.author || github.event.pull_request.user.login }}
+          CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+          QUEUED_PR: ${{ steps.queued_pr.outcome }}
         run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            if [ "$QUEUED_PR" != success ]; then
+              echo "::error::The queued pull request could not be resolved; refusing to pass the vendor gate without knowing its author."
+              exit 1
+            fi
+            scripts/check-vendor-version-bump.sh --check-bump 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
+          else
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
           fi
-          scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
       - name: Validate marketplace manifest
         id: marketplace_schema
