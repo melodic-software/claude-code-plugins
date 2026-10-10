@@ -24,11 +24,13 @@ contains git.
 
 ## Pre-computed context
 
-Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>/dev/null | head -40; :; } || echo "detector unavailable"`
+Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>&1 | head -40`
 
 The bound above is generous on purpose: `--show-config` prints `disabled_rules` and every
 `rule_allowed_paths` entry after the fixed lines, and those are the values that decide which
-rules ran at all.
+rules ran at all. A shell error in place of the config means the detector did not run. Every
+command in this line must match an `allowed-tools` grant: under `--permission-mode dontAsk` an
+unmatched one denies the whole expansion and the skill ends before a model turn.
 
 ## Purpose
 

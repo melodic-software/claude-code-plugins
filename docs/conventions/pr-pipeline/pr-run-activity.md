@@ -154,8 +154,9 @@ Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`
 `act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
-default branch. `act-outcome` is the activity step's outcome, except that a gate skill whose step
-succeeded takes the outcome of the verdict check (below), a step that runs after the skill.
+default branch. `act-outcome` is the activity step's outcome, except that a skill whose step
+succeeded is a failure when it took no model turn, or when it is a gate skill and the verdict check
+(below) fails. Both checks are steps that run after the skill.
 
 ### Skill activities
 
@@ -243,6 +244,14 @@ neutralized) for audit. It is model output, printed as data. The same text is up
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
+
+A slash command whose expansion fails ends with a `success` result and no model turn: claude-code-action
+reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
+that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
+skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
+`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, and any `<local-command-stderr>`
+text (lane token cut out) to the step summary and to `act-turns.json` in the same artifact. The
+full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
 
