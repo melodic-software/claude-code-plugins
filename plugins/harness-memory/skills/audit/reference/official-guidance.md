@@ -290,7 +290,7 @@ and prices a recommended move with that destination's row:
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read or edit in that subdirectory |
+| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read, write or edit in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
 | Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |

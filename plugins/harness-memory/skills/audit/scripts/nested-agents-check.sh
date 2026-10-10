@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
 # nested-agents-check.sh — does every nested AGENTS.md actually load?
 #
-#   Claim: Claude Code attaches a subdirectory's AGENTS.md when Claude opens a
-#     file there with the Read tool or a file under it is @-mentioned, and
-#     neither that directory nor any directory above it carries a CLAUDE.md,
-#     .claude/CLAUDE.md or CLAUDE.local.md; otherwise it reads the CLAUDE.md
-#     files instead. This check tests only the blocking condition, so it holds
-#     whatever the trigger list is. Open: whether a Bash single-file read
-#     attaches AGENTS.md (unprobed; neither source says).
+#   Claim: Claude Code attaches a subdirectory's AGENTS.md when Claude works
+#     with a file there and neither that directory nor any directory above it
+#     carries a CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md; otherwise it
+#     reads the CLAUDE.md files instead. This check tests only that blocking
+#     condition, so it holds whatever the trigger list is. Open: whether a Bash
+#     single-file read attaches AGENTS.md (unprobed).
 #   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
 #     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
-#   Source conflict: code.claude.com/docs/en/changelog, v2.1.290, adds the
-#     @-mention trigger; memory#agents-md still names the Read tool only.
 #   As of: 2026-10-10.
-#   Recheck trigger: that section changes which file names count for the check
-#     or lists the triggers, or a release note names AGENTS.md or
-#     instruction-file loading.
+#   Recheck trigger: that section changes which file names count for the check,
+#     or a release note names AGENTS.md or instruction-file loading.
+#
+#   Source conflict: the changelog v2.1.290 entry and memory#agents-md disagree
+#     on what attaches a subdirectory's AGENTS.md.
+#   Pointer: when a finding depends on what attaches it, fetch
+#     code.claude.com/docs/en/memory#agents-md and
+#     code.claude.com/docs/en/changelog (v2.1.290) live.
+#   As of: 2026-10-10.
+#   Recheck trigger: memory#agents-md lists the triggers.
 #
 # AGENTS.md discovery is tracked files only, but the blocking and wiring checks
 # read the filesystem, so a gitignored CLAUDE.local.md shim counts.

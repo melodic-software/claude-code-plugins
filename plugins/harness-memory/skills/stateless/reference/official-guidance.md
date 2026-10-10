@@ -158,12 +158,15 @@ settings file's `env` block, which applies to every session and the subprocesses
   - **Recheck trigger**: the Clear local data section changes what `claude purge` deletes or keeps,
     or the CLI commands table renames or drops the command.
 
-  This skill never tells a user the former name is gone: the changelog says it still runs and
-  prints a notice, which the docs pages do not mention.
+  **Source conflict**: the changelog v2.1.288 entry and
+  [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data) disagree on
+  whether the former command name still runs. This skill never tells a user it is gone.
 
-  - **Pointer**: [changelog](https://code.claude.com/docs/en/changelog), v2.1.288.
+  - **Pointer**: when a user asks whether the former name still works, fetch the
+    [changelog](https://code.claude.com/docs/en/changelog) (v2.1.288) and
+    [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data) live.
   - **As of**: 2026-10-10
-  - **Recheck trigger**: a release note removes the former command name.
+  - **Recheck trigger**: either source changes what it says about the former command name.
 
   We record `CLAUDE_CODE_SKIP_PROMPT_HISTORY` as the true "no session persistence" lever, since it
   stops transcripts and prompt history being written, and the complement to deleting the files
