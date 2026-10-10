@@ -26,20 +26,20 @@ the operator intended to pre-approve it. A convention plus an enforceable check 
 
 ## Auto mode is the built-in default, not a state you opt into
 
-Read every "under auto mode" clause below as the **default** condition on the plans this repository's
-operators use, not as a conditional one. The upstream page no longer dates the rollout. It states a
-version floor. Per
-[permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
-(fetched 2026-08-17; recheck when that section changes the version floors or the default-mode
-prompt):
+Read every "under auto mode" clause below as the **default** condition, not as a conditional one. We
+assume any session that loads a rule may have started in auto mode without its operator choosing
+it, and this repository's unattended lanes launch with `--permission-mode auto` (the root
+`AGENTS.md`), so every rule in this convention is written for the auto-mode case. Which mode a
+particular session starts in is not something the convention tracks.
 
-> The built-in `auto` default requires Claude Code v2.1.228 or later on macOS, Linux, and WSL, and
-> v2.1.233 or later on native Windows. On earlier versions, the built-in default is Manual.
-
-> On Pro, Max, and Team plans, if your `~/.claude/settings.json` sets a different `defaultMode` and
-> no other settings file sets one, your terminal sessions keep starting in that mode, and Claude
-> Code asks once, in the terminal or in the extension, whether to change the setting to auto mode.
-> If you decline, your setting stays as it is.
+- **Pointer**: when you need to know which mode a given session starts in, fetch
+  [permission modes: which mode a session starts in](https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section stops starting interactive sessions in auto mode by default.
+- **Source conflict**: the first release that starts sessions in auto mode, between the
+  [changelog](https://code.claude.com/docs/en/changelog) (v2.1.284 entry) and that section. Recheck
+  trigger: either is revised on that point.
 
 Two consequences for this convention, and one non-consequence:
 
@@ -47,14 +47,10 @@ Two consequences for this convention, and one non-consequence:
   interpreter-wildcard grant worked until someone entered auto mode, so the anti-patterns below were
   latent, correct-looking rules that failed on a mode change nobody made on most days. After it, a
   session that **takes** the new default starts with the broad grant already suspended, so the
-  silent-failure mode described above is that session's *first* run, not a later one. Which sessions
-  take it is exactly what the quote above delimits: one whose operator set no personal default, or
-  who accepted the one-time switch prompt. A self-set `defaultMode` that the operator kept, and an
-  organization-managed default, both stay as they were. Those sessions keep the pre-switch behavior
-  and the anti-patterns stay latent in them. So the population that starts in auto mode grows from
-  "whoever opted in" to "the default path plus whoever opted in", which is enough to make writing for
-  the auto-mode case the only safe authoring posture; it is not a claim that every session on those
-  plans is in auto mode.
+  silent-failure mode described above is that session's *first* run, not a later one. Sessions
+  that start in another mode keep the anti-patterns latent, but the default path alone is enough to
+  make writing for the auto-mode case the only safe authoring posture; it is not a claim that every
+  session is in auto mode.
 - **"Run it outside auto mode" is a downgrade, not a remedy.** The escape stays true, since the mode is
   switchable at any time, but it now asks an operator to leave the default rather than to decline an
   opt-in. It is the fallback for the one case with no better answer (an `Agent` allow rule, which has
@@ -64,12 +60,8 @@ Two consequences for this convention, and one non-consequence:
   page still records that Claude Code "ignore[s] `auto` from those files so a repository cannot grant
   itself auto mode". A repository still cannot hand itself the mode; it now more often arrives anyway.
 
-The switch is **plan-scoped**. The same page states separately that on Amazon Bedrock, Google Cloud's
-Agent Platform, Microsoft Foundry, and signed-in Claude apps gateway sessions, auto mode appears in
-the `Shift+Tab` cycle by default but "sessions still start in your `defaultMode`, which is Manual
-unless you change it", so a provider-routed session is not covered by the August 14 default and the
-anti-patterns below stay latent there. Write rules for the auto-mode case regardless: a rule that is
-correct under auto mode is correct under Manual too, and the reverse does not hold.
+Write rules for the auto-mode case in every session: a rule that is correct under auto mode is
+correct under Manual too, and the reverse does not hold.
 
 ## Anti-pattern 1: interpreter-wildcard / blanket allow rules (dropped in auto mode)
 
