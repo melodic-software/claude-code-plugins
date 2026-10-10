@@ -211,12 +211,18 @@ Group files by project/ecosystem relatedness. Each group should contain files th
 
 ### Phase 5: Create tasks
 
-Create one task per group using `TaskCreate`. Each task should include:
+Track one entry per group, each with:
 
 - Group number and name
 - File list
 - Ecosystem (for verification)
 - Dependency notes
+
+When the task tools (`TaskCreate`, `TaskUpdate`) are present in this session, create each entry with `TaskCreate`. When they are not, write the entries as a per-group list in the run's copied checklist (or inline, when it has no working-notes copy) and tick them there; never fail or stop the run for want of the tools. Decide by whether the tools are present, not by the model: which sessions get them is upstream's call and changes by release.
+
+- **Pointer**: when deciding whether this session should have the task tools, fetch [tools-reference: Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes the default model set or the opt-ins that enable the tools.
 
 ### Phase 6: Run simplification waves
 
@@ -226,7 +232,7 @@ Waves can run in parallel when groups touch non-overlapping files and ecosystems
 
 For each group:
 
-1. **Mark the task in_progress** via `TaskUpdate`
+1. **Mark the group's entry in progress**: `TaskUpdate` when the task tools are present, else the checklist entry
 
 2. **Spawn a simplifier agent** via the `Agent` tool, or, when the Native step applies (see **Native step: simplify** above), invoke `simplify` on the group's file list instead. Pick `subagent_type` from this ladder (first match wins): `code-simplifier:code-simplifier` when the `code-simplifier` plugin is installed; else `pr-review-toolkit:code-simplifier` when `pr-review-toolkit` is installed; else any other installed agent whose leaf name is `code-simplifier`; else `general-purpose`. Ladder record: the first two ids match the `name` field of each plugin's `agents/code-simplifier.md` (`code-simplifier` 1.0.0 in `claude-plugins-official`, and `pr-review-toolkit` in the same marketplace), read in the local plugin caches and marketplace clone on 2026-09-29; upstream: [`code-simplifier`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md) and [`pr-review-toolkit`](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/pr-review-toolkit/agents/code-simplifier.md); recheck when either plugin is renamed or a marketplace lists another simplifier. The third rung is a fallback, not a sourced fact. **Model and effort:** a named rung keeps the model and effort its own definition sets, unless that definition inherits the model and pins no effort; such a rung, and `general-purpose`, are routed. When `/multi-agent:route` resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per run and pass the `worker` role's `fanout` variant: its model unless `omit_model` is true, and its effort always. When it does not resolve, omit the model so the agent inherits the session's, except when the session model is frontier or unknown, where pass `opus`; pass effort `medium`; and say once in the report that enabling the multi-agent plugin makes this routing configurable. The prompt includes:
    - The complete list of files in the group (absolute paths)
@@ -242,7 +248,7 @@ For each group:
 
 4. **Report results**. Summarize what the agent changed (or didn't) for that group, plus a count of deferred items.
 
-5. **Mark the task completed** via `TaskUpdate`
+5. **Mark the group's entry completed**, the same way
 
 ### Phase 6.5: Resolve deferred items in-run
 
