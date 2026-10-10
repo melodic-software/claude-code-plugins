@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: uc12-legacy-redesign
+description: "Use case 12 (legacy, business): where a redesign of an old internal system starts, as a UX-debt inventory, top tasks and baseline measures before any new design"
+tags: [use-case, uc12]
+runs: 3
+expected_outcome: "The answer starts with a UX-debt inventory of the current system, the staff's top tasks and baseline measures taken before redesign, invents no current numbers, and names the access it needs"
+execution:
+  prompt: "We're redesigning our warehouse receiving system; where do we start? It is a 14-year-old web app built on Java Struts that about 60 dock staff use all day to check in deliveries, and the people who wrote it have left. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

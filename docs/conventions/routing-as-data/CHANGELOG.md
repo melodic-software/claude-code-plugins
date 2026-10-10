@@ -4,6 +4,11 @@ Notable changes to the routing-as-data contract (SemVer). Changing a required ro
 rule, the team-file operations or the degradation rule is a major bump; additive guidance is a minor
 bump; docs-only clarification is a patch.
 
+## [1.0.1] - 2026-10-09
+
+- Adopters: `user-experience` moves from Planned to Adopts (group field `job`, first team-layer
+  implementer).
+
 ## [1.0.0] - 2026-10-09
 
 - Route rows: versioned file with a `note`, closed schema, ranks 1..n per group with the project as

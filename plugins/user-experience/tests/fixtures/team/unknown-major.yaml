@@ -1,0 +1,6 @@
+# user-experience team file fixture: a routing version this plugin does not read.
+version: 1
+routing:
+  version: 2
+  deny:
+    - mixpanel
