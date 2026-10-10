@@ -341,12 +341,13 @@ waits on the last merge. Per-group PRs jam the open-PR backlog from the other di
 carries its own CI cost. The single-PR cost (a big diff nobody reads end to end) is real and is
 paid deliberately, covered by the verifier machinery above.
 
-**Version discipline, if the consuming repo has any.** Some repositories require a version bump and a
-changelog entry in the same change that touches a versioned component. Such a layout has versioned
+**Version discipline, if the consuming repo has any.** Some repositories require a release record in
+the same change that touches a versioned component: a version bump plus changelog entry, or a
+changelog fragment where the repo uses them (see the repo's AGENTS.md). Such a layout has versioned
 component manifests, a package manifest, and a changelog the project treats as a release artifact.
-Where the repo has one, the run PR carries the bump for every component the run touched (bumped in the
-group commit that touched it, so the pairing survives a bisect), and any parity check the repo runs
-will need the base ref to compare against. Where it has none, say so rather than silently skipping:
-*"no version discipline detected; skipping bump step."* Discover the layout from the repo; do not
+Where the repo has one, the run PR carries the record for every component the run touched (written in
+the group commit that touched it, so the pairing survives a bisect), and any parity or fragment check
+the repo runs will need the base ref to compare against. Where it has none, say so rather than
+silently skipping: *"no version discipline detected; skipping release-record step."* Discover the layout from the repo; do not
 assume a particular manifest path, and do not treat a repo-root helper script as a dependency, since
 a consuming project has no obligation to have one.

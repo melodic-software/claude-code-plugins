@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Usage: app deploy [flags]\n\n  --env string   staging or production\n  --dry-run      print the plan only\n  --force        skip confirmation",
+      "why": "all three flags"
+    },
+    {
+      "answer": "--dry-run first, then --force or --env as needed",
+      "why": "any order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "  --env string   staging or production\n  --force        skip confirmation",
+      "why": "drops --dry-run"
+    }
+  ]
+}

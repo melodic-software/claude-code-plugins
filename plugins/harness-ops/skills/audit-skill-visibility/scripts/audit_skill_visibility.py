@@ -1264,7 +1264,8 @@ def budget_basis(cfg: ListingConfig) -> str:
 # out-of-process script, so it is recorded as unread rather than as absent.
 # Environment variables are not a level in this stack. Basis:
 # https://code.claude.com/docs/en/settings (precedence) and the settings schema
-# text in the shipped binary; verified 2026-09-11 at Claude Code 2.1.263.
+# text in the shipped binary; verified 2026-09-11 at Claude Code 2.1.263. Recheck when the
+# settings page's precedence list adds or reorders a scope.
 
 LISTING_SETTINGS_KEYS = ("skillListingBudgetFraction", "skillListingMaxDescChars")
 

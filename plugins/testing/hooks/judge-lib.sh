@@ -174,15 +174,13 @@ judge::session_set() {
 # writer's session (the owner of its verdicts).
 # IFILES holds each info's file path, the same index. One jq reads every
 # record; only when a malformed record fails it does each file get its own.
-# JUDGE_AGENT_ONLY keeps only the records that subagent wrote (its
-# SubagentStop); JUDGE_AGENT_SKIP, space-separated agent ids, drops every
-# file a subagent still running wrote (the parent's Stop), the parent's own
+# JUDGE_AGENT_SKIP, space-separated agent ids, drops every file a subagent
+# still running wrote (the parent's Stop), the parent's own
 # records of it too: a key is a block's current text, so judging the parent's
 # record would relay the subagent's latest version at the parent.
 judge::load() {
-  # shellcheck disable=SC2016 # $only, $skip and $a are jq variables
-  local s f files=() out i fa group='map(select(.file | type == "string")
-      | select($only == "" or (.agent_id // "" | tostring) == $only))
+  # shellcheck disable=SC2016 # $skip and $a are jq variables
+  local s f files=() out i fa group='map(select(.file | type == "string"))
     | group_by(.file)[]
     | select(all(.[]; (.agent_id // "" | tostring) as $a | $a == "" or ($skip | contains(" \($a) ") | not)))
     | {
@@ -199,7 +197,7 @@ judge::load() {
     for f in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
   done
   ((${#files[@]})) || return 0
-  fa=(--arg only "${JUDGE_AGENT_ONLY:-}" --arg skip " ${JUDGE_AGENT_SKIP:-} ")
+  fa=(--arg skip " ${JUDGE_AGENT_SKIP:-} ")
   out="$(jq -rn "${fa[@]}" "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
     out="$(judge::records_json "${files[@]}" | jq -r "${fa[@]}" "$group" 2>/dev/null)"
   mapfile -t f <<<"$out"

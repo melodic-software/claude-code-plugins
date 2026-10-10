@@ -6,6 +6,7 @@ Fetch tests serve a fixture manifest from a file:// source, so nothing reaches t
 import hashlib
 import io
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -79,8 +80,9 @@ class PinnedManifest(unittest.TestCase):
 
 class Check(unittest.TestCase):
     def prerequisites(self, entries):
-        path = Path(tempfile.mkdtemp()) / 'prerequisites.json'
-        self.addCleanup(lambda: path.unlink())
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, True)
+        path = d / 'prerequisites.json'
         path.write_text(json.dumps({'requires': entries}), encoding='utf-8')
         return path
 

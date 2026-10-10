@@ -331,6 +331,7 @@ def test_skipping_run_leaves_the_store_a_forced_run_would_write(data_dir, multi)
 HASHED_INPUTS = (
     "skills/audit-sessions/scripts/collect.py",
     "skills/audit-sessions/scripts/census.py",
+    "skills/audit-sessions/scripts/friction_scan.py",
     "skills/audit-sessions/scripts/redact.py",
     "scripts/transcript_reader.py",
     "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
@@ -622,7 +623,7 @@ def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subpro
     # The same manifest, so the copy reports the same collector version as the real script.
     shutil.copytree(SCRIPTS.parents[2] / ".claude-plugin", tmp_path / "plugin" / ".claude-plugin")
     shutil.copy2(SCRIPTS.parents[2] / "scripts" / "transcript_reader.py", tmp_path / "plugin" / "scripts")
-    for name in ("collect.py", "census.py", "redact.py"):
+    for name in ("collect.py", "census.py", "friction_scan.py", "redact.py"):
         shutil.copy2(SCRIPTS / name, skill / "scripts")
     (skill / "vendor" / "gitleaks").mkdir(parents=True)
     rules = {"rules": [{"id": "broken", "regex": "(unclosed", "keywords": []}], "source_version": "test"}

@@ -3,6 +3,42 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.2] - 2026-10-09
+
+### Changed
+
+- **`/review:fanout` pilots one surface before a fan-out wider than about 4.** In either review mode it dispatches one surface alone and confirms plan usage remains before dispatching the rest, because a usage limit reached mid-fan-out halts the rest of the roster. Run-everything mode pilots one slice on the main thread before the workflow launch, since the workflow dispatches its roster in one call. Evidence: 3 fleet lockouts on one lane, about 8 hours lost.
+
+## [0.43.1] - 2026-10-07
+
+### Fixed
+
+- The `explain-change` test suite loads on Windows: it imports its modules by `file://` URL, which the ESM loader requires there for an absolute path. The hosted-publish cases that run the fake `pages-publish` skip on Windows, since `publish-hosted.mjs` spawns it with no shell and Windows then finds only a `.exe` or `.com` on `PATH`.
+
+## [0.43.0] - 2026-10-07
+
+### Added
+
+- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts, keeping its id under `stale` until a delete succeeds. A page the gate sent private that `pages-publish` reports on the public host exits 1 and names the URL to take down. A tracked team layer cannot select `hosted`, and an overlay selects it only once gitignored. The contract is in the rendered-views convention, "The `hosted` medium".
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: new credential shapes (an R2 key pair, an Azure client secret, Cloudflare's prefixed tokens, upload tokens) also keep an `artifact` page local.
+- Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+- The skill's `allowed-tools` gains `Write`, which the connected-page step already used for `ops.json`.
+
+## [0.42.5] - 2026-10-07
+
+### Changed
+
+- **Upstream records ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Verification records carry recheck triggers specific to each claim, and citations of retired code.claude.com pages or drifted claims point at the live sections.
+
+## [0.42.4] - 2026-10-07
+
+### Changed
+
+- **Docs links ([#6498](https://github.com/melodic-software/claude-code-plugins/issues/6498)).** Citations of the retired `plugins-reference` and `discover-plugins` pages now point at the live pages that took over each section (`plugins/manifest-reference`, `plugins/components`, `plugins/cli-reference`, `plugins/loading`, `plugins/install`, and `settings-reference#pluginconfigs`). Quotes that moved with them are updated, and each re-verified pointer carries an as-of date of 2026-10-07.
+
 ## [0.42.3] - 2026-10-04
 
 ### Fixed

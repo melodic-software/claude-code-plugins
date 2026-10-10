@@ -1,0 +1,8 @@
+from core.models import Order
+
+
+def get_order(order_id, store):
+    order = store.get(order_id)
+    if order is None:
+        return 404, {"error": "not found"}
+    return 200, order.as_dict()

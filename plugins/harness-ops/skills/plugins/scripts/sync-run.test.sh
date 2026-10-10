@@ -37,6 +37,12 @@ assert_contains() {
   *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "expected not to contain: $3 — got: $2" ;;
+  *) pass "$1" ;;
+  esac
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
@@ -1760,6 +1766,27 @@ assert_contains "cache scope: the stale row names user scope" "$cache_text" \
   "Cache content: 1 user-scope install(s) whose cache files disagree"
 assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
   "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+assert_contains "cache content: a row without pending fragments keeps the repair" "$cache_text" \
+  "Remediation: remove that version's directory"
+
+# A plugin whose clone holds changelog fragments is labeled a pending release,
+# and its row gets no delete-cache repair; a mixed finding keeps the repair for
+# the other rows only.
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 9, "stale_content": 1,
+  "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true}],
+  "stale_ids": ["a@m"]}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: the pending row is labeled" "$cache_text" \
+  "  - a@m 1.0.0: 2 file(s) differ (unreleased changes pending)"
+assert_contains "cache content: the pending note is shown" "$cache_text" "Unreleased changes pending:"
+assert_not_contains "cache content: no delete-cache repair for a pending release" "$cache_text" "Remediation"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 8, "stale_content": 2,
+  "unverifiable": 0, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2, "unreleased_changes": true},
+  {"id": "b@m", "version": "2.0.0", "files_differ": 1, "unreleased_changes": false}], "stale_ids": ["a@m", "b@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache content: mixed, the repair names the rows it covers" "$cache_text" \
+  "Remediation, for the rows not marked unreleased: remove"
+assert_not_contains "cache content: mixed, the other row is not labeled" "$cache_text" \
+  "  - b@m 2.0.0: 1 file(s) differ (unreleased"
 
 # ============================================================================
 # Case: the Divergences split follows the total it sums to, with and without a

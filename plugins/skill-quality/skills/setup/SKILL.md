@@ -18,7 +18,7 @@ user settings, and ignores `pluginConfigs` entries in a project's `.claude/setti
 This skill never writes it.
 
 Official contract, verified 2026-09-06 against Claude Code 2.1.263:
-<https://code.claude.com/docs/en/plugins-reference#user-configuration>. Recheck when that page
+<https://code.claude.com/docs/en/settings-reference#pluginconfigs>. Recheck when that page
 stops naming the three settings sources it reads `pluginConfigs` from, or when a release note
 names `pluginConfigs` scope.
 

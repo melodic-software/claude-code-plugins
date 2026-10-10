@@ -20,13 +20,17 @@ discovers. Run it directly with: python3 test_run_validity.py
 """
 
 import copy
+import importlib.util
 import json
+import ntpath
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 SCRIPT = HERE / "run-validity.py"
@@ -608,6 +612,41 @@ class RunValidityTest(unittest.TestCase):
         listed = self.dir / "list.json"
         listed.write_text("[]", encoding="utf-8")
         self.assertEqual(self.run_script(listed, "--runs", "1").returncode, 2)
+
+
+class WindowsPathTest(unittest.TestCase):
+    """inside() under Windows path rules, on any host: a driveless rooted path
+    such as /tmp/x, which Python 3.13+ ntpath.isabs calls relative, is still
+    classified against the plugin root."""
+
+    ROOT = "/tmp/eval-r2/plugins/evals"
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("run_validity", SCRIPT)
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    def inside(self, path, root=ROOT):
+        windows = SimpleNamespace(path=ntpath, sep="\\", altsep="/")
+        with mock.patch.object(self.module, "os", windows):
+            return self.module.inside(path, [root])
+
+    def test_a_rooted_path_outside_the_plugin_is_outside(self):
+        for path in ("/tmp/claude-eval-x", self.ROOT + "-other"):
+            self.assertFalse(self.inside(path), path)
+
+    def test_a_rooted_path_under_or_above_the_plugin_is_inside(self):
+        for path in (self.ROOT + "/skills/x.md", "/tmp", "\\tmp\\eval-r2"):
+            self.assertTrue(self.inside(path), path)
+
+    def test_a_path_on_another_drive_than_the_plugin_is_outside(self):
+        self.assertFalse(self.inside("D:\\tmp\\x", "C:\\eval\\plugins\\evals"))
+        self.assertTrue(self.inside("c:\\eval", "C:\\eval\\plugins\\evals"))
+
+    def test_a_drive_relative_or_relative_path_is_inside(self):
+        for path in ("C:tmp\\x", "tmp/x"):
+            self.assertTrue(self.inside(path, "C:\\eval\\plugins\\evals"), path)
 
 
 if __name__ == "__main__":

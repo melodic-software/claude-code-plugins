@@ -727,6 +727,193 @@ else
 fi
 chmod 600 "$CFGUNREAD/playwright.config.js" 2>/dev/null || true
 
+# --- retry settings: pytest, vitest, jest -------------------------------------
+# Engine: retry-config-scan.awk, loaded beside mask-js.awk. The same rule as the
+# Playwright config, rule-flaky-passes-suite: a runner told to retry a failing
+# test leaves the run green when the retry passes. Each case is a tree written
+# here; every quiet case sits beside a firing one that differs only in the
+# setting under test, so its silence is the setting's.
+RC="$TMP_ROOT/retry"
+# rc_file <case>/<path> <line>...
+rc_file() {
+  mkdir -p "$(dirname "$RC/$1")"
+  local f="$RC/$1"
+  shift
+  printf '%s\n' "$@" >"$f"
+}
+FLAKY='[testing/audit/rule-flaky-passes-suite]'
+
+# pytest: --reruns in addopts fires at its own line; the gate is advisory until
+# --strict, and the Action names --fail-on-flaky.
+rc_file py-reruns/pytest.ini "[pytest]" "addopts =" "    -ra" "    --reruns=3" "testpaths = tests"
+rc_file py-reruns/test_ok.py "def test_ok():" "    assert 1 + 1 == 2"
+run_scan "$RC/py-reruns" --check
+assert_exit "pytest reruns gate clean without --strict (exit 0)" 0 "$rc"
+assert_contains "pytest --reruns in a continued addopts fires at the token's line" "$out" \
+  "pytest.ini:4: --reruns 3 in addopts at line 4 with --fail-on-flaky absent from addopts"
+assert_contains "the pytest threshold names --fail-on-flaky" "$out" "--fail-on-flaky absent from addopts)"
+assert_contains "the pytest Action proposes --fail-on-flaky" "$out" "Add --fail-on-flaky to addopts"
+assert_contains "the advisory note counts the retry settings apart" "$out" "pytest/vitest/jest retry settings 1."
+assert_contains "coverage reports the pytest config denominator" "$out" \
+  "retry settings: pytest configs 1 examined of 1 enumerated (0 shadowed)"
+run_scan "$RC/py-reruns" --check --strict
+assert_exit "--strict gates the pytest retry setting (exit 1)" 1 "$rc"
+# The eval fixture retry-config/pytest/ (pytest.ini beside test_checkout.py)
+# holds the shape its eval case names.
+run_scan "$FIX/retry-config/pytest"
+assert_contains "the pytest eval fixture fires at its addopts line" "$out" \
+  "pytest.ini:2: --reruns 2 in addopts at line 2 with --fail-on-flaky absent from addopts"
+assert_finding_count "the pytest eval fixture yields exactly one finding" 1
+
+# Stay quiet: the same reruns with --fail-on-flaky beside them.
+rc_file py-guarded/pyproject.toml "[project]" 'name = "calc"' "" "[tool.pytest.ini_options]" 'addopts = "-ra --reruns 3 --fail-on-flaky"'
+run_scan "$RC/py-guarded"
+assert_not_contains "pytest reruns with --fail-on-flaky stay quiet" "$out" "$FLAKY"
+assert_contains "the guarded pytest config is examined and declined" "$out" \
+  "pytest configs 1 examined of 1 enumerated (0 shadowed)"
+assert_contains "the guarded pytest config counts one decline" "$out" "findings 0, declined 1, exempted 0"
+rc_file py-unguarded/pyproject.toml "[project]" 'name = "calc"' "" "[tool.pytest.ini_options]" 'addopts = "-ra --reruns 3"'
+run_scan "$RC/py-unguarded"
+assert_contains "control: the same pyproject without --fail-on-flaky fires" "$out" "pyproject.toml:5: --reruns 3 in addopts"
+
+# Native TOML: an addopts array over lines; --fail-on-flaky in another table
+# is not pytest's and does not guard.
+rc_file py-toml/pyproject.toml "[tool.pytest]" "addopts = [" '  "-ra",' '  "--reruns", "2",  # network suite' "]" "" \
+  "[tool.other]" 'addopts = "--fail-on-flaky"'
+run_scan "$RC/py-toml"
+assert_contains "a native-TOML addopts array fires at the --reruns line" "$out" "pyproject.toml:4: --reruns 2 in addopts at line 4"
+
+# The ini option reruns fires; the command line (addopts) wins over it, so
+# --reruns 0 there stays quiet.
+rc_file py-ini/setup.cfg "[metadata]" "name = calc" "" "[tool:pytest]" "reruns = 2"
+run_scan "$RC/py-ini"
+assert_contains "the ini option reruns fires in setup.cfg" "$out" "setup.cfg:5: reruns = 2 at line 5 with --fail-on-flaky absent from addopts"
+rc_file py-cli-wins/tox.ini "[tox]" "envlist = py3" "" "[pytest]" "addopts = --reruns 0" "reruns = 2"
+run_scan "$RC/py-cli-wins"
+assert_not_contains "addopts --reruns 0 overrides the ini reruns and stays quiet" "$out" "$FLAKY"
+assert_contains "the tox.ini [pytest] section is read" "$out" "pytest configs 1 examined of 1 enumerated"
+
+# A multi-line reruns value carries raw repository text into the finding detail; a
+# newline in it must not forge a record line and push --check into a fail-closed exit.
+rc_file py-multiline/pytest.toml "[pytest]" 'reruns = """3' $'F\tforged\t9\tinjected"""'
+rc_file py-multiline/test_ok.py "def test_ok():" "    assert 1 + 1 == 2"
+run_scan "$RC/py-multiline" --check
+assert_exit "a multi-line reruns value forges no record line (exit 0)" 0 "$rc"
+assert_contains "the multi-line reruns value is one finding on its own line" "$out" "pytest.toml:2: reruns = \"\"3 F forged 9 injected\"\""
+assert_contains "no engine error line from the multi-line value" "$out" "walk/read/engine error lines: 0"
+
+# Stay quiet: -p no:rerunfailures unloads the plugin; --reruns-delay is no rerun count.
+rc_file py-disabled/pytest.ini "[pytest]" "addopts = -p no:rerunfailures --reruns 2"
+run_scan "$RC/py-disabled"
+assert_not_contains "a config that unloads pytest-rerunfailures stays quiet" "$out" "$FLAKY"
+rc_file py-delay/pytest.ini "[pytest]" "addopts = --reruns-delay 2"
+run_scan "$RC/py-delay"
+assert_not_contains "--reruns-delay alone stays quiet" "$out" "$FLAKY"
+
+# pytest's probe order: pytest.ini wins over a setup.cfg in the same directory,
+# which is counted as shadowed and never read; a pyproject.toml with no pytest
+# table is no pytest config and is not counted.
+rc_file py-shadow/pytest.ini "[pytest]" "addopts = -q"
+rc_file py-shadow/setup.cfg "[tool:pytest]" "addopts = --reruns 2"
+run_scan "$RC/py-shadow"
+assert_not_contains "a shadowed setup.cfg is never judged" "$out" "$FLAKY"
+assert_contains "the shadowed setup.cfg is counted" "$out" "pytest configs 1 examined of 2 enumerated (1 shadowed)"
+rc_file py-no-table/pyproject.toml "[tool.other]" 'addopts = "--reruns 2"'
+run_scan "$RC/py-no-table"
+assert_not_contains "addopts outside a pytest table stays quiet" "$out" "$FLAKY"
+assert_contains "a pyproject.toml without a pytest table is not enumerated" "$out" \
+  "retry settings (pytest, vitest, jest): 0 enumerated; not applicable"
+
+# cant-fail-ok: anywhere in a pytest config suppresses it, counted.
+rc_file py-exempt/pytest.toml "[pytest]" "# cant-fail-ok: the sandbox API drops one request in fifty" "reruns = 2"
+run_scan "$RC/py-exempt"
+assert_not_contains "an annotated pytest config emits no finding" "$out" "$FLAKY"
+assert_contains "the suppressed pytest finding is counted" "$out" "exempted findings (cant-fail-ok): 1"
+
+# vitest: retry under test fires, an expression included; a literal 0 and a
+# retry outside any test key stay quiet; vitest.config wins over vite.config.
+rc_file vt-expr/vitest.config.ts "import { defineConfig } from 'vitest/config';" "export default defineConfig({" "  test: {" \
+  "    retry: process.env.CI ? 2 : 0," "  }," "});"
+run_scan "$RC/vt-expr"
+assert_contains "a vitest retry expression fires" "$out" \
+  "vitest.config.ts:4: retry: process.env.CI ? 2 : 0 at line 4 under a test key"
+assert_contains "the vitest Action names --retry 0 for local loops" "$out" "run local and agent loops with --retry 0"
+rc_file vt-zero/vitest.config.ts "export default defineConfig({" "  test: { retry: 0 }," "});"
+rc_file vt-zero/vite.config.ts "export default defineConfig({" "  test: { retry: 3 }," "});"
+run_scan "$RC/vt-zero"
+assert_not_contains "a literal vitest retry: 0 stays quiet, and the shadowed vite.config is not read" "$out" "$FLAKY"
+assert_contains "the shadowed vite.config is counted" "$out" "vitest configs 1 examined of 2 enumerated (1 shadowed)"
+rc_file vt-other/vite.config.ts "export default defineConfig({" "  plugins: [fetchPlugin({ retry: 3 })]," "  server: { retry: 4 }," "});"
+run_scan "$RC/vt-other"
+assert_not_contains "a retry key outside any test key stays quiet" "$out" "$FLAKY"
+rc_file vt-other-ctl/vite.config.ts "export default defineConfig({" "  plugins: [fetchPlugin({ retry: 3 })]," "  test: { retry: 4 }," "});"
+run_scan "$RC/vt-other-ctl"
+assert_contains "control: the same retry under test fires" "$out" "vite.config.ts:3: retry: 4 at line 3"
+# The object form (Vitest 4.1): count is the number; an object without count
+# retries nothing. A retry inside a projects[] entry's test, or a tag under
+# test, counts too.
+rc_file vt-object/vitest.config.mts "export default defineConfig({" "  test: {" "    retry: {" "      count: 2," "      delay: 500," \
+  "    }," "  }," "});"
+run_scan "$RC/vt-object"
+assert_contains "a vitest retry object fires on its count" "$out" "vitest.config.mts:4: retry.count: 2 at line 4"
+rc_file vt-object-nocount/vitest.config.mts "export default defineConfig({" "  test: { retry: { delay: 500 } }," "});"
+run_scan "$RC/vt-object-nocount"
+assert_not_contains "a vitest retry object without count stays quiet" "$out" "$FLAKY"
+rc_file vt-projects/vitest.config.ts "export default defineConfig({" "  test: {" "    projects: [" \
+  "      { test: { name: 'unit', retry: 2 } }," "      { test: { name: 'tags', tags: [{ name: 'flaky', retry: 1 }] } }," "    ]," "  }," "});"
+run_scan "$RC/vt-projects"
+assert_contains "a projects[] entry's retry fires and every occurrence is counted" "$out" \
+  "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
+# Stay quiet: a spread after retry in the same object may override it.
+rc_file vt-spread/vitest.config.ts "export default defineConfig({" "  test: { retry: 2, ...shared }," "});"
+run_scan "$RC/vt-spread"
+assert_not_contains "a spread after a vitest retry declines rather than fires" "$out" "$FLAKY"
+# The spread makes only its own object's retry undecidable: a project retry
+# below it still fires, and the finding anchors to that firing retry.
+rc_file vt-spread-project/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 2, ...shared," \
+  "    projects: [{ test: { retry: 3 } }]," "  }," "});"
+run_scan "$RC/vt-spread-project"
+assert_contains "a project retry below an outer spread still fires, at its own line" "$out" \
+  "vitest.config.ts:4: retry: 3 at line 4; 2 retry occurrence(s)"
+rc_file vt-zero-first/vitest.config.ts "export default defineConfig({" "  test: {" "    retry: 0," \
+  "    projects: [{ test: { retry: 2 } }]," "  }," "});"
+run_scan "$RC/vt-zero-first"
+assert_contains "a retry: 0 ahead of a firing retry does not take the anchor" "$out" \
+  "vitest.config.ts:4: retry: 2 at line 4; 2 retry occurrence(s)"
+
+# jest: an argument on the next line is read there, so a wrapped 0 stays quiet
+# and a wrapped 2 fires with its value.
+rc_file jest-wrap/jest.setup.js "jest.retryTimes(" "  0," ");"
+run_scan "$RC/jest-wrap"
+assert_not_contains "a jest.retryTimes(0) wrapped onto the next line stays quiet" "$out" "$FLAKY"
+rc_file jest-wrap-ctl/jest.setup.js "jest.retryTimes(" "  2," ");"
+run_scan "$RC/jest-wrap-ctl"
+assert_contains "control: a wrapped jest.retryTimes(2) fires with its value" "$out" "jest.retryTimes(2) at line 1"
+
+# jest: each jest.retryTimes call fires at its line; a 0, a comment and a
+# string stay quiet; cant-fail-ok: on the line above suppresses that call only.
+rc_file jest/jest.setup.js "jest.retryTimes(3, { logErrorsBeforeRetry: true });"
+rc_file jest/quiet.test.js "// jest.retryTimes(3)" "const note = 'jest.retryTimes(3)';" "jest.retryTimes(0);" \
+  "test('adds', () => {" "  expect(add(1, 2)).toBe(3);" "});"
+rc_file jest/exempt.test.js "// cant-fail-ok: the sandbox API drops one request in fifty" "jest.retryTimes(2);" \
+  "describe('payments', () => {" "  jest.retryTimes(Number(process.env.RETRIES));" "  test('charges', () => {" \
+  "    expect(charge(5)).toBe(true);" "  });" "});"
+run_scan "$RC/jest"
+assert_contains "a jest.retryTimes call in a setup file fires" "$out" \
+  "jest.setup.js:1: jest.retryTimes(3) at line 1; Jest has no option that fails a run on a retry-earned pass"
+assert_contains "an unannotated call in an annotated file still fires" "$out" "exempt.test.js:4: jest.retryTimes(Number(process.env.RETRIES))"
+assert_not_contains "a retryTimes(0), a comment and a string stay quiet" "$out" "quiet.test.js:"
+assert_not_contains "the annotated call is suppressed" "$out" "exempt.test.js:2:"
+assert_contains "the suppressed jest call is counted" "$out" "exempted findings (cant-fail-ok): 1"
+assert_contains "every file naming retryTimes is read" "$out" "jest files naming retryTimes 3 examined of 3 enumerated"
+# An edit-scoped run reads no retry setting: a file-level setting is no finding
+# about the lines an edit wrote.
+out="$(bash "$SCAN" --file "$RC/jest/exempt.test.js" --lines 4 2>&1)"
+assert_not_contains "a --lines run does not report retryTimes" "$out" "$FLAKY"
+assert_contains "a --lines run says the retry settings were not read" "$out" "retry settings (pytest, vitest, jest): not read in a --lines run"
+out="$(bash "$SCAN" --file "$RC/jest/exempt.test.js" 2>&1)"
+assert_contains "a whole-file --file run reports retryTimes" "$out" "exempt.test.js:4: jest.retryTimes"
+
 # --- --file: scan exactly one file ---------------------------------------------
 # One file, the same exit codes as a whole-tree scan, repo-relative Location,
 # and no evals/fixtures prune: the path was named, so it is scanned.
@@ -1636,9 +1823,6 @@ assert_finding_count "(b) a toHaveScreenshot test gives 0 findings" 0
 DERIVED_JS=("test('adds', () => {" "  expect(add(a, b)).toBe(a + b);" "});")
 b4 derived.test.ts "import { expect, test } from 'vitest';" "${DERIVED_JS[@]}"
 assert_contains "(c) control: the vitest body fires recomputed-derived" "$out" "rule-recomputed-derived"
-b4 derived-fc.test.ts "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
-  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => add(a, b) === add(b, a)));" "});"
-assert_finding_count "(c) the same body in a fast-check file gives 0 findings" 0
 b4 derived.spec.ts "import { expect, test } from '@playwright/test';" "${DERIVED_JS[@]}"
 assert_contains "(c) the Playwright file was parsed" "$out" "test blocks parsed: 1;"
 assert_finding_count "(c) the same body in a js-playwright file gives 0 findings" 0
@@ -1650,8 +1834,62 @@ assert_finding_count "(c) the same body under @given gives 0 findings" 0
 GO_DERIVED=("func TestAdd(t *testing.T) {" "	if !reflect.DeepEqual(Add(a, b), a+b) {" "		t.Error(a, b)" "	}" "}")
 b4 derived_test.go "package calc" "" 'import "reflect"' "" "${GO_DERIVED[@]}"
 assert_contains "(c) control: the go body fires recomputed-derived" "$out" "rule-recomputed-derived"
-b4 derived_quick_test.go "package calc" "" 'import (' '	"reflect"' '	"testing/quick"' ')' "" "${GO_DERIVED[@]}"
-assert_finding_count "(c) the same body in a testing/quick file gives 0 findings" 0
+
+# (c2) a property marker exempts only the test that holds it, in its body or in
+# the decorator or attribute stack above it. Each file mixes property tests with
+# an example test whose expected value is rebuilt from the call's arguments:
+# exactly that example fires, at its own line. Each control renames the marker
+# calls away (PROP_OFF) and the property tests fire too, so the quiet ones are
+# quiet because of the marker. js-vitest, js-node-test, py-unittest, cs-nunit and
+# cs-mstest inherit their markers by extends, so each is exercised here.
+PROP_OFF='s/fc\./gc./g; s/@given(/@params(/; s/quick\.Check(/quickCheck(/; s/Prop\.ForAll/Run/; s/QuickCheck/Run/; s/\.Sample(/.Each(/; s/Check\.Quick/Runner.Go/'
+# prop_case <name> <file> <example line> <control count> <line>...
+prop_case() {
+  local name="$1" file="$2" at="$3" ctl="$4"
+  shift 4
+  b4 "$file" "$@"
+  assert_finding_count "(c2) $name: only the example test fires" 1
+  assert_contains "(c2) $name: the finding is the example test's line" "$out" "$file:$at: expected value"
+  mkdir -p "$B4/ctl"
+  printf '%s\n' "$@" | sed "$PROP_OFF" >"$B4/ctl/$file"
+  run_file --file "$B4/ctl/$file"
+  assert_finding_count "(c2) $name control: without the markers every test fires" "$ctl"
+}
+prop_case "vitest fast-check" derived-fc.test.ts 4 3 \
+  "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => {" "    expect(add(a, b)).toBe(a + b);" "  }));" "});" \
+  "test('marker below', () => {" "  const prop = (a, b) => {" "    expect(add(a, b)).toBe(a + b);" "  };" \
+  "  fc.assert(fc.property(fc.integer(), fc.integer(), prop));" "});"
+prop_case "node:test fast-check" derived-fc.test.mjs 10 2 \
+  "import test from 'node:test';" "import assert from 'node:assert';" "import fc from 'fast-check';" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => {" "    assert.strictEqual(add(a, b), a + b);" \
+  "  }));" "});" "test('adds', () => {" "  assert.strictEqual(add(a, b), a + b);" "});"
+prop_case "pytest multi-line @given" test_derived_mixed.py 11 2 \
+  "from hypothesis import given, strategies as st" "" "@given(" "    st.integers()," "    st.integers()," ")" \
+  "def test_prop(a, b):" "    assert add(a, b) == a + b" "" "def test_example():" "    assert add(a, b) == a + b"
+prop_case "unittest @given" test_derived_unit.py 10 2 \
+  "import unittest" "from hypothesis import given, strategies as st" "" "class AddTest(unittest.TestCase):" \
+  "    @given(st.integers(), st.integers())" "    def test_prop(self, a, b):" "        self.assertEqual(add(a, b), a + b)" "" \
+  "    def test_example(self):" "        self.assertEqual(add(a, b), a + b)"
+prop_case "go testing/quick" derived_mixed_test.go 19 2 \
+  "package calc" "" 'import (' '	"reflect"' '	"testing"' '	"testing/quick"' ')' "" \
+  "func TestAddProp(t *testing.T) {" "	f := func(a, b int) bool {" "		return reflect.DeepEqual(Add(a, b), a+b)" "	}" \
+  "	if err := quick.Check(f, nil); err != nil {" "		t.Error(err)" "	}" "}" "" "${GO_DERIVED[@]}"
+prop_case "nunit FsCheck" CalcNunitTests.cs 17 2 \
+  "using NUnit.Framework;" "using FsCheck;" "public class CalcTests" "{" "    [Test]" "    public void Add_Commutes()" "    {" \
+  "        Prop.ForAll<int, int>((a, b) =>" "        {" "            Assert.AreEqual(Calc.Add(a, b), a + b);" \
+  "        }).QuickCheckThrowOnFailure();" "    }" "" "    [Test]" "    public void Add_Example()" "    {" \
+  "        Assert.AreEqual(Calc.Add(a, b), a + b);" "    }" "}"
+# The CsCheck generator field sits right above the example test's attribute
+# stack and arms nothing: a marker outside a test counts only on a decorator or
+# attribute line.
+prop_case "mstest CsCheck and FsCheck" CalcMstestTests.cs 10 3 \
+  "using Microsoft.VisualStudio.TestTools.UnitTesting;" "using CsCheck;" "[TestClass]" "public class CalcTests" "{" \
+  "    static readonly Gen<(int, int)> Pairs = Gen.Int.Select(Gen.Int);" "    [TestMethod]" "    public void Add_Example()" "    {" \
+  "        Assert.AreEqual(Calc.Add(a, b), a + b);" "    }" "" "    [TestMethod]" "    public void Add_Commutes()" "    {" \
+  "        Pairs.Sample((a, b) =>" "        {" "            Assert.AreEqual(Calc.Add(a, b), a + b);" "        });" "    }" "" \
+  "    [TestMethod]" "    public void Add_Quick()" "    {" "        Check.QuickThrowOnFailure((int a, int b) =>" "        {" \
+  "            Assert.AreEqual(Calc.Add(a, b), a + b);" "        });" "    }" "}"
 
 # (d) an assertion inside a loop over a result, with a length check, gives 0
 # findings; without the check it fires.

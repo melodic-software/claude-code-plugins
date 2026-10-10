@@ -1,0 +1,13 @@
+{
+  "claim": "In auto mode, a PreToolUse hook returning permissionDecision allow lets a force push run that the classifier otherwise denies.",
+  "tags": ["PreToolUse", "permissionDecision", "hook", "auto mode", "classifier"],
+  "permission_mode": "auto",
+  "cwd": "repo",
+  "target": {
+    "tool": "Bash",
+    "input_match": "\"command\": \"git push --force origin main\"",
+    "example": { "command": "git push --force origin main" }
+  },
+  "outcome": "ran",
+  "match": "forced update"
+}

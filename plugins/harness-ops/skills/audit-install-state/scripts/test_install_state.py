@@ -1063,11 +1063,21 @@ class TestAuditorAncestry(unittest.TestCase):
         self.assertEqual(summary["self_pids_walk"], engine.WALK_PARENT_ONLY)
         self.assertIn("NOT marked self_held", summary["self_pids_walk_note"])
 
-    @unittest.skipUnless(shutil.which("ps"), "no ps on this host")
+    @unittest.skipUnless(
+        shutil.which("powershell" if os.name == "nt" else "ps"),
+        "no process lister on this host",
+    )
     def test_one_ps_listing_yields_the_same_ancestors_as_proc(self) -> None:
-        table = engine._parent_map_from_command(["ps", "-axo", "pid=,ppid="])
+        # Git Bash's ps is Cygwin's and rejects -axo; the engine lists Windows
+        # processes through CIM, so that is the listing to exercise there.
+        if os.name == "nt":
+            table, method = engine._process_table()
+            table = table or {}
+        else:
+            table = engine._parent_map_from_command(["ps", "-axo", "pid=,ppid="])
+            method = engine.WALK_PS
         self.assertIn(os.getpid(), table)
-        via_ps, _ = engine.auditor_ancestry(parent_of=table.get, method=engine.WALK_PS)
+        via_ps, _ = engine.auditor_ancestry(parent_of=table.get, method=method)
         if Path("/proc").is_dir():
             via_proc, walk = engine.auditor_ancestry()
             self.assertEqual(walk, engine.WALK_PROC)

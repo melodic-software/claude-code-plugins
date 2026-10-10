@@ -1,0 +1,30 @@
+# user-experience team file fixture: re-rank a bundled row, add an installed skill, disable two
+# routes (one listed twice) and deny two names (one listed twice).
+version: 1
+routing:
+  version: 1
+  rows:
+    - job: synthesis
+      id: /design:research-synthesis
+      rank: 1
+    - job: flows-ia
+      rank: 1
+      id: /product-management:write-spec
+      kind: skill
+      detect: product-management@knowledge-work-plugins
+      account: none
+      status: unconfirmed
+      as_of: 2026-10-09
+      pointer: https://github.com/anthropics/knowledge-work-plugins/tree/main/product-management/skills/write-spec
+      recheck: the skill directory moves or is renamed
+  disable:
+    - job: synthesis
+      id: dovetail
+    - job: flows-ia
+      id: optimal
+    - job: synthesis
+      id: dovetail
+  deny:
+    - mixpanel
+    - usertesting
+    - mixpanel

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: uc2-plan-interviews
+description: "Use case 2 (idea stage): plan interviews to validate an idea, as a screener and a past-behavior discussion guide"
+tags: [use-case, uc2]
+runs: 3
+expected_outcome: "The reply gives a research question, a screener that hides the qualifying answers, and a discussion guide about past behavior, not a product pitch"
+execution:
+  prompt: "Plan interviews to validate this idea: we think freelance translators lose hours every month chasing unpaid invoices and would pay for automatic payment reminders. We have no product yet. Give me what I need to run the interviews. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

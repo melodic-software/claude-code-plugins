@@ -68,9 +68,11 @@ A lane is one workflow with one model job; scripted jobs beside it report its ch
 name is its workflow file stem, and the lane never does another lane's job. Each activity runs
 through one of two shared runners:
 [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) for a `read`
-effect, with no App key in its run, and
+effect, with no App key and no OIDC token in its job, and
 [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) for any other
-effect. Their job contract is [`pr-run-activity.md`](pr-run-activity.md).
+effect, which gets its effect-scoped App token from the lanes token broker before any head
+checkout. No workflow holds the App key. Their job contract is
+[`pr-run-activity.md`](pr-run-activity.md).
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
@@ -244,13 +246,18 @@ change to any of them is a change to every lane's powers:
 - `docs/conventions/pr-pipeline.yaml` and `docs/conventions/pr-pipeline/**` (config and schema);
 - `.github/actions/**`, which holds `resolve-config/effect-grants.json`,
   `resolve-config/lane-rules.json` and every action a lane job runs from its base checkout;
-- `.github/standards/**`, which holds the trusted-actor list and the vocabulary;
+- `.github/standards/**`, which holds the trusted-actor list and the runner-policy script;
 - `.github/workflows/**`;
 - `.github/CODEOWNERS`.
 
-The trust-root ruleset makes a change to a trust-root path need an approving review from a human
-code owner, which the lanes App cannot give, with no App bypass; no lane goes live before it is in
-force. `pr-merge` never merges a PR that
+The trust-root ruleset makes a change to a trust-root path that `.github/CODEOWNERS` assigns need
+an approving review from a human code owner, which the lanes App cannot give, with no App bypass;
+no lane goes live before it is in force. The exceptions are the paths `.github/CODEOWNERS` lists
+with no owner: the eight synced data files (the vocabulary, pyright and runner-policy data files)
+and the three synced hosted caller workflows (`pr-check-managed-files-hosted.yml`,
+`pr-review-hosted.yml`, `pr-review-security-hosted.yml`). The required `check-managed-files` job
+in `ci-status` guards them instead, failing any hand edit or deletion.
+The runner-policy script and both trusted-actors files stay owned. `pr-merge` never merges a PR that
 touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
 here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
 `pr-merge` is built.

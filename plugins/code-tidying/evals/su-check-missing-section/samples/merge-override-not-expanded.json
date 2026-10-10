@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Lane: docs-prose (project override)\n\nThis repository keeps its prose in README.md and docs/; every other section comes from the bundled lane.\n\n## Scope\n\n```text\nREADME.md\ndocs/**.md\n```\n\n## Merge semantics\n\nMerge semantics: per the bundled lane's declaration.\n",
+      "why": "fixture as seeded: Scope and Merge semantics"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Lane: docs-prose (project override)\n\nThis repository keeps its prose in README.md and docs/; every other section comes from the bundled lane.\n\n## Scope\n\n```text\nREADME.md\ndocs/**.md\n```\n\n## Merge semantics\n\nMerge semantics: per the bundled lane's declaration.\n\n## Watch-for patterns\n\n- x\n",
+      "why": "a section copied in"
+    }
+  ]
+}

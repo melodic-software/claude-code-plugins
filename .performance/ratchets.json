@@ -78,6 +78,20 @@
       "goal": "The second PostToolUse Edit(*.md) at the same HEAD, citing a deleted path, spends at most this many process creations and execs. The deleted-path set is reused, so the history walk does not run, and the anchor count and skip-worktree tag start no awk, tr, or cut. The cold fire of the same edit is ceiling 20. Exec form launches that row through node, which adds one process (#3686). The 2026-09-28 Linux census measured 14. Measured on the CI runner (ubuntu-24.04) with bash 5.2.21, dash as sh, strace 6.8; the ratchet step prints the current versions. #4390. Correlation: unproven: CPU dominates on Linux CI (plugins/guardrails/reference/edit-write-guards/PLAN.md)"
     },
     {
+      "name": "guardrails-pretooluse-bash-file-snapshot-spawns",
+      "command": "bash scripts/hook-census.sh guardrails PreToolUse check-bash-file-changes.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_use_id\":\"toolu_census\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\" && test -n \"$(ls \"$CLAUDE_PLUGIN_DATA/bash-file-snapshots\")\"'",
+      "field": "spawns",
+      "ceiling": 3,
+      "goal": "The PreToolUse Bash snapshot of check-bash-file-changes (#6674) runs on every Bash and PowerShell call in a git repository and spends at most this many process creations and execs: node, then one git status. The repository root is found without a process. Correlation: unproven: not measured"
+    },
+    {
+      "name": "guardrails-posttooluse-bash-file-check-no-change-spawns",
+      "command": "bash scripts/hook-census.sh guardrails PostToolUse check-bash-file-changes.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_use_id\":\"toolu_census\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --setup 'printf \"{\\\"session_id\\\":\\\"census\\\",\\\"cwd\\\":\\\"%s\\\",\\\"tool_name\\\":\\\"Bash\\\",\\\"tool_use_id\\\":\\\"toolu_census\\\",\\\"tool_input\\\":{\\\"command\\\":\\\"true\\\"}}\" \"$PWD\" | node \"$CLAUDE_PLUGIN_ROOT/hooks/check-bash-file-changes.mjs\" snapshot && test -n \"$(ls \"$CLAUDE_PLUGIN_DATA/bash-file-snapshots\")\"' --check 'test ! -s \"$HOOK_STDOUT\" && test -z \"$(ls \"$CLAUDE_PLUGIN_DATA/bash-file-snapshots\")\"'",
+      "field": "spawns",
+      "ceiling": 3,
+      "goal": "The PostToolUse Bash check of check-bash-file-changes (#6674) after a command that changed no file, the common case, spends at most this many process creations and execs: node, then one git status; no guard process starts. Correlation: unproven: not measured"
+    },
+    {
       "name": "testing-posttooluse-bash-test-scan-option-off-spawns",
       "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=false --check 'test ! -s \"$HOOK_STDOUT\"'",
       "field": "spawns",
@@ -90,6 +104,20 @@
       "field": "spawns",
       "ceiling": 3,
       "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions. Correlation: unproven: not measured"
+    },
+    {
+      "name": "multi-agent-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh multi-agent PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a multi-agent:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
+    },
+    {
+      "name": "discovery-pretooluse-bash-docs-fetcher-gate-spawns",
+      "command": "bash scripts/hook-census.sh discovery PreToolUse docs-fetcher-gate.mjs '{\"session_id\":\"census\",\"hook_event_name\":\"PreToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"}}' --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "A Bash call outside a discovery:docs-fetcher subagent costs only node, which reads the payload, finds another agent_type and stays quiet; the row has no if, so this is what every Bash call costs. Not yet measured with this row: the ceiling is the node-launcher count of testing-posttooluse-bash-test-scan-option-off-spawns, and the first CI run corrects it with propose-tighten. Correlation: unproven: not measured"
     }
   ]
 }

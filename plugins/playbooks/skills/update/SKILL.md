@@ -55,7 +55,9 @@ take no action against it here.
 5. On `--apply`, remind the maintainer that only the vendored baseline + frontmatter
    metadata changed; integrating upstream deltas into each pack's distilled SKILL.md body
    and reference/context files is a separate manual, reviewed step, and the plugin
-   `version` in `.claude-plugin/plugin.json` must be bumped so consumers receive the change.
+   needs the repo's release record so consumers receive the change: a `version` bump in
+   `.claude-plugin/plugin.json` plus CHANGELOG entry, or a changelog fragment where the repo uses
+   them (see the repo's AGENTS.md).
 
 ## Security posture (non-negotiable)
 

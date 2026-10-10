@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {
+      "answer": "web: scope src/web/**, tests/test_app.py; 2 watch-for patterns"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "web lane exists.",
+      "why": "no scope globs in the summary"
+    }
+  ]
+}

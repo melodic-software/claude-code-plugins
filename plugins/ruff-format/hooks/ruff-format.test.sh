@@ -85,7 +85,7 @@ else
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != ruff && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      ln -s "$exe" "$PG_WORK/sysbin/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
   PG_ARGS=()
@@ -141,7 +141,7 @@ fi
 
 WORK="$(mktemp -d)"
 UNRELATED="$(mktemp -d)"
-cleanup() { rm -rf "$WORK" "$UNRELATED"; }
+cleanup() { rm -rf "$WORK" "$UNRELATED"; rm -f "${TELD:-}"; }
 trap cleanup EXIT
 
 # shellcheck source=hook-test-sink.sh
@@ -777,6 +777,46 @@ if grep -q '^x = 1$' "$REPO_IGN/.work/scratch.py"; then
   ok "gitignored + ruff_format_lint_gitignored=true: file formatted"
 else
   fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.py")"
+fi
+
+# --- Pre-existing drift: each pass runs only on a file clean before the edit ---
+# The pre-edit bytes arrive as tool_response.originalFile. A file that already
+# failed `ruff format --check` (or had safe fixes pending) before a one-line
+# edit is left as written; a file that was clean has the edit formatted.
+REPO_DRIFT="$WORK/drift"
+new_ruff_repo "$REPO_DRIFT" $'[lint]\nselect = ["F", "I"]'
+run_edit() {
+  local payload
+  payload=$(jq -n --arg f "$1" --arg o "$2" \
+    '{tool_name: "Edit", tool_input: {file_path: $f}, tool_response: {filePath: $f, originalFile: $o}}')
+  (
+    cd "$UNRELATED" || return 1
+    env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK" <<<"$payload"
+  )
+}
+
+printf 'x=1\ny = 2\n' >"$REPO_DRIFT/fmt_drift.py"
+OUT=$(run_edit "$REPO_DRIFT/fmt_drift.py" $'x=1\n')
+if cmp -s "$REPO_DRIFT/fmt_drift.py" <(printf 'x=1\ny = 2\n') && [[ "$OUT" != *reformatted* ]]; then
+  ok "drift: edit to a file not format-clean before the edit -> bytes left as written"
+else
+  fail "drift: pre-existing format drift was rewritten (out=$OUT): $(cat "$REPO_DRIFT/fmt_drift.py")"
+fi
+
+printf 'import sys\nimport os\n\nprint(os, sys)\nprint(1)\n' >"$REPO_DRIFT/fix_drift.py"
+run_edit "$REPO_DRIFT/fix_drift.py" $'import sys\nimport os\n\nprint(os, sys)\n' >/dev/null
+if cmp -s "$REPO_DRIFT/fix_drift.py" <(printf 'import sys\nimport os\n\nprint(os, sys)\nprint(1)\n'); then
+  ok "drift: edit to a file with safe fixes pending before the edit -> fixes not applied"
+else
+  fail "drift: pre-existing fixable findings were fixed: $(cat "$REPO_DRIFT/fix_drift.py")"
+fi
+
+printf 'x = 1\ny=2\n' >"$REPO_DRIFT/clean_edit.py"
+run_edit "$REPO_DRIFT/clean_edit.py" $'x = 1\n' >/dev/null
+if cmp -s "$REPO_DRIFT/clean_edit.py" <(printf 'x = 1\ny = 2\n'); then
+  ok "drift: edit to a file clean before the edit -> the edit is formatted"
+else
+  fail "drift: clean file's edit not formatted: $(cat "$REPO_DRIFT/clean_edit.py")"
 fi
 
 echo

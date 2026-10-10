@@ -92,6 +92,20 @@ while IFS= read -r ev; do
 done < <(jq -r '.[] | select(.producer == "observe") | .name' "$REG")
 if ((missing == 0)); then ok "every observable event has exactly one exec-form producer row"; else fail "$missing observable events lack their producer row"; fi
 
+# The log row only records, so it runs in the background (hooks reference, "Run hooks in the
+# background": an async hook does not block and its exit code and output are not read). SessionEnd is
+# the exception: its hooks share a 1.5-second teardown budget, so its row stays synchronous.
+unasync=0
+while IFS= read -r ev; do
+  want=true
+  [[ "$ev" == SessionEnd ]] && want=false
+  a=$(jq -r --arg e "$ev" --arg prod "$PRODUCER" '[.hooks[$e][]? | .hooks[] | select(((.args // []) | index($prod)) != null) | (.async == true)] | all' "$HJ")
+  [[ "$a" == "$want" ]] || unasync=$((unasync + 1))
+done < <(jq -r '.[] | select(.producer == "observe") | .name' "$REG")
+if ((unasync == 0)); then ok "every producer row is async except SessionEnd's"; else fail "$unasync producer rows have the wrong async setting"; fi
+gate_async=$(jq -r --arg prod "$PRODUCER" '[.hooks[][] | .hooks[] | select(((.args // []) | index($prod)) == null and .async == true)] | length' "$HJ")
+if [[ "$gate_async" == 0 ]]; then ok "no row other than the event log is async"; else fail "$gate_async non-log rows are async"; fi
+
 ret=$(jq -r --arg ret "$RETENTION" '[.hooks.SessionEnd[]? | .hooks[] | select(((.args // []) | index($ret)) != null)] | length' "$HJ")
 if [[ "$ret" == 1 ]]; then ok "SessionEnd carries the retention row once"; else fail "retention rows on SessionEnd: $ret"; fi
 ret_shell=$(jq -r --arg ret "$RETENTION" '.hooks.SessionEnd[] | .hooks[] | select(((.args // []) | index($ret)) != null) | has("shell")' "$HJ")

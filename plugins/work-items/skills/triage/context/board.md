@@ -33,7 +33,7 @@ First hit wins:
 |---|---|
 | `terminal` | The table only. Build nothing. |
 | `file`, or `auto` in an interactive session | Build the page to an untracked temp file and tell the reader its path. |
-| `artifact` | Build the page, then publish that file with the Artifact tool when it is available. Otherwise take the `file` row and say why. Publishing does not lower the page's class. |
+| `artifact`, or `hosted` (never sent to a page host here) | Build the page, then publish that file with the Artifact tool when it is available. Otherwise take the `file` row and say why. Publishing does not lower the page's class. |
 
 Any other value is reported and treated as `auto`. Name the layer that supplied the value when you
 report the choice. Pointer: `docs/conventions/rendered-views/README.md` in the marketplace repository,

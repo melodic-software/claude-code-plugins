@@ -3,7 +3,8 @@
 Pat Pattison's documented Title Game exercise, used as a co-write warmup
 and as a solo title-generation drill. Source: Songwriter Trysts podcast
 episode 40 (verified web research 2026-05-10), the most detailed public
-documentation of the mechanics.
+documentation of the mechanics. Recheck when Pat documents the Title Game in a book or on
+patpattison.com.
 
 > **Sourcing note.** The Title Game does **not** appear in *Writing
 > Better Lyrics* (2009) or *Songwriting Without Boundaries* (2011). An

@@ -33,8 +33,8 @@ reference docs denotes that tool under whichever prefix is live; the availabilit
 (`…__miro_list_boards`), not the server name.
 
 Claim: the two prefix forms above. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp),
-"Plugin MCP tool names", and [Plugins reference](https://code.claude.com/docs/en/plugins-reference).
-As of: 2026-09-23 (Claude Code 2.1.280). Recheck when either page changes its tool-name format or a
+"Plugin MCP tool names", and [Server names, tool names, and reloads](https://code.claude.com/docs/en/plugins/components#server-names-tool-names-and-reloads).
+As of: 2026-10-07 (Claude Code 2.1.292). Recheck when either page changes its tool-name format or a
 Claude Code changelog entry mentions MCP tool naming.
 
 ### Setup

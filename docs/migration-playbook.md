@@ -39,7 +39,9 @@ project's `settings.json`, on 2026-06-29, against the discover-plugins "Configur
 guide; the "Extensibility contract v2.1" sections and their smoke tests on 2026-07-12 against Claude
 Code 2.1.207; the Organization and Naming sections' skill-namespace and skill-listing claims on
 2026-07-15, and the decomposition/trigger-continuity procedure on 2026-07-16, against the skills doc).
-Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate".
+Re-verify fresh before acting. See `CLAUDE.md` "Fresh-docs mandate". Recheck a section when a
+Claude Code release note changes the plugin schema, skill-listing, or marketplace-settings behavior
+it states.
 
 ## Organization: one plugin per cohesive concern
 
@@ -55,10 +57,9 @@ plugin per hook.
   warranted when their trigger vocabularies differ, because a user reaching for each says different
   things; a capability's subcommands stay action arguments of one skill. The restraint has a
   context-cost basis: the listing of skill names and descriptions loads into every session, and each
-  entry's combined description text is truncated at 1,536 characters in that listing
-  ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
-  verified 2026-08-31; recheck trigger: that page moving the cap re-derives this bullet). Every
-  extra skill is an always-paid context line. The standing exception is the `setup` lane, always its own skill with
+  entry's combined description text is truncated there at a per-entry cap (the figure and its
+  source record: `/playbooks:skill-authoring` `## Descriptions`). Every extra skill is an
+  always-paid context line. The standing exception is the `setup` lane, always its own skill with
   `disable-model-invocation: true`. See the philosophy's "Setup is explicit and repeatable".
 - **Hooks group by concern.** Per-hook selectivity comes from a `userConfig` toggle (read through
   the hook-process `CLAUDE_PLUGIN_OPTION_<KEY>` mirror), a `matcher`, or an `if` guard, all
@@ -74,7 +75,8 @@ procedure before choosing plugin and skill directories:
    cross-skill reference, eval, and auto-invocation phrase from `description` plus `when_to_use`.
    Claude Code uses that listing text to decide whether to load a skill, so trigger phrases are
    behavior, not marketing copy
-   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16).
+   ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-16; recheck when that page
+   stops saying the listing text decides whether a skill loads).
 2. **Classify the split points by discovery intent.** Facets of one capability stay in one plugin but
    may become focused sibling skills when users reach for them with different vocabulary. Capabilities
    with independent purpose, lifecycle, or trust surface become separate plugins. Subcommands and
@@ -178,7 +180,8 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
 
 **Built-in collisions never force a plugin skill's name.** "Plugin skills use a
 `plugin-name:skill-name` namespace, so they cannot conflict with other levels"
-([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15). A shadow-dodge name is never
+([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
+changes the plugin-namespace sentence). A shadow-dodge name is never
 *required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
 `batch-simplify`, `research-deep`) stand or evolve on their own merits, not out of collision fear.
 The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
@@ -491,20 +494,29 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 
 ## Version pinning and update delivery
 
-- **A `version` bump in `plugin.json` is the only delivery vehicle.** A consumer receives a change only
-  after the plugin's semver `version` increases. The version is the update cache key, so an unbumped
-  plugin never delivers, even when its files changed (see "Shared code across plugins" below).
-  A plugin listed in `scripts/fragment-plugins.txt` is the exception: its pull requests add a
-  changelog fragment (`scripts/new-changelog-fragment.sh <plugin> <bump>`) and leave the version
-  and `CHANGELOG.md` alone, and the release pull request bumps it
+- **A new `version` in `plugin.json` is the only delivery vehicle for copied installs.** A consumer
+  who installed from a Git-hosted marketplace receives a change only after the plugin's semver
+  `version` increases. The version is the update cache key, so an unreleased change never delivers,
+  even when its files changed (see "Shared code across plugins" below).
+- **A pull request records the release in a changelog fragment, not in the version.** For a plugin
+  listed in `scripts/fragment-plugins.txt`, a pull request adds
+  `.changes/<plugin>/<branch-slug>-<8 hex>.md` with `scripts/new-changelog-fragment.sh <plugin>
+  <bump>` and leaves `plugin.json` and `CHANGELOG.md` alone; the release pull request turns pending
+  fragments into one version bump and one `CHANGELOG.md` entry per plugin
   ([ADR 0048](adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)).
+  One edit that reaches several plugins, such as a shared library under `lib/`, takes one command:
+  `scripts/new-changelog-fragment.sh --stdin --carriers-of lib/<file> patch` writes the same body
+  into a fragment for every carrier in fragment mode. A plugin not yet on the list still bumps its
+  `version` and adds its `CHANGELOG.md` entry in the pull request.
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
-  the marketplace. There is no silent auto-push of plugin changes to a consumer.
-- **Breaking-change / changelog note per plugin.** A version bump that changes behavior a consumer
-  depends on, such as a renamed option, a moved config path, or a removed action, records the change in the
-  plugin's own changelog (a `CHANGELOG.md` in the plugin), so a consumer updating deliberately sees
-  what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
-  security review below.
+  the marketplace. Auto-update is off by default for a third-party marketplace such as this one, so
+  a consumer gets no change they did not ask for unless they turned `autoUpdate` on
+  ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)).
+- **Breaking-change / changelog note per plugin.** A change to behavior a consumer depends on, such
+  as a renamed option, a moved config path, or a removed action, is described in the fragment (or,
+  for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
+  the plugin's own `CHANGELOG.md`, so a consumer updating deliberately sees what shifted. A change
+  that adds a new trust surface additionally re-triggers the plugin-acceptance security review below.
 
 **The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
 by a version bump and a changelog note. An install that still names an old id gets
@@ -516,35 +528,42 @@ deprecation shim, alias, or pointer to the old name: no stub catalog entry, no r
 no second spelling a consumer can keep using. Consumers outside this repository (the fleet list,
 dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 
-### Same-version commit drift (directory-source marketplaces)
+### Same-version commit drift (copied installs)
 
-For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
-checked-in settings), the installed plugin cache is keyed by the **semver `version` in
-`plugin.json`**, not by the git commit SHA. Claude Code records the commit at install time in
-`installed_plugins.json`, but the cache directory name is only `<version>`, so a later commit under
-the same version does not replace the snapshot.
+How a later commit under an unchanged `version` reaches an installed plugin depends on whether
+Claude Code loads the plugin in place or from a copy
+([Plugin loading reference](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins),
+fetched 2026-10-04; recheck when that section changes which sources load in place):
 
-That bites the normal PR shape here: a branch lands several commits under one version bump (review
-fixes before merge, audit follow-ups, and the like). Whoever installed on the branch's first commit
-keeps that snapshot until the version changes. Every later commit under the same version is invisible
-to installed sessions, including corrections that would otherwise be live after merge.
+- **A marketplace added from a local path** (`claude plugin marketplace add <clone>`, or a
+  `directory` source in checked-in settings): every plugin here has a relative-path source
+  (`./plugins/<name>`), and such a plugin loads in place from the clone. Edits take effect at the
+  next session start or `/reload-plugins` with no version change. Claude Code still writes a
+  `cache/<marketplace>/<plugin>/<version>/` entry and a `gitCommitSha` in `installed_plugins.json`,
+  but `claude plugin list --json` reports the clone as `readFromFolder` (measured on Claude Code
+  2.1.289 with a throwaway local marketplace). No drift.
+- **A Git-hosted marketplace** (`melodic-software/claude-code-plugins` from GitHub, the normal
+  consumer install): Claude Code copies the plugin into `cache/<marketplace>/<plugin>/<version>/`
+  and loads the copy. The manifest `version` comes first when it computes the version, so a later
+  commit under the same version does not replace the copy, and
+  `claude plugin update <name>@<marketplace>` reports "already at the latest version" and copies
+  nothing ([How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version)).
+  A fragment merged to main is such a commit: it changes the plugin's files and not its version
+  until the release pull request merges.
 
-`claude plugin update <name>@<marketplace>` compares **version numbers only**. When the marketplace
-ref and the cache both read `0.7.0`, `update` reports success ("already at the latest version") and
-copies nothing: a false green that confirms the wrong state while the recorded SHA lags the source.
+For a copied install:
 
-**Workarounds (until upstream fixes this, [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
-
-- **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
+- **Ship a release** when the merged result must reach consumers: a fragment, then the release pull
+  request (or a version bump, for a plugin not yet in fragment mode). It is the only delivery
+  vehicle (see bullets above).
+- **Force a fresh copy:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
   `install` again, then `enable`. `uninstall` drops enabled state, so skipping `enable` leaves
   the plugin silently absent rather than silently stale. `--keep-data` keeps
   `${CLAUDE_PLUGIN_DATA}` only; uninstall still drops the stored `pluginConfigs`
   entry, so options return to manifest defaults on reinstall. Omitting the flag
   would also destroy the data directory.
-- **Ship a version bump** when the merged result must reach consumers. It is the only delivery vehicle for
-  marketplace installs (see bullets above).
 - **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes
-  session precedence over the cached install (see "Local development loop" below), so no reinstall
+  session precedence over the installed copy (see "Local development loop" below), so no reinstall
   is needed for same-session edits after `/reload-plugins`.
 
 ## Retiring a published plugin
@@ -600,7 +619,7 @@ a declared config surface, not an abstraction layer, is the extension point.
 
 A plugin can ship MCP servers via `.mcp.json` at the plugin root (or an `mcpServers` key in
 `plugin.json`), across all transports: stdio, HTTP, SSE, WS
-([plugins-reference](https://code.claude.com/docs/en/plugins-reference), MCP servers). Those servers
+([MCP servers](https://code.claude.com/docs/en/plugins/components#mcp-servers)). Those servers
 **auto-connect when the plugin is enabled** (managed through plugin install, not a second `/mcp`
 approval) and appear as standard tools. The connect cost differs by transport: a **stdio** server
 costs a **local process spawn on every session that enables the plugin**, used or not; an **HTTP/SSE/WS**
@@ -639,7 +658,7 @@ consumers who never opt in.
    - **Committed `node_modules` under `${CLAUDE_PLUGIN_DATA}` (fallback).** For a server that cannot
      be single-file bundled, ship its `node_modules` and set
      `env.NODE_PATH: "${CLAUDE_PLUGIN_DATA}/node_modules"` (the persist-deps example in
-     [plugins-reference](https://code.claude.com/docs/en/plugins-reference)) or it fails at startup
+     [Install dependencies into the data directory](https://code.claude.com/docs/en/plugins/components#install-dependencies-into-the-data-directory)) or it fails at startup
      with `MODULE_NOT_FOUND`.
 
    A SHIP that connects to a **credentialed external service** ships `defaultEnabled: false`. It
@@ -769,10 +788,10 @@ Catalog these per migration; they are the usual failures when an in-repo skill b
 - **Headless registration.** Distinguish the marketplace **source** from the session shape:
   - **Remote or git-sourced catalogs** (GitHub repo, URL, npm, …) in CI or other non-interactive
     runs: no interactive trust dialog, so run `claude plugin marketplace add` explicitly or pre-seed via
-    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Plugin marketplaces, "Pre-populate plugins for containers"](https://code.claude.com/docs/en/plugin-marketplaces#pre-populate-plugins-for-containers),
-    fetched 2026-08-12).
+    `CLAUDE_CODE_PLUGIN_SEED_DIR` ([Manage plugins for your organization, "Seed containers and CI"](https://code.claude.com/docs/en/plugins/org#seed-containers-and-ci),
+    as of 2026-10-07; recheck when that section drops the seed variable).
   - **`directory` / `file` source with a relative path in checked-in project `.claude/settings.json`:**
-    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugin-marketplaces#relative-paths),
+    the path [resolves against the repository checkout](https://code.claude.com/docs/en/plugins/org#require-plugins-per-repository),
     including cloud sessions that install from the clone at session start, with no separate
     `marketplace add` step. Local collaborators still see the interactive trust prompt once they
     trust the folder. See [`docs/cloud-sessions.md`](cloud-sessions.md) "Plugins in sessions on this repo".
@@ -852,6 +871,8 @@ here, whether new or a version bump that adds a trust surface, passes this revie
 gate above (whose step 6 gates PII/secrets). **Deny by default** any surface below that can't be justified.
 Facts verified against the plugins/MCP reference 2026-07-09 and re-verified against the plugins,
 plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fresh-docs mandate.
+Recheck when a Claude Code release note changes hook command substitution, `userConfig`
+interpolation, or what a plugin may bundle.
 
 1. **Code execution: hooks & scripts.** A hook command runs on the consumer's machine on matched events,
    with `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_PLUGIN_DATA}`, and any `${ENV_VAR}`
@@ -911,24 +932,23 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    plugin-shipped **agents** from declaring `hooks` / `mcpServers` / `permissionMode` "for security reasons".
    Don't design around that.
    - **An `archive` marketplace entry MUST carry its `sha256` pin.** A catalog entry may set
-     `"source": "archive"` with a `url` and an **optional** `sha256`, installing the plugin from a zip
-     downloaded over HTTPS with no git or npm on the consumer's machine
-     ([plugin-marketplaces](https://code.claude.com/docs/en/plugin-marketplaces#zip-archives), fetched
-     2026-08-10; requires Claude Code v2.1.224 or later, and on v2.1.120–v2.1.223 the install fails while
-     on older versions "a marketplace containing an `archive` entry fails to load entirely"). The
-     platform's own floor is **transport-level only**: `url` is "Required. HTTPS URL of the zip archive.
-     Claude Code rejects `http://` URLs, along with loopback, link-local, and cloud-metadata hosts. Every
-     redirect hop must satisfy the same rules". Content identity is not in that floor: the `sha256` field
-     is documented as "Optional", so an unpinned entry lets the same URL serve different bytes on every
-     install with nothing to detect it. That is a mutable-remote-artifact surface, which criterion 6
-     denies by default, so **this review requires the pin**: an `archive` entry without `sha256` is a
-     deny, whether this repository publishes it or accepts a plugin that depends on it. With the pin,
-     "Claude Code verifies every download against it and refuses the install on a mismatch". Two
-     follow-ons to record when accepting one: the digest doubles as the plugin's version when neither
-     `plugin.json` nor the entry declares one, so a repinned archive still needs its `version` bumped or
-     "users keep the cached copy"; and organization distribution through claude.ai admin settings does
-     not accept this source at all: "Plugin sources of type `github`, `url`, and `git-subdir` are
-     supported. `npm` and `archive` sources are not." Enforced by `scripts/validate-plugin-contracts.mjs`
+     `"source": "archive"` with a `url` and a `sha256` pin the platform treats as optional, installing the
+     plugin from a zip downloaded over HTTPS with no git or npm on the consumer's machine. The platform
+     checks only the transport (an `https://` URL that is not a loopback, link-local or cloud-metadata
+     host); content identity rests on the pin alone, so an unpinned entry lets the same URL serve
+     different bytes on every install with nothing to detect it. That is a mutable-remote-artifact
+     surface, which criterion 6 denies by default, so **this review requires the pin**: an `archive`
+     entry without `sha256` is a deny, whether this repository publishes it or accepts a plugin that
+     depends on it. Two follow-ons to record when accepting one: the digest doubles as the plugin's
+     version when neither `plugin.json` nor the entry declares one, so a repinned archive with a fixed
+     `version` still needs that `version` bumped before users leave the cached copy; and organization
+     sync through claude.ai settings accepts only some source types, so check its list before relying
+     on `archive` there. Pointers: [archive plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#archive-plugin-source)
+     (version floor in the [plugin sources](https://code.claude.com/docs/en/plugins/marketplace-reference#plugin-sources)
+     table), [How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version),
+     and [Distribute through organization settings](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings).
+     As of 2026-10-07. Recheck when the archive section makes `sha256` required or changes the URL
+     rules, or when organization sync starts accepting `archive`. Enforced by `scripts/validate-plugin-contracts.mjs`
      over `.claude-plugin/marketplace.json`. This marketplace publishes every plugin as a relative path
      (`"source": "./plugins/<name>"`), so no entry uses `archive` today; the rule governs the first that
      does.
@@ -1452,7 +1472,7 @@ authority.
 |---|---|---|
 | `strict` per entry | adopt default (`true`; omit the field) | No entry in `.claude-plugin/marketplace.json` sets `strict`. Every plugin here ships `plugin.json`. Default `strict: true` keeps that file the component authority. `strict: false` with entry component fields is rejected: that is marketplace-entry-as-definition, which this catalog does not use. Source: [strict mode](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode). |
 | `renames` | reject | `.claude-plugin/marketplace.json` carries no `renames` map. A rename is a clean break: an old-name install gets `Plugin "<name>" not found in marketplace` and the consumer re-enables the new name. Source: [migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map). |
-| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration). |
+| `userConfig` | adopt | Sanctioned mechanism for tokens, paths, and toggles. Declare `sensitive: true` for credentials. Already in use. Source: [user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration). |
 | `channels` | defer | Component-stances Wait: no fleet gap. Re-verify before a plugin binds a message channel. Source: the Channels row of [Component stances](plugin-philosophy.md#component-stances). |
 | Relative-path sources vs a URL marketplace add | design-around | Relative `./plugins/<name>` sources resolve only when Claude Code has the marketplace files (`github`, `git`, `file`, `directory`). A marketplace `url` fetch of `marketplace.json` alone cannot resolve them. This catalog stays a GitHub git marketplace; do not publish it as a JSON URL. Source: [avoid relative-path entries in a URL-hosted marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#avoid-relative-path-entries-in-a-url-hosted-marketplace). |
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
@@ -1487,7 +1507,8 @@ For a plugin that already ships here, iterate against your local clone without r
 without changing any consumer's marketplace registration. `--plugin-dir` loads a plugin straight from
 a directory; when its `name` matches an installed marketplace plugin, **the local copy takes
 precedence for that session**, so you exercise working-tree edits against the installed copy without
-uninstalling it (verified 2026-06-24).
+uninstalling it (verified 2026-06-24; recheck when the plugins reference changes how
+`--plugin-dir` resolves a name that matches an installed plugin).
 
 ```shell
 # from this repo root: point at the plugin directory, not the marketplace root
@@ -1498,7 +1519,7 @@ claude --plugin-dir ./plugins/<name>
   hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
 - **Multiple plugins at once.** Repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
   `--plugin-dir` also accepts a `.zip` archive (Claude Code v2.1.128+). See
-  [Create plugins](https://code.claude.com/docs/en/plugins) "Test your plugins locally".
+  [Create plugins](https://code.claude.com/docs/en/plugins/create#from-a-directory-or-zip) "From a directory or `.zip`".
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or

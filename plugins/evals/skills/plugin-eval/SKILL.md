@@ -219,24 +219,24 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
    invoking the `evals:validate` skill through the Skill tool for the finding detail; exit 2 means
    the eval dir is unreadable or the arguments are wrong, which is also a stop.
 
-2. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
+2. Run "Calibrating a judge" first unless every `llm` grader it can reproduce has passed with this
+   run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
+
+3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
    `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
-
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
-   about six minutes here) and wait. Never background the CLI from a headless `-p` session: the
-   session ends and takes the run with it.
+   about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
+   ends with the session. The run is finished when the process exits and `results.json` exists; read
+   the exit code and the JSON together, never one alone. Write the file somewhere git ignores (the
+   CLI's own copy lands under `<eval dir>/results/<timestamp>/`, and a repo that ignores that tree
+   can take `--json` there too); a run result is evidence to distill, not a file to commit.
 
-   The run is finished when the process exits and `results.json` exists; read the exit code and the
-   JSON together, never one alone. Write the file somewhere git ignores (the CLI's own copy lands
-   under `<eval dir>/results/<timestamp>/`, and a repo that ignores that tree can take `--json`
-   there too); a run result is evidence to distill, not a file to commit.
-
-3. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
+4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
@@ -310,6 +310,7 @@ Read the noise report's lines this way:
   verdict is trusted. The line saying the file holds no judge votes means agreement is unknown,
   not perfect.
 - `cost`: report it beside the scores, in the same answer as the delta.
+- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each `case drop`.
 - `pass count`: the interval method (the `interval_method` setting, the `--interval-method` flag)
   changes only this line, the count of cases at or above the threshold. Every score interval, the
   delta line included, uses the normal method paired over cases whatever the setting, because a
@@ -347,10 +348,9 @@ What the number means:
    case, and confirm by re-running that one case until the grader passes. A passing fired grader
    shows the trigger works; it is not evidence that the skill improved, and any claim of a gain
    still needs a VALID run and its noise report.
-3. If that grader passes and the delta is negative, suspect the judge before the plugin. A small
-   judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and
-   tighten the rubric so formatting cannot decide the verdict; the step is settled when the verdict
-   survives a rubric that says nothing about form.
+3. If that grader passes and the delta is negative, suspect the judge before the plugin: a small
+   judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and tighten
+   the rubric so formatting cannot decide the verdict; settled when it survives a rubric silent on form.
 4. Iterate on one case with `--case <name> --runs 1 --ablation none`, which reports `SCORE` and
    `PASS%` instead of `WITH`, `W/OUT`, and delta. One run is noisy, so confirm any change at 3
    runs per case and read the confirm's noise report before trusting it.
@@ -368,9 +368,12 @@ What the number means:
 
 ## Calibrating a judge
 
-Trust an `llm` grader's scores only after its judge agrees with labeled answers on at least 90% of
-runs. The labels are the must-pass and must-fail answers in the case's `samples/<grader>.json`;
-three agents label them independently and the user settles every disagreement. Then:
+Trust an `llm` grader's scores only after its judge, the model the suite uses, agrees with labeled
+answers on at least 90% of runs; a pass says nothing about another model. Before the first full
+run, calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging
+text); the default judge is uncalibrated until it passes. Report any other judge grader as
+uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in
+the case's `samples/<grader>.json`, set by three agents independently with the user settling every disagreement:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>
@@ -379,23 +382,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" sc
 ```
 
 `build` writes one case per sample into an empty plugin: the source case's prompt goes out
-unchanged, and an appended system prompt has the agent reply with the sample word for word, so the
-judge grades that sample as the answer to that question. No generated file carries the label; a
-must-pass and a must-fail case differ only in the sample text. The appended prompt presents the
-sample as fixed test material to output byte for byte even when it is wrong or incomplete, with no
-commentary added. `build` skips a grader that judges a file or mock calls, and prints one line for
-each empty or whitespace-only sample it skips: Claude Code answers an empty reply with an injected
-user turn, so it cannot be reproduced, and an empty answer is a deterministic failure that needs no
-judge. `--threshold 0` keeps the CLI's exit code about errors, since must-fail cases are
-meant to score 0. Calibrate with the judge model the real suite uses; the result says nothing
-about another.
+unchanged, and an appended system prompt presents the sample as fixed test material for the agent
+to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades that
+sample as the answer to that question. No generated file carries the label; a must-pass and a
+must-fail case differ only in the sample text. `build` skips a grader that judges a file or mock
+calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers an
+empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
+deterministic failure that needs no judge. `--threshold 0` keeps the CLI's exit code about errors,
+since must-fail cases are meant to score 0.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
-to a stronger judge, and calibrate again before reading its scores. Its false positives and
-negatives name the samples to read first. A run whose reply was not the sample is left out of the
-agreement, and so is one with neither a kept trace nor judge evidence, which is also reported
-unchecked. A sample with no reproduced run is listed as `untested`, counts toward no agreement,
-and shows in the verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
+the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
+positives and negatives name the samples to read first. Agreement leaves out a run whose reply was
+not the sample, and one with neither a kept trace nor judge evidence (also reported unchecked). A
+sample with no reproduced run is listed `untested`, counts toward no agreement, and shows in the
+verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
 
 - **Pointer**: what a judge reads for each `focus`, see
   <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; the 90% bar, see

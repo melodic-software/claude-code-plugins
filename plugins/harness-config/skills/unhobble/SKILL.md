@@ -175,7 +175,8 @@ rendered, never a guessed level; the value changes nothing else about the experi
    **Product surfaces.** Record any unit under `plugins/<name>/` (a skill, agent, hook, command, or
    any shipped file) as `unstripped-product-surface` and never strip it, whatever its class. The
    reason is changelog-parity: `check-changelog-parity.sh`, in the repository scripts directory,
-   pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change (Gotchas, two
+   pairs a plugin's shipped files with its version and CHANGELOG (or a changelog fragment for a
+   plugin in fragment mode), and an experiment branch carries no product change (Gotchas, two
    hats). Only the repo's own session surfaces are strip candidates.
 
    **Plugins, every one enabled at any scope.** Inventory user, project, and local
@@ -184,8 +185,8 @@ rendered, never a guessed level; the value changes nothing else about the experi
    action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
    **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
    reference "Standard layout" table and `hooks` manifest field
-   (<https://code.claude.com/docs/en/plugins-reference>), fetched 2026-09-28. **As of:**
-   2026-09-28. **Recheck:** that page names another hook location. Classify each wired
+   (<https://code.claude.com/docs/en/plugins/manifest-reference>), fetched 2026-10-07. **As of:**
+   2026-10-07. **Recheck:** that page names another hook location. Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. A plugin whose every component is policy (or behavioral with a
    non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a

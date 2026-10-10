@@ -1121,7 +1121,7 @@ else
     for exe in "$dir"/*; do
       base="${exe##*/}"
       [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && "$base" != jq && ! -e "$PG_WORK/sysbin/$base" ]] || continue
-      ln -s "$exe" "$PG_WORK/sysbin/$base"
+      MSYS=winsymlinks:nativestrict ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done
   PG_ARGS=()
@@ -1163,6 +1163,59 @@ else
     fi
   done
   rm -rf "${PG_WORK:?}"
+fi
+
+# --- Pre-existing drift: format only a file that was clean before the edit ---
+# The repo's .editorconfig asks for indented case arms; a file written before
+# that rule has flush-left arms. A one-line edit to it must not become a
+# whole-file reformat, while an edit to a file that was already clean is still
+# formatted. The pre-edit bytes arrive as tool_response.originalFile.
+if [[ $HAVE_SHFMT -eq 1 ]]; then
+  REPO_DRIFT="$WORK/drift"
+  new_repo "$REPO_DRIFT"
+  printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\nswitch_case_indent = true\n' >"$REPO_DRIFT/.editorconfig"
+  run_edit() {
+    local payload
+    payload=$(jq -n --arg f "$1" --arg o "$2" --arg t "${3:-Edit}" \
+      '{tool_name: $t, tool_input: {file_path: $f}, tool_response: {filePath: $f, originalFile: (if $t == "Write" and $o == "" then null else $o end)}}')
+    (
+      cd "$UNRELATED" || return 1
+      env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" <<<"$payload"
+    )
+  }
+
+  printf -v DRIFT_ORIG '#!/usr/bin/env bash\ncase x in\na) echo a ;;\nesac\n'
+  printf -v DRIFT_EDITED '%secho end\n' "$DRIFT_ORIG"
+  printf '%s' "$DRIFT_EDITED" >"$REPO_DRIFT/drifted.sh"
+  OUT=$(run_edit "$REPO_DRIFT/drifted.sh" "$DRIFT_ORIG")
+  if cmp -s "$REPO_DRIFT/drifted.sh" <(printf '%s' "$DRIFT_EDITED"); then
+    ok "drift: edit to a file not shfmt-clean before the edit -> bytes left as written"
+  else
+    fail "drift: pre-existing drift was reformatted: $(cat "$REPO_DRIFT/drifted.sh")"
+  fi
+  if [[ "$OUT" != *reformatted* ]]; then
+    ok "drift: no rewrite disclosure when nothing was rewritten"
+  else
+    fail "drift: disclosed a rewrite that did not happen: $OUT"
+  fi
+
+  printf -v CLEAN_ORIG '#!/usr/bin/env bash\ncase x in\n  a) echo a ;;\nesac\n'
+  printf '%sif true; then\necho hi\nfi\n' "$CLEAN_ORIG" >"$REPO_DRIFT/clean.sh"
+  run_edit "$REPO_DRIFT/clean.sh" "$CLEAN_ORIG" >/dev/null
+  printf -v CLEAN_WANT '%sif true; then\n  echo hi\nfi\n' "$CLEAN_ORIG"
+  if cmp -s "$REPO_DRIFT/clean.sh" <(printf '%s' "$CLEAN_WANT"); then
+    ok "drift: edit to a file shfmt-clean before the edit -> the edit is formatted"
+  else
+    fail "drift: clean file's edit not formatted: $(cat "$REPO_DRIFT/clean.sh")"
+  fi
+
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_DRIFT/new.sh"
+  run_edit "$REPO_DRIFT/new.sh" "" Write >/dev/null
+  if grep -q '^  echo hi$' "$REPO_DRIFT/new.sh"; then
+    ok "drift: Write that created the file (originalFile null) -> formatted"
+  else
+    fail "drift: newly created file not formatted: $(cat "$REPO_DRIFT/new.sh")"
+  fi
 fi
 
 echo

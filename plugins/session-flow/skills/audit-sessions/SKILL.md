@@ -30,8 +30,8 @@ are `YYYY-MM-DD`, UTC). Stop and name this accepted set on any other token; neve
 
 - `D` is `${CLAUDE_PLUGIN_DATA}`. Pass it as a literal argument every time; never read it from
   the Bash tool's environment.
-  - **Pointer**: <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>
-  - **As of**: 2026-10-02
+  - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
+  - **As of**: 2026-10-07
   - **Recheck trigger**: that table changes where `CLAUDE_PLUGIN_DATA` resolves in skill text or
     the Bash tool.
 - The store and reports live under `D/audit-sessions/`; their layout, retention and schema
@@ -140,9 +140,8 @@ is reserved for the person, so this skill never runs it.
 
 ## Next
 
-/session-flow:retro codify
-
-Turns a finding the person chose to act on into a rule or memory entry.
+- A finding the person chose to codify as a rule or memory entry: /session-flow:retro codify.
+- A `permission` lens finding: /session-flow:audit-friction.
 
 ## Gotchas
 

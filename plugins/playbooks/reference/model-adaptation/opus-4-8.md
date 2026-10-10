@@ -163,3 +163,6 @@ the headline even before reading it. All `[CC: direct]`.
 Our reads: the guide was fetched 2026-07-06 and last confirmed 2026-08-08; the
 [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5)
 page was last captured 2026-07-29; model-config was re-read 2026-10-01 for the fallback section.
+
+Recheck trigger for the whole chapter: a re-read of any pointed section no longer supporting the
+decision beside it, or model-config no longer naming Opus 4.8 as a fallback target.

@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: bs-nl-catch-up
+description: 'natural-language catch-up request over a multi-day window routes to batch-simplify and keeps its scope and exclusion rules'
+tags: [natural-language, routing, window]
+expected_outcome: 'The Skill tool is called for code-tidying:batch-simplify. src/greet.sh and repo/tool.sh are simplified; lib/old.sh (outside the window), the CI workflow and CHANGELOG.md are unchanged.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: 'Over the last three days I did a bunch of separate tasks on this branch and forgot to run simplify after each one. Can you catch up on simplify for everything I changed in the last 72 hours? Just leave the edits uncommitted in the working tree, no PR.'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
+  max_turns: 150
+  timeout_seconds: 2400
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'batch-simplify'
+  - name: greet-simplified
+    type: regex
+    pattern: 'Hello, %s!'
+    match: "count:1"
+    target: { source: file, path: src/greet.sh }
+  - name: tool-simplified
+    type: regex
+    pattern: 'tool: processed'
+    match: "count:1"
+    target: { source: file, path: repo/tool.sh }
+  - name: old-untouched
+    type: regex
+    pattern: 'old: level is'
+    match: "count:2"
+    target: { source: file, path: lib/old.sh }
+  - name: ci-workflow-untouched
+    type: regex
+    pattern: 'run: bash tests\/run\.sh'
+    match: "count:2"
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: changelog-byte-identical
+    type: regex
+    pattern: '^# Changelog\n\n## 0\.2\.0\n- Renamed the greeting function\.\n\n## 0\.1\.0\n- Added `say_hello` greeting script\.\n(?![\s\S])'
+    target: { source: file, path: CHANGELOG.md }

@@ -7,7 +7,23 @@
 /docs/conventions/pr-pipeline/** @kyle-sexton
 /.github/actions/** @kyle-sexton
 /.github/standards/** @kyle-sexton
+# Standards-synced data files outside .github/workflows/ have no owner (an entry with no owner
+# unowns the path, and the last match wins), so a standards-sync pull request touching only these
+# needs no code-owner review. runner-policy.mjs and the trusted-actors files stay owned above.
+/.github/standards/github-actions-conventions/vocabulary.json
+/.github/standards/github-actions-conventions/vocabulary.schema.json
+/.github/standards/pyright/pyrightconfig.json
+/.github/standards/runner-policy/package-lock.json
+/.github/standards/runner-policy/package.json
+/.github/standards/runner-policy/policy.json
+/.github/standards/runner-policy/policy.schema.json
+/.github/standards/runner-policy/repository-policy.schema.json
 /.github/workflows/** @kyle-sexton
+# These synced caller workflows come from standards: edits are blocked by the required
+# check-managed-files job and deletions since ci-workflows v0.39.4, so they need no owner.
+/.github/workflows/pr-check-managed-files-hosted.yml
+/.github/workflows/pr-review-hosted.yml
+/.github/workflows/pr-review-security-hosted.yml
 /.github/scripts/** @kyle-sexton
 /.github/CODEOWNERS @kyle-sexton
 /.claude-plugin/marketplace.json @kyle-sexton
