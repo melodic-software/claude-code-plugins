@@ -471,14 +471,16 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
-  // The fake gh records its argv, passes `auth status --hostname <h>` only for a host in FAKE_GH_AUTHED,
-  // and answers the visibility lookup with FAKE_GH_OUT and FAKE_GH_EXIT.
+  // The fake gh records its argv, passes `auth status --hostname <h>` for a host in FAKE_GH_AUTHED or, as real gh
+  // does, for any host when an enterprise token is in its environment, and answers the visibility lookup with
+  // FAKE_GH_OUT and FAKE_GH_EXIT.
   writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
 const argv = process.argv.slice(2);
 require("node:fs").appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(argv) + "\\n");
-if (argv[0] === "auth") process.exit((process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
+const enterpriseToken = process.env.GH_ENTERPRISE_TOKEN || process.env.GITHUB_ENTERPRISE_TOKEN;
+if (argv[0] === "auth") process.exit(enterpriseToken || (process.env.FAKE_GH_AUTHED || "").split(",").includes(argv[3]) ? 0 : 1);
 process.stdout.write(process.env.FAKE_GH_OUT + "\\n");
 process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
 `,
@@ -508,7 +510,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
   /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
-  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0 } = {}) =>
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0, env = {} } = {}) =>
     spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
@@ -522,6 +524,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
         FAKE_DELETE_EXIT: String(deleteExit),
+        ...env,
       },
     });
   const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);
@@ -622,6 +625,15 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["auth", "status", "--hostname", "evil.example.net"]]);
     assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+  });
+  test("an enterprise token in the environment does not vouch for a host gh is not logged in to", runsFake, () => {
+    for (const name of ["GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"]) {
+      const at = setup();
+      const out = publish(at, { repo: "evil.example.com/o/r", gh: "public", out: answer(idB, "private"), env: { [name]: "t" } });
+      assert.equal(out.status, 0, out.stderr);
+      assert.deepEqual(readFileSync(ghLog, "utf8").trim().split("\n").map((l) => JSON.parse(l)), [["auth", "status", "--hostname", "evil.example.com"]], name);
+      assert.deepEqual(calls(), [[at.page, "--visibility", "private"]], name);
+    }
   });
   test("a malformed host or an IP address in --repo is a usage error with no lookup and no upload", runsFake, () => {
     for (const repo of ["ghe_example/acme/app", "-x/acme/app", "localhost/acme/app", "a.b/c/acme/app", "/acme/app", "169.254.169.254/acme/app", "10.0.0.1/acme/app"]) {
