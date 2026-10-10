@@ -10,8 +10,6 @@ Claude Code ships `/code-review` as a [bundled skill](https://code.claude.com/do
 - **As of**: 2026-10-10
 - **Recheck trigger**: the code-review page changes its effort or reads-and-edits text, the skills page drops `/code-review` from its bundled skills, or a release note names the command.
 
-Source conflict: <https://code.claude.com/docs/en/code-review#tune-effort-and-arguments> and the v2.1.290 entry of <https://code.claude.com/docs/en/changelog> disagree on what `/code-review` `medium` covers. **As of**: 2026-10-10. **Recheck trigger**: the code-review page's effort section changes.
-
 Choose deliberately:
 
 - **This mode** when the review must ground in the project's own standards, `REVIEW.md` and severity vocabulary (resolved through the standards index), stay report-only, and land in the gate's unified findings report. It dispatches the convention-aware reviewers in the paths below. Convention and `REVIEW.md` review always routes to this mode. (This is one lens per invocation; for a breadth fan-out across many review surfaces, reach for this plugin's `fanout` skill.)
