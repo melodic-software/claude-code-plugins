@@ -399,8 +399,9 @@ implies a percentage default that no page publishes as a number; for that variab
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
-with a declared margin: if compaction triggers at 90% or above, the dumb band leads it by 15
-points or more. The trigger is **model- and environment-dependent**, so no single band set is
+with a declared margin: the dumb band leads the default trigger that the docs publish for the model
+in use ([default-auto-compact-thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)),
+and we state no figure for that margin. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent decisions. We read the statusline percentage as of the last API response, not the
@@ -437,7 +438,7 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 Precedence, highest first, for the session's own window: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then
-`--autocompact`, then project-scope settings, then the user-scope per-model value over the user-scope
+`--autocompact`, then a project-scope top-level `autoCompactWindow` (the observed case; a project-scope per-model key outranking it follows from the same-file rule but was not observed directly), then the user-scope per-model value over the user-scope
 top-level key. Every step in that order is observed. Managed settings are per docs, not observed:
 a managed window holds even after `/autocompact` saves a value, and managed settings do not
 override `--autocompact`. To see the effective window rather than derive it, run `/autocompact`
