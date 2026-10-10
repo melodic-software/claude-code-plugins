@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.27.3] - 2026-10-10
+
+### Changed
+
+- **The derivability route follow-ups cite machine-health's renamed porting stubs** (`scripts/{linux,macos}/not-implemented.md`).
+
 ## [0.27.2] - 2026-10-07
 
 ### Changed

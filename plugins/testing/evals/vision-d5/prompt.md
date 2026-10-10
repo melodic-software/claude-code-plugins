@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D5: 300 ms after load a 48 px banner is inserted above the first card's buttons, shifting them down"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600
