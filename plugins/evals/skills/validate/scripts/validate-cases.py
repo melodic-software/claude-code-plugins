@@ -143,7 +143,11 @@ ARMS = ("with-only", "both")
 
 # Tools a case may list without an operator grant. Everything else is removed
 # from the session and reported on stderr as `not granted`, so the case runs
-# without the tool it was written around.
+# without the tool it was written around. We mirror the page's no-grant list.
+# - Pointer: when this set may be stale, fetch
+#   https://code.claude.com/docs/en/plugin-evals#grant-tools live.
+# - As of: 2026-10-10
+# - Recheck trigger: that section's allowed-tools sentence changes.
 READ_ONLY_TOOLS = frozenset(
     [
         "Read",
@@ -151,6 +155,7 @@ READ_ONLY_TOOLS = frozenset(
         "Grep",
         "NotebookRead",
         "Skill",
+        "AskUserQuestion",
         "Agent",
         "TodoWrite",
         "TaskCreate",
@@ -158,7 +163,6 @@ READ_ONLY_TOOLS = frozenset(
         "TaskList",
         "TaskUpdate",
         "TaskStop",
-        "TaskOutput",
     ]
 )
 

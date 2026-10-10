@@ -37,7 +37,7 @@ Print every field, in this order, before anything else:
 
 ```text
 cli_version:     <claude --version>
-floor_met:       <true | false>
+floor_met:       <true | false> (git: <git --version | none>)
 platform:        <windows | wsl2 | linux | darwin | other>
 sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
 target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
@@ -54,6 +54,16 @@ ceiling:         <n> USD | unlimited
 `floor_met: false` stops the run and reports the floor; nothing else in this skill is worth doing on
 a binary that cannot execute a case. Never assert that the command is installed: read
 `claude --version` and let the number decide.
+
+Preflight also reads `git --version`, because the CLI stops a whole suite before any case when the
+git on `PATH` is older than its git floor. A git below that floor sets `floor_met: false` and names
+the git version; no git at all reports `git: none` and does not block.
+
+- **Pointer**: when comparing `git --version` against the floor, fetch
+  <https://code.claude.com/docs/en/plugin-evals#requirements> live for the git floor, and
+  <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> for the refusal.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the requirements section changes the git floor or its no-git exemption.
 
 ### Sandbox backend
 
@@ -72,14 +82,16 @@ this session's own host, which may not be the machine that will run the eval.
 Then, when the rows above give `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
 to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
-with a link inside it. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
+with a link inside it. On `platform: darwin` with `cli_version` at or after the release the Docker
+row below names, ignore links under the store's `bin/` directory (Docker Desktop's own); an older
+client still refuses them. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
-| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with `the Docker (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it, so the Bash sandbox cannot reliably exclude it`. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c` | No doc line: neither <https://code.claude.com/docs/en/plugin-evals> nor <https://code.claude.com/docs/en/sandboxing> mentions it, both fetched 2026-10-04. Basis is that CLI message at Claude Code 2.1.289 under WSL2, on all 60 runs of one pass, observed 2026-10-04 | Recheck trigger: either page documents the check, a release note touches sandbox credential exclusion, or the message changes. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
+| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with a run error naming the credential store. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c`, which still triggers it. Docker Desktop's links under `~/.docker/bin` on macOS no longer trigger it from Claude Code 2.1.293 | Our observation: the refusal on all 60 runs of one pass at Claude Code 2.1.289 under WSL2, observed 2026-10-04. **Pointer**: when the refusal's current wording or which store paths are exempt matters, fetch <https://code.claude.com/docs/en/changelog> live (2.1.293). **As of**: 2026-10-10. **Source conflict**: the changelog records the macOS exemption and a reworded refusal, while neither <https://code.claude.com/docs/en/plugin-evals> nor <https://code.claude.com/docs/en/sandboxing> mentions `~/.docker` or this refusal, both checked 2026-10-10. The reworded message is not captured here: it needs a macOS or WSL2 host | Recheck trigger: either page documents the check, or a release note touches sandbox credential exclusion or the exempt paths. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
 
-**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) are unaffected and run anywhere.
+**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop`: the set the validator's `READ_ONLY_TOOLS` mirrors from <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-10, recheck when that section's allowed-tools sentence changes) are unaffected and run anywhere.
 
 `suite_tools` is `read-only` when every case's `allowed_tools` sits inside that set; otherwise it
 lists the gated tools, which are exactly the ones needing an `--allow-tools` grant. A case cannot
