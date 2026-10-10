@@ -749,6 +749,15 @@ jobs:
             { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
           exit "$rc"
 
+      # The test selector's cases against the live tree: the derived shared-lib
+      # copy sets and real fan-outs. Each runs the selector over the whole tree,
+      # so no test selection can say when it must run, and it runs here on every
+      # pull request rather than as a case of scripts/affected-tests.test.sh.
+      - name: Check the test selector against the live tree
+        id: selector_live
+        continue-on-error: true
+        run: bash scripts/affected-tests-live.sh
+
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
       # at a time, so an unchanged file's verdict is the one its last green run
       # gave. The whole tree when there is no diff base (a schedule or dispatch
@@ -1076,6 +1085,7 @@ jobs:
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
             test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
+            selector-live=${{ steps.selector_live.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
