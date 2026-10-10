@@ -104,8 +104,9 @@ into another.
   only once the Function's hostname exists (ADR 0015, Decision 6); until then every write activity
   fails at the token step.
 - Accepted residual, `id-token: write` in the write job: any step of the job can request an OIDC
-  token for any audience, so anything the claude-code-action process runs, its MCP servers
-  included, can reach a relying party that trusts this organization's tokens. github-iac ADR 0015
+  token for any audience, so the claude-code-action process itself, and any process it starts that
+  keeps the request variables (MCP servers are untested), can reach a relying party that trusts
+  this organization's tokens. github-iac ADR 0015
   lists them: Anthropic's Claude App exchange, Pulumi Cloud (only github-iac's protected
   environment) and Azure (only azure-iac's protected environment). The broker refuses a second mint
   for the job. Re-check this list when an OIDC trust is added anywhere in the organization. Probe
@@ -113,7 +114,8 @@ into another.
   `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` sees neither `ACTIONS_ID_TOKEN_REQUEST_URL` nor
   `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, while `GH_TOKEN` and `GITHUB_TOKEN` stay present because the
   scrub keeps them by design. The model therefore cannot request its own OIDC token to mint from
-  the broker. The same run showed the minted token scoped to the sandbox repository only, and
+  the broker through that subprocess. P7 did not test MCP servers or the action process. The same
+  run showed the minted token scoped to the sandbox repository only, and
   after revoke `DELETE /installation/token` returned 204 and `GET /installation/repositories`
   returned 401.
 - Accepted residual, effect skew: the job runs trusted actions, the skill and the script from the
