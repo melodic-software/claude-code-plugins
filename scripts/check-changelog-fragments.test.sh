@@ -348,6 +348,23 @@ run_dependabot "--check-required exempts a pull request of verified Dependabot c
 run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
 run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'dependabot[bot]' false 0
 run_dependabot "--check-required does not exempt when the signature lookup fails" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 1
+# The merge queue checks out its own squash commit; CHANGELOG_PR_HEAD names the
+# queued pull request's head, whose commits are the ones the exemption reads.
+dependabot_head="$(git -C "$f" rev-parse HEAD)"
+git_test_config "$f" checkout -q main
+git_test_config "$f" checkout -qb queue-dependabot
+git_test_config "$f" merge -q --squash dependabot/npm
+commit "$f" "build(deps): bump zod (#1)"
+run_queue() { # <label> <want-rc> <needle> <pr-head>
+  local out rc
+  out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' CHANGELOG_PR_HEAD="$4" \
+    GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required 'HEAD^1' 2>&1)"
+  rc=$?
+  if ((rc == $2)) && [[ "$out" == *"$3"* ]]; then ok "$1"; else fail "$1: want rc=$2 and '$3', got rc=$rc: $out"; fi
+}
+run_queue "--check-required exempts a queued Dependabot pull request by its own commits" 0 "Dependabot-only change to plugins/alpha/" "$dependabot_head"
+run_queue "--check-required does not exempt a queue squash commit read as the pull request" 1 "MISSING FRAGMENT" ""
+git_test_config "$f" checkout -q dependabot/npm
 out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
   env -u GITHUB_REPOSITORY bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
 if [[ $? -eq 1 && "$out" == *"MISSING FRAGMENT"* ]]; then
