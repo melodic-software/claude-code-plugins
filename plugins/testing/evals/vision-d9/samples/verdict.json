@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [other]: one problem\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Summary above.\n**VERDICT:** NEEDS WORK\n\n"
+    },
+    {
+      "answer": "- VERDICT: `NEEDS WORK`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED",
+      "why": "opposite verdict"
+    },
+    {
+      "answer": "VERDICT: NEEDS WORK (draft)\nOn reflection:\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
+    },
+    {
+      "answer": "VERDICT: NEEDS WORK\nThanks.",
+      "why": "verdict is not the last line"
+    },
+    {
+      "answer": "VERDICT: NEEDS WORK (draft)",
+      "why": "extra text on the verdict line"
+    },
+    {
+      "answer": "It is needs work.",
+      "why": "no verdict line"
+    },
+    {
+      "answer": "VERDICT: NEEDS WORK or CONFIRMED",
+      "why": "both verdicts on one line"
+    }
+  ]
+}
