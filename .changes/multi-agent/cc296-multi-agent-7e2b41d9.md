@@ -8,8 +8,8 @@ bump: minor
 
 ### Fixed
 
-- **The routing skill no longer says a named agent always runs at its own pinned model and effort.** A dispatcher's per-call `model` or `effort` overrides the definition, so keeping a named agent off a frontier model is the dispatcher's rule. The route gotcha, the setup skill, and the README now say so.
+- **The routing skill no longer says a named agent always runs at its own pinned model and effort.** A dispatcher can pass `model` or `effort` on the call, so keeping a named agent off a frontier model is the dispatcher's rule. The route gotcha, the setup skill, and the README now say so.
 
 ### Added
 
-- **The drift-audit fetch and judging agents start without CLAUDE.md files.** `docs-fetcher` and `drift-checker` set `omitClaudeMd: true`, so a stage that reads untrusted pages no longer loads the user and project instruction files at spawn. The README records where the field is documented.
+- **The drift-audit fetch and judging agents start without CLAUDE.md files.** `docs-fetcher` and `drift-checker` set `omitClaudeMd: true`, so a stage that reads untrusted pages opts out of the CLAUDE.md instruction hierarchy. The README records where the field is documented.

@@ -64,7 +64,7 @@ of it is a reviewed edit.
 
 The `docs-fetcher` and `drift-checker` definitions set `omitClaudeMd: true`:
 each reads untrusted pages and follows only the prompt the workflow gives it,
-so it starts without the user and project instruction files. The pointer sits
+so both opt out of the CLAUDE.md instruction hierarchy. The pointer sits
 here, not in the agent bodies, so neither agent spends a fetch on it.
 
 - **Pointer**: when you need what the field drops and what still loads, fetch

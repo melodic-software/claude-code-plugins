@@ -58,9 +58,7 @@ A caller launching a workflow passes the JSON's `roles` object as
 `args.roles`, unchanged. A caller spawning a subagent through the Agent tool
 with no named type applies one variant to that call: it passes the variant's
 model as `model`, or omits `model` when `omit_model` is true, and always
-passes its effort as `effort`. A fork is not routed; it runs as the session.
-An effort override or cap set for the session can still decide the level the
-subagent runs at.
+passes its effort as `effort`.
 
 - **Pointer**: when a routed Agent dispatch runs at a different level than
   the one passed, or you need the values the call accepts, fetch
@@ -97,10 +95,10 @@ Rechecks a default that looks wrong for the current models.
 - `fanout` and `single` differ only under a frontier or unknown session. Under
   an Opus session both say `inherit`, and `opus` would name the same model.
 - The map never routes a named agent (`agentType`, or an Agent dispatch by
-  subagent type), so the fan-out guard does not reach it on its own. A
-  dispatcher that passes `model` or `effort` on the call overrides the
-  definition's pins for that run (see the pointer under Output). Keeping a
-  named agent such as `scoped-implementer` off a frontier session model, or
-  at its pinned effort, is therefore that dispatcher's rule to keep.
+  subagent type), so the fan-out guard does not reach it on its own. Its
+  dispatcher may pass `model` or `effort` on the call; for which source wins
+  over the definition's pins, see the pointer record under Output. Keeping a
+  named agent such as `scoped-implementer` off a frontier session model is
+  that dispatcher's rule to keep.
 - Team and overlay layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.
