@@ -2658,7 +2658,7 @@ PY_NL_BODY=$(printf 'gh pr create --body "line one\necho x > f\nline three"')
 run "#2217: multi-line PR body mentioning a write (allowed)" "$PY_NL_BODY" 0
 PY_NL_MSG=$(printf 'git commit -m "subject\n\ncat > notes.md is a bypass\n"')
 run "#2217: multi-line commit message mentioning a write (allowed)" "$PY_NL_MSG" 0
-PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l') # portability-ok: grep of a fixture filename, not a grep -P invocation
+PY_NL_GREP=$(printf 'grep "foo\nbar" file | wc -l')                               # portability-ok: grep of a fixture filename, not a grep -P invocation
 run "#2217: multi-line grep pattern piped, no redirect (allowed)" "$PY_NL_GREP" 0 # portability-ok: grep of a fixture filename, not a grep -P invocation
 PY_NL_DEVNULL=$(printf 'echo "a\nb" > /dev/null')
 run "#2217: multi-line span discarded to /dev/null (allowed)" "$PY_NL_DEVNULL" 0
@@ -2989,7 +2989,7 @@ strace_census() { # <payload> <guard> → CENSUS_RC CENSUS_CREATIONS CENSUS_EXEC
     strace -f -e trace=clone,clone3,fork,vfork,execve -o "$log" \
     bash "$HOOK_DIR/run-guards.sh" "$2" <<<"$1" >/dev/null 2>&1 || CENSUS_RC=$?
   CENSUS_CREATIONS=$(grep -cE '((clone|clone3|fork|vfork)\(|<\.\.\. (clone|clone3|fork|vfork) resumed>).* = [0-9]+$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
-  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log") # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
+  CENSUS_EXECVE=$(grep -cE '(execve\(|<\.\.\. execve resumed>).* = 0$' "$log")                                               # portability-ok: grep -cE counts strace census lines, not a grep -P invocation
 }
 if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true 2>/dev/null; then
   printf '#!/usr/bin/env bash\nexit 0\n' >"$TEST_TMPDIR/noop-guard.sh"
@@ -3071,25 +3071,61 @@ git -C "$NR_REPO" -c user.name=t -c user.email=t@example.invalid -c core.hooksPa
   commit -q -m init
 git -C "$NR_REPO/nested" init -q
 
+# repo_payload <command> [extra jq object] -> NR_PAYLOAD, a Bash payload in the
+# fixture repository carrying the session and tool-use ids the shell check names
+# its snapshot by, each call a fresh tool-use id as the harness sends. Assigned,
+# not echoed, so the counter survives the call.
+NR_CALL=0
+NR_PAYLOAD=""
+repo_payload() {
+  local extra="${2:-}"
+  [[ -n "$extra" ]] || extra='{}'
+  NR_CALL=$((NR_CALL + 1))
+  NR_PAYLOAD=$(jq -nc --arg c "$1" --arg d "$NR_REPO" --arg u "toolu_nr$NR_CALL" --argjson x "$extra" \
+    '{session_id:"s-narrow",tool_use_id:$u,tool_name:"Bash",tool_input:({command:$c} + $x),cwd:$d}')
+}
+
 # run_repo <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 # The cwd is the fixture repository and the shell check has its data directory,
 # which is the state the guard is installed in.
 run_repo() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  expect "$label" "$expected" --command "$command" --cwd "$NR_REPO" \
+  repo_payload "$command"
+  expect "$label" "$expected" --payload "$NR_PAYLOAD" \
     -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA" "$@"
 }
 
-# Stay quiet: the shell check sees each of these files.
+# Stay quiet: the shell check sees each of these files, and each command is one
+# plain write the check examines whole.
 run_repo "repo: cat > tracked file (allowed)" "cat > docs/x.md" 0
 run_repo "repo: echo > untracked, not ignored file (allowed)" "echo x > newfile.txt" 0
 run_repo "repo: printf >> tracked file (allowed)" "printf a >> README.md" 0
-run_repo "repo: staged move onto a tracked destination (allowed)" "cat > tmp && mv tmp src/f" 0
 run_repo "repo: absolute target inside the repository (allowed)" "echo x > $NR_REPO/src/g" 0
+run_repo "repo: cat heredoc into a new file (allowed)" "cat > newfile.sh <<'EOF'
+echo \$(date) \`id\`
+EOF" 0
+run_repo "repo: cat <<- heredoc with a trailing newline (allowed)" "cat > newfile.txt <<-EOF
+	hello
+	EOF
+" 0
+run_repo "repo: echo with 2>/dev/null (allowed)" "echo x > newfile.txt 2>/dev/null" 0
+run_repo "repo: printf with 2>&1 (allowed)" "printf a >> README.md 2>&1" 0
+repo_payload "echo x > newfile.txt"
 expect_both "repo: echo > untracked file, dispatched parity (allowed)" 0 \
-  --command "echo x > newfile.txt" --cwd "$NR_REPO" \
+  --payload "$NR_PAYLOAD" \
   -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+NR_SNAP_DATA="$TEST_TMPDIR/narrow-snap-data"
+mkdir -p "$NR_SNAP_DATA"
+repo_payload "echo x > newfile.txt"
+expect "repo: a granted write leaves the shell check its snapshot" 0 \
+  --payload "$NR_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_SNAP_DATA"
+if [[ -s "$NR_SNAP_DATA/bash-file-snapshots/s-narrow-toolu_nr$NR_CALL.json" ]]; then
+  ok "repo: snapshot file written for the granted call"
+else
+  bad "repo: snapshot file written for the granted call"
+fi
 
 # Must fire: the shell check cannot see these.
 run_repo "repo: git-ignored target still blocks" "echo x > .work/notes.md" 2
@@ -3113,6 +3149,67 @@ expect "repo: PowerShell Set-Content still blocks" 2 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "Set-Content -Path '$NR_REPO/a.txt' -Value x" --cwd "$NR_REPO" \
   -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+
+# Must fire: the security review's bypasses (#6708). The shell check runs after
+# the whole command and only reports, so a write is left to it only when the
+# command is that one write and nothing else; each command below is quoted from
+# the review.
+# F1: a later git add/commit/push ships the file before the report lands.
+# The review wrote the here-doc on one line; this is that command as bash runs
+# it, the body on the lines after the opener. (Read literally on one line, `cat`
+# takes `...secret...` and `EOF` as input files, which no lane treats as a write.)
+run_repo "repo F1: heredoc write then git add, commit, push still blocks" \
+  "cat > config.py <<'EOF' && git add config.py && git commit -m x && git push
+...secret...
+EOF" 2
+run_repo "repo F1: multi-line heredoc then git push still blocks" "cat > config.py <<'EOF'
+key = 1
+EOF
+git add config.py && git commit -m x && git push" 2
+run_repo "repo F1: staged move onto a tracked destination still blocks" "cat > tmp && mv tmp src/f" 2
+run_repo "repo F1: git as an argument word still blocks" "echo x > newfile.txt git" 2
+run_repo "repo F1: unquoted heredoc running a substitution still blocks" "cat > newfile.txt <<EOF
+\$(git push)
+EOF" 2
+run_repo "repo F1: commands after the heredoc terminator still block" "cat > newfile.txt <<'EOF'
+x
+EOF
+> README.md" 2
+# F2: a redirect form other than a plain > or >> reaches a second file.
+run_repo "repo F2: &> second target still blocks" "cat > ok.txt &> ~/.bashrc" 2
+run_repo "repo F2: 1<> second target still blocks" "echo x > ok.txt 1<>~/.bashrc" 2
+run_repo "repo F2: fd-numbered target duplicated onto stdout still blocks" \
+  "cat 3> ~/.bashrc > ok.txt 1>&3" 2
+run_repo "repo F2: two stdout targets still block" "echo x > ok.txt > newfile.txt" 2
+# F3: a symlink made in the same command points the write outside.
+run_repo "repo F3: ln -s then write through the link still blocks" "ln -s ~/.bashrc lnk && cat > lnk" 2
+run_repo "repo F3: mkdir then write still blocks" "mkdir -p newdir && echo x > newdir/f" 2
+# F4: the same command makes the target ignored or nested.
+run_repo "repo F4: .gitignore append then write still blocks" \
+  "echo evil.sh >> .gitignore && cat > evil.sh" 2
+run_repo "repo F4: .gitignore write alone still blocks" "echo evil.sh >> .gitignore" 2
+run_repo "repo F4: git init then write into the new repository still blocks" \
+  "git init -q sub && echo x > sub/f" 2
+# F5: the check's limits: its file cap, a background run, write-then-delete.
+run_repo "repo F5: 20 files touched before the write still blocks" \
+  "touch a{01..20} && echo P > zz.sh" 2
+run_repo "repo F5: write then delete still blocks" "echo x > newfile.txt && rm newfile.txt" 2
+repo_payload "echo x > newfile.txt" '{"run_in_background":true}'
+expect "repo F5: run_in_background still blocks" 2 --payload "$NR_PAYLOAD" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+# F6: no pre-command snapshot means nothing is checked after the command.
+expect "repo F6: payload with no tool_use_id (no snapshot) still blocks" 2 \
+  --command "echo x > newfile.txt" --cwd "$NR_REPO" \
+  -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
+NR_DATA_FILE="$TEST_TMPDIR/narrow-data-is-a-file"
+: >"$NR_DATA_FILE"
+run_repo "repo F6: snapshot cannot be written still blocks" "echo x > newfile.txt" 2 \
+  "CLAUDE_PLUGIN_DATA=$NR_DATA_FILE"
+# F7: Windows strips trailing dots and spaces, so `.git.` and `.git ` are .git.
+run_repo "repo F7: .git. alias still blocks" "cat > .git./hooks/pre-commit" 2
+run_repo "repo F7: .git.. alias in its own case still blocks" "echo x > .GIT../config" 2
+run_repo "repo F7: escaped .git-space alias still blocks" 'cat > .git\ /hooks/pre-commit' 2
+
 # The block says which part of the shell check's scope the target falls outside.
 repo_reason() { # <label> <command> <expected stderr fragment>
   guard_invoke --command "$2" --cwd "$NR_REPO" -- CLAUDE_PROJECT_DIR= "CLAUDE_PLUGIN_DATA=$NR_DATA"
@@ -3124,8 +3221,10 @@ repo_reason "ignored" "echo x > .work/notes.md" \
 repo_reason "ignored in its own case" "echo x > Secret.env" "is git-ignored"
 repo_reason "under .git" "cat > .git/hooks/pre-commit" "is under .git"
 repo_reason "nested repository" "echo x > nested/f" "or in a nested one"
-repo_reason "staged move onto an ignored destination" "cat > tmp && mv tmp .work/x" \
-  "The move destination is git-ignored"
+repo_reason "two segments" "cat > tmp && mv tmp .work/x" \
+  "is left only a lone cat, echo or printf"
+repo_reason "a .gitignore target" "echo evil.sh >> .gitignore" "is a .gitignore"
+repo_reason "no snapshot" "echo x > newfile.txt" "No pre-command snapshot could be recorded"
 if make_link "$NR_REPO/.work" "$NR_REPO/worklink"; then
   run_repo "repo: symlink into an ignored directory still blocks" "echo x > worklink/f" 2
 else
