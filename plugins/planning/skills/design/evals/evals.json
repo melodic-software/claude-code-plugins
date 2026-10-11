@@ -119,12 +119,13 @@
       "id": 10,
       "name": "variation-pass-unattended-contains-and-records-decision",
       "prompt": "/planning:design integration, unattended: this run was dispatched from a work loop and nobody will answer questions. Design sending order receipts through our current email provider. The domain glossary calls this capability 'notification channels' and lists only email so far.",
-      "expected_output": "With nobody to answer, the skill applies the contain verdict to the email provider (provider code in one module behind provider-neutral names, types and storage) and records the abstract-now question as a human decision: a deferred thread tagged arbiter USER-RESERVED, and the tracker's needs-decision status when the work is tracked. It never chooses abstract on its own and does not stop the run on the question.",
+      "expected_output": "With nobody to answer, the skill applies the contain verdict to the email provider (provider code in one module behind provider-neutral names, types and storage) and records the abstract-now question as a human decision: the thread is resolved with the contain verdict and lists the reserved question tagged arbiter USER-RESERVED, and the tracker's needs-decision status is set when the work is tracked. It never chooses abstract on its own and does not stop the run on the question.",
       "files": [],
       "expectations": [
         "Output applies contain now, abstract later to the email provider",
         "Output does NOT choose abstract now on its own",
-        "Output records the abstraction question as a human decision (a deferred thread with arbiter USER-RESERVED, or the tracker's needs-decision status)",
+        "Output records the abstraction question as a human decision (listed inside the resolved contain thread with arbiter USER-RESERVED, or the tracker's needs-decision status)",
+        "The variation thread is recorded resolved (contain, with its rationale), so the design-handoff gate does not bounce it back as unresolved",
         "Output continues the design rather than blocking on the unanswered question"
       ]
     }
