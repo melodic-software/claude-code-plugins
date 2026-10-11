@@ -1941,6 +1941,44 @@ expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)} blocks (bare varia
 expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache allowed' 0 \
   --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache'
 
+# --- 4a2. A literal `$` in a PowerShell target (#6626) ------------------------
+# PowerShell expands nothing inside single quotes, and a backtick-escaped `$` is
+# literal anywhere, so such a target is judged as the path it names instead of
+# being left alone as an expansion. On Win32 a `::$INDEX_ALLOCATION` (or other
+# `:<name>:$<TYPE>`) stream suffix names the file or directory before it, so the
+# target is judged as that path. A `$` PowerShell would expand is still left
+# alone, and a target made of a `$` name alone is still refused as a bare
+# variable.
+# portability-ok: Windows path strings in test fixtures, not regex/sed constructs
+expect_both 'PS single-quoted outside target holding a $ blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\a\$b'"
+expect_both 'PS ::$INDEX_ALLOCATION suffix on an outside directory blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\dir::\$INDEX_ALLOCATION'"
+expect_both 'PS :$I30:$INDEX_ALLOCATION suffix on an outside directory blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\dir:\$I30:\$INDEX_ALLOCATION'"
+expect_both 'PS backtick-escaped ::`$INDEX_ALLOCATION in double quotes blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force \"D:\\rdt-x\\dir::\`\$INDEX_ALLOCATION\""
+expect_both 'PS -LiteralPath with a ::$INDEX_ALLOCATION suffix blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -LiteralPath 'D:\\rdt-x\\dir::\$INDEX_ALLOCATION' -Recurse"
+expect_both 'PS cmd /c rd /s on a single-quoted outside target holding a $ blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "cmd /c 'rd /s /q D:\\rdt-x\\a\$b'"
+expect_both 'PS ::$INDEX_ALLOCATION on a drive root blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION'"
+expect_both 'PS a drive letter before ::$INDEX_ALLOCATION blocks as the drive' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C::\$INDEX_ALLOCATION'"
+expect_both 'PS single-quoted $ name alone still blocks (bare variable)' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse '\$X'"
+# Stay quiet: a literal `$` or stream suffix on a target inside the tree.
+expect_both 'PS single-quoted in-tree target holding a $ allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build\$old'"
+expect_both 'PS ::$INDEX_ALLOCATION suffix on an in-tree directory allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build::\$INDEX_ALLOCATION'"
+# Unchanged: a `$` PowerShell expands is an expansion-built target, left alone.
+expect_both 'PS double-quoted target with an expanding $ is left alone' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse \"D:\\rdt-x\\\$name\""
+expect_both 'PS a literal and an expanding $ in one word is left alone' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse \"D:\\rdt-x\\\$name\`\$x\""
+
 # --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
 # sg re-parses its one command word; setpriv, prlimit and systemd-run step
 # over their own options; an abbreviated env --split-string is split; an

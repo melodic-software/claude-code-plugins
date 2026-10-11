@@ -185,7 +185,11 @@
 #     operand `$env:NAME` or `${env:NAME}` is judged as the Bash lane judges
 #     `$NAME` or `${NAME}`: refused bare or with only nameless segments after
 #     it (`$env:TEMP`, `$env:TEMP\`, `$env:TEMP\*`), allowed with a named subpath
-#     (`$env:TEMP\build`).
+#     (`$env:TEMP\build`). A target whose every `$` is literal (single-quoted,
+#     or escaped by a backtick) is judged as the path it names, and a Win32
+#     stream suffix on it (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is
+#     judged as the file or directory before it; a target holding a `$`
+#     PowerShell expands is left alone, as in Bash.
 #     Still uncovered: Start-Process/iex wrapping a delete, a command word
 #     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
 #     (`pwsh -Command '...'`), a `$( )` inside a double-quoted string, a
@@ -196,6 +200,11 @@
 #     after it is not judged either.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
+#   * From the Bash tool, a delete run by a Windows program instead of rm:
+#     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
+#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm command word
+#     only, and its prefilter passes only text holding `rm`; cmd rd /s and
+#     Remove-Item are judged in the PowerShell lane (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -205,7 +214,7 @@
 #     command word is `printf`) but whose RESULT is not. The root arm matches
 #     `$HOME` and `${HOME}` as the literal text they are written as; only the
 #     outside-tree arm expands them, from the hook's own HOME.
-#   * A TYPED operand whose real file name holds a literal `$`
+#   * In the Bash lane, a TYPED operand whose real file name holds a literal `$`
 #     (`rm -rf 'a$b/'`) is read as an expansion and left alone by the
 #     outside-tree arm, because the tokenizer's quoting provenance cannot
 #     separate it from `"$X"`; only a name that a glob MATCHED is judged
@@ -1364,7 +1373,9 @@ rdt_root_like() {
 # literal character. A `..` after the first glob component returns 2.
 # Provenance 3 is LITERAL mode, for a path the filesystem produced (a glob
 # match) or one bash passes through unchanged (an unmatched glob): no `~`,
-# HOME, `$` or glob is read in it.
+# HOME, `$` or glob is read in it. Provenance 4 is a PowerShell operand whose
+# every `$` and backtick is literal (single-quoted or backtick-escaped): read
+# as provenance 0, except that no `$`, HOME or backtick is read in it.
 # shellcheck disable=SC2016  # `$HOME` here is the literal text of the operand
 rdt_place_to() {
   local __rp_t="${2//\\//}" __rp_q="$3" __rp_dir="" __rp_last __rp_pre __rp_rest __rp_slash=0
@@ -1377,7 +1388,7 @@ rdt_place_to() {
   [[ -n "$__rp_t" ]] || return 1
   [[ "$__rp_t" == *$'\n'* ]] && return 2
   [[ "$__rp_t" =~ ^//[?.]/([A-Za-z]:/.*)$ ]] && __rp_t="${BASH_REMATCH[1]}"
-  if ((__rp_q < 2)); then
+  if ((__rp_q < 2 || __rp_q == 4)); then
     # shellcheck disable=SC2088  # matching the literal text, expanded by hand below
     case "$__rp_t" in
     '~' | '~/'*)
@@ -1389,7 +1400,7 @@ rdt_place_to() {
     *) ;;
     esac
   fi
-  if ((__rp_q != 3)); then
+  if ((__rp_q < 3)); then
     case "$__rp_t" in
     '$HOME' | '$HOME/'*)
       [[ -n "$RDT_HOME" ]] || return 1
@@ -3059,6 +3070,11 @@ rdt_scan_substitutions() {
 # variable word.
 
 rdt_ps_piped=0
+# The walker writes a literal `$` (single-quoted, or escaped by a backtick) as
+# this byte, so rdt_ps_operand can tell it from one PowerShell expands. Empty,
+# and every `$` read as before, when the command itself carries the byte.
+RDT_PS_LIT=$'\002'
+[[ "$COMMAND" == *"$RDT_PS_LIT"* ]] && RDT_PS_LIT=""
 
 # rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
 # when the token is not a unique prefix of one. Token includes the leading
@@ -3135,11 +3151,33 @@ rdt_ps_cmd_split_to() {
 # `${env:NAME}` are read as `$NAME` and `${NAME}`, so each spelling gets the
 # answer the Bash lane gives: `$env:TEMP`, `$env:TEMP\` and `$env:TEMP\*` are
 # refused as bare variables, and `$env:TEMP\build` is not.
+#
+# A `$` the walker read as literal (single-quoted or backtick-escaped) arrives
+# as RDT_PS_LIT (#6626). A word whose every `$` is literal is judged as the
+# path it names (provenance 4), after a trailing Win32 stream suffix
+# (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is dropped, because that
+# suffix names the file or directory before it. A literal `$` name alone
+# (`'$X'`) is still refused as a bare variable. A word holding any `$`
+# PowerShell expands is read as before.
 rdt_ps_operand() {
-  local w="$1"
-  w="${w//\$\{[eE][nN][vV]:/\$\{}"
-  w="${w//\$[eE][nN][vV]:/\$}"
-  rdt_check_operand "$w" 0
+  local w="$1" q=0 re_stream
+  if [[ -n "$RDT_PS_LIT" && "$w" == *"$RDT_PS_LIT"* ]]; then
+    if [[ "$w" != *'$'* ]]; then
+      q=4
+      re_stream='^(.+):[^:/\\]*:'"$RDT_PS_LIT"'[A-Za-z0-9_]+$'
+      if [[ "$w" =~ $re_stream ]]; then
+        w="${BASH_REMATCH[1]}"
+        # `C::$INDEX_ALLOCATION` is read as the drive, which the root arm refuses.
+        [[ "$w" =~ ^[A-Za-z]$ ]] && w+=":"
+      fi
+    fi
+    w="${w//"$RDT_PS_LIT"/\$}"
+  fi
+  if ((q == 0)); then
+    w="${w//\$\{[eE][nN][vV]:/\$\{}"
+    w="${w//\$[eE][nN][vV]:/\$}"
+  fi
+  rdt_check_operand "$w" "$q"
 }
 
 # rdt_ps_cmd_rd: recursive cmd rd/rmdir. Remaining words are the command line.
@@ -3418,6 +3456,8 @@ rdt_ps_walk() {
           else
             __q=""
           fi
+        elif [[ "$__c" == '$' && -n "$RDT_PS_LIT" ]]; then
+          __word+="$RDT_PS_LIT"
         else
           __word+="$__c"
         fi
@@ -3433,7 +3473,11 @@ rdt_ps_walk() {
         fi
       else
         if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
-          __word+="$__nxt"
+          if [[ "$__nxt" == '$' && -n "$RDT_PS_LIT" ]]; then
+            __word+="$RDT_PS_LIT"
+          else
+            __word+="$__nxt"
+          fi
           __i=$((__i + 1))
         elif [[ "$__c" == '"' ]]; then
           __q=""
@@ -3452,7 +3496,11 @@ rdt_ps_walk() {
         [[ "$__nxt" == $'\r' && "${__s:__i:1}" == $'\n' ]] && __i=$((__i + 1))
         continue
       fi
-      __word+="$__nxt"
+      if [[ "$__nxt" == '$' && -n "$RDT_PS_LIT" ]]; then
+        __word+="$RDT_PS_LIT"
+      else
+        __word+="$__nxt"
+      fi
       __in=1
       __cont=0
       __i=$((__i + 2))
