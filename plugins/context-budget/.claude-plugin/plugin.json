@@ -14,6 +14,13 @@
       "title": "Settings-write-ask hook",
       "description": "Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher.",
       "default": true
+    },
+    "live_display": {
+      "type": "string",
+      "title": "Live context display",
+      "description": "Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session.",
+      "default": "pane",
+      "options": ["pane", "band", "off"]
     }
   },
   "keywords": [

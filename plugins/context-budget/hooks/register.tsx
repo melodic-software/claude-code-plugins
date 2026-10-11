@@ -1,27 +1,25 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage } from 'claude-code'
 
-import type { LiveView } from '../types'
+import type { LiveMode, LiveView } from '../types'
+import { Band, PaneBody } from './parts'
 
 const COMMAND = 'context-budget'
 const PANE = 'context-budget-live'
 const TITLE = 'Context'
-const USAGE = 'usage: /context-budget live'
+const USAGE = 'usage: /context-budget live [pane|band|off]'
+const MODES: readonly LiveMode[] = ['pane', 'band', 'off']
+
+const isMode = (value: unknown): value is LiveMode => MODES.includes(value as LiveMode)
 
 const view = atom({ plugin: 'context-budget', key: 'view' } as const, null)
 const error = atom({ plugin: 'context-budget', key: 'error' } as const, null)
 
-// 90000 -> 90k, 1000000 -> 1M, 1500000 -> 1.5M.
-const tokens =(n: number): string => {
-  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
-  return String(n)
-}
-
-const toView = (context: SessionContextUsage): LiveView => {
+// Window figures only when there is no breakdown, which the caller reports as an error.
+const toView = (context: SessionContextUsage): LiveView | null => {
   const b = context.breakdown
   if (b === undefined) {
-    return { used: context.tokens ?? 0, window: context.window, percent: context.percent ?? 0, categories: [] }
+    return context.tokens === undefined ? null : { used: context.tokens, window: context.window, percent: context.percent ?? 0, categories: [] }
   }
   return {
     used: b.totalTokens,
@@ -43,21 +41,27 @@ const refresh = async ($: EngineInterface) => {
   try {
     const { context } = await $.session.usage({ breakdown: 'summary' })
     await update($, view, () => toView(context))
-    await update($, error, () => null)
+    await update($, error, () => (context.breakdown === undefined ? 'no breakdown in this session' : null))
   } catch (err) {
+    await update($, view, () => null)
     await update($, error, () => (err instanceof Error ? err.message : String(err)))
   }
 }
 
+const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PANE)
+
 const registerCommand = ($: EngineInterface) =>
   $.command.register({
     name: COMMAND,
-    description: 'Live per-category context breakdown; live opens or closes the pane',
-    argumentHint: 'live',
+    description: 'Live per-category context breakdown: live toggles the pane; live pane, band or off sets the display',
+    argumentHint: 'live [pane|band|off]',
     immediate: true,
   })
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // Unwritten, mode reads the option; a /context-budget live write outlasts a hot reload.
+  const mode = atom({ plugin: 'context-budget', key: 'mode' } as const, isMode(options.live_display) ? options.live_display : 'pane')
+
   on('session.start', async ($, e, next) => {
     await registerCommand($)
     return next(e)
@@ -70,32 +74,55 @@ export const register: Register = on => {
     return ended
   }).catch(($, e, next) => next(e))
 
-  // Answers with no text: the pane is the output, and nothing lands in the transcript Claude reads.
+  // Answers with no text: the pane or band is the output, and nothing lands in the transcript Claude reads.
   on('command.run', { command: COMMAND }, async ($, e) => {
-    if (e.args.trim() !== 'live') {
+    const [sub, arg, ...rest] = e.args.trim().split(/\s+/)
+    if (sub !== 'live' || rest.length > 0 || (arg !== undefined && !isMode(arg))) {
       $.ui.toast(USAGE)
       return {}
     }
-    if ((await $.ui.panes()).some(pane => pane.id === PANE)) {
-      await $.ui.close({ id: PANE })
+    if (arg === undefined) {
+      if ((await read($, mode)) === 'off') {
+        $.ui.toast('live display is off: /context-budget live pane or band turns it on')
+      } else if (await paneOpen($)) {
+        await $.ui.close({ id: PANE })
+      } else {
+        await refresh($)
+        await $.ui.open({ id: PANE, title: TITLE })
+      }
+      return {}
+    }
+    await update($, mode, () => arg)
+    if (arg === 'off') {
+      if (await paneOpen($)) await $.ui.close({ id: PANE })
       return {}
     }
     await refresh($)
-    await $.ui.open({ id: PANE, title: TITLE })
+    if (arg === 'pane' && !(await paneOpen($))) await $.ui.open({ id: PANE, title: TITLE })
     return {}
   }).catch(($, e, next) => next(e))
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+  // The breakdown is asked for only while it is shown and only when the context fill moved.
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('context') && ((await read($, mode)) === 'band' || (await paneOpen($)))) await refresh($)
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =>
+    PaneBody($.ui.resolve(e), await read($, view), await read($, error), e.props.bodyColumns),
+  )
+
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const theirs = await next(e)
+    if (e.props.hasSurvey || (await read($, mode)) !== 'band') return theirs
     const v = await read($, view)
-    const err = await read($, error)
+    if (v === null || v.categories.length === 0 || (await read($, error)) !== null) return theirs
+    const { Box } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
-        <Text bold wrap="truncate">
-          {v === null ? '◆ context' : `◆ context ${tokens(v.used)} of ${tokens(v.window)}`}
-        </Text>
-        {err !== null ? <Text dimColor>{`usage unavailable: ${err}`}</Text> : null}
+        {Band($.ui.resolve(e), v, e.props.bodyColumns)}
+        {theirs}
       </Box>
     )
-  })
+  }).catch(($, e, next) => next(e))
 }
