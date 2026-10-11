@@ -182,7 +182,7 @@ forcing every session through stage 1. Common classes:
   implement), then the diff is reviewed and aligned on there, with test and verify at full
   rigor. If the diff turns out not to be quick to review, stop and route to the contract
   interview. Basis for adopting this rule:
-  the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills-v12-map.md`
+  the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
   already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
