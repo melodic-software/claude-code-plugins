@@ -86,7 +86,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 ## Phase 7: Research
 
 - [ ] **7.1** Each agenda cluster `done` or `deferred` with reason. Verify: no `pending` in `research-agenda.md`
-- [ ] **7.2** Per done cluster: finding file or inline in `RESEARCH.md`. Verify: research outcome gate per cluster
+- [ ] **7.2** Per done cluster: a `research/findings/*.md` file. Verify: research outcome gate per cluster
 - [ ] **7.3** `RESEARCH.md` slice summary. Verify: ≥200 chars; conflicts + gaps sections
 - [ ] **7.4** Top harvested URLs fetched; repos analyzed to temp if GitHub links. Verify: fetch log / `analyze-harvested-repos.js` when applicable
 - [ ] **7.5** Research verify. Verify: `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-research-complete.js "<slice-dir>"` exit 0

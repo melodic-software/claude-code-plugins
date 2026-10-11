@@ -68,6 +68,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | `session-visual-coverage` | every claim-inventory session has in-window promotion; zero parsed sessions fails | Phase 6: per-session frame; Phase 2 session format in `watch-pipeline.md` |
 | `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6: vision pass before copy |
 | `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6: rename from on-screen content; content-class rejects stay agent vision |
+| `research-complete` | research gate below passes; skipped when `watch.json` records `skipResearch` | Phase 7: resolve the agenda and write findings |
 | `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8: copy `templates/recommendations/` |
 | `watch-checklist-complete` | blocking ticks once synthesis is marked or `status: complete` | Phase 9: tick 8.x + 9.1–9.4 with evidence |
 | `promotion-traceability` | every synthesis PNG has promote decision + `promotion-map.json` | Phase 6: run `vision-gated-promote.js` |
@@ -91,7 +92,7 @@ Host verify scripts prove **traceability and shape** (JSON valid, batch files on
 | `RESEARCH.md` exists, ≥200 chars | Run research fan-out |
 | `claim-inventory.md` exists | Phase 3 |
 | No `pending` rows in `research-agenda.md` | Complete or defer each cluster |
-| `research-review/*.md` count ≥ `done` agenda rows | Write per-cluster findings |
+| `research/findings/*.md` count ≥ `done` agenda rows | Write per-cluster findings |
 | At least one `done` or `deferred` row | Draft agenda from inventory |
 
 Apply your external-research capability's outcome gate per cluster before marking agenda row `done`.
@@ -148,14 +149,15 @@ When `watch.json` / `selection.json` sets `highVolume: true`:
 
 ## Complete slice
 
-`watch.json` `status: complete` is written **only** by `watch-state.js close <slice-dir>`
-(`mark-phase <slice-dir> synthesis` delegates to it), and run it only when:
+`status: complete` in `watch.json` and in the slice `README.md` frontmatter is written **only**
+by `watch-state.js close <slice-dir>` (`mark-phase <slice-dir> synthesis` delegates to it), and
+run it only when:
 
 1. All phase-complete boxes ticked in `watch-checklist.md` (or honest deferral noted)
-2. `check-research-complete.js` exit 0
+2. `check-research-complete.js` exit 0, unless the watch ran with `--skip-research`
 3. `check-watch-outcomes.js --write-report` exit 0
 4. `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS
 
 `close` marks synthesis, re-runs `check-watch-outcomes.js --write-report` with the blocking
-checklist enforced, and writes `complete` only when it passes; on a fail it exits 1 and leaves
-status unchanged.
+checklist and the `research-complete` check enforced, and writes `complete` only when it passes;
+on a fail it exits 1 and leaves status unchanged.

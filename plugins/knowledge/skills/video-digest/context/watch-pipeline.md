@@ -229,7 +229,7 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-res
   **claim clusters** mapped to inventory rows
 - Per cluster: standard research, or deep external research when 3+ vendors/tools (template:
   `templates/research-cluster.md`)
-- Write slice `RESEARCH.md` + optional `research/findings/*.md`
+- Write slice `RESEARCH.md` + one `research/findings/*.md` per `done` cluster
 - Name each shard `research/findings/<cluster-topic-slug>.md` (e.g. `complex-types.md`) after the
   topic, not an opaque `RA1`/`RA2` ordinal; the agenda carries cluster ordering
 - Each finding: author claim, consensus, staleness, promoted tier
