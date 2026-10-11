@@ -109,8 +109,8 @@ def gh_json(args: list[str]) -> Any:
 # 1 for every failure, so this is the only signal separating "the API answered
 # no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
-# Cloud sessions behind the GitHub proxy are served no GraphQL and refuse every
-# GraphQL request with HTTP 403. The refusal names the session rather than the
+# The cloud GitHub proxy can refuse a GraphQL request with HTTP 403. The
+# refusal names the session rather than the
 # credential, so it reads like an expired token or a missing scope and is
 # neither: re-authenticating never clears it, and the only remedy is to source
 # the same fact over REST. Marker: the refusal's opening words per
@@ -242,7 +242,7 @@ def parse_repo(value: str) -> str:
 
 
 def rest_list_repos_for_owner(owner: str) -> list[str]:
-    """`gh repo list` rebuilt from REST, for a session served no GraphQL.
+    """`gh repo list` rebuilt from REST, for a session whose GraphQL calls are refused.
 
     `gh repo list --json` is a GraphQL `RepositoryList` query, so it 403s
     alongside `gh pr view` and takes owner-mode discovery with it. REST spells
