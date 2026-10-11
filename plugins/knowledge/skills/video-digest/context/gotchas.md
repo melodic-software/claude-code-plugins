@@ -4,7 +4,16 @@ Observed failure modes and their recovery behavior. Terse operational directives
 
 ## YouTube bot / sign-in check
 
-Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (platform order: Edge/Chrome on Windows). No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (on Windows: Edge, Chrome, Firefox, Brave, Chromium), moving to the next browser when one's cookies cannot be read. No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+
+This skill's decision: a browser whose cookies yt-dlp cannot read counts as a failed rung, so the fallback moves on (the stderr patterns it matches live in `extraction/acquisition/acquire-yt-dlp-auth.js`). On Windows, when forcing one browser, prefer Firefox or a cookies file over Chromium-based browsers.
+
+- **Pointer**: when Chromium-based cookie extraction fails on Windows, fetch
+  <https://github.com/yt-dlp/yt-dlp/issues/7271> (database locked while the browser runs) and
+  <https://github.com/yt-dlp/yt-dlp/issues/10927> (DPAPI decryption) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: either issue closes, or a yt-dlp release note changes `--cookies-from-browser`
+  on Windows.
 
 ## HTTP 429 throttling
 
