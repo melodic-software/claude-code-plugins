@@ -72,7 +72,9 @@ Class to rung to owner or pointer, from [`context/crosswalk.md`](context/crosswa
 list and this skill's selection rule come from the enforcement ladder,
 [`${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`](../../context/enforcement-ladder.md): take
 the cheapest rung whose check can actually assert the finding, not the cheapest rung imaginable.
-An `invalid-state` finding is offered `make-impossible` first.
+An `invalid-state` finding is offered `make-impossible` first. The crosswalk writes the plugin's
+root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; a file read through the Read
+tool gets no substitution, so put that path in place of the placeholder.
 
 ## 4. Resolve two homes
 

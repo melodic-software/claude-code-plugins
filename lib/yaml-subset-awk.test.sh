@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016 # backticks and $ in the single-quoted test names and inputs are literal YAML text
 # Tests for lib/yaml-subset.awk's refusals of a tab indent and of an unquoted
 # `: ` inside a plain value. Expected records and exit codes come from the
 # parser's header: `key<TAB>value` per scalar, and on a parse error one

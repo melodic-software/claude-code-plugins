@@ -54,7 +54,7 @@ with no one to answer: the table is the result.
 
 Check again before each delete, because time has passed since the table:
 
-- **Build output.** If Xcode is running (`pgrep -x Xcode` prints a process id), say so and ask the
+- **Build output.** If Xcode is running (`pgrep -x Xcode` prints a process id), say so and ask the <!-- portability-ok: pgrep -x is the macOS process probe this page is for, not a grep -P -->
   user to quit it or skip the row: a build in progress fails when its output is removed. A folder
   name that contains a single quote, a `/` or a control character is never deleted: report it and
   keep it. Otherwise type the name inside single quotes, where the shell expands nothing, and run

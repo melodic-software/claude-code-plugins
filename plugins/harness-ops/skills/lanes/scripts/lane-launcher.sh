@@ -1193,6 +1193,7 @@ lane_fallback_value() {
   }
   marker="$(jq -r --argjson i "$idx" '(.lanes[$i].telemetry // {}).marker // ""' "$CONFIG")"
   jq -r --arg m "$marker" '
+    # portability-ok: \s and \S sit in a jq (Oniguruma) regex, not a grep or sed one
     def blocks: [ scan("```[^\n]*\n((?:(?!```)[\\s\\S])*)```") | .[0] ];
     def state: [ blocks[] | (try fromjson catch null)
                  | select(type == "object" and has("execution_target_fallback")) ] | first;

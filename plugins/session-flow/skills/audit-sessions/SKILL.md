@@ -1,6 +1,6 @@
 ---
 description: "Audit your own Claude Code sessions for wasted time, tokens and corrections: collect every transcript on this machine into a durable local store, then sweep it for sessions over this machine's own thresholds, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'why am I correcting Claude so often', 'session efficiency', 'sweep my transcripts', 'am I getting faster', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
-argument-hint: "[sweep|sweep-only|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]"
+argument-hint: "[sweep|sweep-only|style] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|sweep-only|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine
+**Arguments.** `[sweep|sweep-only|style] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine
 
 ## Purpose
 

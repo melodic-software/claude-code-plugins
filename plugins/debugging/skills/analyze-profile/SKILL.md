@@ -77,7 +77,9 @@ On success it prints the detected format and the row counts. Exit 2 covers a mal
 file past the converter's size cap, a format it does not support, and an output path that already
 exists; in each case report the stderr line and stop, with no hand-written parser as a fallback.
 Run queries through `scripts/query_profile.py`, which opens the database read-only, passes values
-as bound parameters and refuses any statement other than a read.
+as bound parameters and refuses any statement other than a read. The format pages write this
+skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that path in place of the
+placeholder before running a command, since a file read through the Read tool gets no substitution.
 
 **Before you answer**, hold the draft against each row:
 

@@ -288,6 +288,7 @@ def is_pragma(rel, line):
         with open(os.path.join(root, rel), encoding="utf-8", errors="replace") as handle:
             for number, text in enumerate(handle, 1):
                 if number == line:
+                    # portability-ok: a Python re pattern in the embedded program, not a grep or sed regex
                     return re.match(r"\s*#\s*pragma\s+warning\s+disable\b", text) is not None
     except OSError:
         pass

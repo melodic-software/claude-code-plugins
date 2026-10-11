@@ -163,7 +163,7 @@ run() {
   RC=$?
 }
 ref_count() { git -C "$1" for-each-ref refs/collision-hotspots | grep -c . || true; }
-has_row() { printf '%s\n' "$1" | grep -qxF "$2" && echo yes || echo no; }
+has_row() { grep -qxF "$2" <<<"$1" && echo yes || echo no; }
 
 # Full run.
 W="$(fresh_clone)"

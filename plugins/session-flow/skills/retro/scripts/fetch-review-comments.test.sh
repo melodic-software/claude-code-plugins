@@ -153,13 +153,18 @@ run "$F" --prs 2
 assert_eq "failed gh call: exit 2 and empty stdout" "2:" "$RC:$OUT"
 rm -f "$F/fail-comments-12"
 
-# Missing gh or jq: exit 2, nothing on stdout.
+# Missing gh or jq: exit 2, nothing on stdout. Each PATH holds only the other
+# tool, so a gh or jq in a system directory cannot leak in.
 NOGH="$TEST_TMPDIR/nogh"
-mkdir -p "$NOGH/work"
-OUT="$(cd "$NOGH/work" && PATH="$JQ_DIR:/usr/bin:/bin" bash "$SCRIPT" --prs 2 2>/dev/null)"
+ONLY_JQ="$TEST_TMPDIR/only-jq"
+ONLY_GH="$TEST_TMPDIR/only-gh"
+mkdir -p "$NOGH/work" "$ONLY_JQ" "$ONLY_GH"
+ln -s "$JQ_DIR/jq" "$ONLY_JQ/jq"
+ln -s "$STUB_BIN/gh" "$ONLY_GH/gh"
+OUT="$(cd "$NOGH/work" && PATH="$ONLY_JQ" "$BASH" "$SCRIPT" --prs 2 2>/dev/null)"
 RC=$?
 assert_eq "missing gh: exit 2 and empty stdout" "2:" "$RC:$OUT"
-OUT="$(cd "$NOGH/work" && FIX="$F" PATH="$STUB_BIN:/usr/bin:/bin" bash "$SCRIPT" --prs 2 2>/dev/null)"
+OUT="$(cd "$NOGH/work" && FIX="$F" PATH="$ONLY_GH" "$BASH" "$SCRIPT" --prs 2 2>/dev/null)"
 RC=$?
 assert_eq "missing jq: exit 2 and empty stdout" "2:" "$RC:$OUT"
 
