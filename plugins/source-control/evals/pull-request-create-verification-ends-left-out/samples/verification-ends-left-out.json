@@ -23,6 +23,18 @@
         }
       ],
       "why": "bulleted Left out as the last line of the body, with an escaped quote earlier in the section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\n**Left out:** e2e suite, needs staging.\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "bold Left out label"
     }
   ],
   "fail": [
