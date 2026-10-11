@@ -16,8 +16,10 @@ nothing.
 
 ## The script's contract
 
-- Output: three sections, `## Findings`, `## Suppressed` and `## Judgment`, each line
-  `path:line [rule-id] message`. A suppressed line ends with its reason.
+- Output: three sections, `## Findings`, `## Suppressed` and `## Judgment`. Findings and
+  Suppressed lines have the shape `path:line [rule-id] message`, and a suppressed line ends with
+  its reason. Judgment lines are plain checklist items, plus a `path: not checked` line for each
+  file with nothing to lint.
 - Exit: 0 no findings, 1 findings, 2 a usage error or a crash. On 2, quote its stderr, say the
   linter did not run, and review by reading.
 - It lints `.css` files whole and other files by their `<style>` blocks. A file with neither lands

@@ -44,6 +44,7 @@ test("routing.json matches its schema", () => {
   assert.deepEqual(validate(schema, routing), []);
 });
 
+// Expected values: row from the plan's Design Contracts (routing row).
 test("css-authoring routes first to write-css, an account-free skill on every platform", () => {
   const rows = routing.rows.filter((r) => r.concern === "css-authoring");
   assert.deepEqual(rows.map(({ rank, id, kind, detect, account, status }) => ({ rank, id, kind, detect, account, status })), [

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Runs the vendored good-css linter over CSS and HTML files and prints its
+/* Runs the vendored linter over CSS and HTML files and prints its
    violations with a rule id, moving those the resolved config disables to
    their own section.
 
@@ -18,7 +18,7 @@ const JUDGMENT = [
   "Everything pressable has an `:active` state.",
   "Sizes that scale with the viewport sit in one `clamp()` token.",
   "An `overflow: hidden` is not on something a script scrolls.",
-  "The rest of the good-css rules and the project's own conventions need a read.",
+  "The rest of the write-css rules and the project's own conventions need a read.",
 ];
 
 class UsageError extends Error {}

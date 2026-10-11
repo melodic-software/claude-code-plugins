@@ -200,6 +200,8 @@ Rules:
 - Any value can go in the keyframes, keywords included, such as flipping a row to `row-reverse`
   when it overflows.
 - Write no fallback. Without scroll timelines the row scrolls without the fade.
+- Gradient directions have no logical keyword, so `to right` stays physical: for right-to-left
+  text, repeat the `mask-image` with `to left` in a `:dir(rtl)` rule.
 
 ## Anchor targets that clear a sticky header: `anchor-targets-that-clear-a-sticky-header`
 

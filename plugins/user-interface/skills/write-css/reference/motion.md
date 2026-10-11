@@ -102,6 +102,8 @@ pointer position or progress into CSS.
   scale: calc(0.25 + var(--progress) * 0.75) 1;
 }
 
+.card .bar:dir(rtl) { transform-origin: right; }
+
 .card .more { opacity: var(--progress); }
 
 @media (prefers-reduced-motion: no-preference) {
