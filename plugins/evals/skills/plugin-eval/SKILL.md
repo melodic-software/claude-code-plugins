@@ -167,9 +167,9 @@ Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); 
 are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
 arm costs are not symmetric.
 
-Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
-with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD, 42 single-arm calibration runs 1.79 USD: 0.04 to 0.07 USD a run on average with judging.
+Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02, with no `--model` (it served
+opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 42 single-arm calibration runs 1.79 USD: 0.04 to
+0.07 USD a run on average with judging. An opus-judged decision run costs more per run than that sonnet-judged pass; size it from its own first run.
 
 **A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
@@ -225,10 +225,10 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
-   claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
+   claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a decision run keeps `--judge-model opus`, dropped only for an exploratory run.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
    about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
    ends with the session. The run is finished when the process exits and `results.json` exists; read
