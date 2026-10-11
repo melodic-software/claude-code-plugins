@@ -177,7 +177,8 @@ and the fix is a fresh set of eyes: a context that never saw the document.
      live; the dated record is also in SKILL.md "Sources".
    - **As of**: 2026-10-11
    - **Recheck trigger**: the first section stops listing Explore and Plan as
-     skipping CLAUDE.md, or changes what `omitClaudeMd` leaves loaded.
+     skipping CLAUDE.md, or changes what `omitClaudeMd` leaves loaded; or the
+     second section stops saying a fork inherits the parent conversation.
 2. Give it the questions the document answers, or ask it to produce the
    document's key conclusions, using **only** native repository exploration. For a routing-only
    doc (pointers to other files), do **not** ask the fresh agent the doc's own trigger question

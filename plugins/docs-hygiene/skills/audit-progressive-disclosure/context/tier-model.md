@@ -42,7 +42,7 @@ and upstream ownership overrides the local treatment (the finding stays): see
 | SKILL.md line cap | Value: `/playbooks:skill-authoring` `## Body`; `/skill-quality:check` enforces it. The split trigger fires when a file is **approaching** the cap, not only past it | Anthropic-prescribed |
 | <5k tokens | Our target SKILL.md body size, taken from the platform token-budget guidance | Anthropic-prescribed |
 | 200 lines | Our per-CLAUDE.md target; we read a longer file as costing context and adherence | Anthropic-prescribed; stricter 80–150 community practice exists but is not official |
-| Per-skill metadata cost | Always-loaded listing cost per skill; we treat it as small but nonzero, so skill count matters. Value at the pointer | Anthropic-prescribed; corroborated |
+| Per-skill metadata cost | Always-loaded listing cost per skill; we treat it as small but nonzero, so skill count matters. Value at the pointer | Anthropic-prescribed; corroborated (~80 median measured) |
 | Description caps | `description` alone, and `description` + `when_to_use` in the listing: `/playbooks:skill-authoring` `## Descriptions`; `/skill-quality:check` enforces both. Truncation is tail-first, so the key use case goes first | Anthropic-prescribed |
 | Skill-listing budget | A share of the context window; we treat an overflow as dropping descriptions, never names. Fraction, setting and drop order at the pointer | Anthropic-prescribed; corroborated |
 | MEMORY.md load limit | We treat content past the limit as not loaded. Values at the pointer | Anthropic-prescribed |

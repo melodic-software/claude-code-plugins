@@ -21,10 +21,10 @@ pointers below the table when a write depends on one.
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
-| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; neither set takes precedence over the other, so keep the two consistent |
+| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; we keep the two consistent rather than rely on either ranking above the other (see the user-rules pointer below) |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
 | `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | `AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it from the sources record behind `/instruction-placement:migrate` rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
@@ -39,8 +39,8 @@ pointers below the table when a write depends on one.
 
 Load-semantics facts that change how you write:
 
-- More specific scopes land later in context; nothing overrides anything else, so contradictions
-  between scopes are a defect to remove, not a precedence to rely on.
+- More specific scopes land later in context; we treat contradictions between scopes as a defect
+  to remove, not a precedence to rely on (how scopes interact: the pointers below).
 - Content that loads on demand (nested CLAUDE.md, `paths:`-gated rules) may be absent right after
   `/compact` until it loads again, so a constraint that must hold post-compaction belongs on a
   surface that survives it.
@@ -77,7 +77,8 @@ Load-semantics facts that change how you write:
   <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>.
 - **As of**: 2026-10-11
 - **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
-  surface, or the memory page stops saying that rule scopes do not override each other.
+  surface, or changes how rule scopes rank; the Project instructions setting is removed or its
+  values change; or the compaction section changes which surfaces survive `/compact`.
 
 ### Load triggers
 
