@@ -2,10 +2,11 @@
 # StopFailure hook (matcher: rate_limit): append a machine-readable detection
 # record when a turn ends on a rate-limit API error.
 #
-# SIDE-EFFECT-ONLY: the harness ignores StopFailure output and exit codes
-# entirely (hooks reference, verified 2026-08-10; recheck when the StopFailure
-# entry documents a decision field), so this hook's one job is
-# the record it appends — the reactive-fallback signal consumers read when the
+# SIDE-EFFECT-ONLY: StopFailure has no decision control, and this hook prints
+# nothing for Claude Code to act on, so its one job is the record it appends
+# (pointer, as-of date and recheck trigger for what Claude Code does with
+# StopFailure output: ../reference/reader-contract.md, "Detection records").
+# The record is the reactive-fallback signal consumers read when the
 # module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota
 # data; resume timing comes from the contract file rate-limits.json or from
@@ -59,13 +60,13 @@ if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]
 fi
 
 # silent-skip-ok: no HOME means no resolvable contract path anywhere on this
-# host — nothing this hook could usefully write, and StopFailure has no
-# visible output channel to report through (output is ignored by contract).
+# host: nothing this hook could usefully write, and StopFailure gives the
+# hook no channel to report a failure through.
 [[ -n "${HOME:-}" ]] || exit 0
 GUARD_DIR="$HOME/.claude/rate-limit-guard"
 EVENTS="$GUARD_DIR/stop-events.jsonl"
 # silent-skip-ok: an uncreatable contract dir cannot be surfaced from a
-# StopFailure hook (output and exit code are ignored); the setup skill's
+# StopFailure hook (no channel reports a failure); the setup skill's
 # check probe is the visibility surface for a broken contract path.
 mkdir -p "$GUARD_DIR" 2>/dev/null || exit 0
 # Owner-only contract dir + owner-only files from here on (records, lock,

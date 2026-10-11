@@ -213,9 +213,18 @@ appended by the hook:
 }
 ```
 
-The hook is side-effect-only (the harness ignores StopFailure output and exit codes) and the
-payload carries no reset or quota data. A record means "a rate limit stopped a turn at this time",
-nothing more. The file is bounded (rotated to the newest 100 records past 200).
+The hook is side-effect-only: it prints nothing for Claude Code to act on and its exit code
+decides nothing, and the payload carries no reset or quota data. A record means "a rate limit
+stopped a turn at this time", nothing more. The file is bounded (rotated to the newest 100 records
+past 200).
+
+- **Pointer**: when deciding whether a StopFailure hook's output or exit code can do anything,
+  fetch [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) and
+  [hooks: emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: the StopFailure section gives the event decision control, or names an
+  output field beyond the terminal-notification one that Claude Code honors.
 
 Read cadence: a reactive-only consumer reads the file on entering reactive-only mode and again
 before each new work claim. The recency baseline starts at the consumer's own start time, so records

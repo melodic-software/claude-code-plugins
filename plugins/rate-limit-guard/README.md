@@ -12,8 +12,10 @@ after the reset. Three parts:
   `~/.claude/rate-limit-guard/rate-limits.json` in interactive and headless sessions alike. It needs Claude Code 2.1.287 or later; older builds are unsupported.
 - **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
   ends on a rate-limit API error, it appends a detection record to
-  `~/.claude/rate-limit-guard/stop-events.jsonl`. StopFailure output and exit codes are ignored by
-  the harness, so the hook is side-effect-only by design.
+  `~/.claude/rate-limit-guard/stop-events.jsonl`. The hook is side-effect-only by design: the
+  record is its one output (the
+  [reader contract](reference/reader-contract.md#detection-records-reactive-fallback) points at
+  what Claude Code does with StopFailure output).
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   fixed file path, the 95%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
