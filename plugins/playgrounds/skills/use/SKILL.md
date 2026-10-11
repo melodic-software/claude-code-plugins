@@ -28,22 +28,31 @@ Determine whether the upstream plugin is installed by its identity, not its word
 - Where the CLI is unavailable to the session, fall back to the session's skill
   listing: a bare `playground` skill whose description says it creates interactive
   HTML playgrounds. Treat the description comparison as ADVISORY only; upstream may
-  reword it at any time, and a listing under budget pressure can drop descriptions
-  entirely. Never conclude "absent" from wording alone when the name is present.
+  reword it at any time. Never conclude "absent" from wording alone when the name is
+  present.
 - A local skill can shadow the upstream name. When the listed `playground` skill's
   description clearly describes something other than an interactive-explorer builder,
   say a shadow is likely, then let provenance decide: with the install record
   confirming `playground@claude-plugins-official`, warn about the shadow and invoke
-  the namespaced `playground:playground` form (a bare-name shadow cannot intercept
-  it); with no install record confirming it, take the install/guidance path, and
-  never invoke the shadowing skill.
+  the namespaced `playground:playground` form; with no install record confirming it,
+  take the install/guidance path, and never invoke the shadowing skill.
+
+How a plugin skill's namespaced name and a same-named local skill resolve is
+Claude Code's to define; this skill always addresses the upstream skill by its
+namespaced form.
+
+- **Pointer**: when a shadow is suspected or the bare name resolves unexpectedly,
+  fetch [Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section's same-name table changes how plugin skills
+  and local skills of one name load.
 
 ## Step 2: Present, so invoke
 
 When the upstream skill is present, invoke it via the Skill tool with the user's
-brief as arguments: the namespaced form `playground:playground` is the reliable
-address for a plugin skill; the bare `playground` form resolves only while no other
-skill carries that name. Pass the request
+brief as arguments, using the namespaced form `playground:playground` (Step 1's
+pointer covers why). Pass the request
 as stated; the upstream skill owns template choice and generation. When the user names
 styles to leave out (italic accent words, pill-shaped buttons), carry that list in the
 brief; when they dislike a choice in the generated page, add it to the list and invoke
@@ -54,11 +63,10 @@ their own words.
 
 ## Step 3: Absent, so uplift
 
-This plugin declares the upstream dependency in its manifest, so on installs where
-dependency resolution runs, Claude Code offers to install `playground` automatically
-and reports `dependency-unsatisfied` with the exact command when it cannot. In
-contexts where resolution does not run (a synced or cloud session, a manual setup),
-emit the commands directly:
+This plugin declares the upstream dependency in its manifest, so where Claude Code
+resolves plugin dependencies it handles the install itself. In contexts where
+resolution does not run (a synced or cloud session, a manual setup), emit the
+commands directly:
 
 ```shell
 /plugin marketplace add anthropics/claude-plugins-official
@@ -66,10 +74,17 @@ emit the commands directly:
 ```
 
 Scope guidance: `user` scope makes the capability available everywhere; `project`
-scope pins it to one repository. The marketplace-add step is often unnecessary (the
-official marketplaces are preconfigured on most installs); include it only when the
+scope pins it to one repository. Include the marketplace-add step only when the
 install command reports the marketplace is unknown. If the install is blocked by
 organization policy, say so plainly and stop; there is no workaround to offer.
+
+- **Pointer**: when an install did not resolve the dependency, or reports why it
+  could not, fetch [Plugin dependencies: How dependencies behave for your users](https://code.claude.com/docs/en/plugins/dependencies#how-dependencies-behave-for-your-users)
+  and [Install plugins: Plugins with dependencies](https://code.claude.com/docs/en/plugins/install#plugins-with-dependencies)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes when dependencies install, what is
+  reported when one cannot, or which marketplaces come preconfigured.
 
 ## Step 4: Delivery, especially off the desktop
 
@@ -113,9 +128,8 @@ generated playground for anything beyond personal exploration.
 
 ## Gotchas
 
-- A listed `playground` skill name proves presence of A skill, not THE skill: local
-  shadows are silent, which is why Step 1 judges by install record and treats wording
-  as advisory.
+- A listed `playground` skill name proves presence of A skill, not THE skill, which
+  is why Step 1 judges by install record and treats wording as advisory.
 - The copy-prompt button is the product; a sandboxed page (an Artifact) can restrict
   clipboard access, so confirm the round trip once before a long exploration.
 - A summarizing fetch of the upstream marketplace can misreport its contents;

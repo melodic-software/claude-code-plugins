@@ -77,10 +77,18 @@ claude plugin enable miro -s <scope>
 
 Both placeholders are bootstrap inputs, not lookups: before the first install there is no record
 to read them from. `<marketplace>` is the name the catalog registers under when it is added, and
-`<scope>` is the scope the bootstrap chooses: `user`, `project`, or `local`. `marketplace add`
-and `install` default to `user` when the flag is omitted, while `enable` auto-detects. Carry the
-same `<scope>` through all three. Note the asymmetry: `marketplace add` spells it `--scope` only,
-while `install` and `enable` also accept the `-s` short form. Registering at `user` while
+`<scope>` is the scope the bootstrap chooses: `user`, `project`, or `local`. Pass the scope
+explicitly on all three commands and carry the same `<scope>` through them; never rely on a
+command's default. Each command's scope flag spelling and default are read live:
+
+- **Pointer**: when writing or debugging the bootstrap, fetch
+  [`plugin marketplace add`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-add),
+  [`plugin install`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
+  [`plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes its scope option, short form or default.
+
+Registering at `user` while
 installing at `project` leaves the marketplace declaration out of the project's checked-in
 settings, so a fresh clone or CI agent carries the enabled plugin with no registered marketplace
 to resolve it from.
@@ -88,9 +96,8 @@ to resolve it from.
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
 DISABLED. The install seeds the token but leaves the MCP server, and therefore every `miro` tool,
 unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
-[`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
-auto-detects the scope when `-s` is omitted; passing it explicitly keeps the sequence deterministic
-in CI. A bootstrap that stops after `install` looks
+Passing the scope to `claude plugin enable` explicitly keeps the sequence deterministic in CI. A
+bootstrap that stops after `install` looks
 successful and delivers no tools.
 
 **Rotating or clearing the token:** `/plugin configure miro@<marketplace>` (interactive, any
@@ -119,8 +126,14 @@ Report one state: `disabled`, `server unavailable`, `server ready (token not che
 `token not set`, `API access verified`, or `API verification degraded`. Include the exact next action when the state is
 not verified.
 
-Sensitive values use the macOS Keychain, or `~/.claude/.credentials.json` on platforms where no
-supported keychain is available. Never read or reveal either location's contents.
+Claude Code keeps sensitive option values in its own secure credential storage. Never read or
+reveal the contents of wherever it keeps them.
+
+- **Pointer**: when a user asks where the token is stored, fetch
+  [Plugins reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+  live and give them its answer.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where sensitive values are kept.
 
 ## Boundaries
 

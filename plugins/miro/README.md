@@ -30,14 +30,17 @@ with `claude plugin enable miro` or the `/plugin` interface. Set a token before 
 |---|---|---|
 | `miro_api_token` | Claude Code secure credential storage (never `settings.json`) | Miro REST API token. The server starts without it; until it is set, every Miro tool call returns an error that names the option and the configure command. |
 
-Get a token from <https://miro.com/app/settings/user-profile/apps>. Claude Code does not prompt for it
-at install, and an unset token does not put the plugin in the `/plugin` Errors view. Enter it
-with `/plugin configure miro@melodic-software` (masked input); until then each tool call fails
-with that instruction. Setting `MIRO_API_TOKEN` in the server's environment also works, and an
-empty value or the unexpanded `${user_config.miro_api_token}` text counts as unset. Sensitive values use the macOS Keychain, or
-`~/.claude/.credentials.json` on platforms where no supported keychain is available;
-the token is substituted into the server's
-`MIRO_API_TOKEN` environment variable at launch.
+Get a token from <https://miro.com/app/settings/user-profile/apps>. The server is built so an unset
+token is never a startup failure: until the token is set, each tool call fails with the configure
+instruction. Enter it with `/plugin configure miro@melodic-software` (masked input). Setting
+`MIRO_API_TOKEN` in the server's environment also works, and an empty value or the unexpanded
+`${user_config.miro_api_token}` text counts as unset. The token is substituted into the server's
+`MIRO_API_TOKEN` environment variable at launch. When Claude Code prompts for options, and where it
+keeps a sensitive value, are its own to define: see
+[Plugins reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+and [Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
+(as of 2026-10-11; recheck when either section changes when the prompt appears or where
+sensitive values are kept).
 
 Run `/miro:setup` to check enablement and MCP availability or, with explicit confirmation,
 perform a minimal read-only API credential check. The setup skill never reads or exposes the
@@ -45,11 +48,9 @@ token and never invokes a mutating Miro tool.
 
 ### Rotating or clearing the token
 
-Once set, a sensitive `userConfig` value has no dedicated reconfigure entry in the `/plugin`
-detail view, and the `/mcp` server menu's "Clear authentication" applies to OAuth-based servers
-only. It is not the rotation path for a token supplied through `userConfig` (the bundled stdio
-server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable, never through an
-OAuth flow). To change or clear the token at any time, run:
+The bundled stdio server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable,
+never through an OAuth flow, so no OAuth sign-out in `/mcp` is a rotation path for it. To change
+or clear the token at any time, run:
 
 ```text
 /plugin configure miro@<marketplace>
@@ -102,17 +103,22 @@ and launches a different server process instead.
    before relying on it.
 
 4. Because that command differs from the plugin's own `node ${CLAUDE_PLUGIN_ROOT}/...` entry,
-   Claude Code's endpoint-based deduplication does not collapse the two servers the way it does
-   for an HTTP server at an identical URL (see the `dometrain` plugin's README for that case).
-   Disable the plugin's own `miro` server with `/mcp` so only the wrapped one runs. `/mcp`'s
-   disabled-server choice is stored per project, so repeat this once in every project where you
-   use `miro`.
+   Claude Code runs both servers (see the `dometrain` plugin's README for a case where it
+   collapses two). Disable the plugin's own `miro` server with `/mcp` so only the wrapped one
+   runs, and repeat that once in every project where you use `miro`.
 
 Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__miro__<tool>`
 (directly configured) once the override is active. Update any permission rule written against the
-old prefix. Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Plugin MCP
-tool names" and "Server deduplication," verified 2026-09-23. Recheck when either section changes
-the plugin tool-name prefix or the deduplication rule.
+old prefix.
+
+- **Pointer**: when the two servers both run, or a permission rule stops matching, fetch
+  [MCP: Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers)
+  (tool-name prefixes) and
+  [MCP: Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
+  (when servers are deduplicated, and where a disabled server is recorded) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes the plugin tool-name prefix, the deduplication
+  rule, or the scope of a disabled-server choice.
 
 `event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
 working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back
@@ -121,8 +127,8 @@ to markdown while the override is active.
 ## Tools
 
 The server registers Miro operations grouped by concern: boards, sticky notes, frames,
-tags, connectors, bulk create, and overlap detection. Read-only tools annotate
-`readOnlyHint` so Claude can parallelize them; mutating tools serialize.
+tags, connectors, bulk create, and overlap detection. Read-only tools carry the `readOnlyHint`
+annotation; mutating tools do not.
 
 ## Architecture
 
@@ -151,14 +157,16 @@ first launch and then starts `index.ts`:
   falls back to another way of running the server.
 
 The whole Node project (`package.json`, the lockfile, `src/`, and the tool configs) lives under
-`server/` rather than at the plugin root. Claude Code installs a plugin's npm dependencies into
-its cached copy whenever the plugin root holds both a `package.json` and a supported lockfile,
-and that install cannot be turned off; it would install this project's devDependencies (the
-TypeScript, biome and vitest toolchain), which the server does not need at runtime. Keeping the
-project one level down leaves the plugin root without a lockfile, so that install never runs,
-while CI and Dependabot still pin from the same lockfile. Basis:
-[Plugin loading reference](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies),
-"Node.js package dependencies", verified 2026-10-02; recheck when that section changes.
+`server/` rather than at the plugin root, so Claude Code's own automatic dependency install at a
+plugin root never runs here and never pulls in this project's devDependencies (the TypeScript,
+biome and vitest toolchain), which the server does not need at runtime. CI and Dependabot still
+pin from the same lockfile.
+
+- **Pointer**: when deciding where a plugin's Node project may live, fetch
+  [Plugin loading: Node.js package dependencies](https://code.claude.com/docs/en/plugins/loading#node-js-package-dependencies)
+  live for what triggers that install and whether it can be turned off.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes what triggers the install or adds a way to turn it off.
 
 ## Development
 
