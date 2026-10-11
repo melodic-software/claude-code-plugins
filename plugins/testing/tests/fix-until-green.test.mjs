@@ -67,12 +67,12 @@ const TWO_FILES = [red([...fail('a.test.js'), ...fail('b.test.js')]), GREEN]
 const FRONTIER_ROLES = {
   worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-  retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
+  retrieval: { single: { model: 'sonnet', effort: 'medium' }, fanout: { model: 'sonnet', effort: 'medium' } },
 }
 const OPUS_ROLES = {
   worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'inherit', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
-  retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
+  retrieval: { single: { model: 'sonnet', effort: 'medium' }, fanout: { model: 'sonnet', effort: 'medium' } },
 }
 
 test('missing command returns an error and dispatches nothing', async () => {
@@ -495,7 +495,7 @@ test('frontier session: fixers on opus at medium; runner, check and verifier kee
   }
   for (const c of by(calls, 'run:')) {
     assert.equal(c.opts.model, 'sonnet')
-    assert.equal(c.opts.effort, 'low')
+    assert.equal(c.opts.effort, 'medium')
   }
   for (const label of ['check:1', 'verify']) {
     assert.ok(!('model' in one(calls, label).opts), label + ' inherits')
@@ -516,7 +516,7 @@ test('session model unknown (no roles passed): fixers get opus and the fallback 
   const fixers = by(calls, 'fix:')
   assert.ok(fixers.length > 0)
   for (const c of fixers) assert.equal(c.opts.model, 'opus')
-  assert.equal(one(calls, 'run:0').opts.effort, 'low')
+  assert.equal(one(calls, 'run:0').opts.effort, 'medium')
   assert.ok(!('model' in one(calls, 'verify').opts))
   assert.ok(logs.some(l => l.includes('built-in fallbacks')))
 })

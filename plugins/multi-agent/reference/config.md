@@ -30,7 +30,7 @@ and an explicit yes.
 |---|---|---|
 | `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable`, `best` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
-| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.research.effort: low` |
+| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | none; a layer may set, for example, `worker.workloads.mechanical.effort: low` |
 | `frontier` | comma-separated aliases treated as frontier | `fable,best` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
@@ -38,6 +38,9 @@ and an explicit yes.
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role, workload or key is reported and ignored. A full model id
 (`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
+Whether a role may name `haiku` is decided in
+[`routing-rubric.md`](routing-rubric.md); the resolver accepts it and adds a
+note.
 `inherit` means the calling workflow omits `opts.model`. For what an alias
 resolves to per provider, see
 [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);

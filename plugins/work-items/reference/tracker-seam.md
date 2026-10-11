@@ -209,10 +209,12 @@ captured with `/session-flow:retro codify`.
 
 ### With `/source-control:pull-request`
 
-Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items:track start` / `/work-items:work`)
-carries the item number forward. `/source-control:pull-request create` parses the branch name and injects the
-closing keyword into the PR body; the pre-create gate verifies the keyword (or an opt-out marker) is
-present before creating the PR. Closing-keyword shape and PR body shape are owned by `/source-control:pull-request`.
+Branch name `<type>/<ref>-<short-slug>` (proposed by `/work-items:track start` / `/work-items:work`)
+carries the item forward; `<ref>` is the bound adapter's `branch_ref` (`42` on GitHub, `ENG-123`
+on Linear). The adapter owns that grammar and the change-to-item link text (`change-link`,
+`tools/work-item-tracker/CONTRACT.md` "Change links"); `/source-control:pull-request create` reads both
+through `/work-items:track link` and writes the adapter's closing line into the PR body. The PR body
+shape and its pre-create linkage gate are owned by `/source-control:pull-request`.
 
 `/work-items:track done --pr <N>` is the belt-and-suspenders path for manual PR flows where
 `/source-control:pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls

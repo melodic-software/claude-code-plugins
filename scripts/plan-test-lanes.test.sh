@@ -118,8 +118,18 @@ is "$(key bash_legs)" "[0,1,2,3]" && is "$(suites bash | wc -l | tr -d ' ')" 8 &
   is "$(key bash_plan | jq -r '[.[][]] | unique | length' | tr -d '\r')" 8
 check "400 suite-seconds take 4 legs, and the 8 suites land on them exactly once" $?
 
-grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 110s/2 100s/3 90s/2' "$ERR"
-check "longest first to the least-loaded leg keeps the legs within 20 s of each other" $?
+# a (100 s) cannot be split across three workers, so its leg weighs 300 and
+# takes nothing else; c (90 s, 270) and d (60 s, 180) likewise. The five
+# shortest share the fourth leg: 150 suite-seconds, 50 s of wall behind e.
+grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 60s/1 150s/5' "$ERR"
+check "a leg weighs at least three times its longest suite, so the short suites fill the legs with room" $?
+
+# 230 suite-seconds take 2 legs. Weighed by sum alone, a's leg (100) would draw
+# g once d and f bring the other leg level; weighed by its unsplittable 300, it
+# draws nothing (#7016).
+plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.sh
+is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
+check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
 before="$(key bash_legs)"
@@ -128,6 +138,14 @@ plan -- plugins/a/a.sh plugins/g/g.sh
 : >"$repo/scripts/run-plugin-tests-serial.txt"
 is "$before" "[0]" && is "$(key bash_legs)" "[0,1]"
 check "a suite that runs alone weighs three times its seconds: 100 + 3 x 20 needs a second leg" $?
+
+# g runs alone (60) before e can start (150 behind it), so g and e's leg weighs
+# 210, not 150, and h goes to d's leg (180).
+printf 'plugins/g/g.test.sh\n' >"$repo/scripts/run-plugin-tests-serial.txt"
+plan -- plugins/d/d.sh plugins/e/e.sh plugins/g/g.sh plugins/h/h.sh
+: >"$repo/scripts/run-plugin-tests-serial.txt"
+is "$(key bash_plan)" '{"0":["plugins/d/d.test.sh","plugins/h/h.test.sh"],"1":["plugins/g/g.test.sh","plugins/e/e.test.sh"]}'
+check "a leg's serial suites run before its longest suite can start, so they add to its weight" $?
 
 plan -- plugins/animation/anim.sh plugins/harness-ops/skills/inventory/inv.sh plugins/a/a.sh plugins/c/c.sh
 is "$(key bash_needs)" '{"0":"","1":"animation inventory duckdb"}'

@@ -1859,12 +1859,15 @@ jobs:
       # strace, so its suite runs first here: no other lane runs a scripts/
       # suite that needs strace. The counts depend on the image's bash, git, jq
       # and coreutils, so the versions are printed beside every check: an ABOVE
-      # after an image bump reads in one log.
+      # after an image bump reads in one log. The js-complexity-share counter
+      # runs lizard from the pinned install above (.github/requirements-ci.txt),
+      # and its version is printed the same way.
       - name: Check performance counter ceilings
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           bash scripts/hook-census.test.sh
           bash scripts/hook-census.sh --versions
+          echo "lizard $(lizard --version)"
           python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff

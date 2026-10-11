@@ -40,9 +40,9 @@
 # when a covered file is read, never when one is created, so a rule alone
 # cannot catch a new file.
 #
-# The docs/ half matches the gate /docs-naming:generate-file-name-gate emits
-# from .claude/docs-naming.json, whose exempt_basenames carries the same list;
-# the co-located test compares the two.
+# It matches the gate /docs-naming:generate-file-name-gate emits from
+# .claude/docs-naming.json, whose roots carry the same scope and whose
+# exempt_basenames carries the same list; the co-located test compares the two.
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one `path: reason` finding per offender on stderr, the clean-run

@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/lib/gh-version.sh"
 
 readonly EX_USAGE=2
 readonly EX_CONFIG=3
+readonly EX_NOT_FOUND=5
 readonly EX_CAPABILITY=6
 
 # wit_resolve_adapter_dir <provider>: CONTRACT.md "Adapter resolution". When none
@@ -52,6 +53,7 @@ Verbs:
   add-sub-item <id> --parent <id>
   list-sub-items <parent-id> [--state open|closed|all]
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>]
+  change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -120,7 +122,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | change-link | capabilities) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.
@@ -169,8 +171,8 @@ main() {
     list-items)
       check_gh_version
       ;;
-    capabilities)
-      # Reads the JSON manifest only; never shells out to gh.
+    capabilities | change-link)
+      # Read the JSON manifest or format text only; never shell out to gh.
       ;;
     *)
       check_gh_present
@@ -226,6 +228,33 @@ main() {
     printf '%s\n' "$out" | wit_strip_cr |
       wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
+  fi
+
+  if [[ "$verb" == "change-link" ]]; then
+    # --branch <name> is core-side: apply the manifest's branch grammar (CONTRACT.md
+    # "Change links") and hand the adapter the captured ref, so adapters only qualify refs.
+    local cl_args=() branch="" pattern
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "--branch" ]]; then
+        [[ $# -ge 2 && -n "$2" && -z "$branch" ]] || fail_usage
+        branch="$2"
+        shift 2
+      else
+        cl_args+=("$1")
+        shift
+      fi
+    done
+    if [[ -n "$branch" ]]; then
+      pattern="$(jq -r '.change_link.branch_pattern // empty' "$manifest")"
+      [[ -n "$pattern" ]] ||
+        fail_config "adapter '$WIT_PROVIDER' declares change-link but no change_link.branch_pattern"
+      if ! [[ "$branch" =~ $pattern ]] || ((${#BASH_REMATCH[@]} < 2)); then
+        printf "work-item-tracker: branch '%s' carries no %s item reference\n" "$branch" "$WIT_PROVIDER" >&2
+        exit "$EX_NOT_FOUND"
+      fi
+      cl_args+=(--branch-ref "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}")
+    fi
+    set -- "${cl_args[@]+"${cl_args[@]}"}"
   fi
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"
