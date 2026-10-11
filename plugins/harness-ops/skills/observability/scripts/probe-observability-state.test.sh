@@ -43,6 +43,7 @@
 # subshell increments a copy of the failure counter and the run would report
 # green with a failing case in it. Environment scoping is therefore explicit
 # set/unset around each case rather than subshell containment.
+# test-scope: plugins/harness-ops/skills/observability/SKILL.md
 
 set -uo pipefail
 

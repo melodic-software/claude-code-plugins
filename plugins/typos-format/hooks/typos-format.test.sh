@@ -20,6 +20,7 @@
 #
 # Requires a real typos binary: $TYPOS_TEST_BIN if set, else `typos` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
+# test-scope: plugins/typos-format/.claude-plugin/plugin.json plugins/typos-format/hooks/hooks.json plugins/typos-format/prerequisites.json
 
 set -uo pipefail
 

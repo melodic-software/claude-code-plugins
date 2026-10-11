@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Cross-platform wrapper so plugin-gate (plugins/**/*.test.sh) runs the
 # check-fences-exact negative-control suite.
+# test-scope: plugins/knowledge/skills/docpage-digest/scripts/test_check_fences_exact.py
+# test-scope: plugins/knowledge/skills/docpage-digest/scripts/gate_harness.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
