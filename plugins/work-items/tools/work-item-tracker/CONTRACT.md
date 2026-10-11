@@ -197,7 +197,8 @@ work-item-tracker.sh reclaim <id>
 work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
 work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
-work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
+work-item-tracker.sh list-items [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
+work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>] [--label <name>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
@@ -211,6 +212,18 @@ enumeration: closed children and nested-container children are kept (the closed-
 invariant check and sub-map traversal both need them); frontier filtering is the separate
 core-side step below. The container is addressed by its qualified id, which carries the repo, so
 there is no `--repo` flag. `--state` defaults to `all`.
+
+`list-items` is the adapter's raw listing (below) passed through the core: `--state` defaults to
+`open`, and the envelope, `truncated` included, is the adapter's.
+
+`--label <name>` (on `list-items` and `list-frontier`) keeps only items carrying exactly that
+label. When the adapter declares `features.list_items_label_filter`, core hands it `--label`, so
+the provider filters and `limits.list_items_max` counts only labeled items. Either way core then
+keeps exact matches itself, which is the whole filter for an adapter without the feature and a
+guard against a provider whose label match is looser (case-insensitive, comma-split, or dropping
+a label the repository lacks). Filtering never clears `truncated`: an unfiltered listing past the
+ceiling stays truncated after the filter, because a labeled item may sit past the ceiling. With
+`--parent`, the label is filtered core-side only.
 
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
@@ -237,12 +250,12 @@ frontier. Passing both is a usage error (exit `2`), not a silent drop.
 ## Adapter contract
 
 Adapters live at `adapters/<provider>/` as verb-per-script (`<verb>.sh`) plus a
-`capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`
-plus `list-items`** (`list-sub-items` is both a core and an adapter verb: it has a native
+`capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`**
+(`list-items` and `list-sub-items` are both core and adapter verbs: each has a native
 counterpart, unlike the core-derived `list-frontier`):
 
 ```text
-adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>]
+adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
 adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
@@ -254,6 +267,18 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
   returned, `false` when the listing is complete. A listing that holds exactly
   `list_items_max` items is complete; an adapter that cannot tell the two apart (it
   stopped at the ceiling without learning whether more exist) reports `true`.
+- The ceiling counts only items that match the request. `--state` belongs in the provider
+  query wherever the provider can filter on it, never in a filter applied after the fetch:
+  dropping closed items after counting them makes a tracker with many closed items read as
+  truncated. An adapter MAY re-check state after the query as a guard.
+- `--label <name>` is optional. An adapter that accepts it declares
+  `features.list_items_label_filter: true` and puts the label in the provider query, so the
+  ceiling counts labeled items only; it MAY match more loosely than exact, since core filters
+  exactly afterward ("Verbs"), and it MAY refuse with exit `2` a label its provider cannot
+  hold. An adapter without the feature never receives `--label`. Every bundled adapter
+  declares it: github (`gh issue list --label`), gitea (the `labels` query parameter), jira
+  (a `labels = "<name>"` JQL clause), linear (a `labels.some.name.eq` issue filter), and
+  local-markdown (filtered in its walk before the ceiling check).
 - `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
   envelope, each item's `parent_id` set to the container. Where a provider's list surface
   omits parent linkage (GitHub's does, see "JSON output contract"), the adapter resolves
@@ -323,11 +348,19 @@ Normalized item object:
   "blocked_by_count": 0,
   "blocked_by_wont_do_count": 0,
   "parent_id": null,
-  "url": "https://…"
+  "url": "https://…",
+  "created_at": "2026-03-01T10:00:00Z"
 }
 ```
 
 - `state` is normalized lowercase: `open` | `closed`.
+- `created_at` is when the provider created the item, in UTC to the second
+  (`YYYY-MM-DDTHH:MM:SSZ`), so values from one adapter sort as text; `null` when the
+  provider gives none or one the adapter cannot parse. Every bundled adapter reads the
+  provider's own creation time (github `createdAt`, gitea `created_at`, jira `created`,
+  linear `createdAt`); local-markdown records one at `create-item`, and its items created
+  before that read `null`. Additive field: an adapter written before it emits none, which a
+  reader treats as `null`.
 - `type` is the native issue-type NAME (the type axis, org-defined `Task`/`Bug`/
   `Feature`), or `null` when the item has none. On GitHub it is the native Issue Type
   (`create-item --type` sets it; requires push access, silently dropped otherwise);
@@ -552,13 +585,14 @@ Building `sources` is demand-gated: a consumer who needs it opens a new item cit
   "schema_version": "1.0",
   "provider": "github",
   "verbs": { "create-item": true },
-  "features": { "cross_repo_edges": true, "sub_items": true, "leases": true },
+  "features": { "cross_repo_edges": true, "sub_items": true, "leases": true, "list_items_label_filter": true },
   "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 },
   "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" }
 }
 ```
 
-`change_link` is the branch grammar "Change links" defines.
+`change_link` is the branch grammar "Change links" defines. `features.list_items_label_filter`
+is optional, and absent reads as `false` ("Adapter contract").
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
@@ -800,7 +834,9 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   }
   ```
 
-  `list-items`/`list-frontier` build JQL scope from `project_keys`; `--repo <site>/<PROJECTKEY>`
+  `list-items`/`list-frontier` build JQL scope from `project_keys`, and `--label` adds a
+  `labels = "<name>"` clause, refusing (exit `2`) a label with whitespace, a quote or a
+  backslash rather than escaping it; `--repo <site>/<PROJECTKEY>`
   narrows to one project (site must match the bound site, and the project must be one of the
   declared `project_keys`). `project_keys` is both the read scope and the authorization
   boundary: **every read is confined to the declared projects.** `get-item` refuses an id whose
@@ -935,7 +971,9 @@ throwaway target.
 `conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
 adapter through the core CLI only: every verb, valid + invalid input, exit-code +
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
-capability-gated skips (declared-unsupported verbs asserted to exit `6`). Bindings live
+capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list
+contract: `list-items` rows carry `created_at` as a UTC timestamp or `null`, and `--label` with a
+label no item carries returns no items. Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown.
 

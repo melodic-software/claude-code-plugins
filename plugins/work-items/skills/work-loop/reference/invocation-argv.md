@@ -42,8 +42,9 @@ admitted items this cycle. Default `oldest-first`. Record in durable state.
 `^[a-z0-9][a-z0-9-]{0,31}$` and length ≤ 32 before building the telemetry marker, the same gate as
 [telemetry-upsert.md](telemetry-upsert.md). Reject invalid ids fail-closed.
 
-**`--scope <label>`**. Exact label filter on snapshot ids before admission and exit evaluation
-(e.g. `area:api`). Record the label string or `null`.
+**`--scope <label>`**. Exact label filter on the snapshot, passed to both snapshot reads as
+`--label` ([snapshot-reads.md](snapshot-reads.md)), so it applies before admission and exit
+evaluation (e.g. `area:api`). Record the label string or `null`.
 
 **Fail-closed rejections**: stop with an explicit message naming the owning surface; never
 silently ignore:

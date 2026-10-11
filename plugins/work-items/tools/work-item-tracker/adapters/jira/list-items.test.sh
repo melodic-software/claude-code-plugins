@@ -29,7 +29,7 @@ sent_jql() {
 
 # Two pages: page 1 carries a continuation token + isLast false, page 2 closes it.
 cat >"$JIRA_FIX/1.body" <<'JSON'
-{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":["a"],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":"tok-2","isLast":false}
+{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":["a"],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[],"created":"2026-01-02T03:04:05.000-0500"}}],"nextPageToken":"tok-2","isLast":false}
 JSON
 printf '200' >"$JIRA_FIX/1.status"
 cat >"$JIRA_FIX/2.body" <<'JSON'
@@ -47,6 +47,10 @@ assert_eq "page-1 item id" "jira:test.atlassian.net/SW2#1" "$(jq -r '.items[0].i
 assert_eq "page-2 item id" "jira:test.atlassian.net/ABC#42" "$(jq -r '.items[1].id' <<<"$OUT")"
 assert_eq "page-2 item blocked_by_count" "1" "$(jq -r '.items[1].blocked_by_count' <<<"$OUT")"
 assert_eq "page-2 item parent qualified" "jira:test.atlassian.net/ABC#1" "$(jq -r '.items[1].parent_id' <<<"$OUT")"
+assert_eq "created (local offset) becomes UTC created_at" "2026-01-02T08:04:05Z" "$(jq -r '.items[0].created_at' <<<"$OUT")"
+assert_eq "an issue without created reads created_at null" "null" "$(jq -c '.items[1].created_at' <<<"$OUT")"
+assert_contains "the search asks for created" \
+  "$(awk '/^--data$/{getline; print; exit}' "$JIRA_FIX/1.args" | jq -c '.fields')" '"created"'
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac
 
 # The literal JQL sent on page 1 scopes to the configured project_keys and excludes
@@ -62,6 +66,21 @@ printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
 jira_run "$S" --repo "test.atlassian.net/ABC" --state all
 assert_eq "--repo scopes to one project" 'project in ("ABC") ORDER BY created ASC' "$(sent_jql 1)"
+
+# --label narrows the search, so the ceiling counts labeled issues only (#7173).
+jira_run "$S" --repo "test.atlassian.net/ABC" --state all --label "area:ci"
+assert_eq "--label → exit 0" "0" "$RC"
+assert_eq "--label adds a labels clause to the JQL" \
+  'project in ("ABC") AND labels = "area:ci" ORDER BY created ASC' "$(sent_jql 1)"
+jira_run "$S" --label 'x" OR labels is EMPTY OR labels = "y'
+assert_eq "a label holding a quote → usage (2)" "2" "$RC"
+if [[ ! -e "$JIRA_FIX/.counter" ]]; then
+  pass "a quoted --label made no HTTP call"
+else
+  fail "a quoted --label made no HTTP call" "no curl call" "curl invoked"
+fi
+jira_run "$S" --label "area: ci"
+assert_eq "a label holding a space (no Jira label can) → usage (2)" "2" "$RC"
 
 # --repo narrows to one project; a site mismatch is a usage error (before network).
 jira_run "$S" --repo "wrong.atlassian.net/SW2"

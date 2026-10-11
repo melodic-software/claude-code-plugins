@@ -222,10 +222,10 @@ the former default-on pause).
    never tested. **A snapshot counts only when every read behind it is complete**: an errored,
    truncated, or unparsable read aborts the cycle with no state change and never sets
    `first_drain_complete`; a truncated one escalates at once ([reference/snapshot-reads.md](reference/snapshot-reads.md), read first).
-   Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
-   before any later step reads the snapshot. The drain exit is evaluated against this filtered
-   snapshot. New automated intake arriving mid-cycle is **reported, never chased** (per the
-   convention).
+   Pass the resolved `--scope` label to both reads as `--label`, then apply the `--shard <i>/<n>`
+   partition to the retained ids before any later step reads the snapshot. The drain exit is
+   evaluated against this filtered snapshot. New automated intake arriving mid-cycle is
+   **reported, never chased** (per the convention).
 2. **Intake sweep.** Invoke `/work-items:triage` via the Skill tool over untriaged intake in its **autonomous lane**,
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
@@ -241,13 +241,12 @@ the former default-on pause).
    in-flight precondition below), then classify each remaining candidate and admit per the gate.
    Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
-   the adaptive item cap. When more than one item was admitted, sort the admitted set on
-   `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
-   frontier omits `createdAt`) before filling cap slots. `oldest-first` ascending,
-   `newest-first` descending. Pass an explicit `--limit` covering every admitted number on that
-   projection; page per the adapter "List items" note if the set exceeds the max page size. When
-   `createdAt` is missing or unreadable for a number, that item sorts after any item with a valid
-   timestamp (stable tie on issue number). Each invocation uses that skill's **autonomous
+   the adaptive item cap. When more than one item was admitted, sort the admitted set on the
+   `created_at` each snapshot item already carries (the seam `CONTRACT.md`, "JSON output
+   contract") before filling cap slots, with no further read: `oldest-first` ascending,
+   `newest-first` descending. An item whose `created_at` is `null` or absent sorts after every
+   timestamped item; among those, and on equal timestamps, order by item number in the same
+   direction (trackers number items in creation order). Each invocation uses that skill's **autonomous
    invocation** path: it
    names the admitted item id and states that this loop's admission gate (and any required
    ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
