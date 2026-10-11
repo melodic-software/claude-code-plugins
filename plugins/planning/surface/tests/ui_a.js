@@ -144,7 +144,7 @@ async page => {
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
-    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
+    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice:not(.rec) .t")).webkitLineClamp}));
     ok("at " + w + " px the answer grid is one column and the page does not widen", m.cols === 1 && m.wide <= 1, JSON.stringify(m));
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
