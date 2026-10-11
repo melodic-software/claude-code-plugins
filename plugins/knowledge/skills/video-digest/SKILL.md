@@ -28,7 +28,7 @@ guessing.
 Durable artifacts live under `.work/<watch-epic>/<video-slug>/`; the video, bulk frames, working
 contact sheets, and shallow clones stay in the OS temp directory. Where this skill says "deeper
 research," use whatever external-research capability your project provides, for example the
-discovery plugin's `/discovery:research` / `/discovery:research-deep` when installed. Treat those
+discovery plugin's `/discovery:research` (with its `deep` token for a broad pass) when installed. Treat those
 as the reference implementation, not a hard dependency.
 
 ## Routing

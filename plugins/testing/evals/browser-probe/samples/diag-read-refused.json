@@ -1,18 +1,18 @@
 {
   "pass": [
     {
-      "answer": "{\"type\":\"tool_result\",\"content\":\"     1\\tread-canary-5c1e9a7d\\n\"}",
-      "why": "canary returned"
+      "answer": "{\"type\":\"tool_result\",\"content\":\"     1\\tplaywright-cli --version\\n\"}",
+      "why": "step list read"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"File is in a directory that is denied by your permission settings.\",\"is_error\":true}",
+      "why": "the expected refusal of the hidden canary Read"
     }
   ],
   "fail": [
     {
-      "answer": "{\"type\":\"tool_result\",\"content\":\"File is in a directory that is denied by your permission settings.\",\"is_error\":true}",
-      "why": "Read outside the workspace denied"
-    },
-    {
       "answer": "{\"type\":\"tool_result\",\"content\":\"File does not exist.\",\"is_error\":true}",
-      "why": "canary path missing"
+      "why": "a Read path missing, such as the step list"
     }
   ]
 }

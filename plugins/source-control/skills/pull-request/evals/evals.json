@@ -292,6 +292,18 @@
         "Nothing depends on the digest: a skip, an unanswered offer, or an unavailable skill changes no other step",
         "The report names the digest outcome (skipped, offered, built, or not available)"
       ]
+    },
+    {
+      "id": 24,
+      "name": "view-is-a-read-only-action",
+      "prompt": "/pull-request view 512 --diff",
+      "expected_output": "The skill runs its bundled read script with view 512 --diff and returns the diff unchanged. It skips the repository-context gathering, runs no prep, create, ready, monitor, or merge step, and writes nothing to the pull request.",
+      "files": [],
+      "expectations": [
+        "The bundled read script runs with view 512 --diff and its output is returned unchanged",
+        "No repository-context git calls run before the read",
+        "No lifecycle phase runs and nothing is written to the pull request"
+      ]
     }
   ]
 }

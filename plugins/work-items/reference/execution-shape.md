@@ -47,7 +47,7 @@ or
 Independent, parallelizable items; each item is its own micro journey to the default branch.
 
 - Each item gets its own branch (and worktree, on the `/work-items:work` path) provisioned from the
-  default branch; its PR closes the item (`Closes #N` via the branch-name linkage).
+  default branch; its PR closes the item (the adapter's closing line, via the branch-name linkage).
 - Items without dependency edges between them may run in parallel. Separate branches are the
   isolation mechanism, and the seam claim (assignee + lease) is the collision signal between
   concurrent lanes.
@@ -58,7 +58,7 @@ Independent, parallelizable items; each item is its own micro journey to the def
 granularity*; fresh-branch-per-item is its default *provisioning*, not part of the definition. A
 single agent working a container end-to-end in one session line legitimately keeps one long-lived
 branch and opens a PR per item off it, merging each before the next: same per-item granularity,
-same per-item `Closes #N`, same close-out basis (the set of per-item squash commits), but the
+same per-item closing line, same close-out basis (the set of per-item squash commits), but the
 branch is provisioned once rather than per item.
 
 What the variant forfeits, and why it is not the default: parallelism is gone (one branch cannot

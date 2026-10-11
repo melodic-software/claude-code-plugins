@@ -24,8 +24,8 @@ Given a native key `PROJECTKEY-NUMBER` and the bound `config.jira.site`, the qua
 `jira:<site>/<PROJECTKEY>#<NUMBER>`; `get-item` reconstructs the native key from the ID's
 `repo` (project key) and `number` segments. A commit/branch reference like `SW2-12345` therefore
 resolves to a seam item with no plugin-source edit, which is the read/resolve path issue #379 scopes to.
-(Automatic branch/PR `SW2-*` linkage, which means rewriting the numeric branch regex and the `Closes #N`
-injection, spans two plugins' source and is the sequenced follow-up, out of scope here.)
+`change-link` (CONTRACT.md "Change links") supplies the branch/PR linkage: a `SW2-12345` branch
+resolves through `--branch`, and the link line is the key, since Jira closes nothing on merge.
 
 ## List / frontier
 
