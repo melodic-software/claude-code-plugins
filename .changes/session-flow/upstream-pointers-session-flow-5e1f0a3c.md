@@ -4,7 +4,7 @@ bump: patch
 
 ### Fixed
 
-- The handoff gotchas no longer claim the scheduled-tasks page says a fresh conversation clears every session task; they keep the re-arm rule and point at the live Limitations section. The save-point record and refusal message stop labeling the Remote Control bridge id with a stale form, and the hop-chain harness comment no longer states an unsourced `dontAsk` regression.
+- The handoff gotchas no longer claim the scheduled-tasks page says a fresh conversation clears every session task; the re-arm rule now checks which loops came back before re-arming, so a loop a resume restored is not scheduled twice, and points at the live Limitations section. The gather reference cites the final probe comment on the `$`-expansion guard and stops saying bare `$HOME` is the only form that passes. The save-point record and refusal message stop labeling the Remote Control bridge id with a stale form, and the hop-chain harness comment no longer states an unsourced `dontAsk` regression.
 
 ### Changed
 

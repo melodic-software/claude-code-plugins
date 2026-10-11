@@ -72,10 +72,14 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   - **Recheck trigger**: that section changes which stopped subagents a message resumes, a
     release note changes subagent lifetime across `/clear`, or the orchestrate record changes its
     `TaskStop` rule or probe.
-- **Saying nothing about the active `/loop`s on resume.** Treat every `/loop` as gone once the
-  user clears or resumes: a resume prompt that reads only as a one-shot continuation runs once and
-  silently drops the recurring behavior, with no error to signal it. Each re-arm is a SEPARATE
-  follow-up message carrying the ORIGINAL loop prompt, one per surviving loop, never the resume
+- **Saying nothing about the active `/loop`s on resume.** Never assume a `/loop` survived the
+  clear or resume, and never assume it died: a resume prompt that reads only as a one-shot
+  continuation silently drops a loop that did not come back, with no error to signal it, while
+  re-arming a loop that did come back schedules it twice. Which tasks a resume restores is
+  upstream behavior (the Limitations section below names exceptions, such as a self-paced
+  `/loop`), so before the re-arm messages are sent, the resumed session lists its scheduled tasks
+  and only the recorded loops missing from that list are re-armed. Each re-arm is a SEPARATE follow-up message carrying the ORIGINAL
+  loop prompt, one per missing loop, never the resume
   directive wrapped in `/loop`. The engine's counted entry header labels each re-arm inside the
   save-point's own output so a consumer can find its edges (engine doc, "Emit the copy/paste
   resume prompt"); the header is not part of what gets sent, and the follow-up message itself
@@ -83,7 +87,6 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   `/loop` re-runs the prompt it was given on every iteration, and a save-point is an immutable
   record of one moment, so wrapping the directive would have every later tick re-read that frozen
   file and replay a remainder already done, instead of doing the loop's actual recurring job.
-  Which scheduled and background tasks a resume restores is upstream behavior: read it live.
   - **Pointer**: [Run prompts on a schedule § Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations)
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section changes which tasks a resume restores, or a release note

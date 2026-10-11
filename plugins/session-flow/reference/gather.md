@@ -24,13 +24,16 @@ fail at load, in `handoff`'s case in exactly the isolated sessions that most nee
 Keep `$`-expansion out of the pre-compute block
 (melodic-software/claude-code-plugins#1687).
 
-Bare `$HOME` is the one form observed to survive that guard; anything else, including `${HOME}`, is
-refused. Prefer a probe that needs no expansion at all.
+`$HOME` is the one variable observed to survive that guard in every position; any braced form,
+including `${HOME}`, is refused, and other names pass or fail by a rule nobody has characterized.
+Prefer a probe that needs no expansion at all.
 
-- **Pointer**: the probe recorded in melodic-software/claude-code-plugins#1687.
+- **Pointer**: the pass and refuse table in
+  [melodic-software/claude-code-plugins#1687, "Final state of the rule"](https://github.com/melodic-software/claude-code-plugins/issues/1687#issuecomment-5086783455),
+  which supersedes the thread's earlier "bare `$HOME` only" comments.
 - **As of**: 2026-10-11
 - **Recheck trigger**: a release note changes how worktree-isolated agents treat `$`-expansion,
-  or a pre-compute block using bare `$HOME` fails to load.
+  or a pre-compute block using `$HOME` fails to load.
 
 ## The probes
 
