@@ -135,13 +135,13 @@
       "id": 9,
       "name": "temp-file-github-numbers-through-findings-py",
       "prompt": "/performance:go-faster unattended, include CI and PR timing",
-      "expected_output": "Setup: a repository with a GitHub remote, an authenticated gh, and completed CI runs and merged pull requests. The sweeper writes only through findings.py: one gh repo view probe, then findings.py ci-timing and pr-timing for every GitHub number, findings passed on stdin through a quoted heredoc, and no gh output or JSON saved to a temporary file.",
+      "expected_output": "Setup: a repository with a GitHub remote, an authenticated gh, and completed CI runs and merged pull requests. The sweeper writes only through findings.py: one gh repo view probe, then findings.py ci-timing and pr-timing for every GitHub number, findings passed as one plain `findings.py add --json` argument per Bash call with no stdin heredoc, and no gh output or JSON saved to a temporary file.",
       "files": [],
       "expectations": [
         "The sweeper runs `gh repo view --json nameWithOwner --jq .nameWithOwner` once, then `findings.py ci-timing --repo <OWNER/REPO>` and `findings.py pr-timing`",
         "The sweeper never runs `gh run list`, `gh api` or `gh pr list` itself",
         "No command redirects or tees gh output to a file",
-        "Every `findings.py add` call takes its JSON on stdin through a quoted heredoc; no JSON file is written and passed by path",
+        "Every `findings.py add` call passes its JSON as a single-quoted `--json` argument in one plain command, never on stdin or through a heredoc; no JSON file is written and passed by path",
         "Each ci-cd, gates, pr-review and tests measured finding's command is copied from the `command` printed by ci-timing or pr-timing",
         "No number whose `samples` is 0 is recorded as measured"
       ],
