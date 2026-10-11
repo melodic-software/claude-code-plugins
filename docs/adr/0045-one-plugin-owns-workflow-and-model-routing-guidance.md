@@ -46,6 +46,11 @@ recheck when the workflows page changes how a script gets its model or its input
    over built-in fallbacks, so it runs when the plugin is absent. A generic `agent()` call always
    passes `effort` and omits `model` when the role says `inherit`. A named agent keeps the model and
    effort pinned in its own definition.
+
+   *Note, 2026-10-10:* the Agent tool now takes a per-spawn `effort` that replaces a named agent's
+   pin, so a named agent keeps its pinned effort only when the spawn passes no `effort`
+   ([subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level);
+   recheck when that section changes precedence or which spawns honor `effort`).
 4. **The fan-out guard is on by default.** Each role resolves to a `single` and a `fanout` variant.
    Under a frontier session, or when the caller does not name the session model, a fan-out variant
    that would inherit or name a frontier model names `opus` instead. A single synthesis or judge
