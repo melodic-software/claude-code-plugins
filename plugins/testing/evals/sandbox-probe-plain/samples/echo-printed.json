@@ -29,6 +29,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"sandbox-ok-7f3a\"}]}}",
       "why": "the marker in Claude's own text, not a tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"Exit code 1\\nsandbox-ok-7f3a\",\"is_error\":true}]}}",
+      "why": "a failed call whose output holds the marker"
     }
   ]
 }
