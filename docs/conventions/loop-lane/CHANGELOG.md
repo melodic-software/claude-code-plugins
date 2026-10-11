@@ -5,6 +5,21 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.3.0] - 2026-10-11
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+This is the §Versioning new-model trigger firing for Claude Haiku 5.5.
+
+- **`haiku` stays admissible nowhere, on new grounds (§3 Alias binding).** This supersedes the
+  reason recorded in the 8.1.0 entry: on the Anthropic API `haiku` now resolves to a model with a 1M
+  context window and a current knowledge cutoff, so those grounds no longer hold <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->. The exclusion now
+  rests on four grounds, each with a pointer and one shared recheck trigger: the reviewer floor,
+  early stop and unverified completion, over-refusal, and the provider alias. The release figures
+  are in `docs/upstream/haiku-5-5-launch.md`.
+- **Re-dated records (§3).** The fixed-rules, alias-binding and known-gaps records were re-read
+  against their pointers on 2026-10-10 with no drift; the alias-binding pointer moves to the models
+  overview's renamed `compare-models` section.
+
 ## [10.2.0] - 2026-10-04
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

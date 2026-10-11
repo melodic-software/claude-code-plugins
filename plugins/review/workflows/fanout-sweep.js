@@ -41,7 +41,7 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
-  retrieval: { single: { model: 'sonnet', effort: 'low' } },
+  retrieval: { single: { model: 'sonnet', effort: 'medium' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
 const R = {}

@@ -1,0 +1,5 @@
+# User-global layer.
+widget:
+  limit: 20
+  disable:
+    - beta

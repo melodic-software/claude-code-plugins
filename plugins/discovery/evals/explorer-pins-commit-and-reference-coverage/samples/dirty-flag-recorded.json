@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: false\n"
+    },
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: true\n",
+      "why": "an untracked memory slice can make the tree dirty"
+    },
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n    dirty: true   # untracked files only\n",
+      "why": "the schema template's own shape: a YAML comment after the value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f\n",
+      "why": "no dirty flag"
+    },
+    {
+      "answer": "The working tree was not dirty: true story.",
+      "why": "prose, not a field"
+    },
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    dirty: maybe   # true\n",
+      "why": "the value is not a boolean; true appears only in the comment"
+    },
+    {
+      "answer": "repos:\n  - name: payments-fixture\n    dirty: true#x\n",
+      "why": "no space before #, so YAML reads the string true#x, not a boolean"
+    }
+  ]
+}

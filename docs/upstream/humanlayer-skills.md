@@ -2,10 +2,11 @@
 
 Single source of truth for everything in this marketplace derived from
 [humanlayer/skills](https://github.com/humanlayer/skills) — "Claude Code skills from HumanLayer",
-MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md`. The `visualization` plugin's
-code-shape sketch family is inspired by and adapted from that skill. The `rpi` plugin is evaluated
-below for program [#6917](https://github.com/melodic-software/claude-code-plugins/issues/6917) and
-nothing from it is adopted yet. Provenance lives HERE and in
+MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md` and its `rpi` research step
+([below](#rpi-create-research)). The `visualization` plugin's
+code-shape sketch family is inspired by and adapted from that skill. The rest of the `rpi` plugin is
+evaluated below for program [#6917](https://github.com/melodic-software/claude-code-plugins/issues/6917)
+and not adopted yet. Provenance lives HERE and in
 plugin CHANGELOGs, never in skill bodies, where it is agent-facing noise. Content citations an agent
 actually uses are not provenance records and stay in place.
 
@@ -104,6 +105,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## rpi: create-research
+
+`discovery`'s `/discovery:explore` artifact took four accuracy ideas from the `rpi` plugin's
+research step: `plugins/rpi/skills/rpi/references/create-research/process.md` and
+`references/research_template.md`.
+
+**Last audited upstream state:** `main@653b641` (2026-10-08T21:54:25Z); both files last changed at
+`04ecf04` (2026-10-07). **Recheck trigger:** a change to either file against `04ecf04`.
+
+**Adaptation posture.** Ideas only. No upstream sentence was carried verbatim, so no MIT notice
+travels with the `discovery` files; the notice above covers the show-me text only.
+
+| Upstream element | Ours | Relation | What was taken / rejected |
+|---|---|---|---|
+| `process.md` step 5, template `repos[].sha`: a commit SHA per researched repository in the frontmatter | `EXPLORE.md` frontmatter `repos:` (`skills/research/context/artifact-shape.md`, "`EXPLORE.md` index additions") | Adapted | **Taken:** one SHA per repository. **Added:** a `dirty` flag and the `git diff --stat <sha> -- <cited paths>` staleness check, since a SHA alone cannot vouch for a citation read from uncommitted content. |
+| `process.md` step 6: distinguish tests read from checks run; a pass claim carries its command and observed result | `verified: ran` with `command:` and `result:` (same file, EXPLORE sidecar header) | Adapted | **Taken:** the read/ran split and the command-plus-result evidence. **Added:** a write-producing test run is outside the dispatched explorer's read-only boundary, so there the pass question becomes a gap. |
+| Template "Code References": state whether coverage is exhaustive or covers key files | `## Code references` section with `coverage: exhaustive \| key-files` | Adapted | **Taken:** the coverage statement. The listing also scopes the SHA staleness diff. |
+| `process.md` step 6: headers assert what is true | Explore abstracts state the finding, not the coverage | Adapted | **Taken:** for the one-line abstracts mirrored into the index. **Rejected:** finding-named section headers; our sidecar names stay fixed because the gate and the section → file table key on them. |
+
 ## Evaluated, not adopted yet: rpi and its structure-outline phase
 
 Evaluated at `main@653b641` (2026-10-08T21:54:25Z), read 2026-10-10. `plugins/rpi/` was added by
@@ -153,7 +173,7 @@ workstream that decides the row, or says none does.
 | Phase 4 of the outline: small end-to-end phases that cross module boundaries, each working and verifiable when it ends | Horizontal plans whose errors surface late. **Inference** | `/planning:plan` tracer-bullet and integration-first ordering with a sanity check per phase; `/work-items:decompose` thin vertical slices | CONVERGENT | **Already present.** |
 | Change Outline per phase drawn with the show-me views and focused diffs | Prose or file-by-file changelogs hide the structure under review. **Inference** | `/visualization:visualize` code shapes (PARTIAL from show-me, table above); not used in PLAN.md | CONVERGENT | **Under evaluation, W6:** plans use the code-shape views with `@ path:line`. |
 | Validation split into Automated and Manual Verification checkboxes; the implementer pauses for manual checks and marks a phase `✅` only after human confirmation | Running ahead on unverified work. Test `phase-pause-and-resume`. **Stated** | PLAN.md phase status tags and a mechanically verifiable sanity check per phase; no manual-check split | CONVERGENT | **Not assigned.** |
-| `repos` frontmatter with `identifier` and `sha` per document | A reader cannot tell which code a document described. **Inference** | None | NONE | **Under evaluation, W5:** plans stamp the commit they were checked at. |
+| `repos` frontmatter with `identifier` and `sha` per document | A reader cannot tell which code a document described. **Inference** | `EXPLORE.md` `repos:` ([above](#rpi-create-research)); none for plans | PARTIAL | **Under evaluation, W5:** plans stamp the commit they were checked at. |
 | Design Questions moved to Resolved Design Questions with the chosen approach, rationale and rejected alternatives | Settled choices re-argued in later sessions. **Inference** | `/planning:design` tracks resolved, directional and deferred decisions with a `Basis:` line; PLAN.md "Decisions made" table | CONVERGENT | **Already present** in shape. Recording why each alternative was set aside is not required by ours and is not assigned. |
 | One decision per message, then wait | Users had to type "magic words" before the agent exposed its assumptions. Reported only in a [secondary write-up](https://www.zenml.io/llmops-database/evolution-from-rpi-to-crispy-multi-stage-workflow-for-production-coding-agents) of Dex Horthy's talk, not a primary quote | `/planning:interview` asks the whole frontier as a numbered round, each with a recommendation | CONVERGENT | **Kept different:** rounds are ours by design (Pocock `grilling` rows). |
 | Document precedence for implementation: outline > TDD > PRD > design discussion > research > request, with the user's latest instruction winning | Conflicting documents with no tie-break. Test `document-precedence`. **Inference** | No stated precedence across Brief, PRD, design and PLAN.md | NONE | **Under evaluation, W4:** one artifact is declared the spec. |

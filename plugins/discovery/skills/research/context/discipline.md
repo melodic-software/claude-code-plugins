@@ -140,7 +140,7 @@ Depth scales to the topic's actual open-question surface, not to a higher flat f
 ## Per-gap fan-out (Phase 2)
 
 A single topic with many gaps otherwise runs them one after another against one worker's turn
-limit. `/discovery:research-deep` splits only topics that share no claims, so gaps that share a
+limit. The research deep tier splits only topics that share no claims, so gaps that share a
 source stay in one run by design. This step is where those gaps fan out.
 
 **When.** All three hold: the dispatch prompt says `Capability flags: nested spawning available`,

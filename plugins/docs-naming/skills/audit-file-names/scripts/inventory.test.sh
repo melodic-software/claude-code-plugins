@@ -102,6 +102,58 @@ out="$(bash "$SUT" --root "$root")"
 assert_eq "a different root inventories a different tree" "0" "$(printf '%s\n' "$out" | grep -c '^OFFENDER')"
 assert_contains "the reported roots follow the configuration" "$out" "SCANNED	1	build"
 
+# A root object claims only its extensions, in any case, and its exempt_paths
+# never cover a path another root claims without exempting it.
+root="$(new_fixture)"
+mkdir -p "$root/tools/fixtures" "$root/docs/fixtures"
+for f in tools/Notes_Here.md tools/LOUD.MD tools/fixtures/Kept_Name.md docs/fixtures/Judged_Name.md tools/Other_File.txt; do
+  printf 'x\n' >"$root/$f"
+done
+git -C "$root" add -A
+git -C "$root" commit -qm extra
+jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
+  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+out="$(bash "$SUT" --root "$root")"
+assert_contains "a markdown file outside docs is an offender" "$out" "OFFENDER	tools/Notes_Here.md	tools/notes-here.md"
+assert_contains "the extension filter matches in any case" "$out" "OFFENDER	tools/LOUD.MD	tools/loud.md"
+assert_contains "a root's exempt path is exempt" "$out" "EXEMPT	tools/fixtures/Kept_Name.md	root exempt_paths"
+assert_contains "a path another root claims stays judged" "$out" "OFFENDER	docs/fixtures/Judged_Name.md	docs/fixtures/judged-name.md"
+assert_lacks "an extension the root does not claim is out of scope" "$out" "tools/Other_File.txt"
+assert_lacks "a tools/ script is out of the markdown root" "$out" "tools/gen.sh"
+assert_contains "the reported roots label the extension filter" "$out" "SCANNED	14	docs,. (*.md)"
+
+# The same under a root below the repository root, where git would match an
+# exclude glob against the wrong base: an exempt glob that matches nothing
+# exempts nothing, and one that matches exempts only its own paths.
+for ex in '**/zzz/**' '**/fixtures/**'; do
+  root="$(new_fixture)"
+  mkdir -p "$root/tools/fixtures"
+  printf 'x\n' >"$root/tools/Notes_Here.md"
+  printf 'x\n' >"$root/tools/fixtures/Kept_Name.md"
+  git -C "$root" add -A
+  git -C "$root" commit -qm extra
+  jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
+    "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  out="$(bash "$SUT" --root "$root")"
+  assert_contains "a nested root still judges its offender ($ex)" "$out" "OFFENDER	tools/Notes_Here.md	tools/notes-here.md"
+  if [[ "$ex" == '**/zzz/**' ]]; then
+    assert_contains "an exempt glob matching nothing exempts nothing" "$out" "OFFENDER	tools/fixtures/Kept_Name.md"
+  else
+    assert_contains "a nested root's exempt glob exempts its path" "$out" "EXEMPT	tools/fixtures/Kept_Name.md	root exempt_paths"
+  fi
+done
+
+# A root git refuses must fail the audit, never empty the scan for every root.
+for bad in '"../x"' '{"path": ".", "exempt_paths": ["/abs/**"]}'; do
+  root="$(new_fixture)"
+  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  bash "$SUT" --root "$root" >/dev/null 2>&1
+  assert_eq "a root outside the repository fails the audit ($bad)" "2" "$?"
+done
+
 root="$(new_fixture)"
 jq '.file_names.roots = ["nowhere"]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
 mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"

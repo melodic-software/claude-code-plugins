@@ -3,6 +3,22 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0] - 2026-10-11
+
+### Added
+
+- **`/implementation:implement-dispatch` runs a spec'd list of work items with no PLAN.md.** `--items <path>` takes a list whose entries carry targets and acceptance checks, dispatches the ready items in waves in dependency order (tracker blocked-by edges read through the tracker seam, edges the list declares, and shared targets) instead of plan-phase order, verifies each item against its own acceptance checks, and returns the held items with what blocks each. `--base <ref>` sets the ref every worker worktree is cut from and checked against before the first edit, such as an integration branch; without it the base stays the default branch. The worker agents' base check compares against the base the brief names.
+
+### Changed
+
+- scoped-implementer: a dispatcher passes no spawn `effort`, because the Agent tool's per-spawn `effort` would replace the `effort: medium` pin; the recheck trigger that fired is replaced.
+
+- implementer, phase-verifier: the model and effort binding records are rechecked against their upstream pages after the latest model release and re-dated; the bindings are unchanged.
+
+### Fixed
+
+- **A worker's background CI wait survives the background time limit.** Where the Monitor tool is unavailable, `implementer` and `scoped-implementer` wait on CI or a long command with Bash `run_in_background`. That wait now passes an explicit `timeout`, so a long CI run in an unattended session (`-p`, the Agent SDK, CI, cloud) is started again on the stop notice instead of ending at the limit. Both agents point at the tools reference section on background time limits.
+
 ## [0.26.0] - 2026-10-10
 
 ### Changed

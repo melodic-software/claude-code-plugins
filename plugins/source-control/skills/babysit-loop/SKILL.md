@@ -88,7 +88,8 @@ required `<owner/repo>` argument may name a repository other than the current ch
 lane may launch from a neutral directory), and the config resolver's ambient team layer reads the
 current git root, so for every policy key that can raise behavior (the merge rung and its
 tracked-adoption activation above all), the lane reads the TARGET repository's tracked
-`.claude/source-control.md` from its default branch (`gh api` contents) whenever the current
+`.claude/source-control.md` from its default branch (the forge's contents read; provider
+reference: [GitHub](../../reference/providers/github/README.md)) whenever the current
 checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
 human-only (fail closed); a caller-side tracked file can never enable merges for a target that did
 not adopt the lane. Full precedence mechanics are owned by the config reference above. Report the
@@ -290,7 +291,7 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
+the forge's issue creation when absent (announce the creation). Maintain exactly ONE status comment on it
 **per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
 contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
 validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the

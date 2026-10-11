@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}}]},
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready --blast-radius HIGH"}}]}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready --requested"}}], "why": "the flip is not a reader's request"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready --policy always"}}], "why": "overrides the resolved digest_policy"}
+  ]
+}

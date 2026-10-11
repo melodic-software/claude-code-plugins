@@ -3,6 +3,12 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.8] - 2026-10-11
+
+### Fixed
+
+- A generated wizard no longer re-runs earlier steps when its script is edited while it runs. bash reads a script from a file offset as it goes, so an in-place edit that shifted the bytes made it run already-finished stages again. The stages now sit inside a `run_wizard` function that ends in `exit`, and the script's last line calls it, so bash parses the whole file before the first prompt.
+
 ## [0.6.7] - 2026-10-04
 
 ### Fixed

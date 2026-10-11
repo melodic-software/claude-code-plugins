@@ -1,6 +1,6 @@
 ---
 name: researcher
-description: "Runs the full /discovery:research discipline in a fresh context and persists the RESEARCH.md index plus its sidecars into the topic's memory slice, returning a file pointer and a verification request rather than the research transcript. Dispatched by /discovery:research and by /discovery:research-deep; not intended for direct ad-hoc use."
+description: "Runs the full /discovery:research discipline in a fresh context and persists the RESEARCH.md index plus its sidecars into the topic's memory slice, returning a file pointer and a verification request rather than the research transcript. Dispatched by /discovery:research, including its deep tier; not intended for direct ad-hoc use."
 skills:
   - discovery:research
 disallowedTools: "NotebookEdit, EnterWorktree, ExitWorktree"
@@ -41,8 +41,8 @@ it from disk. A missing or mismatched token is a hard failure for the parent.
 
 Your payload is a claim about your run, and the parent believes it only after grading the run off
 disk. That gate belongs to the parent, and it is owed on every route that dispatches you:
-`/discovery:research`, `/discovery:research-deep`, or a direct dispatch of this agent that never
-loaded either skill. A direct dispatcher has not read the gate's steps, so your return payload
+`/discovery:research` (either tier), or a direct dispatch of this agent that never
+loaded the skill. A direct dispatcher has not read the gate's steps, so your return payload
 names them in `gate_owed:` on every run, whatever route you think dispatched you. The steps are
 the "Post-dispatch acceptance gate" in
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md),

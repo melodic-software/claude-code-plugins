@@ -1,3 +1,5 @@
+// GENERATED from lib/yaml-subset.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
+// edit the canonical source, then rerun the script.
 // A parser for the YAML subset the team file is written in: a port of
 // plugins/code-metrics/scripts/yaml_subset.py, kept to the same grammar.
 //
@@ -33,19 +35,29 @@ const put = (object, key, value) => Object.defineProperty(object, key, { value, 
  * after `: `, `- `, `[` or `,`), so an apostrophe inside a plain value is just a character. */
 function stripComment(text) {
   let q = null;
+  let last = -1; // index of the last non-whitespace character before i, so each test is O(1)
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     if (q) {
       if (q === '"' && ch === "\\") i++;
       else if (q === "'" && ch === "'" && text[i + 1] === "'") i++;
       else if (ch === q) q = null;
-    } else if ((ch === "'" || ch === '"') && /(?:^|:\s|(?:^|\s)-\s|[[,])\s*$/.test(text.slice(0, i))) {
+    } else if ((ch === "'" || ch === '"') && valueStarts(text, last, i)) {
       q = ch;
     } else if (ch === "#" && (i === 0 || text[i - 1] === " " || text[i - 1] === "\t")) {
       return text.slice(0, i).trimEnd();
     }
+    if (i < text.length && !/\s/.test(text[i])) last = i;
   }
   return text.trimEnd();
+}
+
+/** True when a value starts at i: only whitespace follows line start, `: `, `- `, `[` or `,`. */
+function valueStarts(text, last, i) {
+  if (last < 0) return true;
+  const c = text[last];
+  const spaced = i - last > 1;
+  return c === "[" || c === "," || (spaced && c === ":") || (spaced && c === "-" && (last === 0 || /\s/.test(text[last - 1])));
 }
 
 const ESCAPES = { n: "\n", t: "\t", '"': '"', "\\": "\\", "/": "/" };
@@ -94,10 +106,13 @@ function flowSequence(text, line) {
   let current = "";
   let q = null;
   let depth = 0;
-  for (const ch of body) {
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
     if (q) {
       current += ch;
-      if (ch === q) q = null;
+      // A backslash escape in "..." and a doubled quote in '...' stay inside the item.
+      if ((q === '"' && ch === "\\") || (q === "'" && ch === "'" && body[i + 1] === "'")) current += body[++i] ?? "";
+      else if (ch === q) q = null;
       continue;
     }
     if (ch === "'" || ch === '"') q = ch;

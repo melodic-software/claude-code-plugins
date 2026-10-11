@@ -104,7 +104,7 @@ JSON strings ready to paste.
 ## What this skill does NOT do
 
 - Run an exploration, research, or intent-tracing pass. Those are the plugin's discovery skills
-  (`/discovery:explore`, `/discovery:research`, `/discovery:research-deep`, `/discovery:trace-intent`).
+  (`/discovery:explore`, `/discovery:research`, `/discovery:trace-intent`).
 - Write machine-local state. The plugin directory and the plugin data directory
   (`${CLAUDE_PLUGIN_DATA}`, for caches and generated state only) stay untouched.
 - Write Claude Code user settings or `pluginConfigs`. `check` reads `~/.claude/settings.json` and
