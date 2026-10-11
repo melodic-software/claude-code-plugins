@@ -16,8 +16,9 @@ name: eval-browser-dispatch
 #
 # Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
 # eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
-# of 2026-10-10), so PLAYWRIGHT_BROWSERS_PATH does not: a case that needs the
-# Chromium below reads EVAL_PLAYWRIGHT_BROWSERS_PATH.
+# of 2026-10-10), so PLAYWRIGHT_BROWSERS_PATH does not. A case's scaffold gets
+# no EVAL_* variable either, so a case that needs the Chromium below pins it by
+# path under /opt/pw (plugins/testing/evals/browser-probe/scaffold.sh).
 
 on:
   workflow_dispatch:
@@ -42,6 +43,11 @@ on:
         required: true
         type: string
         default: Bash(playwright-cli *)
+      debug-errors:
+        description: Print short Bash error excerpts from each eval trace to the PUBLIC job log.
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -145,18 +151,46 @@ jobs:
           node /opt/tools/node_modules/playwright/cli.js install chromium
           command -v playwright-cli claude
 
+      # Every Bash call in an eval run goes through Claude Code's bubblewrap
+      # sandbox (code.claude.com/docs/en/sandboxing, "Set up Linux and WSL2",
+      # as of 2026-10-10). Starting bwrap here as the runner user, with the
+      # whole filesystem (so /opt/tools and the setup-node toolcache) bound
+      # read-only, fails the job with bwrap's own error if bwrap cannot start
+      # a sandbox, before any eval spends tokens. Its flags are not Claude
+      # Code's own, so a pass does not prove the full sandbox starts.
+      - name: Check bwrap starts a sandbox
+        run: |
+          fail() {
+            local msg=${2//'%'/'%25'}
+            msg=${msg//$'\r'/'%0D'}
+            echo "::error::$1: ${msg//$'\n'/'%0A'}"
+            exit 1
+          }
+          for tool in bwrap socat; do
+            command -v "$tool" || fail "$tool is not on PATH" "the Bash sandbox needs it"
+          done
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          sandbox=(bwrap --ro-bind / / --dev /dev --proc /proc --tmpfs /tmp --unshare-all --die-with-parent)
+          if ! out=$("${sandbox[@]}" true 2>&1); then
+            fail "bwrap cannot start a sandbox as the runner user" "$out"
+          fi
+          if ! out=$("${sandbox[@]}" playwright-cli --version 2>&1); then
+            fail "playwright-cli does not start inside bwrap" "$out"
+          fi
+          echo "playwright-cli inside bwrap: $out"
+
       - name: Run the plugin eval
         working-directory: .base
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Strips credentials from Bash subprocesses inside each eval run.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
-          EVAL_PLAYWRIGHT_BROWSERS_PATH: /opt/pw
           TARGET: ${{ inputs.target }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           OUT: ${{ runner.temp }}/eval-results
+          DEBUG_ERRORS: ${{ inputs.debug-errors }}
         run: |
           case "$TARGET" in
             '' | -*) echo "::error::target must be a path"; exit 1 ;;
@@ -189,7 +223,55 @@ jobs:
           if [ "${#tags[@]}" -gt 0 ]; then
             args+=(--tag "${tags[@]}")
           fi
+          # Without --keep-temp each run's directory, trace.jsonl included,
+          # is deleted when the run ends. It stays on the runner, outside $OUT.
+          if [ "$DEBUG_ERRORS" = true ]; then
+            args+=(--keep-temp)
+          fi
           claude plugin eval "${args[@]}"
+
+      # Opt-in because the job log of this public repository is public. Prints,
+      # per run, at most 20 Bash calls whose tool_result has is_error true: the
+      # command and the result text, each cut to 300 characters and JSON-quoted
+      # onto one line. Nothing else from the trace is printed. Trace text is
+      # tool output, so workflow commands are off while it prints.
+      - name: Print Bash error excerpts
+        if: always() && inputs.debug-errors
+        env:
+          RESULTS: ${{ runner.temp }}/eval-results/results.json
+        run: |
+          if [ ! -f "$RESULTS" ]; then
+            echo "no results.json, so no traces to read"
+            exit 0
+          fi
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+            | .value // [] | to_entries[]
+            | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+            | @tsv' "$RESULTS" |
+            while IFS=$'\t' read -r name arm run trace; do
+              echo "== $name, $arm arm, run $run"
+              if [ ! -f "$trace" ]; then
+                echo "   trace not found"
+                continue
+              fi
+              jq -nrR '
+                [inputs | fromjson? | objects] as $m
+                | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
+                    | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
+                    | {key: .id, value: (.input.command // "" | tostring)}] | from_entries) as $bash
+                | [$m[] | select(.type == "user") | .message.content[]? | objects
+                    | select(.type == "tool_result" and .is_error == true)
+                    | (.tool_use_id // "" | tostring) as $id
+                    | select($bash | has($id))
+                    | {cmd: $bash[$id],
+                       out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
+                | "   \(length) Bash error(s), showing up to 20",
+                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out[:300] | tojson)")
+              ' "$trace" || echo "   could not read the trace"
+            done || echo "could not read results.json"
+          echo "::$token::"
 
       - name: Upload the eval results
         if: always()

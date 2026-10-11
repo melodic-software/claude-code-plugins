@@ -40,7 +40,7 @@ function memoryStore(seed = []) {
   const store = new Map(seed);
   const readFile = vi.fn(async (p) => {
     const value = store.get(p);
-    if (value === undefined) throw new Error("ENOENT");
+    if (value === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     return value;
   });
   const writeFile = vi.fn(async (p, data) => {
@@ -127,7 +127,14 @@ describe("watch state phase map", () => {
   it("tells a fresh session how to locate the slice without a machine path", () => {
     const state = sampleTalk();
     const prompt = buildContinuationPrompt(state);
-    expect(prompt).toContain(`\`watch/run-resume.js ${state.videoSlug}\``);
+    expect(prompt).toContain(`watch/run-resume.js ${state.videoSlug}`);
+    // An absolute path outside a URL: a rooted POSIX path (`/a/...`, unlike a
+    // `/plugin:skill` command), a drive letter, or a UNC share.
+    const absolutePath = /(?:^|[\s`'"(])(?:\/[\w.-]+\/|[A-Za-z]:[\\/]|\\\\)/m;
+    expect(prompt).not.toMatch(absolutePath);
+    for (const leak of ["/tmp/x", "/workspace/checkout/a", "C:/w", "C:\\w", "\\\\host\\share"]) {
+      expect(`at ${leak}`).toMatch(absolutePath);
+    }
   });
 
   it("surfaces high-volume frame selection in continuation prompt", () => {
@@ -487,6 +494,63 @@ describe("closing the slice (close, and mark-phase synthesis)", () => {
 
     expect(code).toBe(0);
     expect(persisted(store).status).toBe("complete");
+  });
+
+  const readmePath = path.join(sliceDir, "README.md");
+  const readmeAt = (/** @type {string} */ status) =>
+    `---\r\nstatus: ${status}\r\ncreated: 2026-10-01T00:00:00Z\r\nupdated: 2026-10-02T00:00:00Z\r\n---\r\n\r\n# Talk\r\n\r\nstatus: in-progress\r\n`;
+
+  it("close sets the README frontmatter status to complete and changes nothing else", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("re-running close on a complete slice repairs a README left in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore({ synthesisMarked: true });
+    store.set(
+      watchStatePath(sliceDir),
+      `${JSON.stringify({ ...persisted(store), status: "complete" }, null, 2)}\n`,
+    );
+    store.set(readmePath, readmeAt("in-progress"));
+    const verifyOutcomes = vi.fn(async () => 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(verifyOutcomes).not.toHaveBeenCalled();
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("close fails when the README exists but cannot be read", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+    const denied = Object.assign(new Error("EACCES"), { code: "EACCES" });
+    const failingRead = vi.fn(async (/** @type {string} */ p, /** @type {any} */ enc) => {
+      if (p === readmePath) throw denied;
+      return readFile(p, enc);
+    });
+
+    await expect(
+      runClose(sliceDir, { readFile: failingRead, writeFile, mkdir, verifyOutcomes }),
+    ).rejects.toBe(denied);
+    expect(persisted(store).status).not.toBe("complete");
+  });
+
+  it("a failed close leaves the README status in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 1);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(1);
+    expect(store.get(readmePath)).toBe(readmeAt("in-progress"));
   });
 
   it("close returns 1 without running the checks when watch.json is missing", async () => {

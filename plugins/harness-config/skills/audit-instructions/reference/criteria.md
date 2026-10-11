@@ -1622,10 +1622,11 @@ not a `Model scope` annotation**, for the reason I17 states.
 - **Must NOT flag: a prescription of `high` where `high` is the resolved target's default.** We
   treat setting the default as equivalent to omitting the `effort` parameter, so on a model that
   defaults to `high` such a pin carries no measured calibration that could go stale.
-  **The exemption keys to the resolved target, never to the wording.** In Claude Code every
-  effort-capable model defaults to `high` **except Opus 5.5 and Sonnet 5.5, which default to
-  `medium`, and Opus 4.7, which defaults to `xhigh`**, so when the run's resolved target is one of
-  those the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
+  **The exemption keys to the resolved target, never to the wording.** Read the resolved target's
+  default live from the per-model defaults in
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
+  (as of 2026-10-10; recheck when that section adds a model or moves a default); when it is not
+  `high`, the exemption lifts and a `high` pin is a finding, **including a broad model-agnostic
   "always use `high`" that names no model at all**. That broad pin is the sharper case rather than
   the excluded one: written where `high` was the no-op default and then carried to a model whose
   default differs, it silently becomes a step nobody measured, which is this row's subject exactly. A resolved target

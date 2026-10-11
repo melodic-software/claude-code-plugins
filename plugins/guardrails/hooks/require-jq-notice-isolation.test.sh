@@ -12,7 +12,7 @@
 #
 # jq is hidden by the BASH_ENV shim require-jq-posture.test.sh documents: the
 # LOOKUP of jq fails, PATH is untouched.
-# test-scope: plugins/guardrails/hooks/*.sh
+# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
