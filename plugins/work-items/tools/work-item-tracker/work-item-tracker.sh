@@ -323,6 +323,10 @@ main() {
         printf "work-item-tracker: --body-file '%s' is not a readable file\n" "$body_file" >&2
         exit "$EX_USAGE"
       fi
+      if [[ ! -s "$body_file" ]]; then
+        printf "work-item-tracker: --body-file '%s' is empty; write the body to it before create-item\n" "$body_file" >&2
+        exit "$EX_USAGE"
+      fi
       ci_args+=(--body "$(<"$body_file")")
     fi
     set -- "${ci_args[@]+"${ci_args[@]}"}"

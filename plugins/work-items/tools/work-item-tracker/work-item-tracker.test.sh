@@ -331,6 +331,9 @@ run_skew bodyfake create-item --title t --body x --body-file "$BODY_SRC" >/dev/n
 assert_eq "--body with --body-file → exit 2" "2" "$?"
 run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/missing.md" >/dev/null 2>&1
 assert_eq "unreadable --body-file → exit 2" "2" "$?"
+: >"$TEST_TMPDIR/empty-body.md"
+run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/empty-body.md" >/dev/null 2>&1
+assert_eq "empty --body-file → exit 2" "2" "$?"
 run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
 assert_eq "--body-file without a value → exit 2" "2" "$?"
 

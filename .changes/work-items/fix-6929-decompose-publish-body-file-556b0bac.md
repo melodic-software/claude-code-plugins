@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- **`create-item --body-file <path>`.** The tracker dispatcher reads the file and hands the adapter `--body`, so every adapter, bundled or consumer-local, accepts it with no change. `--body` with `--body-file`, or an unreadable path, exits `2`.
+- **`create-item --body-file <path>`.** The tracker dispatcher reads the file and hands the adapter `--body`, so every adapter, bundled or consumer-local, accepts it with no change. `--body` with `--body-file`, or an unreadable or empty file, exits `2`, so a failed Write step cannot publish an item with an empty body.
 
 ### Fixed
 

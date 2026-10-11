@@ -206,7 +206,7 @@ work-item-tracker.sh capabilities
 `create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
 `--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
 command substitution, a shape a worktree-isolated session refuses (#6929). `--body` together with
-`--body-file`, or a path that is not a readable file, exits `2`.
+`--body-file`, or a path that is not a readable, non-empty file, exits `2`.
 
 `claim --ttl-minutes <n>` (0–59) **adds to** `--ttl-hours`, it never replaces it: `--ttl-hours 24
 --ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.

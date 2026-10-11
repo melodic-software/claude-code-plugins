@@ -91,11 +91,11 @@ mktemp
   --body-file "<temp path from call 1>" \
   --type "{type}" \
   --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it, the type is already a type: label in {labels}
-# Call 3:
+# Call 3: run it whether call 2 succeeded or failed, so no temp file is left behind.
 rm -f "<temp path from call 1>"
 ```
 
-Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` chain around `create-item`, so a worktree-isolated session can run it as written. If the `${CLAUDE_PLUGIN_ROOT}` tracker path does not exist, run `git rev-parse --show-toplevel` as a separate call and spell out `<that path>/tools/work-item-tracker/work-item-tracker.sh` in call 2.
+Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` chain around `create-item`, so a worktree-isolated session can run it as written. When call 2 fails, still run call 3, then report the failure; a retry starts again from call 1 with a fresh temp path. If the `${CLAUDE_PLUGIN_ROOT}` tracker path does not exist, run `git rev-parse --show-toplevel` as a separate call and spell out `<that path>/tools/work-item-tracker/work-item-tracker.sh` in call 2.
 
 - **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); probe [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
 - **As of**: 2026-10-11 (Claude Code 2.1.296)
