@@ -5,6 +5,13 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.4] - 2026-10-11
+
+### Fixed
+
+- Repoint the `audit-instructions` criteria link for I25 to the current Fable migration guide's section on migrating from Claude Opus 5.
+- Correct two links in released entries whose upstream sections moved: the strict-mode section now lives on the plugin marketplace reference page, and the `blockReadsOutsideWorkingDirectories` anchor on the settings reference was renamed.
+
 ## [1.14.3] - 2026-10-11
 
 ### Fixed
