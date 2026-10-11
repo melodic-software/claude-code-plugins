@@ -240,7 +240,7 @@ This skill complements other workflow components. It does not duplicate their lo
 
 ## Graceful Degradation
 
-- **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "GitHub API unavailable. PR status unknown."
+- **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "Forge API unavailable. PR status unknown."
 - **Not in a git repo**: All actions exit immediately with "Not in a git repository."
 - **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
 - **`worktree_reap_after_hours` invalid or unexpanded**: Falls back to 48 hours silently (treat a literal `${user_config.worktree_reap_after_hours}` token as unset).
