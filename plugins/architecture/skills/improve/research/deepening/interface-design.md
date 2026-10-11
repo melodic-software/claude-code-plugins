@@ -56,16 +56,22 @@ counts most, because the reported defects are rounding errors each caller fixes 
 
 ## 3. The returns the parent reads
 
-Every subagent answers in six parts, in this order:
+A return is built around the questions the parent will put to it during the comparison. It
+answers them in the order below, starting from a call site: a design that cannot be shown in use is
+not ready to compare.
 
-| Part | What it holds | What the parent does with it |
-|---|---|---|
-| 1. **Interface** | All a caller must get right: types, methods, parameters, invariants, call order, failure modes | Measures what a caller has to learn |
-| 2. **Usage example** | Code a real caller would write against the design | Checks that the interface reads the way part 1 claims |
-| 3. **What the implementation hides** | The complexity kept behind the seam | Measures what the caller gets for part 1 |
-| 4. **Dependency strategy** | How each dependency is reached, and which adapters exist | Checks it against the categories in the framing |
-| 5. **Trade-offs** | Where the design gives a lot of leverage, and where it gives little | Feeds the comparison |
-| 6. **Rejected shapes** | Alternatives the subagent weighed and dropped, each with its `rejected-reason` | Feeds a hybrid |
+| Part | The parent asks | The subagent supplies | Tax example |
+|---|---|---|---|
+| 1. **Usage example** | What does a caller actually type? | One call site from today's code, rewritten against the design | The refund job: `quote(order, { asOf: invoice.issuedOn })` |
+| 2. **Interface** | What must that caller get right? | The complete contract: types, methods and parameters, invariants, any required call order, and how each call can fail | `order.region` is required; `quote` raises `UnknownRegion` when no rate table covers the region |
+| 3. **Dependency strategy** | How does the design reach what it needs? | For each dependency, the way in and the adapters that exist | A `TaxRates` port, with a rates-service adapter and `DictTaxRates` for tests |
+| 4. **What the implementation hides** | What does the caller no longer need to know? | The work kept behind the seam | Rate lookup, the rounding mode, the exemption list |
+| 5. **Trade-offs** | Which callers gain, and which gain little? | The callers the design serves well and the ones it serves poorly | Checkout gains most; the invoice export, which needs a per-line breakdown, gains little |
+| 6. **Rejected shapes** | What was considered and dropped? | Each alternative with its `rejected-reason` | `quoteLine(item)` per line, dropped because rounding each line drifts from the invoice total |
+
+The parent sets part 4 against part 2 to judge depth, reads part 1 to confirm part 2 is as easy to
+use as claimed, checks part 3 against the framing's dependency categories, and carries part 5 into
+section 4 and part 6 into any hybrid in section 5.
 
 Part 6 reuses the field name `rejected-reason` from the candidate artifact on purpose, so one
 vocabulary covers both.
