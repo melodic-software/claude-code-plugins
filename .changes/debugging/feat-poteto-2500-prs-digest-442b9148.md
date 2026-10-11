@@ -20,5 +20,6 @@ bump: minor
 
 ### Fixed
 
+- **`query_profile.py --param` binds a decimal such as `1000.5` as a number**, where it used to bind it as text; `nan`, `inf` and other text stay text.
 - **`/debugging:analyze-profile` can find the samples inside a trace event.** `samples` gains `ts`, the profile's `startTime` (from the trace's `Profile` event, or the `.cpuprofile`'s own) plus every delta so far, and the Chrome trace page adds a query joining `samples` to one event by that clock, as the skill's "done when" for traces already asked.
 - **`/debugging:analyze-profile` keeps the profiles of one trace apart.** Each `pid:id` profile numbers its frames from 1, so the caller-path and outside-JavaScript queries on the `.cpuprofile` page now join on `profile` as well as the frame id, and the caller path takes `--param profile=`; they used to merge caller chains and double counts across profiles.

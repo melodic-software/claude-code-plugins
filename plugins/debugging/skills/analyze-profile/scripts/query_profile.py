@@ -6,12 +6,14 @@
 Prints a header row and then one tab-separated row per result. The database is
 opened read-only and an authorizer allows only reading tables and calling
 functions, so ATTACH, VACUUM, PRAGMA and every write are refused before they
-run. Named parameters (:idx) are bound from --param values, never pasted into
+run. Named parameters (:idx) are bound from --param values (an integer, else a
+finite decimal, else text), never pasted into
 the SQL. Exit 0 on success, 2 on a usage error, a missing database, a refused
 statement or an SQL error, with a one-line reason on stderr.
 """
 
 import argparse
+import math
 import sqlite3
 import sys
 from pathlib import Path
@@ -30,10 +32,15 @@ def read_only(action, *_):
 
 
 def number_or_text(value):
+    """An integer, else a finite decimal, else the text as given."""
     try:
         number = int(value)
     except ValueError:
-        return value
+        try:
+            decimal = float(value)
+        except ValueError:
+            return value
+        return decimal if math.isfinite(decimal) else value
     if number not in INT64:
         raise ValueError(f"{value} does not fit in a 64-bit integer")
     return number
