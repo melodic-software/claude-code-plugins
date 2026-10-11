@@ -108,8 +108,8 @@ visible findings.
 
 Beside co-change, measure collision hotspots when the repository is hosted on GitHub: run
 `bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n>` from the repository root
-(add `--repo <owner>/<repo>` when the clone's `origin` is not the repository that holds the pull
-requests, `--exclude <glob>` for more files that change on every release, `--max-pairs <m>` to
+(add `--repo <owner>/<repo>` when `gh`'s default repository is not the one that holds the pull
+requests; the script lists and fetches from that one repository, never from `origin`; `--exclude <glob>` for more files that change on every release, `--max-pairs <m>` to
 cap the replays, and `--dry-run` to see the pairs before fetching anything). Size `--prs` by the
 days of history wanted: count the merges into the default branch over the last few days with
 `git log --first-parent --since='<n> days ago' --format=%h <default-branch>`, one line per merge,
