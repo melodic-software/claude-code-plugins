@@ -31,7 +31,8 @@ the worktree skill's
 [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "The pre-compute block runs as one shell invocation"; how injected commands run is read at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-10-11. Recheck trigger: that section changes how a block's commands are run.
+As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
+block is composed; the skills section changes how a block's commands are run.
 
 ## Pre-computed context
 
