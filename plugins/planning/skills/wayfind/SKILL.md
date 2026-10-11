@@ -234,8 +234,8 @@ the marketplace repository states it with rationale.
 
 - A brand-new effort with no interview behind it: /planning:interview.
 - The map is charted: /planning:wayfind work.
-- The map closed and its destination is a PLAN: /planning:plan.
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+- The map closed on a Brief or PLAN destination: /planning:design, ahead of the plan.
+- The map closed on a PRD destination: /planning:prd.
 
 ## Reference
 

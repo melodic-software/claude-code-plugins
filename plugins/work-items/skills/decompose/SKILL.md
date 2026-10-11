@@ -59,6 +59,7 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 - A completed slice is demoable or verifiable on its own
 - Prefer many thin slices over few thick ones
 - Slices map to PLAN.md phases when source is a plan, but split phases that touch multiple independent concerns
+- A source that is one unit of work (a plan handed to a later session, an AFK lane or another person) publishes as one slice. It still goes through Step 3's approval, and its body still carries the acceptance criteria and the quoted design part
 
 **Prefactor look-ahead.** Before slicing the feature work, look for changes that would make later slices easy. "Make the change easy, then make the easy change." Emit each as its own slice; a prefactor slice is a **blocker** of the slices it unblocks. Stay qualitative: a prefactor is a structural unblocker (extract a seam, introduce a compatibility shim, split a god-module), not a size heuristic.
 

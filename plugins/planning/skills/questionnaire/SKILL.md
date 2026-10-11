@@ -38,6 +38,11 @@ The memory slice is deliberate: the document names a real person (name, role, re
 
 Frame the document as a **discovery questionnaire**: the user lacks context, the recipient holds it. Order questions most-important-first, because async means you may only get one pass, and group them under `##` headings by theme once there are more than a handful. Every question carries one idea (never compound) with an answer stub beneath it. The literal shape is the bundled template.
 
+## Next
+
+- The answers came back on an interview branch: /planning:interview.
+- The answers came back on a PRD question: /planning:prd.
+
 ## After the document
 
 - **Delivery is the user's.** Report the path and stop. The skill never transmits anything.

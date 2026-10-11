@@ -114,6 +114,10 @@ Present the triaged result: the collapsed CONFIRMED block, the real questions, a
 | Evidence discipline each validator applies | `/planning:devils-advocate` | Its evidence-backed, no-recall, fresh-eyes discipline is cited, not duplicated |
 | Plan the implementation | `/planning:plan` | Downstream: the confirmed Brief feeds planning, exactly as a hand-answered interview's would |
 
+## Next
+
+/planning:design takes the confirmed Brief next, as it would after a hand-answered interview; it records a one-line early exit when no design question is open.
+
 ## Gotchas
 
 - A validator handed the recommendation's rationale validates the *pitch*, not the decision. Withholding the narrative is load-bearing, not optional.
