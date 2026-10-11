@@ -54,9 +54,9 @@
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
-# seconds. A leg's load is the larger of its suite-seconds and three times its
-# longest suite that runs three at a time, since one suite cannot be split
-# across workers. Suites go longest first to the least-loaded leg, so the legs
+# seconds. A leg's load is the larger of its suite-seconds and its serial
+# suite-seconds plus three times its longest suite that runs three at a time,
+# since one suite cannot be split across workers. Suites go longest first to the least-loaded leg, so the legs
 # finish close together, and every selected suite lands on exactly one leg.
 #
 # Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no
@@ -292,8 +292,8 @@ done <<<"$packages"
 # lane's legs, plan and needs. A leg runs <workers> suites at a time
 # (scripts/run-plugin-tests.sh), so a suite on <serial-list>, which runs alone,
 # weighs <workers> times its seconds. One suite cannot be split, so a leg is
-# estimated at the larger of its suite-seconds and <workers> times its longest
-# parallel suite.
+# estimated at the larger of its suite-seconds and its serial suite-seconds plus
+# <workers> times its longest parallel suite.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
   awk -v def="$DEFAULT_SECONDS" -v workers="$workers" '
@@ -306,7 +306,7 @@ pack() {
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
     awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
-      function est(l) { return load[l] > top[l] ? load[l] : top[l] }
+      function est(l) { return load[l] > ser[l] + top[l] ? load[l] : ser[l] + top[l] }
       function need(p,   s) {
         s = ""
         # The animation wheels are also where the speech suites get numpy.
@@ -335,6 +335,7 @@ pack() {
           for (l = 1; l < legs; l++) if (est(l) < est(best)) best = l
           load[best] += sec[i]
           if (span[i] > top[best]) top[best] = span[i]
+          if (!span[i]) ser[best] += sec[i]
           items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
           split(need(path[i]), w, " ")
           for (k in w) if (w[k] != "") has[best, w[k]] = 1

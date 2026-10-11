@@ -139,6 +139,14 @@ plan -- plugins/a/a.sh plugins/g/g.sh
 is "$before" "[0]" && is "$(key bash_legs)" "[0,1]"
 check "a suite that runs alone weighs three times its seconds: 100 + 3 x 20 needs a second leg" $?
 
+# g runs alone (60) before e can start (150 behind it), so g and e's leg weighs
+# 210, not 150, and h goes to d's leg (180).
+printf 'plugins/g/g.test.sh\n' >"$repo/scripts/run-plugin-tests-serial.txt"
+plan -- plugins/d/d.sh plugins/e/e.sh plugins/g/g.sh plugins/h/h.sh
+: >"$repo/scripts/run-plugin-tests-serial.txt"
+is "$(key bash_plan)" '{"0":["plugins/d/d.test.sh","plugins/h/h.test.sh"],"1":["plugins/g/g.test.sh","plugins/e/e.test.sh"]}'
+check "a leg's serial suites run before its longest suite can start, so they add to its weight" $?
+
 plan -- plugins/animation/anim.sh plugins/harness-ops/skills/inventory/inv.sh plugins/a/a.sh plugins/c/c.sh
 is "$(key bash_needs)" '{"0":"","1":"animation inventory duckdb"}'
 check "a leg's needs name the optional toolchains of its own suites only" $?
