@@ -55,7 +55,7 @@ function comparableWord(word) {
  * and dashes stay, so C-- and C never compare equal.
  */
 const EDGE_PUNCTUATION =
-  /^[.,;:!?"\u201c\u201d\u201e\u00ab\u00bb()[\]{}\u2026]+|[.,;:!?"\u201c\u201d\u201e\u00ab\u00bb()[\]{}\u2026]+$/g;
+  /^[.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[\]{}\u2026]+|[.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[\]{}\u2026]+$/g;
 
 /**
  * The lexical words of `text`: punctuation-only tokens such as `>>` are not

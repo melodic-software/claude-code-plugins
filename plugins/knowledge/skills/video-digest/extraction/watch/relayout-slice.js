@@ -194,7 +194,7 @@ const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?
 
 /** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
 const HTML_START_TAG =
-  /<([A-Za-z][A-Za-z0-9-]*)(?:[ \t\r\n]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t\r\n]*=[ \t\r\n]*(?:[^ \t\r\n"'=<>`]+|'[^']*'|"[^"]*"))?)*[ \t\r\n]*\/?>/g;
+  /<([A-Za-z][A-Za-z0-9-]*)(?:(?:[ \t]+(?:\r?\n[ \t]*)?|\r?\n[ \t]*)[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t]*(?:\r?\n[ \t]*)?=[ \t]*(?:\r?\n[ \t]*)?(?:[^ \t\r\n"'=<>`]+|'[^']*'|"[^"]*"))?)*[ \t]*(?:\r?\n[ \t]*)?\/?>/g;
 /** An HTML comment. */
 const HTML_COMMENT = /<!-->|<!--->|<!--[\s\S]*?-->/g;
 /** Other raw inline HTML: a closing tag, processing instruction, declaration or CDATA section. */
@@ -222,11 +222,23 @@ const DESTINATION_OPENER =
  * @param {string} text
  * @returns {{ from: number, to: number, group: number }[]}
  */
+/**
+ * Whether the character at `at` follows an odd run of backslashes, so it is escaped.
+ * @param {string} text
+ * @param {number} at
+ */
+function isEscapedAt(text, at) {
+  let run = 0;
+  while (text[at - 1 - run] === "\\") run += 1;
+  return run % 2 === 1;
+}
+
 function htmlAttributeValues(text) {
   /** @type {{ from: number, to: number, group: number }[]} */
   const values = [];
   for (const tag of text.matchAll(HTML_START_TAG)) {
     const base = /** @type {number} */ (tag.index);
+    if (isEscapedAt(text, base)) continue;
     HTML_ATTRIBUTE.lastIndex = 1 + tag[1].length;
     for (let match; (match = HTML_ATTRIBUTE.exec(tag[0])) !== null; ) {
       if (!/^(?:src|href)$/i.test(match[1])) continue;
@@ -270,17 +282,12 @@ function htmlRanges(text) {
     DESTINATION_OPENER.lastIndex = at;
     return DESTINATION_OPENER.test(text);
   };
-  // A `<` after an odd run of backslashes is escaped, so it opens no HTML.
-  const escaped = (/** @type {number} */ at) => {
-    let run = 0;
-    while (text[at - 1 - run] === "\\") run += 1;
-    return run % 2 === 1;
-  };
   const tags = [...text.matchAll(HTML_START_TAG), ...text.matchAll(AUTOLINK)].filter(
     (tag) => !isDestination(Number(tag.index)),
   );
   return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_OTHER), ...tags]
-    .filter((match) => !escaped(Number(match.index)))
+    // A `<` after an odd run of backslashes is escaped, so it opens no HTML.
+    .filter((match) => !isEscapedAt(text, Number(match.index)))
     .map((match) => {
       const from = /** @type {number} */ (match.index);
       return /** @type {[number, number]} */ ([from, from + match[0].length]);

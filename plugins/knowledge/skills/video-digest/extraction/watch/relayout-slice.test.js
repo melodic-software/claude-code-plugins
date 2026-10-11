@@ -1417,6 +1417,20 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
   });
 
+  it("ignores escaped tags in the attribute pass and tags that span a blank line", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": [
+        '\\<a href="gone-1.md">',
+        "",
+        '<a\n\n title="[t](gone-2.md)">',
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone-2.md" }]);
+  });
+
   it("does not read attributes inside CDATA, declarations or processing instructions", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, {
