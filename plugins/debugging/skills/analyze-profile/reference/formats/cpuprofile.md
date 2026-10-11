@@ -14,7 +14,8 @@ Recheck when the converter exits 2 on a profile a current Node.js or Chrome wrot
   `children` list. `line` and `col` are 1-based; NULL when the frame has no position, as for
   `(root)`, `(program)`, `(idle)` and `(garbage collector)`.
 - `samples`: one row per sample in order, `frame` is the node id the sample landed in, `delta_us`
-  the gap since the previous sample in microseconds.
+  the gap since the previous sample in microseconds, and `ts` the profile's `startTime` plus every
+  delta so far (NULL when the profile has no `startTime`).
 
 ## Queries
 

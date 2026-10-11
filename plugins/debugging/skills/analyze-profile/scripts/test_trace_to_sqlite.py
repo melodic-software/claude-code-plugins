@@ -445,7 +445,11 @@ class FormatPageQueries(TempDirCase):
                 chunk(
                     7,
                     "0x1",
-                    [node(1, "(root)"), node(2, "alpha", 1), node(3, "(garbage collector)", 1)],
+                    [
+                        node(1, "(root)"),
+                        node(2, "alpha", 1),
+                        node(3, "(garbage collector)", 1),
+                    ],
                     [3, 3, 2],
                     [10, 10, 10],
                 ),
@@ -475,6 +479,51 @@ class FormatPageQueries(TempDirCase):
         self.assertEqual(
             sorted(query(db, sql)),
             [("7:0x1", "(garbage collector)", 2), ("7:0x2", "(program)", 1)],
+        )
+
+
+class SamplesOnTheTraceClock(TempDirCase):
+    """samples.ts is the profile's startTime plus the deltas up to that sample."""
+
+    def test_trace_samples_carry_trace_clock_ts_and_join_events(self):
+        trace = self.write_json(
+            "clock.trace.json",
+            [
+                {"name": "Task", "ph": "X", "pid": 7, "tid": 1, "ts": 1150, "dur": 200},
+                {
+                    "name": "Profile",
+                    "ph": "P",
+                    "pid": 7,
+                    "id": "0x1",
+                    "ts": 1000,
+                    "args": {"data": {"startTime": 1000}},
+                },
+                chunk(
+                    7,
+                    "0x1",
+                    [node(1, "(root)"), node(2, "outer", 1), node(3, "leaf", 2)],
+                    [2, 3, 3, 2],
+                    [100, 100, 100, 100],
+                ),
+            ],
+        )
+        db = self.tmp / "clock.db"
+        result = run("--in", trace, "--out", db)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            query(db, "SELECT ts FROM samples ORDER BY seq"),
+            [(1100,), (1200,), (1300,), (1400,)],
+        )
+        sql = doc_query("chrome-trace.md", "Frames sampled inside one event")
+        rows = query(db, sql, {"seq": 0})
+        self.assertEqual([(r[2], r[-1]) for r in rows], [("leaf", 2)])
+
+    def test_cpuprofile_samples_start_at_its_start_time(self):
+        db = self.tmp / "cpu.db"
+        self.assertEqual(run("--in", CPUPROFILE, "--out", db).returncode, 0)
+        self.assertEqual(
+            query(db, "SELECT ts FROM samples WHERE seq IN (0, 6) ORDER BY seq"),
+            [(1001000,), (1007000,)],
         )
 
 
