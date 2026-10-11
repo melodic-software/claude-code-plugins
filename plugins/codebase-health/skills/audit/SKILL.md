@@ -18,16 +18,19 @@ invocation:
 - Changed files (staged+unstaged), `git diff --name-only HEAD`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the cap applies only after the command's output has come back. What comes back,
-inline or as a saved file, is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
+bounds nothing: the cap applies only after the command's output has come back. What a large output
+returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 As of: 2026-10-11. Recheck trigger: that section changes what a valid result returns.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines, so a worktree-isolated session screens each
 git read on its own. The dated record for why a pre-compute block that carries git is refused is
-the `source-control` plugin's
-[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation". Pointer for how injected commands run:
+kept by `/source-control:worktree`, in its gather-block reference under "The pre-compute block
+runs as one shell invocation". It is cited by skill name, not by path or link, so it carries no
+anchor; that record holds its own as-of date and recheck trigger. Relay as of 2026-10-11; recheck
+when that skill drops or renames that section.
+
+Pointer for how injected commands run:
 [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 As of: 2026-10-11. Recheck trigger: that section documents how a block's commands are grouped into
 shell invocations.

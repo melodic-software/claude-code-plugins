@@ -116,13 +116,18 @@ Three things make the real slot count higher than the simplifier count:
 
 - Refutation verifiers occupy slots, and one runs per group.
 - The grouping refinement agent occupies a slot.
-- A resumed subagent occupies a slot too; how resumes interact with the limit is in the section
-  linked above, so count them rather than assume the cap covers them.
+- A resumed subagent occupies a slot too, so count resumes rather than assume the cap covers
+  them. Pointer for how a resume interacts with the limit:
+  [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit).
+  As of: 2026-10-11. Recheck trigger: that section changes whether a resume is checked against
+  the limit.
 
 Budget against the total, not the simplifier count. When rate-limit pressure appears, **degrade to
 sequential**. Finish the wave one group at a time. Do not retry into the cap: a retry loop against
-the limit burns the run's remaining budget producing nothing. What the limit error tells the agent
-is in the same section.
+the limit burns the run's remaining budget producing nothing. Pointer for what the limit error
+tells the agent:
+[Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit).
+As of: 2026-10-11. Recheck trigger: that section changes whether the limit error says to retry.
 
 ## Execution and spawn contract
 
@@ -148,10 +153,11 @@ The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 **Repo mode does not invoke the bundled `/simplify`.** This is not because `/simplify` lacks a
 target. It accepts one. There are two concrete reasons:
 
-1. `/simplify` fans out review agents of its own (the `/simplify` row in
-   [All commands](https://code.claude.com/docs/en/commands#all-commands); record in
-   [bundled-simplify.md](bundled-simplify.md)), so one dispatch occupies several concurrency
-   slots rather than one. At a 4–6 soft cap that can leave a single group in flight, not four.
+1. `/simplify` fans out review agents of its own, so one dispatch occupies several concurrency
+   slots rather than one (pointer: the `/simplify` row in
+   [All commands](https://code.claude.com/docs/en/commands#all-commands); as of 2026-10-11,
+   recheck when that row stops running review agents in parallel; record in
+   [bundled-simplify.md](bundled-simplify.md#the-bundled-simplify-skill-pointer-records)). At a 4–6 soft cap that can leave a single group in flight, not four.
 2. Spawn depth is limited, and what a subagent at the limit can still spawn is upstream behavior
    ([Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
    as of 2026-10-11, recheck when that section changes the depth default or the at-limit

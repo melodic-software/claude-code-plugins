@@ -10,7 +10,7 @@ behavior, the date it was checked, and the event that makes it worth checking ag
 |---|---|---|---|
 | Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | The row gains an alias or stops being labeled Skill |
 | Treat every `simplify` run as a mutating pass, so the Native step's mutation gate applies | The same row | 2026-10-11 | The row documents a report-only mode or a flag that turns applying off |
-| Give it one group's file list per run, never a time window or a whole repository | The same row, for the targets it takes | 2026-10-11 | The row gains a time-window argument, a repository mode, or ecosystem grouping |
+| Give it one group's file list per run, never a time window or a whole repository. One target may already span many files, so the registry row's trigger, "a multi-file argument form", is half fired; what still separates the two skills is the time window, the repository mode, and ecosystem grouping | The same row, for the targets it takes | 2026-10-11 | The row gains a time-window argument, a repository mode, or ecosystem grouping |
 | Check presence every run; a session where it does not resolve is an ordinary session | [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills), for what turns bundled skills off | 2026-10-11 | That section changes the settings that turn a bundled skill off |
 
 ## Why the verdict is complementary
@@ -29,5 +29,6 @@ simplifier agent, except in `docs` mode or under `unattended`; otherwise the age
 ## Extraction record
 
 The registry row's observation is a 2026-08-23 extraction of the 2.1.232 binary, in which the skill
-appears as a bundled skill. The commands row above is the live source for everything this record
-decides.
+appears as a bundled skill. This record re-verified the registration on the installed 2.1.263
+binary by string search and read the commands page, both on 2026-09-11; the pointers above were
+re-read live on 2026-10-11 and are the live source for everything this record decides.

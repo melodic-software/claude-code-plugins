@@ -28,5 +28,7 @@ resolve is an ordinary session.
 ## Extraction record
 
 The registry row's observation is a 2026-08-23 extraction of the 2.1.232 binary, in which the skill
-appears as a bundled skill. The pages named above are the live source for everything this record
+appears as a bundled skill. This record re-verified the registration on the installed 2.1.263
+binary by string search and read the commands and code-review pages, all on 2026-09-11; the
+pointers above were re-read live on 2026-10-11 and are the live source for everything this record
 decides.
