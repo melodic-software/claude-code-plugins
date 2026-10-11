@@ -4,6 +4,7 @@
 # `node --test` versus vitest. #3703
 .github/actions/check-kill-switch
 .github/actions/check-signed-commits
+.github/actions/check-trusted-base
 .github/actions/check-trusted-trigger
 .github/actions/report-check-run
 .github/actions/select-trusted-text
