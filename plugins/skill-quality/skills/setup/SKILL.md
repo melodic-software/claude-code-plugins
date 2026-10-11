@@ -49,7 +49,9 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
   (repeatable per key), rerun against the already-installed plugin. Pass the scope
   `claude plugin list` reports, and run from that project's directory for a `project`/`local`
-  scope. Do **not** uninstall to reconfigure. Read the command's output rather than trusting its
+  scope: the convention measured a rerun at another scope adding a second install record and
+  enabling the plugin there, with the value itself still landing in user settings. Do **not**
+  uninstall to reconfigure. Read the command's output rather than trusting its
   exit code. The convention records why for each of these rules; this skill does not restate it.
   This skill never writes user settings or `pluginConfigs`.
   - **Pointer**: when the install, uninstall, or configure command's behavior is in doubt, fetch

@@ -819,9 +819,10 @@ else
     # skill gets its command name, see
     # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name;
     # as of 2026-10-11; recheck trigger: that section changing whether a
-    # declared name adds a command). This check takes the bare alias as a
-    # visible side effect an author should choose on purpose, so omitting the
-    # field is the default it recommends.
+    # declared name adds a command), and the picker appends that alias in
+    # parentheses to any row whose typed prefix matches it:
+    # `/plugin:deploy (deploy)` (observed in 2.1.225).
+    # Omitting the field leaves the namespaced command identical and drops both.
     # Advisory, not a defect: the bare alias is a legitimate thing to want, and
     # declaring a matching name is the only way to register it.
     warn "frontmatter name '$CUR_NAME' repeats the plugin skill's directory — omit it unless the bare /$CUR_NAME alias is wanted"

@@ -61,7 +61,7 @@ CHECK_SKILL_SKILLS_ROOT=<installed-version-dir>/skills \
 The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
 vendor byte-identity, 9 stale-metadata, 13 committed-artifact scan) no-op against it. A "new skill /
 skipped" result is expected there, not a defect. Passing a `plugin:skill` name unresolved prints
-this exact guidance.
+guidance to this effect.
 
 ## Arguments
 
