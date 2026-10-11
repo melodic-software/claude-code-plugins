@@ -171,18 +171,27 @@ fallback), then:
 Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP, plus one more
 condition: the user's own words asked for a cloud session. A request for background work alone
 does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
-change, because the cloud session works only from what is pushed (Pointer below):
+change, because this skill launches a cloud session only from a clean checkout whose branch
+matches its remote:
 
 1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
-   but save-point files (the linked-worktree exception does not apply) and
-   `git rev-list --count @{upstream}..HEAD` prints `0`. No upstream, a failed command, or any other
-   result → no launch; fall back as the dirty case does and name commit-and-push as the fix. A
-   handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a local
-   path, so launch only on the prompt-only path. When the save-point takes the full path, forced or by default, do not launch:
-   tell the user to commit and push the handoff or plan, then start the cloud session with a
-   prompt naming its repo-relative path. This skill commits nothing.
-2. **Launch** from the project root with the prompt file and no other flag:
-   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`.
+   but save-point files (the linked-worktree exception does not apply), `git fetch --quiet` then
+   succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
+   tracking ref from passing the check. No upstream, a failed command, or any other result → no
+   launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
+   also bundle a repo that has no remote or lacks the Claude GitHub App, uploading tracked
+   uncommitted changes (Pointer below). This skill does not take that path, so the cloud session
+   starts from pushed state; a user who wants a bundle starts `claude --cloud` themselves. A
+   handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a
+   local path, so launch only on the prompt-only path. When the save-point takes the full path,
+   forced or by default, do not launch: tell the user to commit and push the handoff or plan,
+   then rerun as `--cloud prompt <topic> <purpose naming its repo-relative path>`. This skill
+   commits nothing.
+2. **Launch** from the project root with the prompt file:
+   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`. Pass no `--effort` or
+   `--model`: upstream documents neither with `--cloud`, and the session takes them from the
+   cloud environment. When "What the launched session inherits" calls for an effort level, the
+   report names it and tells the user to send `/effort <level>` in the session.
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
@@ -191,11 +200,13 @@ change, because the cloud session works only from what is pushed (Pointer below)
    account's cloud environment runs the repo's setup script.
 
 - **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-local-repositories-without-github>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#manage-context> (`/effort` in a session),
   <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
   session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
 - **As of**: 2026-10-11
-- **Recheck trigger**: any of those sections changes what the VM clones, the `--cloud`,
+- **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
   `--teleport` or follow-up syntax, or teleport's requirements.
 
 ## What the launched session inherits (and what it does not)
@@ -217,7 +228,8 @@ The launched agent is a NEW session, not a fork of this one
   model-config's
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   table, pick the level whose described use fits the resumed task, and pass that level as
-  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
+  `--effort "<level>"` in step 2's command, before the prompt argument (the `--cloud` variant
+  names the level in its report instead). A task that changes code
   or verifies it is never given a level below medium; skip any row the table says is not an
   effort level. The value is one level name of lowercase letters only, never free text, for the
   same reason the topic slug is sanitized. The launch report names the level and quotes the
@@ -263,8 +275,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
-- [ ] `--cloud` only: clean tree, nothing unpushed, prompt-only payload; the report names the
-  session id, the teleport and follow-up commands, and the signed-in account
+- [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload, no
+  `--effort`; the report names the session id, the teleport and follow-up commands, the
+  signed-in account, and any advised `/effort` level
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces

@@ -376,12 +376,13 @@
     {
       "id": 32,
       "name": "cloud-route-offered-as-advice",
-      "prompt": "/session-flow:workflow continue — the plan is approved, committed and pushed; the remaining work is three independent refactors that need no local services. [cloud_route is offer]",
-      "expected_output": "The router recommends one mechanism with its evidence and adds a cloud session as advice with the reason, naming /session-flow:continue-in-background --cloud as the launch the user must ask for. It judges the fit from the upstream local-versus-cloud pages, read live, notes which account the cloud session would draw on, and launches nothing.",
+      "prompt": "/session-flow:workflow continue — the plan at docs/plans/refactors.md is approved, committed and pushed; the remaining work is three independent refactors that need no local services. [cloud_route is offer]",
+      "expected_output": "The router recommends one mechanism with its evidence and adds a cloud session as advice with the reason, naming /session-flow:continue-in-background --cloud prompt with a purpose that names docs/plans/refactors.md as the launch the user must ask for, so the save-point takes the prompt-only path the cloud delivery accepts. It judges the fit from the upstream local-versus-cloud pages, read live, notes which account the cloud session would draw on, and launches nothing.",
       "files": [],
       "expectations": [
         "A cloud session is offered as advice beside the recommended mechanism, with a reason",
         "The launch is named as /session-flow:continue-in-background --cloud and left to the user",
+        "The named launch forces the prompt method and names the plan's repo-relative path docs/plans/refactors.md",
         "The fit is judged from the upstream pages rather than a criteria list restated from memory",
         "The advice says which account the cloud session would run on and draw limits from",
         "Nothing is launched"

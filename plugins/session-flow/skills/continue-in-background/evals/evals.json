@@ -164,7 +164,7 @@
       "expected_output": "The skill produces the save-point and rails prompt, then finds unpushed commits on the branch. Because the cloud VM clones the pushed branch, it does not run claude --cloud; it reports why, names commit-and-push as the fix, and falls back to the /clear-then-paste instruction.",
       "files": [],
       "expectations": [
-        "The unpushed-commit check runs before any launch",
+        "The unpushed-commit check runs before any launch, after a git fetch refreshes the tracking ref",
         "claude --cloud is not run",
         "The report says the cloud session would not see the unpushed commits and names pushing as the fix",
         "The fallback is the standard /clear-then-paste instruction"
@@ -186,13 +186,26 @@
       "id": 15,
       "name": "cloud-default-full-path-no-launch",
       "prompt": "/continue-in-background --cloud — run the rest of this plan in a cloud session. The tree is clean and pushed; the work is backed by a PLAN.md in my memory folder.",
-      "expected_output": "The save-point engine takes the full path by default because a plan backs the work. A handoff file in the memory tier never reaches the cloud session, so the skill does not run claude --cloud; it tells the user to commit and push the handoff or plan and start the cloud session with a prompt naming its repo-relative path, and it commits nothing itself.",
+      "expected_output": "The save-point engine takes the full path by default because a plan backs the work. A handoff file in the memory tier never reaches the cloud session, so the skill does not run claude --cloud; it tells the user to commit and push the handoff or plan and rerun with --cloud prompt and a purpose naming its repo-relative path, and it commits nothing itself.",
       "files": [],
       "expectations": [
         "The save-point takes the full path without the user forcing it",
         "claude --cloud is not run",
-        "The report names committing and pushing the handoff or plan as the route",
+        "The report names committing and pushing the handoff or plan, then rerunning with --cloud prompt and its repo-relative path, as the route",
         "The skill does not commit anything"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "cloud-unattended-launch-advises-effort",
+      "prompt": "/continue-in-background --cloud prompt fix-flaky-test — run the flaky-test fix unattended in a cloud session. The tree is clean and the branch matches origin.",
+      "expected_output": "The skill fetches, confirms HEAD matches the upstream, and launches claude --cloud with the prompt file and no --effort or --model flag, since upstream documents neither with --cloud. The report gives the session id, the teleport and follow-up commands and the signed-in account, and names the effort level the model-config table fits, telling the user to send /effort <level> in the session.",
+      "files": [],
+      "expectations": [
+        "git fetch runs before HEAD is compared with the upstream",
+        "claude --cloud is run without --effort or --model",
+        "The report names an effort level and tells the user to send /effort with it in the cloud session",
+        "The report names the session id, the teleport and follow-up commands, and the signed-in account"
       ]
     }
   ]

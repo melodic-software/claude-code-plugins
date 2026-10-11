@@ -180,7 +180,10 @@ sets it: neither autonomy tier below covers an effort change.
 
 **A cloud route rides along as advice.** Unless SKILL.md's `cloud_route` resolves to `off`, when
 the next chunk of work fits a cloud session, add it beside the mechanism with the reason, and name
-the launch as `/session-flow:continue-in-background --cloud`, which the user must ask for. Judge
+the launch as `/session-flow:continue-in-background --cloud`, which the user must ask for. A plan
+or handoff file sends that skill to its full path, which the cloud delivery refuses: when the file
+is committed and pushed, name the launch as `--cloud prompt <topic> <purpose naming the file's
+repo-relative path>`; when it is not, say the user commits and pushes it first. Judge
 the fit from the upstream criteria, read live through `/discovery:read-docs`, never from memory:
 
 - **Pointer**: the decision rule,
