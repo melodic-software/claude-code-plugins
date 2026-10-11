@@ -266,10 +266,15 @@ def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
     """Managed settings files in Claude Code precedence order (later overrides).
 
     The primary ``managed-settings.json`` first, then every ``*.json`` in the
-    sibling ``managed-settings.d/`` drop-in directory in sorted order — Claude
-    Code merges those drop-ins over the primary file (settings docs, "File-based
-    managed settings … drop-in directory"). All live at the fixed root-owned
-    system path, so a repo cannot forge them.
+    sibling ``managed-settings.d/`` drop-in directory in sorted order, so later
+    files override earlier ones. All live at the fixed system path, which no
+    repo setting can redirect; whether a user can write it is per platform (see
+    ``managed_settings_path``).
+
+    Pointer: when checking how drop-ins merge over the primary file, fetch
+    https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams
+    live. As of: 2026-10-11. Recheck trigger: that section changes the merge
+    order or the drop-in directory name.
     """
     files: list[Path] = []
     if managed_settings_path.is_file():

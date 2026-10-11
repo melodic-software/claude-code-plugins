@@ -148,9 +148,9 @@ holds the probe and the pointer record for subagents; for the session lifetime:
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
 independent of the engine-gate guard itself) scans the session transcript for
 `hook_non_blocking_error` records (a transcript record type no docs page covers as of 2026-10-11;
-the detector's fixtures in `skills/clean/scripts/test_guard_launch_monitor.py` hold the shape it
-keys on; recheck when a Claude Code release renames the type or a docs page starts covering
-transcript records) naming the engine gate's own command string and warns once per
+the shape was observed in [#1465](https://github.com/melodic-software/claude-code-plugins/pull/1465)
+and the detector's tests in `skills/clean/scripts/test_guard_launch_monitor.py` hold it; recheck
+when a Claude Code release renames the type or a docs page starts covering transcript records) naming the engine gate's own command string and warns once per
 session with the failure count and the most recent failure's exit code, duration, and stderr, so a
 guard that never ran or died mid-run does not look identical to a guard that ran and approved. This
 covers only the `destructive_guard.py` command string in the current session's transcript: it does
@@ -191,7 +191,7 @@ itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch and the guard is not enforced; what the user and the model see then is in the record below the table. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 No registration in this plugin sets a hook failure option, so the last row's outcome is the
 platform's default for a hook that cannot start.
@@ -206,7 +206,10 @@ platform's default for a hook that cannot start.
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
 missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
-stop work (and deny outright under `-p`) on a host whose only fault is having no Python. The
+stop work, and fail the call outright in a run with no one to answer a prompt
+([Available modes](https://code.claude.com/docs/en/permission-modes#available-modes), as of
+2026-10-11; recheck when that section changes how a non-interactive run handles a prompt), on a
+host whose only fault is having no Python. The
 residual is an engine reached without its file name appearing in the payload, the identity class the
 guard itself documents. For the no-Python rows the Stop detector stays as the end-of-turn backstop
 and repeats a summary of the same report. The last row has no backstop inside the plugin;
@@ -583,8 +586,9 @@ credential, dependency, or MCP surface reopens this review.
 
 ## Sources
 
-As of 2026-10-11 for the Claude Code pages. Recheck when the plugin loading page changes
-`--plugin-dir` behavior or the hooks page changes the `PreToolUse` decision output:
+Verified 2026-07-16 against current primary documentation; the Skills and Hooks section anchors
+below were re-resolved 2026-10-11. Recheck when the plugin loading page changes `--plugin-dir`
+behavior or the hooks page changes the `PreToolUse` decision output:
 
 - [Create plugins](https://code.claude.com/docs/en/plugins/create) and
   [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference) and

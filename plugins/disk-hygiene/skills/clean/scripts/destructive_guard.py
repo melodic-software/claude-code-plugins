@@ -1293,7 +1293,7 @@ def resolve_disk_hygiene_enabled() -> bool:
     env-borne toggle (or an env-borne user-settings path) would reopen the hole
     this closes — hence the user settings file is located from the tamper-resistant
     ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
-    file from its fixed root-owned system path. A local-directory marketplace
+    file from its fixed system path. A local-directory marketplace
     install passes no exact ``<name>@<marketplace>`` id, so both reads match
     any ``disk-hygiene`` key, as broad as before that install's user settings
     were read at all: the channel can only add a deny.

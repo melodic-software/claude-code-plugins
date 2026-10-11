@@ -124,7 +124,8 @@ Run by a person when the findings warrant removal; it takes the same target, not
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a
   registered directory marketplace, so a checkout loaded inline reports `null`. **Basis:** the probe
-  run from a checkout with neither reported `hook_python` resolved and `data_root: null` on Claude Code
+  recorded in [#5590](https://github.com/melodic-software/claude-code-plugins/pull/5590), run from a
+  checkout with neither, reported `hook_python` resolved and `data_root: null` on Claude Code
   2.1.285 (Linux); the derivation rule is in
   [safety-model.md](../clean/reference/safety-model.md), "Local-directory marketplace installs".
   **As of:** 2026-09-30. **Recheck:** the guard's data-root derivation changes, or a Claude Code

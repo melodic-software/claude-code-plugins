@@ -11,10 +11,10 @@ hooks:
         # finds Git Bash and never System32\bash.exe, then runs
         # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
         # launch that fails open on Windows.
-        # Which placeholders a skill hook gets rests on our probe (README.md,
-        # "Launch form"). Pointer: when checking how exec form spawns `command`
-        # with `args`, fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
-        # and #command-hook-fields live.
+        # Which placeholders a skill hook gets rests on our probe, issue #1014.
+        # Pointer: when checking how exec form spawns `command` with `args`,
+        # fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
+        # and https://code.claude.com/docs/en/hooks#command-hook-fields live.
         # As of: 2026-10-11.
         # Recheck trigger: either section changes how `args` and `shell`
         # interact, or a skill hook gains another placeholder.
@@ -213,8 +213,8 @@ fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents, so a worker
-still runs Bash, `gh`, and `curl` without it. Our probe on Claude Code 2.1.285 (Linux) observed
-this: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied by the belt and a
+still runs Bash, `gh`, and `curl` without it. Our probe on Claude Code 2.1.285 (Linux), recorded in
+[#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), observed this: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied by the belt and a
 subagent's `git --version` ran. **Pointer:** when checking which hooks apply inside subagents, fetch
 [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
 and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
