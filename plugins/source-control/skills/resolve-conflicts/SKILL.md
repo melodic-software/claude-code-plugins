@@ -11,10 +11,10 @@ metadata:
 
 ## Mode
 
-Read the arguments whole. A first token `ci` selects CI mode unless `git ls-files -- ci` prints
-anything, in which case `ci` is a path. CI mode follows [CI mode](#ci-mode), which replaces the
-gather below, overrides the Task wherever the two differ, and treats the remaining tokens as paths.
-Otherwise every token is a path and the rest of this file applies as written.
+Read the arguments whole. A first token of exactly `ci` always selects CI mode: follow
+[CI mode](#ci-mode), which replaces the gather below, overrides the Task wherever the two differ,
+and treats the remaining tokens as paths. Otherwise every token is a path and the rest of this file
+applies as written. To name a path called `ci` interactively, pass `./ci`.
 
 ## Repository context. Gather first
 
