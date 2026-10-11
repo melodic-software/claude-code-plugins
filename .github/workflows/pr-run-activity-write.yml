@@ -854,12 +854,17 @@ jobs:
             // A hold placed while the run worked stops it here, before any
             // commit: the kill switch only stops new runs. Labels are read
             // fresh with the job's read-only token.
-            const reader = getOctokit(READ_TOKEN);
-            const labels = await reader.paginate(reader.rest.issues.listLabelsOnIssue, {
-              ...context.repo,
-              issue_number: Number(PR_NUMBER),
-              per_page: 100,
-            });
+            // github-script v8.0.0 gives the script no way to build a second
+            // client, so the read-only token is used through fetch.
+            const labelsResponse = await fetch(
+              `${process.env.GITHUB_API_URL}/repos/${context.repo.owner}/${context.repo.repo}/issues/${Number(PR_NUMBER)}/labels?per_page=100`,
+              { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${READ_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' } },
+            );
+            if (!labelsResponse.ok) {
+              core.setFailed(`Reading the PR labels answered ${labelsResponse.status}; the merge is not committed`);
+              return;
+            }
+            const labels = await labelsResponse.json();
             const held = labels.map((label) => label.name).filter((name) => name === 'do-not-merge' || name === HOLD_LABEL);
             if (held.length) {
               core.info(`The PR is held (${held.join(', ')}); the merge is not committed`);
