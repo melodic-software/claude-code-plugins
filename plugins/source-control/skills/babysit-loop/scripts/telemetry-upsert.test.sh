@@ -51,6 +51,9 @@ case "$method $url" in
   [[ "${STUB_FAIL:-}" == patch ]] && exit 1
   id="${url##*/}"
   jq --arg b "$body" --argjson id "$id" 'map(if .id == $id then .body = $b else . end)' "$db" >"$db.new" && mv "$db.new" "$db" ;;
+"DELETE repos/"*"/issues/comments/"*)
+  [[ "${STUB_FAIL:-}" == delete ]] && exit 1
+  jq --argjson id "${url##*/}" 'map(select(.id != $id))' "$db" >"$db.new" && mv "$db.new" "$db" ;;
 "GET repos/"*"/issues/comments/"*)
   [[ "${STUB_FAIL:-}" == get ]] && exit 1
   if [[ -n "${STUB_READBACK:-}" ]]; then printf '%s\n' "$STUB_READBACK"; exit 0; fi
@@ -220,12 +223,22 @@ STUB_USER=fail run
 check "no identity: exit 5" 5 "$?"
 check "no identity: no write" 0 "$(writes)"
 
-# 20b. A wrong --app-slug: the POST lands under another login, exit 5, and only
-#      one comment is created (no PATCH, no tombstone).
-setup '[]'
+# 20b. A wrong --app-slug: the POST lands under another login, so the comment it
+#      created is deleted, nothing else is written, exit 5 naming the real author.
+setup "[$(c 3 "$FOREIGN" outsider)]"
 STUB_USER=fail STUB_AUTHOR='real-app[bot]' run --app-slug wrong-app
 check "wrong slug: exit 5" 5 "$?"
-check "wrong slug: one write, the POST" 1 "$(writes)"
+check "wrong slug: the created comment 4 is deleted" "DELETE repos/acme/widgets/issues/comments/4" \
+  "$(grep '^DELETE' "$STUB_DIR/calls.log")"
+check "wrong slug: only the foreign comment remains" "3" "$(jq -r 'map(.id) | join(",")' "$STUB_DIR/comments.json")"
+check "wrong slug: no PATCH" 0 "$(grep -c '^PATCH' "$STUB_DIR/calls.log")"
+check "wrong slug: error names the real author" 1 "$(grep -c "posted as 'real-app\[bot\]'" "$STUB_DIR/err")"
+
+# 20c. The cleanup DELETE fails: still exit 5, and the error says to remove it by hand.
+setup '[]'
+STUB_USER=fail STUB_AUTHOR='real-app[bot]' STUB_FAIL=delete run --app-slug wrong-app
+check "wrong slug, delete fails: exit 5" 5 "$?"
+check "wrong slug, delete fails: says remove by hand" 1 "$(grep -c 'deleting comment 101 failed' "$STUB_DIR/err")"
 
 # 21. GET user reports a bot: its [bot] login is the identity.
 setup "[$(c 3 "$FOREIGN"), $(c 41 "$OLD" 'lane-app[bot]')]"

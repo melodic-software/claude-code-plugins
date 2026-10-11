@@ -40,7 +40,8 @@
 #   5  a gh call failed before anything verifiable landed: the write identity or
 #      the lookup (nothing written), the POST, or the PATCH (the comment holds an
 #      earlier body), or the POST landed under another login (a wrong
-#      --app-slug); under --read, the identity, lookup, or read failed
+#      --app-slug; that comment is deleted); under --read, the identity,
+#      lookup, or read failed
 #   6  the write was sent but is unconfirmed: the created comment was not re-found,
 #      the read-back failed, or what was stored differs from what was sent
 # A failed duplicate tombstone after a verified write is reported on stderr only;
@@ -153,11 +154,20 @@ need_identity
 
 LIST="$(lookup)" || die 5 "comment lookup failed; nothing written this cycle (fail closed)"
 if [[ -z "$LIST" ]]; then
-  POSTED_AS="$(gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" --jq '.user.login')" ||
+  POSTED="$(gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" \
+    --jq '(.id | tostring) + " " + .user.login')" ||
     die 5 "creating the telemetry comment failed; nothing written"
-  # A wrong --app-slug would otherwise post a fresh, never-found comment every cycle.
-  [[ "$POSTED_AS" == "$ME" ]] ||
-    die 5 "the comment was posted as '$POSTED_AS', not the resolved write identity '$ME'; fix --app-slug before the next cycle"
+  POSTED_ID="${POSTED%% *}" POSTED_AS="${POSTED#* }"
+  # A wrong --app-slug would otherwise leave a never-found comment behind every
+  # cycle; the token that posted it can delete it.
+  if [[ "$POSTED_AS" != "$ME" ]]; then
+    if [[ "$POSTED_ID" =~ ^[0-9]+$ ]] && gh api -X DELETE "repos/$REPO/issues/comments/$POSTED_ID" >/dev/null; then
+      cleanup="deleted it"
+    else
+      cleanup="deleting comment $POSTED_ID failed; remove it by hand"
+    fi
+    die 5 "the comment was posted as '$POSTED_AS', not the resolved write identity '$ME' ($cleanup); set --app-slug to match '$POSTED_AS' before the next cycle"
+  fi
   LIST="$(lookup)" || LIST=""
 fi
 CANON="$(canonical "$LIST")"

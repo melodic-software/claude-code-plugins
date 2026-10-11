@@ -75,7 +75,7 @@ accepted because it still looks like telemetry.
 | 0 | written, and the read-back matches the body sent | confirmed |
 | 3 | invalid `--repo`/`--issue`/instance, or the body failed the pre-write gate; nothing written | fix the body composition, do not re-run blind |
 | 4 | `gh` not found; nothing written | unreported |
-| 5 | the write identity, the lookup, the POST, or the PATCH failed, or the POST landed under a login other than the resolved identity (a wrong `--app-slug`); the comment holds an earlier body or none | unreported |
+| 5 | the write identity, the lookup, the POST, or the PATCH failed, or the POST landed under a login other than the resolved identity (a wrong `--app-slug`: the script deletes that comment and names the login it landed under); the comment holds an earlier body or none | unreported |
 | 6 | the write was sent but is unconfirmed: the created comment was not re-found, the read-back failed, or the stored body differs | unreported |
 
 Any non-zero exit means the lane is **UNREPORTED** for this cycle: carry that forward to the next

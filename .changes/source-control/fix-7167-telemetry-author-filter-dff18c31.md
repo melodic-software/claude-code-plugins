@@ -12,5 +12,5 @@ bump: patch
   written by the script's own write identity (the `gh api user` login,
   or `<app-slug>[bot]` under an App token via `--app-slug`), and a new
   `--read` mode gives re-anchor the same filtered read (#7167). A create
-  that lands under another login (a wrong `--app-slug`) exits 5 instead
-  of posting a fresh comment every cycle.
+  that lands under another login (a wrong `--app-slug`) deletes that
+  comment and exits 5, naming the login it landed under.
