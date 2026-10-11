@@ -1363,6 +1363,63 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     },
   );
 
+  it.skipIf(process.platform === "win32")(
+    "maps a real file whose name looks like a placeholder before treating it as one",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "research/findings/report-{draft}.pdf": "pdf",
+          "research/findings/report-<final>.html": "html",
+          "recommendations/questions.md":
+            "Draft `research/findings/report-{draft}.pdf`, final `research/findings/report-<final>.html`, template `research/findings/report-{name}.pdf`.\n",
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+        "Draft `../research/findings/report-{draft}.pdf`, final `../research/findings/report-<final>.html`, template `research/findings/report-{name}.pdf`.\n",
+      );
+    },
+  );
+
+  it("matches the AGENTS.md allowed miss exactly and the directories by whole segment", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/claim-inventory.md":
+          "[a](./AGENTS.md#rules) [b](AGENTS.md) [c](AGENTS.md.old) [d](docs-old/x.md) [e](docs/x.md)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/research/claim-inventory.md", ref: "AGENTS.md.old" },
+      { file: "analysis/research/claim-inventory.md", ref: "docs-old/x.md" },
+    ]);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "skips backslash-escaped < and > when finding the end of an angle destination",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "research/findings/a>b.md": "a\n",
+          "key-frames/visual-frames.md": "[x](<../research/findings/a\\>b.md>)\n",
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "frames/visual-frames.md")).toBe(
+        "[x](<../analysis/research/findings/a\\>b.md>)\n",
+      );
+    },
+  );
+
   it("maps a real path holding $ and skips only complete placeholder syntax", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {

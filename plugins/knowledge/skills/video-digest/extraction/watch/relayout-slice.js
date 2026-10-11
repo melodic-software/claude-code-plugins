@@ -63,7 +63,10 @@ export const INFO_JSON_DROPPED_KEYS = Object.freeze([
 
 export const INFO_JSON_COMMENT_CAP = 20;
 
-/** Path prefixes that name files in another repository, never in the slice. */
+/**
+ * Paths that name files in another repository, never in the slice: a
+ * directory (trailing `/`) matches any path under it, a file only exactly.
+ */
 export const ALLOWED_MISS_PREFIXES = Object.freeze([
   "plugins/",
   "docs/",
@@ -71,6 +74,20 @@ export const ALLOWED_MISS_PREFIXES = Object.freeze([
   ".claude/",
   "AGENTS.md",
 ]);
+
+/**
+ * True when `refPath` (fragment already split off) is an allowed miss:
+ * under one of the directories, or exactly one of the files, with any
+ * leading `./` ignored. `AGENTS.md.old` or `docs-old/x` does not match.
+ *
+ * @param {string} refPath
+ */
+function isAllowedMiss(refPath) {
+  const plain = refPath.replace(/^(?:\.\/)+/, "");
+  return ALLOWED_MISS_PREFIXES.some((entry) =>
+    entry.endsWith("/") ? plain.startsWith(entry) : plain === entry,
+  );
+}
 
 /** Source-lane folders the layout keeps, and where each one goes. */
 const SOURCE_FOLDERS = new Map([
@@ -477,7 +494,7 @@ function sliceRootLookup(map) {
  */
 function lookUpReference(refPath, sourceFile, map) {
   const bare = refPath.replace(/\/+$/, "");
-  if (!bare || URL_SCHEME.test(bare) || PLACEHOLDER.test(bare) || bare.startsWith("/")) {
+  if (!bare || URL_SCHEME.test(bare) || bare.startsWith("/")) {
     return null;
   }
   const lookup = (/** @type {string|null} */ key) => {
@@ -524,6 +541,10 @@ function lookUpReference(refPath, sourceFile, map) {
     const found = lookup(key);
     if (found) return found;
   }
+  // A placeholder (`<slice-dir>/x`, `${ROOT}/x`, `{tmp}/x`, `research/*.md`)
+  // names no real file. It counts as one only now, after the path map found
+  // nothing, so a real `report-{draft}.pdf` is still mapped.
+  if (PLACEHOLDER.test(bare)) return null;
   // A lane folder the layout knows but this slice never produced (prose such
   // as "no deck in `source/decks/`") names nothing to point at.
   // A path below such a folder (`source/decks/slides.pdf`) names nothing either.
@@ -624,8 +645,22 @@ export function inlineLinks(text) {
     let raw;
     let angle = false;
     if (text[at] === "<") {
-      const close = text.indexOf(">", at);
-      if (close === -1 || text.slice(at, close).includes("\n")) continue;
+      // The closing `>`, skipping backslash-escaped `<` and `>`; an unescaped
+      // `<` or a line ending inside means this is not an angle destination.
+      let close = -1;
+      for (let scan = at + 1; scan < text.length; scan += 1) {
+        const char = text[scan];
+        if (char === "\\") {
+          scan += 1;
+          continue;
+        }
+        if (char === "\n" || char === "<") break;
+        if (char === ">") {
+          close = scan;
+          break;
+        }
+      }
+      if (close === -1) continue;
       angle = true;
       raw = text.slice(at + 1, close);
       at = close + 1;
@@ -975,19 +1010,20 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       // span resolves, it is fine; otherwise the suffix is a fragment.
       if (!isLink) {
         const whole = splitReference(ref, { fragments: false }).refPath;
-        if (whole && !PLACEHOLDER.test(whole) && fs.existsSync(path.resolve(fileDir, whole))) {
-          return;
-        }
+        if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
       }
       const { refPath } = splitReference(ref);
-      if (!refPath || URL_SCHEME.test(refPath) || PLACEHOLDER.test(refPath)) return;
+      if (!refPath || URL_SCHEME.test(refPath)) return;
       if (refPath.startsWith("/") || refPath.startsWith("~")) return;
-      if (ALLOWED_MISS_PREFIXES.some((prefix) => refPath.startsWith(prefix))) return;
+      if (isAllowedMiss(refPath)) return;
       if (!isLink && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
       const resolved = path.resolve(fileDir, refPath);
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
-      if (!fs.existsSync(resolved)) unresolved.push({ file, ref: literalText(ref) });
+      if (fs.existsSync(resolved)) return;
+      // A placeholder that names no real file is not a dangling path.
+      if (PLACEHOLDER.test(refPath)) return;
+      unresolved.push({ file, ref: literalText(ref) });
     };
     const { fenceMasked, linkMasked } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
