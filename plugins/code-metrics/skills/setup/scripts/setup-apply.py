@@ -42,6 +42,7 @@ import sys
 from typing import Any, Callable
 
 MIN_PYTHON = (3, 9)
+USAGE = "  setup-apply.py [--dir <repo-root> | --file <path>] [<key>=<value>...]"
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 SCRIPTS = os.path.join(PLUGIN_ROOT, "scripts")
@@ -297,7 +298,8 @@ def main(argv: list[str]) -> int:
             i += 2
             continue
         if arg in ("-h", "--help"):
-            print(__doc__.strip())
+            # __doc__ is None under python -OO; the usage line still prints.
+            print((__doc__ or USAGE).strip())
             return 0
         if "=" not in arg or arg.startswith("-"):
             print(

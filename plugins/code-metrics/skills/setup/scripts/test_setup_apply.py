@@ -258,6 +258,19 @@ class SetupApplyTests(unittest.TestCase):
             self.assertIn("size.bogus", result.stderr)
             self.assertNotIn("gho_example", target.read_text(encoding="utf-8"))
 
+    def test_help_prints_usage_even_with_docstrings_stripped(self) -> None:
+        # python -OO drops __doc__, which --help printed.
+        result = subprocess.run(
+            [sys.executable, "-OO", str(SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "setup-apply.py [--dir <repo-root> | --file <path>]", result.stdout
+        )
+
     def test_template_is_in_the_subset_and_names_only_contract_keys(self) -> None:
         template = SCRIPT_DIR.parent / "templates" / "config-template.yaml"
         doc = yaml_subset.load(template)
