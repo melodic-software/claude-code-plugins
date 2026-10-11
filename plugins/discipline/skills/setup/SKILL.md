@@ -67,10 +67,15 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    that an invocation argument to `do-your-research` (`tiered` or `full`) overrides this default per
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
-   conversation-inheriting fork subagents. Fork mode is on by default in interactive sessions
-   on Claude Code >= v2.1.232 (off by default in non-interactive `-p` and Agent SDK sessions;
-   `CLAUDE_CODE_FORK_SUBAGENT` overrides either way:
-   <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>, re-checked 2026-08-26).
+   conversation-inheriting fork subagents, so report whether fork mode is on in this kind of
+   session. Read the defaults, the version floor and the override variable live from the
+   section the Pointer below names, and report what it states.
+   - **Pointer**: when reporting whether fork mode is on, fetch
+     <https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off> live.
+   - **As of**: 2026-10-11
+   - **Recheck trigger**: that section changes which sessions have fork mode on by default,
+     its version floor, or the variable that overrides it.
+
    `sweep-all` preflights this itself and degrades when the fan-out cannot inherit; that runbook owns the behavior; report the prerequisite here only so an unavailable
    fan-out reads as expected rather than as a misconfiguration, and do not restate what
    the degraded pass does.

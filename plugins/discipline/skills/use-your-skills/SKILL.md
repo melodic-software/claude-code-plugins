@@ -47,23 +47,21 @@ The discipline, at each of the three surfaces where skills apply:
   say when it applies. Read it as a routing signal, not decoration.
 - **The current task.** Map the task's shape to the skills that fit it. Often
   more than one across a task's phases (research, plan, implement, review), and invoke each at its moment rather than carrying the whole task by hand.
-- **Delegated (subagent) work.** A fresh non-fork subagent does **not** inherit
-  your skill listing. It discovers project, user, and plugin skills on disk
-  through the Skill tool during execution
-  ([Subagents docs](https://code.claude.com/docs/en/sub-agents), re-verified
-  2026-09-06 against Claude Code 2.1.263; recheck when that page stops stating
-  that a subagent can invoke unlisted project, user, and plugin skills through
-  the Skill tool, or a release note names skill preloading). So **name the relevant skills in the delegation prompt** so the
-  subagent knows to reach for them. For a custom subagent that should always
-  carry a discipline, recommend its `skills:` frontmatter, which **preloads the
-  full skill content** into the subagent at startup (preload, not access. The
-  Skill tool is already available to the subagent unless removed via `tools` /
-  `disallowedTools`). One caveat, doc-confirmed: `skills:` can preload only a
-  **model-invocable** skill; a skill set to `disable-model-invocation: true`
-  cannot be preloaded (Claude Code skips it and logs a warning), because
-  preloading draws from the same set the model can invoke. For a manual-only
-  discipline, put its guidance in the prompt directly rather than expecting a
-  preload. This is guidance, not a config change the skill performs.
+- **Delegated (subagent) work.** Never assume a delegated subagent knows
+  which skills fit its task: **name the relevant skills in the delegation
+  prompt** so the subagent knows to reach for them. For a custom subagent that
+  should always carry a discipline, recommend its `skills:` frontmatter, after
+  checking the preload section below for which skills it can carry; a skill it
+  cannot preload goes into the prompt directly. This is guidance, not a config
+  change the skill performs.
+  - **Pointer**: when deciding between naming a skill in the prompt and
+    preloading it, fetch
+    <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents>
+    live; for what a non-fork subagent's context holds at startup, fetch
+    <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: either section changes which skills a subagent can
+    preload or invoke, or what a non-fork subagent receives at startup.
 
 ## Audit. What to look for
 
