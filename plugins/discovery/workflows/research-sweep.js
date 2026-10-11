@@ -89,15 +89,15 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
 // Role variants as /multi-agent:route emits them. `single` serves a stage that
 // runs one agent; `fanout` a stage that runs several. The fallback names opus
 // for every fan-out because the session model is unknown here, and a frontier
-// session must never fan out on its own model. Searchers and readers take the
-// worker role at `low`, its research-workload default; the pointer, as-of date
-// and recheck trigger for that default are in the multi-agent plugin's
+// session must never fan out on its own model. Fetchers, searchers and readers
+// take the worker role at its own `medium`; the pointer, as-of date and recheck
+// trigger for that default are in the multi-agent plugin's
 // reference/defaults.yaml (roles.worker).
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
   orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-  worker: { single: { model: 'inherit', effort: 'low' }, fanout: { model: 'opus', effort: 'low' } },
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
