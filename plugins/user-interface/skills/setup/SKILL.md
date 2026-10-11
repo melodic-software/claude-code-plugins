@@ -64,9 +64,11 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   into the layer that now holds them; `apply` makes the move only after a yes, and removes the old
   file only after the new one reads back.
 - **Personal file ignored.** When the `local` layer's path is null (`home_error` is set), INFO: no
-  personal path to test. Otherwise run `git -C "<project root>" check-ignore -v <path>`. Exit 0:
-  PASS. Exit 1: FAIL, since a personal file must never be committed; `apply` adds the entry. Any
-  other exit (128 outside a git repository): WARN with its stderr line. None of these stops `check`.
+  personal path to test. Otherwise decide on the exit status of
+  `git -C "<project root>" check-ignore <path>`, without `-v`, which exits 0 on a negation match
+  too; run it with `-v` only to show the matching rule. Exit 0: PASS. Exit 1: FAIL, since a personal
+  file must never be committed; `apply` adds the entry. Any other exit (128 outside a git
+  repository): WARN with its stderr line. None of these stops `check`.
 - **Worktree.** Read the first `worktree` line of `git -C "<project root>" worktree list --porcelain`:
   that is the main checkout. When it differs from the project root, the main checkout has a
   `<home>/user-interface.local.yaml` or `.md` and this checkout has neither, WARN: the personal file
@@ -78,7 +80,7 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 2. Settle the key and value. Refuse a key the schema does not have, a value outside its `enum`, and
    `routing` outside the team layer. `routing` rows are edited by hand; `check` validates them.
 3. Write one key in the layer's YAML file. For `--user`, run the managed check below on
-   `~/docs/conventions/user-interface.yaml` first; when it is managed, write the source file
+   the `user` layer's path from `config.layers` first; when it is managed, write the source file
    instead. Create the file when absent with `version: 1` first.
    Change only that key and keep every other key, comment and blank line. Block style only: one
    list item per line, never `{` or `[a, b]` for a non-empty list. A `*.disable` value is appended
