@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { blocks, compilePatterns, distinct, maskProps, maskText, splitMatches } from './mask.ts'
+import { blankProps, blocks, compilePatterns, distinct, maskProps, maskText, splitBlocks, splitMatches } from './mask.ts'
 
 const M = '[hidden]'
 const { patterns } = compilePatterns([])
@@ -90,14 +90,28 @@ test('applies a valid extra pattern', () => {
 
 test('returns invalid, over-long, empty-matching and nested-quantifier patterns in invalid and skips them', () => {
   const tooLong = 'a'.repeat(201)
-  const bad = ['(unclosed', tooLong, '(a+)+$', '((x*)y)*', 'a*', '(\\d+){2,}']
+  const bad = [
+    '(unclosed',
+    tooLong,
+    '(a+)+$',
+    '((x*)y)*',
+    'a*',
+    '(\\d+){2,}',
+    // Alternation in a quantified group, and unbounded quantifiers over overlapping classes.
+    '(a|a)*b',
+    '(?:x|(y|z))+w',
+    '\\d+\\d+\\d+\\d+x',
+    '.*=.*=.*=.*;',
+    '\\w*\\d{0,99}x',
+    'a?'.repeat(20) + 'x',
+  ]
   const r = compilePatterns([...bad, 'ok-\\d+'])
   expect(r.invalid).toEqual(bad)
   expect(maskText('ok-12 and aaa and (unclosed', r.patterns, M)).toBe(`${M} and aaa and (unclosed`)
 })
 
 test('accepts a quantifier in a group that is not itself quantified, and an escaped paren', () => {
-  const r = compilePatterns(['(ab+)c', '\\(x+\\)+'])
+  const r = compilePatterns(['(ab+)c', '\\(x+\\)?', '(?:ab|cd)?e+', '[A-Z]{2,10}-\\d{1,6}'])
   expect(r.invalid).toEqual([])
 })
 
@@ -223,4 +237,95 @@ test('blocks splits on blank lines and keeps a fenced block whole', () => {
 
 test('blocks keeps an unclosed fence through the end of the text', () => {
   expect(blocks('Intro\n\n~~~\nx\n\ny')).toEqual(['Intro', '~~~\nx\n\ny'])
+})
+
+// The worst user patterns the guard accepts: each tries many lengths at every start.
+const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
+
+test('runs each of the worst accepted extra patterns over 100,000 characters in under a second', () => {
+  const r = compilePatterns(WORST_ACCEPTED)
+  expect(r.invalid).toEqual([])
+  const extras = r.patterns.slice(-WORST_ACCEPTED.length)
+  expect(extras.map((p) => p.source)).toEqual(WORST_ACCEPTED)
+  const inputs = ['a'.repeat(100_000), '1'.repeat(100_000), 'ab'.repeat(50_000), '= '.repeat(50_000)]
+  for (const pattern of extras) {
+    const start = Date.now()
+    for (const input of inputs) maskText(input, [pattern], M)
+    expect(Date.now() - start).toBeLessThan(1000)
+  }
+})
+
+test('masks a token right after a color code and keeps every escape intact', () => {
+  expect(mask(`\u001b[32m${GH}AbC123xyz9\u001b[0m`)).toBe(`\u001b[32m${M}\u001b[0m`)
+  expect(mask('\u001b[01;31m\u001b[Ksk-abc123\u001b[m\u001b[K')).toBe(`\u001b[01;31m\u001b[K${M}\u001b[m\u001b[K`)
+  expect(mask('\u001b[1mkyle@example.com\u001b[0m done')).toBe(`\u001b[1m${M}\u001b[0m done`)
+})
+
+test('keeps an escape inside a masked span and hides the text around it', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\n\u001b[2mMIIabc\u001b[0m\n-----END PRIVATE KEY-----'
+  expect(mask(`a ${pem} b`)).toBe(`a ${M}\u001b[2m\u001b[0m b`)
+})
+
+test('splitMatches finds a token after a color code and leaves the code outside the match', () => {
+  expect(splitMatches('\u001b[32msk-abc\u001b[0m', patterns)).toEqual({ parts: ['\u001b[32m', '\u001b[0m'], hidden: ['sk-abc'] })
+})
+
+test('splitBlocks hides a match that crosses a blank line in every block it reaches', () => {
+  const head = '-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B'
+  const body = 'MIIbody\n-----END RSA PRIVATE KEY-----'
+  const split = splitBlocks(`Key:\n\n${head}\n\n${body}\n\nDone.`, patterns)
+  expect(split).toEqual([
+    { block: 'Key:', parts: ['Key:'], hidden: [] },
+    { block: head, parts: ['', ''], hidden: [head] },
+    { block: body, parts: ['', ''], hidden: [body] },
+    { block: 'Done.', parts: ['Done.'], hidden: [] },
+  ])
+})
+
+test('splitBlocks applies an extra pattern across a blank line', () => {
+  const { patterns: extra } = compilePatterns(['TOP\\n\\nBOTTOM'])
+  expect(splitBlocks('a TOP\n\nBOTTOM b', extra)).toEqual([
+    { block: 'a TOP', parts: ['a ', ''], hidden: ['TOP'] },
+    { block: 'BOTTOM b', parts: ['', ' b'], hidden: ['BOTTOM'] },
+  ])
+})
+
+test('masks the other GitHub token kinds, including one still streaming', () => {
+  for (const kind of ['o', 'u', 's', 'r', 'p']) {
+    expect(mask(`t gh${kind}_AbC123xyz9 end`)).toBe(`t ${M} end`)
+    expect(mask(`gh${kind}_`)).toBe(M)
+  }
+  expect(mask('the ghost_town and sigh_x')).toBe('the ghost_town and sigh_x')
+})
+
+test('masks a PGP private key block', () => {
+  const block = '-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBF\n=abcd\n-----END PGP PRIVATE KEY BLOCK-----'
+  expect(mask(`before\n${block}\nafter`)).toBe(`before\n${M}\nafter`)
+})
+
+test('maskProps recurses into an object with no prototype', () => {
+  const bare = Object.assign(Object.create(null) as Record<string, unknown>, { to: 'kyle@example.com' })
+  expect(maskProps({ body: bare }, ['body'], patterns, M)).toEqual({ body: { to: M } })
+})
+
+test('maskProps masks a value of any other object type whole', () => {
+  class Envelope {
+    constructor(readonly to: string) {}
+  }
+  const props = { a: new Envelope('kyle@example.com'), b: new Map([['k', 'kyle@example.com']]), c: [new Date(0)] }
+  expect(maskProps(props, ['a', 'b', 'c'], patterns, M)).toEqual({ a: M, b: M, c: [M] })
+})
+
+test('blankProps masks every string, keeps field-name keys, and masks any other key', () => {
+  const props = {
+    input: { command: 'echo hi', count: 2, [`${GH}AbC123`]: 'x', 'Mail a@b.io?': 'yes', 'Go on?': 'no' },
+    keep: 'plain',
+  }
+  const out = blankProps(props, ['input'], patterns, M)
+  expect(out.keep).toBe('plain')
+  expect(Object.entries(out.input).slice(0, 2)).toEqual([['command', M], ['count', 2]])
+  const rest = Object.keys(out.input).slice(2)
+  expect(rest.length).toBe(3)
+  expect(new Set(rest).size).toBe(3)
+  expect(rest.every((k) => k.startsWith('[hidden'))).toBe(true)
 })

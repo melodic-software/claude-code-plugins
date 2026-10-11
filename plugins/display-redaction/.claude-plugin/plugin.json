@@ -27,7 +27,7 @@
     "extra_patterns": {
       "type": "string",
       "title": "Extra mask patterns",
-      "description": "Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match nothing, or nests a quantifier inside a quantified group is skipped.",
+      "description": "Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or nests a quantifier inside a quantified group is skipped.",
       "multiple": true
     }
   }

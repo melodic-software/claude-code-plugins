@@ -28,12 +28,17 @@ The marketplace lists the plugin as off by default; enable it after installing.
 ## What is masked
 
 - Email addresses, including one still streaming at the end of the text.
-- `sk-` keys, `ghp_` and `github_pat_` tokens, `xox*` Slack tokens, `AKIA` AWS key IDs, and JWTs
-  (`eyJ...`).
-- PEM private-key blocks, including one that has no end line yet.
+- `sk-` keys, GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` and `github_pat_` tokens, `xox*` Slack
+  tokens, `AKIA` AWS key IDs, and JWTs (`eyJ...`).
+- PEM private-key blocks and PGP private-key blocks (`-----BEGIN PGP PRIVATE KEY BLOCK-----`),
+  including one that has no end line yet.
+- A match right after a terminal color code; the code itself is kept.
 - Your own patterns from the `extra_patterns` option, one regular expression per entry. A pattern
-  that is over 200 characters, can match empty text, nests a quantifier inside a quantified group,
-  or does not compile is skipped, and a log line at session start counts the skipped entries.
+  is skipped when it is over 200 characters, can match empty text, does not compile, or could
+  backtrack too long: a quantified group holding a quantifier or a `|`, more than one unbounded
+  quantifier (`*`, `+`, `{n,}`), or bounded ones that multiply to many lengths per start. A log
+  line at session start counts the skipped entries. Each pattern runs over 1,024-character windows
+  that overlap by half, so a match longer than 512 characters can be cut short.
 
 Not masked on purpose: an address whose local part is exactly `noreply`, a GitHub
 `<digits>+<name>@users.noreply.github.com` address, and `git@<host>:` remotes.
@@ -57,7 +62,9 @@ output, question prompts and info notices.
   kept.
 
 In `block` mode the real value sits behind the bar: selecting or copying it pastes the real value,
-and a terminal theme that changes those colors shows it. Use `text` when copying out is a concern.
+and a terminal theme that changes those colors shows it. So `block` protects pixel recordings and
+screen shares only: text-based terminal recorders (asciinema, `script`, tmux logs), terminal search
+and screen readers capture the real value. Use `text` for those, or when copying out is a concern.
 Hover was confirmed only in the plugin test kit; a live check in a session is pending.
 
 ## What it does not mask
@@ -81,13 +88,16 @@ A mod cannot reach, or this one does not hook:
 - Masked question texts and option labels are numbered so they stay distinct, so an answer may not
   line up beside its question.
 - A `+` or `-` diff marker directly before an email is masked with it.
+- A private-key `BEGIN` line with no `END` masks everything after it to the end of that text, and
+  any JWT-shaped token (`eyJ...`) masks. Both only reduce what a row shows.
 - If the mod itself fails in a way nobody foresaw, the original text can draw. Check a recording
   before you share it.
 
 ## Fail-closed behavior
 
-Masking is on whenever the plugin is enabled. If a masking hook fails, the row draws `[hidden]` in
-place of each match, in either style, not the original.
+Masking is on whenever the plugin is enabled. If a masking hook fails or runs past its time
+budget, the row draws `[hidden]` in place of all its text, in either style, not the original; that
+fallback runs none of your patterns, so it finishes within its own time limit.
 
 ## Commands
 
@@ -115,7 +125,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `mask_style` | string | `"block"` | `CLAUDE_PLUGIN_OPTION_MASK_STYLE` | How a match in a reply, prompt or command output is hidden. block draws it as a solid bar that shows the value while the pointer is over it; text replaces it with \[hidden\]. Tool rows always use \[hidden\]. |
-| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match nothing, or nests a quantifier inside a quantified group is skipped. |
+| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or nests a quantifier inside a quantified group is skipped. |
 
 ### How to set these
 

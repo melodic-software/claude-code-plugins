@@ -1,5 +1,5 @@
 import type { EngineInterface, Register, RenderElement, RenderPropsOf } from 'claude-code'
-import { blocks, compilePatterns, distinct, maskProps, splitMatches } from './mask.ts'
+import { blankProps, compilePatterns, distinct, maskProps, splitBlocks } from './mask.ts'
 
 const MASK = '[hidden]'
 // Block style, as the hide-email mod in Anthropic's "Mods in Claude Code" video draws it: a bar the
@@ -27,7 +27,7 @@ const palette = async ($: EngineInterface, isBlock: boolean): Promise<Palette | 
   }
 }
 // A drawn Text or Markdown refuses these, and a refused tree draws the original text.
-const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
 const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
   name: 'display-redaction',
@@ -89,7 +89,7 @@ function drawMasked(
   { masked, shown }: Palette,
 ): RenderElement | undefined {
   if (CONTROL.test(text)) return undefined
-  const split = blocks(text).map((block) => ({ block, ...splitMatches(block, patterns) }))
+  const split = splitBlocks(text, patterns)
   if (split.every((s) => s.hidden.length === 0)) return undefined
   const drawBlock = ({ block, parts, hidden }: (typeof split)[number], b: number) => {
     if (hidden.length === 0) return <Markdown text={block} />
@@ -111,23 +111,28 @@ const isDisabled = async ($: EngineInterface): Promise<boolean> => (await $.stat
 
 export const register: Register = (on, options) => {
   const { patterns, invalid } = compilePatterns(extraPatterns(options.extra_patterns))
-  const hide = <E extends { props: object }>(e: E, keys: readonly string[]): E => ({
+  // `mask` runs the patterns; `blank`, for a .catch, replaces every string whole and runs none, so
+  // it finishes within the handler's grace whatever the patterns cost.
+  type Rewrite = (props: Record<string, unknown>, keys: readonly string[]) => Record<string, unknown>
+  const mask: Rewrite = (props, keys) => maskProps(props, keys, patterns, MASK)
+  const blank: Rewrite = (props, keys) => blankProps(props, keys, patterns, MASK)
+  const hide = <E extends { props: object }>(e: E, keys: readonly string[], rewrite = mask): E => ({
     ...e,
-    props: maskProps(e.props as Record<string, unknown>, keys, patterns, MASK) as E['props'],
+    props: rewrite(e.props as Record<string, unknown>, keys) as E['props'],
   })
-  const hideQuestions = <E extends { props: RenderPropsOf['AskUserQuestion'] }>(e: E): E => {
-    const m = hide(e, KEYS.AskUserQuestion)
+  const hideQuestions = <E extends { props: RenderPropsOf['AskUserQuestion'] }>(e: E, rewrite = mask): E => {
+    const m = hide(e, KEYS.AskUserQuestion, rewrite)
     return { ...m, props: { ...m.props, questions: distinctQuestions(m.props.questions) } }
   }
-  const hideToolUse = <E extends { props: RenderPropsOf['ToolUse'] }>(e: E): E => {
-    const m = hide(e, KEYS.ToolUse)
+  const hideToolUse = <E extends { props: RenderPropsOf['ToolUse'] }>(e: E, rewrite = mask): E => {
+    const m = hide(e, KEYS.ToolUse, rewrite)
     const { tool, input, output } = m.props
     if (tool !== 'AskUserQuestion') return m
     const props = { ...m.props, input: distinctAsked(tool, input) }
     return { ...m, props: 'output' in m.props ? { ...props, output: distinctAsked(tool, output) } : props }
   }
-  const hideToolResult = <E extends { props: RenderPropsOf['ToolResult'] }>(e: E): E => {
-    const m = hide(e, KEYS.ToolResult)
+  const hideToolResult = <E extends { props: RenderPropsOf['ToolResult'] }>(e: E, rewrite = mask): E => {
+    const m = hide(e, KEYS.ToolResult, rewrite)
     return { ...m, props: { ...m.props, output: distinctAsked(m.props.tool, m.props.output) } }
   }
 
@@ -135,11 +140,12 @@ export const register: Register = (on, options) => {
   const draw = (elements: Elements, text: string, colors: Palette | undefined) =>
     colors && drawMasked(elements, text, patterns, colors)
 
-  // Each .catch masks whatever failed, so a fault never draws the original props.
+  // Each .catch (a hook that threw or overran) draws its text-bearing props as the mask whole,
+  // running no pattern: a fault never draws the original props.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (await isDisabled($)) return next(e)
     return draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) ?? next(hide(e, KEYS.AssistantMessage))
-  }).catch(($, e, next) => next(hide(e, KEYS.AssistantMessage)))
+  }).catch(($, e, next) => next(hide(e, KEYS.AssistantMessage, blank)))
   // A task notification or another party's message the engine draws as a compact row; only the
   // person's own prompt is drawn whole.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
@@ -147,19 +153,19 @@ export const register: Register = (on, options) => {
     const isOwn = e.props.task === undefined && e.props.from === undefined
     return (isOwn ? draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) : undefined) ??
       next(hide(e, KEYS.UserMessage))
-  }).catch(($, e, next) => next(hide(e, KEYS.UserMessage)))
+  }).catch(($, e, next) => next(hide(e, KEYS.UserMessage, blank)))
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
     if (await isDisabled($)) return next(e)
     return draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) ?? next(hide(e, KEYS.CommandOutput))
-  }).catch(($, e, next) => next(hide(e, KEYS.CommandOutput)))
+  }).catch(($, e, next) => next(hide(e, KEYS.CommandOutput, blank)))
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolUse(e)))
-    .catch(($, e, next) => next(hideToolUse(e)))
+    .catch(($, e, next) => next(hideToolUse(e, blank)))
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolResult(e)))
-    .catch(($, e, next) => next(hideToolResult(e)))
+    .catch(($, e, next) => next(hideToolResult(e, blank)))
   on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => next((await isDisabled($)) ? e : hideQuestions(e)))
-    .catch(($, e, next) => next(hideQuestions(e)))
+    .catch(($, e, next) => next(hideQuestions(e, blank)))
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.InfoNotice)))
-    .catch(($, e, next) => next(hide(e, KEYS.InfoNotice)))
+    .catch(($, e, next) => next(hide(e, KEYS.InfoNotice, blank)))
 
   on('session.start', async ($, e, next) => {
     await $.command.register(COMMAND)

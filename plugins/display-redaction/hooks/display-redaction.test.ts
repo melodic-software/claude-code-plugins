@@ -472,17 +472,127 @@ test('masks while no choice has been recorded', TEXT_MODE, async ($, on) => {
   expect(seen.props).toEqual({ text: `reply to ${M}`, origin: ORIGIN, isExpanded: true })
 })
 
-test('draws masked when the hook fails', async ($, on) => {
+// A refused state read makes every render hook throw, so its .catch draws.
+const failState = (on: On) => on('state.get', () => ({ deny: 'state unavailable' }))
+
+test('draws the whole text as the mask when the hook fails, running no pattern', async ($, on) => {
   const seen = capture(on, 'AssistantMessage')
-  // A refused state read makes the render hook throw.
-  on('state.get', () => ({ deny: 'state unavailable' }))
+  failState(on)
   await $.ui.render({
     surface: 'terminal',
     component: 'AssistantMessage',
     requestId: 'm1',
     props: { text: `Write to ${EMAIL}.`, isFirstOfReply: true, onScreen: ON_SCREEN },
   })
-  expect(seen.props).toEqual({ text: `Write to ${M}.`, isFirstOfReply: true, onScreen: ON_SCREEN })
+  expect(seen.props).toEqual({ text: M, isFirstOfReply: true, onScreen: ON_SCREEN })
+})
+
+test('a failed tool row hook draws every string of its input and output as the mask', async ($, on) => {
+  const seen = capture(on, 'ToolUse')
+  failState(on)
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'ToolUse',
+    requestId: 't3',
+    props: {
+      tool_use_id: 't3',
+      tool: 'Bash',
+      input: { command: 'echo hi', description: 'Say hi' },
+      isRunning: false,
+      isErrored: false,
+      isInterrupted: false,
+      output: { stdout: 'hi\n', stderr: '', interrupted: false },
+    },
+  })
+  expect(seen.props).toEqual({
+    tool_use_id: 't3',
+    tool: 'Bash',
+    input: { command: M, description: M },
+    isRunning: false,
+    isErrored: false,
+    isInterrupted: false,
+    output: { stdout: M, stderr: M, interrupted: false },
+  })
+})
+
+test('a failed question hook draws distinct masks for every question and label', async ($, on) => {
+  const seen = capture(on, 'AskUserQuestion')
+  failState(on)
+  const plain = (q: string) => ({
+    question: q,
+    header: 'Pick',
+    options: [
+      { label: 'Yes', description: 'first' },
+      { label: 'No', description: 'second' },
+    ],
+    multiSelect: false,
+  })
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AskUserQuestion',
+    requestId: 'q2',
+    props: { tool: 'AskUserQuestion', questions: [plain('Go on?'), plain('Stop?')] },
+  })
+  const drawn = (seen.props as { questions: Drawn[] }).questions
+  expect(isDistinct(drawn.map((q) => q.question))).toBe(true)
+  for (const q of drawn) {
+    expect(q.question.startsWith('[hidden')).toBe(true)
+    expect(isDistinct(q.options.map((o) => o.label))).toBe(true)
+    expect(q.options.every((o) => o.label.startsWith('[hidden'))).toBe(true)
+  }
+})
+
+// Every text in a drawn tree that is not a masked bar: Markdown text and Text without a background.
+const visibleTexts = (node: unknown): string[] => {
+  if (typeof node !== 'object' || node === null) return []
+  const { type, props, children = [] } = node as Node
+  if (type === 'Markdown') return [String(props?.text ?? '')]
+  if (type === 'Text' && props?.backgroundColor === undefined) {
+    return [children.filter((c) => typeof c === 'string').join('')]
+  }
+  return children.flatMap(visibleTexts)
+}
+
+test('block mode hides an encrypted private key whose headers end in a blank line', async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
+  const key = '-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B\n\nMIIsecretbody\n-----END RSA PRIVATE KEY-----'
+  const ui = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: `Here:\n\n${key}\n\nDone.`, isFirstOfReply: true },
+  })
+  const visible = visibleTexts(await ui.drawn()).join('\n')
+  expect(visible).toContain('Done.')
+  expect(visible).not.toContain('MIIsecretbody')
+  expect(visible).not.toContain('ENCRYPTED')
+})
+
+test('block mode hides an extra pattern that spans a blank line', {
+  options: { extra_patterns: ['TOP\\n\\nBOTTOM'] },
+}, async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
+  const ui = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: 'a TOP\n\nBOTTOM b', isFirstOfReply: true },
+  })
+  const visible = visibleTexts(await ui.drawn()).join('\n')
+  expect(visible).not.toContain('TOP')
+  expect(visible).not.toContain('BOTTOM')
+})
+
+test('block mode rewrites text holding a C1 control character a drawn Text refuses', async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
+  const seen = capture(on, 'AssistantMessage')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm-c1',
+    props: { text: `Write\u0085${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(seen.props).toEqual({ text: `Write\u0085${M} today.`, isFirstOfReply: true })
 })
 
 test('passes a reply with nothing to mask through unchanged', async ($, on) => {
