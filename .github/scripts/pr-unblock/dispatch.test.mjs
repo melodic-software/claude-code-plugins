@@ -4,6 +4,12 @@ import { test } from "node:test";
 import { createGitHubApi, dispatchConflicting } from "./dispatch.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
+const SUCCESS_RUN = { status: "completed", conclusion: "success", output: { title: "Resolved" } };
+const UNTRUSTED_SKIP = {
+  status: "completed",
+  conclusion: "neutral",
+  output: { title: "Skipped: untrusted-trigger" },
+};
 
 function pr(number, overrides = {}) {
   return {
@@ -19,7 +25,8 @@ function pr(number, overrides = {}) {
 
 // A fake of the four GitHub calls. `pages` is the open-PR listing, one array
 // per page; `requeries` is, per re-query round, the PR nodes GitHub returns;
-// `checked` is the set of head SHAs that already carry the check run.
+// `checked` is the set of head SHAs that already carry a successful check run,
+// or a Map from head SHA to the check runs GitHub returns for it.
 function fakeApi({
   pages = [[]],
   requeries = [],
@@ -45,12 +52,15 @@ function fakeApi({
       round += 1;
       return answer.filter((node) => numbers.includes(node.number));
     },
-    async listCheckRuns({ sha, checkName }) {
-      calls.checks.push({ sha, checkName });
+    async listCheckRuns({ sha, checkName, appId }) {
+      calls.checks.push({ sha, checkName, appId });
       if (failChecks.has(sha)) {
         throw new Error("check-runs read failed");
       }
-      return checked.has(sha) ? 1 : 0;
+      if (checked instanceof Map) {
+        return checked.get(sha) ?? [];
+      }
+      return checked.has(sha) ? [SUCCESS_RUN] : [];
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       calls.dispatch.push({ workflow, ref, inputs });
@@ -152,9 +162,57 @@ test("skips a PR whose current head already has a pr-unblock / resolve-conflicts
     checked: new Set([done.headRefOid]),
   });
   await run();
-  assert.deepEqual(api.calls.checks[0], { sha: done.headRefOid, checkName: CHECK_NAME });
+  assert.deepEqual(api.calls.checks[0], {
+    sha: done.headRefOid,
+    checkName: CHECK_NAME,
+    appId: 15368,
+  });
   assert.deepEqual(dispatchedNumbers(api), ["12"]);
   assert.ok(lines.some((line) => line.includes("#11")));
+});
+
+test("an untrusted-trigger neutral skip does not count as handled", async () => {
+  const skipped = pr(13);
+  const { api, run } = harness({
+    pages: [[skipped]],
+    checked: new Map([[skipped.headRefOid, [UNTRUSTED_SKIP]]]),
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["13"]);
+});
+
+test("an in-progress run or any other completed conclusion counts as handled", async () => {
+  const running = pr(14);
+  const failed = pr(15);
+  const otherNeutral = pr(16);
+  const mixed = pr(17);
+  const sameTitleFailed = pr(18);
+  const sameTitleRunning = pr(19);
+  const { api, run } = harness({
+    pages: [[running, failed, otherNeutral, mixed, sameTitleFailed, sameTitleRunning]],
+    checked: new Map([
+      [running.headRefOid, [{ status: "in_progress", conclusion: null, output: { title: null } }]],
+      [failed.headRefOid, [{ status: "completed", conclusion: "failure", output: { title: "x" } }]],
+      [
+        otherNeutral.headRefOid,
+        [
+          {
+            status: "completed",
+            conclusion: "neutral",
+            output: { title: "Skipped: not-conflicting" },
+          },
+        ],
+      ],
+      [mixed.headRefOid, [UNTRUSTED_SKIP, SUCCESS_RUN]],
+      [sameTitleFailed.headRefOid, [{ ...UNTRUSTED_SKIP, conclusion: "failure" }]],
+      [
+        sameTitleRunning.headRefOid,
+        [{ ...UNTRUSTED_SKIP, status: "in_progress", conclusion: null }],
+      ],
+    ]),
+  });
+  await run();
+  assert.deepEqual(api.calls.dispatch, []);
 });
 
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {
@@ -192,7 +250,7 @@ test("dispatches pr-unblock.yml on main with pr-number and dispatcher-run-id, lo
   assert.deepEqual(api.calls.dispatch, [
     {
       workflow: "pr-unblock.yml",
-      ref: "main",
+      ref: "refs/heads/main",
       inputs: { "pr-number": "51", "dispatcher-run-id": "4242" },
     },
   ]);
@@ -225,7 +283,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
         },
       },
     },
-    { total_count: 2, check_runs: [] },
+    { total_count: 1, check_runs: [SUCCESS_RUN] },
     { workflow_run_id: 77, run_url: "u", html_url: "h" },
   ];
   const fetchStub = async (url, init) => {
@@ -255,14 +313,16 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     },
     { owner: "octo", name: "repo", base: "main" },
   );
-  assert.equal(await api.listCheckRuns({ sha: "abc", checkName: CHECK_NAME }), 2);
+  assert.deepEqual(await api.listCheckRuns({ sha: "abc", checkName: CHECK_NAME, appId: 15368 }), [
+    SUCCESS_RUN,
+  ]);
   assert.equal(
     requests[1].url,
-    "https://api.example/repos/octo/repo/commits/abc/check-runs?check_name=pr-unblock+%2F+resolve-conflicts&filter=all",
+    "https://api.example/repos/octo/repo/commits/abc/check-runs?check_name=pr-unblock+%2F+resolve-conflicts&app_id=15368&filter=all&per_page=100",
   );
   const sent = await api.dispatchWorkflow({
     workflow: "pr-unblock.yml",
-    ref: "main",
+    ref: "refs/heads/main",
     inputs: { "pr-number": "1" },
   });
   assert.deepEqual(sent, { workflowRunId: 77 });
@@ -270,7 +330,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[2].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/dispatches",
   );
-  assert.deepEqual(requests[2].body, { ref: "main", inputs: { "pr-number": "1" } });
+  assert.deepEqual(requests[2].body, { ref: "refs/heads/main", inputs: { "pr-number": "1" } });
   assert.equal(requests[2].method, "POST");
   assert.equal(requests[2].auth, "Bearer t0ken");
 });

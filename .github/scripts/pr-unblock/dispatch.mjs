@@ -17,6 +17,9 @@ export const DEFAULTS = Object.freeze({
   base: "main",
   workflow: "pr-unblock.yml",
   checkName: "pr-unblock / resolve-conflicts",
+  // The GitHub Actions app: only a check run it created counts, so another
+  // app cannot suppress a dispatch by posting a run under the same name.
+  appId: 15368,
   // Judgment until the lane's measured per-run cost sets it.
   maxDispatch: 3,
   // GitHub gives no timing for computing mergeability; this bounds the wait
@@ -43,6 +46,16 @@ function isPending(node, base) {
   );
 }
 
+// A check run handles the head unless it is the gate's completed neutral skip
+// for an untrusted trigger: a trusted dispatch may still resolve that head.
+function handles(run) {
+  return !(
+    run.status === "completed" &&
+    run.conclusion === "neutral" &&
+    String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger")
+  );
+}
+
 async function listAll(api, base) {
   const nodes = [];
   let after;
@@ -64,6 +77,7 @@ export async function dispatchConflicting({
   base = DEFAULTS.base,
   workflow = DEFAULTS.workflow,
   checkName = DEFAULTS.checkName,
+  appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
   unknownRetries = DEFAULTS.unknownRetries,
   unknownDelayMs = DEFAULTS.unknownDelayMs,
@@ -94,7 +108,7 @@ export async function dispatchConflicting({
     }
     let existing;
     try {
-      existing = await api.listCheckRuns({ sha: node.headRefOid, checkName });
+      existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
     } catch (error) {
       failed += 1;
       log(
@@ -102,14 +116,14 @@ export async function dispatchConflicting({
       );
       continue;
     }
-    if (existing > 0) {
+    if (existing.some(handles)) {
       log(`skip #${node.number}: head ${node.headRefOid} already has a ${checkName} check run`);
       continue;
     }
     try {
       const { workflowRunId } = await api.dispatchWorkflow({
         workflow,
-        ref: base,
+        ref: `refs/heads/${base}`,
         inputs: { "pr-number": String(node.number), "dispatcher-run-id": String(runId) },
       });
       dispatched.push({ number: node.number, workflowRunId });
@@ -189,12 +203,17 @@ export function createGitHubApi({
       );
       return Object.values(data.repository).filter((node) => node?.state === "OPEN");
     },
-    async listCheckRuns({ sha, checkName }) {
-      const query = new URLSearchParams({ check_name: checkName, filter: "all" });
+    async listCheckRuns({ sha, checkName, appId }) {
+      const query = new URLSearchParams({
+        check_name: checkName,
+        app_id: String(appId),
+        filter: "all",
+        per_page: "100",
+      });
       const result = await request(
         `${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?${query}`,
       );
-      return result.total_count;
+      return result.check_runs;
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(

@@ -72,6 +72,10 @@ jobs:
         uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
         with:
           require-pr: false
+          require-kind: human
+          dispatched-workflow: .github/workflows/pr-unblock.yml
+          # Actor-only mode reads no PR or run, so the gate gets no token.
+          github-token: ""
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
