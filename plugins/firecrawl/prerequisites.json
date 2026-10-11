@@ -53,7 +53,7 @@
             "firecrawl",
             "--status"
           ],
-          "pattern": "\\bAuthenticated\\b"
+          "pattern": "●(\\u001b\\[[0-9;]*m)? Authenticated( |\\u001b|$)"
         }
       },
       "degrade": "Until `firecrawl --status` reports Authenticated, /firecrawl:firecrawl calls fail. The CLI accepts FIRECRAWL_API_KEY in its own process environment (set as an OS user variable, or injected by a wrapper) or `firecrawl login` config; the plugin never stores, prints or logs the key.",
