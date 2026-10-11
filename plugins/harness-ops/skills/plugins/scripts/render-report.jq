@@ -216,7 +216,8 @@ def block($d):
          "  (not counted as divergences: converge cannot cd into a path that is not present. A path can also",
          "   be absent because a volume is unmounted or a share is offline, so this is an observation, not a",
          "   verdict that the directory is gone for good.)",
-         "  To classify and reap records left by removed worktrees: /source-control:worktree audit (if installed)"
+         "  Project-scope records left by worktrees removed under the source-control worktree root:",
+         "  /source-control:worktree audit (if installed) classifies them and gives the gated reap."
        else empty end),
 
       (.cache_content as $c
