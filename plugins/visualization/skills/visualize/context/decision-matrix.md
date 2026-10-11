@@ -187,7 +187,8 @@ v2.1.285 reads the `design` registration as model-invocation-disabled and
 user-invocable, so the model never lists or invokes it and the person runs
 `/design`. A local skill named `design` can collide with the bundled one; which
 skill wins a shared name is read live from
-[Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name).
+[Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
+(as of 2026-10-11; recheck when that section changes which skill wins a shared name).
 
 - **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.
 - **As of**: 2026-09-30
@@ -213,8 +214,9 @@ belongs to the separate `ClaudeDesign` tool), come from the same probe: the
 held in the `design` records of `docs/native-surfaces/records.json`.
 
 The design-sync family's registry disposition (defer, observed-only) also lives in
-`docs/native-surfaces/records.json`, which keeps the v2.1.263 registration evidence
-as history. Recheck when a release note first names a design-family surface.
+`docs/native-surfaces/records.json` (its `design-sync` records), which keeps the
+v2.1.263 registration evidence as history (as of 2026-10-11; recheck when a release
+note first names a design-family surface, or those records change disposition).
 
 ## Third-party visualization plugins
 
@@ -260,7 +262,9 @@ what terminal Markdown rendering covers.
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
   tool's own description in the session (no public docs section covers them as of
-  2026-10-11).
+  2026-10-11; recheck when the artifacts page adds a section on mermaid rendering,
+  favicons, theming or responsive layout, or the Artifact tool's description drops
+  one of them).
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
 - Plugin manifest `userConfig` fixed-value fields, which this plugin's options use:

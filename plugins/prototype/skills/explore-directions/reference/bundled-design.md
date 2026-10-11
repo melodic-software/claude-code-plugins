@@ -16,8 +16,9 @@ the same surface in its decision-matrix catalog.
 
 Earlier probe history (verified 2026-08-31): the 2.1.251 binary carried the same canvas
 registration as the history row, with its rollout flag defaulting off at v2.1.234 and on at
-v2.1.263; the hub is the design-sync family the registry records as a `defer` row in
-`docs/native-surfaces/records.json`.
+v2.1.263; the hub is the design-sync family the registry records as a `defer` row in the
+`design-sync` records of `docs/native-surfaces/records.json` (recheck when those records change
+disposition or a release note first names a design-family surface).
 
 ## Why the verdict is complementary
 

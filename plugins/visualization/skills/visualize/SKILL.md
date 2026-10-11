@@ -98,8 +98,10 @@ tier, so the offer is also gated on Step 3's medium selection: when an explicit
 `terminal`/`file` argument or the configured preference pins delivery on-machine
 ("never published"), do not offer it. Where the medium permits publishing, offer
 it as an explicit alternative, never a silent default: the canvas is a published,
-persistent Artifact the person edits and shares (how, per the catalog's design
-canvas pointer), where this skill's page paths are throwaway or plain-static. The Boundary section below carries the sentence to offer and its gate
+persistent Artifact the person edits and shares (how, per the pointer in
+[the catalog's design canvas section](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview),
+as of 2026-10-11; recheck when that heading is renamed or its pointer moves), where
+this skill's page paths are throwaway or plain-static. The Boundary section below carries the sentence to offer and its gate
 basis; the canvas surface facts and their verified-on/recheck record live in the
 catalog spoke.
 
@@ -138,8 +140,10 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    (rendered diagrams, real charts, dashboards).
 
 **Surface gate: the rich page is a capability that can be absent.** A published
-Artifact is gated; the catalog's availability entry points at the live conditions.
-So when a page is warranted:
+Artifact is gated;
+[the catalog's availability entry](context/decision-matrix.md#availability-gating-why-the-surface-is-often-absent)
+points at the live conditions (as of 2026-10-11; recheck when that heading is renamed
+or its pointer moves). So when a page is warranted:
 publish an Artifact only if that surface is available; otherwise write a
 self-contained local HTML file and open it; if neither page surface is available,
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
@@ -322,7 +326,9 @@ never a silent default and nothing tracked in a repository references it. This s
 bundled `design` registration as model-invocation-disabled, user-invocable and gated, which is
 why this skill only ever offers it. Settings can remove it; which settings, and how, are read from
 the pointers in the catalog spoke's design canvas section
-([context/decision-matrix.md](context/decision-matrix.md)), which owns the remaining surface facts.
+([context/decision-matrix.md](context/decision-matrix.md#design-canvas-bundled-design-skill-presence-gated-preview)),
+which owns the remaining surface facts (as of 2026-10-11; recheck when that heading is renamed or
+its settings pointers move).
 
 - **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.
 - **As of**: 2026-09-29
@@ -348,7 +354,8 @@ editor; this skill is the form and medium router.
 to the project the person named, and only after they asked for the change. When the tool asks for
 an approval or refuses a write, report it and never retry around it. The approval and refusal
 cases are probed behavior recorded in
-[context/claude-design-tool.md](context/claude-design-tool.md).
+[context/claude-design-tool.md](context/claude-design-tool.md#the-built-in-claudedesign-tool-verification-record)
+(as of 2026-10-11; recheck when that record's approval and denial row changes or moves).
 
 ## What this skill does NOT do
 
