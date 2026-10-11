@@ -101,8 +101,8 @@ sibling divergences it owns.
 - **Tier semantics** (identical to the sibling audits): Tier 1 = definite; Tier 2 = review needed;
   Tier 3 = likely legitimate, surfaced for awareness and carrying NO treatment.
 - **Citation posture.** Skill size and description caps are `/playbooks:skill-authoring`'s (`## Body`,
-  `## Descriptions`); the other vendor-defined numbers (200/1%/~100 tokens/5k/25k) are
-  cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
+  `## Descriptions`); the other vendor-defined numbers (CLAUDE.md target, listing budget, per-skill metadata cost,
+  compaction re-attach budgets) are cited as Anthropic-prescribed; their owning pages, as-of date, and recheck trigger live in the
   provenance record in [context/tier-model.md](context/tier-model.md), which is re-verified rather
   than trusted. Consensus language is reserved for independently corroborated claims;
   community-sourced signals are labeled as such and stay advisory.
@@ -189,13 +189,13 @@ Each entry names the topic this skill relies on the source for, never what the s
 pointer, as-of date and recheck trigger for each threshold live in
 [context/tier-model.md](context/tier-model.md).
 
-- [Claude Code skills docs](https://code.claude.com/docs/en/skills). Loading levels, listing cap, compaction budgets, split triggers
-- [Claude Code memory docs](https://code.claude.com/docs/en/memory). CLAUDE.md/rules loading, 200-line target, fact-vs-procedure routing
-- [Claude Code large-codebases docs](https://code.claude.com/docs/en/large-codebases). Root-orients / per-directory layering, escalation ladder
+- [Claude Code skills docs: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) and [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). Loading levels, listing cap and drop order, compaction budgets
+- [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, 200-line target, fact-vs-procedure routing
+- [Claude Code large-codebases docs: Layer CLAUDE.md files by directory](https://code.claude.com/docs/en/large-codebases#layer-claude-md-files-by-directory) and [Centralize conventions when layering stops scaling](https://code.claude.com/docs/en/large-codebases#centralize-conventions-when-layering-stops-scaling). Root-orients / per-directory layering, escalation ladder
 - [Agent Skills best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices). Hub-and-spoke patterns, pointer rules, observed-navigation diagnostics, >100-line TOC guidance
 - [Agent Skills spec](https://agentskills.io/specification). Frontmatter limits, one-level-deep rule, ~100-token metadata
 - [Progressive disclosure patterns](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#progressive-disclosure-patterns). Mutual-exclusivity split rule (correlate with [Anthropic engineering: Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills))
 - [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
 - [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, >300-line TOC guidance
 - [UC Davis disclosure study (arXiv 2607.17598)](https://arxiv.org/abs/2607.17598). Scale boundary, depth>1 harm (academic corroboration)
-- [happyskills: listing eviction](https://happyskills.ai). Community source for eviction scoring and the when-NOT-to-use description clause (advisory color only)
+- [happyskills](https://happyskills.ai). Community source for the when-NOT-to-use description clause (advisory color only)

@@ -161,16 +161,23 @@ and the fix is a fresh set of eyes: a context that never saw the document.
 
 1. Spawn a **fresh-context, non-fork subagent**. When the audited file loads at
    launch (root `CLAUDE.md`, `AGENTS.md`, an unscoped `.claude/rules` file), it
-   MUST be an `Explore` or `Plan` agent: every other subagent type starts with
-   those files already loaded, so its "fresh" run would be graded by an agent
-   that has read the answer. A custom subagent with `omitClaudeMd` still loads
-   managed policy files, so it is not a substitute. The dated record is in
-   SKILL.md "Sources". Any other audited file may use any non-fork subagent.
+   MUST be an `Explore` or `Plan` agent, the subagent types we rely on to start
+   without those files, so the "fresh" run is not graded by an agent that has
+   read the answer. A custom subagent with `omitClaudeMd` is not a substitute.
+   Any other audited file may use any non-fork subagent.
    The subagent must NOT be shown the document and must NOT be spawned as the Agent tool's
-   `fork` subagent type, which inherits the parent conversation and would carry
-   this context's answers into the test. A skill's own `context: fork`
-   frontmatter is a different mechanism and starts blank, with no access to the
-   conversation.
+   `fork` subagent type, which would carry this context's answers into the
+   test. A skill's own `context: fork` frontmatter is a different mechanism and
+   is not ruled out by this step.
+
+   - **Pointer**: for which subagent types load which instruction files, and
+     what a fork inherits, fetch
+     <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> and
+     <https://code.claude.com/docs/en/sub-agents#fork-the-current-conversation>
+     live; the dated record is also in SKILL.md "Sources".
+   - **As of**: 2026-10-11
+   - **Recheck trigger**: the first section stops listing Explore and Plan as
+     skipping CLAUDE.md, or changes what `omitClaudeMd` leaves loaded.
 2. Give it the questions the document answers, or ask it to produce the
    document's key conclusions, using **only** native repository exploration. For a routing-only
    doc (pointers to other files), do **not** ask the fresh agent the doc's own trigger question

@@ -5,50 +5,79 @@ auto-loads, at what moment, and under what size behavior. Write differently for 
 surface (every line is a per-session tax) than for an on-demand one (cost only when the trigger
 fires).
 
-Claude Code rows verified against official docs current at v2.1.233 (2026-08-17); a row carrying its
-own version and date supersedes this line for that row. The harness
-releases frequently, so when your write depends on a load-timing detail, re-verify it
-against <https://code.claude.com/docs/en/memory> before relying on it.
+The table sorts each surface into a load class: always loaded at session start, loaded on demand,
+or loaded per invocation. That class is what changes how you write. Exact load order, size limits,
+opt-in variables, version floors and per-surface conditions are upstream specifics; read them at the
+pointers below the table when a write depends on one.
 
 ## Claude Code surfaces
 
-| Surface | Path pattern | When it loads |
+| Surface | Path pattern | Load class |
 |---------|-------------|---------------|
-| Managed-policy CLAUDE.md / `claudeMd` key | OS-specific managed dirs | Session start, before all other scopes; cannot be excluded |
-| User CLAUDE.md | `~/.claude/CLAUDE.md` | Session start, full |
-| Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start; re-injected after `/compact` |
-| CLAUDE.local.md | `./CLAUDE.local.md` (also beside ancestor CLAUDE.md) | Session start, after same-level CLAUDE.md |
-| Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start, root→cwd; excludable via `claudeMdExcludes` |
-| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)); NOT re-injected after `/compact` until it loads again |
+| Managed-policy CLAUDE.md / `claudeMd` key | OS-specific managed dirs | Session start; not excludable |
+| User CLAUDE.md | `~/.claude/CLAUDE.md` | Session start |
+| Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start; survives `/compact` |
+| CLAUDE.local.md | `./CLAUDE.local.md` (also beside ancestor CLAUDE.md) | Session start |
+| Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
+| Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
-| User rules | `~/.claude/rules/*.md` | Session start, before project rules (lower priority) |
-| `--add-dir` CLAUDE.md/rules | `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, `CLAUDE.local.md` in each added directory | Session start, ONLY when `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; off by default, and otherwise these files do not load at all |
-| `@` imports | `@path` inside CLAUDE.md/rules; max 4 hops; skipped in code spans/fences | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | `./AGENTS.md`, `./.claude/AGENTS.md`, the same names in ancestor dirs; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, native since v2.1.277, but ONLY where no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in cwd or above it, and only where support is available: the availability set is remote-flag gated and moves, so read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where either condition fails: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
-| Auto-memory index | `~/.claude/projects/<project>/memory/MEMORY.md` | Session start: first 200 lines or 25KB, whichever first |
+| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; keep the two sets consistent, since neither is a fallback for the other |
+| `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
+| `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
+| AGENTS.md | `AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
 | Commands (legacy) | `.claude/commands/`, `~/.claude/commands/` | On invocation; merged into the skills mechanism |
-| Subagent definitions | `.claude/agents/`, `~/.claude/agents/`, plugin `agents/` | Body becomes the subagent's system prompt at spawn; description read at delegation time |
-| Subagent persistent memory | `agent-memory/<agent>/` | First 200 lines/25KB of that agent's MEMORY.md at its spawn |
+| Subagent definitions | `.claude/agents/`, `~/.claude/agents/`, plugin `agents/` | Per spawn: the body is the subagent's system prompt |
+| Subagent persistent memory | `agent-memory/<agent>/` | Per spawn, head of that agent's MEMORY.md only |
 | Output styles | `output-styles/` (user/project/managed/plugin) | Session start when selected; modifies the system prompt |
-| Workflows | `.claude/workflows/`, plugin `workflows/` | Startup; each file becomes a command |
-| Hook-carried instruction text | hooks in settings/plugins/frontmatter | On lifecycle events; `additionalContext` capped at 10,000 chars |
+| Workflows | workflow directories (project, user, plugin) | Startup; each file becomes a command |
+| Hook-carried instruction text | hooks in settings/plugins/frontmatter | On lifecycle events; output is size-capped, so keep it short |
 | `--append-system-prompt` | CLI flag | Per invocation, appended to the default system prompt |
 | `--append-system-prompt-file`, `--append-subagent-system-prompt`, `--append-subagent-system-prompt-file` | CLI flags | Per invocation; see [CLI prompt appends](#cli-prompt-appends) |
 
 Load-semantics facts that change how you write:
 
-- Scope order is managed → user → project → local; the more specific scope lands later in
-  context.
-- Nested CLAUDE.md and `paths:`-gated rules do NOT survive `/compact` re-injection, so a
-  constraint that must hold post-compaction belongs on a surface that does.
+- More specific scopes land later in context; nothing overrides anything else, so contradictions
+  between scopes are a defect to remove, not a precedence to rely on.
+- Content that loads on demand (nested CLAUDE.md, `paths:`-gated rules) may be absent right after
+  `/compact` until it loads again, so a constraint that must hold post-compaction belongs on a
+  surface that survives it.
 - Block-level HTML comments in CLAUDE.md are stripped before injection, which makes them free
   maintainer notes.
-- MEMORY.md hard-truncates (200 lines / 25KB); CLAUDE.md never truncates, though official
-  guidance is <200 lines per CLAUDE.md anyway.
+- MEMORY.md loads only its head, so put what must load first; keep CLAUDE.md short for adherence,
+  and treat the 200-line target as ours to grade with (see `/docs-hygiene:audit-progressive-disclosure`).
 - These surfaces are context, not enforcement, so a rule that must be mechanically guaranteed
   belongs in a hook or permission policy, not prose.
+
+### Surface pointers
+
+- **Pointer**: when a write depends on a load-order, exclusion, import or `--add-dir` detail, fetch
+  <https://code.claude.com/docs/en/memory#how-claude-md-files-load>,
+  <https://code.claude.com/docs/en/memory#load-from-additional-directories>,
+  <https://code.claude.com/docs/en/memory#import-additional-files> and
+  <https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files> live; for user rules,
+  <https://code.claude.com/docs/en/memory#user-level-rules>.
+- **Pointer** (AGENTS.md load conditions and the setting that changes them):
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
+- **Pointer** (auto-memory location, head limit, CLAUDE.md size handling):
+  <https://code.claude.com/docs/en/memory#storage-location> and
+  <https://code.claude.com/docs/en/memory#how-it-works>; subagent memory:
+  <https://code.claude.com/docs/en/sub-agents#enable-persistent-memory>.
+- **Pointer** (what survives compaction):
+  <https://code.claude.com/docs/en/context-window#what-survives-compaction>.
+- **Pointer** (other rows): subagent locations
+  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>; skill loading
+  <https://code.claude.com/docs/en/skills#skill-content-lifecycle>; output styles
+  <https://code.claude.com/docs/en/output-styles#create-a-custom-output-style>; workflows
+  <https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse>; hook output caps
+  <https://code.claude.com/docs/en/hooks#json-output>; system prompt flags
+  <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
+  surface, or the memory page stops saying that rule scopes do not override each other.
 
 ### Load triggers
 
@@ -74,15 +103,16 @@ what attaches a subdirectory AGENTS.md.
 
 ## CLI prompt appends
 
-These are invocation flags, not memory files. **Claim:** three flags append instruction text beyond
-`--append-system-prompt`. `--append-system-prompt-file` loads a file and appends it to the default
-system prompt, and the cli-reference cell does not restrict it to `-p`.
-`--append-subagent-system-prompt` and `--append-subagent-system-prompt-file` append to every
-subagent system prompt except a fork, only in non-interactive `-p` mode; the file form requires
-Claude Code v2.1.261 or later and cannot be combined with the text form; the text form requires
-v2.1.205 or later. **Basis:**
-[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows. **As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
-whether the two subagent flags combine, or leaves the table.
+These are invocation flags, not memory files. Treat each as per-invocation instruction text: one
+appends a file to the main system prompt, and two append text to subagent system prompts. Before
+relying on one, read its mode restriction, version floor, fork exception and whether it combines
+with its sibling at the pointer.
+
+- **Pointer**: <https://code.claude.com/docs/en/cli-reference#cli-flags> (the three flag rows) and
+  <https://code.claude.com/docs/en/cli-reference#system-prompt-flags> (how the flags combine).
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of the three flag rows changes its mode restriction or leaves the table,
+  or the System prompt flags section changes which flags combine.
 
 ## Other-ecosystem analogues
 

@@ -165,7 +165,7 @@ base audit.md path; `--include-bare-token` applies to every sub-mode except Orph
 | Flag | Effect | Apply-mode availability |
 |---|---|---|
 | `--include-historical` | Sweep archived/completed work notes and frozen records of past work | Available |
-| `--include-memory` | Sweep `~/.claude/projects/*/memory/*.md` and `MEMORY.md` indices | Available |
+| `--include-memory` | Sweep the auto-memory directory's `*.md` files and `MEMORY.md` indices (location: SKILL.md "Auto-memory location") | Available |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY** |
 | `--include-bare-token` | Surface the bare-token residue that container-rename mode ([patterns.md](patterns.md) "Phase 0b") otherwise reports only as an aggregate count. Always lands **Ambiguous**, never Certain, because the mode excluded it since bare-token position carries no signal for a container rename, and widening the report does not change that. **Not applicable to Orphans**, which sweeps only Forms 1 and 3 and so produces no bare-token residue to surface; passing it there is accepted and reported as not-applicable rather than silently returning the default result | **AUDIT-MODE ONLY** |
 | `--container` | Force container-rename mode: rule 1 of the [patterns.md](patterns.md) "Phase 0b" ladder, skipping the evidence checks below it | Available |
@@ -196,7 +196,7 @@ to inspect, then update the plan document by hand if needed.
 
 - Auto-exclusion source-of-truth: `../SKILL.md` "Auto-exclusions" + `triage.md` "Special case" sections
 - Frozen-historical detection: use the consuming repository's work-notes status conventions (frontmatter status fields, archive directories) when present; otherwise treat clearly-archived paths as frozen
-- Memory paths: `~/.claude/projects/*/memory/*.md` (cross-platform: POSIX path on Git Bash, Windows path elsewhere)
+- Memory paths: `*.md` in the auto-memory directory resolved per SKILL.md "Auto-memory location" (cross-platform: POSIX path on Git Bash, Windows path elsewhere)
 
 ---
 
