@@ -347,11 +347,11 @@ BUPM_ERR=""
 # one budget of BUPM_BUDGET_S seconds (35), each call capped at what is left
 # and at 15 s, enforced by `timeout` where it exists and by a watcher process
 # where it does not (stock macOS). A spent budget is a failed read.
-# The test suite shortens the budget through GUARDRAILS_BUPM_BUDGET_S; only a
-# value from 1 to 35 is taken, so it can never lengthen the budget.
+# No environment variable changes the budget: settings.json `env` reaches a
+# hook's environment, so a knob could make every merge run unchecked. The test
+# suite shortens it in a rewritten copy of this script instead, so keep the
+# assignment below on one line in exactly this form.
 BUPM_BUDGET_S=35
-[[ "${GUARDRAILS_BUPM_BUDGET_S:-}" =~ ^[1-9][0-9]?$ ]] && ((GUARDRAILS_BUPM_BUDGET_S <= 35)) &&
-  BUPM_BUDGET_S=$GUARDRAILS_BUPM_BUDGET_S
 BUPM_T0=$SECONDS
 # _bupm_limited <secs> <cmd>...: run <cmd>, killed after <secs>; rc 124 then.
 _bupm_limited() {

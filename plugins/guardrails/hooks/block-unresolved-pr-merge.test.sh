@@ -46,6 +46,8 @@ done
 printf '%s\n' "$endpoint" >>"$fix/calls"
 # exec, so a timeout kills this process itself and no orphan holds the pipe.
 [[ -n "${FAKE_GH_SLEEP:-}" ]] && exec sleep "$FAKE_GH_SLEEP"
+# A slow but answering gh: each call waits, then serves its fixture.
+[[ -n "${FAKE_GH_DELAY:-}" ]] && sleep "$FAKE_GH_DELAY"
 if [[ -f "$fix/fail" ]]; then
   echo "gh: Bad credentials (HTTP 401)" >&2
   exit 1
@@ -372,9 +374,20 @@ assert_contains "pre-subcommand -R names the repo" "$(calls)" "repos/acme/widget
 quiet "gh pr -R repo view is not a merge" 'gh pr -R acme/widgets view 42'
 
 # --- 9c. one time budget across every read, with or without `timeout` -----
+# The budget has no environment knob, so these cases run a copy of the hook
+# with its one budget line rewritten to 2 s, beside links to the libraries it
+# sources.
+SHORT="$TEST_TMPDIR/short-budget"
+mkdir -p "$SHORT"
+ln -sf "$HOOK_DIR/abort-boundary.sh" "$HOOK_DIR/hook-utils.sh" "$SHORT/"
+sed 's/^BUPM_BUDGET_S=35$/BUPM_BUDGET_S=2/' "$HOOK" >"$SHORT/block-unresolved-pr-merge.sh"
+assert_eq "the short-budget copy rewrote the budget line" "1" \
+  "$(grep -c '^BUPM_BUDGET_S=2$' "$SHORT/block-unresolved-pr-merge.sh")"
+HOOK_REAL="$HOOK"
+HOOK="$SHORT/block-unresolved-pr-merge.sh"
 scenario unresolved none green green
 SECONDS=0
-run "a hung gh is cut off by the budget" 'gh pr merge 42' 0 FAKE_GH_SLEEP=30 GUARDRAILS_BUPM_BUDGET_S=2
+run "a hung gh is cut off by the budget" 'gh pr merge 42' 0 FAKE_GH_SLEEP=30
 assert_contains "budget -> fails open, saying so" "$OUT" "will run unchecked"
 if ((SECONDS < 8)); then ok "budget -> returned in ${SECONDS}s"; else bad "budget -> took ${SECONDS}s"; fi
 NOTIMEOUT="$TEST_TMPDIR/notimeout"
@@ -385,13 +398,18 @@ done
 ln -sf "$BIN/gh" "$NOTIMEOUT/gh"
 scenario unresolved none green green
 SECONDS=0
-OUT=$(env PATH="$NOTIMEOUT" FAKE_GH_DIR="$FIX" FAKE_GH_SLEEP=30 GUARDRAILS_BUPM_BUDGET_S=2 \
+OUT=$(env PATH="$NOTIMEOUT" FAKE_GH_DIR="$FIX" FAKE_GH_SLEEP=30 \
   "$NOTIMEOUT/bash" "$HOOK" <<<"$(command_json 'gh pr merge 42')" 2>/dev/null)
 assert_exit "no timeout binary: the watcher cuts gh off" 0 "$?"
 assert_contains "no timeout binary -> fails open, saying so" "$OUT" "will run unchecked"
 if ((SECONDS < 8)); then ok "no timeout binary -> returned in ${SECONDS}s"; else bad "no timeout binary -> took ${SECONDS}s"; fi
+HOOK="$HOOK_REAL"
+# No environment variable shortens the budget: settings.json `env` reaches a
+# hook's environment, so a knob there could make every merge run unchecked.
+# Five calls at 0.7 s outlast a 1 s budget, so a knob that took would fail open.
 scenario unresolved none green green
-run "a budget above 35 s is not taken" 'gh pr merge 42' 2 GUARDRAILS_BUPM_BUDGET_S=99
+run "an env var cannot shorten the budget" 'gh pr merge 42' 2 FAKE_GH_DELAY=0.7 GUARDRAILS_BUPM_BUDGET_S=1 BUPM_BUDGET_S=1
+assert_contains "env var ignored -> the thread is still listed" "$ERR" "src/app.py:12"
 
 # --- 10. PowerShell -----------------------------------------------------------------
 scenario unresolved none green green
