@@ -100,23 +100,32 @@ function optionsIn(file, install) {
   const matches = (key) =>
     install.pluginId !== null ? key === install.pluginId : key === install.name || key.startsWith(`${install.name}@`);
   if (install.pluginId === null && install.name === null) return [];
+  // A matching entry that is malformed fails closed rather than contributing no verdict, so a
+  // broken managed entry cannot let the user scope decide.
+  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   return Object.keys(configs)
     .filter(matches)
     .sort()
-    .map((key) => configs[key]?.options)
-    .filter((options) => options !== null && typeof options === "object");
+    .flatMap((key) => {
+      const entry = configs[key];
+      if (!isObject(entry)) throw new OptionsError(`pluginConfigs["${key}"] in ${file} is not an object`);
+      if (!Object.hasOwn(entry, "options")) return [];
+      if (!isObject(entry.options)) throw new OptionsError(`pluginConfigs["${key}"].options in ${file} is not an object`);
+      return [entry.options];
+    });
 }
 
 // Resolves every option key to {value, scope, file}; a key no source configures is absent.
-// Throws OptionsError when a source that could hold a value cannot be read, or a configured value
-// is not a string: either way the operator's value is not known, and the caller fails closed.
+// Throws OptionsError when a source that could hold a value cannot be read, this plugin's entry or
+// its options is not an object, or a configured value is not a string (null included): either way
+// the operator's value is not known, and the caller fails closed.
 export function readOperatorOptions(install, managedFiles) {
   const user = {};
   const managed = {};
   const take = (file, scope, into) => {
     for (const options of optionsIn(file, install)) {
       for (const key of OPTION_KEYS) {
-        if (!Object.hasOwn(options, key) || options[key] === null) continue;
+        if (!Object.hasOwn(options, key)) continue;
         if (typeof options[key] !== "string") throw new OptionsError(`${key} in ${file} is not a string`);
         into[key] = { value: options[key], scope, file };
       }

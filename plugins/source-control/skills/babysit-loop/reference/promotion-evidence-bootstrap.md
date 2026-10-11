@@ -54,6 +54,16 @@ files never reach it. What the helper cannot see reads as unset and fails closed
 only through a session's `--settings` file, a server-managed (remote) policy, or an MDM policy.
 Configure the four options in managed settings or user settings.
 
+The helper can also read a managed file Claude Code itself skips. When a higher-ranked managed
+source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
+uses that source and ignores the managed settings files
+([managed settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
+"How Claude Code combines managed sources", as of 2026-10-11; recheck when that section or the
+`managedSourcesBehavior` default changes). The helper sees only the files, so on such a host a
+stale `managed-settings.json` the harness no longer applies can still supply these options. Keep the
+four options out of managed files on a host whose policy comes from a remote or MDM source, or
+remove the stale file.
+
 The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
 helper from another directory, or starts Node with a preload such as `NODE_OPTIONS=--require`, is
 running a different program, and no check inside the helper can refuse that; the checker it
@@ -223,7 +233,8 @@ absent. A set value is compliant only when it is:
 - **Claim:** the helper takes no bootstrap value as an argument or from the environment. It reads
   the four options from the managed settings files and the install-anchored user `settings.json`,
   managed winning per option, and fails closed when an option is unset there, a source exists but
-  cannot be read or parsed, or a value is not a string. A lane-chosen checker or binding passed as
+  cannot be read or parsed, this plugin's entry or its `options` is not an object, or a value is
+  not a string (`null` included). A lane-chosen checker or binding passed as
   an argument, or offered through the `CLAUDE_PLUGIN_OPTION_*` mirror, a checkout
   `.claude/settings.json`, `.claude/source-control.md`, `CLAUDE_CONFIG_DIR` or `HOME`, does not
   yield `promoted`.

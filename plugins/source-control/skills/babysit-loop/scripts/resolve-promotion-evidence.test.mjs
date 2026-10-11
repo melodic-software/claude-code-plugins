@@ -235,6 +235,20 @@ test("managed settings win over user settings, later managed files over earlier 
   assert.equal(resolved.promotion_evidence_source, undefined);
 });
 
+test("a malformed managed entry or a null managed value fails closed instead of letting user settings win", () => {
+  const dir = mkdtempSync(join(base, "malformed-"));
+  const user = join(dir, "user.json");
+  const managed = join(dir, "managed-settings.json");
+  writeSettings(operatorOptions("/user/checker"), user);
+  const install = { pluginId: "source-control@mkt", name: "source-control", userSettings: user };
+  for (const entry of [{ options: "oops" }, { options: [] }, "oops", { options: { promotion_evidence_checker: null } }]) {
+    writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": entry } }));
+    assert.throws(() => readOperatorOptions(install, [managed]), OptionsError, JSON.stringify(entry));
+  }
+  writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": {} } }));
+  assert.equal(readOperatorOptions(install, [managed]).promotion_evidence_checker.value, "/user/checker");
+});
+
 test("an unanchored install reads managed settings by manifest name and no user settings", () => {
   const dir = mkdtempSync(join(base, "unanchored-"));
   const managed = join(dir, "managed-settings.json");
