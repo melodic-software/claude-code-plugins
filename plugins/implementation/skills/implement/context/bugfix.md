@@ -2,18 +2,22 @@
 
 Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptation is to jump to the fix. Resist it.
 
+**Posture.** The minimal-fix rule below holds under `by-kind` and `minimal`. When Step 0 resolved `integration_posture` to `day-one` with no approved plan, step 3 instead reshapes the code around the root cause so the corrected behavior reads as the original design, still inside the files the fix touches.
+
 ## Sequence
 
 1. **Reproduce first (test-first by default when project policy is silent)**: first honor the consuming project's testing cadence from its `CLAUDE.md` / rules; that project policy overrides the test-first instructions in this step. When the project declares no cadence, write a failing test that demonstrates the bug before touching any production code. If you can't reproduce it in a test, you can't prove you fixed it. Test name should describe the bug: `Should_ReturnError_When_InputIsNull`, not `TestFix42`. Invoke `/tdd:principles` via Skill tool (when the `tdd` plugin is installed) for test design guidance (what kind of test, where it goes, what to assert). Under the fallback cadence, bug fixes are the strongest case for test-first. The failing test IS the bug report
 2. **Isolate the cause**: read the code path, add logging or breakpoints if needed. Understand *why* it fails, not just *where*. A fix that addresses the symptom instead of the cause will break again
 3. **Fix minimally**: change the smallest amount of code that fixes the root cause. Bug fixes are not refactoring opportunities. Boy Scout Rule applies to the files you touch, but keep behavioral changes focused
 4. **Verify the fix**: under the test-first fallback, the failing test from step 1 should now pass; otherwise verify per the project's declared `CLAUDE.md` / rules testing cadence. Run the full test suite for the affected project, since your fix may have side effects
-5. **Check for siblings**: is this a pattern? Could the same bug exist in similar code paths? If so, fix them all in the same commit with tests for each
+5. **Check for siblings**: search for the same mistake elsewhere, for example the same unquoted `$path` in other hook scripts after fixing it in one. The reported case's commit holds only that case, so a reviewer can read or revert it alone; every sibling found follows it on the same PR, one commit each, each with its own test
+6. **Report the evidence**: paste the reproduction's output from before the change (failing) and after it (passing) into the completion report. If the bug cannot be made to fail on demand, because it needs production data, a timing window or hardware you do not have, say so and give the reason where the failing run would go
 
 ## Checkpoints
 
 - Failing test committed first (proves the bug exists, and is optional but valuable for git history; applies under the test-first fallback, not a project-declared tests-after cadence)
 - Fix + green test committed together (the fix and its proof are atomic)
+- Each sibling fix and its test in its own later commit
 
 ## Common pitfalls
 

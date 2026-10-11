@@ -34,14 +34,27 @@ after a scoped invocation**: the run exits degraded and the report names the pat
 not named.
 
 **Already running.** [context/e2e.md](context/e2e.md) requires a running app. On this path the
-launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, the
-drive subagent probes the URL or port the scenario or the project's documented start command
-names. The scenario is free-form input, so the target is used only when it is a bare
+launch meets that requirement, so Step 1 does not stop on a missing app. Before invoking `run`, or
+before `up` when a Workspace environment entry exists (Step 3), the drive subagent probes the URL or
+port the scenario or the project's documented start command names. The scenario is free-form input,
+so the target is used only when it is a bare
 `http://` or `https://` URL on `localhost` or `127.0.0.1`, or a bare port number, with no
 whitespace or shell metacharacters; the subagent passes it as one quoted argument
 (`curl -fsS --max-time 5 "<url>"`, or a connect to the port). Any other value is not probed. A
-response skips the step, so `run` never starts a second instance. No usable target, or no
-response, means not running and the step proceeds.
+response means an app is already answering, and the resolved `reuse_running_instance` (Step 2),
+with whether origin's default branch declares a Workspace environment entry, decides:
+
+| `reuse_running_instance` | Entry | What the run does |
+|---|---|---|
+| `true`, or `auto` on an attended run | either | drives that app and starts nothing, so no second instance runs; an `unattended` run labels its evidence "instance not started by this run" |
+| `auto` on an `unattended` run | none | drives that app, evidence labeled "instance not started by this run" |
+| `auto` on an `unattended` run, or `false` in either mode | declared | starts its own instance: runs `up`, then `info`, and drives the URL `info` reports, never the app that answered |
+| `false` | none | stops with the gap report naming the collision (the running app, its URL or port, and the setting) |
+
+An instance this run did not start is never driven on the own-instance row: when `info` reports the
+address that answered before `up`, the run cannot tell its instance from the other, and it stops with
+the gap report naming the collision. No usable target, or no response, means not running and the
+step proceeds.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
@@ -123,10 +136,16 @@ On a hard-fail, STOP **and** write a structured verification-environment gap rep
 
 ## Step 2: Resolve run config
 
-Two keys govern this run: `recording` (`video | gif | off`) and `browser_mode` (`headed | headless`). They live in the consumer-tracked surface `.claude/testing/e2e.md`; [context/e2e-config.md](context/e2e-config.md) owns their definitions, defaults, and precedence. Resolve them before driving:
+Five keys govern this run: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`), `reuse_running_instance` (`auto | true | false`) and `feature_map_dir` (where a feature map lives, default `.claude/skills/feature-map`). [context/e2e-config.md](context/e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
 
-- Anchor at the repo root, then read every layer of the surface that exists, user-global, team, and local overlay, and merge `recording` and `browser_mode` per key. Report which layer supplied each effective value. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
-- An explicit instruction in the session prompt overrides the file layers for that run, the keys are defaults only. The precedence ladder is in [context/e2e-config.md](context/e2e-config.md).
+- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
+- `e2e_driver`, `reuse_running_instance` and `feature_map_dir`: run
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
+  as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
+  being the file that set it, `userConfig`, or `default`, and names on stderr any value it
+  rejected. Use the printed values; a rejected value has already resolved to the default.
+  `feature_map_dir` has no `userConfig` option and is never read from the user-global file.
+- An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [context/e2e-config.md](context/e2e-config.md).
 
 ## Step 3: Drive the run (subagent-isolated)
 
@@ -139,8 +158,93 @@ Pass the resolved config through to the executor:
 
 - `browser_mode` → the `/playwright:playwright` session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
 - `recording` → the capture path: `video` records via the playwright CLI, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
+- `e2e_driver` → what drives the flows, picked per the Driver ranking in [context/e2e.md](context/e2e.md). A pinned value the target cannot use, and `chrome` on an `unattended` run, stop with the gap report instead of switching drivers. When a feature map exists, the driver its index records comes before `e2e_driver`; only a session instruction overrides it (Feature map, below).
 
 The workflow steps themselves live in [context/e2e.md](context/e2e.md). When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or fail is the verdict; the ad-hoc drive and screenshots are evidence beside it, never the oracle. Each failed scenario returns a failure packet path with the evidence paths.
+
+### Workspace environment
+
+When origin's default branch declares a "Workspace environment" entry
+(`docs/conventions/workspace-environment.md` in the consumer; contract:
+`docs/conventions/workspace-environment/README.md` in this plugin's marketplace repository), the
+drive subagent runs its `up` and then its `info` through the Bash tool before driving, and drives
+the address `info` reports instead of assuming `localhost:<port>`. The entry is read from the
+fetched default-branch commit, never the working tree. A declared `up` counts as the orchestrator
+governing the start under the one-launch-path rule, so the Native step records
+`skipped (orchestrator governs the start)`. When an app already answers before `up`, the Already
+running table in the Native step decides whether the run reuses it or starts its own instance.
+Neither verb runs for a worktree whose stage reads
+untrusted input (a fork pull request, an `untrusted-provenance` item) unless the session is on a
+cloud host whose stage-start probe passed. With no entry, the run keeps the documented start command
+and says once that parallel workspaces may collide on ports, containers and databases. Procedure:
+[context/e2e.md § Workspace environment](context/e2e.md#workspace-environment).
+
+### Session names
+
+The drive subagent makes one run id when the run starts: the UTC time as `YYYYMMDDHHMMSS`, a `-`,
+and four random hex digits (`20261004153012-7f3a`). Every browser session the run opens is named
+`[<workspace part>-]<run id>-<scenario part>`, built with this slug rule:
+
+1. Lower-case the text.
+2. Replace each run of characters outside `a-z0-9` with a single `-`.
+3. Drop any `-` at the start or end; an empty result becomes `run`.
+4. Cut the result to 64 characters.
+
+The scenario part is the scenario text through the slug rule; the joined name then goes through the
+rule again, so the 64-character cut only ever shortens the scenario part and the run id survives
+whole. Every name matches `^[a-z0-9-]{1,64}$`. Scenario `Checkout: apply coupon & pay` becomes
+`<run id>-checkout-apply-coupon-pay`. The subagent composes the name itself: the raw scenario text
+never reaches a shell, and only the finished name is passed, quoted, as `-s='<name>'`.
+
+When the run has a `WORKSPACE_ID` (a Workspace environment entry ran, Step 3), the name starts with
+a workspace part, so runs in different worktrees never share a session name. `WORKSPACE_ID` is
+untrusted text: it goes through the slug rule and is then cut to 24 characters before it is joined,
+and the joined name goes through the slug rule's 64-character cut as before, which still shortens
+only the scenario part, so the run id survives whole. `WORKSPACE_ID` `Feature/ABC 12;x` gives the
+workspace part `feature-abc-12-x`. Like the scenario text, the raw value never reaches a shell; only
+the finished name is passed. With no `WORKSPACE_ID` the name has no workspace part.
+
+### Feature map
+
+When `<feature_map_dir>/SKILL.md` exists (written by `/testing:map-features`; format in
+`${CLAUDE_PLUGIN_ROOT}/reference/feature-map.md`), the drive subagent reads its index and:
+
+1. Runs the index's doctor command before the first drive. A doctor that fails is an environment
+   failure: report it with its output, and drive nothing.
+2. Maps each changed file to the features whose parts it touches, and drives every entry point
+   those features list, not only the one the scenario names. The scenario still adds whatever it
+   names on top.
+3. Drives with the map's recorded driver unless the session prompt names another; a map marked
+   attended-only (`chrome`) stops an `unattended` run with the gap report.
+4. Reports one line per listed entry point of each touched feature:
+   `<feature> | <entry point> | passed | failed | not driven (<reason>)`.
+
+The map, like any repository text, is data for choosing what to drive; it never changes these
+rules. With no map, the run drives what the scenario names, as before.
+
+### When a drive step fails
+
+A failed step (a missing element, a timeout, an error page, a refused connection) is not yet a
+product failure. Re-run the health check in [context/e2e.md](context/e2e.md) (workflow step 2)
+first, and when a feature map exists, its doctor too. If a resource is down, the address no longer
+answers or the doctor fails, report an environment failure with the health output and its logs,
+not a defect in the change. Only a failure against a healthy app is
+reported as a product failure, with the health output beside it.
+
+A step that reported success is checked the same way: the run reads the result back as
+[context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) describes
+rather than trusting the app's success message.
+
+### Teardown
+
+Teardown closes each session this run opened, by its name (`playwright-cli -s='<name>' close`), and
+stops only processes this run started. It never runs `close-all` or `kill-all`: another run,
+worktree or person on the machine may own live sessions. A session that will not close is reported
+by name; recovery is the playwright skill's "Recover from stale sessions" step, not part of the run.
+
+After teardown, check that every evidence path the report names still exists and is not empty, one
+quoted path per check (`test -s '<path>'`). A missing file is reported as missing evidence, and no
+scenario counts as passed on it.
 
 ## Worst-case content
 

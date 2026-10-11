@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "2 suppressions, 1 without a reason.\n\n| log.js | 2 | eslint | no-console | no | no | - |\n| settings.py | 1 | noqa | E501 | yes | no | a URL cannot be wrapped |",
+      "why": "the table as printed"
+    },
+    {
+      "answer": "settings.py line 1 carries a reason; log.js line 2 does not.",
+      "why": "prose, settings.py first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "One suppression: log.js line 2, eslint no-console, no reason.",
+      "why": "settings.py is missing"
+    }
+  ]
+}

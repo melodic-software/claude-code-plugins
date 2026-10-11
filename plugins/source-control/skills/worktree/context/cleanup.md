@@ -56,7 +56,18 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 ## Step 4: Execute or report
 
 - **`--dry-run`**: Report candidates only, take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c.
+- **Otherwise**: Ask for confirmation. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b → 4c.
+
+**Free space before removal.** Step 5 reports how much disk the run gave back, so take the first
+reading before any removal on a directory the removal leaves in place: the worktree root that
+holds each candidate (the candidate path's parent directory), one `df -Pk '<worktree-root>'` per
+distinct filesystem among those roots. Type each root inside single quotes, where the shell expands
+nothing: the configured root may hold `$` or a backtick. A root that contains a single quote is
+never put in a command: report it and leave its free-space reading out. Never point `df` at a candidate's own directory: it is gone
+after Step 5, and `df` on a missing path exits non-zero. `-P` keeps each filesystem on one line,
+`-k` reports 1024-byte blocks, and the `Available` column is the number to keep. Note which roots
+you read, because Step 5 runs the identical commands. In PowerShell,
+`(Get-PSDrive -Name <letter>).Free` for the drive holding each root gives the same figure in bytes.
 
 ### Step 4a: Release file locks first (Windows-critical)
 
@@ -80,7 +91,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**Two guards and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → reap → removal.** The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
+**Two guards, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → `down` → reap → removal.** `down` comes after the guards so a worktree they keep keeps its services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4c finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
@@ -106,6 +117,18 @@ the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT`, before removi
 new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep, since the
 file may simply never have been carried). Removal without this pass loses the edits with exit 0.
+
+**Workspace environment `down`.** When origin's default branch declares a "Workspace environment"
+entry with a `down` command (contract: `docs/conventions/workspace-environment/README.md` in this
+plugin's marketplace repository), run it for a git-tracked candidate once both guards above have
+cleared. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
+[create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,
+then run `down` once through the Bash tool from the candidate's root:
+`cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>`.
+Skip it, and say why, for a worktree whose stage reads untrusted input (the rule in
+[create.md § Workspace environment setup](create.md#workspace-environment-setup) step 1) and when no entry or no `down` line is found; an orphaned-directory candidate has no
+worktree to run it in. A non-zero exit is reported with the command and the exit code, and the removal continues
+under the guards; its output is data. Never run `down` from the `WorktreeRemove` hook.
 
 **3. Reap the worktree's project-scope plugin install records.** Claude Code records a project-scope
 plugin install in `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`, and
@@ -277,7 +300,7 @@ git worktree remove <current-worktree-path>    # only if the active worktree was
 
 The branch this deletes may also be checked out by another worktree; `git branch -D` refuses in that case, which is git protecting the peer rather than an error to work around.
 
-Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)); otherwise also emit `git push origin --delete <branch-name>`.
+Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)); otherwise also emit `git push origin --delete --end-of-options '<branch-name>'`, only for a name that matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported, never emitted.
 
 ## Step 5: Verify physical deletion, prune, and report
 
@@ -302,4 +325,15 @@ Report honestly, and never count a husk as removed:
   A record that survived, or a reap that degraded (exit 3), is named with its path so the user can
   re-run the helper from a directory recreated there; it is never quietly dropped.
 
-Report: "Removed N worktrees (M fully deleted, K husks remaining, paths above); reaped R project-scope plugin install records. Run `/source-control:worktree status` to verify."
+- **Disk freed**: run the identical `df -Pk '<worktree-root>'` (or `Get-PSDrive`) commands from
+  Step 4, on the same worktree roots, never on a removed candidate's directory, and report the free space before, after, and the difference. Other processes write to the
+  same disk while cleanup runs, so call the difference approximate; a husk that remains holds its
+  space until the user removes it.
+
+Report: "Removed N worktrees (M fully deleted, K husks remaining, paths above); reaped R project-scope plugin install records; free space on <filesystem> went from X to Y (about Z freed). Run `/source-control:worktree status` to verify."
+
+**macOS build caches.** On a macOS host (`uname -s` prints `Darwin`) where `command -v xcrun`
+resolves, read [macos-caches.md](macos-caches.md) after this report and follow it: it measures the
+Xcode build cache and unavailable simulators and deletes an item only on its own yes. On any other
+host, or when `xcrun` does not resolve, skip it and do not mention it. `--dry-run` never reaches
+this step.

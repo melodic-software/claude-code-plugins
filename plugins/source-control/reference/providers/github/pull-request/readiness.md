@@ -37,11 +37,12 @@ name can show two rows.
 
 ### Verify a duplicated check name
 
-Put the duplicated name in place of `<name>`:
+List every check run on the head (`<sha>` is the 40-hex head SHA) and find the duplicated name's
+row in the output:
 
 ```bash
 gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
-  --jq '.check_runs[] | select(.name | test("<name>"; "i")) | "\(.status) \(.conclusion)"'
+  --jq '.check_runs[] | [.name, .status, .conclusion] | @tsv'
 ```
 
 ## Gate 2: list failing checks
