@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Confirm, or give me the numbers of the items to change.",
+      "why": "confirm or numbers"
+    },
+    {
+      "answer": "Reply \"confirm\" to lock it, or list the Q numbers you want to change.",
+      "why": "Q numbers to change"
+    },
+    {
+      "answer": "Please confirm the contract, or tell me which items to revise.",
+      "why": "confirm or which items"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Contract restated above. Sound good?",
+      "why": "no confirm-or-numbers request"
+    },
+    {
+      "answer": "Shall I lock this?",
+      "why": "a yes/no question naming no items"
+    }
+  ]
+}

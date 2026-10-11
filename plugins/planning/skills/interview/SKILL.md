@@ -429,7 +429,7 @@ Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints
 
 ### Step 5. Hand off
 
-Route the handoff by what the session produced. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. Recommend the next step per task shape:
+Route the handoff by what the session produced. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. When the Brief defers a question only a named person other than the user can answer (an assumption-sweep `person` item the user could not answer), also recommend `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it. Recommend the next step per task shape:
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled. It reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q2: What would have to be true for Kafka to be the better queue here, for example other services consuming these publish events?",
+      "why": "crux question naming Kafka"
+    },
+    {
+      "answer": "Q2: Is there a consumer besides this tool that needs the Kafka topic?",
+      "why": "question about the Kafka choice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q2 recorded: Kafka.",
+      "why": "records Kafka with no question"
+    }
+  ]
+}
