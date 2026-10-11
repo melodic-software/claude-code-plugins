@@ -68,8 +68,7 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   file only after the new one reads back.
 - **Personal file ignored.** When the `local` layer's path is null (`home_error` is set), INFO: no
   personal path to test. Otherwise decide on the exit status of
-  `git -C "<project root>" check-ignore <path>` without `-v`: with `-v` it also exits 0 when a
-  negation (`!`) rule matches, which means the path is not ignored. Run it with `-v` only to show
+  `git -C "<project root>" check-ignore <path>` run without `-v`; run it with `-v` only to show
   the matching rule. Pointer: <https://git-scm.com/docs/git-check-ignore>. As of: 2026-10-11.
   Recheck: that page changes what `-v` prints or the exit status. Exit 0: PASS. Exit 1: FAIL, since a personal
   file must never be committed; `apply` adds the entry. Any other exit (128 outside a git
