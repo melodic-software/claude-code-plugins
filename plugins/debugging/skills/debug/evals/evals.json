@@ -86,6 +86,19 @@
         "Log lines and other session text reach the page only as data in that JSON, after secrets are redacted",
         "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
       ]
+    },
+    {
+      "id": 8,
+      "name": "check-shaped-prevention-routes-to-owner",
+      "prompt": "/debugging:debug is done: the report export crashed because a handler called the deprecated datetime.utcnow() the repo bans, and the fix and regression test are in. Write the post-mortem. Both the review and session-flow plugins are installed.",
+      "expected_output": "The post-mortem answers what would have prevented the bug with a deterministic check for the banned call and routes it to /review:audit-enforceability as a repo or policy mistake, noting the finding goes into a review-findings file first. It proposes the check and does not write a lint rule, hook or analyzer itself.",
+      "files": [],
+      "expectations": [
+        "Output states that a deterministic check (a lint or analyzer rule, a test, or a hook) would have caught the banned call",
+        "Output names /review:audit-enforceability as the owner of that check, not /session-flow:retro, because the mistake is in the repository's code rather than in how the agent worked",
+        "Output says the finding is recorded in a review-findings file before that skill runs",
+        "Output proposes the check and does not create or edit a lint config, hook or analyzer rule in this run"
+      ]
     }
   ]
 }
