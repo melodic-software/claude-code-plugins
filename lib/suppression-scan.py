@@ -85,6 +85,7 @@ EXTENSIONS = {
 }
 BASENAMES = {"Gemfile": "ruby", "Rakefile": "ruby"}
 SHEBANGS = (
+    # spellchecker:ignore-next-line
     (re.compile(r"\b(?:ba|k)?sh\b"), "shell"),
     (re.compile(r"\bpython[0-9.]*\b"), "python"),
     (re.compile(r"\bpwsh\b"), "powershell"),

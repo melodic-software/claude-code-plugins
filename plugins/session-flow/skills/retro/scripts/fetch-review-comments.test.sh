@@ -118,7 +118,7 @@ assert_eq "main: a bot thread with a rejecting author reply is dropped" 0 "$(q '
 assert_eq "main: a commenter who is not an owner, member or collaborator is dropped" 0 "$(q '[.[] | select(.author == "mallory" or .author == "zed")] | length')"
 assert_eq "main: a reply is dropped" 0 "$(q '[.[] | select(.author == "dave")] | length')"
 assert_eq "main: the PR author's own comments and review are dropped" 0 "$(q '[.[] | select(.pr == 11 and .author == "alice")] | length')"
-assert_eq "main: one human review body, labelled" '[{"pr":11,"source":"human","author":"carol","kind":"review","path":null,"line":null,"body":"Please split this module"}]' \
+assert_eq "main: one human review body, labeled" '[{"pr":11,"source":"human","author":"carol","kind":"review","path":null,"line":null,"body":"Please split this module"}]' \
   "$(q '[.[] | select(.kind == "review")]')"
 assert_eq "main: the hostile body comes out as a JSON string" "$HOSTILE_BODY" \
   "$(printf '%s\n' "$OUT" | "$JQ_DIR/jq" -r 'select(.body | startswith("Rename")) | .body')"
