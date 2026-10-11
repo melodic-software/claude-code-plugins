@@ -5,8 +5,8 @@ to any session or tool that needs it, so long-running workflows can route heavy 
 degraded context **before** quality slips, instead of guessing. Four parts:
 
 - **The module** (`hooks/register.tsx`), a mod: a hooks module Claude Code runs in its own process.
-  It tells Claude when the session crosses into a worse context zone, runs the optional blocking
-  gate, shows the person a toast at a crossing, answers `/context-guard` and the
+  It shows the person a toast when the session crosses into a worse context zone, tells Claude the
+  same when the operator turns on `model_notices` (off by default), answers `/context-guard` and the
   `mcp__context-guard__status` tool, draws an optional band row, and writes the snapshot file. It
   needs Claude Code 2.1.287 or later; older builds are unsupported. See [The module](#the-module).
 - **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
@@ -21,7 +21,7 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   mods are off: it writes an evidence-degraded marker next to the session's snapshot, and the
   module honors it: a compacted session's effective zone is dumb regardless of its
   post-compaction numbers. Its row carries a 60-second timeout. The module is the only source of
-  zone lines and the only gate.
+  zone lines. No part of the plugin denies a tool call.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   snapshot path pattern, file shape, the 10-minute staleness rule, fail-open capability detection,
   the zones.json shape, session-id discovery via `${CLAUDE_SESSION_ID}`, and the
@@ -30,6 +30,10 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   capture channel, which other channels were checked and rejected (with sources and dates),
   including the two that do carry live occupancy and still cannot supply a snapshot, and why
   `unknown` in a session where the module does not run is structural rather than a defect.
+
+This plugin answers "how full is my context and what happens as it fills". For "what is my context
+made of" (the startup measurement and the live per-category breakdown), see the `context-budget`
+plugin.
 
 ## The module
 
@@ -45,9 +49,12 @@ organization's sign-in.
 
 ### Lines to Claude
 
-A line goes to Claude only at a boundary, appended to the context of a main-thread tool result or
-of a prompt; a crossing seen when a turn ends reaches Claude with the next prompt. With the default
-options and `zones.json`:
+Lines go to Claude only with `model_notices` set to `true`; it is off by default, and then nothing
+from this plugin enters Claude's context. Claude can still read the zone from the status tool, and
+the person still gets the toast and transcript line below. With it on, a line goes to Claude only at
+a boundary, appended to the context of a main-thread tool result or of a prompt; a crossing seen
+when a turn ends reaches Claude with the next prompt. With the other options and `zones.json` at
+their defaults:
 
 | When | Line |
 |---|---|
@@ -76,8 +83,8 @@ one carrier: a crossing or restatement recorded before a pending restatement mer
 crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
 window); by default a line carries none, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
-appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
-gate denial, is also written as sent to the debug log (`claude --debug`).
+appears at its crossing, never before. Subagents get no line. Each line sent to Claude is also written as sent to the debug log
+(`claude --debug`).
 
 At a crossing the person gets the continuation menu (continue, `/compact`, `/clear`,
 `/session-flow:handoff` then `/clear`) as a 4-second toast, such as
@@ -120,32 +127,20 @@ the Desktop app. No probe of this plugin ran in the Desktop app or VS Code.
 - **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
   plugin is made.
 
-### Blocking gate
-
-With `zone_hook_mode` set to `blocking` (or a `block` action in `zones.json`), the module denies new
-Write, Edit, NotebookEdit, Agent and Workflow calls in the blocked zone once the session has spent
-its `zone_gate_grace_calls` budget, with a reason Claude reads. Handoff-path writes (a path that
-contains "handoff"), reads, Bash and Skill calls are never gated, so a durable handoff is always
-writable. Subagent calls are judged by the session's zone and count against the same budget. In a
-turn a person typed the block applies; in headless, loop, schedule and notification turns only a
-compacted session is blocked, unless `zone_block_unattended` is `same-as-typed`. Leaving the
-blocked zone, an `unknown` reading, and a compaction each reset the budget. The gate fails open:
-an `unknown` zone or a failing hook lets the call run.
-
 ### The command, the band row and the status tool
 
 `/context-guard` with no argument prints the verdict with its figures, the percent bands beside the
-token bands of the session's window class (the worse of the two decides the zone), approach margin
-and gate mode, the band and toast state, and where `zones.json` lives and whether it is present.
+token bands of the session's window class (the worse of the two decides the zone), approach margin,
+the band and toast state, and where `zones.json` lives and whether it is present.
 Claude reads that reply, as it reads any command's output, so the continuation route and this
 README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
 the session, and a bare `band` toggles it. The band row is off by default; `context_guard_band`
 turns it on. It shows `ctx <n>% (<zone>)` above the prompt, with `-` in place of the figure before
 the first response. Claude can
 call `mcp__context-guard__status` for the exact figures from the last API response, the zone,
-whether a compaction degraded the evidence, the bands and the gate state. Where the session
+whether a compaction degraded the evidence, and the bands. Where the session
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
-logs one debug line saying so, and the lines, gate, band and writes carry on.
+logs one debug line saying so, and the lines, band and writes carry on.
 
 ### Prompt-cache status-line segment (optional)
 
@@ -185,8 +180,6 @@ fire-and-forget, and only on fires that act:
   `tool.call` or `prompt.submit` and data `zone`, `previous`, `armed` and `injected: true`; and for
   each operator-mode suggestion shown, with `hook_event` `turn.complete` and data `zone`,
   `previous`, `armed`, `injected: false` and `suggested: true`.
-- `zone-gate`, status `blocked`, for each denial, with `hook_event` `tool.call` and data `zone`
-  (the blocked zone), `grace` and `calls_seen`.
 
 A fire that sends nothing emits nothing, and no record carries a `path` field. A relative sink path
 is joined onto the session's project root. Unset, nothing is sent.
@@ -200,17 +193,48 @@ hourly prunes files older than 14 days. A changed body is written at once; an un
 once per 60 seconds. Writes happen after every tool call, at each measurement after a response,
 from a 15-second timer that runs only while a turn runs, and at the session's end; an idle session
 writes nothing, so its file goes stale after 10 minutes. They follow the plugin's on/off switch
-only: `context_guard_hooks_enabled` and `zone_lines_enabled` do not stop them, and a project that
-disables the plugin in `enabledPlugins` gets no snapshot, lines or gate in its sessions. A session
+only: `context_guard_hooks_enabled` and `model_notices` do not stop them, and a project that
+disables the plugin in `enabledPlugins` gets no snapshot or lines in its sessions. A session
 id outside `[A-Za-z0-9_-]` is never written. Where a process cannot start, the module writes
 nothing and logs that once to the debug log.
+
+### Published zone for status lines
+
+A status line, or any other reader, can show the zone and its edges from the snapshot without
+importing plugin code. Read `~/.claude/context-guard/context/<session_id>.json`, where
+`<session_id>` is the `session_id` the status line's own input carries. The file holds these keys
+beside `context_window`:
+
+```json
+{
+  "captured_at": "2026-10-11T18:00:00Z",
+  "zone": "acceptable",
+  "evidence_degraded": false,
+  "bands": {
+    "smart_max_used_percentage": 50,
+    "acceptable_max_used_percentage": 75,
+    "smart_max_tokens": 100000,
+    "acceptable_max_tokens": 150000
+  }
+}
+```
+
+- `zone` is `smart`, `acceptable`, `dumb` or `unknown`. It is computed from the bands below, and is
+  `dumb` once the session was compacted.
+- `bands` are the edges after `zones.json`. The token edges are for the session's window class, and
+  are `null` when the token shape is not computable.
+- Treat a `captured_at` older than 10 minutes as `unknown`.
+- With no file, or a file without these keys (an older plugin version), use your own fallback.
+
+These keys are part of the [reader contract](reference/reader-contract.md#snapshot-file-shape):
+they change only with a major version and a changelog entry. They are written whatever
+`model_notices` says.
 
 ### Where mods are off
 
 Below Claude Code 2.1.287, under `disableAllHooks` or an organization's `allowManagedModsOnly`,
 with `--bare` or `--safe-mode`, when mods are switched off remotely, or after the hooks worker
-crashes, the module does not run: no lines, no gate (blocking
-mode does nothing), no band, no status tool, no module writes. The PostCompact marker, a settings
+crashes, the module does not run: no lines, no band, no status tool, no module writes. The PostCompact marker, a settings
 hook, still runs wherever settings hooks do (`disableAllHooks` stops those too),
 and readers fall back as the reader contract says. `/context-guard:check` and
 `/context-guard:setup check` report "mods off" in that case. A hook that throws passes its event
@@ -249,8 +273,8 @@ The module's hooks run inside Claude Code and start two kinds of process. The sn
 one `node lib/write-snapshot.mjs`, at most once per changed body or per 60 seconds for an unchanged
 one, which also runs the hourly prune. With `HOOK_TELEMETRY_SINK` set, each telemetry envelope
 starts one sink process, not awaited: one per fire that sends lines, per operator-mode suggestion
-shown and per gate denial. A tool call or prompt that writes nothing and sends no envelope starts
-no process and writes no file; the gate and the lines start none of their own beyond that
+shown. A tool call or prompt that writes nothing and sends no envelope starts
+no process and writes no file; the lines start none of their own beyond that
 envelope. The write is awaited inside the `tool.call`
 hook, so a slow write holds that one tool result, within Claude Code's own-time limit for a hook.
 
@@ -260,7 +284,7 @@ hook, so a slow write holds that one tool result, within Claude Code's own-time 
 
 `claude plugin test plugins/context-guard` enforces it: the `budget:` case in
 `hooks/context-guard.test.ts` asserts, with no telemetry sink set, no process on calls that write
-nothing, one per write and none for the gate; the `telemetry:` cases assert one envelope per acting
+nothing and one per write; the `telemetry:` cases assert one envelope per acting
 fire and none on other calls; and the `floor:` case asserts the 60-second floor. The tests the module replaced, and
 what holds their budget now:
 
@@ -269,7 +293,7 @@ what holds their budget now:
 | The statusline tee's suite | The snapshot body, atomic write, rename retry, prune and the processes per render | The `snapshot:` cases and the `budget:` case in `hooks/context-guard.test.ts`; the helper's own suite, [`lib/write-snapshot.test.mjs`](../../lib/write-snapshot.test.mjs), for the atomic write, rename retry, prune and temp files |
 | The statusline shim's suite | The shim finding the installed tee | Nothing: no shim ships |
 | The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing for the shim, which no longer ships. The optional cache segment composes its own `statusLine` with `cache-line.mjs --wire`, tested in `scripts/cache-line.test.sh` |
-| The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line, gate and `budget:` cases in `hooks/context-guard.test.ts` |
+| The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line and `budget:` cases in `hooks/context-guard.test.ts`, for the lines and processes. The gate was removed, so nothing holds it |
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
 The PostCompact marker is the one settings hook left. Per
@@ -313,24 +337,30 @@ The `userConfig` options:
 
 | Option | What it controls |
 |---|---|
-| `context_guard_hooks_enabled` | The module's lines and gate, and the PostCompact marker (default `true`). Snapshot writes continue when it is off. |
-| `zone_lines_enabled` | The module's lines to Claude, and the operator-mode suggestions (default `true`). |
-| `zone_report_mode` | `automatic` (default) or `operator`; see [Operator mode](#operator-mode). |
+| `context_guard_hooks_enabled` | The module's lines and toasts, and the PostCompact marker (default `true`). Snapshot writes continue when it is off. |
+| `model_notices` | The module's lines to Claude, and the operator-mode suggestions (default `false`). Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool and snapshot are unchanged. |
+| `zone_report_mode` | `automatic` (default) or `operator`, only with `model_notices` on; see [Operator mode](#operator-mode). |
 | `zone_line_data` | What a line carries beside its zone: `percent`, `tokens`, `window` (default `zone`). |
-| `zone_hook_mode` | `advisory` (default) or `blocking`; see [Blocking gate](#blocking-gate). |
-| `zone_gate_grace_calls` | Blocking's grace budget (default 20). |
-| `zone_block_unattended` | `post-compaction` (default) or `same-as-typed`: what unattended turns get in blocking. |
 | `context_guard_band` | The band row (default `false`); `/context-guard band on` turns it on for one session. |
 | `context_guard_toast` | The toast at a zone crossing (default `true`); the transcript line stays when it is off. |
+
+Settings outside `userConfig`:
+
+| Setting | Where | Default | What it controls |
+|---|---|---|---|
+| Zone bands | `~/.claude/context-guard/zones.json` `smart_max_used_percentage`, `acceptable_max_used_percentage`, `token_bands` (see the [reader contract](reference/reader-contract.md)) | smart up to 50%, acceptable up to 75%, plus the window-class token bands | Where each zone starts. |
+| `approach_margin` | `zones.json` | 5 points | How early the approach line comes; 0 turns approach lines off. |
+| `actions`, `thresholds` | `zones.json` | none | An extra sentence at a zone, and extra boundaries. |
+| Snapshot file a status line can read | `~/.claude/context-guard/context/<session_id>.json` | on | Written whenever the plugin is enabled; no option stops it. It carries the zone and the bands in force; see [Published zone](#published-zone-for-status-lines). |
 
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
 `context_guard_hooks_enabled` at session start.
 
-A bad option value does not switch the module off: a `zone_gate_grace_calls` that is not a whole
-number from 0 to 999999999, or a `zone_line_data` item it does not know, reads as that option's
-default, with one transcript line per option naming it, and a choice outside its list reads as its
-default with Claude Code's own line. A value of the wrong type (text in a number or on/off option)
+A bad option value does not switch the module off: a `zone_line_data` item it does not know reads
+as that option's default, with one transcript line naming it, and a choice outside its list reads
+as its default with Claude Code's own line. An option the module does not declare, such as a
+setting left from an older version, is ignored. A value of the wrong type (text in an on/off option)
 is still refused by Claude Code, which then loads none of the module.
 
 - **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
@@ -359,13 +389,10 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the module's zone lines and blocking gate and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way. |
-| `zone_lines_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ZONE_LINES_ENABLED` | Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. On by default. |
-| `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the module's zone lines and toasts and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way. |
+| `model_notices` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MODEL_NOTICES` | Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
+| `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `zone_line_data` | string | `"zone"` | `CLAUDE_PLUGIN_OPTION_ZONE_LINE_DATA` | Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone. |
-| `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) sends lines only; blocking also denies new Write, Edit, NotebookEdit, Agent and Workflow calls in the dumb zone past the grace budget, unless zones.json sets an action for the dumb zone. Handoff-path writes, reads, Bash and Skill stay allowed, and an unknown zone fails open. |
-| `zone_gate_grace_calls` | number | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking only: matched tool calls allowed after the session first reaches a blocked zone, before the gate denies. Default 20; 0 denies the first matched call; a value that is not a whole number from 0 to 999999999 reads as 20. |
-| `zone_block_unattended` | string | `"post-compaction"` | `CLAUDE_PLUGIN_OPTION_ZONE_BLOCK_UNATTENDED` | post-compaction (default): in turns no person typed (headless, loop, schedule and notification turns) only a compacted session is blocked; same-as-typed blocks them as typed turns are. |
 | `context_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-guard band on. |
 | `context_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_TOAST` | Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it. On by default; off, only the transcript line remains. |
 

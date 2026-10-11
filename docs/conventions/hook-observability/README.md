@@ -412,7 +412,9 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
 after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
 amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence, then admitting
-`rate-limit-guard`'s one directive):
+`rate-limit-guard`'s one directive). Since 2026-10-11 (#7135) both mods send these lines only when the
+operator turns on the plugin's `model_notices` option, off by default; with it off, Claude's context
+gets nothing from either mod and the shape below does not arise:
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
@@ -438,8 +440,8 @@ amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence
   reason to stop. By default a line carries
   no raw count; the operator can add figures through the plugin's line-data option. The reading
   behind the verdict stays on the plugin's status tools.
-- **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator
-  suggestion shown, a tool call denied. A fire that reached a decision and changed nothing emits
+- **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent or an operator
+  suggestion shown. A fire that reached a decision and changed nothing emits
   none, which narrows the meaningful-outcome bullet above for these two producers.
 
 The shape rests on two Anthropic pages: which models are told their remaining context, and how
