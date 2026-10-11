@@ -125,10 +125,11 @@ const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 const MARKDOWN_FILE = /\.(?:md|markdown)$/i;
 /**
  * A paragraph boundary a code span cannot cross: a blank line, or a line that
- * interrupts a paragraph (ATX heading, block quote, fence, thematic break, list item).
+ * interrupts or ends a paragraph (ATX or setext heading, block quote, fence, thematic
+ * break, list item).
  */
 const BLOCK_BREAK =
-  /\n(?:[ \t]*\r?\n| {0,3}(?:#{1,6}(?:[ \t]|\r?$)|>|`{3,}|~{3,}|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?$|[-*+][ \t]+\S|1[.)][ \t]+\S))/m;
+  /\n(?:[ \t]*\r?\n| {0,3}(?:#{1,6}(?:[ \t]|\r?$)|>|`{3,}|~{3,}|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?$|(?:=+|-+)[ \t]*\r?$|[-*+][ \t]+\S|1[.)][ \t]+\S))/m;
 const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
 const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 /** The slice lane directories, plus the `SLICE/` root alias. */

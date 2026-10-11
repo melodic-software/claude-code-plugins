@@ -1428,6 +1428,10 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
         "once more `",
         "- [l](gone-3.md) `",
         "",
+        "setext `",
+        "===",
+        "[s](gone-4.md) `",
+        "",
       ].join("\n"),
     });
 
@@ -1435,6 +1439,7 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
       { file: "metadata/notes.md", ref: "gone-1.md" },
       { file: "metadata/notes.md", ref: "gone-2.md" },
       { file: "metadata/notes.md", ref: "gone-3.md" },
+      { file: "metadata/notes.md", ref: "gone-4.md" },
     ]);
   });
 
