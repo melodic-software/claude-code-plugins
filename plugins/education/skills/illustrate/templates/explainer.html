@@ -144,7 +144,9 @@ code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .unclear { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); font-weight: 700; cursor: pointer; }
 .unclear input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .unclear:hover { border-color: var(--accent); color: var(--accent); }
-.unclear:has(input:checked) { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+.unclear:has(input:checked) { border: 2px solid var(--accent); background: var(--accent); color: var(--surface); }
+.unclear .mark-on, .unclear:has(input:checked) .mark-off { display: none; }
+.unclear:has(input:checked) .mark-on { display: inline; }
 .unclear:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 details { padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
@@ -186,7 +188,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 </div>
 <p class="caption" data-rv-text="caption"></p>
 <ul class="text" data-rv-each="text"><li data-rv-text="line"></li></ul>
-<label class="unclear" title="Still unclear"><input type="checkbox" data-rv-pick=""><span class="sr">Still unclear</span><span aria-hidden="true">?</span></label>
+<label class="unclear" title="Still unclear"><input type="checkbox" data-rv-pick=""><span class="sr">Still unclear</span><span class="mark-off" aria-hidden="true">?</span><span class="mark-on" aria-hidden="true">✓</span></label>
 </li></ol>
 <details open>
 <summary>Words used here</summary>

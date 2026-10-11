@@ -229,6 +229,14 @@ check("the first card is the lead diagram, drawn larger", /padding: 2rem/.test(r
 check("every kind draws inside one tinted diagram area", /background: var\(--tint\)/.test(rule(".diagram")) && LISTS.every((key) => page.split('class="diagram"')[1]?.split('class="caption"')[0]?.includes(`data-rv-each="${key}"`)));
 const tick = /<label class="unclear"[^>]*>(.*?)<\/label>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the still-unclear toggle wraps its pick", /^<input type="checkbox" data-rv-pick="">/.test(tick) && (page.match(/data-rv-pick=/g) ?? []).length === 1, tick);
+// A ticked toggle changes its glyph, not only its color, so the state survives forced colors.
+check(
+  "the still-unclear toggle shows a different glyph when ticked",
+  /<span class="mark-off" aria-hidden="true">\?<\/span><span class="mark-on" aria-hidden="true">✓<\/span>/.test(tick) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear \.mark-on, \.unclear:has\(input:checked\) \.mark-off \{ display: none; \}/.test(css) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear:has\(input:checked\) \.mark-on \{ display: inline; \}/.test(css), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  tick,
+);
 check("the still-unclear toggle is named for screen readers", /<span class="sr">Still unclear<\/span>/.test(tick) && /clip-path: inset\(50%\)/.test(rule(".sr")), tick);
 
 const wordy = "Gamma Ray (1996): first band name, dropped after a cease-and-desist";
