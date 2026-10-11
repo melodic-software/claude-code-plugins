@@ -180,6 +180,75 @@ test('logs the count of invalid extra patterns once, never the pattern text', {
   expect(lines).toEqual(['display-redaction: skipped 1 invalid extra_patterns entry'])
 })
 
+// The AskUserQuestion schema refuses equal question texts, or equal option labels within one
+// question; a refused rewrite draws the original, so masking must keep them distinct.
+const twoAddresses = (a: string, b: string, header: string) => ({
+  question: `Mail ${a}?`,
+  header,
+  options: [
+    { label: `Mail ${a}`, description: 'first' },
+    { label: `Mail ${b}`, description: 'second' },
+  ],
+  multiSelect: false,
+})
+
+test('keeps masked question texts and option labels distinct', async ($, on) => {
+  const seen = capture(on, 'AskUserQuestion')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AskUserQuestion',
+    requestId: 'q1',
+    props: {
+      tool: 'AskUserQuestion',
+      questions: [twoAddresses('a@example.com', 'b@example.com', 'To'), twoAddresses('c@example.com', 'd@example.com', 'Cc')],
+    },
+  })
+  expect(seen.props).toEqual({
+    tool: 'AskUserQuestion',
+    questions: [
+      {
+        question: `Mail [hidden 1]?`,
+        header: 'To',
+        options: [
+          { label: 'Mail [hidden 1]', description: 'first' },
+          { label: 'Mail [hidden 2]', description: 'second' },
+        ],
+        multiSelect: false,
+      },
+      {
+        question: `Mail [hidden 2]?`,
+        header: 'Cc',
+        options: [
+          { label: 'Mail [hidden 1]', description: 'first' },
+          { label: 'Mail [hidden 2]', description: 'second' },
+        ],
+        multiSelect: false,
+      },
+    ],
+  })
+  expect(JSON.stringify(seen.props)).not.toContain('@example.com')
+})
+
+test('keeps option labels distinct in an AskUserQuestion tool row', async ($, on) => {
+  const seen = capture(on, 'ToolUse')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'ToolUse',
+    requestId: 't2',
+    props: {
+      tool_use_id: 't2',
+      tool: 'AskUserQuestion',
+      input: { questions: [twoAddresses('a@example.com', 'b@example.com', 'To')] },
+      isRunning: true,
+      isErrored: false,
+      isInterrupted: false,
+    },
+  })
+  const input = (seen.props as { input: { questions: { question: string; options: { label: string }[] }[] } }).input
+  expect(input.questions[0]?.question).toBe('Mail [hidden]?')
+  expect(input.questions[0]?.options.map((o) => o.label)).toEqual(['Mail [hidden 1]', 'Mail [hidden 2]'])
+})
+
 test('/display-redaction off passes text through unmasked', async ($, on) => {
   const seen = capture(on, 'AssistantMessage')
   await $.command.run(run('off'))

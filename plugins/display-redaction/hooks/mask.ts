@@ -93,6 +93,16 @@ const walk = (value: unknown, patterns: readonly RegExp[], mask: string, depth: 
   return value
 }
 
+// Keeps values distinct where a schema requires it: when masking made two equal, each value's masks
+// are numbered by its position, and if that is not enough the position is appended to every value.
+export function distinct(values: readonly string[], mask: string): string[] {
+  const isDistinct = (list: readonly string[]) => new Set(list).size === list.length
+  if (isDistinct(values)) return [...values]
+  const token = (n: number) => (mask.endsWith(']') ? `${mask.slice(0, -1)} ${n}]` : `${mask} ${n}`)
+  const numbered = values.map((v, i) => v.split(mask).join(token(i + 1)))
+  return isDistinct(numbered) ? numbered : numbered.map((v, i) => `${v} (${i + 1})`)
+}
+
 export function maskProps<P extends object>(
   props: P,
   keys: readonly (keyof P)[],

@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { compilePatterns, maskProps, maskText } from './mask.ts'
+import { compilePatterns, distinct, maskProps, maskText } from './mask.ts'
 
 const M = '[hidden]'
 const { patterns } = compilePatterns([])
@@ -140,4 +140,21 @@ test('masks 100,000 characters quickly, including adversarial runs', () => {
   for (const input of inputs) mask(input)
   expect(Date.now() - start).toBeLessThan(1000)
   expect(mask(inputs[0] as string)).toBe(`${filler}${M} ${filler}${M}`)
+})
+
+test('distinct leaves values that are already distinct alone', () => {
+  expect(distinct(['a [hidden]', 'b [hidden]'], M)).toEqual(['a [hidden]', 'b [hidden]'])
+})
+
+test('distinct numbers the masks by position when masking made values equal', () => {
+  expect(distinct(['Mail [hidden]', 'Mail [hidden]', 'Skip'], M)).toEqual(['Mail [hidden 1]', 'Mail [hidden 2]', 'Skip'])
+})
+
+test('distinct suffixes the position when numbering the masks is not enough', () => {
+  expect(distinct(['x [hidden 2]', 'x [hidden]', 'x [hidden]'], M)).toEqual([
+    'x [hidden 2] (1)',
+    'x [hidden 2] (2)',
+    'x [hidden 3] (3)',
+  ])
+  expect(distinct(['same', 'same'], M)).toEqual(['same (1)', 'same (2)'])
 })
