@@ -82,6 +82,12 @@ describe("shallowCloneGitHubRepo hardening", () => {
     await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", spawnFn);
 
     expect(capturedArgs.slice(0, 3)).toEqual(["-c", "credential.helper=", "clone"]);
+    const home = capturedOptions.env.HOME;
+    expect(home).not.toBe(os.homedir());
+    expect(path.basename(home)).toMatch(/^harvest-clone-home-/);
+    expect(capturedOptions.env.USERPROFILE).toBe(home);
+    expect(capturedOptions.env.XDG_CONFIG_HOME).toBe(home);
+    expect(fs.existsSync(home)).toBe(false);
     expect(capturedOptions.env.GIT_ASKPASS).toBe("");
     expect(capturedOptions.env.SSH_ASKPASS).toBe("");
     expect(capturedOptions.env.GIT_TERMINAL_PROMPT).toBe("0");

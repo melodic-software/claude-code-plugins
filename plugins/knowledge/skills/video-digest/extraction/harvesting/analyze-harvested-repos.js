@@ -30,7 +30,9 @@ const CLONE_TIMEOUT_MS = 120_000;
  * `credential.helper=` empties the helper list, an empty `GIT_ASKPASS` stops
  * git falling back to `core.askPass` or `SSH_ASKPASS` (which git consults
  * before `GIT_TERMINAL_PROMPT`), `GIT_TERMINAL_PROMPT=0` stops the terminal
- * prompt, `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
+ * prompt, an empty throwaway home hides `~/.netrc` (which git's HTTP transport
+ * reads regardless of the settings above) and the user's global git config,
+ * `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
  * and a clone that outlives the timeout is killed with its remote helpers and
  * counted as failed.
  *
@@ -46,6 +48,23 @@ export async function shallowCloneGitHubRepo(
   spawnFn = spawn,
   { timeoutMs = CLONE_TIMEOUT_MS } = {},
 ) {
+  const isolatedHome = await fs.mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"));
+  try {
+    return await cloneWithHome(url, destDir, spawnFn, timeoutMs, isolatedHome);
+  } finally {
+    await fs.rm(isolatedHome, { recursive: true, force: true });
+  }
+}
+
+/**
+ * @param {string} url
+ * @param {string} destDir
+ * @param {typeof spawn} spawnFn
+ * @param {number} timeoutMs
+ * @param {string} home
+ * @returns {Promise<boolean>}
+ */
+function cloneWithHome(url, destDir, spawnFn, timeoutMs, home) {
   return new Promise((resolve) => {
     const args = ["-c", "credential.helper=", "clone", "--depth", "1", "--single-branch"];
     const child = spawnFn("git", [...args, "--", url, destDir], {
@@ -54,6 +73,9 @@ export async function shallowCloneGitHubRepo(
       detached: process.platform !== "win32",
       env: {
         ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: home,
         GIT_ASKPASS: "",
         SSH_ASKPASS: "",
         GIT_TERMINAL_PROMPT: "0",
