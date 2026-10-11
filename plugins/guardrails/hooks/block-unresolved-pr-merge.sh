@@ -39,18 +39,27 @@
 # `--admin` is held to the same rule: a bypass flag does not exempt a merge
 # from unread feedback.
 #
-# FAILS OPEN, VISIBLY. When gh is missing or unauthenticated, a read fails, or
-# the PR cannot be identified, the merge runs and both the user and the model
-# are told it ran unchecked. CI and other machines are never wedged. The org
-# ruleset that requires conversation resolution is the server-side backstop.
+# FAILS OPEN, VISIBLY. When gh is missing or unauthenticated, a read fails, the
+# time budget runs out, or the PR cannot be identified, the merge runs and both
+# the user and the model are told it will run unchecked. CI and other machines
+# are never wedged. The org ruleset that requires conversation resolution is
+# the server-side backstop. ONE EXCEPTION FAILS CLOSED: a GraphQL merge,
+# auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
+# variable or `$(...)`, an unreadable node, no gh) is blocked, because a
+# scripted mutation almost always takes its id that way.
+#
+# COMMAND POSITION. Leading assignments, a reserved word the tokenizer leaves
+# at a segment head (`then`, `do`, `{`, `if`, ...), and the `command`, `time`,
+# `exec` and `nohup` prefixes are stepped over; `gh pr -R o/r merge` is read
+# with its repo. `gh pr merge --help` / `-h` and `--disable-auto` are not merges.
 #
 # KNOWN GAPS (stated, not chased): a merge from a script (Python, Node) or the
 # web UI; a merge command built through expansion, `eval`, a wrapper such as
-# `sudo` or `xargs`, or inside `$(...)`; a GraphQL mutation whose PR id comes
-# from a variable file (`--input`); only the first merge in one command string
-# is checked; past 100 reviews or check runs the rest are not read; more than
-# 100 review threads with none unresolved in the first 100 is reported as
-# unchecked.
+# `sudo`, `env` or `xargs`, or a child shell (`bash -c '...'`), or sitting
+# inside `$(...)`; a GraphQL mutation read from a file (`--input`), whose name
+# never appears in the command; only the first merge in one command string is
+# checked; past 100 reviews or check runs the rest are not read; more than 100
+# review threads with none unresolved in the first 100 is reported as unchecked.
 #
 # THE CLOUD ROUTES. Basis: the HTTP 403 body GitHub GraphQL returns inside a
 # Claude Code cloud session names `GET pulls/{n}/ccr/review_threads` (an array
@@ -60,7 +69,9 @@
 #
 # COST. A command that names neither `merge` nor `enqueue` leaves after one
 # string test. A merge command pays five calls in sequence (PR, reviews, check
-# runs, statuses, threads), each capped at 20 s, about once per PR: measured
+# runs, statuses, threads; up to seven with a branch or node lookup and the
+# thread fallback), all inside one 35 s budget that keeps the row under its
+# 60 s timeout (TIME BUDGET below), about once per PR: measured
 # 3.0 to 3.6 s end to end against live PRs in a Claude Code cloud session on
 # 2026-10-11.
 #
@@ -153,9 +164,14 @@ _bupm_graphql() {
   [[ -n "$hit" ]] || return 1
   BUPM_FORM=graphql
   [[ "$hit" == mergePullRequest ]] || BUPM_AUTO=1
+  # A literal node id only: `$PR_ID` and `${PR_ID}` are variables whose value
+  # the guard cannot see, so a `$`, `{` or word character before `PR_` rules
+  # the match out.
+  # shellcheck disable=SC2016  # a regex, `$` is a literal character class member
+  local node_re='(^|[^$A-Za-z0-9_{])(PR_[A-Za-z0-9_-]+)'
   for a in "$@"; do
-    if [[ "$a" =~ (PR_[A-Za-z0-9_-]+) ]]; then
-      BUPM_NODE="${BASH_REMATCH[1]}"
+    if [[ "$a" =~ $node_re ]]; then
+      BUPM_NODE="${BASH_REMATCH[2]}"
       break
     fi
   done
@@ -171,7 +187,8 @@ _bupm_gh_pr_merge() {
     if ((flags)); then
       case "$a" in
       --) flags=0 && continue ;;
-      --disable-auto) return 1 ;;
+      # Not a merge: gh prints help, or switches auto-merge off.
+      --disable-auto | --help | -h) return 1 ;;
       --auto) auto=1 && continue ;;
       -R | --repo) repo="${1-}" && shift && continue ;;
       --repo=*) repo="${a#--repo=}" && continue ;;
@@ -248,7 +265,20 @@ _bupm_curl() {
 # shellcheck disable=SC2329  # invoked through hook::bash_parse_segments
 _bupm_segment() {
   [[ -z "$BUPM_FORM" ]] || return 0
-  while (($#)) && [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do shift; done
+  # Step over what stands before the command word: NAME=value assignments; a
+  # reserved word the tokenizer leaves at the head of a segment (`then gh ...`,
+  # `do gh ...`, `{ gh ...`), as block-root-delete-target.sh does; and the
+  # prefixes that run the next word as the command (`command`, `time`,
+  # `exec`, `nohup`) with their own flags.
+  while (($#)); do
+    case "$1" in
+    '{' | '}' | '!' | then | do | else | elif | if | while | until | command | time | exec | nohup | -p | --) shift ;;
+    *)
+      [[ "$1" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || break
+      shift
+      ;;
+    esac
+  done
   (($#)) || return 0
   local cmd="${1##*/}"
   cmd="${cmd##*\\}"
@@ -257,8 +287,25 @@ _bupm_segment() {
   shift
   case "$cmd" in
   gh)
-    if [[ "${1-}" == pr && "${2-}" == merge ]]; then
-      _bupm_gh_pr_merge "${@:3}"
+    if [[ "${1-}" == pr ]]; then
+      # `gh pr -R o/r merge`: the repo flag may sit before the subcommand.
+      local pre_repo=""
+      shift
+      while (($#)); do
+        case "$1" in
+        -R | --repo) pre_repo="${2-}" && shift 2 ;;
+        --repo=*) pre_repo="${1#--repo=}" && shift ;;
+        -R?*) pre_repo="${1#-R}" && shift ;;
+        *) break ;;
+        esac
+      done
+      [[ "${1-}" == merge ]] || return 0
+      shift
+      if [[ -n "$pre_repo" ]]; then
+        _bupm_gh_pr_merge -R "$pre_repo" "$@"
+      else
+        _bupm_gh_pr_merge "$@"
+      fi
     elif [[ "${1-}" == api ]]; then
       _bupm_gh_api "${@:2}"
     fi
@@ -293,21 +340,63 @@ BUPM_ERR=""
 # _bupm_api <arg>...: one `gh api` call from the payload's cwd, so gh resolves
 # {owner}/{repo} placeholders against that checkout. Sets BUPM_OUT and
 # BUPM_ERR (the first line of gh's stderr).
+#
+# TIME BUDGET. The Bash row shares one 60 s hooks.json timeout across every
+# guard, and a row that runs past it is cancelled with every guard's block
+# discarded (run-guards.sh, AGGREGATION). So all of this guard's calls share
+# one budget of BUPM_BUDGET_S seconds (35), each call capped at what is left
+# and at 15 s, enforced by `timeout` where it exists and by a watcher process
+# where it does not (stock macOS). A spent budget is a failed read.
+# The test suite shortens the budget through GUARDRAILS_BUPM_BUDGET_S; only a
+# value from 1 to 35 is taken, so it can never lengthen the budget.
+BUPM_BUDGET_S=35
+[[ "${GUARDRAILS_BUPM_BUDGET_S:-}" =~ ^[1-9][0-9]?$ ]] && ((GUARDRAILS_BUPM_BUDGET_S <= 35)) &&
+  BUPM_BUDGET_S=$GUARDRAILS_BUPM_BUDGET_S
+BUPM_T0=$SECONDS
+# _bupm_limited <secs> <cmd>...: run <cmd>, killed after <secs>; rc 124 then.
+_bupm_limited() {
+  local secs="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$secs" "$@"
+    return
+  fi
+  local pid w rc=0
+  "$@" &
+  pid=$!
+  # The watcher's output is detached so an orphaned `sleep` cannot hold the
+  # caller's command-substitution pipe open.
+  (
+    sleep "$secs"
+    kill -TERM "$pid" 2>/dev/null
+  ) >/dev/null 2>&1 &
+  w=$!
+  wait "$pid" || rc=$?
+  kill "$w" 2>/dev/null
+  wait "$w" 2>/dev/null
+  ((rc == 143)) && rc=124
+  return "$rc"
+}
 _bupm_api() {
-  local errf rc=0
+  local errf rc=0 left
+  left=$((BUPM_BUDGET_S - (SECONDS - BUPM_T0)))
+  if ((left <= 0)); then
+    BUPM_ERR="the guard's ${BUPM_BUDGET_S} s budget for reading the PR ran out"
+    return 124
+  fi
+  ((left > 15)) && left=15
   errf="$(mktemp 2>/dev/null)" || errf=/dev/null
-  local -a to=()
-  command -v timeout >/dev/null 2>&1 && to=(timeout 20)
   BUPM_OUT=$(
     [[ -n "$BUPM_CWD" ]] && cd "$BUPM_CWD" 2>/dev/null
-    GH_PROMPT_DISABLED=1 ${to[@]+"${to[@]}"} gh api "$@" 2>"$errf"
+    export GH_PROMPT_DISABLED=1
+    _bupm_limited "$left" gh api "$@" 2>"$errf"
   ) || rc=$?
   BUPM_ERR=""
   if [[ "$errf" != /dev/null ]]; then
     IFS= read -r BUPM_ERR <"$errf" || :
     rm -f "$errf"
   fi
-  ((rc == 124)) && BUPM_ERR="gh api timed out after 20 s"
+  ((rc == 124)) && BUPM_ERR="gh api timed out after $left s"
   [[ -n "$BUPM_ERR" ]] || BUPM_ERR="gh api exited $rc"
   BUPM_ERR="${BUPM_ERR:0:200}"
   return "$rc"
@@ -317,25 +406,45 @@ _bupm_api() {
 _bupm_unchecked() {
   local what="this pull request"
   [[ -n "$BUPM_NUM" ]] && what="${BUPM_REPO}#${BUPM_NUM}"
-  local msg="guardrails block-unresolved-pr-merge: could not check $what for unresolved review threads, change requests or failing checks ($1), so this merge ran unchecked. Read the PR's review threads and checks yourself before relying on the merge."
+  local msg="guardrails block-unresolved-pr-merge: could not check $what for unresolved review threads, change requests or failing checks ($1), so this merge will run unchecked. Read the PR's review threads and checks yourself before relying on it."
   hook::emit_channels PreToolUse "$msg" "$msg"
   emit_tel "unchecked" "$BUPM_FORM"
   exit 0
 }
 
+# _bupm_refuse <reason>: fail closed, for a GraphQL merge mutation whose PR
+# cannot be resolved.
+_bupm_refuse() {
+  {
+    printf 'BLOCKED: this GraphQL merge mutation could not be checked for unresolved review threads, change requests or failing checks (%s).\n' "$1"
+    printf 'Fix: pass the pull request id as a literal (-f id=PR_...), or merge with gh pr merge <number>, so the PR can be checked.\n'
+    printf 'Only the user can turn this guard off (block_unresolved_pr_merge_enabled).\n'
+  } >&2
+  emit_tel "blocked" "graphql-unresolvable"
+  exit 2
+}
+
+# A GraphQL mutation must name its PR by a literal node id the guard can
+# resolve; see the fail-closed note below.
+if [[ "$BUPM_FORM" == graphql ]]; then
+  [[ -n "$BUPM_NODE" ]] || _bupm_refuse "the mutation's pull request id is not a literal PR_ node id in the command"
+  command -v gh >/dev/null 2>&1 || _bupm_refuse "gh is not on PATH to resolve node $BUPM_NODE"
+fi
 command -v gh >/dev/null 2>&1 || _bupm_unchecked "gh is not on PATH"
 
 [[ -n "$BUPM_REPO" ]] || BUPM_REPO="{owner}/{repo}"
 
-# A GraphQL mutation names its PR by node id.
+# A GraphQL mutation names its PR by node id. Unlike every other path, one
+# whose PR cannot be resolved FAILS CLOSED: the id usually arrives through a
+# variable or a substitution (`-F id="$(jq -r .id <<<"$PR")"`), so failing
+# open there would leave the commonest scripted shape unguarded.
 if [[ "$BUPM_FORM" == graphql ]]; then
-  [[ -n "$BUPM_NODE" ]] || _bupm_unchecked "the mutation's pull request id is not in the command"
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   _bupm_api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner}}}}' \
     -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' ||
-    _bupm_unchecked "$BUPM_ERR"
+    _bupm_refuse "node $BUPM_NODE could not be read: $BUPM_ERR"
   read -r BUPM_REPO BUPM_NUM <<<"$BUPM_OUT"
-  [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_unchecked "node $BUPM_NODE is not a pull request"
+  [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse "node $BUPM_NODE is not a pull request"
 fi
 
 # gh pr merge: a number, a URL, a branch, or the current branch.

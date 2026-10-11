@@ -44,6 +44,8 @@ while (($#)); do
   esac
 done
 printf '%s\n' "$endpoint" >>"$fix/calls"
+# exec, so a timeout kills this process itself and no orphan holds the pipe.
+[[ -n "${FAKE_GH_SLEEP:-}" ]] && exec sleep "$FAKE_GH_SLEEP"
 if [[ -f "$fix/fail" ]]; then
   echo "gh: Bad credentials (HTTP 401)" >&2
   exit 1
@@ -275,7 +277,7 @@ assert_contains "head lookup names the branch" "$(calls)" "head={owner}:feat/x"
 scenario unresolved none green green
 touch "$FIX/fail"
 run "gh unauthenticated: fails open" 'gh pr merge 42' 0
-assert_contains "unauthenticated -> says it ran unchecked" "$OUT" "ran unchecked"
+assert_contains "unauthenticated -> says it will run unchecked" "$OUT" "will run unchecked"
 assert_contains "unauthenticated -> carries gh's reason" "$OUT" "Bad credentials"
 assert_contains "unauthenticated -> user channel too" "$OUT" '"systemMessage"'
 NOGH="$TEST_TMPDIR/nogh"
@@ -289,8 +291,43 @@ RC=$?
 assert_exit "gh missing: fails open" 0 "$RC"
 assert_contains "gh missing -> says so" "$OUT" "gh is not on PATH"
 scenario unresolved none green green
-run "graphql mutation without a node id: fails open" 'gh api graphql --input mutation.json -f q=mergePullRequest' 0
-assert_contains "no node id -> says it ran unchecked" "$OUT" "ran unchecked"
+
+# --- 8b. a GraphQL mutation whose PR cannot be resolved FAILS CLOSED --------
+gql_refused() { # <label> <command>
+  scenario none none green green
+  run "$1" "$2" 2
+  assert_contains "$1 -> says why" "$ERR" "could not be checked"
+  assert_contains "$1 -> names the literal-id fix" "$ERR" "-f id=PR_"
+}
+gql_refused "mergePullRequest, id from a substitution" \
+  'gh api graphql -F id="$(jq -r .id <<<"$PR")" -f query='"'"'mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id}){clientMutationId}}'"'"''
+gql_refused "enqueuePullRequest, id from a variable" \
+  'gh api graphql -F id=$ID -f query='"'"'mutation($id:ID!){enqueuePullRequest(input:{pullRequestId:$id}){mergeQueueEntry{position}}}'"'"''
+gql_refused "enablePullRequestAutoMerge, id from a quoted variable" \
+  'gh api graphql -f id="$PR_ID" -f query='"'"'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}'"'"''
+gql_refused "mutation named in a -f field, no id" 'gh api graphql --input mutation.json -f q=mergePullRequest'
+# The shape source-control's merge reference (#7075, section 4.2.2) runs: a
+# case arm inside a function body, a multi-line query, the id from jq.
+SC_7075=$(
+  cat <<'SHAPE'
+case "$(jq -r .mergeStateStatus <<<"$PR")" in
+  CLEAN)
+    [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
+      || { echo 'head moved since 4.1: hold and re-run readiness' >&2; exit 1; }
+    gh api graphql --silent -F id="$(jq -r .id <<<"$PR")" -F head="$HEAD_SHA" -f query='
+      mutation($id: ID!, $head: GitObjectID!) {
+        enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+          mergeQueueEntry { position } } }' \
+      || { echo 'enqueue refused: report the GitHub error above verbatim as the blocker' >&2; exit 1; }
+    echo 'queued' ;;
+esac
+SHAPE
+)
+gql_refused "the #7075 merge-queue enqueue shape" "$SC_7075"
+scenario unresolved none green green
+touch "$FIX/fail"
+run "literal node id that cannot be read: fails closed" 'gh api graphql -f query='"'"'mutation{mergePullRequest(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"'' 2
+assert_contains "unreadable node -> names the node" "$ERR" "PR_kwDOabc"
 scenario unresolved none green green
 rm "$FIX/graphql_threads.json" "$FIX/ccr.json"
 run "no thread source answers: fails open" 'gh pr merge 42' 0
@@ -316,6 +353,45 @@ scenario unresolved requested failed failed
 invoke "$(jq -n '{tool_name:"mcp__github__get_pull_request",tool_input:{owner:"a",repo:"b",pullNumber:1}}')"
 assert_exit "an unrelated MCP tool" 0 "$RC"
 assert_eq "an unrelated MCP tool -> no gh call" "" "$(calls)"
+
+quiet "gh pr merge --help" 'gh pr merge --help'
+quiet "gh pr merge -h" 'gh pr merge -h'
+quiet "gh pr merge 42 --help" 'gh pr merge 42 --help'
+
+# --- 9b. command-position prefixes are stepped over ------------------------
+for c in 'if true; then gh pr merge 42; fi' 'for i in 1; do gh pr merge 42; done' \
+  '{ gh pr merge 42; }' 'command gh pr merge 42' 'time gh pr merge 42' 'time -p gh pr merge 42' \
+  'nohup gh pr merge 42' 'exec gh pr merge 42' 'gh pr -R acme/widgets merge 42' \
+  'gh pr --repo=acme/widgets merge 42'; do
+  scenario unresolved none green green
+  run "prefixed: $c" "$c" 2
+done
+scenario unresolved none green green
+run "gh pr -R before merge carries the repo" 'gh pr -R acme/widgets merge 42' 2
+assert_contains "pre-subcommand -R names the repo" "$(calls)" "repos/acme/widgets/pulls/42"
+quiet "gh pr -R repo view is not a merge" 'gh pr -R acme/widgets view 42'
+
+# --- 9c. one time budget across every read, with or without `timeout` -----
+scenario unresolved none green green
+SECONDS=0
+run "a hung gh is cut off by the budget" 'gh pr merge 42' 0 FAKE_GH_SLEEP=30 GUARDRAILS_BUPM_BUDGET_S=2
+assert_contains "budget -> fails open, saying so" "$OUT" "will run unchecked"
+if ((SECONDS < 8)); then ok "budget -> returned in ${SECONDS}s"; else bad "budget -> took ${SECONDS}s"; fi
+NOTIMEOUT="$TEST_TMPDIR/notimeout"
+mkdir -p "$NOTIMEOUT"
+for t in bash jq cat mktemp rm git dirname sleep kill; do
+  p=$(command -v "$t") && ln -sf "$p" "$NOTIMEOUT/$t"
+done
+ln -sf "$BIN/gh" "$NOTIMEOUT/gh"
+scenario unresolved none green green
+SECONDS=0
+OUT=$(env PATH="$NOTIMEOUT" FAKE_GH_DIR="$FIX" FAKE_GH_SLEEP=30 GUARDRAILS_BUPM_BUDGET_S=2 \
+  "$NOTIMEOUT/bash" "$HOOK" <<<"$(command_json 'gh pr merge 42')" 2>/dev/null)
+assert_exit "no timeout binary: the watcher cuts gh off" 0 "$?"
+assert_contains "no timeout binary -> fails open, saying so" "$OUT" "will run unchecked"
+if ((SECONDS < 8)); then ok "no timeout binary -> returned in ${SECONDS}s"; else bad "no timeout binary -> took ${SECONDS}s"; fi
+scenario unresolved none green green
+run "a budget above 35 s is not taken" 'gh pr merge 42' 2 GUARDRAILS_BUPM_BUDGET_S=99
 
 # --- 10. PowerShell -----------------------------------------------------------------
 scenario unresolved none green green
