@@ -9,6 +9,16 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/remove-shims.sh"
 REAL_SOURCES="$SCRIPT_DIR/../reference/sources.md"
+VERSION_LIB="$SCRIPT_DIR/../../../scripts/lib/version.sh"
+
+# A stub copy of the script sources the plugin's shared version comparator
+# from three levels up, so a stub keeps the plugin's layout:
+# <root>/skills/migrate/{scripts,reference} beside <root>/scripts/lib.
+make_stub() { # <root> -> prints the stub's skills/migrate directory
+  mkdir -p "$1/skills/migrate/scripts" "$1/skills/migrate/reference" "$1/scripts/lib"
+  cp "$VERSION_LIB" "$1/scripts/lib/version.sh"
+  printf '%s' "$1/skills/migrate"
+}
 
 CASE_NUM=0
 FAILED=0
@@ -207,8 +217,7 @@ assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --po
 # The price is the record's decision, the paragraph directly above its
 # pointer, and the pointer itself: not the section's lead-in, not the as-of
 # date or the trigger, and nothing from the next section.
-PRICE_STUB="$TMP/price-stub"
-mkdir -p "$PRICE_STUB/scripts" "$PRICE_STUB/reference"
+PRICE_STUB="$(make_stub "$TMP/price-stub")"
 cp "$SCRIPT" "$PRICE_STUB/scripts/remove-shims.sh"
 cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
 # Sources
@@ -536,8 +545,7 @@ rm -rf "$FAKEBIN"
 # with nothing in it.
 NODIR="$TMP/nodir"
 build_ready_repo "$NODIR"
-NODIR_STUB="$TMP/nodir-stub"
-mkdir -p "$NODIR_STUB/scripts" "$NODIR_STUB/reference"
+NODIR_STUB="$(make_stub "$TMP/nodir-stub")"
 cp "$SCRIPT" "$NODIR_STUB/scripts/remove-shims.sh"
 cp "$SCRIPT_DIR/cutover-check.sh" "$NODIR_STUB/scripts/cutover-check.sh"
 cp "$REAL_SOURCES" "$NODIR_STUB/reference/sources.md"

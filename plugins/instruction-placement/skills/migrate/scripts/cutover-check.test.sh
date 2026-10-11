@@ -417,8 +417,11 @@ printf '#!/usr/bin/env bash\nprintf "ACTION\\tERROR\\tgrep exited 2\\nPATHDET\\t
 chmod +x "$STUB_DIR/plan-migration.sh" "$STUB_DIR/plan-migration-error.sh"
 
 silent_plan_check() { # <stub name>
-  local stub="$TMP/silent-$1"
-  mkdir -p "$stub/scripts" "$stub/reference"
+  # The stub keeps the plugin's layout, because the script sources the shared
+  # version comparator from <root>/scripts/lib, three levels above its own.
+  local root="$TMP/silent-$1" stub="$TMP/silent-$1/skills/migrate"
+  mkdir -p "$stub/scripts" "$stub/reference" "$root/scripts/lib"
+  cp "$SCRIPT_DIR/../../../scripts/lib/version.sh" "$root/scripts/lib/version.sh"
   cp "$SCRIPT" "$stub/scripts/cutover-check.sh"
   cp "$STUB_DIR/$2" "$stub/scripts/plan-migration.sh"
   cp "$REAL_SOURCES" "$stub/reference/sources.md"

@@ -20,6 +20,25 @@ SCRIPT="$SCRIPT_DIR/precompute.sh"
 SCRATCH="$(mktemp -d)"
 trap 'rm -rf "$SCRATCH"' EXIT
 
+# No case calls the live `claude`: every run reads a fixture binary that prints
+# a fixed --version line, and a fixture mechanics record.
+fake_claude() {
+  local path="$SCRATCH/claude-$1"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s (Claude Code)"\n' "$1" >"$path"
+  chmod +x "$path"
+  printf '%s' "$path"
+}
+MECHANICS_FIXTURE="$SCRATCH/verified-mechanics.md"
+cat >"$MECHANICS_FIXTURE" <<'EOF'
+| Surface | Enters context when |
+|---|---|
+| Path-scoped rule | On Read *(changelog 2.1.288, measured 2.1.268)* |
+| Bare nested AGENTS.md | Never *(doc, measured 2.1.238 and 2.1.278)* |
+EOF
+export IP_MECHANICS_RECORD="$MECHANICS_FIXTURE"
+IP_CLAUDE_BIN="$(fake_claude 2.1.278)"
+export IP_CLAUDE_BIN
+
 FAILED=0
 CASE_NUM=0
 
@@ -155,6 +174,47 @@ assert_contains "an absent CLAUDE.md reads as absent, not 0" \
   "$(run_in "$empty" audit)" "- Root CLAUDE.md lines: absent"
 assert_contains "an empty directory reports zero rules" \
   "$(run_in "$empty" check)" "- Rules files: 0"
+
+# --------------------------------------------------------------------------
+# The mechanics-record line
+#
+# The record's measured cells were taken on named CLI versions, and its recheck
+# trigger once went twenty versions past without notice. audit and realign
+# must say STALE exactly when the installed CLI is newer than the newest
+# measurement (2.1.278 in the fixture; the changelog-only 2.1.288 must not
+# count), and check, which prices nothing, must not carry the line.
+# --------------------------------------------------------------------------
+for mode in audit realign; do
+  out="$(IP_CLAUDE_BIN="$(fake_claude 2.1.250)" run_in "$empty" "$mode")"
+  assert_contains "$mode: an older CLI is not stale" \
+    "$out" "- Mechanics record: not stale (CLI 2.1.250; newest measurement 2.1.278)"
+
+  out="$(IP_CLAUDE_BIN="$(fake_claude 2.1.278)" run_in "$empty" "$mode")"
+  assert_contains "$mode: the measured CLI itself is not stale" \
+    "$out" "- Mechanics record: not stale (CLI 2.1.278; newest measurement 2.1.278)"
+
+  out="$(IP_CLAUDE_BIN="$(fake_claude 2.1.296)" run_in "$empty" "$mode")"
+  assert_contains "$mode: a newer CLI is stale, naming both versions" \
+    "$out" "- Mechanics record: STALE (CLI 2.1.296 is newer than the newest measurement, 2.1.278;"
+
+  out="$(IP_CLAUDE_BIN="$(fake_claude 2.1.285)" run_in "$empty" "$mode")"
+  assert_contains "$mode: a changelog-only version above the CLI does not mask a stale record" \
+    "$out" "- Mechanics record: STALE (CLI 2.1.285"
+
+  out="$(IP_CLAUDE_BIN="$SCRATCH/no-such-claude" run_in "$empty" "$mode")"
+  assert_contains "$mode: an absent CLI degrades to unchecked, not an error" \
+    "$out" "- Mechanics record: unchecked (installed CLI version unreadable; newest measurement 2.1.278)"
+
+  out="$(IP_MECHANICS_RECORD="$SCRATCH/absent.md" run_in "$empty" "$mode")"
+  assert_contains "$mode: a record with no stamp degrades to unchecked" \
+    "$out" "- Mechanics record: unchecked (no measured-on stamp"
+done
+
+if [[ "$(IP_CLAUDE_BIN="$(fake_claude 2.1.296)" run_in "$empty" check)" == *"Mechanics record"* ]]; then
+  fail "check carries no mechanics line" "no Mechanics record line" "a Mechanics record line"
+else
+  pass "check carries no mechanics line"
+fi
 
 # --------------------------------------------------------------------------
 # The probe must never modify the repository it describes
