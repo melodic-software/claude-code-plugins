@@ -88,8 +88,9 @@ session. Do not fabricate a map.
    resolution comment lists them; it is closed at once with one *Decisions-so-far* pointer (the
    work-mode step 5 sequence). Its open, deferred and blocked questions become candidate
    decision items, and its self-answered facts are distilled into *Notes* as text, never as a
-   path. The constraints the user stated, their starting-point disclosure, and the session-shorthand
-   glossary ride into *Notes* the same way, so a decision the interview already asked is not asked again. Sort every remaining uncertainty through the fog test: sharp → candidate decision
+   path. Its constraint ledger, its `## Starting point` line, and its session-shorthand glossary
+   ride into *Notes* the same way, so nothing the interview already asked is asked again. Sort
+   every remaining uncertainty through the fog test: sharp → candidate decision
    item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet. Every uncertainty is already sharp, or the
    whole effort fits one session. This effort does not need a map. STOP and route out

@@ -21,6 +21,12 @@ One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`
 - C1 | confirmed | V1 ships without SSO | user, round 1
 - C2 | inherited | no new runtime dependencies | prior Brief
 
+## Starting point
+
+One line: what the user disclosed at intake about where they start (SKILL.md Stance, "Intake the starting point"). `/planning:wayfind chart` carries it into its map's Notes, so a session cleared between the two skills keeps it (`context/routing.md` "The handoff to wayfind"). Replace the example line with this run's disclosure.
+
+- New to this codebase area; has used the queue library elsewhere
+
 ## Open-question register
 
 **Write a row the moment a round is ASKED, before any reply arrives.** The register is a byproduct of asking, not of resolving: a question that only lands on disk once it is answered cannot record the failure of never being answered. Statuses: `open` | `answered` | `deferred` | `withdrawn` | `blocked` | `superseded-by-plan` (set by `/planning:plan` when a plan change displaces an answer, resolution `plan proposes: <new>; was: <old>`; not terminal; row shape and how it clears: `context/loop.md` "Superseded by plan"). `Q<N>` matches the terminal numbering and runs continuously across rounds with no gaps.

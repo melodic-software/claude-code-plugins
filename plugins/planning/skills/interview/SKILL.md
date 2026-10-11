@@ -441,24 +441,11 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 Turn the interview's read of complexity and ambiguity into a recommendation for how the session carrying the work forward should be configured. *When* it lands follows from *what* it configures: an engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
 
-Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the
-recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing,
-the rule that current model and effort names are fetched live and never pinned (and that a failed
-fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form
-the recommendation from this summary.
+Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing, the rule that current model and effort names are fetched live and never pinned (and that a failed fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form the recommendation from this summary.
 
 ## Routing by size and fog
 
-**Entry: diff size and retry cost, not behavior change.** A change whose diff is quick to review and cheap to retry skips the interview (see "What this skill does NOT do"): when the diff is tiny, a wrong build costs almost nothing, so aligning on the diff after it exists beats aligning before it. Work that fails either test is interview-first, and an effort too big and too foggy for one session is reached from here, never first (`/planning:wayfind` sends a cold start back to this skill).
-
-**Bigger than you thought? Check at every round boundary.** After each reply is recorded and before the next round is written, answer one question: did this turn out larger or foggier than it looked at entry? It is bigger when either trigger holds:
-
-- **The context zone has worsened.** The session's context-guard report (the zone line the module injects, or its `mcp__context-guard__status` tool) puts the session past its best zone. Use only a report the harness already surfaced or that tool; do not poll your own context statistics, and write no token or percentage figure here, because the zone thresholds belong to context-guard. No report, or `unknown`, is not a trigger.
-- **More branches opened than closed.** Count the register: this round's new `open` rows against the rows it moved to a terminal status. Two rounds running with more opened than closed is a trigger; one is noise.
-
-On a trigger, recommend `/planning:wayfind chart` to the user in one short block (the trigger and its evidence, what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask the next round. When the user accepts, the handoff carries everything this interview already holds, so nothing is asked twice: the ledger path (`<memory_dir>/<topic-slug>/interview-checklist.md`) with its answered rows as decisions so far, its `open`, `deferred` and `blocked` rows as candidate decision items, the constraints the user stated, the starting-point disclosure from intake, and the session-shorthand glossary. Wayfind's chart step reads that ledger.
-
-**Small after all: ship it.** At any round boundary the operator can say the work is small ("this is small, ship it") and the model can propose the same when the diff now looks quick to review and cheap to retry. The model's proposal waits for the operator's yes, because the remaining questions are the operator's to drop. On that yes, stop asking; move each `open` row to `deferred` with the reply as its reason, so the register gate passes without inventing an answer; write the decisions so far (the Brief, or the shared-understanding summary in a general session); and hand off to implementation (`/implementation:implement`), not to `/planning:plan`.
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` and what that handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 ## What this skill does NOT do
 
