@@ -191,21 +191,30 @@ message whether the agent never launched or finished perfectly and could not wri
 because it grades disk state and nothing else, and reading the payload is not its job. The branch lives
 here instead, one level up, where gate step 1 has already put the payload in the parent's hands.
 
-### What the resume rung relies on
+### What the harness actually guarantees about a resume
 
-The parent resumes a stopped or finished explorer with `SendMessage` addressed by the agent ID it
-received, never by name, because the ID cannot be taken over by a newer agent. Resuming is the
-first rung because the resumed run keeps its context and needs no new spawn. A subagent the user
-stopped themselves cannot be resumed: re-dispatch it instead. Before acting on any of this, read the
-section live; which stopped runs accept a message is the part most likely to move.
+Verified 2026-09-25 against <https://code.claude.com/docs/en/sub-agents> (raw markdown; the page
+`docs/official-docs.md` indexes for subagents), quoting it:
 
-- **Pointer**: when deciding whether and how to resume a dispatched agent, fetch
-  [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes, or a release note names `SendMessage` resume,
-  stopped-subagent handling, or agent-ID addressing.
-
-This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
+- The parent has the identifier it needs: "When a subagent completes, Claude receives its agent ID."
+- The mechanism: "Claude uses the `SendMessage` tool with the agent's ID or name as the `to` field
+  to resume it", and it "doesn't require agent teams to be enabled".
+- Why resuming is cheaper than re-dispatching: "Resumed subagents retain their full conversation
+  history, including all previous tool calls, results, and reasoning." and "The subagent picks up
+  exactly where it stopped rather than starting fresh." A finished agent needs no new spawn: "When
+  Claude sends a completed subagent a message with the `SendMessage` tool, the subagent resumes in
+  the background without a new `Agent` invocation."
+- Why the ID and not the name: "As of v2.1.199, `SendMessage` checks that a name still refers to the
+  same agent it reached earlier in the conversation" and refuses the send when a newer agent has
+  taken the name. The ID is unambiguous.
+- The one case the parent cannot retry: "A subagent you stopped yourself, with `x` in `/tasks` or an
+  SDK `stop_task` request, doesn't auto-resume. If Claude sends it a message, the message is refused
+  and Claude is told the agent was cancelled." Re-dispatch instead. A subagent Claude stopped with
+  the `TaskStop` tool is not this case: the page says the same background resume "applies to a
+  subagent that Claude stopped with the `TaskStop` tool, once its stopped run has exited".
+- **Recheck trigger.** The page's "Resume subagents" section changes, or a release note names
+  `SendMessage` resume, stopped-subagent handling, or agent-ID addressing.
+- This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
   the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
   agent ID. Dated record, with the quoted basis:
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),

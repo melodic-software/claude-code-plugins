@@ -532,9 +532,9 @@ the full resolution order, the version where it changed, and the session-wide ov
 session overrides it per run with the per-call `model`, which replaces the pin in either direction.
 An omitted `model` is not a neutral default: it falls through the order the pointer names, so on a
 machine without a subagent-model setting an unpinned worker runs on the orchestrator's model and
-pays that rate for every turn it spends reading files. `model: inherit` is worse: it pins the
-orchestrator's model ahead of any subagent-model setting the operator made, so it overrides even a
-machine configured to run workers cheaper, and it is a cost defect in a worker definition.
+pays that rate for every turn it spends reading files. `model: inherit` selects the same model and
+outranks the subagent-model environment variable (only the session-wide override the second
+pointer names outranks it), so it is a cost defect in a worker definition.
 *As of:* 2026-10-11.
 
 ### The verdict lane pins `opus` at `effort: high`

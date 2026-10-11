@@ -8,4 +8,4 @@ bump: patch
 
 ### Changed
 
-- Restated Claude Code specifics (subagent model resolution order, resume behavior, the Explore thoroughness values, the `${CLAUDE_EFFORT}` level list, tool-filter wording, the bundled `deep-research` description) are replaced with anchored pointer records dated 2026-10-11 across the research, explore and trace-intent skills, the researcher and intent-tracer agents, and the parent contract. The research skill now detects an unsubstituted effort placeholder by its literal `${` prefix.
+- Restated Claude Code specifics (subagent model resolution order, the Explore thoroughness values, the `${CLAUDE_EFFORT}` level list, tool-filter wording, the bundled `deep-research` description) are replaced with anchored pointer records dated 2026-10-11 across the research, explore and trace-intent skills, the researcher and intent-tracer agents, and the parent contract. The research skill now detects an unsubstituted effort placeholder by its literal `${` prefix.

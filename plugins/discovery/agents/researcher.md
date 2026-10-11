@@ -197,9 +197,11 @@ Report the refusal through the by-value path below.
 the session's nesting depth limit can take it away. That is why your dispatch prompt carries a
 nesting flag rather than leaving you to infer one, and why you check whether the tool is **actually
 there** rather than treating the flag as a guarantee. A spawn that comes back denied is not an
-answer about depth, so read the error text. The dated record for both harness behaviors is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
-"Harness facts the dispatch design rests on".
+answer about depth, so read the error text. The dated record for the depth limit and the spawn
+permission check is
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md#a-spawn-is-permission-checked-before-it-launches-and-the-depth-limit-is-a-different-mechanism),
+"A spawn is permission-checked before it launches, and the depth limit is a different mechanism".
+As of 2026-10-11. Recheck trigger: that record is re-dated, renamed or split.
 
 ## Untrusted-content posture (standing instruction)
 

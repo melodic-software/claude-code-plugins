@@ -158,7 +158,7 @@ In the main conversation, take the deep tier when any of these holds, and read [
 - **One topic that needs adversarial verification**: contested, high-stakes, or broad enough (multi-vendor, comparison, migration) that independent skeptics should try to refute each claim. The `discovery:research-sweep` workflow runs it when the Workflow tool is observed in this session's toolset; otherwise one researcher does.
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 
-Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn ([context/deep-tier.md](context/deep-tier.md) carries the pointers): it runs inline, and never promises the workflow engine.
+Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor; as of 2026-10-11; recheck when that paragraph moves or its pointers change): it runs inline, and never promises the workflow engine.
 
 ## Pre-dispatch envelope and baseline
 
