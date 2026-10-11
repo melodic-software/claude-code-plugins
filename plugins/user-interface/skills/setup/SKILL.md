@@ -54,9 +54,10 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 - **Layers.** Each layer's `state`. `invalid`, and every entry in a layer's `errors`, is a FAIL
   naming the file and key: the lower layer kept that key. A `routing` key outside the team layer is
   one of these; routing is team-only.
-- **Convention home.** When `config.home_error` is set, FAIL: the convention-home pointer line is
-  broken, so the team and personal layers were not read. The fix is the pointer line; never fall
-  back to a default home.
+- **Convention home.** When `config.home_error` is set, FAIL quoting it: the convention home did
+  not resolve, so the team and personal layers were not read. A `FAIL:` line in it means the
+  pointer line is broken and the fix is that line; any other cause (a missing `bash`, a timeout)
+  is fixed where it names. Never fall back to a default home.
 - **Duplicates.** A key set both in the userConfig file you wrote (a non-empty value) and in the
   user-global file (read the file at the `user` layer's path) is a WARN: both are personal, the
   file wins, and the userConfig value does nothing.
@@ -77,6 +78,8 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 ## `apply`
 
 1. Run `check`. Stop on `home_error` for the team or personal layer: there is no home to write to.
+   Also stop when the target layer's `errors` say its file is a symlink or resolves outside the
+   project: a write would land outside the checkout.
 2. Settle the key and value. Refuse a key the schema does not have, a value outside its `enum`, and
    `routing` outside the team layer. `routing` rows are edited by hand; `check` validates them.
 3. Write one key in the layer's YAML file. For `--user`, run the managed check below on

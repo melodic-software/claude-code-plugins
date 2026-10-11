@@ -114,6 +114,20 @@ describe("css signals", () => {
     const dir = scratchProject("vendored-only", { "package.json": "{}", "node_modules/pkg/a.css": "a {}" });
     assert.deepEqual(detect(["--project", dir, ...seams]).project.style_files, []);
   });
+
+  test("a .browserslistrc that links outside the project is not read", { skip: process.platform === "win32" && "file symlinks need a privilege on Windows" }, () => {
+    const secret = join(scratch, "outside-secret.txt");
+    writeFileSync(secret, "TOKEN=leaked\n");
+    const dir = scratchProject("linked-browserslistrc", { "package.json": "{}", "shared/browsers": "defaults\n" });
+    symlinkSync(secret, join(dir, ".browserslistrc"));
+    symlinkSync(join(dir, "shared/browsers"), join(dir, "browserslist"));
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.browserslist, { query: "defaults", source: "browserslist" });
+  });
+
+  test("an oversized .browserslistrc is not read", () => {
+    const dir = scratchProject("huge-browserslistrc", { "package.json": "{}", ".browserslistrc": `defaults\n${"#".repeat(70_000)}\n` });
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.browserslist, { query: null, source: null });
+  });
 });
 
 describe("--config", () => {
@@ -201,15 +215,59 @@ describe("--config", () => {
     const team = join(scratch, "team-rows.yaml");
     writeFileSync(
       team,
-      "routing:\n  version: 1\n  rows:\n    - concern: css-authoring\n      id: /user-interface:write-css\n      rank: 2\n" +
-        "    - concern: Not A Concern\n      id: /user-interface:write-css\n      rank: 0\n",
+      "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: /pixel-art:ui\n      rank: 2\n" +
+        "    - concern: Not A Concern\n      id: /pixel-art:ui\n      rank: 0\n",
     );
     const { config: c } = detect([...base, "--team", team]);
-    assert.deepEqual(c.values.routing.rows, [{ concern: "css-authoring", id: "/user-interface:write-css", rank: 2 }]);
+    assert.deepEqual(c.values.routing.rows, [{ concern: "visual-direction", id: "/pixel-art:ui", rank: 2 }]);
     const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
     assert.match(errors, /routing\.rows\[1\]\.concern: must match/);
     assert.match(errors, /routing\.rows\[1\]\.rank: must be an integer >= 1/);
     assert.doesNotMatch(errors, /rows\[0\]/);
+  });
+
+  test("an unknown key in a team row drops only that key, and the rest of routing stays", () => {
+    const team = join(scratch, "team-unknown-key.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: /pixel-art:ui\n      rank: 2\n      foo: bar\n" +
+        "  deny:\n    - figma\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing, { version: 1, rows: [{ concern: "visual-direction", id: "/pixel-art:ui", rank: 2 }], deny: ["figma"] });
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.rows\[0\]: unknown key foo, dropped/);
+  });
+
+  test("a bad disable or deny entry drops only that entry", () => {
+    const team = join(scratch, "team-bad-entries.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  disable:\n    - concern: Not A Concern\n    - concern: visual-direction\n      id: /pixel-art:ui\n" +
+        "  deny:\n    - 5\n    - figma\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing, { version: 1, disable: [{ concern: "visual-direction", id: "/pixel-art:ui" }], deny: ["figma"] });
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.disable\[0\]\.concern: must match/);
+    assert.match(errors, /routing\.disable\[0\]: missing id/);
+    assert.match(errors, /routing\.deny\[0\]: must be a string/);
+  });
+
+  test("a team row that matches no bundled row is held to the full row schema", () => {
+    const team = join(scratch, "team-new-row.yaml");
+    writeFileSync(team, "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: brand-new-tool\n");
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, []);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.rows\[0\]: missing rank/);
+  });
+
+  test("an unknown routing version drops routing and names the version", () => {
+    const team = join(scratch, "team-routing-v2.yaml");
+    writeFileSync(team, "routing:\n  version: 2\n  deny:\n    - figma\n");
+    const { config: c } = detect([...base, "--team", team]);
+    assert.equal(c.values.routing, undefined);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.version: must be one of 1/);
   });
 
   test("a complete team routing row is held to the full row schema, allOf included", () => {

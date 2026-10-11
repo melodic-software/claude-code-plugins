@@ -62,7 +62,8 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by a CSS authoring skill that is not released yet; until it is, they change
-nothing.
+nothing. `routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
+does not apply it yet: it routes from the bundled rows only.
 
 **Provenance.** `scripts/detect.mjs --config` prints every resolved value with the layer that
 supplied it, and `/user-interface:setup check` shows them as a table. A `css_*` option counts only once you store a

@@ -42,6 +42,7 @@ const TOKEN_DIRS = ["", "tokens", "design", "styles", "src/styles"];
 const DOC_FILE = /^(design|design-system|styleguide|style-guide)\.md$/i;
 const DOC_DIRS = ["", "docs"];
 const BROWSERSLIST_FILES = [".browserslistrc", "browserslist"];
+const BROWSERSLIST_MAX_BYTES = 64 * 1024;
 const STYLELINT_CONFIG = /^(\.stylelintrc(\.(json|ya?ml|js|cjs|mjs))?|stylelint\.config\.(js|cjs|mjs|ts|cts|mts))$/;
 const ESLINT_CONFIG = /^eslint\.config\.(js|cjs|mjs|ts|cts|mts)$/;
 const ESLINT_CSS = ["@eslint/css", "eslint-plugin-css"];
@@ -84,7 +85,8 @@ function browserslist(pkg) {
   if (isMapping(own)) return { query: join_(own.production ?? own.defaults ?? []), source: "package.json" };
   for (const name of BROWSERSLIST_FILES) {
     const file = join(opts.project, name);
-    if (!isFile(file)) continue;
+    // A link out of the project could print any readable file, so only the project's own file counts.
+    if (!isFile(file) || escapesProject(file) || statSync(file).size > BROWSERSLIST_MAX_BYTES) continue;
     const plain = [];
     const production = [];
     let into = plain; // lines before any [env] section are the defaults
@@ -178,10 +180,10 @@ function conventionHome() {
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
 
-/** True when `dir` exists and its real path lies outside the project's, as the resolver judges a home. */
-function escapesProject(dir) {
+/** True when `path` exists and its real path lies outside the project's, as the resolver judges a home. */
+function escapesProject(path) {
   try {
-    const rel = relative(realpathSync(opts.project), realpathSync(dir));
+    const rel = relative(realpathSync(opts.project), realpathSync(path));
     return rel === ".." || rel.startsWith("../") || rel.startsWith(`..${sep}`) || isAbsolute(rel);
   } catch {
     return false;
@@ -244,32 +246,55 @@ const relabel = (v, names) => {
   return isMapping(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relabel(x, names)])) : v;
 };
 
-/** Drops each team routing row that breaks the bundled row schema, naming it on the team layer. A
- * team row may re-rank a bundled row, so it needs only concern and id; every field it sets must fit. */
-function checkRoutingRows(out) {
-  const rows = out.values.routing?.rows;
-  if (!Array.isArray(rows)) return;
+/** Checks the team `routing` key entry by entry, naming each problem on the team layer: an unknown
+ * key drops only that key, a row, disable or deny entry that still fails drops alone, and an unknown
+ * version drops routing. A row matching a bundled concern plus id may re-rank it, so it needs only
+ * concern and id; a new or complete row needs the full row schema. */
+function checkRouting(out) {
+  const routing = out.values.routing;
+  if (!isMapping(routing)) return;
+  const team = out.layers.find((l) => l.name === "team");
+  const fail = (errors) => team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`)) && errors.length > 0;
+  const strip = (props, v, at) => {
+    if (isMapping(v)) for (const k of Object.keys(v)) if (!Object.hasOwn(props, k)) fail([`${at}: unknown key ${k}, dropped`]) && delete v[k];
+    return v;
+  };
   const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
   const partial = { type: "object", required: ["concern", "id"], additionalProperties: false, properties: full.properties };
-  const isComplete = (row) => isMapping(row) && full.required.every((k) => Object.hasOwn(row, k));
-  const team = out.layers.find((l) => l.name === "team");
-  out.values.routing.rows = rows.filter((row, i) => {
-    const errors = validate(isComplete(row) ? full : partial, row, `routing.rows[${i}]`);
-    team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`));
-    return errors.length === 0;
-  });
+  const disable = { type: "object", required: ["concern", "id"], additionalProperties: false, properties: { concern: full.properties.concern, id: { type: "string", minLength: 1 } } };
+  const bundled = new Set(JSON.parse(readFileSync(ROUTING, "utf8")).rows.map((r) => `${r.concern}\0${r.id}`));
+  const needsFull = (row) => full.required.every((k) => Object.hasOwn(row, k)) || !bundled.has(`${row.concern}\0${row.id}`);
+
+  strip({ version: 1, rows: 1, disable: 1, deny: 1 }, routing, "routing");
+  if ("version" in routing && fail(validate({ enum: [1] }, routing.version, "routing.version"))) {
+    delete out.values.routing;
+    delete out.provenance.routing;
+    return;
+  }
+  const filter = (key, check) => {
+    if (!(key in routing)) return;
+    if (!Array.isArray(routing[key])) fail([`routing.${key}: must be an array, dropped`]) && delete routing[key];
+    else routing[key] = routing[key].filter((v, i) => !fail(check(v, `routing.${key}[${i}]`)));
+  };
+  filter("rows", (v, at) => validate(isMapping(v) && needsFull(strip(full.properties, v, at)) ? full : partial, v, at));
+  filter("disable", (v, at) => validate(disable, strip(disable.properties, v, at), at));
+  filter("deny", (v, at) => validate({ type: "string", minLength: 1 }, v, at));
 }
 
 function config() {
   const { home, error } = conventionHome();
   const user = readUserConfig(opts["user-config"]);
   const seam = opts.team || home === null ? scratchHome(home) : null;
+  const schema = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
+  // The resolver checks a team-only key as one leaf, so one bad entry would drop all of routing;
+  // checkRouting checks it entry by entry instead.
+  schema.properties.routing = { type: "object" };
   try {
     const out = resolve({
       plugin: PLUGIN,
       projectRoot: opts.project,
       home: seam?.dir ?? home,
-      schema: JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8")),
+      schema,
       defaults: parseYaml(readFileSync(join(ROOT, "reference/defaults.yaml"), "utf8")),
       userConfig: user.value,
       teamOnly: ["routing"],
@@ -285,7 +310,7 @@ function config() {
         Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`] });
       }
     }
-    checkRoutingRows(out);
+    checkRouting(out);
     return { ...out, home, ...(error && { home_error: error }) };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
