@@ -59,8 +59,16 @@ Claim a work item through the seam (assignee + lease record).
    ITEM_REPO="${ITEM_REPO%#*}"
    CURRENT_ID=""
    if [[ -n "$BRANCH" ]]; then
-     CURRENT_ID="$(bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" \
-       change-link --branch "$BRANCH" --repo "$ITEM_REPO" 2>/dev/null | jq -r '.item_id // empty')"
+     LINK="$(bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" \
+       change-link --branch "$BRANCH" --repo "$ITEM_REPO" 2>/dev/null)"
+     LINK_RC=$?
+     if [[ "$LINK_RC" -eq 6 ]]; then
+       # The adapter predates change-link: keep the numeric <type>/<N>-<slug> default.
+       [[ "$BRANCH" =~ ^[a-z]+/(routine-issue-)?([0-9]+)- ]] &&
+         CURRENT_ID="${ID%#*}#${BASH_REMATCH[2]}"
+     else
+       CURRENT_ID="$(jq -r '.item_id // empty' <<<"$LINK" 2>/dev/null)"
+     fi
    fi
    # Resolve <base-ref> for the suggestions below from the remote's OWN default
    # branch. Ask the REMOTE first: refs/remotes/origin/HEAD is a local cache that

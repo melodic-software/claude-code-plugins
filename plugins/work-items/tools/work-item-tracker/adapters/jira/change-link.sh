@@ -11,13 +11,13 @@ wit_help_if_requested "usage: change-link (<id> | --branch-ref <KEY-N>)  (id: ji
 wit_change_link_args "$@"
 if [[ -n "$WIT_CL_REF" ]]; then
   [[ "$WIT_CL_REF" =~ ^([A-Z][A-Z0-9_]*)-([0-9]+)$ ]] ||
-    wit_usage_error "branch ref '$WIT_CL_REF' is not a Jira issue key (PROJECTKEY-number)"
+    wit_change_link_no_item "branch ref '$WIT_CL_REF' is not a Jira issue key (PROJECTKEY-number)"
   project="${BASH_REMATCH[1]}" number="${BASH_REMATCH[2]}"
   # The site comes from the binding, and the binding's project_keys is the declared
   # scope: a key from an undeclared project is not this binding's item.
   wit_need_jira_config
   wit_jira_project_in_scope "$project" ||
-    wit_usage_error "project '$project' is not in the binding's config.jira.project_keys (declared read scope)"
+    wit_change_link_no_item "project '$project' is not in the binding's config.jira.project_keys (declared read scope)"
   WIT_CL_ID="jira:$WIT_JIRA_SITE/$project#$number"
 fi
 wit_require_jira_id "$WIT_CL_ID" ||

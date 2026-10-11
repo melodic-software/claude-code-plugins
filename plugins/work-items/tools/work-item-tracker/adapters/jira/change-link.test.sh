@@ -26,11 +26,11 @@ assert_eq "branch ref exit 0" "0" "$RC"
 assert_eq "branch ref qualifies against the bound site" "jira:test.atlassian.net/SW2#12345" "$(jq -r '.item_id' <<<"$OUT")"
 
 jira_run "$S" --branch-ref OPS-1
-assert_eq "undeclared project → exit 2" "2" "$RC"
+assert_eq "undeclared project names no item → exit 5" "5" "$RC"
 assert_contains "the refusal names project_keys" "$ERR" "project_keys"
 
 jira_run "$S" --branch-ref sw2-1
-assert_eq "lower-case key → exit 2" "2" "$RC"
+assert_eq "lower-case key names no item → exit 5" "5" "$RC"
 
 assert_eq "no request was made" "absent" "$([[ -e "$JIRA_FIX/.counter" ]] && echo present || echo absent)"
 [[ $FAILED -eq 0 ]] || exit 1

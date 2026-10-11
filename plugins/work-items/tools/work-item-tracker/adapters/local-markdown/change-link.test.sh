@@ -7,7 +7,8 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 assert_help "$S"
 assert_usage_error "$S"
 assert_usage_error "$S" "github:o/r#1"
-assert_usage_error "$S" --branch-ref abc
+bash "$S" --branch-ref abc >/dev/null 2>&1
+assert_eq "a ref that is not an item number names no item → exit 5" "5" "$?"
 
 out="$(bash "$S" "local-markdown:local/markdown#7")"
 assert_eq "merge closes nothing" "null" "$(jq -r '.closes' <<<"$out")"
@@ -17,5 +18,5 @@ assert_eq "branch ref is the number" "7" "$(jq -r '.branch_ref' <<<"$out")"
 out="$(bash "$S" --branch-ref 7)"
 assert_eq "branch ref qualifies in the default namespace" "local-markdown:local/markdown#7" "$(jq -r '.item_id' <<<"$out")"
 out="$(bash "$S" --branch-ref 7 --repo team/store)"
-assert_eq "branch ref qualifies in --repo" "local-markdown:team/store#7" "$(jq -r '.item_id' <<<"$out")"
+assert_eq "the change's --repo is not the store namespace" "local-markdown:local/markdown#7" "$(jq -r '.item_id' <<<"$out")"
 [[ $FAILED -eq 0 ]] || exit 1

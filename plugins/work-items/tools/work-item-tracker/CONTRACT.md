@@ -600,11 +600,13 @@ adapter instead of writing GitHub's grammar
 | Input | Meaning |
 |---|---|
 | `<id>` | a qualified item ID ("ID grammar") |
-| `--branch-ref <ref>` | a token captured from a branch name; the adapter qualifies it into an ID, exit `2` when it cannot (wrong shape, or a Jira project or Linear team outside the binding's declared scope) |
+| `--branch-ref <ref>` | a token captured from a branch name; the adapter qualifies it into an ID, exit `5` when it names no item of this binding (wrong shape, or a Jira project or Linear team outside the declared scope); exit `2` stays a usage error |
 | `--branch <name>` | core applies the manifest's `change_link.branch_pattern` to the name and dispatches `--branch-ref` with the last capture group; no match is exit `5` |
 
-`--repo <o>/<r>` names the repository the change lives in. GitHub, Gitea and local-markdown need
-it (or, for local-markdown, its default namespace) to qualify a `--branch-ref`. GitHub and Gitea
+`--repo <o>/<r>` names the repository the change lives in. GitHub and Gitea need it to qualify a
+`--branch-ref`; local-markdown, which has no forge, qualifies one in its default namespace and
+ignores it. A manifest declaring `change-link` without `change_link.branch_pattern` makes
+`--branch` exit `3`. GitHub and Gitea
 emit the short `#N` form only when it equals the item's repository, else the cross-repository
 `owner/repo#N` form, which both providers also honor inside the same repository.
 

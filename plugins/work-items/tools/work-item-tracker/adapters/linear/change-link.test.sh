@@ -26,11 +26,11 @@ assert_eq "lower-case branch ref exit 0" "0" "$rc"
 assert_eq "branch ref qualifies against the bound workspace" "linear:acme/ENG#12" "$(jq -r '.item_id' <<<"$(lin_out)")"
 
 rc="$(lin_run "$S" --branch-ref OPS-5)"
-assert_eq "undeclared team → exit 2" "2" "$rc"
+assert_eq "undeclared team names no item → exit 5" "5" "$rc"
 assert_contains "the refusal names config.linear.scopes" "$(lin_err)" "config.linear.scopes"
 
 rc="$(lin_run "$S" --branch-ref 12)"
-assert_eq "a bare number is not an identifier → exit 2" "2" "$rc"
+assert_eq "a bare number names no item → exit 5" "5" "$rc"
 
 assert_eq "no request was made" "" "$(lin_requests)"
 [[ $FAILED -eq 0 ]] || exit 1

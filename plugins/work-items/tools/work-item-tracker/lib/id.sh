@@ -57,6 +57,14 @@ wit_change_link_args() {
   [[ -z "$WIT_CL_ID" || -z "$WIT_CL_REF" ]] || wit_usage_error "pass <id> or --branch-ref, not both"
 }
 
+# wit_change_link_no_item <message> — a well-formed --branch-ref this binding cannot
+# name an item from (wrong shape, or outside the declared scope): exit 5, not 2, so a
+# caller can tell "no linked item" from its own usage error.
+wit_change_link_no_item() {
+  printf 'change-link: %s\n' "$1" >&2
+  exit 5
+}
+
 # wit_hash_ref <change-repo> — after wit_parse_id: `#N` when <change-repo> is the
 # item's own repository, else the cross-repository `owner/repo#N` form.
 wit_hash_ref() {

@@ -10,8 +10,10 @@ wit_help_if_requested "usage: change-link (<id> | --branch-ref <N>) [--repo <own
 
 wit_change_link_args "$@"
 if [[ -n "$WIT_CL_REF" ]]; then
-  [[ "$WIT_CL_REF" =~ ^[0-9]+$ ]] || wit_usage_error "branch ref '$WIT_CL_REF' is not a local item number"
-  WIT_CL_ID="local-markdown:${WIT_CL_REPO:-$WIT_LOCAL_DEFAULT_NS}#$WIT_CL_REF"
+  [[ "$WIT_CL_REF" =~ ^[0-9]+$ ]] || wit_change_link_no_item "branch ref '$WIT_CL_REF' is not a local item number"
+  # A local store has no forge, so the change's --repo is not the item namespace: a
+  # branch names an item in the store's default namespace.
+  WIT_CL_ID="local-markdown:$WIT_LOCAL_DEFAULT_NS#$WIT_CL_REF"
 fi
 wit_require_local_id "$WIT_CL_ID" ||
   wit_usage_error "malformed or non-local-markdown id: $WIT_CL_ID"

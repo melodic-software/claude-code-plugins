@@ -11,7 +11,8 @@ assert_usage_error "$S" --nope
 assert_usage_error "$S" "#12"
 assert_usage_error "$S" "github:acme/webapp#1"
 assert_usage_error "$S" --branch-ref 12
-assert_usage_error "$S" --branch-ref SW2-12 --repo acme/webapp
+bash "$S" --branch-ref SW2-12 --repo acme/webapp >/dev/null 2>&1
+assert_eq "a ref that is not an issue number names no item → exit 5" "5" "$?"
 
 out="$(bash "$S" "gitea:acme/webapp#42" --repo acme/webapp)"
 assert_eq "closes, same repo" "Closes #42" "$(jq -r '.closes' <<<"$out")"

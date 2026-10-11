@@ -9,7 +9,7 @@ wit_help_if_requested "usage: change-link (<id> | --branch-ref <N>) [--repo <own
 
 wit_change_link_args "$@"
 if [[ -n "$WIT_CL_REF" ]]; then
-  [[ "$WIT_CL_REF" =~ ^[0-9]+$ ]] || wit_usage_error "branch ref '$WIT_CL_REF' is not a Gitea issue number"
+  [[ "$WIT_CL_REF" =~ ^[0-9]+$ ]] || wit_change_link_no_item "branch ref '$WIT_CL_REF' is not a Gitea issue number"
   [[ -n "$WIT_CL_REPO" ]] || wit_usage_error "--branch-ref needs --repo <owner>/<repo>"
   WIT_CL_ID="gitea:$WIT_CL_REPO#$WIT_CL_REF"
 fi
