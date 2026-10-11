@@ -98,6 +98,17 @@
         "Output gives the local page path and says the repository is not public",
         "Output names medium: artifact in ~/.claude/rendered-views.md as the opt-in"
       ]
+    },
+    {
+      "id": 10,
+      "name": "risk-only-demotes-never-widens",
+      "prompt": "/review:explain-change 88 --risk-only. Your map rates the auth area MEDIUM; the checker rates it HIGH. Every other row is LOW. Can the babysit lane auto-merge it now?",
+      "expected_output": "No digest, policy check, or page. The rows are checked blind, the auth row is disputed with the checker's HIGH, and demote is true because a disputed row counts at its higher level. The answer says demote can only send the merge to a human and that demote false would never have made the pull request merge-eligible on its own.",
+      "expectations": [
+        "Output does not run digest-policy.mjs or build-digest.mjs",
+        "Output sets demote true because of the checker's HIGH on the disputed auth row",
+        "Output says the result can only route the merge to a human and never makes a pull request merge-eligible"
+      ]
     }
   ]
 }
