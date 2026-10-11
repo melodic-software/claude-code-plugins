@@ -79,15 +79,15 @@ Two cautions apply before recommending a pairing:
 - **Price the stronger model alone at low effort first.** That result is the baseline a pairing
   has to beat, so name it in the recommendation and recommend the pairing only when the user
   has reason to expect it to beat that baseline.
-- **Expect few advisor calls.** A pairing whose main model rarely consults the advisor behaves
-  like the main model alone, so tell the user the pairing may not engage and that the
-  consultation prompt is theirs to adjust.
+- **Check that the advisor engages.** A pairing pays off only when the main model actually
+  consults the advisor, and how often it does depends on the workload, so tell the user to
+  check engagement on their own work before relying on the pairing.
 
 - **Pointer**: for both cautions, see
   <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#advisor-strategy-escalate-hard-decisions>
   and, for the baseline, <https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#choose-between-the-strategies>.
 - **As of**: 2026-10-10
-- **Recheck trigger**: either section is renamed, moved, or stops covering advisor call frequency
+- **Recheck trigger**: either section is renamed, moved, or stops covering advisor engagement
   or the stronger-model-alone baseline.
 
 When the recommendation is "keep the faster main model," pair it with the advisor
