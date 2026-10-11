@@ -16,6 +16,7 @@
   - [Multi-provider topology: the role-split model (recorded decision, not yet built)](#multi-provider-topology-the-role-split-model-recorded-decision-not-yet-built)
 - [Capabilities manifest](#capabilities-manifest)
   - [Contract-version handshake](#contract-version-handshake)
+- [Change links](#change-links)
 - [Identity routing (GitHub adapter)](#identity-routing-github-adapter)
 - [local-markdown adapter](#local-markdown-adapter)
   - [Branch, worktree, and lease confinement](#branch-worktree-and-lease-confinement)
@@ -192,6 +193,7 @@ work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
 work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
+work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
 
@@ -536,9 +538,12 @@ Building `sources` is demand-gated: a consumer who needs it opens a new item cit
   "provider": "github",
   "verbs": { "create-item": true },
   "features": { "cross_repo_edges": true, "sub_items": true, "leases": true },
-  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 }
+  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 },
+  "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" }
 }
 ```
+
+`change_link` is the branch grammar "Change links" defines.
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
@@ -580,6 +585,62 @@ first-run/setup signal as a missing binding, pointing at the mismatched pair rat
 failing later inside a verb with a shape error. The conformance suite asserts both refusal
 directions and the newer-minor notice against a synthetic skewed manifest, and every real
 conformance case exercises the passing handshake.
+
+## Change links
+
+The text that links a change (a pull request, a commit) to its work item, and the token a
+branch name carries to name that item, are provider grammar: `Closes #42` on GitHub, `Closes
+ENG-123` on Linear, an issue key on Jira. The adapter owns both, so a skill asks the bound
+adapter instead of writing GitHub's grammar
+([ADR 0060](../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+
+`change-link` is offline: it never calls the provider and does not check that the item exists
+(`get-item` does). It takes exactly one input form:
+
+| Input | Meaning |
+|---|---|
+| `<id>` | a qualified item ID ("ID grammar") |
+| `--branch-ref <ref>` | a token captured from a branch name; the adapter qualifies it into an ID, exit `2` when it cannot (wrong shape, or a Jira project or Linear team outside the binding's declared scope) |
+| `--branch <name>` | core applies the manifest's `change_link.branch_pattern` to the name and dispatches `--branch-ref` with the last capture group; no match is exit `5` |
+
+`--repo <o>/<r>` names the repository the change lives in. GitHub, Gitea and local-markdown need
+it (or, for local-markdown, its default namespace) to qualify a `--branch-ref`. GitHub and Gitea
+emit the short `#N` form only when it equals the item's repository, else the cross-repository
+`owner/repo#N` form, which both providers also honor inside the same repository.
+
+```json
+{ "schema_version": "1.0", "item_id": "github:acme/webapp#42", "closes": "Closes #42", "refs": "Refs: #42", "branch_ref": "42" }
+```
+
+- `closes`: the line that links the change and closes the item when the change merges into the
+  default branch. `null` when the provider closes nothing on merge (jira, local-markdown): the
+  caller then closes the item itself after the merge.
+- `refs`: the line that links the change without closing the item.
+- `branch_ref`: the token a branch name carries, as in `<type>/<branch_ref>-<slug>`.
+
+The manifest declares the branch grammar as `change_link.branch_pattern`, a POSIX ERE whose
+**last** capture group is the `branch_ref`. A consumer convention (for example
+`/source-control:pull-request`'s `branch_issue_pattern`) may override it; the adapter's pattern is
+the default. A manifest with `change-link` absent from `verbs` predates this section: the verb
+exits `6` and the caller keeps its own default.
+
+| Provider | `closes` | `refs` | `branch_ref` | `branch_pattern` |
+|---|---|---|---|---|
+| github | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| gitea | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| linear | `Closes ENG-N` | `Refs ENG-N` | `ENG-N` | `^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)` |
+| jira | `null` | `Refs: SW2-N` | `SW2-N` | `^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)` |
+| local-markdown | `null` | `Refs: <id>` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+
+Sources, read 2026-10-11 (recheck when a provider renames its linking keywords): GitHub's closing
+keywords ([Linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue));
+Gitea's closing keywords and `owner/repository#N` form
+([Automatically Linked References](https://docs.gitea.com/usage/automatically-linked-references));
+Linear's closing and non-closing magic words ([GitHub integration](https://linear.app/docs/github));
+Jira links a branch, commit or pull request by its capitalized key and documents no closing
+keyword ([Reference work items in your development work](https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/)).
+`Refs: #N` with the colon is the non-closing linkage line `/source-control:pull-request` accepts;
+GitHub itself links any `#N` mention without closing it.
 
 ## Identity routing (GitHub adapter)
 
