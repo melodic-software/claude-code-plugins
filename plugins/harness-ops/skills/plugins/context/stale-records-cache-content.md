@@ -31,7 +31,11 @@ three boundaries hold:
   directly is outside this skill's boundary, the same rule the rest of this skill follows. So this
   section names the condition and stops. If the records came from a tool that owns those directories'
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
-  another plugin's configuration to find out.
+  another plugin's configuration to find out. The section's last row names one such tool,
+  `/source-control:worktree audit (if installed)`, which classifies the records left by removed
+  worktrees and owns the gated reap for the ones under its worktree root. The row is a pointer only:
+  this skill does not check whether that plugin is installed, which paths are worktrees, or what the
+  audit would decide.
 
 A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
 carries an `enabledPlugins` block mirroring what the user already has at user scope writes one
