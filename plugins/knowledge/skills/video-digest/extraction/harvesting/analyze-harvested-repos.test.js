@@ -100,6 +100,45 @@ describe("shallowCloneGitHubRepo hardening", () => {
     ).resolves.toBe(false);
     expect(Date.now() - started).toBeLessThan(4000);
   });
+
+  it("kills the clone's descendants on timeout, as git's remote helpers would be", async () => {
+    const pidDir = fs.mkdtempSync(path.join(os.tmpdir(), "clone-tree-"));
+    const pidFile = path.join(pidDir, "descendant.pid");
+    const forkingChild = [
+      'const { spawn } = require("node:child_process");',
+      'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });',
+      'require("node:fs").writeFileSync(process.argv[1], String(g.pid));',
+      "setTimeout(() => {}, 30000);",
+    ].join("\n");
+    const forkingSpawn = (_command, _args, options) =>
+      spawn(process.execPath, ["-e", forkingChild, pidFile], options);
+    const isAlive = (/** @type {number} */ pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    let descendant = 0;
+    try {
+      await expect(
+        shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", forkingSpawn, {
+          timeoutMs: 1500,
+        }),
+      ).resolves.toBe(false);
+      descendant = Number(fs.readFileSync(pidFile, "utf8"));
+      const deadline = Date.now() + 3000;
+      while (isAlive(descendant) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(isAlive(descendant)).toBe(false);
+    } finally {
+      if (descendant && isAlive(descendant)) process.kill(descendant);
+      fs.rmSync(pidDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("analyzeHarvestedRepos clone target", () => {

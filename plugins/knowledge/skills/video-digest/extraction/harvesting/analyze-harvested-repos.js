@@ -2,7 +2,7 @@
  * Shallow-clone GitHub URLs from source/harvested-links.json and write structure analysis.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -31,7 +31,8 @@ const CLONE_TIMEOUT_MS = 120_000;
  * git falling back to `core.askPass` or `SSH_ASKPASS` (which git consults
  * before `GIT_TERMINAL_PROMPT`), `GIT_TERMINAL_PROMPT=0` stops the terminal
  * prompt, `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
- * and a clone that outlives the timeout is killed and counted as failed.
+ * and a clone that outlives the timeout is killed with its remote helpers and
+ * counted as failed.
  *
  * @param {string} url
  * @param {string} destDir
@@ -49,7 +50,8 @@ export async function shallowCloneGitHubRepo(
     const args = ["-c", "credential.helper=", "clone", "--depth", "1", "--single-branch"];
     const child = spawnFn("git", [...args, "--", url, destDir], {
       stdio: "ignore",
-      timeout: timeoutMs,
+      // Its own process group on POSIX, so a timeout can signal the remote helpers too.
+      detached: process.platform !== "win32",
       env: {
         ...process.env,
         GIT_ASKPASS: "",
@@ -58,9 +60,35 @@ export async function shallowCloneGitHubRepo(
         GIT_LFS_SKIP_SMUDGE: "1",
       },
     });
-    child.on("close", (code) => resolve(code === 0));
-    child.on("error", () => resolve(false));
+    const timer = setTimeout(() => killProcessTree(child), timeoutMs);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
   });
+}
+
+/**
+ * Kill a child and its descendants (git's `git-remote-https` helpers): the
+ * process group on POSIX, `taskkill /T` on Windows.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ */
+function killProcessTree(child) {
+  if (child.pid === undefined) return;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      process.kill(-child.pid, "SIGKILL");
+    }
+  } catch {
+    child.kill("SIGKILL");
+  }
 }
 
 /**
