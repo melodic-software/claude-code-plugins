@@ -14,7 +14,10 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > announcement for that release plus
 > [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison), and leave
 > these lines as history rather than restating a fresh snapshot here. Model specs and rates are
-> not recorded in this file at all; Section 94 points at the pages that own them.
+> not recorded in this file at all;
+> [Section 94](#94-fable-5-the-best-coding-model-by-a-wide-margin) points at the pages that own
+> them (as of 2026-10-11; recheck when Section 94's pointer block is renamed, moved, or drops a
+> page).
 
 ## 78. Opus 4.8: Strongest Coding Model Yet
 
