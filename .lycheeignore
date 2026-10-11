@@ -49,3 +49,9 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://www\.reddit\.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/$
 ^https://www\.reddit\.com/r/SunoAI/comments/1g5qzes/style_order/$
 ^https://www\.reddit\.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/$
+
+# Runner-IP throttling: 429 on GitHub runners in online runs 38161413154, 38163276512, 38164871102 and 38170376310 despite per-host pacing; a workstation gets 200 with the cited article title (verified 2026-10-11).
+^https://jackrighteous\.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-duration-slider-song-length-guide$
+^https://jackrighteous\.com/en-us/blogs/guides-using-suno-ai-music-creation/suno-prompt-too-complicated-clean-workflow$
+^https://testing\.googleblog\.com/2017/07/code-health-to-comment-or-not-to-comment\.html$
+^https://testing\.googleblog\.com/2016/05/flaky-tests-at-google-and-how-we\.html$
