@@ -517,6 +517,7 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(len(warnings), 1, result.stderr)
             self.assertIn("docs/conventions/code-metrics.yaml", warnings[0])
             self.assertIn(".claude/code-metrics.yaml", warnings[0])
+            self.assertIn("code-metrics.yaml is ignored", warnings[0])
 
     def test_all_layers_absent_is_the_bundled_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
