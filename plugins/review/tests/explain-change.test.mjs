@@ -109,6 +109,10 @@ describe("policies", () => {
   test("always builds at ready even with no trigger", () => {
     assert.equal(decide(quiet, opts({ policy: "always", event: "ready" }), config()).action, "build");
   });
+  test("offer at ready offers only when a trigger fires", () => {
+    assert.equal(decide(loud, opts({ policy: "offer", event: "ready" }), config()).action, "offer");
+    assert.equal(decide(quiet, opts({ policy: "offer", event: "ready" }), config()).action, "skip");
+  });
   test("always behaves as offer before ready", () => {
     assert.equal(decide(quiet, opts({ policy: "always" }), config()).action, "skip");
     assert.equal(decide(loud, opts({ policy: "always" }), config()).action, "offer");

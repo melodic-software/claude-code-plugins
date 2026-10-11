@@ -19,7 +19,8 @@
 // `teamOnly`. Each layer's leaves are checked one by one; a leaf that fails is dropped from that layer
 // with an error naming layer, file and key, and the lower layer keeps it. A key containing `.` is
 // rejected the same way, since keys are joined with `.` into paths, and so are `__proto__`,
-// `constructor` and `prototype`, which a caller's merge would treat as more than data. The team and
+// `constructor` and `prototype`, at any depth inside a value too, which a caller's merge would treat
+// as more than data. A refused file makes its layer invalid; the layer's other file still applies. The team and
 // local layers come from the repository: each reads only regular files, never a symlink, and is
 // invalid when a relative `home` resolves outside projectRoot. The user layer follows symlinks
 // but reads only regular files. A team-only key is
@@ -108,13 +109,15 @@ function check(value, node, at = "") {
   const types = typesOf(node);
   if (types && !types.some((t) => fits[t]?.(value))) return [`${prefix}expected ${types.join(" or ")}, got ${show(value)}`];
   if (Array.isArray(node.enum) && !node.enum.includes(value)) return [`${prefix}${show(value)} is not one of ${node.enum.map(show).join(", ")}`];
-  if (Array.isArray(value) && isMapping(node.items)) return value.flatMap((item, i) => check(item, node.items, `${at}[${i}]`));
+  // An open node ({}) checks nothing but reserved names, which are refused at every depth.
+  if (Array.isArray(value)) return value.flatMap((item, i) => check(item, isMapping(node.items) ? node.items : {}, `${at}[${i}]`));
   if (!isMapping(value)) return [];
   return Object.keys(value).flatMap((key) => {
-    const sub = child(node, key);
     const where = `${at}.${quote(key)}`;
+    if (RESERVED.has(key)) return [`${where}: a reserved name, never a config key`];
+    const sub = child(node, key);
     if (sub === false) return [`${where}: unknown key`];
-    return sub ? check(value[key], sub, where) : [];
+    return check(value[key], sub ?? {}, where);
   });
 }
 
@@ -135,7 +138,7 @@ function leaves(data, schema, { teamOnly, allowTeamOnly, fail }) {
         if (isMapping(value)) walk(value, sub, path);
         else if (value !== null) fail(`${quote(dotted)}: expected a mapping, got ${show(value)}`);
       } else {
-        const problems = sub ? check(value, sub) : [];
+        const problems = check(value, sub ?? {});
         if (problems.length) fail(`${quote(dotted)}: ${problems.join("; ")}`);
         else out.push([path, value]);
       }
@@ -199,7 +202,10 @@ function readLayer(name, stem, repo) {
   const md = `${stem}.md`;
   const layer = { name, path, state: "absent", errors: [] };
   const mdFile = fileState(md, repo);
-  if (mdFile.refused) layer.errors.push(`${name} (${md}): ${mdFile.refused}`);
+  if (mdFile.refused) {
+    layer.state = "invalid";
+    layer.errors.push(`${name} (${md}): ${mdFile.refused}`);
+  }
   const prose = mdFile.ok ? md : null;
   if (prose) layer.state = "loaded";
   const yamlFile = fileState(path, repo);
@@ -211,7 +217,7 @@ function readLayer(name, stem, repo) {
   try {
     const doc = parse(readFileSync(path, "utf8")) ?? {};
     if (!isMapping(doc)) throw new Error("the top level must be a mapping");
-    layer.state = "loaded";
+    if (layer.state !== "invalid") layer.state = "loaded";
     return { layer, data: doc, prose };
   } catch (e) {
     layer.state = "invalid";

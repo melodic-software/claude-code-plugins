@@ -11,6 +11,11 @@ All notable changes to the `user-experience` plugin are documented here. Format 
   its tests moved to `lib/`. The parser returns the same results, and a line with a long run of
   quotes inside a plain value no longer takes quadratic time.
 
+### Fixed
+
+- An escaped `\"` or doubled `''` quote inside a flow-sequence item no longer ends the item, so
+  `["a\",b", c]` parses as two items instead of splitting at the escaped quote.
+
 ## [0.1.1] - 2026-10-10
 
 ### Changed

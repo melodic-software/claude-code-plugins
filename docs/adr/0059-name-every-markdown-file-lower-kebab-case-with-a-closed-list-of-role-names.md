@@ -1,6 +1,7 @@
 # Name every markdown file in lower-kebab-case, with a closed list of role names
 
-- Status: accepted
+- Status: accepted; amended 2026-10-11 (the docs-naming configuration carries the whole scope,
+  see the amendment below)
 - Date: 2026-10-10
 - Extends: [ADR 0034](0034-name-docs-files-lower-kebab-case-with-conventional-exceptions.md)
 
@@ -89,3 +90,19 @@ an excluded tree fails the checker, and adding it here with its lookup is a one-
 **The docs-naming audit still inventories `docs/` only for this repository.** Its roots cannot
 filter by extension, so the markdown scope outside `docs/` is checked but not audited; a rename
 there is planned by hand with `/docs-hygiene:rename-references`.
+
+## Amendment (2026-10-11): the docs-naming configuration carries the whole scope
+
+A docs-naming root may now be an object, `{"path", "extensions", "exempt_paths"}`: `extensions`
+limits the root to those extensions, matched in any case, and `exempt_paths` takes paths out of the
+basename rule unless another root claims them, while the case-collision check still covers them
+(`plugins/docs-naming/reference/config.md`). A plain string root is unchanged.
+`.claude/docs-naming.json` declares this decision's scope with it: the `docs` root, plus the root
+`.` limited to `md` and exempting `**/fixtures/**`, `**/evals/**`, and `**/vendor/**`.
+
+Two statements above no longer hold. The co-located test compares the whole of
+`scripts/check-docs-naming.sh` with the gate `/docs-naming:generate-file-name-gate` emits, not
+only its `docs/` half, and it seeds every name in the script's exempt list as well as the
+configuration's, so a name added to either side alone fails it. `/docs-naming:audit-file-names`
+inventories the same set the gate enforces, so a rename outside `docs/` is planned by the audit
+like any other.

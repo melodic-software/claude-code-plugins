@@ -53,7 +53,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/context7:lookup`](../plugins/context7/skills/lookup/SKILL.md) | `context7` | Look up current library docs, API references, and examples via Context7 |
 | [`/discovery:read-docs`](../plugins/discovery/skills/read-docs/SKILL.md) | `discovery` | Read an upstream docs page through the shared lookup and cache |
 | [`/discovery:research`](../plugins/discovery/skills/research/SKILL.md) | `discovery` | Multi-source external research with source tiers and a coverage ledger |
-| [`/discovery:research-deep`](../plugins/discovery/skills/research-deep/SKILL.md) | `discovery` | Dispatch deep multi-topic research to the heaviest isolated tier |
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
@@ -228,7 +227,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
 | [`/developer-experience:audit-tools`](../plugins/developer-experience/skills/audit-tools/SKILL.md) | `developer-experience` | Inventory a repository's developer tooling and report findings, read-only by default |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
-| [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |
 | [`/discipline:hold-my-hand`](../plugins/discipline/skills/hold-my-hand/SKILL.md) | `discipline` | Standing posture. Phase the work, present one phase at a time, wait for the advancing reply |
 | [`/discipline:mind-your-maxims`](../plugins/discipline/skills/mind-your-maxims/SKILL.md) | `discipline` | Re-anchor cooperative communication and audit recent responses for clarity |
@@ -236,7 +234,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discipline:point-dont-copy`](../plugins/discipline/skills/point-dont-copy/SKILL.md) | `discipline` | Audit for copied content and correct by pointing at the living source |
 | [`/discipline:reason-dont-recite`](../plugins/discipline/skills/reason-dont-recite/SKILL.md) | `discipline` | Challenge decisions coasting on precedent, re-derive from first principles |
 | [`/discipline:recheck-against-upstream`](../plugins/discipline/skills/recheck-against-upstream/SKILL.md) | `discipline` | Audit the surface in flight against current official upstream docs |
-| [`/discipline:recheck-against-upstream-deep`](../plugins/discipline/skills/recheck-against-upstream-deep/SKILL.md) | `discipline` | Fan out doc-by-doc upstream conformance checks across a whole subsystem |
 | [`/discipline:reuse-or-replace`](../plugins/discipline/skills/reuse-or-replace/SKILL.md) | `discipline` | Reuse the established way or openly replace it, never a silent second way |
 | [`/discipline:script-the-deterministic-work`](../plugins/discipline/skills/script-the-deterministic-work/SKILL.md) | `discipline` | Script counting, diffing, and transforms instead of eyeballing them |
 | [`/discipline:scrutinize-dont-coast`](../plugins/discipline/skills/scrutinize-dont-coast/SKILL.md) | `discipline` | Re-examine your own recent output through a fresh-context pass |

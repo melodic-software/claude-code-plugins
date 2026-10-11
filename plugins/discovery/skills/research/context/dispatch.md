@@ -197,7 +197,7 @@ them is the authoritative verdict.
 **One gate serves both skills because the on-disk shape is one shape.** `artifact-shape.md` is explicit
 that the index shape, the section-keyed sidecar filenames, the sub-slice rule, and both placement rules
 are identical for exploration; what differs is the sidecar YAML **header**: tiers and publishing pools
-here, `verified: read | grep | inferred` there. The gate never opens a header. `--index-name` is
+here, `verified: read | ran | grep | inferred` there. The gate never opens a header. `--index-name` is
 therefore the whole difference between the two invocations, and it is required rather than defaulted:
 a silent `EXPLORE.md` default would grade a research slice against the wrong family and, in a slice
 that also holds an exploration, could report a research dispatch that wrote nothing as usable.
@@ -241,9 +241,9 @@ half of the pair that is deliberately family-neutral.
 a header, and the research sidecar header is research's alone. The applicability script is the one
 check here that reads it, and `applicability: pass` in the payload is criterion 13's self-grade,
 re-run parent-side like the ledger. It ships as Python only; where `python3` does not resolve, run
-it as `python` from a lane that can, and a lane that can run neither halts. An engine artifact
-(research-deep Tier 1) that does not write the header fields fails it by design; route that topic
-to the researcher tier.
+it as `python` from a lane that can, and a lane that can run neither halts. An engine artifact is
+graded on the header it wrote; [deep-tier.md](deep-tier.md) owns the post-dispatch boundary,
+including what happens when that grading fails.
 
 Two limits are worth stating rather than discovering:
 

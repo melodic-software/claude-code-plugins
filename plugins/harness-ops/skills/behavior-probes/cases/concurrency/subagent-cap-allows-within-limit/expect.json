@@ -9,7 +9,7 @@
     "input_match": "\"run_in_background\": true",
     "select": "all",
     "count": 3,
-    "example": { "description": "probe", "prompt": "Reply with the single word done.", "subagent_type": "general-purpose", "model": "haiku", "run_in_background": true }
+    "example": { "description": "probe", "prompt": "Reply with the single word done.", "subagent_type": "general-purpose", "model": "sonnet", "run_in_background": true }
   },
   "outcome": "ran",
   "match": "launched"
