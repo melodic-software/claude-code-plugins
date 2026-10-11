@@ -113,25 +113,11 @@ jobs:
             exit 1
           fi
 
-      # Every binary this job runs comes from the locked root toolchain,
-      # installed outside the workspace: /opt keeps the tools readable from
-      # the eval's Bash sandbox, which hides HOME.
-      - name: Install the locked root toolchain
-        run: |
-          sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools
-          cp .base/package.json .base/package-lock.json /opt/tools/
-          npm ci --prefix /opt/tools
-          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
-
-      # Chromium goes outside HOME, since each eval run gets a temporary one,
-      # and comes from the playwright that the locked playwright-cli uses.
-      - name: Install Chromium
-        env:
-          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
-        run: |
-          sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/pw
-          node /opt/tools/node_modules/playwright/cli.js install --with-deps chromium
-          command -v playwright-cli claude
+      # The tools and Chromium go under /opt, outside HOME, which each eval
+      # run replaces with a temporary one. Only these directories are made
+      # while sudo works; no third-party code runs before isolation.
+      - name: Create the tool directories
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
 
       # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
       # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
@@ -140,6 +126,24 @@ jobs:
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # Chromium comes from the playwright that the locked playwright-cli
+      # uses. Without sudo there is no --with-deps: the hosted image already
+      # carries a browser's system libraries.
+      - name: Install Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
+        run: |
+          node /opt/tools/node_modules/playwright/cli.js install chromium
+          command -v playwright-cli claude
 
       - name: Run the plugin eval
         working-directory: .base
