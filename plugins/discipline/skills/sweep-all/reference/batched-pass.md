@@ -35,8 +35,11 @@ unchanged and bind every member.
    stop rather than correct on top of it. Instruct
    each fork: answer the preflight's inheritance-proof question first, then
    load exactly this ONE corrector's
-   `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
-   NO writes, and return a findings ledger. Each ledger entry carries the
+   `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), never
+   its fan-out tier (no subagent dispatch, whatever argument or trigger the
+   corrector would otherwise act on; a fan-out that would fit becomes a ledger
+   entry recommending a direct run), make NO writes, and return a findings
+   ledger. Each ledger entry carries the
    concrete located finding AND the remedy this corrector would apply for it
    (the shared loop's step-3 corrective action, *described* not performed. The
    fork still writes nothing), or an honest "clean". Capturing the proposed
@@ -49,8 +52,8 @@ unchanged and bind every member.
    not decoration. Step 3's dedup and step 4's ordering both assume the
    ledgers were formed without seeing each other, and a fork inherits
    everything the session holds at the moment it spawns. Splitting the fan-out
-   is what breaks it, so do not import the `-deep` siblings' "roughly a dozen"
-   wave: it is calibrated for cheap fresh-context subagents that carry no such
+   is what breaks it, so do not import the members' fan-out tiers' "roughly a
+   dozen" wave: it is calibrated for cheap fresh-context subagents that carry no such
    invariant.
 
    One wave is usually possible, and the two documented limits are not the
@@ -98,7 +101,8 @@ unchanged and bind every member.
    wave inherits the earlier waves' ledgers and can be anchored by them. That
    is a real weakening of the independence the dedup relies on, disclosed, not
    hidden. Only a split fan-out needs per-wave checkpointing of the collected
-   ledgers (the mid-run checkpoint `recheck-against-upstream-deep` performs); a
+   ledgers (the mid-run checkpoint `recheck-against-upstream`'s fan-out tier
+   performs); a
    single wave has no partial state to lose.
 
    **Retry, and what counts as a failure.** Retry only a failed subset, once, and **failure includes a ledger returned without verified inheritance
