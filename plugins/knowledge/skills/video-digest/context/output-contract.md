@@ -73,8 +73,13 @@ The script runs on a closed slice, or on an unclosed one whose outcome checks pa
 itself and refuses when they fail). It refuses any slice whose temp media is gone unless
 `--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
 tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
-It refuses an existing target unless `--replace` is passed, which replaces the target and keeps
-its `README.md`.
+Without `--no-media` it also refuses a partly removed temp session, naming the missing video,
+frames or caption tracks. It refuses a target that is the slice, contains it, or sits inside it,
+and an existing target unless `--replace` is passed, which replaces the target and keeps its
+`README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
+new layout is in place. If a run is interrupted mid-swap, the next run restores the target from
+that backup when the target is missing (and says so), and refuses, naming the backup, when both
+exist; remove whichever one you do not want to keep.
 
 It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`
 and the companion sources brief), `frames/all/`, `frames/key/` beside the frame logs in

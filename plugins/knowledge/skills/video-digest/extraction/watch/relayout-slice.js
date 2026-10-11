@@ -400,6 +400,32 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
 }
 
 /**
+ * Real path of `p`, resolving symlinks through its nearest existing ancestor
+ * when `p` itself does not exist yet.
+ *
+ * @param {string} p - absolute path
+ * @returns {string}
+ */
+function realPathOf(p) {
+  let existing = p;
+  const rest = [];
+  while (!fs.existsSync(existing) && path.dirname(existing) !== existing) {
+    rest.unshift(path.basename(existing));
+    existing = path.dirname(existing);
+  }
+  return path.join(fs.realpathSync.native(existing), ...rest);
+}
+
+/**
+ * @param {string} inner
+ * @param {string} outer
+ */
+function isSameOrInside(inner, outer) {
+  const rel = path.relative(outer, inner);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
+/**
  * @typedef {Object} RelayoutResult
  * @property {number} exitCode
  * @property {number} copied - files written to the target
@@ -435,6 +461,26 @@ export async function relayoutSlice({
     return { exitCode: 1, copied: 0, rewrites: 0, unresolved: [] };
   };
 
+  // A target that is, holds, or sits inside the slice would copy the slice
+  // into itself, and `--replace` would move the slice away and delete it.
+  const realSlice = realPathOf(slice);
+  const realTarget = realPathOf(target);
+  if (isSameOrInside(realTarget, realSlice) || isSameOrInside(realSlice, realTarget)) {
+    return refuse(`target ${target} overlaps the slice ${slice}; pick a target outside it`);
+  }
+
+  // An interrupted `--replace` swap leaves the previous target at this name.
+  const backup = `${target}.relayout-backup`;
+  if (fs.existsSync(backup)) {
+    if (fs.existsSync(target)) {
+      return refuse(
+        `a leftover backup ${backup} sits beside ${target}; keep one of them and remove the other`,
+      );
+    }
+    fs.renameSync(backup, target);
+    writeStderr(`relayout: restored ${target} from the backup an interrupted run left`);
+  }
+
   let state;
   try {
     state = JSON.parse(fs.readFileSync(watchStatePath(slice), "utf8"));
@@ -464,11 +510,23 @@ export async function relayoutSlice({
   const temp = resolveTempSession(noMedia ? {} : (state.tempSession ?? {}));
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];
   const media = resolveMediaArtifacts(workFiles, state.videoId);
-  if (!media.videoPath && !noMedia) {
-    return refuse(
-      `the temp session's media is gone (${temp.workDir ?? "no tempSession.workDir"}); ` +
-        "pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
-    );
+  if (!noMedia) {
+    // A partly removed temp session would yield a layout silently missing a part.
+    const frameNames = temp.framesDir ? listFiles(temp.framesDir) : [];
+    const captioned = Boolean(state.phases?.acquire?.metrics?.captionRung);
+    const missing = [
+      ...(media.videoPath ? [] : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
+      ...(frameNames.length > 0
+        ? []
+        : [`the frames (${temp.framesDir ?? "no tempSession.framesDir"})`]),
+      ...(captioned && media.captionPaths.length === 0 ? ["the caption tracks"] : []),
+    ];
+    if (missing.length > 0) {
+      return refuse(
+        `the temp session is missing ${missing.join(", ")}; ` +
+          "pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
+      );
+    }
   }
 
   /** @type {{ from: string, to: string, sourceFile?: string }[]} */
@@ -589,7 +647,8 @@ export async function relayoutSlice({
     return { exitCode: 1, copied: 0, rewrites, unresolved };
   }
 
-  const backup = `${staging}.previous`;
+  // The backup keeps a fixed name so a run killed between the two renames is
+  // recovered at the next start (see the backup check above).
   const hadTarget = fs.existsSync(target);
   try {
     if (hadTarget) fs.renameSync(target, backup);

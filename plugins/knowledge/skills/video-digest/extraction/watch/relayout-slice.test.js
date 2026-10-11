@@ -78,6 +78,7 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
       sourceUrl: `https://www.youtube.com/watch?v=${VIDEO_ID}`,
       title: "Sample Talk",
       status,
+      phases: { acquire: { metrics: { captionRung: "auto-en" } } },
       tempSession: { workDir, framesDir, acquiredAt: "2026-10-10T12:00:00.000Z" },
     }),
     "README.md": "# Sample Talk journey\n",
@@ -107,7 +108,7 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
     "recommendations/README.md": "# Hub\n",
     ...extraFiles,
   });
-  return { sliceDir, targetDir: path.join(makeDir("relayout-target-"), "out") };
+  return { sliceDir, workDir, framesDir, targetDir: path.join(makeDir("relayout-target-"), "out") };
 }
 
 afterEach(() => {
@@ -323,6 +324,68 @@ describe("relayoutSlice", () => {
     expect(result.exitCode).toBe(0);
     expect(fs.existsSync(path.join(targetDir, "media"))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, "analysis/recommendations/menu.md"))).toBe(true);
+  });
+
+  it.each([
+    ["the slice itself", (/** @type {string} */ slice) => slice],
+    ["an ancestor of the slice", (/** @type {string} */ slice) => path.dirname(slice)],
+    ["a directory inside the slice", (/** @type {string} */ slice) => path.join(slice, "out")],
+  ])("refuses a target that is %s, even with --replace", async (_label, toTarget) => {
+    const { sliceDir } = makeFixture();
+    const targetDir = toTarget(sliceDir);
+    const before = fs.readdirSync(sliceDir).sort();
+
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(sliceDir).sort()).toEqual(before);
+    expect(fs.existsSync(path.join(sliceDir, "out"))).toBe(false);
+  });
+
+  it("restores the target from the backup an interrupted --replace left", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    // Killed between the two renames: the old target sits at the backup name.
+    writeTree(`${targetDir}.relayout-backup`, { "README.md": "# Curated\n" });
+
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "README.md")).toBe("# Curated\n");
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
+  });
+
+  it("refuses when both the target and a leftover backup exist", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    writeTree(targetDir, { "README.md": "# New\n" });
+    writeTree(`${targetDir}.relayout-backup`, { "README.md": "# Old\n" });
+
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
+
+    expect(result.exitCode).toBe(1);
+    expect(read(targetDir, "README.md")).toBe("# New\n");
+    expect(read(`${targetDir}.relayout-backup`, "README.md")).toBe("# Old\n");
+  });
+
+  it("refuses a temp session whose frames are gone though the video survives", async () => {
+    const { sliceDir, targetDir, framesDir } = makeFixture();
+    fs.rmSync(framesDir, { recursive: true, force: true });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses a captioned temp session whose caption tracks are gone", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    for (const name of fs.readdirSync(workDir).filter((file) => file.endsWith(".vtt"))) {
+      fs.rmSync(path.join(workDir, name));
+    }
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
   });
 });
 
