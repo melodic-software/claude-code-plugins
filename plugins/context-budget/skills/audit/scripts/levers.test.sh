@@ -152,6 +152,9 @@ else {
   if (!/legacy list|claude-opus-4-0/i.test(cond)) {
     problems.push("simple-system-prompt conditions do not cite the binary legacy-list check");
   }
+  if (!/lean_prompt/.test(cond) || !/claude-haiku-5-5/.test(cond)) {
+    problems.push("simple-system-prompt conditions do not name the lean_prompt capability and claude-haiku-5-5");
+  }
 }
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"

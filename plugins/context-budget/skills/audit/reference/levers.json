@@ -174,7 +174,7 @@
       "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
       "category": "removes-weight",
       "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
-      "conditions": "Model-dependent, and the dependence is resolvable from the binary's lean-prompt selector rather than only from a measured zero: the full-prompt path is the legacy list (model id contains `claude-3-`, `haiku`, or `sonnet`, or equals `claude-opus-4-0` / `claude-opus-4-1` / `claude-opus-4-5` / `claude-opus-4-6` / `claude-opus-4-7`); everything else — including the opus-5 family — already defaults lean, so the env var can only measure zero there. A zero on those models is explained (already-default), not merely reported. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
+      "conditions": "Model-dependent, and the dependence is resolvable from the binary's lean-prompt selector rather than only from a measured zero: the selector checks a model's `lean_prompt` capability before the legacy substring list (Claude Code 2.1.296), so `claude-haiku-5-5` defaults lean while `claude-haiku-4-5` stays full; a model without that capability falls to the legacy list, the full-prompt path (model id contains `claude-3-`, `haiku`, or `sonnet`, or equals `claude-opus-4-0` / `claude-opus-4-1` / `claude-opus-4-5` / `claude-opus-4-6` / `claude-opus-4-7`); everything else — including the opus-5 family — already defaults lean, so the env var can only measure zero there. A zero on those models is explained (already-default), not merely reported. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable only; no settings key.",
       "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",
@@ -187,8 +187,8 @@
       "citations": [
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-23",
-      "recheckTrigger": "Either variable's env-vars row changes, the binary's legacy full-prompt list changes, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
+      "verified": "2026-10-10",
+      "recheckTrigger": "Either variable's env-vars row changes, the binary's legacy full-prompt list changes, a model gains or loses the lean_prompt capability, or the lean prompt becomes default everywhere (the lever then measures zero universally)."
     },
     {
       "id": "bare-simple-mode",
