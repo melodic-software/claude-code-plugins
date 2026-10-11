@@ -488,7 +488,8 @@ for the depth limit, see
 ### `${CLAUDE_EFFORT}` in a preloaded skill is the session's level
 
 *What we rely on.* `${CLAUDE_EFFORT}` in a skill preloaded into a subagent expands to the session's
-effort level, not the subagent's own pin or spawn value, even though the subagent runs at that pin.
+effort level, not the subagent's own `effort` pin, even though the subagent runs at that pin. A
+spawn that passes `effort` was not observed, so what the placeholder expands to then is unknown.
 A body Read from disk is unsubstituted: the placeholder remains the literal characters.
 *Pointer:* for the placeholder, see
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
