@@ -126,10 +126,11 @@ correctness regression outranks any speedup and is reported separately from the 
 
 ### 5. Minimum attempts, only when a loop is planned
 
-When the work will run as a keep-or-revert loop (`/performance:climb`), the person sets
-`min_attempts`: the number of attempts the loop logs before a met target may end it. A loop that
-stops at its first kept attempt reports one change's luck as the reachable result. Leave it out
-when the change is a single planned edit. Never pick the number for the person.
+A single planned edit leaves this out. Work that will run as `/performance:climb`'s keep-or-revert
+loop needs `min_attempts`, the count of logged attempts required before a met target may end the
+loop. The person chooses it; never pick the number for them. Without it the first kept attempt can
+end the run, and the report then presents what one change happened to achieve as the most the code
+can reach.
 
 ## Percentiles and sample count
 

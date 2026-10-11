@@ -12,3 +12,6 @@ bump: minor
 ### Changed
 
 - **`/debugging:debug` is restated in its own words, with one running example.** The skill now follows one case (photo uploads over 20 MB failing with a 502) through every phase. Phase 1 ranks the ten loop kinds in a table with a "choose it when" column, ends with an exit check (about 2 seconds, one verdict, the reported symptom only), and gives intermittent failures a table of levers and the no-loop case a three-part report. Phase 3 writes hypotheses as a ranked table with "refuted if" and "supported if" columns, Phase 4 chooses probes from a table, the correct-seam rule in Phase 5 is a decision table, the secrets rules are a table by kind of text, and the Phase 6 checklist is grouped into removing what the run added, proving the fix, and leaving a record. The human-run loop template was rewritten: its helpers are `instruct` and `ask`, and it ends with a `=== results ===` block of `NAME=value` lines. The README phase list, the checklist's Phase 1 line and the ecosystem reference's pointer to the Phase 1 heading were updated to match. Behavior is unchanged.
+- Reworded `/debugging:analyze-profile`'s purpose, load-mode steps and unresolved-frame eval, and
+  `/debugging:debug`'s restart, uneven-load, refuted-edit, worked-example, red-and-green,
+  workaround and second-failed-fix passages in our own words. Behavior is unchanged.

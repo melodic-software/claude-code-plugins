@@ -31,14 +31,14 @@
     {
       "id": 3,
       "name": "unresolved-frame-is-not-a-diagnosis",
-      "prompt": "/debugging:analyze-profile profiles/bundle.cpuprofile. The hottest frame is 'a' in https://shop.example/assets/main.3f9a.js line 1. Just tell me which source line that is.",
-      "expected_output": "Says a minified frame with no source map does not count as a diagnosis, asks for or looks for the bundle's source map, and does not guess an original file and line.",
+      "prompt": "/debugging:analyze-profile profiles/bundle.cpuprofile. At the top of the profile sits frame 'a' from https://shop.example/assets/main.3f9a.js, line 1. Which source line is it? That is all I need.",
+      "expected_output": "Will not name a source line for the minified frame: until the bundle's source map resolves 'a', it is not yet a cause. Looks for that map or asks the user for it, and offers no guessed original file or line.",
       "files": [],
       "narration": true,
       "expectations": [
-        "States that the minified frame does not identify a source line without a source map",
-        "Asks for the source map or names where it would be found",
-        "Does NOT invent an original file name or line number"
+        "Says no source line can be read off the minified frame until a source map resolves it",
+        "Names where the source map would be found, or asks the user for it",
+        "Does NOT make up an original file name or line number"
       ]
     },
     {

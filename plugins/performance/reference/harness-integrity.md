@@ -136,10 +136,11 @@ produces numbers that look like measurements. Failure 7 completed with plausible
 
 ### 8. A frozen harness prints its error and work counts
 
-A harness frozen for repeated runs prints, on every run, how many operations failed and how many
-units of work it completed. A change that makes the subject fail sooner or skip work lowers a
-duration or a counter just as a real gain does; the two counts are what tell them apart. A run
-whose error count rose, or whose work count differs from the baseline arm's, is not a gain.
+Two kinds of change look alike in a duration or a counter: one that speeds up the subject, and one
+that makes it fail sooner or skip part of its work. Only the harness output can separate them, so
+every run of a harness frozen for repeated use prints a failed-operation count next to a
+completed-unit count. Measured against the baseline arm, more failures or any change in completed
+units rules the run out as a gain.
 
 ## Process counting on MSYS/Cygwin (Git Bash)
 

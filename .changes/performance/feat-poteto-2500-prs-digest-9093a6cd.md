@@ -34,3 +34,6 @@ bump: minor
   known change and the harness prints its failure and work-unit tallies, and its `## Next`
   names `/performance:climb`. `reference/harness-integrity.md` gains rule 8: a frozen harness
   prints its error and work counts.
+- Reworded the climb log flags and report template, the profile-to-family table, harness-integrity
+  rule 8, goal's `min_attempts` section and snapshot's freeze steps and eval in our own words.
+  Behavior is unchanged.

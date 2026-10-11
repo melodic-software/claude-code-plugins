@@ -29,9 +29,9 @@ before the first attempt.
    goal without `min_attempts` goes back to `/performance:goal`; this skill never picks one, since
    goal is human-gated.
 2. **A harness `/performance:snapshot` froze**: the command, the commit it was frozen at, and its
-   discrimination result. On every run the harness prints the goal's counter, its failure tally
-   and its tally of finished work units. No frozen harness, or one that prints neither tally, goes
-   back to `/performance:snapshot baseline`.
+   discrimination result. Send the run back to `/performance:snapshot baseline` when no harness is
+   frozen, or when its output carries neither tally. Each harness run must print three numbers: the
+   goal's counter, a tally of failures and a tally of finished work units.
 3. **A clean checkout.** `git status --porcelain` in your checkout prints nothing. Refuse
    otherwise and name the files: the loop starts from a commit, and uncommitted work is not in it.
 
@@ -43,8 +43,8 @@ before the first attempt.
 2. **Keep rule.** Write `keep-rule.json` there with exactly three keys: `counter` (the goal's
    counter, by name), `direction` (`lower` or `higher`) and `gain_floor` (the change in the counter
    that counts as a gain; the host's measured noise for a duration, `0` for a deterministic count).
-   Show it to the person when one is present. **Never edit it during the run.** A rule that moves
-   after an attempt has been measured is a rule chosen to fit that attempt.
+   Show it to the person when one is present. **Never edit it during the run**: once an attempt
+   has a number, any change to the file would tailor the rule to that number.
 3. **Two worktrees, outside your checkout or in a directory its `.gitignore` ignores.** Start both
    at your checkout's `HEAD`:
    - climb's own: `git worktree add -b climb/<goal-slug> <climb-path> <start-sha>`. A branch with
@@ -80,21 +80,23 @@ Repeat for each attempt:
 7. **Decide**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" decide --rule <slice>/keep-rule.json --before <baseline counter> --after <attempt counter>`.
    Settle the verdict in this order, stopping at the first line that applies:
    1. Tests failed, the error count rose, or the work count differs from the baseline's:
-      `reverted`, whatever `decide` prints. A faster run that did less work is not a gain.
+      `reverted`, whatever `decide` prints. Finishing fewer work units is not a speedup.
    2. `decide` prints `kept`: `kept`.
    3. `decide` prints `reverted`, the counter is no worse than the baseline's, and
       `git diff --numstat <last kept sha> <attempt-sha>` shows lines removed and none added:
-      `kept`, noted `simplification`. Less code at the same number is worth keeping.
+      `kept`, noted `simplification`. Deleting code without losing ground on the counter is a
+      result in its own right.
    4. Otherwise: `reverted`.
 8. **Keep or revert.**
    - Kept: move the baseline arm to the attempt, `git -C <baseline-path> checkout --detach <attempt-sha>`.
    - Reverted: in `<climb-path>`, `git reset --keep <last kept sha>`. That moves only climb's own
      branch, and it refuses rather than overwrite uncommitted edits. If it refuses, stop and report
      the files; never use another reset form to force it.
-9. **Log the row**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" append --log <slice>/log.tsv`
-   with `--id`, `--hypothesis`, `--change`, `--before`, `--after`, `--delta`, `--tests` (`pass` or
-   `fail`), `--verdict` (`kept` or `reverted`) and `--note`. A reverted row's note carries the
-   dropped SHA, so the attempt can still be inspected with `git show`.
+9. **Log the row**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" append --log <slice>/log.tsv`.
+   Every row passes all nine flags. The outcome goes in `--verdict` (`kept` or `reverted`) and
+   `--tests` (`pass` or `fail`); the measured numbers in `--before`, `--after` and `--delta`; the
+   text in `--id`, `--hypothesis`, `--change` and `--note`. When the verdict is `reverted`, put the
+   dropped SHA in `--note`; `git show` on that SHA still displays the attempt.
 
 - **Pointer**: for what `--keep` refuses and what it moves, see
   [git-reset `--keep`](https://git-scm.com/docs/git-reset#Documentation/git-reset.txt---keep).
@@ -145,13 +147,14 @@ those same three items. The person starts the run with that condition.
 2. Report:
 
 ```text
-Goal:      <counter> <direction> to <Realistic target>, min_attempts <n>
-Baseline:  <start value> -> Final: <last kept value> (<percent change>)
-Attempts:  <n> logged, <k> kept, <r> reverted
-Kept:      <sha> <change> (<files> files, +<added> -<removed>), one line per kept change, in order
 Branch:    climb/<goal-slug>
 Log:       <absolute path to log.tsv>
+Counter:   <counter>, <direction>; Realistic target <Realistic target>
+Moved:     <start value> -> <last kept value> (<percent change>)
+Evidence:  min_attempts <n>; logged <n>: kept <k>, reverted <r>
 Next idea: <the untried hypothesis most likely to move the counter, or "none left">
+Changes, oldest first, one line each:
+  <sha> <change> (<files> files, +<added> -<removed>)
 ```
 
 - **Pointer**: for which worktrees `remove` accepts, see
