@@ -311,7 +311,9 @@ Exit 0 is success, non-zero is failure, and a reason file whose value is not a s
 failure. A script that gets `GH_TOKEN` must not execute code from the PR head. The head checkout
 persists no credentials, so a `read` script cannot push. The write file also exports its
 `escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
-`report-escalation` leaf reads.
+`report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
+to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
+(or its recorded absence) before the script runs.
 
 ### prepare: merge-base
 

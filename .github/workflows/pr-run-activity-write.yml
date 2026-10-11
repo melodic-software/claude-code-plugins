@@ -329,6 +329,24 @@ jobs:
           prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
 
+      # A script reads the base's work-item tracker config (report-escalation's
+      # human-gated role label), which the head checkout would replace. Its
+      # SHA-256, or `absent`, is checked by the script step.
+      - name: Copy the tracker config from the base
+        id: tracker-config
+        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'script'
+        env:
+          COPY: ${{ runner.temp }}/base-script/.work-item-tracker.json
+        run: |
+          rm -f "$COPY"
+          if [ -f .base/.work-item-tracker.json ]; then
+            cp .base/.work-item-tracker.json "$COPY"
+            sum=$(sha256sum <"$COPY")
+            echo "sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          else
+            echo "sha256=absent" >>"$GITHUB_OUTPUT"
+          fi
+
       # prepare: merge-base runs the base's merge scripts and the base's
       # version-bump script, never the head's: copied out here, each with its
       # SHA-256 as a step output that every later step checks its copy
@@ -837,8 +855,22 @@ jobs:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
           # Checked against the escalation enum by the job's first step.
           ESCALATION_REASON: ${{ inputs.escalation-reason }}
+          TRACKER_CONFIG: ${{ runner.temp }}/base-script/.work-item-tracker.json
+          TRACKER_SHA256: ${{ steps.tracker-config.outputs.sha256 }}
           SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
         run: |
+          if [ "$TRACKER_SHA256" = absent ]; then
+            if [ -e "$TRACKER_CONFIG" ]; then
+              echo "::error::a tracker config appeared that the base does not have"
+              exit 1
+            fi
+          else
+            sum=$(sha256sum <"$TRACKER_CONFIG")
+            if [ "${sum%% *}" != "$TRACKER_SHA256" ]; then
+              echo "::error::the tracker config does not match the SHA-256 recorded when it was copied from the base"
+              exit 1
+            fi
+          fi
           ACTIVITY_ARGS=$(jq -r '.selected.args // ""' "$RESOLVED")
           export ACTIVITY_ARGS
           unset GH_TOKEN GITHUB_TOKEN

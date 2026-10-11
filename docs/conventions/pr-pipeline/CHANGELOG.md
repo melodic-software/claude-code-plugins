@@ -24,7 +24,11 @@ stays 1.
   re-reads `GET /pulls/{n}` until its head matches that ref, at most 5 reads 2 s apart.
 - New scripted leaf `.github/scripts/pr-unblock/report-escalation.sh` (effect
   `publish-artifact`): labels the PR with the human-gated role label and posts one comment with
-  the reason and a resume key.
+  the reason and a resume key. The write runner hands a script the base's
+  `.work-item-tracker.json` as `TRACKER_CONFIG`, copied before the head checkout and hash-checked.
+- `scripts/write-runner-never-rules.test.sh` asserts the write runner's structure against the
+  resolve-conflicts `never` row: no forced ref update, no commit unless `post.sh` cleared the
+  merge, the mint before the head checkout, and base scripts run only after their hash check.
 
 ## 1.5.0 - 2026-10-11
 
