@@ -31,13 +31,13 @@ session reads it back instead of re-deriving it. Resolution rules for the render
   token.
 - **Relative** (including the default `.`). Resolve against the session's own working tree:
   `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
-  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: inside a worktree
-  session it still names the main checkout, where isolation refuses the slice's writes. The slice stays
-  untracked either way, because the root self-ignores (below).
+  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: in a worktree session
+  it can name a checkout other than the one the session writes to. The slice stays untracked
+  either way, because the root self-ignores (below).
   - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
     <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
     refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
-  - **As of**: 2026-10-01
+  - **As of**: 2026-10-11
   - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
     worktree session or which writes the isolation checks refuse.
 - **Absolute**. Use verbatim, with no project-directory prefix.
@@ -261,11 +261,11 @@ gate. Phrase-greps miss fluent-prose instances entirely.
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
 Put that path in place of the placeholder before running a command. We write the placeholder
 instead of a `${…}` token because these files arrive through the Read tool, not as skill content,
-so nothing substitutes a token in them before it reaches the Bash tool.
+and we do not rely on a token being substituted on that route.
 
-- **Pointer**: for which plugin surfaces substitute or export a `${…}` reference, see
-  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>.
-- **As of**: 2026-10-07
+- **Pointer**: when deciding whether a `${…}` token in a Read-delivered file is substituted, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
+- **As of**: 2026-10-11
 - **Recheck trigger**: that table adds supporting files read through the Read tool to where a
   `${…}` reference resolves.
 
@@ -295,13 +295,5 @@ so nothing substitutes a token in them before it reaches the Bash tool.
 - **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
   effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the route live before relying on a "high effort"
   verification claim, and record the effective effort and its source in verification records.
-  - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
-    "Where per-task effort is set" record, in the marketplace repository; no docs page covers
-    per-call Workflow effort.
-  - **As of**: 2026-10-02
-  - **Recheck trigger**: a docs page starts covering it.
-  - **Pointer**: when an Agent tool dispatch carries the effort, fetch
-    <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
-  - **As of**: 2026-10-10
-  - **Recheck trigger**: that section changes what the per-call `effort` overrides, what
-    overrides it, or which spawns honor it.
+  The pointer records for both routes live in
+  [context/dual-verification.md](context/dual-verification.md), under verifier A.

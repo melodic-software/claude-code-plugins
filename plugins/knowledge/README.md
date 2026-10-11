@@ -29,8 +29,10 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 
 You name the target skill when you invoke `/knowledge:book-distill`, so output
 lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`): either an existing skill it extends or a new one it creates. Cross-session state
-(the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`,
-which survives plugin updates.
+(the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`; for how long
+that directory is kept, see
+[Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+(as of 2026-10-11; recheck when that section changes when the directory is kept or deleted).
 
 ## Usage caution. Copyright
 
