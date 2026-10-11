@@ -243,7 +243,9 @@ path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 
 The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
 GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
-is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs. It
+is how cloud/remote sessions open PRs: `gh pr create` there is either absent or
+refused by the cloud GitHub proxy (see
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It
 covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 Same contract, same authority (a workflow in the consuming repository's own
@@ -434,7 +436,8 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 a workflow that uses the `pr-contract` composite step.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
-cloud and remote sessions that open PRs without the `gh` CLI. It checks the same closing keyword
+cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It checks the same closing keyword
 and non-empty sections, with the same policy scope: enforced only in a repository whose
 `.github/workflows` carry a workflow that uses the `pr-contract` composite step.
 

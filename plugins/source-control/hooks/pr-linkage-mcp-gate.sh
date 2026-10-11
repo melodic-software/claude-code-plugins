@@ -2,10 +2,12 @@
 # PreToolUse hook: block an MCP-created PR whose BODY would fail the consuming
 # repository's own PR-contract CI gate.
 #
-# WHY IT EXISTS — cloud/remote sessions have no `gh` CLI and create PRs through
-# the GitHub MCP server (`mcp__github__create_pull_request` /
+# WHY IT EXISTS — cloud/remote sessions create PRs through the GitHub MCP
+# server (`mcp__github__create_pull_request` /
 # `mcp__github__update_pull_request`, or the `mcp__plugin_<plugin>_github__`
-# form of a plugin-bundled server), a surface the sibling
+# form of a plugin-bundled server), because `gh pr create` there is absent or
+# refused by the cloud GitHub proxy (docs/cloud-sessions.md, "GitHub MCP tools
+# vs the gh CLI"). That is a surface the sibling
 # pr-body-linkage-gate.sh Bash hook never sees. This hook is that sibling's
 # MCP-surface counterpart: same validator semantics, same scope guards, on the
 # payload shape the MCP tools deliver. Where the Bash sibling must tokenize a

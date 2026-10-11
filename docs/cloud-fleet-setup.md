@@ -11,13 +11,12 @@ Basis and freshness: the toolchain inventory below was re-verified on 2026-09-14
 `PSScriptAnalyzerSettings.psd1` at every non-archived fleet repo's default branch (`gh api
 repos/melodic-software/<repo>/contents/<path>`), together with `DOTNET_FALLBACK_VERSIONS` and
 `NODE_FALLBACK_VERSION` in standards `components/cloud-environment/setup.sh` at its default
-branch; the platform claims in that section (the VM's stock Node and Go, `uv`, the absence of
-`pwsh`) were not part of that pass and keep the basis stated next. Bootstrap adoption was
-re-verified on 2026-08-16 by reading each repo's `.claude/` contents and `settings.json` at
-`origin/main` (`gh api
-repos/melodic-software/<repo>/contents/.claude`); platform claims rest on the rung-1 doc fetches
-recorded in [cloud-sessions.md](cloud-sessions.md); the environment itself was verified live on
-2026-08-14 from a cloud session inside it. Results are in
+branch. Bootstrap adoption was re-verified on 2026-08-16 by reading each repo's `.claude/`
+contents and `settings.json` at `origin/main` (`gh api
+repos/melodic-software/<repo>/contents/.claude`). Platform behavior is not restated here: each
+platform point links the upstream section, listed in
+[cloud-sessions.md](cloud-sessions.md), to read live. The environment itself was verified live
+on 2026-08-14 from a cloud session inside it. Results are in
 [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), folded in below.
 Recheck trigger, per the [upstream-drift convention](conventions/upstream-drift/README.md): a
 repo changes its toolchain pins (`global.json`, `.node-version`, `.python-version`, lockfiles)
@@ -30,10 +29,13 @@ contradicts a claim here.
 ## The design in one paragraph
 
 Cloud environments are account-scoped and repo-agnostic, and each environment's setup script
-result is cached as a filesystem snapshot (the "warm boot": script runs once, later sessions boot
-from the snapshot; rebuilds only on script/network edits or ~7-day expiry). So the fleet uses
-**one shared environment** whose setup script installs the static toolchains the repos pin, inside
-the ~5-minute cache-build budget: .NET SDK and Node at whatever the checked-out repo pins, with
+result is cached as a filesystem snapshot (the "warm boot": later sessions boot from the
+snapshot; when it rebuilds is in
+[Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching)).
+So the fleet uses **one shared environment** whose setup script installs the static toolchains
+the repos pin, inside the cache-build limit in the
+[script requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements):
+.NET SDK and Node at whatever the checked-out repo pins, with
 fleet fallbacks for whichever of those two lanes the repo does not pin, plus `gh` and PowerShell.
 Alongside it, **each repo carries its own bootstrap**: a committed, idempotent,
 `CLAUDE_CODE_REMOTE`-guarded `.claude/cloud-bootstrap.sh` that installs manifest-driven
@@ -61,13 +63,17 @@ Pinned toolchains found:
   list too. The fallback list matches the fleet pins above, `10.0.400 10.0.401` (per
   `components/cloud-environment/setup.sh` in standards, verified 2026-09-15).
 - **Node 24.20.0**, the fleet fallback the setup script installs when the checked-out repo pins no
-  `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. The cloud VM
-  ships Node 20/21/22 only, so this is always an install.
+  `.node-version`; nine repos pin that exact version and codex-plugins pins major 24. Compare it
+  with the Node versions in
+  [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools); the
+  setup script installs it when the image lacks it.
 - **Python 3.14**: medley and claude-code-plugins pin it in `.python-version`, and
-  claude-code-proxy and dotfiles declare `requires-python = ">=3.14"` in `pyproject.toml`. The VM
-  has `uv`. See the caveat below.
-- **Go 1.27.1** (ci-runner). The VM's Go plus the module `toolchain` mechanism covers this.
-- **PowerShell** (`pwsh`), not pre-installed. Six repos carry `PSScriptAnalyzerSettings.psd1`
+  claude-code-proxy and dotfiles declare `requires-python = ">=3.14"` in `pyproject.toml`. See
+  the caveat below.
+- **Go 1.27.1** (ci-runner). The image's Go plus the module `toolchain` mechanism covers this.
+- **PowerShell** (`pwsh`), installed by the setup script when
+  [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) lacks it.
+  Six repos carry `PSScriptAnalyzerSettings.psd1`
   (provisioning, dotfiles, medley, standards, claude-code-proxy, ci-workflows), and medley also
   runs Pester.
 
@@ -108,30 +114,40 @@ from a session started on a `kyle-sexton` repo if they ever matter).
 > that path, with no legacy fallback by decision, and pre-launch execution is what makes
 > marketplace plugins load at turn one (see [cloud-sessions.md](cloud-sessions.md)).
 
-Environments are created only from the environment selector at
-[claude.ai/code](https://claude.ai/code) (cloud icon above the message box). There is no API.
-Edit **Default** in place. The paste-once rollout settles on one account-wide Default rather
+Create and edit environments from the environment selector
+([Configure your environment](https://code.claude.com/docs/en/cloud-environments#configure-your-environment));
+`/remote-env` only picks the CLI default
+([Select an environment from the CLI](https://code.claude.com/docs/en/cloud-environments#select-an-environment-from-the-cli)),
+so this step is manual. Edit **Default** in place. The paste-once rollout settles on one account-wide Default rather
 than a separate named environment (see
 [One environment per account?](../prompts/cloud-bootstrap-rollout.md#one-environment-per-account)):
 
-- **Network access**: **All**, by operator decision 2026-08-22, superseding this doc's earlier
+- **Network access**: **Full**, by operator decision 2026-08-22, superseding this doc's earlier
   Custom allowlist (`dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
-  `download.visualstudio.microsoft.com`). The access level is an exfiltration control whose Custom
-  default already opens publish-capable package registries; the GitHub proxy, MCP connector
-  traffic and the Anthropic API bypass the level at every setting; and a blocked host mid-session
-  kills the session until an environment edit plus a cache rebuild. **All** removes that failure
-  class outright, the .NET case included: the 2026-08-14 verification run
+  `download.visualstudio.microsoft.com`). The access level is an exfiltration control, but the
+  default allowlist already opens publish-capable package registries
+  ([Default allowed domains](https://code.claude.com/docs/en/cloud-environments#default-allowed-domains)),
+  several paths bypass the level at every setting
+  ([Access levels](https://code.claude.com/docs/en/cloud-environments#access-levels)), and a
+  blocked host stops the work until someone edits the environment
+  ([Network access](https://code.claude.com/docs/en/cloud-environments#network-access) covers how
+  an edit reaches running sessions). **Full** removes that failure class outright, the .NET case
+  included: the 2026-08-14 verification run
   ([#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654), Blocker 1)
   reproduced the .NET installer's redirect chain being `403`-blocked under *Trusted*, and that
-  blocker is moot under All: no host list to keep current, and no narrower level left to choose
+  blocker is moot under Full: no host list to keep current, and no narrower level left to choose
   between. The host list above is superseded history, not a recipe. The one exception that still
   needs a recipe: an account handling sensitive material drops back to **Custom**, and only a
   complete Custom is safe. That means **Also include default list of common package managers**
   checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`, and
   `download.visualstudio.microsoft.com`; a Custom missing any of it leaves the .NET installer's
   redirect chain exposed to the same `403` block Blocker 1 demonstrated under Trusted.
-- **Environment variables**: none. There is no secrets store. Anything here is readable by every
-  session in the environment. `gh`/git auth comes from the GitHub proxy automatically.
+- **Environment variables**: none. Who can read them, and the plans that have a store for keys
+  instead, are in
+  [Set environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)
+  and [network secrets](https://code.claude.com/docs/en/cloud-environments#add-network-secrets).
+  `gh`/git auth comes from the
+  [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
 - **Setup script**: paste only the three-line bootstrap below. The real script is the
   [`cloud-environment` component in standards](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh)
   (standards is the org baseline SSOT and is public, so the raw fetch needs no credentials and
@@ -172,8 +188,8 @@ Two lifecycle caveats: the fleet's toolchain pins are duplicated into the compon
 exact SDK repo-locally, so the env copy is a warm cache and the bootstrap is the correctness
 guarantee. And
 a merged component change does **not** reach existing environments on its own: the snapshot
-rebuilds only on an edit to the environment's script/network fields or ~7-day cache expiry, so
-after a standards bump, force a rebuild with any trivial edit to the script field.
+rebuilds only on the events in
+[Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching), so after a standards bump, force a rebuild with any trivial edit to the script field.
 
 ## Step 2: per-repo wiring
 
@@ -242,13 +258,16 @@ and a `locally-owned` repo, this one included, owns its whole file instead, so i
 
 ## Step 3: routines
 
-Prereqs and constraints, then starters. Routines run as **fully autonomous** cloud sessions (no
-permission prompts), belong to the account, draw down subscription usage, and have a daily run
-cap. Two defaults deserve deliberate handling every time: **all connected connectors are
-included by default, so trim each routine to what it needs**, and GitHub triggers require the
-Claude GitHub App installed on that repository (`/web-setup` alone grants clone access, not
-webhooks). Create via `/schedule` in a local CLI session or at
-[claude.ai/code/routines](https://claude.ai/code/routines); API triggers are web-only.
+Prereqs and constraints, then starters. Routines run as autonomous cloud sessions that belong
+to the account; how they run, their usage and run limits, and which triggers each surface can
+add are on the [Routines](https://code.claude.com/docs/en/routines) page
+([Usage and limits](https://code.claude.com/docs/en/routines#usage-and-limits),
+[Add a GitHub trigger](https://code.claude.com/docs/en/routines#add-a-github-trigger)). Two
+fleet rules apply every time: trim each routine's connectors to what it needs
+([Connectors](https://code.claude.com/docs/en/routines#connectors) covers what a new routine
+includes), and install the Claude GitHub App on any repository a GitHub trigger watches. Create
+via `/schedule` in a local CLI session or at
+[claude.ai/code/routines](https://claude.ai/code/routines).
 
 Starters matched to this fleet, cheapest first:
 
@@ -304,9 +323,9 @@ session on this repo in the new environment and ask Claude to verify:
    `claude plugin list` proves only disk state, not that the session loaded anything (see the
    same-session limit in [cloud-sessions.md](cloud-sessions.md)).
 5. If the .NET setup-script step failed (`dotnet` missing), confirm the environment's network
-   access is **All** per [Step 1](#step-1-the-shared-environment-claudeai-ui-one-time), since a
-   narrower level can `403`-block the installer's redirect chain (#2654 Blocker 1), which All
-   moots. Then rebuild and re-verify. If it is already All, the cause is not network access:
+   access is **Full** per [Step 1](#step-1-the-shared-environment-claudeai-ui-one-time), since a
+   narrower level can `403`-block the installer's redirect chain (#2654 Blocker 1), which Full
+   moots. Then rebuild and re-verify. If it is already Full, the cause is not network access:
    read `/var/log/melodic-env-setup.log` for what the .NET track actually hit.
 6. Python: in a claude-code-proxy or medley session, run `uv python install 3.14`. If the
    download is `403`-blocked (release assets ride the GitHub proxy's repository scope, which
@@ -330,7 +349,7 @@ session on this repo in the new environment and ask Claude to verify:
   but are never loaded by the session that ran them (the registry is read before the hook), so
   plugins go live at turn one only when the cache build runs the bootstrap pre-launch, which the
   standards `cloud-environment` component does. Remaining #2654 actions are environment-side,
-  not repo-side: set the environment's network access to **All**
+  not repo-side: set the environment's network access to **Full**
   ([Step 1](#step-1-the-shared-environment-claudeai-ui-one-time)), which moots Blocker 1 rather
   than working around it, and rebuild the interrupted cache, then re-run the
   [checklist](#verification-checklist).

@@ -124,6 +124,19 @@ SDK-based host.
 | Configure auto mode (`autoMode`, `claude auto-mode`) | <https://code.claude.com/docs/en/auto-mode-config> | 2026-08-12 |
 | Environment variables | <https://code.claude.com/docs/en/env-vars> | 2026-08-10 |
 
+## Cloud sessions
+
+This repository's own cloud setup is in [cloud-sessions.md](cloud-sessions.md) and
+[cloud-fleet-setup.md](cloud-fleet-setup.md); these are the pages they point at.
+
+| Page | Official doc page | As of |
+|---|---|---|
+| Use Claude Code in the cloud: `--cloud`, `--teleport`, auto-fix, limitations | <https://code.claude.com/docs/en/claude-code-on-the-web> | 2026-10-11 |
+| Get started with Claude Code in the cloud: connect GitHub, `/web-setup`, setup troubleshooting | <https://code.claude.com/docs/en/web-quickstart> | 2026-10-11 |
+| Configure cloud environments: network access, setup scripts, caching, installed tools, GitHub proxy | <https://code.claude.com/docs/en/cloud-environments> | 2026-10-11 |
+| Routines: scheduled, API, and GitHub-triggered cloud runs | <https://code.claude.com/docs/en/routines> | 2026-10-11 |
+| Remote Control vs cloud sessions | <https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions> | 2026-10-11 |
+
 ## Prompting doctrine (platform docs)
 
 The instruction text a plugin ships, covering skill bodies, agent definitions, hook-injected prose,
