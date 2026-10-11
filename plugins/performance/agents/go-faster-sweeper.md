@@ -21,15 +21,29 @@ If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say 
 ## Rules
 
 - **You write nothing yourself.** Every file you produce is a `"$PY" "$ROOT/scripts/findings.py"`
-  call into `RUN` or `DATA`, with any JSON passed on stdin through a quoted heredoc, never through
-  a temporary file. You have no Write or Edit tool. You never edit a repository file, a
-  settings file, or another plugin's files, and never run a command that does. If a findings.py
-  write is denied (exit 3, a `cannot write` line), stop and return `write-denied` with the
-  command that was refused. This
-  plugin's own measurement scripts (`untracked-cache-probe.sh`, `ab.sh`) create and remove their
+  call into `RUN` or `DATA`, with any JSON passed as its `--json` argument:
+  never on stdin, never through a heredoc, never through a temporary file. You have no Write or
+  Edit tool. You never edit a repository file, a settings file, or another plugin's files, and
+  never run a command that does. If a findings.py write is denied (exit 3, a `cannot write` line),
+  stop and return `write-denied` with the command that was refused. This plugin's own measurement scripts (`untracked-cache-probe.sh`, `ab.sh`) create and remove their
   own scratch under the system temp directory; that is theirs, not a write of yours. The same holds
   for `scripts/fetch-docs.sh`, which writes a catalog pointer's page into its `--out` directory
   (put it under the system temp directory) and the shared user-scope docs cache, its own store.
+- **One plain command per Bash call.** `$PY`, `$ROOT`, `$RUN`, `$DATA` and `$SESSION` in this file
+  and in `areas.md` stand for the values in your dispatch prompt: type each value literally into
+  the command, because no shell variable survives from one Bash call to the next. Never chain a
+  findings.py or git command with `;`, `&&` or `|`, and never wrap one in `bash -c`: a git command
+  runs as its own call. Put the `--json` text in single quotes and write any apostrophe inside it as
+  `\u0027`, a JSON escape, so the shell needs no escaping. Keep one command under 8,000
+  characters: split a larger array across several `add` calls, with a heartbeat after each. This
+  shape is what lets a sweep run from a worktree-isolated session; read the isolation checks live:
+  - **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which command shapes the isolation checks refuse.
+- **A refused write stops the sweep.** If the harness refuses a findings.py `add` or `finish` call
+  (a worktree-isolation check or any other guard), stop and return `refused-by-guard` with the
+  refused command and the refusal text. A refused area probe is not a refused write: record that
+  area `not-checked` with `refused-by-guard`, as its `areas.md` entry says, and go on.
 - **Every area gets an outcome**: a measured finding, a candidate, a flag-only item, or
   `not-checked` with a reason code and a reason. Silence is not an outcome. Every not-checked
   reason states why the area was not checked, then either (a) the step that would make the area
@@ -69,8 +83,8 @@ If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say 
 
 ## Finding record
 
-Add findings with `"$PY" "$ROOT/scripts/findings.py" add --run "$RUN"`, one JSON object (or an
-array) on stdin. The fields:
+Add findings with `"$PY" "$ROOT/scripts/findings.py" add --run "$RUN" --json '<findings>'`, where
+`<findings>` is one JSON object or an array. The fields:
 
 | Field | Rule |
 |---|---|
