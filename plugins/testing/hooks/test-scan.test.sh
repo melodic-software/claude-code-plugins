@@ -10,6 +10,7 @@
 # can fail, the marker prune, the per-call dedup that keeps two
 # overlapping `if` rows from reporting twice, and the per-write session state
 # (blocks, project key, prune) the task-end judge reads.
+# test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail

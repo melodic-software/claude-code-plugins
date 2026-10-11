@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}}]},
+    {"answer": [{"tool": "Skill", "input": {"skill": "explain-change", "args": "512 --event ready --blast-radius HIGH"}}], "why": "blast radius added when assessed"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512"}}], "why": "no ready event, so always would only offer"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "review:quality-gate", "args": "pr --event ready"}}], "why": "another skill"}
+  ]
+}

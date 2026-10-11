@@ -316,7 +316,8 @@ out of scope until such a signal exists.
   told. Flipping a hook to fail-closed (deny the call when the guard could not
   check it) is the one word `closed` on its install line; the contract test
   reads the registered set from `hooks.json`, so a hook added without the
-  boundary fails it.
+  boundary fails it. The one guard written in Node, `check-bash-file-changes.mjs`, gives
+  the same fail-open notice from its own top-level catch.
 - **`block-hook-bypass` fails open on its own crash.** The boundary above is
   the generalization of the handler this guard carried first (#3130 F5): an
   internal script error exits 0 so a defect on this hottest-path hook cannot

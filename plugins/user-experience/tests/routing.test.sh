@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json
 # Discovery wrapper for the user-experience route-row suite: scripts/run-plugin-tests.sh
 # finds plugins/**/*.test.sh, so this runs routing.test.mjs. SKIPs (exit 0) without Node.
 set -uo pipefail

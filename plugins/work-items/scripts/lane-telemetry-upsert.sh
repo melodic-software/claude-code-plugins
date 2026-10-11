@@ -43,9 +43,9 @@
 # comment's timestamp still moves, so the surface reads FRESH while carrying no
 # data. The WRITE'S OWN EXIT STATUS is checked next: a failed PATCH leaves the
 # previous cycle's body in place, which a read-back running regardless would
-# happily accept. The POST-WRITE read-back then re-reads what the write stored,
-# the only check that sees a write which reported success and stored something
-# else. It is also why create and update only ever use `-F body=@`: `-f body=@FILE`
+# happily accept. The POST-WRITE read-back then re-reads what the write stored and
+# compares it with the body file, the only check that sees a write which reported
+# success and stored something else, an earlier cycle's body included. It is also why create and update only ever use `-F body=@`: `-f body=@FILE`
 # transmits the literal path.
 #
 # CREATION-RACE RECONCILE. Two sessions racing the first-ever upsert can both see
@@ -86,14 +86,12 @@
 #       re-found — lane UNREPORTED
 #   13  the PATCH of the canonical comment failed — lane UNREPORTED; the comment
 #       holds an earlier body, not this cycle's write
-#   14  the canonical comment does NOT carry a well-formed telemetry body after
-#       the write — lane UNREPORTED; do not trust the timestamp
+#   14  the canonical comment does NOT hold this cycle's body after the write
+#       (a different body, an earlier cycle's included, or no readable body) —
+#       lane UNREPORTED; do not trust the timestamp
 #
-# KNOWN LIMITS. A PATCH that succeeds while storing the previous body still
-# verifies: the read-back asserts that SOME well-formed telemetry is present, not
-# that THIS cycle's write is what is present. Not implemented at all: the 64 KiB
-# cap, body-file containment, and read retries that the `harness-ops` lanes wrapper
-# carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
+# KNOWN LIMITS. Not implemented: the 64 KiB cap, body-file containment, and read
+# retries that the `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
 # why this mechanism lives here rather than deferring to that wrapper.
 
 set -uo pipefail
@@ -282,14 +280,19 @@ if ! gh api --method PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_
 fi
 
 # --- Post-write read-back ----------------------------------------------------
+# The stored body must equal the body file, not merely look like telemetry: a write
+# that reported success while the comment kept an earlier cycle's well-formed body
+# would otherwise verify. CR is dropped on both sides and `$( )` drops trailing
+# newlines on both, so only a line-ending or final-newline difference is tolerated.
 verify() {
-  local back
+  local back want
   back="$(gh api "repos/$REPO/issues/comments/$1" 2>/dev/null | jq -r '.body // empty' 2>/dev/null | tr -d '\r')" || return 1
-  sentinel_ok "$back"
+  want="$(tr -d '\r' <"$BODY_FILE")"
+  [[ "$back" == "$want" ]]
 }
 
 if ! verify "$CANON"; then
-  err "comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp"
+  err "comment $CANON does NOT hold this cycle's body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp"
   exit 14
 fi
 

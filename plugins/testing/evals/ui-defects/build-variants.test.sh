@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/testing/evals/vision-*/scaffold.sh
 # Contract test for build-variants.py. Expected values come from the defect
 # catalog (D1-D9, C0, C1 and their injections), not from the builder's output.
 set -euo pipefail

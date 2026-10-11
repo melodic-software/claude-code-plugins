@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # exec-bash.mjs is the exec-form entry for run-guards.sh: command is node,
 # this file is args[0], and bash is a child. Bare bash is not the hook command.
+# test-scope: plugins/guardrails/hooks/hooks.json
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

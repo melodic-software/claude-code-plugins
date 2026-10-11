@@ -250,7 +250,7 @@ catalog_ids="$(sed -n 's/^### \(I[0-9][0-9]*\):.*/\1/p' "$SKILL_DIR/reference/cr
 missing=""
 while IFS= read -r cid; do
   [[ -n "$cid" ]] || continue
-  printf '%s\n' "$script_table" | grep -q "^$cid " || missing="$missing $cid"
+  grep -q "^$cid " <<<"$script_table" || missing="$missing $cid"
 done <<<"$catalog_ids"
 assert_eq "every catalog check from I6 on has a claim template" "" "$missing"
 while IFS=' ' read -r cid claim; do

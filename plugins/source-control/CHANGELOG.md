@@ -3,6 +3,45 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+- `pull-request` watch handoff: a window at or above 95% no longer blocks starting or offering a watcher. The skill reports the window, its reset time and the options, and the person decides.
+
+## [0.84.1] - 2026-10-11
+
+### Changed
+
+- The `pull-request`, `babysit-prs`, `babysit-loop`, `setup`, `worktree`, `commit` and `resolve-conflicts` skill bodies name forge operations instead of `gh` commands; the GitHub commands for each operation are in the new `reference/providers/github/README.md`. Behavior is unchanged: the phase spokes and bundled scripts still run the same commands.
+
+### Fixed
+
+- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` accept a tracker's link line as `/work-items:track link` prints it (`Closes ENG-123`, `Refs ENG-123`, `Refs: SW2-12`, `Refs: local-markdown:local/markdown#7`), alone on its line. They blocked the Linear, Jira and local-markdown link lines before.
+
+## [0.84.0] - 2026-10-11
+
+### Added
+
+- **`/source-control:pull-request create` now asks for a `Left out:` line in the verification section.** The line names what was not run or checked, each with its reason, so a reviewer can tell a gap from an omission.
+
+- **`/source-control:pull-request create` takes the PR's link line from the bound work-item tracker.** With the `work-items` plugin installed and a tracker bound, it resolves the branch's item through `/work-items:track link`, so a Jira or Linear binding gets that tracker's link text; without a binding the GitHub `Closes #N` default is unchanged. `parse-branch-issue.sh` accepts a tracker key (`SW2-1234`) as well as an issue number, and a `--no-default` mode that leaves the default grammar to the tracker's adapter.
+
+- `/source-control:pull-request view` and `list`: read-only actions other skills call instead of a forge CLI. `view [<pr>] [--diff]` prints one pull request's facts as JSON, with the repository's visibility, or its diff; with no number it reads the current branch's pull request. `list` prints pull requests by head branch (`--head`) or head-branch pattern (`--head-match`), in any state, up to 1000 rows. `--out <file>` writes either output to a file, so a large diff reaches a later gate whole.
+
+- `/source-control:pull-request view` returns `mergeCommit`, and `list` takes `--search <text>` to keep the PRs the forge's text search matches.
+
+### Changed
+
+- `pull-request ready` hands the pull request to `/review:explain-change` with `--event ready` right after the flip, so the `digest_policy` setting takes effect on the pushed head: `off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it. The digest gates nothing.
+
+### Fixed
+
+- **The PR monitor's Monitor watch arms again on current Claude Code.** `/source-control:pull-request monitor` armed its watch with a `persistent` option that Claude Code no longer accepts, so the call failed and the PR went unwatched. The watch now passes an explicit `timeout_ms`, re-arms on the deadline notice while the PR still needs watching, and runs one full iteration after each re-arm so nothing that landed in the gap is missed. The poll's first pass records the current checks without emitting them, so a re-arm no longer replays every finished check. The pull-request skill, the babysit loop, and the plugin README now describe a watch that is re-armed at each deadline rather than a session-long one.
+- **The monitor no longer depends on `TaskList`.** Finding and stopping an existing watch now uses the task id the session got back when it armed the watch, because current models do not get the task-tracking tools by default.
+- **The cloud fallback poll survives the background time limit.** Where the Monitor tool is unavailable, the `run_in_background` poll now passes an explicit `timeout` and starts again when the stop notice arrives, so a long CI run in an unattended session is no longer cut off.
+
 ## [0.83.2] - 2026-10-10
 
 ### Added

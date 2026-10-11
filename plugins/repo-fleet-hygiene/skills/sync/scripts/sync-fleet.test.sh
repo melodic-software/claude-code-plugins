@@ -254,7 +254,10 @@ done
 # The source-control plugin next door is never probed: a decoy in its place stays unread.
 layout="$TMP/layout"
 mkdir -p "$layout/source-control/scripts"
-cp -R "$SCRIPT_DIR/../../.." "$layout/repo-fleet-hygiene"
+# The copy holds only what sync-fleet.sh sources, under the plugin's own layout.
+mkdir -p "$layout/repo-fleet-hygiene/skills/sync/scripts" "$layout/repo-fleet-hygiene/scripts"
+cp "$SCRIPT" "$layout/repo-fleet-hygiene/skills/sync/scripts/"
+cp "$SCRIPT_DIR/../../../scripts/scope-resolve.sh" "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" "$layout/repo-fleet-hygiene/scripts/"
 printf '#!/usr/bin/env bash\ntouch "%s"\necho "%s"\n' "$TMP/decoy.ran" "$TMP/decoy-worktree" >"$layout/source-control/scripts/worktree-create.sh"
 for sibling in "a decoy" no; do
   [[ "$sibling" != no ]] || rm -rf "$layout/source-control"

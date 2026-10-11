@@ -105,6 +105,13 @@ assert_schema_version() {
   assert_eq "$1 (schema_version)" "1.0" "$(jq -r '.schema_version' <<<"$WIT_OUT")"
 }
 
+# A list envelope must say whether it is complete: a reader cannot tell an absent
+# flag from an adapter that never checked. Boolean, not `false`: a live instance
+# past its ceiling legitimately reports true.
+assert_truncated_flag() {
+  assert_eq "$1 (truncated is a boolean)" "boolean" "$(jq -r '.truncated | type' <<<"$WIT_OUT")"
+}
+
 RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 # --- capabilities ---
@@ -242,6 +249,32 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   assert_eq "get-item A unblocked" "0" "$(jq -r '.blocked_by_count' <<<"$WIT_OUT")"
 fi
 
+# --- change-link (offline: no provider call) ---
+
+if verb_supported change-link; then
+  link_id="${ITEM_A_ID:-$FAKE_ID}"
+  wit_case "change-link malformed id → usage" 2 change-link "not-an-id"
+  wit_case "change-link" 0 change-link "$link_id"
+  assert_schema_version "change-link"
+  assert_eq "change-link item_id echoes the id" "$link_id" "$(jq -r '.item_id' <<<"$WIT_OUT")"
+  assert_eq "change-link shape" "ok" "$(jq -r 'if (.refs | type) == "string" and (.refs | length) > 0
+    and ((.closes | type) == "string" or .closes == null)
+    and (.branch_ref | type) == "string" and (.branch_ref | length) > 0 then "ok" else "bad" end' <<<"$WIT_OUT")"
+  branch_ref="$(jq -r '.branch_ref' <<<"$WIT_OUT")"
+  assert_eq "manifest declares a change_link.branch_pattern" "string" \
+    "$(jq -r '.change_link.branch_pattern | type' <<<"$CAPS")"
+  # Round trip: a branch carrying the branch_ref names the same item. Needs a real item,
+  # since --branch-ref qualifies against the binding's declared scope.
+  if [[ -n "$ITEM_A_ID" ]]; then
+    item_repo="$(sed -E 's/^[^:]+:([^#]+)#.*$/\1/' <<<"$ITEM_A_ID")"
+    wit_case "change-link --branch" 0 change-link --branch "feat/${branch_ref}-conformance" --repo "$item_repo"
+    assert_eq "change-link --branch round-trips to the item" "$ITEM_A_ID" "$(jq -r '.item_id' <<<"$WIT_OUT")"
+  fi
+  wit_case "change-link --branch without an item reference → exit 5" 5 change-link --branch "conformance"
+else
+  wit_case "unsupported change-link → exit 6" 6 change-link "$FAKE_ID"
+fi
+
 # --- edges ---
 
 if verb_supported link-blocks && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
@@ -261,6 +294,7 @@ fi
 if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-sub-items A" 0 list-sub-items "$ITEM_A_ID"
   assert_schema_version "list-sub-items A"
+  assert_truncated_flag "list-sub-items A"
   assert_contains "A's children hold B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
   assert_eq "enumerated child B is re-parented to A" "$ITEM_A_ID" \
     "$(jq -r '.items[0].parent_id' <<<"$WIT_OUT")"
@@ -268,6 +302,7 @@ if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_
 
   wit_case "list-frontier --parent A" 0 list-frontier --parent "$ITEM_A_ID"
   assert_schema_version "list-frontier --parent A"
+  assert_truncated_flag "list-frontier --parent A"
   assert_not_contains "scoped frontier drops blocked child B" \
     "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
 fi
@@ -277,6 +312,7 @@ fi
 if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier"
+  assert_truncated_flag "list-frontier"
   frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"

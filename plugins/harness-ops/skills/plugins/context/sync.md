@@ -785,7 +785,8 @@ so every later `fleet-state.sh` call and every remaining step executes the old c
 describes work done by a version the user no longer has installed. We treat this as a reporting
 obligation, not a crash risk: the previous version's directory stays on disk for a grace period, so
 the running script does not vanish mid-run. The render emits the self-update note when the digest's
-`self_updated` is true.
+`self_updated` is true, and names the plugin and versions from the digest's `self_update` row, the
+record of this plugin the run moved, never from whichever moved row comes first.
 
 - **Pointer**: for which components keep the previous version's path after a mid-session update,
   see the update paragraph under

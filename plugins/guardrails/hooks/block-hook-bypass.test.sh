@@ -4,6 +4,7 @@
 # Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
 # stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained — no
 # host-repo assertion library.
+# test-scope: plugins/guardrails/README.md
 
 set -uo pipefail
 

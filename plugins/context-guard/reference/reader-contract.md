@@ -34,10 +34,10 @@ the decision, and re-date the record when any of these change. The status line's
 `context_window` fields, whose names and meanings the snapshot keeps, including the
 `used_percentage` formula, and the session usage and version the mods API reports, which the
 module maps onto them. The auto-compact trigger,
-meaning whether a default threshold is published as a number, and which models and environments
-compact before the model's context limit. The four surfaces in the tunable table below
-(`autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`,
-`autoCompactEnabled`), including their units, ranges, and precedence. The skills substitution table
+meaning how the published default thresholds relate to the bands, and which models and environments
+compact before the model's context limit. The surfaces that set or turn off the auto-compact
+window (the tunable table below), including per-model values, their units, ranges, and
+precedence. The skills substitution table
 that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
 across its length, which the band rationale cites when it declines a folklore number. Where mods
 run, which decides where a snapshot can be written at all. A release note touching the status
@@ -100,9 +100,34 @@ nothing is written and readers read `unknown`, as with no file.
       "cache_creation_input_tokens": 9000,
       "cache_read_input_tokens": 27000
     }
+  },
+  "zone": "smart",
+  "evidence_degraded": false,
+  "bands": {
+    "smart_max_used_percentage": 50,
+    "acceptable_max_used_percentage": 75,
+    "smart_max_tokens": 100000,
+    "acceptable_max_tokens": 150000
   }
 }
 ```
+
+**The published zone (public consumer contract).** `zone`, `evidence_degraded` and `bands` let a
+reader such as a status line show the zone and its edges without re-implementing the band lookup
+or importing plugin code. A reader that predates these fields, or reads a file an older module
+wrote, falls back to its own lookup over `context_window` and `zones.json` as this contract
+describes; the fields are additive, and a reader ignores keys it does not know.
+
+- `zone`: `smart`, `acceptable`, `dumb` or `unknown`, as the module resolved this body: the
+  combination rule over the bands below, and `dumb` once the session was compacted. It is as of
+  `captured_at`, so the staleness rule still applies: a stale file means `unknown`. A
+  `.compacted` marker still means degraded whatever this field says.
+- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session.
+- `bands`: the edges in force after `zones.json`: `smart_max_used_percentage` and
+  `acceptable_max_used_percentage` always; `smart_max_tokens` and `acceptable_max_tokens` for
+  the session's window class, `null` when the token shape is not computable (see "Version
+  floor").
+- They are written whenever the snapshot is, whatever the `model_notices` option says.
 
 - `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
   whose other fields are unchanged since the last one happens at most once per 60 seconds (the
@@ -267,17 +292,19 @@ snapshot, through a TypeScript copy of the resolver's band function; the shared 
 holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
 skill's module check), none of the following runs except the PostCompact marker.
 
-- **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
+- **Zone lines** (on each tool result of the main conversation and each prompt; the model channel
+  below only with the `model_notices` option on, which is off by default): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries facts only, never an instruction: by default the zone word and its rank of three. A
+  `prompt.submit` hook adds) carries by default the zone word and its rank of three, and past
+  `smart` one options line after the verdict lines at a carrier (below). A
   line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
   once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
   in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
-  sent, and each gate denial, is also written as sent to the debug log. Lines due
+  sent is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
@@ -301,14 +328,20 @@ skill's module check), none of the following runs except the PostCompact marker.
   and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
   Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
-  Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-  pointer ever reaches the model channel.** A menu injected into
-  model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
-  verdict and any operator-configured `zones.json` action, and nothing that tells the model what
-  to do: no save-state or handoff advice, no reassurance, no counter-steer rule about what a zone
-  means. The model decides what to do with the facts; `/session-flow:workflow` and the user's own
-  instructions own handoff and compaction guidance. The model
+  Recheck trigger: that section is renamed, moved or removed. **Neither the person's menu nor the
+  router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
+  holds that a menu injected into model context manufactures the model's own initiative to stop,
+  summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
+  row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
+  than a new finding. By default the module sends the
+  verdict, any operator-configured `zones.json` action, and past `smart` one options line: record
+  decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
+  model and the user choose, and a zone never calls for terser output, fewer agents, or lower
+  quality. The verdict alone, with no such line, pushed the model toward handoffs and terse
+  delegation (observed 2026-10-11, issue #7118), so the line states the durable-state step and
+  says what a zone does not mean; it lists compaction and a handoff only as choices beside
+  continuing. `/session-flow:workflow` and the user's own instructions own when to compact or hand
+  off. The model
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
@@ -324,26 +357,20 @@ skill's module check), none of the following runs except the PostCompact marker.
   same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
   the hook sees one word per observation, never the occupancy behind it, and separating those two
   cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
-- **Blocking gate** (in the module, when `zone_hook_mode` is `blocking` or `zones.json` sets a
-  `block` action): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls in the blocked zone
-  past a small grace budget. In a turn a person typed the block applies; in headless, loop,
-  schedule and notification turns only a compacted session is blocked, unless
-  `zone_block_unattended` is `same-as-typed`. Fail-open on `unknown`; handoff-path writes,
-  read-only tools, Bash, and Skill invocations are never gated, so a durable handoff is always
-  writable. Leaving the blocked zone, an `unknown` reading and a compaction each reset the budget.
+- **No gate**: the module never denies a tool call. A zone is reported, never enforced.
 - **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
   evidence-degraded marker file (below).
-- **Both zone consumers honor the marker**: when the marker exists, or the module saw the
-  compaction itself, the lines and the blocking gate treat the session's effective zone as
+- **The zone lines honor the marker**: when the marker exists, or the module saw the
+  compaction itself, the lines treat the session's effective zone as
   **dumb** regardless of the resolved word, including a green post-compaction reading and
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
   response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
   the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
-  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  token shape is not computable), as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
-Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
+Module state (last-seen zone, armed rank) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
 semantics. For the mods API it uses, see <https://code.claude.com/docs/en/plugins/mods/overview>.
 As of: 2026-10-03, Claude Code 2.1.288. Recheck trigger: that page or its events reference changes
@@ -385,21 +412,19 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No published default auto-compaction threshold grounds the bands.** With no window configured,
-compaction fires at or near the model's context limit; the cases that fire earlier depend on the
-model, the window it runs with, and the environment. For the current thresholds, see
+**The docs publish the default thresholds; we state no figure.** The default depends on the model,
+the window it runs with, and the environment. This is a documentation pointer, not something read
+at run time: the docs' default-thresholds table,
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-10-09, the one number that section publishes for native 1M windows, about 967K tokens, sits above
-the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
-protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
-or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
+**As of:** 2026-10-10. **Recheck trigger:** that table changes, or its section is renamed or
+removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 implies a percentage default that no page publishes as a number; for that variable, see
 [Claude Code environment variables](https://code.claude.com/docs/en/env-vars). The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
-with a declared margin: if compaction triggers at 90% or above, the dumb band leads it by 15
-points or more. The trigger is **model- and environment-dependent**, so no single band set is
+with a declared margin: the dumb band leads the default trigger that table gives for the model in
+use. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent decisions. We read the statusline percentage as of the last API response, not the
@@ -413,15 +438,17 @@ next request, so it can trail `/context`. With auto-compact turned off, the dumb
 - **Recheck trigger**: a release note or either section changes when the percentage is computed or
   what turning auto-compact off does.
 
-### The trigger has no documented threshold, but it is operator-tunable
+### The trigger is operator-tunable
 
-No *default* threshold is published as a number (above), yet the point at which auto-compact fires
-is a configured value the operator can read and set. **Four** surfaces govern it. Each row states
-what this plugin relies on; the pointer holds the units, ranges, forms, and precedence.
+The docs publish the default thresholds (pointer above), and the point at which auto-compact fires
+is a configured value the operator can set. The table lists the surfaces we hold a decision about,
+not a closed set: the pointers hold the full set of surfaces, their units, ranges, forms, and
+precedence.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. Unset gives no number we can read, so we never assume one. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above); set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). The snapshot cannot see that window, and the surface is in the changelog only and not probed, so we never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. We treated `DISABLE_COMPACT` as unconfirmed by docs: it came from our 2026-08-17 probe of the shipped binary's strings (v2.1.233) and was absent from the env-vars page on 2026-08-19. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
@@ -430,9 +457,38 @@ We read a configured window above the model's context window as the model's wind
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-08-19
+- **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-08-19 for the other rows,
+  including the `DISABLE_COMPACT` note.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
+
+The reader never resolves the window itself. It reads the snapshot's context fields and never a
+configured window, so it cannot tell which value is in effect: a window saved for one model or a
+top-level one. We treat a window we cannot see exactly like an unset one: no number is
+assumed, the bands stay below whatever the trigger resolves to, and `zones.json` is the operator's
+correction path when one model's window fires earlier than the bands allow.
+
+- **Pointer**: when a decision depends on where the window is stored or which value wins for the
+  active model, fetch
+  <https://code.claude.com/docs/en/settings-reference#modelsettings> and
+  <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the `modelSettings` section changes its keys or precedence, `/autocompact`
+  changes where it saves, or the reader starts reading a configured window.
+
+A dated observation, not the order of record (the pointers above hold that, and no decision here
+depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
+window at user settings `modelSettings.<model id>.autoCompactWindow`, and the effective window
+followed, highest first, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `--autocompact`, a project top-level
+`autoCompactWindow`, the user per-model value, then the user top-level key. A project per-model
+value outranking the project top-level key is inferred, not observed; managed settings follow the docs, not this probe.
+
+- **Pointer**: <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window>,
+  <https://code.claude.com/docs/en/settings-reference#modelsettings>, and
+  <https://code.claude.com/docs/en/cli-reference#cli-flags> for `--autocompact`.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a release note touches `/autocompact`, `--autocompact`, or `modelSettings`,
+  or those sections publish an order that differs from this one.
 
 **Normalize before comparing: the trigger is not in occupancy.** The two zone shapes answer
 different questions and must never be equated (see "Occupancy and combination rule"), and the
@@ -466,9 +522,8 @@ That diagnostic reading is adopted; the prescription that usually travels with i
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
 is not this plugin's guidance: unattended cloud and autonomous sessions have no human at the
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
-is instrumentation, not prohibition: observable zones, then advisory injection, then an opt-in
-blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
-all of it (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
+is instrumentation, not prohibition: observable zones and advisory injection, with auto-compact
+remaining the last-resort safety net beneath both (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
 what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
@@ -483,16 +538,22 @@ compaction-timing choice on its own terms.
 - **As of**: 2026-10-01
 - **Recheck trigger**: the session models' context window changes, or §64's figure changes.
 
-## Prompt-cache miss cause
+## Prompt cache
 
-The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
-`plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
-payload and prints the cause names. The snapshot carries `context_window` only, never
-`prompt_cache`; pass the live payload to the script. The script prints whatever cause names
-`last_miss_cause.causes` carries, with no fixed list of its own, and prints `null` when the object
-is null. Pointer: for the object and its cause names, see
-<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck trigger:
-that section renames the object or its cause names.
+The statusline payload's `prompt_cache` object is the only first-party source of the main
+conversation's cache state (warm or cold, expiry, re-cache size, hit ratio, misses and the last
+miss's cause). A mod's `$.session.usage()` does not carry it, so the module neither reads nor
+snapshots it: the snapshot carries `context_window` only. `plugins/context-guard/scripts/cache-line.mjs`
+reads the object from a statusline JSON payload on stdin and prints one status-line segment, or
+nothing when the object is absent. It prints whatever cause names `last_miss_cause.causes` carries,
+with no fixed list of its own. The segment covers the main conversation only: the object leaves
+out subagent and workflow requests, and a status line does not run in cloud or `-p` sessions
+(see `reference/cloud-headless-capture.md`). Pointer: for the object, its fields and the
+`expires_at` re-run, see <https://code.claude.com/docs/en/statusline#prompt-cache-fields> and
+<https://code.claude.com/docs/en/statusline#last-miss-cause>; for what a mod receives, see
+<https://code.claude.com/docs/en/plugins/mods/reference>. As of: 2026-10-10. Recheck trigger: either statusline
+section renames a field the script reads, or the mods reference adds prompt-cache state to
+`$.session.usage()`, at which point the band row can carry this line instead.
 
 ## Zones (machine-scope tuning, optional)
 
@@ -548,15 +609,14 @@ an absent or invalid one means its default, so a file without them keeps working
   token band edge sits below the percentage edge, that boundary's approach line comes the same
   points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
   known window size there is no token-shape approach line.
-- `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
-  replaces the default wording, which names the action (`block`'s describes the gate). The
+- `actions.<zone>`: `action` is `none`, `save-state` or `handoff`; `block` reads as `none` with its text dropped, and any other value is ignored. Optional `text`
+  replaces the default wording, which names the action. The
   action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labeled "operator setting for the <zone> zone".
-  Default: `none` everywhere. `block` arms the gate in that zone.
-  An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
+  Default: `none` everywhere.
 - `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
   100), each with an `action` and optional `text`; each fires once per cycle like a zone
-  boundary and has its own approach line. A `block` threshold arms the gate once passed.
+  boundary and has its own approach line.
 
 **Consumers read `zones.json` directly** (it is a shared data file): under plugin cache isolation a
 consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup:

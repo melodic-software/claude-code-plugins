@@ -17,7 +17,7 @@ independent review of the prototype video, which set the acceptance rules this Q
 | `edge-clip` | On settled zoomed frames, every frame edge that is not the page edge lies in a gutter of the capture under it | `qc.edge_ink_max`, `qc.edge_band`; the plan uses the wider `camera.gutter_band` |
 | `target-headroom` | Each click target is in shot with headroom at its click | `camera.safe_margin` (half of it in QC) |
 | `caption-anchor` | Captions use only the primary anchor or the one fixed fallback | `captions.anchors` (first two) |
-| `stillness` | No still stretch (caption band masked) longer than the limit | `qc.still_max` 1.5 s |
+| `stillness` | No still stretch (caption band masked) longer than the limit: `still_max` plus one frame, the span a run of still frames covers | `qc.still_max` 1.5 s |
 | `motion` | Each move's peak zoom and pan speed and acceleration, from its measured 10-90% duration and total change | `motion.max_zoom_rate` 0.8/s, `max_zoom_accel` 4.0/s², `max_pan_speed` 0.5 frame widths/s, `max_pan_accel` 2.5/s², tolerance `qc.motion_tolerance`; the plan also keeps moves at or above `motion.min_move_duration` 0.55 s |
 | `nav-cuts` | Each page cut has the camera still across it. A cut that changes the URL is taken at 1.0x (zoom measured from the frames at or below the limit); an in-page state cut at 1.0x or with clean edges. The EDL's `nav_cuts` say only where the URL changes | `qc.nav_zoom_max`, `qc.nav_change_min` |
 | `crossfade` | No frame near a page change is a blend of its neighbors | `qc.crossfade_gain` |
@@ -27,8 +27,9 @@ independent review of the prototype video, which set the acceptance rules this Q
 Checks that depend on the camera report `SKIP` in the plain style.
 
 Outputs in the QC directory: `qc.json` (every check, its detail, and the measured zoom per frame),
-`sheet-key-moments.png` (cuts, zoom peaks, the longest still) and, on a failure,
-`sheet-failures.png`. Hand the sheets and the video to the independent reviewer.
+`sheet-key-moments.png` (cuts, zoom peaks, the longest still) and, for each failing check,
+`sheet-fail-<check>.png` with up to six frames it failed on. Hand the sheets and the video to the
+independent reviewer.
 
 Where the numbers came from: the motion limits were set while tuning the prototype for motion
 comfort, the 60% at 1.2x zoom share, the gutter rule, the 1.5 s stillness limit, the 0.55 s

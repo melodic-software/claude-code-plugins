@@ -16,6 +16,7 @@
   - [Multi-provider topology: the role-split model (recorded decision, not yet built)](#multi-provider-topology-the-role-split-model-recorded-decision-not-yet-built)
 - [Capabilities manifest](#capabilities-manifest)
   - [Contract-version handshake](#contract-version-handshake)
+- [Change links](#change-links)
 - [Identity routing (GitHub adapter)](#identity-routing-github-adapter)
 - [local-markdown adapter](#local-markdown-adapter)
   - [Branch, worktree, and lease confinement](#branch-worktree-and-lease-confinement)
@@ -54,14 +55,19 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ### Degradation without `gh` (cloud / MCP-only sessions)
 
-Some execution environments have GitHub access but no `gh` binary, notably cloud sessions
-whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+Some execution environments have GitHub access but no `gh` binary: their GitHub surface is MCP
+tools (model-plane, not shell-plane). Anthropic-hosted cloud sessions are not that case by
+default, since `gh` is in their
+[installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools), but their
+[GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) refuses
+GraphQL-backed `gh` calls, so a verb that makes one fails there even with `gh` present. In a
+session with no `gh` the
 seam **cannot run any `github` verb that shells out**, reads and writes alike: the
 dispatcher's presence gate exits `3` (the same first-run signal as a missing binding), and
 there is deliberately no silent fallback to another provider (the binding names the
 coordination surface; "Offline role activates only by manual binding switch" applies to
 degradation too). `capabilities` is the sole verb that still answers, since it reads the
-adapter manifest rather than the provider. Honest limitation, recorded 2026-08-17 (#2942):
+adapter manifest rather than the provider. Limitation, recorded 2026-08-17 (#2942):
 this repository's own spec board (#2933) had to be published through MCP tools with
 blocking edges as body text, because the publishing session had no `gh`.
 
@@ -192,6 +198,7 @@ work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
 work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
+work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
 
@@ -242,15 +249,21 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 - `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
-  silently). Exceeding the ceiling is a documented truncation, not an error.
+  silently). Exceeding the ceiling is a documented truncation, not an error, and the
+  envelope reports it: `truncated: true` when items past the ceiling exist and were not
+  returned, `false` when the listing is complete. A listing that holds exactly
+  `list_items_max` items is complete; an adapter that cannot tell the two apart (it
+  stopped at the ceiling without learning whether more exist) reports `true`.
 - `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
   envelope, each item's `parent_id` set to the container. Where a provider's list surface
   omits parent linkage (GitHub's does, see "JSON output contract"), the adapter resolves
   children through the provider's native sub-item link (GitHub's `subIssues`) and intersects
   with `list-items` output; its truncation bound is therefore `list-items`' own
-  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`. A child in
+  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`, and its
+  `truncated` is the intersected `list-items` envelope's. A child in
   another repo is out of scope for this repo-keyed intersect (documented truncation, not an
-  error). A parent with no children returns an empty `items` array, never an error.
+  error, and not reported by `truncated`). A parent with no children returns an empty `items`
+  array, never an error.
 - An adapter MAY keep shared helpers (e.g. `common.sh`); only `<verb>.sh` files named in
   the manifest are contract surface.
 - A verb declared `false` in the manifest exits `6` with a clear stderr message when
@@ -360,7 +373,11 @@ Normalized item object:
   `get-item` is authoritative for parent linkage.
 
 Envelopes: `list-items`, `list-sub-items`, and `list-frontier` emit
-`{"schema_version":"1.0","items":[…]}`.
+`{"schema_version":"1.0","items":[…],"truncated":false}`. `truncated` is a boolean every
+bundled adapter emits (see "Adapter contract"); `list-frontier` passes its source envelope's
+flag through unchanged, so a frontier filtered from a truncated listing is truncated even when
+its `items` is empty. An adapter written before the field emits none, and `list-frontier` then
+emits none either: a reader treats an absent `truncated` as **unknown, never as complete**.
 
 Per-verb result objects:
 
@@ -536,9 +553,12 @@ Building `sources` is demand-gated: a consumer who needs it opens a new item cit
   "provider": "github",
   "verbs": { "create-item": true },
   "features": { "cross_repo_edges": true, "sub_items": true, "leases": true },
-  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 }
+  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 },
+  "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" }
 }
 ```
+
+`change_link` is the branch grammar "Change links" defines.
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
@@ -580,6 +600,64 @@ first-run/setup signal as a missing binding, pointing at the mismatched pair rat
 failing later inside a verb with a shape error. The conformance suite asserts both refusal
 directions and the newer-minor notice against a synthetic skewed manifest, and every real
 conformance case exercises the passing handshake.
+
+## Change links
+
+The text that links a change (a pull request, a commit) to its work item, and the token a
+branch name carries to name that item, are provider grammar: `Closes #42` on GitHub, `Closes
+ENG-123` on Linear, an issue key on Jira. The adapter owns both, so a skill asks the bound
+adapter instead of writing GitHub's grammar
+([ADR 0060](../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+
+`change-link` is offline: it never calls the provider and does not check that the item exists
+(`get-item` does). It takes exactly one input form:
+
+| Input | Meaning |
+|---|---|
+| `<id>` | a qualified item ID ("ID grammar") |
+| `--branch-ref <ref>` | a token captured from a branch name; the adapter qualifies it into an ID, exit `5` when it names no item of this binding (wrong shape, or a Jira project or Linear team outside the declared scope); exit `2` stays a usage error |
+| `--branch <name>` | core applies the manifest's `change_link.branch_pattern` to the name and dispatches `--branch-ref` with the last capture group; no match is exit `5` |
+
+`--repo <o>/<r>` names the repository the change lives in. GitHub and Gitea need it to qualify a
+`--branch-ref`; local-markdown, which has no forge, qualifies one in its default namespace and
+ignores it. A manifest declaring `change-link` without `change_link.branch_pattern` makes
+`--branch` exit `3`. GitHub and Gitea
+emit the short `#N` form only when it equals the item's repository, else the cross-repository
+`owner/repo#N` form, which both providers also honor inside the same repository.
+
+```json
+{ "schema_version": "1.0", "item_id": "github:acme/webapp#42", "closes": "Closes #42", "refs": "Refs: #42", "branch_ref": "42" }
+```
+
+- `closes`: the line that links the change and closes the item when the change merges into the
+  default branch. `null` when the provider closes nothing on merge (jira, local-markdown): the
+  caller then closes the item itself after the merge.
+- `refs`: the line that links the change without closing the item.
+- `branch_ref`: the token a branch name carries, as in `<type>/<branch_ref>-<slug>`.
+
+The manifest declares the branch grammar as `change_link.branch_pattern`, a POSIX ERE whose
+**last** capture group is the `branch_ref`. A consumer convention (for example
+`/source-control:pull-request`'s `branch_issue_pattern`) may override it; the adapter's pattern is
+the default. A manifest with `change-link` absent from `verbs` predates this section: the verb
+exits `6` and the caller keeps its own default.
+
+| Provider | `closes` | `refs` | `branch_ref` | `branch_pattern` |
+|---|---|---|---|---|
+| github | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| gitea | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| linear | `Closes ENG-N` | `Refs ENG-N` | `ENG-N` | `^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-` |
+| jira | `null` | `Refs: SW2-N` | `SW2-N` | `^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)-` |
+| local-markdown | `null` | `Refs: <id>` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+
+Sources, read 2026-10-11 (recheck when a provider renames its linking keywords): GitHub's closing
+keywords ([Linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue));
+Gitea's closing keywords and `owner/repository#N` form
+([Automatically Linked References](https://docs.gitea.com/usage/automatically-linked-references));
+Linear's closing and non-closing magic words ([GitHub integration](https://linear.app/docs/github));
+Jira links a branch, commit or pull request by its capitalized key and documents no closing
+keyword ([Reference work items in your development work](https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/)).
+`Refs: #N` with the colon is the non-closing linkage line `/source-control:pull-request` accepts;
+GitHub itself links any `#N` mention without closing it.
 
 ## Identity routing (GitHub adapter)
 

@@ -265,6 +265,27 @@ assert_contains "--merge-only preserves conf records" "$OUT" "conf user settings
 OUT=$(printf '%s\n' "$CONF_IN" | bash "$SCRIPT")
 assert_contains "and so does the default pass-through" "$OUT" "conf user settings classifyAllShell true"
 
+# --- Case 9b: a ! carve-out stays inside its own source ------------------------
+# Source: permissions#read-and-edit, "The carve-out reaches only rules from the
+# same source. A `Read(!.env)` in project settings ... doesn't cancel a
+# `Read(./.env)` deny from ... any other settings file." The bare `Edit(!)` case
+# follows the merge's own contract: report it, tagged bare, model no effect.
+CARVE=$(
+  cat <<'EOF'
+user settings present /fx/home/.claude/settings.json
+project settings present /proj/.claude/settings.json
+rule user settings deny Read(./.env)
+rule project settings deny Read(*.env)
+rule project settings deny Read(!.env)
+rule project settings ask Edit(!)
+EOF
+)
+OUT=$(merge "$CARVE")
+assert_contains "a project carve-out is reported against its own source" "$OUT" "carveout deny source=project:settings Read(!.env)"
+assert_contains "it does not cancel another file's deny" "$OUT" "effective deny scopes=user precedence_basis=uncontested Read(./.env)"
+assert_eq "a carve-out is never an effective rule" 0 "$(count_matching "$OUT" '^effective .*\(!')"
+assert_contains "a bare ! carve-out is tagged as the known gap" "$OUT" "carveout ask source=project:settings bare Edit(!)"
+
 # --- Case 10: end to end, real reader into the merge --------------------------
 if command -v jq >/dev/null 2>&1; then
   FX="$TEST_TMPDIR/fx"

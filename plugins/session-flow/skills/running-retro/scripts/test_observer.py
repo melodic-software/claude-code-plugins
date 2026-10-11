@@ -23,6 +23,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _SPEC = importlib.util.spec_from_file_location(
     "observer", str(Path(__file__).with_name("observer.py"))
@@ -60,6 +61,8 @@ def make_observer(tmp: Path, **overrides):
     ]
     if overrides.get("analysis"):
         argv.append("--analysis")
+    if "effort" in overrides:
+        argv += ["--effort", overrides["effort"]]
     args = observer.build_parser().parse_args(argv)
     return observer.Observer(args)
 
@@ -946,7 +949,8 @@ class ResultParsing(unittest.TestCase):
     def test_extract(self):
         self.assertEqual(observer._extract_result('{"result":"BLOCK"}'), "BLOCK")
         self.assertEqual(observer._extract_result('{"is_error":true,"result":"x"}'), "")
-        self.assertEqual(observer._extract_result("plain"), "plain")
+        # Non-JSON output is a failed run, never findings.
+        self.assertEqual(observer._extract_result("plain"), "")
 
     def test_error(self):
         self.assertTrue(
@@ -1104,9 +1108,20 @@ class PidAlive(unittest.TestCase):
             self.assertFalse(observer._pid_alive(12345))
 
 
+COMPLETED_RUN = {
+    "is_error": False,
+    "subtype": "success",
+    "terminal_reason": "completed",
+    "permission_denials": [],
+    "result": "### Checkpoint findings\n\nok",
+}
+
+
 @contextlib.contextmanager
 def fake_analysis_run(
-    captured: dict, version: tuple[int, int, int] | None = (2, 1, 259)
+    captured: dict,
+    version: tuple[int, int, int] | None = (2, 1, 259),
+    stdout: str | None = None,
 ):
     """Drive `_run_analysis` against a stubbed `claude -p`, recording the call.
 
@@ -1114,15 +1129,15 @@ def fake_analysis_run(
     nothing is spawned), recording the command list under `cmd` and every
     kwarg the analysis run passes, so a caller can assert on the command
     shape, the stdin prompt, or the subprocess kwargs. `version` is what
-    `claude --version` reports to the flag gate (None: unparsable).
+    `claude --version` reports to the flag gate (None: unparsable). `stdout`
+    replaces the completed run's JSON body.
     """
 
     class FakeProc:
         returncode = 0
-        stdout = json.dumps(
-            {"is_error": False, "result": "### Checkpoint findings\n\nok"}
-        )
         stderr = ""
+
+    FakeProc.stdout = json.dumps(COMPLETED_RUN) if stdout is None else stdout
 
     def fake_run(cmd, **kw):
         captured["cmd"] = cmd
@@ -1248,6 +1263,79 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertFalse(ob._run_analysis(), "unavailable claude -> retain")
             finally:
                 observer._find_claude = orig
+            self.assertTrue(ob.obs_path.exists())
+
+    def test_unset_model_and_effort_come_from_the_manifest(self):
+        manifest_path = observer._PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["userConfig"]
+        for overrides, effort in (
+            ({}, manifest["observer_analysis_effort"]["default"]),
+            ({"effort": "high"}, "high"),
+        ):
+            with tempfile.TemporaryDirectory() as d:
+                tmp = Path(d)
+                ob = make_observer(tmp, analysis=True, session_id="ef", **overrides)
+                ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+                captured: dict = {}
+                with (
+                    mock.patch.dict(os.environ, {"CLAUDE_CODE_EFFORT_LEVEL": "max"}),
+                    fake_analysis_run(captured),
+                ):
+                    self.assertTrue(ob._run_analysis())
+                cmd = captured["cmd"]
+                self.assertNotIn("CLAUDE_CODE_EFFORT_LEVEL", captured["env"])
+                self.assertEqual(cmd[cmd.index("--effort") + 1], effort)
+                self.assertEqual(
+                    cmd[cmd.index("--model") + 1],
+                    manifest["observer_analysis_model"]["default"],
+                )
+                # A settings-file `env` re-applies CLAUDE_CODE_EFFORT_LEVEL in the
+                # child and it overrides --effort; --settings outranks those files.
+                settings = json.loads(cmd[cmd.index("--settings") + 1])
+                self.assertEqual(
+                    settings, {"env": {"CLAUDE_CODE_EFFORT_LEVEL": effort}}
+                )
+                # --settings must precede the variadic --add-dir block.
+                self.assertLess(cmd.index("--settings"), cmd.index("--add-dir"))
+                self.assertEqual(captured["env"]["SESSION_FLOW_OBSERVER_ANALYSIS"], "1")
+
+    def test_incomplete_run_retains_observations(self):
+        cases = {
+            "terminal_reason": dict(COMPLETED_RUN, terminal_reason="max_turns"),
+            "subtype": dict(COMPLETED_RUN, subtype="error_max_turns"),
+            "no subtype": {k: v for k, v in COMPLETED_RUN.items() if k != "subtype"},
+            "permission_denials": dict(
+                COMPLETED_RUN, permission_denials=[{"tool_name": "Bash"}]
+            ),
+        }
+        for name, body in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as d:
+                tmp = Path(d)
+                ob = make_observer(tmp, analysis=True, session_id="inc")
+                ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+                with fake_analysis_run({}, stdout=json.dumps(body)):
+                    self.assertFalse(ob._run_analysis())
+                self.assertIsNone(ob._find_session_ledger())
+                self.assertTrue(ob.obs_path.exists())
+
+    def test_absent_terminal_reason_still_completes(self):
+        body = {k: v for k, v in COMPLETED_RUN.items() if k != "terminal_reason"}
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="nt")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout=json.dumps(body)):
+                self.assertTrue(ob._run_analysis())
+            self.assertIsNotNone(ob._find_session_ledger())
+
+    def test_non_json_output_is_a_failed_run(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="nj")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout="### Checkpoint findings\n\nplain"):
+                self.assertFalse(ob._run_analysis())
+            self.assertIsNone(ob._find_session_ledger())
             self.assertTrue(ob.obs_path.exists())
 
     def test_tail_no_duplicate_events_on_growth(self):
@@ -1550,7 +1638,7 @@ class ArmLauncher(unittest.TestCase):
                 "--plugin-root",
                 str(tmp),
                 "--model",
-                "claude-haiku-4-5",
+                "test-model",
                 # Analysis-free (no `claude -p` call) keeps this fast and
                 # hermetic; the spawn call itself -- the site of the bug --
                 # is still real. --idle-seconds is set well above the time
@@ -1637,6 +1725,8 @@ class ArmLauncher(unittest.TestCase):
                 "7",
                 "--max-seconds",
                 "15",
+                "--effort",
+                "low",
             ]
             rc, out = self._run_main(argv, arm=arm)
             self.assertEqual(rc, 0)
@@ -1647,6 +1737,8 @@ class ArmLauncher(unittest.TestCase):
         self.assertIn("--idle-confirm-seconds", cmd)
         flag_index = cmd.index("--idle-confirm-seconds")
         self.assertEqual(cmd[flag_index + 1], "7")
+        # --effort is forwarded the same way.
+        self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
 
     def test_non_oserror_at_spawn_degrades_gracefully(self):
         """A non-OSError exception at the spawn call (e.g. a resurfaced

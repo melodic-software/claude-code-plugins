@@ -21,15 +21,18 @@ Rows without `precondition` behave as today.
 
 ### `frontier-release-since-last-checked`
 
-The standing item fires on frontier model releases, not on quarterly cadence alone.
+The standing item fires on model releases, not on quarterly cadence alone. The row's
+`prompt` sets which release class counts; the id still says "frontier" only because
+renaming it would break the schedule rows and scripts that match it.
 Before claiming (tier 4) or recheck-closing:
 
 1. Read the row's `last_checked` date.
-2. Ask whether a **frontier Claude model release** occurred **after** that date.
+2. Ask whether a Claude model release of the class the row's `prompt` names occurred
+   **after** that date.
 3. If **no** (or unknown): **do not claim, do not recheck-close**. Leave the open
    `[Maintenance]` issue open and report the `prompt` text inline.
 4. If **yes**: proceed, and record in the claim/recheck comment that the operator
-   confirmed a post-`last_checked` frontier release.
+   confirmed a post-`last_checked` release.
 
 There is no automated release oracle in-repo; `requires_operator_confirmation: true`
 makes the confirmation explicit rather than inferred from cadence.

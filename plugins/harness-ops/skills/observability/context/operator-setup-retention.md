@@ -87,7 +87,9 @@ Two override surfaces with different reach. Pick by which consumers must honor t
   the environment on its next fire).
 
 - **`.claude/settings.local.json` `env`** reaches CC sessions only; the Scheduled Task
-  never sees it. Use `setx` for anything the unattended prune must honor.
+  never sees it. Use `setx` for anything the unattended prune must honor. CC's own telemetry
+  keys do not belong there either: see
+  [operator-setup-emission-privacy.md](operator-setup-emission-privacy.md) for where they live.
 
 ### Safety properties
 

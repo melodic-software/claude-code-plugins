@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the skill-starvation engine test suite.
+# test-scope: plugins/harness-ops/skills/audit-skill-visibility/scripts/test_audit_skill_visibility.py plugins/harness-ops/skills/audit-skill-visibility/tests/fixtures/*
 set -euo pipefail
 
 # ISOLATION (#2840). The churn tests build throwaway git repositories, and the

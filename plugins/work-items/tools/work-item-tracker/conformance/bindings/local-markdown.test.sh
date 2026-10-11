@@ -3,6 +3,7 @@
 # RUNS the full abstract conformance suite offline against the local-markdown adapter,
 # once normally and once under a PATH shim that makes gh/curl fail.
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
+# test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"

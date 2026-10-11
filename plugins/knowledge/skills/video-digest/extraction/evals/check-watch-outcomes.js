@@ -13,7 +13,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { forbiddenSynthesisFileNameReason } from "../lib/synthesis-filename.js";
-import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import {
+  parseSessionsFromClaimInventory,
+  SESSION_FORMAT_HINT,
+} from "../lib/watch-slice-sessions.js";
 import {
   listSynthesisPngs,
   validateActionableArtifactsForSlice,
@@ -25,6 +28,7 @@ import {
   validateWatchChecklistForCompleteSlice,
 } from "../lib/watch-vision-validation.js";
 import { readPromotionMap, resolveSourceFile } from "../watch/rebuild-visual-frames.js";
+import { researchGateFailure } from "./check-research-complete.js";
 
 /** @typedef {{ id: string, pass: boolean, actual: string, expected: string, severity: 'fail'|'warn' }} OutcomeCheck */
 
@@ -345,14 +349,19 @@ function pushSessionCoverageChecks(checks, slice) {
     };
   });
 
+  // Zero parsed sessions would make both checks below pass over nothing.
+  const noSessions = `no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`;
+
   const sessionsWithoutFrame = sessionFrameCounts.filter((s) => s.frameCount === 0);
   checks.push({
     id: "session-visual-coverage",
-    pass: sessionsWithoutFrame.length === 0,
+    pass: sessions.length > 0 && sessionsWithoutFrame.length === 0,
     actual:
-      sessionsWithoutFrame.length === 0
-        ? "all sessions covered"
-        : `missing: ${sessionsWithoutFrame.map((s) => s.name).join("; ")}`,
+      sessions.length === 0
+        ? noSessions
+        : sessionsWithoutFrame.length === 0
+          ? "all sessions covered"
+          : `missing: ${sessionsWithoutFrame.map((s) => s.name).join("; ")}`,
     expected: ">=1 synthesis frame per session segment",
     severity: "fail",
   });
@@ -360,11 +369,13 @@ function pushSessionCoverageChecks(checks, slice) {
   const sessionsBelowFloor = sessionFrameCounts.filter((s) => s.frameCount < floors.minPerSession);
   checks.push({
     id: "session-synthesis-depth",
-    pass: sessionsBelowFloor.length === 0,
+    pass: sessions.length > 0 && sessionsBelowFloor.length === 0,
     actual:
-      sessionsBelowFloor.length === 0
-        ? `>=${floors.minPerSession} per session`
-        : `thin: ${sessionsBelowFloor.map((s) => s.name).join("; ")}`,
+      sessions.length === 0
+        ? noSessions
+        : sessionsBelowFloor.length === 0
+          ? `>=${floors.minPerSession} per session`
+          : `thin: ${sessionsBelowFloor.map((s) => s.name).join("; ")}`,
     expected: `>=${floors.minPerSession} synthesis frames per session`,
     severity: "fail",
   });
@@ -610,6 +621,30 @@ function pushQualityAuditChecks(checks, slice) {
 }
 
 /**
+ * The research gate, unless the watch ran with `--skip-research`.
+ *
+ * @param {OutcomeCheck[]} checks
+ * @param {WatchOutcomeSlice} slice
+ */
+function pushResearchCheck(checks, slice) {
+  const skipped = slice.watch.skipResearch === true;
+  // Slice-relative paths: the report lands in the slice, which must not carry machine-local paths.
+  const failure = skipped
+    ? null
+    : (researchGateFailure(slice.sliceDir, { warn: () => {} })?.replaceAll(
+        path.join(slice.sliceDir, path.sep),
+        "",
+      ) ?? null);
+  checks.push({
+    id: "research-complete",
+    pass: failure === null,
+    actual: skipped ? "skipped (--skip-research)" : (failure ?? "pass"),
+    expected: "check-research-complete.js passes",
+    severity: "fail",
+  });
+}
+
+/**
  * @param {OutcomeCheck[]} checks
  * @param {string} sliceDir
  */
@@ -704,6 +739,7 @@ export function checkWatchOutcomes(sliceDir, { writeReport = false } = {}) {
   pushTriageManifestChecks(checks, slice);
   pushPromotionChecks(checks, slice);
   pushQualityAuditChecks(checks, slice);
+  pushResearchCheck(checks, slice);
   pushSynthesisCloseoutChecks(checks, sliceDir);
 
   const pass = checks.every((c) => c.pass || c.severity === "warn");

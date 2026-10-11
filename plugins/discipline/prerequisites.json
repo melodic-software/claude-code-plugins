@@ -6,7 +6,6 @@
       "need": "required",
       "for": [
         "skill:recheck-against-upstream",
-        "skill:recheck-against-upstream-deep",
         "skill:do-your-research",
         "skill:sweep-all"
       ],
@@ -30,7 +29,6 @@
       "need": "required",
       "for": [
         "skill:recheck-against-upstream",
-        "skill:recheck-against-upstream-deep",
         "skill:do-your-research",
         "skill:sweep-all"
       ],
@@ -54,7 +52,6 @@
       "need": "optional",
       "for": [
         "skill:recheck-against-upstream",
-        "skill:recheck-against-upstream-deep",
         "skill:do-your-research",
         "skill:sweep-all"
       ],

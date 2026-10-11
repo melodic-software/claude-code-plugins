@@ -40,6 +40,7 @@ rc="$(gitea_run "$S")"
 assert_eq "no --repo with one declared scope → exit 0" "0" "$rc"
 assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea_out)")"
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
+assert_eq "a complete listing carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_eq "item id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 # The page size must be EXPLICIT. Gitea defaults an omitted limit to 30 and truncates
 # silently — the same trap the contract calls out for `gh`.
@@ -297,6 +298,7 @@ else
   fail "more than the ceiling's worth of rows was collected before truncating" ">$CEILING" "$COLLECTED_N"
 fi
 assert_contains "and the truncation is announced" "$(gitea_err)" "truncated"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_contains "naming the manifest's ceiling, not a built-in one" "$(gitea_err)" "ceiling of $CEILING items"
 # The lowered ceiling is what ended the walk: under the shipped 1000 this mock would have
 # been asked for a third page, and eighteen more after it.

@@ -126,6 +126,72 @@ describe("initWatchChecklist", () => {
     expect(withPlan).not.toContain("the deferred floor");
   });
 
+  it("--force keeps ticks and Resume notes while refreshing floors and sheet rows", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const ticked = fs
+      .readFileSync(outPath, "utf8")
+      .replace("- [ ] **0.1**", "- [x] **0.1**")
+      .replace("- [ ] **1.6**", "- [x] **1.6**")
+      .replace("- [ ] **sheet_002**", "- [x] **sheet_002**")
+      .replace(
+        "(paste verification evidence as you tick)",
+        "0.1 setup-deps exit 0; 1.6 watch.json phases complete",
+      );
+    fs.writeFileSync(outPath, ticked);
+
+    // The vision plan lands and a fourth sheet appears; the operator re-runs with --force.
+    fs.writeFileSync(
+      path.join(sliceDir, "key-frames", "vision-plan.md"),
+      "# Plan\n\nClass: `conference-multi-session`\n".padEnd(120, "x"),
+    );
+    fs.writeFileSync(
+      path.join(sliceDir, "key-frames", "selection.json"),
+      JSON.stringify({
+        durationSec: 8 * 3600,
+        contactSheets: [{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }],
+        densificationWindows: [],
+        frameSelection: { highVolume: true },
+      }),
+    );
+    const body = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8");
+
+    expect(body).toContain("- [x] **0.1**");
+    expect(body).toContain("- [x] **1.6**");
+    expect(body).toContain("- [x] **sheet_002**");
+    expect(body).toContain("- [ ] **0.2**");
+    expect(body).toContain("- [ ] **sheet_004**");
+    expect(body).toContain("0.1 setup-deps exit 0; 1.6 watch.json phases complete");
+    expect(body).not.toContain("(paste verification evidence as you tick)");
+    expect(body).toContain("≥40 synthesis frames");
+    expect(body).not.toContain("pending `key-frames/vision-plan.md`");
+  });
+
+  it("--force keeps indented evidence lines under a ticked row, and only under it", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const withEvidence = fs
+      .readFileSync(outPath, "utf8")
+      .split("\n")
+      .flatMap((line) => {
+        if (line.startsWith("- [ ] **0.1**")) {
+          return [line.replace("- [ ]", "- [x]"), "  - evidence: setup-deps exit 0"];
+        }
+        if (line.startsWith("- [ ] **0.2**")) return [line, "  - draft note on an unticked row"];
+        return [line];
+      })
+      .join("\n");
+    fs.writeFileSync(outPath, withEvidence);
+
+    const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
+    const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
+
+    expect(row).toBeGreaterThan(-1);
+    expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
+    expect(lines.filter((line) => line === "  - evidence: setup-deps exit 0")).toHaveLength(1);
+    expect(lines).not.toContain("  - draft note on an unticked row");
+  });
+
   it("skips when checklist exists without force", () => {
     const sliceDir = makeSliceDir();
     initWatchChecklist(sliceDir, { force: true });

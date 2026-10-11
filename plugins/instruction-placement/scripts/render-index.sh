@@ -2,11 +2,11 @@
 # render-index.sh — generate the always-loaded index of deferred instruction surfaces.
 #
 # WHY. Every instruction surface that loads on demand — a path-scoped rule, a
-# nested CLAUDE.md/AGENTS.md — arrives only when a read matches it, and returns
-# after compaction only when its trigger recurs (see
-# context/verified-mechanics.md). The injection itself does reach subagents: a
-# subagent that reads a covered path receives the surface exactly as the main
-# session does (measured on 2.1.268). What no deferred surface supplies is the
+# nested CLAUDE.md/AGENTS.md — arrives only when a file it covers triggers it,
+# and returns after compaction only when its trigger recurs (which tool
+# calls trigger each surface, by version: context/verified-mechanics.md). The
+# injection itself does reach subagents: a subagent that reads a covered path
+# receives the surface exactly as the main session does (measured on 2.1.268). What no deferred surface supplies is the
 # knowledge that it exists, to any context that has not happened to touch a
 # covered path. An always-loaded index converts those surfaces from INVISIBLE to
 # DISCOVERABLE: the agent learns the surface exists and can reach it with an
@@ -53,9 +53,9 @@
 # neither is a CLAUDE.md above the repository root.
 #
 # `wiring` asks the same question one level down. The index lists every nested
-# AGENTS.md as a surface that "enters context automatically when Claude reads a
-# file it covers". A nested CLAUDE.md and a nested AGENTS.md share that Read
-# trigger; what separates them is that a CLAUDE.md on the file's own path is
+# AGENTS.md as a surface that "enters context automatically ... once a file it
+# covers triggers it". A nested CLAUDE.md and a nested AGENTS.md share the
+# Read trigger; what separates them is that a CLAUDE.md on the file's own path is
 # read instead of it, and then only an import or symlink from one of those
 # CLAUDE.md files brings it in. A blocked, unimported nested AGENTS.md is
 # indexed, in sync, and never loaded; `check` cannot see the difference because
@@ -252,15 +252,31 @@ render_block() {
   if ((${#rows[@]} == 0)); then
     printf '\n%s\n\n' "$EMPTY_NOTE"
   else
+    # The preamble names no trigger list: it covers nested AGENTS.md rows too,
+    # whose triggers differ from a rule's, and every consuming repo would carry
+    # a stale list after the next release. It links the live sections instead.
+    # - **Pointer**: when the preamble's wording about what loads a surface is
+    #   in question, fetch https://code.claude.com/docs/en/memory#path-specific-rules
+    #   (rules), https://code.claude.com/docs/en/memory#how-claude-md-files-load
+    #   (nested CLAUDE.md) and
+    #   https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+    #   (AGENTS.md) live (per-surface detail: context/verified-mechanics.md).
+    # - **As of**: 2026-10-10
+    # - **Recheck trigger**: a Claude Code release note changes which tool calls
+    #   load path-scoped rules, nested CLAUDE.md or nested AGENTS.md.
     cat <<'PREAMBLE'
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers, in subagents
-as well as in the main session. The match is on the requested path, so even a read that finds no
-file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
-returns only when a covered file is read again. When you are working on something an entry covers
-and its content is not already in context, read the file directly.
+Each surface below enters context automatically, in subagents as well as in the main session,
+once a file it covers triggers it. The triggers differ by surface type: see
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules,
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load> for nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
+match is on the requested path, so even a Read tool call that finds no file fires it. A surface
+whose trigger has not fired is simply absent, and after a compaction it returns only when its
+trigger fires again. When you are working on something an entry covers and its content is not
+already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|

@@ -6,8 +6,8 @@ default branch is the container's **execution shape**, a per-container choice, n
 config (a repo runs both shapes at once: one effort ships per-item PRs while another ships a single
 integration PR, and a repo-wide setting would force one topology on all efforts). This document is
 the SSOT for the shape line's grammar, the two shapes' disciplines, and the journey vocabulary;
-`/work-items:decompose` records the line, `/work-items:ship` reads it and states the active
-discipline, and `/work-items:work` executes items under it.
+`/work-items:decompose` records the line, `/work-items:ship` reads it, states the active
+discipline and runs the container under it, and `/work-items:work` executes single items under it.
 
 ## The shape line
 
@@ -47,7 +47,7 @@ or
 Independent, parallelizable items; each item is its own micro journey to the default branch.
 
 - Each item gets its own branch (and worktree, on the `/work-items:work` path) provisioned from the
-  default branch; its PR closes the item (`Closes #N` via the branch-name linkage).
+  default branch; its PR closes the item (the adapter's closing line, via the branch-name linkage).
 - Items without dependency edges between them may run in parallel. Separate branches are the
   isolation mechanism, and the seam claim (assignee + lease) is the collision signal between
   concurrent lanes.
@@ -58,7 +58,7 @@ Independent, parallelizable items; each item is its own micro journey to the def
 granularity*; fresh-branch-per-item is its default *provisioning*, not part of the definition. A
 single agent working a container end-to-end in one session line legitimately keeps one long-lived
 branch and opens a PR per item off it, merging each before the next: same per-item granularity,
-same per-item `Closes #N`, same close-out basis (the set of per-item squash commits), but the
+same per-item closing line, same close-out basis (the set of per-item squash commits), but the
 branch is provisioned once rather than per item.
 
 What the variant forfeits, and why it is not the default: parallelism is gone (one branch cannot
@@ -83,11 +83,12 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
   claim, not the branch, is the collision signal; renew the lease mid-flight on long items; pull
   before starting an item and push before closing it, so every checkpoint is durable and the next
   session (or machine) starts from it.
-- **One item in flight at a time.** Sequentiality is enforced by the claim check, not assumed: a
-  shared branch cannot host two concurrent checkpoints, so an active claim on **any** sibling
-  sub-item defers new claims on this container, even of an independent frontier item, until the
-  active item closes or its lease is reclaimed. Per-item leases alone do not serialize a shared
-  branch; this container-scoped check is what does.
+- **One writer to the branch at a time.** A shared branch cannot host two concurrent
+  checkpoints. Sessions working the branch directly keep one item in flight: an active claim on
+  **any** sibling sub-item defers new claims on this container, even of an independent frontier
+  item, until the active item closes or its lease is reclaimed. Per-item leases alone do not
+  serialize a shared branch; this container-scoped check is what does. A runner may keep many
+  items in flight on their own branches because it alone lands on the shared branch (below).
 - **Closing a checkpoint records durable progress, not shipment.** The item closes when its work
   lands on the integration branch. That is the checkpoint contract (safe to clear context, next
   session resumes from it), while shipment is the **container's** close: single PR merged plus
@@ -101,9 +102,24 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
   installed) and running the full gates; the container's close-out runs at PR time and the
   container closes only when the PR ships.
 - The standard `/work-items:work` path provisions worktrees from the default branch and opens
-  per-item PRs, so items in this shape are worked on the shared branch directly (operator-driven),
-  not through that path, the same caveat `/work-items:decompose` records for its
-  integration-branch fallback items.
+  per-item PRs, so items in this shape are worked on the shared branch directly or through
+  `/work-items:ship run`, not through that path, the same caveat `/work-items:decompose` records
+  for its integration-branch fallback items.
+
+### Many in flight, the runner lands one at a time
+
+`/work-items:ship run` is the runner: one attended session that claims a container's ready items,
+has each built on its own branch in parallel, and lands them itself, one landing finished before
+the next starts.
+
+- **`integration branch → single PR`.** Item branches are cut from the integration branch. The
+  runner is the only writer to it: it merges one item branch, runs the build and test gate,
+  pushes, and closes that item as a checkpoint before merging the next. A claim in the container
+  held by another session means a second writer, so the runner does not start.
+- **`per-item PRs`.** Item branches are cut from the default branch and each gets its own PR. The
+  runner merges one PR at a time and brings the next current with the default branch first,
+  because two PRs green against an old base can still conflict once both land.
+- Landing order follows the dependency edges: a blocker lands before the item it blocks.
 
 ## Vocabulary
 

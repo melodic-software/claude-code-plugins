@@ -37,7 +37,7 @@ Print every field, in this order, before anything else:
 
 ```text
 cli_version:     <claude --version>
-floor_met:       <true | false>
+floor_met:       <true | false> (git: <git --version | none>)
 platform:        <windows | wsl2 | linux | darwin | other>
 sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
 target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
@@ -50,6 +50,7 @@ ceiling:         <n> USD | unlimited
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | Version floor: the command needs Claude Code 2.1.269 or later; an older binary answers `plugin eval is currently in early access`, which updating Claude Code fixes with no sign-up; `plugin eval is currently unavailable` means Anthropic has the command switched off for now, which can change at any time and may depend on the account or context. Nothing local fixes it and there is no access to request: wait and retry | `claude plugin eval --help` on the floor release plus <https://code.claude.com/docs/en/plugin-evals> troubleshooting, verified 2026-09-12 | Recheck trigger: a Claude Code release note touches `plugin eval`, or the floor error string changes. Then re-run `--help`, re-read the page, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| Git floor: preflight also reads `git --version` so a git too old for the CLI is caught before any spend. A git below the floor sets `floor_met: false` and names the git version; no git at all reports `git: none` and does not block | **Pointer**: when comparing `git --version` against the floor, fetch <https://code.claude.com/docs/en/plugin-evals#requirements> live for the git floor, and <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> for the refusal. **As of**: 2026-10-10 | Recheck trigger: the requirements section changes the git floor or its no-git exemption. Then re-read it and refresh this row with the outcome |
 
 `floor_met: false` stops the run and reports the floor; nothing else in this skill is worth doing on
 a binary that cannot execute a case. Never assert that the command is installed: read
@@ -71,15 +72,14 @@ this session's own host, which may not be the machine that will run the eval.
 
 Then, when the rows above give `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
-to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
-with a link inside it. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
+to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store with a link inside it. On `platform: darwin` with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
-| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with `the Docker (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it, so the Bash sandbox cannot reliably exclude it`. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c` | No doc line: neither <https://code.claude.com/docs/en/plugin-evals> nor <https://code.claude.com/docs/en/sandboxing> mentions it, both fetched 2026-10-04. Basis is that CLI message at Claude Code 2.1.289 under WSL2, on all 60 runs of one pass, observed 2026-10-04 | Recheck trigger: either page documents the check, a release note touches sandbox credential exclusion, or the message changes. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
+| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with a run error naming the credential store. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c`. Our gate decision: on macOS from Claude Code 2.1.293, preflight exempts links under `~/.docker/bin` | Our observation: the refusal on all 60 runs of one pass at Claude Code 2.1.289 under WSL2, observed 2026-10-04. **Pointer**: when the refusal's current wording or which store paths are exempt matters, fetch <https://code.claude.com/docs/en/changelog> live (2.1.293). **As of**: 2026-10-10. **Docs lag**: the Docker credential-store refusal is not covered by <https://code.claude.com/docs/en/plugin-evals> or <https://code.claude.com/docs/en/sandboxing> as of 2026-10-10. The current refusal wording is not captured here: it needs a macOS or WSL2 host | Recheck trigger: either page documents the check, or a release note touches sandbox credential exclusion or the exempt paths. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
 
-**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) are unaffected and run anywhere.
+**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages the route takes from the session's documented tool inventory at run time (**Pointer**: when choosing the cloud route, fetch [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) live and apply the matching row of the table above; **As of**: 2026-10-11; **Recheck trigger**: that section changes its host description or its package list). For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop`: the set the validator's `READ_ONLY_TOOLS` mirrors from <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-10, recheck when that section's allowed-tools sentence changes) are unaffected and run anywhere.
 
 `suite_tools` is `read-only` when every case's `allowed_tools` sits inside that set; otherwise it
 lists the gated tools, which are exactly the ones needing an `--allow-tools` grant. A case cannot
@@ -164,24 +164,24 @@ Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); 
 are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
 arm costs are not symmetric.
 
-Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
-with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD, 16 runs (two runs, haiku judge) 0.98 USD, and 42 short single-arm calibration runs
-1.79 USD: 0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run.
+Sizing anchors, list-price estimates measured on this plugin's own read-only suite with no `--model` (it served opus-5-5): at Claude Code
+2.1.287 on 2026-10-02, 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 16 runs (two runs, haiku judge, then Haiku 4.5)
+0.98 USD, and 42 short single-arm calibration runs 1.79 USD; at 2.1.296 on 2026-10-11, 16 runs (four cases, two runs, two arms, haiku judge,
+then Haiku 5.5) 1.98 USD. That is 0.04 to 0.125 USD per run on average, judge calls included, 0.03 to 0.2 USD for one run. An opus-judged run costs more; size it from its own first run.
 
-**A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
+**A fresh suite is priced at 0.2 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
-spend. 0.1 USD is 1.4 to 2.4 times the per-run cost of each pass above, and prices six cases at
-three runs and two arms at 3.6 USD. Once a suite has run, scale from its own last `costUsd` instead.
+spend. 0.2 USD is 1.6 to 4.7 times the per-run cost of each pass above, and prices four cases at
+three runs and two arms at 4.8 USD. Once a suite has run, scale from its own last `costUsd` instead.
 
-The older anchor of 0.8 USD per without-run, which prices the same six cases at about 16 USD, comes
+The older anchor of 0.8 USD per without-run, which prices the same four cases at about 12 USD, comes
 from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the bundled `claude-api`
 skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
 arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
 when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.1 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
+at 0.2 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
 from the last three passes when a Claude Code release note touches `plugin eval`, the model a run
-serves changes, or a pass averages more than 0.1 USD per run.
+serves changes, or a pass averages more than 0.2 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -193,7 +193,7 @@ state the ceiling you used without commenting on the setting's state.
    printed is the whole disclosure.
 3. Ceiling set and estimate under it: the pass goes through. Pass `--max-cost-usd <ceiling>` and
    start, without stopping to ask. A question about whether a pass fits gets the same answer: it
-   will go through and starts now under the ceiling, for example "about 3.6 USD, under the 5 USD
+   will go through and starts now under the ceiling, for example "about 4.8 USD, under the 5 USD
    ceiling, so it starts with `--max-cost-usd 5` and no confirmation".
 4. Ceiling set and estimate over it: stop and offer three exits, then proceed only on the answer:
    raise the ceiling, narrow the run with `--case <glob>` or `--tag <tag>`, or accept a partial run
@@ -225,10 +225,10 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
-   claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
+   claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
    about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
    ends with the session. The run is finished when the process exits and `results.json` exists; read

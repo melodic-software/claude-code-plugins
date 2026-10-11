@@ -57,8 +57,10 @@ downstream to add it.
 API call and rejects a body that is empty, opens with a literal `@`, is not sentinel-prefixed, or
 carries under 16 payload bytes below the sentinel. The write's own exit status is checked next: a
 PATCH that fails leaves the previous cycle's body in place, which a read-back running regardless
-would happily accept. The post-write read-back then re-reads what the write stored, the only check
-that sees a write which reported success and stored something else. Create and update use
+would happily accept. The post-write read-back then re-reads what the write stored and compares it
+with the body file, ignoring only CR and trailing newlines: the only check that sees a write which
+reported success and stored something else, including an earlier cycle's well-formed body. Create
+and update use
 `-F body=@`, because `-f body=@FILE` transmits the literal path.
 
 ## Exit codes
@@ -81,7 +83,7 @@ to end the loop: the lane records the outcome and continues.
 | 11 | The comment lookup failed or returned unparsable JSON | Nothing was written (fail closed). Treat the lane as UNREPORTED. |
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
-| 14 | The canonical comment does not carry a well-formed telemetry body after the write | Treat the lane as UNREPORTED; do not trust the timestamp. |
+| 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or the counters the comment shows. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
@@ -138,7 +140,5 @@ reporting the lane as if nothing were partitioned.
 
 ## Known limits
 
-A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that
-*some* well-formed telemetry is present, not that *this* cycle's write is what is present. Not
-implemented at all: the 64 KiB cap, body-file containment, and read retries that the `harness-ops`
+Not implemented: the 64 KiB cap, body-file containment, and read retries that the `harness-ops`
 lanes wrapper carries.

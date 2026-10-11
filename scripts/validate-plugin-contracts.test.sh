@@ -27,7 +27,6 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SUT="$SCRIPT_DIR/validate-plugin-contracts.mjs"
 
 if ! command -v node >/dev/null 2>&1; then
@@ -1708,18 +1707,8 @@ else
   fail "skill limits should fail per file: $out"
 fi
 
-# --- 9. Real corpus: every shipping setup skill still conforms. -------------
-out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
-rc=$?
-if [[ $rc -eq 0 ]]; then
-  ok "the shipping plugins/ tree still validates end to end"
-else
-  fail "the shipping tree should stay green (rc=$rc): $out"
-fi
-if grep -q '^warning: ' <<<"$out"; then
-  fail "the shipping tree should draw zero warnings: $out"
-else
-  ok "the shipping tree draws zero warnings"
-fi
+# The shipping tree itself, clean and with zero warnings, is the job of
+# scripts/validate-plugins.sh in check-plugins, which runs this validator over
+# the whole tree on every pull request; run here, it read every plugin file.
 
 test_harness::report

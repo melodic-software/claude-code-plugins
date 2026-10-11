@@ -56,6 +56,17 @@ EMPTY='{"schema_version":"1.0","items":[]}'
 COUNT="$(frontier_count false <<<"$EMPTY")"
 assert_eq "empty input yields empty frontier" "0" "$COUNT"
 
+# `truncated` describes the listing, not the filter: an empty frontier over a
+# truncated listing is still truncated, and a listing that never carried the flag
+# (an adapter predating it) must not gain a `false` that reads as complete.
+TRUNC='{"schema_version":"1.0","items":[{"id":"github:o/r#4","state":"closed","blocked_by_count":0}],"truncated":true}'
+assert_eq "a truncated listing filtered to nothing stays truncated" "true" \
+  "$(wit_filter_frontier false <<<"$TRUNC" | jq -c '.truncated')"
+assert_eq "a complete listing reports truncated:false" "false" \
+  "$(wit_filter_frontier true <<<'{"schema_version":"1.0","items":[],"truncated":false}' | jq -c '.truncated')"
+assert_eq "a listing without the flag yields a frontier without it" "false" \
+  "$(wit_filter_frontier false <<<"$EMPTY" | jq -c 'has("truncated")')"
+
 # Missing optional arrays tolerated (labels/assignees absent).
 SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","blocked_by_count":0}]}'
 COUNT="$(frontier_count true <<<"$SPARSE")"

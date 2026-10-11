@@ -66,6 +66,14 @@ on:
       - .shellcheckrc
       - REVIEW.md
       - _typos.toml
+      - docs/standards/README.md
+      - docs/standards/bulk-mutation.md
+      - docs/standards/concise-prose.md
+      - docs/standards/deterministic-work-execution.md
+      - docs/standards/documentation-and-citations.md
+      - docs/standards/reference-dont-duplicate.md
+      - docs/standards/simpler-code.md
+      - docs/standards/source-authority-tiers.md
       - eng/dotnet-analysis/Directory.Build.props
       - eng/dotnet-analysis/dotnet.globalconfig
       - lychee.toml

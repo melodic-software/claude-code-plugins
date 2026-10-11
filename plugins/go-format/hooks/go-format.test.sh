@@ -15,6 +15,7 @@
 # Requires a real goimports binary: $GOIMPORTS_TEST_BIN if set, else
 # `goimports` on PATH. Without one the behavioral assertions cannot run, so
 # the suite skips.
+# test-scope: plugins/go-format/.claude-plugin/plugin.json plugins/go-format/hooks/hooks.json plugins/go-format/prerequisites.json
 
 set -uo pipefail
 

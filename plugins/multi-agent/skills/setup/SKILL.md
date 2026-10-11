@@ -109,8 +109,8 @@ team has agreed.
   providers.
 - Change a named agent's model or effort. An agent such as
   `implementation:implementer` or `implementation:scoped-implementer` owns its
-  tier through its own frontmatter; the role map governs generic `agent()` and
-  Agent dispatches only.
+  tier through its own frontmatter and whatever its dispatcher passes on the
+  call; the role map governs generic `agent()` and Agent dispatches only.
 - Recheck a default against upstream. That is `/multi-agent:audit-defaults`.
 
 ## Next

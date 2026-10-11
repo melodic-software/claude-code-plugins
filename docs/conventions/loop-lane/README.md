@@ -401,7 +401,7 @@ pairings are valid); a security-surface work class routes to the frontier tier u
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
@@ -416,8 +416,8 @@ from the model page whenever it matters, and never restated in this convention.
 - **Pointer:** for what each alias resolves to on each provider, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
-  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-10-01.
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -435,9 +435,30 @@ The reasons behind each binding:
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
   for Opus (for fast mode, see
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
-- **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
-  having a smaller context window and an older knowledge cutoff than these lanes need (for both,
-  see the models overview), so no tier binds it.
+- **`haiku` is admissible nowhere in these lanes today, and no tier binds it.** Four grounds, each
+  our reading of the source it points at; the release figures behind them are in
+  [docs/upstream/haiku-5-5-launch.md](../../upstream/haiku-5-5-launch.md):
+  1. **Reviewer floor.** Lanes need a reviewer at least as capable as the executor it checks (the
+     fixed rules above; see
+     [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)).
+     The launch benchmarks place Haiku 5.5 well below the models the strong and fast tiers bind, so
+     a Haiku reviewer fails the floor against every tier's executor.
+  2. **Early stop and unverified completion.** The prompting guide records Haiku 5.5 stopping
+     early under a long agent prompt and reporting code changes done without running a check
+     (see [prevent early stopping](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#prevent-early-stopping-in-long-agent-prompts)
+     and [tell coding agents to verify](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#tell-coding-agents-to-verify-their-changes)).
+     Unattended lanes rely on a worker finishing and checking its own work.
+  3. **Over-refusal.** The system card reports Haiku 5.5 over-refusing more than any other model
+     it tested in its automated agentic behavioral audit
+     ([system card](https://www.anthropic.com/claude-haiku-5-5-system-card), section 6.2.2). A
+     lane cannot tell a refusal from a stall without a human.
+  4. **Provider alias.** `haiku` resolves to Haiku 5.5 only on the Anthropic API and to Haiku 4.5 on
+     the other providers (see [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)),
+     so one binding would not mean one model across operators.
+  - **As of:** 2026-10-10.
+  - **Recheck trigger:** a Haiku role passes this repository's routing eval
+    ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901)), a revised
+    Haiku 5.5 system card, a change to either prompting-guide section, or Haiku 4.5 retiring.
 
 **Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
 here rather than left as an unstated assumption:
@@ -456,7 +477,7 @@ here rather than left as an unstated assumption:
   [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads);
   for usage-credit consent, see
   [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** a model gains or loses a fallback target, a new model on Claude Code's model
   page runs safety classifiers, or non-interactive mode starts asking for usage-credit consent.
 
@@ -645,7 +666,7 @@ un-suffixed comment is left in place and **never adopted, edited, or tombstoned 
 marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
 reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
 Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
-threshold, which is the honest reading: nothing is writing it.
+threshold, because nothing is writing it.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
@@ -716,9 +737,13 @@ session exposes, see [Available data](https://code.claude.com/docs/en/statusline
 As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
 the status line input.
 
-**Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
-persisted config, or tier defaults, and logs the assumption. The interactive path may run a
-mini-interview and offer to persist the answer; the headless path never waits on one.
+**Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
+config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
+config from its launch args only; when the stop mode (`--drain` or `--standing`) is absent it stops
+before any cycle work with a message naming the relaunch tokens, and only `shard`, `scope` and
+`ordering` fall back to their defaults. The babysit loop takes launch args, then its tracked config
+seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
+offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
@@ -854,6 +879,23 @@ have not moved is rewritten no sooner than the floor interval after the file's l
 session on the machine wrote it, while a whole-point move writes at once, so a lane's own turn that
 moves a window can wake it once.
 A lane may set the guard's report mode with `--settings`; this is optional.
+
+**Pausing is opt-in.** By default a lane never pauses, slows, or stops on a window reading, and a
+reading never lowers its model, effort, or review depth: at the pause threshold it keeps working
+and reports the window, its percentage and reset time, and the operator's options, as the floor's
+**Drain-then-pause** bullet words them. An operator who wants drain-then-pause sets the floor's
+opt-in variable in the lane session's environment, for example through an `env` entry in
+`--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
+only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
+unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
+quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
+
+**An account switch is the operator's act.** A lane never performs or scripts one. The
+[claude-code-account-rotation](https://github.com/melodic-software/claude-code-account-rotation)
+tool switches only on a human click, and its README lists running the loop lanes while rotating as
+outside its first version: a lane whose operator switches accounts relies on the floor's
+**Account switch** bullet and the known gaps below.
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that

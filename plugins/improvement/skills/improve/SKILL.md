@@ -145,9 +145,9 @@ Otherwise, and after a lane that does not ship, fix it here:
 5. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
    improvement. Where that skill is absent, `git commit` with a Conventional Commits subject.
 6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which opens
-   it as a draft. Where that skill is absent, push the branch and run
-   `gh pr create --draft --title "<subject>" --body-file <file>`; without a title and body,
-   `gh` prompts for them and fails where no one can answer.
+   it as a draft. Where that skill is absent, push the branch and open a draft PR with the
+   forge's own tooling, passing the title and a body file: a CLI that prompts for a missing
+   title or body fails where no one can answer.
    The PR body names the gap, the standard and its basis, and how the change was verified, and
    it states the issue linkage up front: `Closes #N` when the improvement settles a known issue,
    otherwise `No related issue: improve-one-thing against <standard>`. An unattended run passes
@@ -170,15 +170,15 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
   external pages is a higher work class than one that checks a repo against its own written
   standards; the class rules are in the `autonomy` plugin's routines reference. A
   currency-focused improvement is filed as a work item for an interactive run instead.
-- **Throttle.** Count this skill's open PRs:
-  `gh pr list --state open --limit 1000 --json headRefName --jq '[.[] | select(.headRefName | test("^[a-z]+/improve-"))] | length'`
-  (`gh pr list` returns 30 PRs unless `--limit` says otherwise).
-  At 3 or more, stop and report; the caller's prompt may set another limit. Basis: the
-  `/code-tidying:tidy` backlog throttle uses the same limit.
+- **Throttle.** Count this skill's open PRs: the length of the array
+  `/source-control:pull-request list --head-match '^[a-z]+/improve-'` returns, invoked via the
+  Skill tool. Where that skill is absent, list every open PR with the forge's own tooling, past
+  any default row cap, and count the head branches matching that pattern. At 3 or more, stop
+  and report; the caller's prompt may set another limit. Basis: the `/code-tidying:tidy`
+  backlog throttle uses the same limit.
 - **Overflow is filed**, not planned: one work item via `/work-items:track` invoked via the Skill
-  tool, or `gh issue create --title "<what>" --body-file <file>` where that skill is absent,
-  searched for duplicates first, and
-  linked from the PR body.
+  tool, or the tracker's own create command with a title and a body file where that skill is
+  absent, searched for duplicates first, and linked from the PR body.
 - **A clean, isolated checkout is required.** A dirty tree is a stop, never a stash.
 
 ## Next

@@ -1,3 +1,4 @@
+# test-scope: plugins/harness-ops/skills/behavior-probes/cases/*
 """Tests for probe.py. Nothing here starts `claude`: every run uses --dry-run or a stub runner."""
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import probe  # noqa: E402
@@ -261,6 +263,57 @@ class SuiteTests(unittest.TestCase):
             )
         )
         self.assertEqual(probe.main(["validate", "--cases", str(self.tmp)]), 1)
+
+    def test_windows_bash_is_git_for_windows_bash_by_full_path(self):
+        from unittest import mock
+
+        root = self.tmp / "Git"
+        (root / "cmd").mkdir(parents=True)
+        (root / "bin").mkdir()
+        (root / "bin" / "bash.exe").write_text("")
+        git = str(root / "cmd" / "git.exe")
+        with (
+            mock.patch.object(probe, "os", SimpleNamespace(name="nt")),
+            mock.patch.object(probe.shutil, "which", return_value=git),
+        ):
+            self.assertEqual(
+                probe.bash_argv0(), str((root / "bin" / "bash.exe").resolve())
+            )
+
+    def test_windows_without_git_bash_fails_instead_of_bare_bash(self):
+        from unittest import mock
+
+        with (
+            mock.patch.object(probe, "os", SimpleNamespace(name="nt")),
+            mock.patch.object(probe.shutil, "which", return_value=None),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Git for Windows bash"):
+                probe.bash_argv0()
+
+    def test_non_windows_bash_is_bare_bash(self):
+        from unittest import mock
+
+        with mock.patch.object(probe, "os", SimpleNamespace(name="posix")):
+            self.assertEqual(probe.bash_argv0(), "bash")
+
+    def test_scaffold_path_reaches_bash_with_forward_slashes(self):
+        from unittest import mock
+
+        c = next(
+            c
+            for c in probe.discover(probe.DEFAULT_CASES)
+            if (c["dir"] / "scaffold.sh").is_file()
+        )
+        calls = []
+
+        def fake_run(argv, **_kwargs):
+            calls.append(argv)
+            return probe.subprocess.CompletedProcess(argv, 1, "", "stop")
+
+        with mock.patch.object(probe.subprocess, "run", fake_run):
+            probe.run_case(c, probe.fake_runner, keep=False, live=False)
+        self.assertEqual(calls[0][0], probe.bash_argv0())
+        self.assertEqual(calls[0][1], (c["dir"] / "scaffold.sh").as_posix())
 
     def test_suite_ceiling_skips_the_rest(self):
         cases = probe.discover(probe.DEFAULT_CASES)[:3]

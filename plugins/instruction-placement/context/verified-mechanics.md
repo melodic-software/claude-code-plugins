@@ -36,7 +36,7 @@ whether a move is safe.
 | Nested `CLAUDE.md` | On Read of a file in that subtree *(doc, measured)*; also when Write or Edit creates or changes a file there, on 2.1.288 and later *(changelog 2.1.288)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*; Write and Edit inside a subagent unmeasured |
 | `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
 | Bare nested `AGENTS.md` (no shim), with a `CLAUDE.md` on its path | **Never** *(doc, measured 2.1.238 and 2.1.278)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
-| Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
+| Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)*; the changelog (2.1.290) and the memory page differ on any other trigger *(source conflict, record below)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
 | Skill body | On invocation *(doc)* | Invoked body re-injected within a per-skill and a total cap, oldest dropped first; the skill listing is not re-injected *(doc)* | Discovered via the Skill tool *(doc)* |
 
 The plugin prices each instruction-file destination by the *(doc)* cells above and re-derives them
@@ -53,24 +53,28 @@ from the memory page, never from this table.
   what a subagent loads, <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> and its
   `omitClaudeMd` frontmatter field; for the Write and Edit trigger, the 2.1.288 entry of
   <https://code.claude.com/docs/en/changelog>, the only source for the nested `CLAUDE.md` half
-  while the memory page still says "reads".
-- **As of**: 2026-10-04
+  while the memory page still says "reads"; for what attaches a subdirectory `AGENTS.md`, fetch
+  the 2.1.290 entry of that changelog and
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> live, since the two
+  differ (source conflict) and a Read of an ordinary file there is the one trigger both support.
+- **As of**: 2026-10-04; 2026-10-10 (the subdirectory `AGENTS.md` conflict)
 - **Recheck trigger**: any of those sections changes when a surface loads or reloads, or which
   subagents load the CLAUDE.md hierarchy; the memory page adopts or contradicts the 2.1.288 Write
-  and Edit trigger for nested `CLAUDE.md`; or a release note names instruction-file loading, rules,
-  subagent context, or compaction.
+  and Edit trigger for nested `CLAUDE.md`; the memory page's AGENTS.md section changes; or a release
+  note names instruction-file loading, rules, subagent context, compaction, or what attaches a
+  subdirectory `AGENTS.md`.
 
 Three facts from that table carry the whole design:
 
 - **An unscoped rule costs exactly what `CLAUDE.md` costs.** Moving a section from `CLAUDE.md` into
-  `.claude/rules/` without `paths:` frontmatter saves nothing at all. The glob is the product; the
-  file move is bookkeeping.
+  `.claude/rules/` without `paths:` frontmatter saves nothing at all. The saving comes from the glob;
+  the file move is bookkeeping.
 - **A deferred surface does reach a subagent, but nothing is inherited.** The subagent starts
   without the parent's on-demand loads, and acquires a surface only by itself reading a path the
   surface covers. Delegation therefore does not put a demoted rule out of reach, but it does reset
   the trigger.
 - **No deferred surface announces that it exists.** An agent working on something a rule covers,
-  in any context, learns nothing about that rule until a read happens to match it. That is the
+  in any context, learns nothing about that rule until Claude works with a matching file. That is the
   residual the always-loaded index exists to close: the index supplies the knowledge, and an
   ordinary `Read` supplies the content.
 

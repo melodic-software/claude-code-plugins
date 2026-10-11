@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the engine-context test suite.
+# test-scope: plugins/disk-hygiene/hooks/hooks.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

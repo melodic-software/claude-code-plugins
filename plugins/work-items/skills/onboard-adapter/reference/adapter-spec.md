@@ -28,7 +28,7 @@ A self-hosted, forge-shaped provider with no lease support:
   "verbs": {
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
-    "list-items": true, "list-sub-items": false, "capabilities": true
+    "list-items": true, "list-sub-items": false, "change-link": true, "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
@@ -37,6 +37,7 @@ A self-hosted, forge-shaped provider with no lease support:
     "sub_items_per_parent": 0, "sub_item_depth": 0,
     "dependencies_per_type": 50, "list_items_max": 1000
   },
+  "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" },
   "deferrals": [
     "The exact dependency link representation is read from one live blocked issue; until then blocked_by_count is derived from the documented shape."
   ]
@@ -73,7 +74,11 @@ rather than defaulted, because an unlisted verb means the spec was written again
 different contract revision, and guessing produces a manifest that lies.
 
 `create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`,
-`add-sub-item`, `list-items`, `list-sub-items`, `capabilities`.
+`add-sub-item`, `list-items`, `list-sub-items`, `change-link`, `capabilities`.
+
+`change_link.branch_pattern` (optional) is copied into the manifest: the POSIX ERE whose last
+capture group is the token a branch name carries for an item (`CONTRACT.md` "Change links").
+Declare it whenever `change-link` is `true`, or the core's `change-link --branch` exits `3`.
 
 `release` is optional even for a lease-capable adapter: `true` requires `features.leases`,
 but `features.leases` does not require it (`CONTRACT.md` "Release"). Declare it `false` when

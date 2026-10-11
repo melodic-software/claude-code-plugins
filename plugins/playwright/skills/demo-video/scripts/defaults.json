@@ -20,7 +20,6 @@
     "landing_zoom": 1.3,
     "drift": 1.06,
     "safe_margin": 48,
-    "edge_min": 24,
     "gutter_band": 6,
     "edge_ink": 4.0,
     "word_gap": 14,
