@@ -1,6 +1,6 @@
 ---
 description: "Planted defect D1: at 375 px each card's badge sits on top of the product title; 1280 px is clean"
-tags: [testing, vision, ui-defects]
+tags: [testing, vision, ui-defects, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600

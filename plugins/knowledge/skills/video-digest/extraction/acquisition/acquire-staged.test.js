@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { acquireYouTubeMedia } from "./acquire.js";
 
+vi.mock("./acquire-retry-policy.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  computeAcquireBackoffMs: () => 0,
+}));
+
 const DRIVER_WATCH_URL = "https://www.youtube.com/watch?v=7zZy1QTvokM";
 const WORK_DIR = "/tmp/fake-staged-work";
 
@@ -97,5 +102,34 @@ describe("acquireYouTubeMedia staged full mode", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("unavailable");
+  });
+
+  it("reports a rate-limited caption download as a rate limit, not as missing captions", async () => {
+    const result = await acquireYouTubeMedia(
+      DRIVER_WATCH_URL,
+      { workDir: WORK_DIR, mode: "full", videoId: "7zZy1QTvokM" },
+      {
+        ...NO_THROTTLE,
+        spawn: async (_cmd, args) =>
+          args.includes("--skip-download")
+            ? {
+                success: false,
+                code: 1,
+                signal: null,
+                stdout: "",
+                stderr:
+                  "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests",
+                timedOut: false,
+              }
+            : { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false },
+        listFiles: async () => [`${WORK_DIR}/7zZy1QTvokM.mp4`, `${WORK_DIR}/7zZy1QTvokM.info.json`],
+        readFile: async () => INFO_JSON,
+      },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("HTTP Error 429");
+    expect(result.error).toContain("wait several minutes and retry");
+    expect(result.error).not.toContain("ladder exhausted");
   });
 });
