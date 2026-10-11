@@ -73,7 +73,7 @@ Break into **tracer-bullet** items. Each item is a thin vertical slice cutting t
 
 Prefer AFK. Mark HITL only when the vertical slice genuinely needs judgment (architectural decision, UX review, external-system access, manual QA). Both are canonical roles. Resolve each repo-actual label string from the binding's `config.role_labels`, defaulting to the strings shown when the binding or its entry is absent, and stopping on a malformed, empty, or non-string value ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles").
 
-The human-gated label (default `needs-human`) is what keeps a vertical slice out of autonomous pickup. `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT: the frontier filter keys on the human-gated label, not on the absence of the other, so an unlabeled HITL vertical slice would still be claimable by `/work-items:work`. The autonomous-eligible label (default `agent-ready`) is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL vertical slice wants the human-gated label set AND the autonomous-eligible one omitted.
+The human-gated label (default `needs-human`) is what keeps an item out of autonomous pickup. `list-frontier --autonomous` excludes it (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Verbs (core public surface)"). Merely omitting the autonomous-eligible label does NOT: the frontier filter keys on the human-gated label, not on the absence of the other, so an unlabeled HITL item would still be claimable by `/work-items:work`. The autonomous-eligible label (default `agent-ready`) is the positive autonomous-pickup eligibility marker; the two labels gate different filters and an HITL item wants the human-gated label set AND the autonomous-eligible one omitted.
 
 **Investigation tickets, decisions, not deliverables.** When the source still carries unresolved unknowns (open design questions, unvalidated approaches, fuzzy scope), emit **investigation tickets** alongside, or ahead of. Build vertical slices. An investigation ticket resolves ONE decision and records the resolution as a closing comment; it produces no production code. Type each by the skill that resolves it:
 
@@ -100,22 +100,22 @@ Each step is its own ticket with blocking edges (contract blocked by every migra
 
 ### 3. Present for approval
 
-Present the proposed breakdown as a numbered list. **work the frontier** (unblocked vertical slices first). For each vertical slice:
+Present the proposed breakdown as a numbered list. **work the frontier** (unblocked items first). For each item:
 
 - **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
-- **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the vertical slice HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
-- **Blocked by**: which other vertical slices (by number) must complete first
+- **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the item HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
+- **Blocked by**: which other items (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
 - **Estimated scope**: S / M / L, judged against the **one fresh context window** bar (split if it cannot finish in one fresh window)
-- **Frontier**: whether the vertical slice is unblocked now
+- **Frontier**: whether the item is unblocked now
 
 Ask the user:
 
 - Does the granularity feel right? (too coarse / too fine, each vertical slice should fit one fresh context window)
 - Are dependency relationships correct?
-- Should any vertical slices be merged or split?
+- Should any items be merged or split?
 - Are HITL/AFK classifications correct?
-- For multi-session work: publish a **spec container** carrying the Brief, with the vertical slices as
+- For multi-session work: publish a **spec container** carrying the Brief, with the items as
   native sub-items? (opt-in, default no. See "Container lifecycle" below; the
   `${user_config.decompose_container_publish}` user config pre-selects yes when it resolves
   `true`; a surviving `${user_config.…}` placeholder or empty render means unset, plain ask)
@@ -131,29 +131,29 @@ Iterate one question at a time until the user approves, never publish an unappro
 
 ### 4. Publish items
 
-For each approved vertical slice, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every vertical slice's `create-item` so each is a native sub-item. **Publish in dependency order**, blockers first, so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. **Publish in dependency order**, blockers first, so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
-# AFK vertical slices get the autonomous-eligible role label; HITL + investigation vertical slices get the
+# AFK items get the autonomous-eligible role label; HITL + investigation items get the
 # human-gated one — the label list-frontier --autonomous actually honors to exclude an item.
-# Omitting the autonomous-eligible label alone does NOT keep an HITL vertical slice off the frontier.
+# Omitting the autonomous-eligible label alone does NOT keep an HITL item off the frontier.
 # Defaults shown; substitute the binding's config.role_labels values when the repo remaps.
 META_LABEL=$([ -n "$AFK" ] && echo "agent-ready" || echo "needs-human")
 BODY_FILE=$(mktemp)
-# Write the composed vertical slice body to "$BODY_FILE" with the Write tool NOW — before create-item —
+# Write the composed item body to "$BODY_FILE" with the Write tool NOW — before create-item —
 # not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
 # interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
 # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
 TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
-"$TRACKER" create-item --title "<vertical slice title>" --body "$(cat "$BODY_FILE")" \
+"$TRACKER" create-item --title "<item title>" --body "$(cat "$BODY_FILE")" \
   --type "<Bug|Feature|Task>" \
   --labels "area: <a>,$META_LABEL" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
 rm -f "$BODY_FILE"
 ```
 
-Every vertical slice body uses the one structure below. It is the agent-brief template ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) laid out as sections: `## What to build` carries that template's Summary and Current/Desired behavior, and `## Key interfaces`, `## Acceptance criteria` and `## Out of scope` are its fields of the same names, so an AFK vertical slice needs no second `## Agent Brief` block. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary vertical slices. Body structure:
+Every item body uses the one structure below. It is the agent-brief template ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) laid out as sections: `## What to build` carries that template's Summary and Current/Desired behavior, and `## Key interfaces`, `## Acceptance criteria` and `## Out of scope` are its fields of the same names, so an AFK item needs no second `## Agent Brief` block. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary items. Body structure:
 
 ```markdown
 ## Parent
@@ -190,9 +190,9 @@ The part of the source PLAN.md's `## Design` section this vertical slice touches
 Or "None — can start immediately" if no blockers.
 ```
 
-A vertical slice body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, and the quoted design excerpt survive unchanged.
+An item body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, and the quoted design excerpt survive unchanged.
 
-Classify per taxonomy: the **issue type** from the vertical slice's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK vertical slices, the human-gated label for HITL + investigation vertical slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
+Classify per taxonomy: the **issue type** from the item's nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK items, the human-gated label for HITL + investigation items. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
 
 Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them.
 
@@ -201,13 +201,13 @@ Items published here are **born triaged**: they enter the tracker classified, ro
 ### Container lifecycle (spec-on-tracker). Opt-in
 
 Off by default. Read [context/container-lifecycle.md](context/container-lifecycle.md) only when the
-consumer has opted into spec-on-tracker containers: it owns the container item shape, how vertical slices
+consumer has opted into spec-on-tracker containers: it owns the container item shape, how items
 attach to it as native sub-items, the by-reference briefing the executing session receives, and the
-close-on-ship drift doctrine. A run that publishes plain vertical slices needs none of it.
+close-on-ship drift doctrine. A run that publishes plain items needs none of it.
 
 ### 5. Report
 
-After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order. **work the frontier** (unblocked vertical slices first).
+After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order. **work the frontier** (unblocked items first).
 
 ## Spoke paths
 
