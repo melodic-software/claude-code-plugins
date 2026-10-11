@@ -157,6 +157,10 @@ jobs:
           case "$TARGET" in
             '' | -*) echo "::error::target must be a path"; exit 1 ;;
           esac
+          if ! [[ $RUNS =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::runs must be a positive integer"
+            exit 1
+          fi
           mkdir -p "$OUT"
           IFS=, read -ra tools <<< "$ALLOW_TOOLS"
           read -ra tags <<< "$TAGS"
