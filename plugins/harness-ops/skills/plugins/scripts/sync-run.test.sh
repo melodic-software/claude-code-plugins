@@ -1281,6 +1281,10 @@ stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","cou
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
+# Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
+stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
+assert_not_contains "stale render: local-scope records only name no worktree audit" \
+  "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 # A digest written before `self_update` existed: the note names no plugin rather
 # than the first moved row.
