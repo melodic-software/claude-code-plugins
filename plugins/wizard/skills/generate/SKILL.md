@@ -97,7 +97,9 @@ away. Don't touch the library above the marker.
    verify that every value from step 1 is captured and lands where step 1 said,
    <!-- portability-ok: matching set_secret names to CI secrets.* references applies only when the consumer's declared CI-secret destination is GitHub Actions -->
    that every `set_secret`/`set_var` name exactly matches a `secrets.*`/`vars.*`
-   reference in CI, and that nothing above the `STAGES` marker was edited.
+   reference in CI, that nothing above the `STAGES` marker was edited, and
+   that every stage sits inside `run_wizard`, which ends with `finish` then
+   `exit`, and the script's last line is `run_wizard "$@"`.
 3. **Stop the line. Human approval gate.** Print the full `STAGES` block
    (everything below the marker) to the user and get their explicit approval.
    Do NOT `chmod +x` the script, and do NOT tell the user to run it, until they

@@ -1232,7 +1232,7 @@ edit_case() {
   { printf '#%*s\n' "$pad" '' | tr ' ' x; cat "$script"; } >"$script.edited"
   case_exec "$script" "$TTY_EOF"
 }
-assert_eq "the shipped template ends by calling run_wizard (stages are parsed whole)" \
+assert_eq "layout pin: the shipped template's last line is the run_wizard call (exit stays inside it)" \
   'run_wizard "$@"' "$(tail -n1 "$TEMPLATE")"
 out="$(edit_case wrapped)"
 rc=$?
