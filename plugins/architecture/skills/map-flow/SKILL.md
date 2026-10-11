@@ -52,7 +52,9 @@ apply` owns both.
 ```
 
 `--depth` defaults to 5 when the invocation omits it. Keep the `${CLAUDE_SKILL_DIR}` anchor;
-`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths says why.
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
+says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
+own recheck trigger fires.
 
 Exit 3 is a refusal. The message states the reason. Nothing was written. Report that reason and
 stop. Do not draw a sequence from the files you can see.

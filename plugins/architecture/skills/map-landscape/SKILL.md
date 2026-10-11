@@ -74,8 +74,10 @@ One call assembles both collectors into the committed record:
   --edges-from <subject-repo> <repo-path>...
 ```
 
-Keep the `${CLAUDE_SKILL_DIR}` anchor; `${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths
-says why.
+Keep the `${CLAUDE_SKILL_DIR}` anchor;
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
+says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
+own recheck trigger fires.
 
 `--source` and `--remote` are recorded verbatim, so a later reader can tell an explicit list from a
 fleet plan, and a local-only run from one that fetched. `--edges-from` is the repository whose

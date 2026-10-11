@@ -348,8 +348,10 @@ documented, never adopted.
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. `${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md` records why, with the
-pointer to recheck it against.
+writing it into a brief.
+[`${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md` § Spoke paths](${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md#spoke-paths)
+records why, with the pointer to recheck it against. **As of**: 2026-10-11. **Recheck trigger**:
+that section is renamed or removed, or its own recheck trigger fires.
 
 ## Gotchas
 

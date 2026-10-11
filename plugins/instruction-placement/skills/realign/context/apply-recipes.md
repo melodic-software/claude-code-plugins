@@ -113,8 +113,9 @@ nested instruction files differently (pointer below), so a subtree file written 
 behaves differently under the two tools. A candidate that only makes sense as an override does not
 belong in this destination. Mark the finding `blocked` and say why.
 
-- **Pointer**: when deciding how nested files combine, fetch the nested-files section of
-  <https://agents.md/> and
+- **Pointer**: when deciding how nested files combine, fetch
+  [AGENTS.md § FAQ](https://agents.md/#faq) ("What if instructions conflict?"; the page's nested-files
+  item under "How to use AGENTS.md?" carries no anchor) and
   [memory § Choose where to put CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files)
   live; for which files are read instead of `AGENTS.md` and which sessions lack direct support,
   fetch [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
