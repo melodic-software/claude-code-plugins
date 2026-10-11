@@ -377,7 +377,7 @@ gate fails, dropped for that named reason.
 ### When dispatch is unavailable
 
 Phases B and C **require** fresh-context, non-fork subagent dispatch. When the Agent tool is
-blocked, unavailable, or the session cannot spawn subagents (including a nested session at the [spawn-depth limit](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents), read live; as of 2026-10-11; recheck when that section changes the limit):
+blocked, unavailable, or the session cannot spawn subagents (including a nested session at the spawn-depth limit; Pointer: when this skill runs inside a subagent, fetch [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) live. As of: 2026-10-11. Recheck trigger: that section changes the depth limit or what a subagent at it can spawn):
 
 1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
    was unavailable, so a run that skipped verification is distinguishable from a verified one.

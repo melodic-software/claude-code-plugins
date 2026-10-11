@@ -195,7 +195,7 @@ Claude receives, `keep-coding-instructions` changes what a custom one keeps, and
 settings reports a selection as live when it is not. Report the resolved live style and what
 resolved it.
 
-- **Pointer**: when resolving the live style, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
+- **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
 servers override *by name*: where two share a name across scopes, exactly one is live. That is name
