@@ -1,7 +1,7 @@
 {
   "name": "discipline",
   "version": "0.17.7",
-  "description": "Correctors that re-anchor a rule, audit work in flight, and fix drift: do-your-research (and -deep), follow-our-standards, point-dont-copy, reason-dont-recite, tighten-your-output, recheck-against-upstream (and -deep), pick-for-the-problem, mind-your-maxims, script-the-deterministic-work, use-your-skills, reuse-or-replace, scrutinize-dont-coast. sweep-all runs them as one batch. wait-what re-pitches a message that did not land. hold-my-hand shows work one phase at a time.",
+  "description": "Correctors that re-anchor a rule, audit work in flight, and fix drift: do-your-research, follow-our-standards, point-dont-copy, reason-dont-recite, tighten-your-output, recheck-against-upstream, pick-for-the-problem, mind-your-maxims, script-the-deterministic-work, use-your-skills, reuse-or-replace, scrutinize-dont-coast. sweep-all runs them as one batch. wait-what re-pitches a message that did not land. hold-my-hand shows work one phase at a time.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -55,7 +55,7 @@
     "research_deep_verification": {
       "type": "string",
       "title": "Deep research verification depth",
-      "description": "Default verification depth for do-your-research-deep. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this.",
+      "description": "Default verification depth for do-your-research's fan-out tier. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this.",
       "default": "tiered",
       "options": ["tiered", "full"]
     }

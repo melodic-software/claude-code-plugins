@@ -3,6 +3,13 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-10-10
+
+### Changed
+
+- The `routing` and `detect` test suites declare the manifests and fixtures they read, so the
+  pull-request test selection runs them when those files change. Nothing the plugin ships changes.
+
 ## [0.1.0] - 2026-10-09
 
 ### Added

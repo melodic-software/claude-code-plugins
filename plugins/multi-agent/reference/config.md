@@ -45,6 +45,13 @@ for the model an agent with no `model` runs on, see
 [workflows: cost](https://code.claude.com/docs/en/workflows#cost). Both as of
 2026-10-02; recheck when either section changes.
 
+The `effort` values are the full set this resolver accepts; which of them a
+spawn can use depends on the model it runs on. For each model's supported
+levels, see
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+as of 2026-10-10; recheck when that section changes the levels or which models
+support them.
+
 `pointer*`, `as_of` and `recheck` record where each bundled default's basis
 lives. They are read from the bundled layer only, by
 `/multi-agent:audit-defaults`.

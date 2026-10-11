@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/disk-hygiene/*.py plugins/disk-hygiene/*.sh plugins/disk-hygiene/*.mjs plugins/disk-hygiene/*.ps1 plugins/disk-hygiene/hooks/hooks.json
 """Tests for the bundled managed-state owner registry."""
 
 from __future__ import annotations
