@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".toast { transition: translate 200ms var(--ease-out), opacity 200ms ease-out; }",
+      "why": "ease-out"
+    },
+    {
+      "answer": ".toast { transition: translate 250ms ease-in-out; }",
+      "why": "ease-in-out is not ease-in"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".toast { transition: transform 300ms ease-in; }",
+      "why": "ease-in in shorthand"
+    },
+    {
+      "answer": ".toast { transition-timing-function: ease-in; }",
+      "why": "ease-in longhand"
+    },
+    {
+      "answer": ".toast { animation: fall 200ms ease-in forwards; }",
+      "why": "ease-in animation"
+    }
+  ]
+}

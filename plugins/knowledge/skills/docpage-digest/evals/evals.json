@@ -92,6 +92,17 @@
         "PASS without negative-control evidence is not treated as coverage",
         "A gate that parsed zero claims and printed PASS is a defect, not a clean run"
       ]
+    },
+    {
+      "id": 9,
+      "name": "claude-dev-blog-raw-first-with-fallback",
+      "prompt": "Digest https://claude.dev/blog/spending-your-effort/ with /knowledge:docpage-digest. The post has a chart whose axis labels matter. Plan the fetch: what goes into source.md and source.html, and what happens if https://claude.dev/blog/spending-your-effort.md comes back as an HTML error page instead of markdown?",
+      "expected_output": "Fetches https://claude.dev/blog/spending-your-effort.md first and saves it unaltered as source.md, naming the channel in the checklist. Also fetches the rendered page as source.html and reads the chart's axis labels from source.html, not from the .md channel's figure summary. When the .md fetch fails, returns a non-markdown content type, or lacks the article's H1 title, it writes source.md from source.html with extract_blog_body.py and names the extractor in the checklist's channel line.",
+      "expectations": [
+        "Fetches the <slug>.md channel first and saves it as source.md without repairing it",
+        "Keeps the rendered page as source.html and reads figure text from it",
+        "On an HTML or failed .md response, falls back to extract_blog_body.py on source.html and names the extractor in the checklist"
+      ]
     }
   ]
 }

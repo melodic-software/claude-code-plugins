@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-11
+
+### Changed
+
+- **`/debugging:debug` Phase 6 names an owner for a check-shaped prevention answer.** A mistake a deterministic check could catch goes to `/review:audit-enforceability` when it is a repo or policy mistake, or to `/session-flow:retro` when it is agent behavior, each named only when installed. The skill proposes the check and never builds it.
+
 ## [0.9.2] - 2026-10-10
 
 ### Changed
