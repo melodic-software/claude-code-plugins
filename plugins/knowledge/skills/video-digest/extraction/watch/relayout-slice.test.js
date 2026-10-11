@@ -1281,6 +1281,39 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "escapes a rewritten src/href value for its quoting",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          'source/decks/s1/a"b.pdf': "pdf",
+          "source/decks/s1/it's.pdf": "pdf",
+          "source/decks/s1/a&b.pdf": "pdf",
+          "key-frames/visual-frames.md": [
+            '<a href="../source/decks/s1/a&quot;b.pdf">dq</a>',
+            "<a href='../source/decks/s1/it&#39;s.pdf'>sq</a>",
+            "<a href=../source/decks/s1/it&#39;s.pdf>bare</a>",
+            '<a href="../source/decks/s1/a&b.pdf">raw amp</a>',
+            "",
+          ].join("\n"),
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "frames/visual-frames.md")).toBe(
+        [
+          '<a href="../metadata/decks/s1/a&quot;b.pdf">dq</a>',
+          "<a href='../metadata/decks/s1/it&#39;s.pdf'>sq</a>",
+          '<a href="../metadata/decks/s1/it\'s.pdf">bare</a>',
+          '<a href="../metadata/decks/s1/a&amp;b.pdf">raw amp</a>',
+          "",
+        ].join("\n"),
+      );
+    },
+  );
+
   it("rewrites and checks upper-case HTML attribute names", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "key-frames/visual-frames.md": '<IMG SRC="frames/title-slide.png">\n' },

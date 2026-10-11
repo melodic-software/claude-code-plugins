@@ -722,12 +722,18 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
     const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
     // An attribute value may hold character references (`&amp;`): map the
-    // decoded path, and write `&` back as `&amp;` when the original did.
+    // decoded path, then escape the new value for its quoting: `&` always,
+    // the enclosing quote character, and an unquoted value that now needs
+    // quotes gets double quotes.
     const value = text.slice(from, to);
     const decoded = decodeHtmlReferences(value);
     const next = rewrite(decoded);
     if (next === decoded) continue;
-    edits.push({ from, to, text: value.includes("&amp;") ? next.replaceAll("&", "&amp;") : next });
+    let escaped = next.replaceAll("&", "&amp;");
+    if (group === 2) escaped = escaped.replaceAll('"', "&quot;");
+    else if (group === 3) escaped = escaped.replaceAll("'", "&#39;");
+    else if (/[\s"'=<>`]/.test(escaped)) escaped = `"${escaped.replaceAll('"', "&quot;")}"`;
+    edits.push({ from, to, text: escaped });
   }
   for (const span of codeSpans(fenceMasked)) {
     const from = span.start;
