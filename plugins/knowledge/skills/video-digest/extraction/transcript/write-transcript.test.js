@@ -291,10 +291,13 @@ Again we moved on.
   it("leaves a manual-caption paragraph boundary repeat in place", () => {
     const manualVtt = `WEBVTT
 
-00:00:01.000 --> 00:00:03.000
-We ran the numbers on benchmarks, too.
+00:00:01.000 --> 00:00:02.000
+We ran the numbers
 
-00:00:02.500 --> 00:00:07.000
+00:00:02.000 --> 00:00:04.000
+on benchmarks, too.
+
+00:00:03.500 --> 00:00:07.000
 Benchmarks too, and then we moved on.
 `;
     const result = buildTranscriptText(manualVtt, false);
