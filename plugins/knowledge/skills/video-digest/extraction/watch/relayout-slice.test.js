@@ -1402,6 +1402,40 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
   });
 
+  it("reads labels holding escaped brackets in definitions and inline links", async () => {
+    const body = [
+      "[deck\\]][d] and [a\\]b](../source/transcript.txt)",
+      "",
+      "[deck\\]]: ../source/transcript.txt",
+      "[x\\[y]: ../research/gone.md",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "frames/visual-frames.md", ref: "../analysis/research/gone.md" },
+    ]);
+    fs.writeFileSync(
+      path.join(sliceDir, "key-frames", "visual-frames.md"),
+      body.replace("[x\\[y]: ../research/gone.md\n", ""),
+    );
+    const fixed = await relayoutSlice({ sliceDir, targetDir });
+    expect(fixed.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      [
+        "[deck\\]][d] and [a\\]b](../transcript/transcript.txt)",
+        "",
+        "[deck\\]]: ../transcript/transcript.txt",
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("reads a reference definition whose destination follows a line ending", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
