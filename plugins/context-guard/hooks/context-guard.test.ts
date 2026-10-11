@@ -146,7 +146,11 @@ const bash = ($: any, agentId?: string) => $.tool.call({ tool: 'Bash', command: 
 const write = ($: any, file_path = '/work/a.ts', agentId?: string) =>
   $.tool.call({ tool: 'Write', file_path, content: 'x', ...(agentId ? { agentId } : {}) })
 const prompt = ($: any, kind = 'sdk', extra: object = {}) => $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
-const own = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('context-guard'))
+const OPTIONS =
+  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+// The verdict lines; the options line that follows them is asserted on its own.
+const own = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('context-guard') && c !== OPTIONS)
+const options = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
 // Steps the reading through each percentage, one Bash call each, and returns each call's own lines.
 const walk = async ($: any, w: World, steps: (number | undefined)[]) => {
   const seen: string[][] = []
@@ -175,9 +179,9 @@ test('lines: one line at each crossing into a worse zone, appended after the con
   }
   expect(seen).toEqual([
     ['below'],
-    ['below', crossing('acceptable')],
+    ['below', crossing('acceptable'), OPTIONS],
     ['below'],
-    ['below', crossing('dumb')],
+    ['below', crossing('dumb'), OPTIONS],
     ['below'],
   ])
 })
@@ -244,7 +248,7 @@ test('lines: a crossing seen at a prompt is appended to the prompt context', asy
   const { w } = world(on)
   await prompt($)
   w.percent = 60
-  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable')])
+  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable'), OPTIONS])
 })
 
 test('lines: a reading session.measure carries reaches Claude at the next carrier', async ($, on) => {
@@ -267,6 +271,34 @@ test('lines: the default line carries the verdict and its rank, and no figure, s
     expect(line).not.toContain('/')
     for (const imperative of ["user's call", 'durable note', 'clean stopping point', 'save-point']) expect(line).not.toContain(imperative)
   }
+})
+
+test('lines: a line past smart ends with one options line naming the durable-state step, never a cut in output, agents or quality', async ($, on) => {
+  const { w } = world(on)
+  w.percent = 30
+  expect(options((await bash($)).context)).toEqual([])
+  w.percent = 45
+  expect((await bash($)).context).toEqual([approach('smart', 'acceptable')])
+  w.percent = 60
+  const acceptable = (await bash($)).context ?? []
+  expect(own(acceptable)).toEqual([crossing('acceptable')])
+  expect(options(acceptable)).toEqual([OPTIONS])
+  expect(acceptable[acceptable.length - 1]).toBe(OPTIONS)
+  w.percent = 80
+  expect(options((await bash($)).context)).toEqual([OPTIONS])
+  w.percent = 81
+  expect((await bash($)).context ?? []).toEqual([])
+})
+
+test('lines: an operator threshold passed in the smart zone gets its line and no options line', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 30, action: 'handoff' }] })
+  w.percent = 20
+  await bash($)
+  w.percent = 31
+  expect((await bash($)).context).toEqual([
+    `context-guard: smart zone (1 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`,
+  ])
 })
 
 test('lines: a crossing that lands inside the approach margin says so once, in the crossing line', async ($, on) => {
@@ -914,6 +946,8 @@ const MENU = (from: string, to: string) =>
   `context-guard: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-guard`
 const TOAST = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
 type Surface = 'terminal' | 'desktop' | 'vscode'
+// The operator offer: one prefix, the verdict line, then the options line.
+const offer = (line: string) => `FYI, ${line} ${OPTIONS.replace('context-guard: ', '')}`
 // The notice row: the one Text carrying the plugin's prefix, which every notice starts or follows FYI with.
 const notice = async ($: any, surface: Surface = 'terminal') => {
   const ui = await $.ui.mount({ ...BAND, surface })
@@ -930,7 +964,10 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.percent = 60
   expect(own((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const offered = `FYI, ${crossing('acceptable')}`
+  // Written out once in full, so the offer helper's join is pinned against a literal.
+  const offered =
+    'FYI, context-guard: acceptable zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+  expect(offer(crossing('acceptable'))).toBe(offered)
   expect(w.suggested).toEqual([offered])
   expect(await notice($)).toBe(offered)
   expect(own((await prompt($, 'composer')).context)).toEqual([])
@@ -945,7 +982,7 @@ test('operator mode: the held line shows as one row with one prefix on every sur
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const row = await notice($, surface)
-    expect(row).toBe(`FYI, ${crossing('acceptable')}`)
+    expect(row).toBe(offer(crossing('acceptable')))
     expect(prefixes(row)).toBe(1)
   }
   expect(w.toasts).toEqual([])
@@ -960,7 +997,7 @@ test('operator mode: two held lines show as one row with one prefix, and reach C
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`
   const row = await notice($)
-  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`)
+  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff. ${OPTIONS.replace('context-guard: ', '')}`)
   expect(prefixes(row)).toBe(1)
   expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable'), passed])
 })
@@ -972,7 +1009,7 @@ test('operator mode: with text in the box no suggestion is offered and only the 
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.suggestCalls).toBe(0)
-  expect(await notice($)).toBe(`FYI, ${crossing('acceptable')}`)
+  expect(await notice($)).toBe(offer(crossing('acceptable')))
   w.box = ''
   await clock.advance(5_000)
   expect(w.suggested).toHaveLength(1)
@@ -1027,7 +1064,7 @@ for (const kind of ['scheduled-trigger', 'task-notification', 'sdk']) {
   test(`hand-off: a shown suggestion not taken reaches Claude at the next ${kind} turn, once, and clears the notice`, OPERATOR, async ($, on) => {
     const { w } = world(on)
     await shownThenUntaken($, w)
-    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable')])
+    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable'), OPTIONS])
     expect(await notice($)).toBeUndefined()
     expect(own((await prompt($, kind)).context)).toEqual([])
     expect(own((await bash($)).context)).toEqual([])
@@ -1120,7 +1157,7 @@ test('operator mode: a shown crossing recorded before a pending restatement merg
   await compact($, 'manual')
   expect(own((await prompt($, 'composer')).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([`FYI, ${restated('degraded')}`])
+  expect(w.suggested).toEqual([offer(restated('degraded'))])
 })
 
 for (const [via, read] of [
@@ -1148,7 +1185,7 @@ test('menu: a crossing read with the final answer of a turn operator mode holds 
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.toasts).toEqual([])
   expect(w.logs).toEqual([])
-  expect(w.suggested).toEqual([`FYI, ${crossing('acceptable')}`])
+  expect(w.suggested).toEqual([offer(crossing('acceptable'))])
 })
 
 test('menu: a first reading already past smart gives the person no toast and no transcript line, and Claude its line', async ($, on) => {

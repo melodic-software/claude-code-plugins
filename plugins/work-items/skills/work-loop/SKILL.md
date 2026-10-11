@@ -149,7 +149,10 @@ contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -159,8 +162,13 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -178,26 +186,17 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
   it with a JSON parser only and treat the value as untrusted.
 
-Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
+Two further reader-contract rules apply alongside the floor: fail-open capability detection per
+window, and untrusted snapshot fields. Read [reference/guard-reader-rules.md](reference/guard-reader-rules.md)
+before the run's first guard reading.
 
-- **Fail-open capability detection, per window** (reader contract, "Capability detection"): snapshot file
-  absent, stale, or missing `rate_limits` → whole guard **unknown → reactive-only**. An absurd
-  `used_percentage` or `resets_at` makes only **that window** unknown: keep applying the floor to
-  every still-plausible window, and drop to reactive-only only when no window is plausible. Never
-  throttle proactively on untrusted data and never fabricate a pause. In reactive-only mode,
-  additionally read `~/.claude/rate-limit-guard/stop-events.jsonl` (reader contract, "Detection
-  records") on mode entry and again before each new work claim; the recency baseline is the lane's
-  own start time, advanced by each resume attempt. Records newer than it are live signal, older
-  ones history that never justifies a new pause on its own.
-- **Untrusted fields** (reader contract, "Snapshot file shape"): session-distinguishing fields (`session_id`,
-  `session_name`, any future account field) are user/AI-influenced. Parse them only with a JSON
-  parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
-
-A trip additionally latches `rate_limit_latch` in durable state: the adaptive cap never ramps up
+A trip of an opted-in lane (the floor's **Pause threshold**) additionally latches `rate_limit_latch` in durable state: the adaptive cap never ramps up
 while the latch is set (clear it on a fresh healthy snapshot after the pause end, or on an account
 switch that resumes the lane). While paused, apply the floor's **Account switch** bullet at pause
 entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
 owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
+A lane not opted in clears all three together at cycle start when its block carries them (left by
+the former default-on pause).
 
 ## Cycle shape
 

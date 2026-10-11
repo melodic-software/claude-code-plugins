@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.1] - 2026-10-11
+
+### Changed
+
+- `reference/standing-item-preconditions.md`: the `frontier-release-since-last-checked` precondition now defers the release class to the schedule row's `prompt`, and says the id keeps "frontier" only for history.
+
 ## [0.51.0] - 2026-10-11
 
 ### Added

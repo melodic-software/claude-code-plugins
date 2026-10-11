@@ -164,24 +164,24 @@ Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); 
 are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
 arm costs are not symmetric.
 
-Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
-with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD, 16 runs (two runs, haiku judge) 0.98 USD, and 42 short single-arm calibration runs
-1.79 USD: 0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run.
+Sizing anchors, list-price estimates measured on this plugin's own read-only suite with no `--model` (it served opus-5-5): at Claude Code
+2.1.287 on 2026-10-02, 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 16 runs (two runs, haiku judge, then Haiku 4.5)
+0.98 USD, and 42 short single-arm calibration runs 1.79 USD; at 2.1.296 on 2026-10-11, 16 runs (four cases, two runs, two arms, haiku judge,
+then Haiku 5.5) 1.98 USD. That is 0.04 to 0.125 USD per run on average, judge calls included, 0.03 to 0.2 USD for one run. An opus-judged run costs more; size it from its own first run.
 
-**A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
+**A fresh suite is priced at 0.2 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
-spend. 0.1 USD is 1.4 to 2.4 times the per-run cost of each pass above, and prices six cases at
-three runs and two arms at 3.6 USD. Once a suite has run, scale from its own last `costUsd` instead.
+spend. 0.2 USD is 1.6 to 4.7 times the per-run cost of each pass above, and prices four cases at
+three runs and two arms at 4.8 USD. Once a suite has run, scale from its own last `costUsd` instead.
 
-The older anchor of 0.8 USD per without-run, which prices the same six cases at about 16 USD, comes
+The older anchor of 0.8 USD per without-run, which prices the same four cases at about 12 USD, comes
 from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the bundled `claude-api`
 skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
 arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
 when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.1 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
+at 0.2 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
 from the last three passes when a Claude Code release note touches `plugin eval`, the model a run
-serves changes, or a pass averages more than 0.1 USD per run.
+serves changes, or a pass averages more than 0.2 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -193,7 +193,7 @@ state the ceiling you used without commenting on the setting's state.
    printed is the whole disclosure.
 3. Ceiling set and estimate under it: the pass goes through. Pass `--max-cost-usd <ceiling>` and
    start, without stopping to ask. A question about whether a pass fits gets the same answer: it
-   will go through and starts now under the ceiling, for example "about 3.6 USD, under the 5 USD
+   will go through and starts now under the ceiling, for example "about 4.8 USD, under the 5 USD
    ceiling, so it starts with `--max-cost-usd 5` and no confirmation".
 4. Ceiling set and estimate over it: stop and offer three exits, then proceed only on the answer:
    raise the ceiling, narrow the run with `--case <glob>` or `--tag <tag>`, or accept a partial run
@@ -225,10 +225,10 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
-   claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
+   claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
    about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
    ends with the session. The run is finished when the process exits and `results.json` exists; read

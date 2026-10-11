@@ -95,7 +95,11 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
 const bash = ($: any, agentId?: string) => $.tool.call({ tool: 'Bash', command: 'true', ...(agentId ? { agentId } : {}) })
 const prompt = ($: any, kind = 'sdk', extra: object = {}) =>
   $.prompt.submit({ text: 'go', wait: false, origin: { kind }, ...extra })
-const ownLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('rate-limit-guard:'))
+const OPTIONS =
+  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+// The verdict lines; the options line that follows them is asserted on its own.
+const ownLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('rate-limit-guard:') && c !== OPTIONS)
+const optionLines = (context: readonly string[] | undefined) => (context ?? []).filter(c => c === OPTIONS)
 const bodies = (w: World) => w.runs.map(r => JSON.parse(String(r.stdin)))
 const resultText = (r: any) => String(r.result)
 
@@ -133,9 +137,9 @@ test('lines: one approach line at 90, one at the 95% edge, one at the reset, app
 
   expect(seen).toEqual([
     ['below'],
-    ['below', `rate-limit-guard: 5-hour window at or above 90% (90% used), resets at 2026-10-03 21:00 UTC.`],
+    ['below', `rate-limit-guard: 5-hour window at or above 90% (90% used), resets at 2026-10-03 21:00 UTC.`, OPTIONS],
     ['below'],
-    ['below', `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`],
+    ['below', `rate-limit-guard: 5-hour window at or above 95% (95% used), resets at 2026-10-03 21:00 UTC.`, OPTIONS],
     ['below'],
     ['below', `rate-limit-guard: 5-hour window reset, now below 95%.`],
     ['below'],
@@ -177,6 +181,21 @@ test('lines: both windows crossing together get a named line each', NO_WRITES, a
     `rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC.`,
     `rate-limit-guard: 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC.`,
   ])
+})
+
+test('lines: an approach or edge carrier ends with one options line that never asks Claude to stop or lower quality', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(90)
+  expect(optionLines((await bash($)).context)).toEqual([OPTIONS])
+  w.limits = limits(97, 95)
+  const context = (await bash($)).context ?? []
+  expect(optionLines(context)).toEqual([OPTIONS])
+  expect(context[context.length - 1]).toBe(OPTIONS)
+  w.limits = limits(undefined)
+  const reset = (await bash($)).context
+  expect(ownLines(reset)[0]).toContain('reset, now below 95%')
+  expect(optionLines(reset)).toEqual([])
 })
 
 test('lines: a dip below the threshold or the approach mark sends nothing and re-arms nothing', NO_WRITES, async ($, on) => {
@@ -413,6 +432,8 @@ test('origin: a peer message delivered into an operator-mode typed turn keeps th
 
 // A notice row: the operator offer (FYI, ...) or a window change shown off the terminal.
 const NOTICE = /^(FYI, )?rate-limit-guard: /
+// The operator offer: one prefix, the verdict lines, then the options line.
+const offer = (...lines: string[]) => `FYI, rate-limit-guard: ${[...lines, OPTIONS].map(l => l.replace(/^rate-limit-guard: /, '')).join(' ')}`
 
 test('operator mode: a typed turn holds the line and offers it at turn end with an empty box, with one notice row on every surface and no toast', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
   const { w } = world(on)
@@ -420,7 +441,10 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.limits = limits(96)
   expect(ownLines((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const offered = `FYI, ${EDGE_5H}`
+  // Written out once in full, so the offer helper's join is pinned against a literal.
+  const offered =
+    "FYI, rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC. options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+  expect(offer(EDGE_5H)).toBe(offered)
   expect(w.suggested).toEqual([offered])
   for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
@@ -439,7 +463,7 @@ test('operator mode: with text in the box only the notice shows, and the offer c
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   expect(w.suggested).toEqual([])
-  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  expect(await noticeText($)).toBe(offer(EDGE_5H))
   w.box = ''
   await clock.advance(5_000)
   expect(w.suggested).toHaveLength(1)
@@ -509,7 +533,7 @@ for (const kind of ['scheduled-trigger', 'task-notification', 'sdk']) {
   test(`operator mode: a shown suggestion not taken goes to Claude at the next ${kind} turn, once`, OPERATOR, async ($, on) => {
     const { w } = world(on)
     await shownInTypedTurn($, w)
-    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', EDGE_5H])
+    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', EDGE_5H, OPTIONS])
     expect(await noticeText($)).toBeUndefined()
     expect(ownLines((await prompt($, kind)).context)).toEqual([])
   })
@@ -529,7 +553,7 @@ test('operator mode: a prompt delivered into a running turn leaves a shown sugge
   const { w } = world(on)
   await shownInTypedTurn($, w)
   expect(ownLines((await prompt($, 'task-notification', { turnId: 'turn-1' })).context)).toEqual([])
-  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  expect(await noticeText($)).toBe(offer(EDGE_5H))
   expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
 })
 
@@ -646,7 +670,7 @@ test('session.start registers the status tool and one command, named after the p
 })
 
 // The person's channel: a toast and one transcript line when a window rises from a known level or resets.
-const TOAST_EDGE = '5h at the 95% pause edge · resets 21:00 UTC'
+const TOAST_EDGE = '5h at the 95% line threshold · resets 21:00 UTC'
 const LOG_EDGE = `rate-limit-guard: ${TOAST_EDGE} · more: /rate-limit-guard`
 const crossingLogs = (w: World) => w.logs.filter(l => l.text.endsWith('· more: /rate-limit-guard'))
 
@@ -660,7 +684,7 @@ test('toast: approach, edge and reset each toast once, with one transcript line 
   await bash($)
   w.limits = limits(2)
   await bash($)
-  expect(w.toasts).toEqual(['5h nearing the 95% pause edge · resets 21:00 UTC', TOAST_EDGE, '5h reset, below the 95% pause edge'])
+  expect(w.toasts).toEqual(['5h nearing the 95% line threshold · resets 21:00 UTC', TOAST_EDGE, '5h reset, below the 95% line threshold'])
   expect(crossingLogs(w)).toEqual(w.toasts.map(t => ({ text: `rate-limit-guard: ${t} · more: /rate-limit-guard`, to: 'transcript' })))
 })
 
@@ -669,7 +693,7 @@ test('toast: the 7-day window names its reset date', NO_WRITES, async ($, on) =>
   await bash($)
   w.limits = limits(20, 97)
   await bash($)
-  expect(w.toasts).toEqual(['7d at the 95% pause edge · resets 2026-10-08 09:00 UTC'])
+  expect(w.toasts).toEqual(['7d at the 95% line threshold · resets 2026-10-08 09:00 UTC'])
 })
 
 test('toast: a rise seen at session.measure toasts at once', NO_WRITES, async ($, on) => {
@@ -715,7 +739,7 @@ test('toast: a mid-session load restates the edge without a toast, and a later r
   expect(w.toasts).toEqual([])
   w.limits = limits(97, 96)
   expect(ownLines((await bash($)).context)).toEqual([EDGE_7D_96])
-  expect(w.toasts).toEqual(['7d at the 95% pause edge · resets 2026-10-08 09:00 UTC'])
+  expect(w.toasts).toEqual(['7d at the 95% line threshold · resets 2026-10-08 09:00 UTC'])
 })
 
 test('operator mode: a held line whose suggestion cannot show reaches the person with Claude\'s line', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
@@ -748,7 +772,7 @@ test('operator mode: a notice row the person saw before typing again is never to
   w.limits = limits(96)
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  expect(await noticeText($)).toBe(offer(EDGE_5H))
   await prompt($, 'composer')
   w.surfaces = []
   await bash($)
@@ -772,7 +796,7 @@ test('toast: with lines to Claude off, a rise to the edge still toasts and Claud
   await bash($)
   w.limits = limits(100)
   expect(ownLines((await bash($)).context)).toEqual([])
-  expect(w.toasts).toEqual(['5h at the 95% pause edge · resets 21:00 UTC'])
+  expect(w.toasts).toEqual(['5h at the 95% line threshold · resets 21:00 UTC'])
 })
 
 // The engine drops a refused or throwing toast itself; it never throws into the module.
@@ -796,9 +820,9 @@ test('notice: two windows changing together share one row with the plugin prefix
   await bash($)
   w.limits = limits(97, 95)
   expect(ownLines((await bash($)).context)).toEqual([EDGE_5H_97, EDGE_7D])
-  expect(crossingLogs(w).map(l => l.text)).toEqual([LOG_EDGE, 'rate-limit-guard: 7d at the 95% pause edge · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
+  expect(crossingLogs(w).map(l => l.text)).toEqual([LOG_EDGE, 'rate-limit-guard: 7d at the 95% line threshold · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
   const rows = (await drawn($, 'desktop')).filter(t => NOTICE.test(t))
-  expect(rows).toEqual(['rate-limit-guard: 5h at the 95% pause edge · resets 21:00 UTC; 7d at the 95% pause edge · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
+  expect(rows).toEqual(['rate-limit-guard: 5h at the 95% line threshold · resets 21:00 UTC; 7d at the 95% line threshold · resets 2026-10-08 09:00 UTC · more: /rate-limit-guard'])
   expect(prefixes(rows[0])).toBe(1)
 })
 
@@ -809,7 +833,7 @@ test('operator mode: two windows held together are offered in one notice with th
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
   const offered =
-    'FYI, rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC. 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC.'
+    'FYI, rate-limit-guard: 5-hour window at or above 95% (97% used), resets at 2026-10-03 21:00 UTC. 7-day window at or above 95% (95% used), resets at 2026-10-08 09:00 UTC. ' + OPTIONS.replace('rate-limit-guard: ', '')
   expect(w.suggested).toEqual([offered])
   for (const surface of ['terminal', 'desktop'] as const) {
     expect((await drawn($, surface)).filter(t => NOTICE.test(t))).toEqual([offered])
@@ -826,7 +850,7 @@ test('toast: a rise the /rate-limit-guard command or the status tool reads is sh
   expect(w.toasts).toEqual([TOAST_EDGE])
   w.limits = limits(undefined, 96)
   await $.tool.call({ tool: 'mcp__rate-limit-guard__status' } as any)
-  expect(w.toasts).toEqual([TOAST_EDGE, '5h reset, below the 95% pause edge', '7d at the 95% pause edge · resets 2026-10-08 09:00 UTC'])
+  expect(w.toasts).toEqual([TOAST_EDGE, '5h reset, below the 95% line threshold', '7d at the 95% line threshold · resets 2026-10-08 09:00 UTC'])
 })
 
 test('notice: after a window change a terminal mount returns only what is drawn beneath; desktop and vscode draw one row', NO_WRITES, async ($, on) => {
@@ -1241,7 +1265,7 @@ test('operator mode: a carrier with nothing due leaves a shown notice in place',
   await shownInTypedTurn($, w)
   w.surfaces = []
   expect(ownLines((await bash($)).context)).toEqual([])
-  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  expect(await noticeText($)).toBe(offer(EDGE_5H))
   expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
 })
 
@@ -1252,7 +1276,7 @@ for (const kind of ['sdk', 'scheduled-trigger']) {
     w.limits = limits(96)
     await bash($)
     await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-    expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+    expect(await noticeText($)).toBe(offer(EDGE_5H))
     expect(ownLines((await prompt($, kind)).context)).toEqual([EDGE_5H])
     expect(w.toasts).toEqual([])
     expect(crossingLogs(w)).toEqual([])
@@ -1269,7 +1293,7 @@ test('operator mode: a re-offer that cannot show, after the row was seen, sends 
   w.limits = limits(96)
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  expect(await noticeText($)).toBe(offer(EDGE_5H))
   w.box = ''
   await clock.advance(5_000)
   expect(await noticeText($)).toBeUndefined()
@@ -1323,7 +1347,7 @@ test('operator mode: a second shown suggestion keeps the first one handed off', 
   w.limits = limits(96, 97)
   expect(ownLines((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([`FYI, ${EDGE_5H}`, `FYI, ${EDGE_7D_97}`])
+  expect(w.suggested).toEqual([offer(EDGE_5H), offer(EDGE_7D_97)])
   expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H, EDGE_7D_97])
 })
 

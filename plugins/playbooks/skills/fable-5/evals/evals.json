@@ -196,6 +196,19 @@
         "States that the high internal count alone does not call for a staged migration",
         "Edits no file"
       ]
+    },
+    {
+      "id": 16,
+      "name": "route-haiku-5-5-session-at-arm-time",
+      "prompt": "You are running as Claude Haiku 5.5. Load the playbook before you start this file sweep.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads the Haiku 5.5 model-adaptation chapter, haiku-5-5.md, at arm time. Does not read a Sonnet, Opus, or Fable chapter in its place or beside it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads haiku-5-5.md from the model-adaptation directory before continuing work",
+        "Does not read sonnet-5-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to haiku-5-5.md",
+        "Does not load every adaptation chapter in the directory"
+      ]
     }
   ]
 }

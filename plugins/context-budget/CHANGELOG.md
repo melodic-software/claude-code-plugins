@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.10.1] - 2026-10-11
+
+### Fixed
+
+- The `simple-system-prompt` lever no longer restates which models already default to the lean system prompt, which had misclassified Haiku 5.5 as full. It points at a rerunnable probe record of the binary's lean-prompt selection instead.
+
 ## [0.10.0] - 2026-10-10
 
 ### Added

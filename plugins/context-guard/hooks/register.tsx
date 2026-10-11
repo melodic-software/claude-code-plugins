@@ -296,7 +296,7 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     zoneRules(zone, settings, cfg)
       .map(z => sentence(z.source, z.rule))
       .join('')
-  // A line states facts only: what to do about them is left to the model and the user.
+  // A verdict line states facts only; the options line renderAll adds is the one that names choices.
   const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
   // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
   const near = (zone: Zone) => {
@@ -314,11 +314,17 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
   }
 }
 
+// Follows the verdict lines once per carrier past smart. The verdict alone pushed Claude toward
+// handoffs and terse delegation, so the line names the durable-state step and leaves the rest a choice.
+const OPTIONS =
+  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+
 // The verdict lines due at one carrier: a line that another one already starts with (an approach
 // line its crossing repeats, with or without an action after it) is sent once.
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
-  return lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+  const verdicts = lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+  return events.some(e => e.zone !== 'smart') ? [...verdicts, OPTIONS] : verdicts
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.

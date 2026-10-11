@@ -270,7 +270,8 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries facts only, never an instruction: by default the zone word and its rank of three. A
+  `prompt.submit` hook adds) carries by default the zone word and its rank of three, and past
+  `smart` one options line after the verdict lines at a carrier (below). A
   line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
@@ -301,14 +302,20 @@ skill's module check), none of the following runs except the PostCompact marker.
   and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
   Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
-  Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-  pointer ever reaches the model channel.** A menu injected into
-  model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
-  verdict and any operator-configured `zones.json` action, and nothing that tells the model what
-  to do: no save-state or handoff advice, no reassurance, no counter-steer rule about what a zone
-  means. The model decides what to do with the facts; `/session-flow:workflow` and the user's own
-  instructions own handoff and compaction guidance. The model
+  Recheck trigger: that section is renamed, moved or removed. **Neither the person's menu nor the
+  router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
+  holds that a menu injected into model context manufactures the model's own initiative to stop,
+  summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
+  row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
+  than a new finding. By default the module sends the
+  verdict, any operator-configured `zones.json` action, and past `smart` one options line: record
+  decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
+  model and the user choose, and a zone never calls for terser output, fewer agents, or lower
+  quality. The verdict alone, with no such line, pushed the model toward handoffs and terse
+  delegation (observed 2026-10-11, issue #7118), so the line states the durable-state step and
+  says what a zone does not mean; it lists compaction and a handoff only as choices beside
+  continuing. `/session-flow:workflow` and the user's own instructions own when to compact or hand
+  off. The model
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last

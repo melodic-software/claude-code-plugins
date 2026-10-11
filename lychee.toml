@@ -1,24 +1,40 @@
 # lychee ruleset: repo-agnostic link-checking config.
 # The offline CI lane runs with --offline (external URLs skipped); a manual
-# online run reuses this file with the network enabled.
+# online run (command in components/lychee/README.md) reuses this file with the
+# network enabled.
 # Ref: https://github.com/lycheeverse/lychee/blob/master/lychee.example.toml
 
 # Verify #fragment/anchor targets resolve, not just the file path ("full"
 # checks both anchor and text fragments).
 include_fragments = "full"
 
-# A 429 is the SERVER rate-limiting the checker, never evidence the link is
-# dead, and it lands on whichever host the shared CI runner IP happens to be
-# throttled against that run, so it names a different healthy URL each time. The
-# range restates lychee's own documented default (`--accept` help:
-# `[default: 100..=103,200..=299]`, read from the pinned binary rather than
-# recalled) so adding 429 widens the accepted set instead of silently narrowing
-# it: `accept` REPLACES the default, it does not extend it.
-#
-# Deliberately NOT an exclude entry per rate-limited host: excluding a live URL
-# to silence a transient throttle stops checking a link that is fine, and the
-# next run just throttles a different one.
-accept = ["100..=103", "200..=299", "429"]
+# Expand input globs into dot-directories too. Without it `**/*.md` skips every
+# tracked file under `.github/`, `.claude/` and similar, so their links were
+# never checked. A glob input does not honor `.gitignore`, so a local run also
+# reads ignored dot-directories. `.work/` and `.claude/worktrees/`, which hold
+# whole trees of markdown, are excluded by path below.
+hidden = true
+
+# No `accept` key: lychee's default status set applies, so a 429 fails the link.
+# Accepting 429 would count a throttled response as OK on the first reply, which
+# skips lychee's retry with per-host backoff (`max_retries`, default 3) and
+# never checks the page's fragment. lychee's rate-limit docs name accepting 429
+# a last resort. A host that still throttles after the retries is a per-host
+# pacing problem, not a reason to stop checking every link on every host.
+
+# Rewrite JavaScript-rendered fragments to the same URL without the fragment.
+# These anchors exist only after the page's scripts run, so lychee, which reads
+# the served HTML, reports "Cannot find fragment" for a live target (lychee
+# issues #1729 and #2128). The page itself is still checked. Each value is
+# `<regex> <replacement>`; the first matching rule wins.
+remap = [
+  # GitHub issue, pull request and discussion comment and review anchors.
+  '^(https://github\.com/[^/]+/[^/]+/(issues|pull|discussions)/[0-9]+[^#]*)#(issuecomment-|discussion_r|discussioncomment-|pullrequestreview-)[0-9]+$ ${1}',
+  # PyPI's "Download files" tab on a project page.
+  '^(https://pypi\.org/project/[^#]+)#files$ ${1}',
+  # docs.github.com GraphQL reference entries, rendered client-side.
+  '^(https://docs\.github\.com/([a-z]{2}/)?graphql/reference/[^#]+)#[^#]+$ ${1}',
+]
 
 # Build/dependency trees: not authored content. Values are regex (single-quoted
 # TOML literals, so backslashes are not double-escaped).
@@ -27,6 +43,12 @@ exclude_path = [
   '\.venv',
   '(^|/)bin/',
   '(^|/)obj/',
+  # The org's working-memory directory: local-only in most repos, tracked in
+  # medley, whose `.work/` links were never checked and fail offline today.
+  # Either separator, so a local Windows run matches too.
+  '(^|[/\\])\.work[/\\]',
+  # Claude Code's in-repo worktrees: whole nested checkouts.
+  '(^|[/\\])\.claude[/\\]worktrees[/\\]',
 ]
 
 # URL excludes for a manual online run (the offline lane skips URLs entirely):
@@ -65,10 +87,23 @@ exclude = [
   # trust store failing to complete an ECC chain, not an untrustworthy host.
   # Re-test before removing; a genuinely bad chain would fail locally too.
   '^https?://www\.ntia\.gov/files/ntia/publications/sbom_minimum_elements_report\.pdf$',
+  # Social hosts whose answer to an unauthenticated checker proves little:
+  # bsky.app serves its JavaScript app shell with 200 even for a post that does
+  # not exist, and LinkedIn answers its non-standard 999 to curl (lychee passed
+  # it after redirects). x.com passed lychee and answered 404 for a missing
+  # post, so it is the first of the three to drop if a GitHub-runner re-test
+  # agrees (all from one workstation, 2026-10-11). twitter.com needs no entry:
+  # lychee excludes it by default.
   '^https?://(www\.)?x\.com/',
-  '^https?://twitter\.com/',
   '^https?://(www\.)?linkedin\.com/',
   '^https?://bsky\.app/',
+  # Bot blocks on live pages, each scoped to the cited URL so the rest of the
+  # host stays checked. Medium, npmjs and isdown.app answer 403 to lychee, curl
+  # and a browser User-Agent alike; dev.mysql.com answers 403 to lychee while a
+  # plain curl gets 200; help.miro.com answers 403 to lychee's default
+  # User-Agent; w3.org answers 403 to a browser User-Agent but passed lychee,
+  # so it is the first of these to drop if a GitHub-runner re-test agrees (all
+  # from one workstation, 2026-10-11).
   '^https?://(www\.)?medium\.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f/?([?#].*)?$',
   '^https?://(www\.)?medium\.com/fortmatic/postmortem-service-disruption-from-expired-ssl-certificate-a993a59272a0/?([?#].*)?$',
   '^https?://dev\.mysql\.com/doc/refman/8\.4/en/innodb-transaction-isolation-levels\.html/?([?#].*)?$',
@@ -76,6 +111,7 @@ exclude = [
   '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
   '^https?://www\.w3\.org/International/wiki/WorkingWithTimeZones/?([?#].*)?$',
+  # Loopback and placeholder hosts: never reachable from the checker.
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://example\.(com|org)',
@@ -86,10 +122,11 @@ exclude = [
   # GENERATED, not hand-edited: the two alternations below are derived from
   # actual repository visibility by components/lychee/private-repo-inventory.sh
   # (`generate --write` regenerates them; `check` fails CI and the scheduled
-  # lychee-private-inventory workflow when they disagree with visibility, the
-  # drift that produced standards#212 and #483). The optional \.git arm covers
+  # maintenance-audit-link-check-excludes workflow when they disagree with
+  # visibility, the drift that produced standards#212 and #483). The optional
+  # \.git arm covers
   # HTTPS clone URLs: the dot after the repo name would otherwise miss the
   # [/#?] boundary.
-  '^https?://github\.com/melodic-software/(claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
-  '^https?://raw\.githubusercontent\.com/melodic-software/(claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
+  '^https?://github\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
+  '^https?://raw\.githubusercontent\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
 ]

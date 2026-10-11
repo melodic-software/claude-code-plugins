@@ -59,9 +59,17 @@ options and `zones.json`:
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
-`unknown` reading sends nothing and changes nothing. Lines state facts only and never tell Claude
-what to do; that is Claude's and the user's call. Every line carries only the verdict: the zone
-word and its rank of three. A crossing or restatement inside the
+`unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
+word and its rank of three. Past `smart`, the verdict lines at a carrier are followed by one options
+line:
+
+```text
+context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.
+```
+
+The verdict alone pushed Claude toward handoffs and terse delegation
+([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)), so the line names the
+step that keeps state durable and leaves the rest to Claude and the user. A crossing or restatement inside the
 approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
 it is not sent. Lines due at
 one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
@@ -87,6 +95,8 @@ show, the line is also drawn as one notice row above the prompt until the next t
 as a transcript line Claude does not read.
 The menu never reaches Claude: an exit menu in model context manufactures the model's own
 initiative to stop, summarize, or hand off, which the instruction-audit catalog flags as check I23.
+Claude's options line lists compaction and a handoff as choices beside continuing, never as a
+step to take; it is a deliberate exception to I23, decided by the owner in #7118.
 
 ### Operator mode
 
