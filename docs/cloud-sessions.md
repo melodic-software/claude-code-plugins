@@ -73,7 +73,11 @@ more, and keep it repo-agnostic, since it serves all repos:
   Trusted isn't right. This fleet's accounts all run **All** (see
   [One environment or several?](#one-environment-or-several)).
 - [Environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)
-  are readable by anyone who uses the environment and there is no secrets store, so no credentials.
+  are readable by anyone who uses the environment, so no credentials. On Pro and Max plans an API
+  key goes in a
+  [network secret](https://code.claude.com/docs/en/cloud-environments#add-network-secrets) instead
+  (read 2026-10-11): it is held on the environment outside the session VM, and the agent proxy
+  adds it to requests bound for the hosts the secret lists. Team and Enterprise plans lack them for now.
 - A [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts) is only for
   tools missing from the
   [pre-installed inventory](https://code.claude.com/docs/en/cloud-environments#installed-tools);

@@ -130,8 +130,12 @@ than a separate named environment (see
   checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`, and
   `download.visualstudio.microsoft.com`; a Custom missing any of it leaves the .NET installer's
   redirect chain exposed to the same `403` block Blocker 1 demonstrated under Trusted.
-- **Environment variables**: none. There is no secrets store. Anything here is readable by every
-  session in the environment. `gh`/git auth comes from the GitHub proxy automatically.
+- **Environment variables**: none. Anything here is readable by every session in the environment.
+  `gh`/git auth comes from the GitHub proxy automatically. A key for any other API belongs in a
+  [network secret](https://code.claude.com/docs/en/cloud-environments#add-network-secrets) (read
+  2026-10-11; recheck when that section changes): on Pro and Max plans only, the account holder
+  saves it on the environment, it never enters the session VM, and Anthropic's agent proxy adds it
+  to outbound requests for the hosts the secret names, in every session that environment runs.
 - **Setup script**: paste only the three-line bootstrap below. The real script is the
   [`cloud-environment` component in standards](https://github.com/melodic-software/standards/blob/main/components/cloud-environment/setup.sh)
   (standards is the org baseline SSOT and is public, so the raw fetch needs no credentials and
