@@ -25,19 +25,23 @@ Check-only per the uniform setup contract's carve-out for a plugin with no optio
 skill, so it never manages them.
 
 **Mechanism note (why this skill does not read `/mcp`):** `/mcp` is a human-run interactive
-command. No tool exposes its output to a model turn. The one real, model-visible signal for a
-failed remote server is Claude Code's own `ToolSearch`-surfaced connection error: "When a
-configured server fails to connect, Claude Code tells Claude which server failed and its
-connection error, including in `ToolSearch` results that find no matching tool... Requires tool
-search, which is enabled by default. In configurations without tool search... Claude Code doesn't
-report failed server connections to Claude." (<https://code.claude.com/docs/en/mcp>). This skill
-is built around that constraint, not around reading `/mcp` connection status directly.
+command. No tool exposes its output to a model turn. The one model-visible signal for a failed
+remote server is the connection error Claude Code itself reports to Claude, which this skill reads
+when it is present and never assumes when it is absent. This skill is built around that
+constraint, not around reading `/mcp` connection status directly.
+
+- **Pointer**: when deciding what a missing Dometrain tool can tell this skill, fetch
+  [How Claude learns that a server failed](https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes which configurations report a failed server to
+  Claude, or where the error appears.
 
 Official contracts:
 
 - <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>
 - <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
-- <https://code.claude.com/docs/en/mcp>
+- <https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed>
 
 ## Task
 
@@ -66,10 +70,9 @@ Official contracts:
 4. When `dometrain-mcp` is enabled or a user-scope server is registered but no tool resolves,
    report **failed or unverified**:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
-   - Otherwise do not assert why. Claude Code does not report failed connections to Claude in a
-     configuration without tool search, and this skill cannot inspect the environment to tell
-     whether tool search is active. Direct the user to run `/mcp` themselves rather than claim
-     knowledge it does not have.
+   - Otherwise do not assert why. Whether a failed connection reaches this turn depends on
+     configuration this skill cannot inspect (see the mechanism note's pointer). Direct the user to
+     run `/mcp` themselves rather than claim knowledge it does not have.
    - The fix depends on the setup in play, and this skill cannot tell from tool absence alone
      which one the user is on. For `dometrain-mcp`, the user reconfigures the key with
      `/plugin configure dometrain-mcp@<marketplace>`, then needs `/reload-plugins` or a new
@@ -121,10 +124,19 @@ skip `dometrain-mcp` entirely and register the user-scope server with
 is still required.
 
 `<marketplace>` is the name the catalog registers under when it is added, and `<scope>` is the
-scope the bootstrap chooses: `user`, `project`, or `local`. `marketplace add` and `install` default
-to `user` when the flag is omitted, while `enable` auto-detects. Carry the same `<scope>` through
-every command. Note the asymmetry: `marketplace add` spells it `--scope` only, while `install` and
-`enable` also accept the `-s` short form. Registering at `user` while installing at `project`
+scope the bootstrap chooses: `user`, `project`, or `local`. Pass the scope explicitly on every
+command and carry the same `<scope>` through all of them, rather than relying on any command's
+default; the commands neither default nor spell the flag alike, which is why the blocks above
+write `--scope` on `marketplace add` and `-s` elsewhere.
+
+- **Pointer**: when a command's scope default or flag spelling matters, fetch
+  [plugin marketplace add](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-add),
+  [plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install) and
+  [plugin enable](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those three rows changes its scope default or its flag spelling.
+
+Registering at `user` while installing at `project`
 leaves the marketplace declaration out of the project's checked-in settings, so a fresh clone or CI
 agent carries the enabled plugin with no registered marketplace to resolve it from.
 
@@ -132,9 +144,8 @@ agent carries the enabled plugin with no registered marketplace to resolve it fr
 DISABLED. The install seeds the key but leaves the MCP server, and therefore every `dometrain`
 tool, unavailable until `dometrain-mcp` is enabled ([Default
 enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
-[`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
-auto-detects the scope when `-s` is omitted; passing it explicitly keeps the sequence deterministic
-in CI. A bootstrap that stops after `install` looks successful and delivers
+Pass `-s` to [`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
+explicitly, so the sequence stays deterministic in CI. A bootstrap that stops after `install` looks successful and delivers
 no tools.
 
 **Rotating or clearing the key** belongs to `dometrain-mcp`: `/plugin configure

@@ -83,12 +83,18 @@ unchanged and bind every member.
    "Maximum number of read-only tools and subagents that can execute in
    parallel (default: 10)"; `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` "Removed in v2.1.224 and now a
    no-op"; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` "the `run_in_background`
-   parameter on Bash and subagent tools"; `CLAUDE_CODE_FORK_SUBAGENT`
-   "overriding any server-side rollout". Upstream publishes no per-page content
+   parameter on Bash and subagent tools". Upstream publishes no per-page content
    date, so the fetch date is the whole of the currency claim. Recheck trigger:
    a Claude Code release note naming tool-use concurrency, parallel tool
    execution, or any of these variables, or a re-fetch of env-vars diverging
    from a quoted row.)
+
+   - **Pointer**: when deciding whether the session running this pass can
+     spawn forks at all, fetch
+     [Turn fork mode on or off](https://code.claude.com/docs/en/sub-agents#turn-fork-mode-on-or-off)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes
+     which sessions have fork mode on by default, or how
+     `CLAUDE_CODE_FORK_SUBAGENT` overrides it.
 
    So even a fully-admitted set, every core plus every situational corrector, dispatches in one wave in an
    otherwise-quiet session.
@@ -108,8 +114,11 @@ unchanged and bind every member.
    **Retry, and what counts as a failure.** Retry only a failed subset, once, and **failure includes a ledger returned without verified inheritance
    proof**, not only an errored dispatch: a fabricated ledger is the exposure
    the retry rule exists for. One dispatch error is explicitly NOT a retryable
-   failure: `Concurrent subagent limit reached`, which the harness tells Claude
-   not to retry. That is a capacity race, not a failed audit. Wait for
+   failure: a spawn refused at the concurrent subagent limit. For that error's
+   wording and how the harness handles it, read
+   [Concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+   live (as of 2026-10-11; recheck when that section changes the error or its
+   retry guidance). That is a capacity race, not a failed audit. Wait for
    capacity and dispatch, rather than retrying into the same wall. A retry is anchored by construction, one wave or
    many: it spawns after other members' ledgers have landed, so it inherits
    them. There is no un-anchored rerun available inside this conversation; re-running the whole pass would inherit MORE, not less, since every ledger

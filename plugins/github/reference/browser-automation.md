@@ -36,9 +36,15 @@ section applies its "user's logged-in real browser" row. Org-admin UI surfaces n
 authenticated session, so when both integrations are present, prefer **claude-in-chrome**, then
 playwright (its saved authentication state may not carry an admin session). For Claude in
 Chrome's status under WSL, read the rubric's row; this file does not restate it. Without the
-testing plugin, fetch the WSL note at the top of <https://code.claude.com/docs/en/chrome> and
-prefer playwright while it does not list WSL as supported. When the
+testing plugin, prefer playwright while the Chrome page does not list WSL as supported. When the
 user names an integration, their choice is honored over this order.
+
+- **Pointer**: when deciding whether Claude in Chrome works under WSL, fetch the platform note
+  above the first heading of <https://code.claude.com/docs/en/chrome> live; that note has no
+  section anchor as of 2026-10-11.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the page moves its platform support into a section with its own anchor, or
+  changes which platforms it supports.
 
 ## The routing precondition: resolved `guided-apply` only
 
