@@ -1,0 +1,70 @@
+name: maintenance-file-upstream-drift-issues
+
+# Monthly drift issues for the docs/upstream pages pinned to a git commit: runs
+# scripts/check-upstream-drift.sh --report, puts the report in the job summary,
+# and hands it to scripts/upstream-drift-issues.sh, which keeps one issue per
+# upstream titled `Upstream drift: <owner>/<repo>` (opened on drift, updated in
+# place on later runs, closed once the upstream is clean). Informational: not
+# in pr-require-checks.yml and not behind `ci-status`, so nothing here can block
+# a merge. The run fails only on a script error or a failed issue write; drift
+# alone does not fail it.
+#
+# Its token can write issues and nothing else; it reads repository contents. No
+# pull-request or issue text reaches it: the only triggers are the schedule and
+# a manual dispatch with no inputs, it runs no model, and the job-scoped
+# github.token runs on a fresh hosted runner. Report text reaches the helper as
+# a file and never through a `${{ }}` expression.
+#
+# maintenance-check-upstream-drift.yml is a different job: weekly, read-only,
+# it runs each vendored skill's own update script, fails on drift and never
+# opens an issue. This one is monthly, reads the docs/upstream git pins through
+# scripts/check-upstream-drift.sh, and files one issue per upstream.
+#
+# 11:07 UTC on the 9th sits clear of the other scheduled runs.
+
+on:
+  schedule:
+    - cron: "7 11 9 * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  file-upstream-drift-issues:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    concurrency:
+      group: maintenance-file-upstream-drift-issues
+      cancel-in-progress: false
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Report upstream drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f="$RUNNER_TEMP/drift.txt"
+          rc=0
+          bash scripts/check-upstream-drift.sh --report >"$f" || rc=$?
+          {
+            echo "### Upstream drift report"
+            echo
+            echo "check-upstream-drift.sh exit code ${rc} (0 clean, 1 drift, 2 error)."
+            echo
+            echo '```text'
+            cat "$f"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+          if [ "$rc" -ge 2 ]; then
+            exit "$rc"
+          fi
+      - name: File drift issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/upstream-drift-issues.sh "$RUNNER_TEMP/drift.txt"

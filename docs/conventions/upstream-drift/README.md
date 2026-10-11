@@ -422,10 +422,14 @@ file. A change that converts or re-pins a page runs `--links` on it.
 
 ### Monthly drift issues
 
-A scheduled GitHub Actions workflow, `.github/workflows/upstream-drift.yml`, runs the check once a
-month with `--report` and keeps one issue per upstream titled `Upstream drift: <owner>/<repo>`: it
-opens the issue when that upstream drifts, updates the same issue in place on later runs, and closes
-it once the upstream is clean. The run fails only when the script errors. Whether to adopt an
+A scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstream-drift-issues.yml`,
+runs the check once a month with `--report` and hands the report to
+`scripts/upstream-drift-issues.sh`, which keeps one issue per upstream titled
+`Upstream drift: <owner>/<repo>`: it opens the issue when that upstream drifts, updates the same
+issue in place on later runs, and closes it once the upstream is clean. The run fails only on a
+script error or a failed issue write; drift alone does not fail it. It differs from
+`maintenance-check-upstream-drift.yml`, which runs weekly over the vendored skills' own update
+scripts, fails on drift, and never opens an issue. Whether to adopt an
 upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which
 moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
 what closes it.
@@ -511,6 +515,7 @@ on touch.
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
+| `docs/upstream/` pages pinned to a git commit (`cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the monthly drift issues name any row whose upstream changed since that pin. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the
