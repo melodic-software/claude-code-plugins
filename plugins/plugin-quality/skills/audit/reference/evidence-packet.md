@@ -31,7 +31,8 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
     live.
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section drops skill, command or agent Markdown bodies from where
-    `${...}` resolves, or changes which contexts carry `CLAUDE_PLUGIN_ROOT`.
+    `${...}` resolves, adds supporting files to it, or changes which contexts carry
+    `CLAUDE_PLUGIN_ROOT`.
 
   Should it
   arrive unexpanded, derive the directory deterministically per the same page:

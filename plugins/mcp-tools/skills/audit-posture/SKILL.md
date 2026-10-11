@@ -180,8 +180,10 @@ changed rows.
 
 ## Gotchas
 
-- Every stdio row reads `sandboxed = no`. This is expected; the checklist's sandbox record gives
-  the decision and its pointer.
+- Every stdio row reads `sandboxed = no`. This is expected; the checklist's
+  [sandbox record](reference/checklist.md#sandbox-coverage) gives the decision and its pointer.
+  As of 2026-10-11. Recheck trigger: that record moves, or its decision stops marking stdio rows
+  unsandboxed.
 - A container image tag is mutable. Only an `@sha256:` digest counts as pinned, so a fixed tag such
   as `:1.4` reads `mutable-tag`, not `exact`.
 - Local-scope rows are found by project path. When the operator runs from a different directory

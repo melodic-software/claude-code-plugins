@@ -32,8 +32,9 @@ inventory table and get no findings, because Claude Code does not launch them fr
 `skipped-by-client` is a `"type": "sdk"` entry in a config file; see the SDK entries record.
 `rejected-by-client` is a
 `managedMcpServers` entry that fails the entry checks the script applies, so the audit treats it as
-not loaded; the managed precedence record points at where those checks are defined, and
-`inventory.sh` encodes them.
+not loaded; the [managed precedence record](#managed-precedence) points at where those checks are
+defined, and `inventory.sh` encodes them. As of 2026-10-11. Recheck trigger: that record moves or
+stops pointing at the entry checks.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
 asked for carries the label `unverified`.
@@ -191,7 +192,8 @@ precedence they name. `inventory.sh` encodes both; this record says where to re-
 - **Pointer**: for the scopes and their precedence, see
   <https://code.claude.com/docs/en/mcp#mcp-installation-scopes> and
   <https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence>; for managed configuration,
-  <https://code.claude.com/docs/en/managed-mcp> and
+  <https://code.claude.com/docs/en/managed-mcp#deploy-managed-mcp-json>,
+  <https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings>, and
   <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
 - **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release note naming an MCP scope, `managed-mcp.json`, or

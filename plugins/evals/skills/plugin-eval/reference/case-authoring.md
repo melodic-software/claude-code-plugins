@@ -137,10 +137,10 @@ tools.
 
 - **Pointer**: when a case grants a tool outside the read-only set, fetch
   [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools) live for which grants
-  run sandboxed.
+  run sandboxed and what each platform needs for a sandbox backend.
 - **As of**: 2026-10-11
-- **Recheck trigger**: that section changes which grants run under the sandbox, or a run is refused
-  for a grant that section does not name.
+- **Recheck trigger**: that section changes which grants run under the sandbox or what a platform
+  needs for the backend, or a run is refused for a grant that section does not name.
 
 - [ ] `runs`, `max_turns`, and `timeout_seconds` are inside their bounds. Hitting `max_turns` is a
       run error, not a low score.
@@ -149,7 +149,9 @@ tools.
       `TaskList`, `TaskUpdate`, `TaskStop`; see the record in the validator's `READ_ONLY_TOOLS`)
       need no operator grant;
       anything else needs `--allow-tools`, and a grant that runs sandboxed also needs a sandbox
-      backend on the machine (record below).
+      backend on the machine (the Grant tools record above, in
+      [Frontmatter bounds](#frontmatter-bounds); it has no heading of its own. As of 2026-10-11.
+      Recheck trigger: that record moves or stops naming the backend).
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
@@ -157,7 +159,9 @@ Run the static validator before every paid pass; it checks the bounds above with
 ## Common mistakes
 
 - `target: files` when the contents were meant. `files` is the list of created paths.
-- Assuming `target` defaults to `trace`. It does not; read the default in the record above.
+- Assuming `target` defaults to `trace`. It does not; read the default at the targets
+  record's pointer in [Graders](#graders) (the record has no heading of its own). As of 2026-10-11.
+  Recheck trigger: that record moves or its pointer stops covering the default target.
 - Inline `(?i)` in a pattern. Case-insensitivity is `flags: i`.
 - `file_exists` with the default `exists` in a read-only suite. Nothing is created, so the grader
   can never pass.

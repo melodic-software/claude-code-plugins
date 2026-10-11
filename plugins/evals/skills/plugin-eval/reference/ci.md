@@ -107,9 +107,11 @@ Three rules the parser encodes, each of which a naive reader gets wrong:
 
 - A Claude Code install at or above the version floor, and credentials in the environment.
 - A sandbox backend on the runner if any case grants a tool that runs sandboxed; which grants do,
-  and what a Linux runner installs for the backend, is the record in
-  [case-authoring.md](case-authoring.md#frontmatter-bounds). Without one, each granting run is
-  refused rather than run unconfined.
+  and what a Linux runner installs for the backend, is the Grant tools record in
+  [case-authoring.md, Frontmatter bounds](case-authoring.md#frontmatter-bounds) (it has no heading
+  of its own). As of 2026-10-11. Recheck trigger: that record moves or its pointer stops covering
+  which grants run sandboxed or the Linux backend. Without one, each granting run is refused rather
+  than run unconfined.
 - Budget awareness: the command has no free mode, so an every-commit lane should use deterministic
   graders only, and the expensive judge lane should run on a schedule or on demand.
 - A fallback plan for the server-side switch. The command can answer

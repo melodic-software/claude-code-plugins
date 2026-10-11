@@ -62,13 +62,17 @@ that. A refusal mentioned in passing inside a summary reads as a successful run 
 a summary is not a ledger anyone can persist on your behalf. Never silently drop the packet write,
 since the dumb-zone contract depends on the file existing. This guardrail is **observed harness behavior, not
 documented**, so treat it as environment-dependent and expect contexts where it does not fire at
-all. The record for that absence is in
-`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md`.
+all. The record for that absence is the section `#report-file-write-guardrail-packet-filenames`
+("Report-file write guardrail (packet filenames)") of
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md`. As of 2026-10-11. Recheck
+trigger: that section is renamed or moved, or its record stops calling the guardrail undocumented.
 
 **Packet files are write-once evidence.** A sibling plugin's `PostToolUse` hook registered on the
 `Write|Edit` matcher rewrites your packet files in place after your write succeeds. That event is
-documented harness behavior (its record is in
-`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md`), and this fleet ships formatter
+documented harness behavior (its record is the section
+`#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place` of
+`${CLAUDE_PLUGIN_ROOT}/skills/audit/reference/evidence-packet.md`; as of 2026-10-11, recheck when
+that section is renamed or moved, or its pointer stops covering `PostToolUse`), and this fleet ships formatter
 plugins that register exactly such hooks. They damage precisely what you
 are writing down: verbatim quotations and code-span identifiers. So: never edit a packet file after it lands (a correction is
 a new file such as `audit-notes-2.md` or `evidence-<n>.md`, since their autocorrect has no memory and reverts a hand-repair on the next edit);
