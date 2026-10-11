@@ -218,24 +218,26 @@ spawns. Read `fan_out` in this order:
    wall-clock cost is roughly the slowest hook plus contention, and adding them up can overstate
    the total several times over. To find which hook is the wall on `Stop`, point the operator at
    the `stop_hook_summary` durations named under "Never time a hook by running it" in Gotchas;
-   a per-turn bucket counts the costliest hook as one row among many. Claim: shell form passes the `command` string to a shell,
-   `sh -c` on macOS and Linux, Git Bash on Windows, PowerShell when Git Bash is absent, or the
-   shell a hook's own `shell` field names, while exec form, with `args` present, spawns the
-   executable directly with no shell
-   ([hooks](https://code.claude.com/docs/en/hooks.md), verified 2026-09-20; recheck when that
-   page's shell-form paragraph changes, when the `shell` field's accepted-value list changes,
-   or when `args` gains a documented no-shell variant for shell form).
+   a per-turn bucket counts the costliest hook as one row among many. We treat shell form as
+   always wrapped in a shell and exec form, with `args` present, as spawned with none; which
+   shell wraps a row per OS, and the `shell` field's values, are read live.
+   - **Pointer**: when naming the wrapping shell, fetch
+     [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which shell wraps
+     shell form, or `args` gains a no-shell variant for shell form.
 3. **`fan_out.shell_resolution`**, which names WHICH bash pays that wrapping spawn on Windows:
    `CLAUDE_CODE_GIT_BASH_PATH`, where the value came from, whether the path exists, whether
    Claude Code accepts the filename, and whether it resolves to Git's `bin` launcher or to
    `usr/bin/bash.exe`. A rejected filename and a path that does not exist get the SAME documented
    fallback, so a `resolves_to` shown beside either finding names a binary the harness will not
-   use. Unset, Claude Code looks for `bash.exe` in two documented steps, the default install
-   locations first and the `git` on `PATH` second, taking `bash.exe` from that installation's
-   `bin` directory;
-   this block reports that search and never performs it
-   ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), verified
-   2026-09-20; recheck when that section's resolution order or accepted-name list changes). The
+   use. Unset, Claude Code searches for `bash.exe` itself; this block reports the engine's copy of
+   that search and never performs it.
+   - **Pointer**: when stating the search order, the accepted filenames, or the fallback, fetch
+     [troubleshoot install: Git for Windows or PowerShell](https://code.claude.com/docs/en/troubleshoot-install#claude-code-on-windows-requires-either-git-for-windows-for-bash-or-powershell)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section's resolution order,
+     accepted-name list, or fallback changes.
+
+   The
    `bin` launcher's re-exec of `usr/bin/bash.exe` rides in `observation` as a one-host
    observation with its provenance, never as a count this engine asserts. The block answers
    only for rows the harness wraps with bash, and only from the install-root `settings.json`:
@@ -253,20 +255,21 @@ spawns. Read `fan_out` in this order:
    individually modest settings can license a very large population. Report effective values
    against documented defaults. **Never present any value, or removing the variable, as
    disabling either cap**: both caps can be adjusted, neither can be turned off. The engine's
-   `trap` string beside them describes the observer flag's truthiness gate, not these caps.
+   `trap` string beside them still words the caps as truthiness-gated; never relay it for them.
    - **Pointer**: when judging what a cap value does, fetch
      [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
      and
      [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
      live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which values it
      accepts, or documents a way to disable its cap.
-6. **`fan_out.statusline`**. Reported, never rendered. `refresh_interval_seconds` is in SECONDS
-   with a documented minimum of 1; reading it as milliseconds inverts the conclusion. Its
-   `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, Git
-   Bash on Windows when Git Bash is installed and PowerShell when it is absent, so a command
-   naming a shell puts at least two shells in the chain
-   ([statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck
-   when either of that page's shell sentences changes).
+6. **`fan_out.statusline`**. Reported, never rendered. The engine reads `refreshInterval` as
+   seconds (`refresh_interval_seconds`); reading it as milliseconds inverts the conclusion. Its
+   `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, so a
+   command naming a shell puts at least two shells in the chain.
+   - **Pointer**: when checking the interval's unit and minimum or the shell it runs in, fetch
+     [statusline: manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section changes the interval's unit
+     or which shell runs the command.
 7. **`processes.orphan_attribution`**. Only a dead-parent process is an orphan. A long-lived
    process with a live parent is working software and killing it breaks whatever owns it, so
    report `parent_alive` per candidate and treat `unknown` as unknown. `dead_parent_any_age`,

@@ -132,17 +132,17 @@ work begins:
 - Any command line naming two shells. De-forking the hook chain on the audited machine moved the
   median from 10,850 ms to 2,777 ms, roughly 4x, measured back to back at the same load.
 
-The third names a shell the command string cannot show. Claude Code passes a shell-form
-`command` (one that OMITS `args`; an explicit `"args": []` is exec form) to a shell before its
-first word runs, `sh -c` on macOS and Linux,
-Git Bash on Windows, PowerShell when Git Bash is absent, and it runs the statusline command in a
-shell the same way ([hooks](https://code.claude.com/docs/en/hooks.md) and
-[statusline](https://code.claude.com/docs/en/statusline.md), verified 2026-09-20; recheck when
-hooks.md's shell-form paragraph changes, or when either of that statusline page's shell sentences
-changes). A shell-form command that then spells a shell of its
-own therefore puts at least two shells in the chain, which is
-`shell-form-hook-names-a-second-shell`. Exec form, with `args` present, is spawned directly and
-has no shell. Two consequences for reading the report: an empty finding list means no row named a
+The third names a shell the command string cannot show. We treat a shell-form `command` (one
+that OMITS `args`; an explicit `"args": []` is exec form) and the statusline command as always
+wrapped in a shell, and exec form as spawned with none. A shell-form command that then spells a
+shell of its own therefore puts at least two shells in the chain, which is
+`shell-form-hook-names-a-second-shell`.
+
+- **Pointer**: when naming which shell wraps a command on a given OS, fetch
+  [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
+  and [statusline: manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which shell wraps a
+  command, or `args` gains a no-shell variant for shell form. Two consequences for reading the report: an empty finding list means no row named a
 SECOND shell, never that the rows run unwrapped; and the documented floor is a count of shells in
 the chain, not of surviving processes, which the engine does not run anything to measure. Which
 bash the wrapping shell is on Windows is `fan_out.shell_resolution`.
@@ -160,24 +160,26 @@ rows carried an `if` gate, so a write of one file kind spawned a handful of proc
 than 33. Three independent levels stand between a row and a spawn, and only the first is visible
 in a bucket count.
 
-**Level 1, the event key.** The `if` field is documented as
-"Only evaluated on tool events: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
-`PermissionRequest`, and `PermissionDenied`. On other events, a hook with `if` set never runs"
-([hooks](https://code.claude.com/docs/en/hooks), common fields, `if`). Those five events are
-therefore what per-tool-call means, and a handler carrying an `if` on any other event is dead
+**Level 1, the event key.** The `if` field is evaluated only on the tool events, so those events
+are what per-tool-call means, and a handler carrying an `if` on any other event is dead
 configuration rather than a cost. The engine reports those as `if_on_non_tool_event` and counts
-them as never firing.
+them as never firing; its event list is our copy of the firing rule.
 
-**Level 2, the group matcher**, which is a character class before it is a regex:
+- **Pointer**: when checking which events evaluate `if`, fetch
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live. **As of**:
+  2026-10-11. **Recheck trigger**: the `if` row adds or drops an event.
 
-| matcher | evaluated as |
-|---|---|
-| `"*"`, `""`, or omitted | "Match all" |
-| only letters, digits, `_`, `-`, spaces, `,`, and `\|` | "Exact string, or list of exact strings separated by `\|` or `,` with optional surrounding whitespace" |
-| contains any other character | "JavaScript regular expression, unanchored" |
+**Level 2, the group matcher**, which is a character class before it is a regex: a match-all
+form, an exact-string or exact-list form for plain identifier characters, and an unanchored
+regular expression for anything else. The engine's `matcher_matches` encodes that rule as our
+decision.
 
-Source: [hooks](https://code.claude.com/docs/en/hooks), matcher table. Two consequences carry
-real fan-out weight. An unanchored regex catches more than it looks like it does, so `Edit.*`
+- **Pointer**: when deciding how a matcher string is evaluated, fetch
+  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live. **As
+  of**: 2026-10-11. **Recheck trigger**: that table changes a character class or the regex
+  dialect.
+
+Two consequences carry real fan-out weight. An unanchored regex catches more than it looks like it does, so `Edit.*`
 also selects `NotebookEdit`. And an exact string is compared whole, so a bare `mcp__memory`
 selects nothing at all: the tool names are `mcp__memory__<tool>`, and server-wide matching needs
 `mcp__memory__.*`. The engine's `matcher_matches` uses Python's `re.search` in place of
@@ -187,12 +189,15 @@ Python cannot compile at all is counted as selecting every tool and listed in
 `unclassified_rows` with the compile error, so an unknown selection over-counts where an operator
 can see it rather than vanishing.
 
-**Level 3, the handler `if`**, the only level that sees the call's arguments. It "holds exactly
-one permission rule. There is no `&&`, `||`, or list syntax for combining rules; to apply
-multiple conditions, define a separate hook handler for each" (same page), which is why a
-formatter that covers six extensions carries six rows rather than one. A non-match costs nothing
-at all: "the hook process only spawns when the tool call matches"
-([hooks-guide](https://code.claude.com/docs/en/hooks-guide)).
+**Level 3, the handler `if`**, the only level that sees the call's arguments. We treat it as one
+rule per handler, which is why a formatter that covers six extensions carries six rows rather
+than one, and a non-match as spawning nothing.
+
+- **Pointer**: when checking how many rules an `if` holds or whether a non-match spawns, fetch
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) and
+  [hooks guide: filter by tool name and arguments with the if field](https://code.claude.com/docs/en/hooks-guide#filter-by-tool-name-and-arguments-with-the-if-field)
+  live. **As of**: 2026-10-11. **Recheck trigger**: `if` gains combining syntax, or a non-match
+  starts spawning.
 
 The engine classifies exactly one `if` shape, `Edit(*.<ext>)`, and reports every other shape in
 `unclassified_rows` with the reason, counting it as firing. That direction is deliberate: an
@@ -203,29 +208,31 @@ row and `other` means a file no gate names.
 
 **Drift record.** *Claim:* an `Edit(*.<ext>)` `if` rule is evaluated by file extension for all
 three file-writing tools, `Write`, `Edit`, and `NotebookEdit`, so a `Write` of `notes.md` fires a
-handler gated `Edit(*.md)`. *Basis:* the hooks reference documents `"Edit(*.ts)"` as an example
-`if` value and points at permission-rule syntax, but never names the input field the pattern is
-tested against nor the tool set it covers; the permissions reference resolves the tool set from
-the other side, "Claude Code checks file permissions against `Edit(path)` and `Read(path)` rules
-only. If you write a path rule for `Write`, `NotebookEdit`, `Glob`, or the legacy `MultiEdit`
-tool instead, Claude Code accepts the rule but never consults it ... Use `Edit(docs/**)` in place
-of `Write(docs/**)`" ([permissions](https://code.claude.com/docs/en/permissions), file-path
-rules); the [CHANGELOG](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) at
-2.1.176 records "Fixed hook `if` conditions for Read/Edit/Write tool paths: documented patterns
-like `Edit(src/**)`, `Read(~/.ssh/**)`, and `Read(.env)` now match correctly", which is the
-closest upstream statement that a file-tool path is what the rule sees; and this repository's own
-hook-budget convention already rests on the premise, since the formatter plugins carry one
-`if: Edit(*.ext)` row per extension so that a `Write` to any other file spawns nothing.
-*As of:* 2026-09-11. *Recheck trigger:* a hooks-reference revision that names the input field or
-the tool set for file-tool `if` rules, which would make the premise citable directly instead of
-assembled from three pages.
+handler gated `Edit(*.md)`. *Basis:* no single page states it, so the premise is assembled. The
+hooks reference points `if` at permission-rule syntax without naming the input field or tool set;
+the permissions reference's file-path section says which rule names govern the file-writing tools;
+the 2.1.176 changelog entry is the closest statement that a file-tool path is what the rule sees;
+and this repository's own hook-budget convention already rests on the premise, since the
+formatter plugins carry one `if: Edit(*.ext)` row per extension so that a `Write` to any other
+file spawns nothing.
+
+- **Pointer**: when re-deriving the premise, fetch
+  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit),
+  [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields), and
+  [changelog 2.1.176](https://code.claude.com/docs/en/changelog#2-1-176) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a hooks-reference revision that names the input field or the tool set for
+  file-tool `if` rules, which would make the premise citable directly.
 
 Two things the projection cannot model, both over-counts rather than hidden spawns. An `if` rule
 matches only under its anchor, so an edit to a file outside the project directory never matches
 one and every gated row there is counted as firing when none of them is. And dedup is modeled
-nowhere: "If you define the same handler in more than one settings file, it runs once. A plugin's
-or skill's copy of the same handler stays separate" (hooks), so rows that collapse upstream are
-counted twice here.
+nowhere, so rows the product collapses into one run are counted twice here.
+
+- **Pointer**: when judging which duplicate handlers collapse, fetch
+  [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields) live.
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes its dedup rule or where hooks
+  on one event run in parallel.
 
 ### Configuration on disk is not configuration in force
 
@@ -240,15 +247,15 @@ restart is required.
 
 ### Concurrency ceilings multiply
 
-| variable | documented default | note |
-|---|---|---|
-| [`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit) | 20 per session | at 10 sessions that is a 200-subagent ceiling, each carrying the same statusline and hook fan-out |
-| [`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) | 3 | depth multiplies against the concurrency ceiling |
-| `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` | undocumented | absent from [env-vars.md](https://code.claude.com/docs/en/env-vars) but present in the shipped binary, gating background observer agents and a per-subagent observer fan-out |
+| variable | note |
+|---|---|
+| [`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit) | a per-session cap, so the fleet ceiling is the cap times the session count, each subagent carrying the same statusline and hook fan-out |
+| [`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) | depth multiplies against the concurrency ceiling |
+| `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` | absent from [env-vars.md](https://code.claude.com/docs/en/env-vars) but present in the shipped binary, gating background observer agents and a per-subagent observer fan-out |
 
-The two documented defaults above were read from the linked sections as of 2026-10-02; recheck when
-either default changes (the spawn-depth default has changed before). Read the current value from
-the link rather than from this table.
+- **Pointer**: when stating either documented default, fetch the linked sub-agents section live.
+  **As of**: 2026-10-11. **Recheck trigger**: either default changes (the spawn-depth default has
+  changed before).
 
 **The truthiness trap.** `CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS` is gated by a JavaScript
 truthiness test on the raw string (`if (!process.env.CLAUDE_CODE_...) return false`), and in
@@ -651,14 +658,18 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
 
 ## Reference links
 
-- [statusline](https://code.claude.com/docs/en/statusline): `refreshInterval` is in SECONDS
-  (minimum 1), renders are debounced 300 ms, and an in-flight render is cancelled on a new trigger
-- [sub-agents](https://code.claude.com/docs/en/sub-agents): concurrency limit and spawn depth
+- [statusline: manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
+  for the `refreshInterval` unit and minimum, and
+  [how status lines work](https://code.claude.com/docs/en/statusline#how-status-lines-work) for
+  render debouncing and cancellation; the engine reads the unit as seconds. As of 2026-10-11;
+  recheck when either section changes the unit or the render triggers
+- [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+  and [spawn depth](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
 - [agent-teams](https://code.claude.com/docs/en/agent-teams)
 - [env-vars](https://code.claude.com/docs/en/env-vars)
 - [hooks](https://code.claude.com/docs/en/hooks)
-- [debug-your-config](https://code.claude.com/docs/en/debug-your-config): `/doctor`, `/hooks`,
-  `/context`, the cheap first pass worth taking before this engine
+- [debug your config: check common causes](https://code.claude.com/docs/en/debug-your-config#check-common-causes):
+  the cheap first pass worth taking before this engine
 - [desktop](https://code.claude.com/docs/en/desktop)
 - [llms.txt](https://code.claude.com/docs/llms.txt): the index; resolve doc URLs from here rather
   than guessing them
@@ -669,8 +680,9 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
   file-history churn pay it per file (handle-hold EPERM during plugin install:
   anthropics/claude-code#54053; installer false positive: #36796). Exclusions are hidden from
   non-elevated `Get-MpPreference` on Windows 11, so an empty non-admin read proves nothing.
-- Every running session polls `~/.claude.json` at 1 Hz (cheap stat; a full main-thread re-parse
-  only when another process writes it), and concurrent sessions multiply all watcher/poll load.
+- Every running session watches `~/.claude.json` and re-parses it when another process writes
+  it, so concurrent sessions multiply all watcher and poll load. This is our source-level reading;
+  no probe holds a poll rate, so none is stated here.
 - A leaked kernel reference to Token objects, from a driver or service path, fills paged pool and
   taxes every process creation system-wide at idle CPU; see "The host-level floor" above. A
   reboot restores the floor, and only attribution of the minter ends the leak.
