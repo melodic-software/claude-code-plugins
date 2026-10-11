@@ -51,7 +51,8 @@ each discovered file. Apply by entity type:
 - **R1-R4**: `.claude/rules/` files, at either scope. **Read the rule's `paths:` frontmatter before
   applying a check that assumes it is loaded.** An always-loaded user rule (no `paths:`) costs context
   in every session of every project, so the R-checks apply to it at least as strongly as to a project
-  rule. A *path-scoped* user rule is absent until a matching file is read, so a repo-relative currency
+  rule. A *path-scoped* user rule is absent until Claude works with a matching file (read or write; the trigger list is
+  read live per reference/official-guidance.md, "Path scoping status"), so a repo-relative currency
   or redundancy finding against one is only valid where its `paths:` can match in **this** project.
   Check that first rather than assuming co-residency
 - **R1 pairs within a scope.** A user rule's duplication check runs against the *user* `CLAUDE.md`, a
