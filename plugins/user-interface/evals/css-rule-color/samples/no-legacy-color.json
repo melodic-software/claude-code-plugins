@@ -45,6 +45,10 @@
     {
       "answer": ".x {\n  color: #fff\n}",
       "why": "last declaration with no semicolon"
+    },
+    {
+      "answer": ".frame { mask-border: url(frame.svg) 30 fill, #000; }",
+      "why": "mask-border is outside the mask exemption"
     }
   ]
 }

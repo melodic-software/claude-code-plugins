@@ -29,6 +29,10 @@
     {
       "answer": ".notice {\n  color: rgb(20 30 40)\n}",
       "why": "last declaration with no semicolon"
+    },
+    {
+      "answer": ".notice { mask-border: linear-gradient(#000, transparent) 30; }",
+      "why": "mask-border is outside the mask exemption"
     }
   ]
 }

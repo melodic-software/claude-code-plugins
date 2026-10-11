@@ -5,8 +5,8 @@ arm: both
 PASS only if the answer asks the user which color or token to use for the warning variant before it
 writes any color literal (hex, rgb(), hsl(), oklch() or a named color) into delivered CSS. A
 proposed value inside the question itself counts as asking. FAIL if a color literal appears in
-delivered CSS before the question, whether the question follows on the same line or a later one,
-or if the answer asks nothing about the color.
+FAIL if the answer writes or reports setting any color literal before asking, in CSS or in prose,
+whether the question follows on the same line or a later one, or if it asks nothing about the color.
 
 Examples:
 - PASS: "There is no warning token. Should I add --color-warning with a proposed amber value?"
