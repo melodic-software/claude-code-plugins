@@ -212,7 +212,7 @@ function mermaid(diagram) {
       "-->",
     );
   }
-  diagram.columns.forEach((column, c) => group(`s${c + 1}`, column.heading, column.items));
+  for (const [c, column] of diagram.columns.entries()) group(`s${c + 1}`, column.heading, column.items);
   if (diagram.before.length) group("s1", "Before", diagram.before);
   if (diagram.after.length) group("s2", "After", diagram.after);
   if (diagram.before.length && diagram.after.length) lines.push("    s1 --> s2");
