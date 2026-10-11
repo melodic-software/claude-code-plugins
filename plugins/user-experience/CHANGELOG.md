@@ -8,7 +8,8 @@ All notable changes to the `user-experience` plugin are documented here. Format 
 ### Changed
 
 - `scripts/lib/yaml-subset.mjs` is now a generated copy of the shared `lib/yaml-subset.mjs`, and
-  its tests moved to `lib/`. The parser behaves as before.
+  its tests moved to `lib/`. The parser returns the same results, and a line with a long run of
+  quotes inside a plain value no longer takes quadratic time.
 
 ## [0.1.1] - 2026-10-10
 
