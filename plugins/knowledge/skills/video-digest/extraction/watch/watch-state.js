@@ -457,8 +457,9 @@ async function markReadmeComplete(sliceDir, readFile = fs.readFile, writeFile = 
   let body;
   try {
     body = await readFile(readmePath, "utf8");
-  } catch {
-    return;
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return;
+    throw error;
   }
   const updated = body.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, (frontmatter) =>
     frontmatter.replace(/^status:[^\r\n]*/m, "status: complete"),
@@ -491,6 +492,8 @@ export async function runClose(
   }
 
   if (state.status === "complete") {
+    // Repairs the README of a slice closed before close wrote its status.
+    await markReadmeComplete(sliceDir, readFile, writeFile);
     writeStdout("close: status already complete, no-op\n");
     return 0;
   }

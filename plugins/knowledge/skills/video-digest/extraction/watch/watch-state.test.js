@@ -45,7 +45,7 @@ function memoryStore(seed = []) {
   const store = new Map(seed);
   const readFile = vi.fn(async (p) => {
     const value = store.get(p);
-    if (value === undefined) throw new Error("ENOENT");
+    if (value === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     return value;
   });
   const writeFile = vi.fn(async (p, data) => {
@@ -480,6 +480,37 @@ describe("closing the slice (close, and mark-phase synthesis)", () => {
 
     expect(code).toBe(0);
     expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("re-running close on a complete slice repairs a README left in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore({ synthesisMarked: true });
+    store.set(
+      watchStatePath(sliceDir),
+      `${JSON.stringify({ ...persisted(store), status: "complete" }, null, 2)}\n`,
+    );
+    store.set(readmePath, readmeAt("in-progress"));
+    const verifyOutcomes = vi.fn(async () => 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(verifyOutcomes).not.toHaveBeenCalled();
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("close fails when the README exists but cannot be read", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+    const denied = Object.assign(new Error("EACCES"), { code: "EACCES" });
+    const failingRead = vi.fn(async (/** @type {string} */ p, /** @type {any} */ enc) => {
+      if (p === readmePath) throw denied;
+      return readFile(p, enc);
+    });
+
+    await expect(
+      runClose(sliceDir, { readFile: failingRead, writeFile, mkdir, verifyOutcomes }),
+    ).rejects.toBe(denied);
+    expect(persisted(store).status).not.toBe("complete");
   });
 
   it("a failed close leaves the README status in-progress", async () => {
