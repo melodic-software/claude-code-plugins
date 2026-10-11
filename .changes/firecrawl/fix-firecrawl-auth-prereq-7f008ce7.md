@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- **The `firecrawl-api-key` prerequisite is now `optional`**, so `/harness-ops:prerequisites` no longer reports the firecrawl skill blocked when `FIRECRAWL_API_KEY` is absent from the Claude Code environment but the CLI is authenticated another way (a wrapper that injects the key into the CLI process only, or `firecrawl login`). Its degrade line names `firecrawl --status` as the real auth test, which `/firecrawl:setup` already treats as authoritative; the README requirement says the same.
+- **The auth prerequisite now asks the CLI instead of the session environment.** The `firecrawl-api-key` env entry is replaced by a required `firecrawl-auth` entry that passes when `firecrawl --status` reports Authenticated, the test `/firecrawl:setup` already treats as authoritative. `/harness-ops:prerequisites` no longer reports the firecrawl skill blocked when `FIRECRAWL_API_KEY` is absent from the Claude Code environment but the CLI is authenticated another way (a wrapper that injects the key into the CLI process only, or `firecrawl login`), and still fails when the CLI is unauthenticated. The README requirement says the same.
