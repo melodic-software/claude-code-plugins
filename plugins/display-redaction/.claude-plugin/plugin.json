@@ -1,0 +1,27 @@
+{
+  "name": "display-redaction",
+  "version": "0.1.0",
+  "description": "A mod that masks email addresses and secret-shaped text in what Claude Code draws, for recordings and screen shares. It changes the screen only; the transcript, the model's context and the files on disk are untouched, so it is not a privacy or data control.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "mod",
+    "redaction",
+    "screen-share",
+    "recording",
+    "display",
+    "hooks"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "extra_patterns": {
+      "type": "string",
+      "title": "Extra mask patterns",
+      "description": "Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match nothing, or nests a quantifier inside a quantified group is skipped.",
+      "multiple": true
+    }
+  }
+}
