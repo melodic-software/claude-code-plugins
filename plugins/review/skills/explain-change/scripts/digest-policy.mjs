@@ -280,10 +280,12 @@ export function globMatcher(glob, { nocase = false } = {}) {
   const fold = (s) => (nocase ? s.toLowerCase() : s);
   /** @type {{kind: "lit" | "one" | "seg" | "any" | "dirs", ch?: string}[]} */
   const tokens = [];
-  for (let i = 0; i < glob.length; i += 1) {
-    const c = glob[i];
-    if (c === "*" && glob[i + 1] === "*") {
-      const slash = glob[i + 2] === "/";
+  // Code points, as test() walks the path: a surrogate half never equals a whole character.
+  const chars = [...glob];
+  for (let i = 0; i < chars.length; i += 1) {
+    const c = chars[i];
+    if (c === "*" && chars[i + 1] === "*") {
+      const slash = chars[i + 2] === "/";
       tokens.push({ kind: slash ? "dirs" : "any" });
       i += slash ? 2 : 1;
     } else if (c === "*") {

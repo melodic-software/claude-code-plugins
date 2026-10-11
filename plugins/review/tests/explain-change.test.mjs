@@ -142,6 +142,9 @@ describe("globs", () => {
     ["(x)+[y]", "xxy", false],
     ["", "", true],
     ["", "a", false],
+    ["\u{1F600}.md", "\u{1F600}.md", true],
+    ["a/\u{1F600}/**", "a/\u{1F600}/b", true],
+    ["?.md", "\u{1F600}.md", true],
   ];
   for (const [glob, path, hit] of cases) {
     test(`${glob} ${hit ? "matches" : "misses"} ${path}`, () => assert.equal(globMatcher(glob).test(path), hit));
