@@ -41,6 +41,10 @@ HELPER_REASON='worktree-create.sh: lane active on testhost since 2026-08-15T08:4
 REPO="$(mkrepo)"
 EXT="$TEST_TMPDIR/external"
 mkdir -p "$EXT"
+# The script reports paths in the form it resolves from git, which on Windows
+# Git Bash is not the /tmp/... spelling mktemp returned; expect that form.
+EXT_PHYS="$(physical_dir "$EXT")"
+REPO_PHYS="$(physical_dir "$REPO")"
 
 run_claim() {
   local rc
@@ -68,8 +72,8 @@ assert_file_exists "plain git worktree add created the tree" "$EXT/wt-plain/READ
 run_claim report --repo-dir "$REPO"
 assert_exit "plain add is reported unclaimed (exit 1)" 1 "$?"
 assert_contains "report names the unlocked tree UNCLAIMED" "$OUT" "UNCLAIMED"
-assert_contains "report names the plain-add path" "$OUT" "$EXT/wt-plain"
-assert_not_contains "the main checkout is not listed as unclaimed" "$OUT" "$REPO"$'\t'
+assert_contains "report names the plain-add path" "$OUT" "$EXT_PHYS/wt-plain"
+assert_not_contains "the main checkout is not listed as unclaimed" "$OUT" "$REPO_PHYS"$'\t'
 
 # --- claim arms a session-distinct reason ------------------------------------
 
@@ -108,7 +112,7 @@ run_claim check-enter "$EXT/wt-s1" --repo-dir "$REPO" --session-id host-session-
 assert_exit "foreign check-enter stops (exit 4)" 4 "$?"
 assert_contains "foreign claim text reaches the caller" "$ERR" "FOREIGN CLAIM:"
 assert_contains "foreign claim names the owning session" "$ERR" "host-session-one"
-assert_contains "foreign claim names the path" "$ERR" "$EXT/wt-s1"
+assert_contains "foreign claim names the path" "$ERR" "$EXT_PHYS/wt-s1"
 assert_contains "foreign claim tells the caller to stop" "$ERR" "do not write here"
 
 run_claim check-enter "$EXT/wt-s1" --repo-dir "$REPO" --session-id host-session-one
@@ -135,7 +139,7 @@ git -C "$REPO" worktree add -q "$EXT/wt-empty" -b feat/empty
 run_claim check-enter "$EXT/wt-empty" --repo-dir "$REPO" --session-id anyone
 assert_exit "check-enter on an unclaimed tree exits 3" 3 "$?"
 assert_contains "unclaimed entry names UNCLAIMED" "$ERR" "UNCLAIMED:"
-assert_contains "unclaimed entry names the path" "$ERR" "$EXT/wt-empty"
+assert_contains "unclaimed entry names the path" "$ERR" "$EXT_PHYS/wt-empty"
 
 # Main checkout / unrelated path: nothing to consult.
 run_claim check-enter "$REPO" --repo-dir "$REPO" --session-id anyone
@@ -327,11 +331,30 @@ CLAUDE_CONFIG_DIR="$TEST_TMPDIR/no-such-config" HOSTNAME="$STALE_HOST" run_claim
 assert_exit "stale: an unreadable transcript directory is not provable (exit 1)" 1 "$?"
 assert_contains "stale: the refusal names the directory" "$OUT" "unreadable"
 
-mkdir -p "$CFG/projects/-locked"
-chmod 000 "$CFG/projects/-locked"
-run_stale wt-st-old
+# A scan that fails mid-way. uid 0 reads through chmod 000 and Windows Git Bash
+# does not enforce it, so a stub `find` that exits non-zero after a real scan
+# carries the contract on every platform and uid; the chmod fixture adds a real
+# unreadable directory where the host enforces the mode.
+FAILFIND_BIN="$TEST_TMPDIR/failfind-bin"
+mkdir -p "$FAILFIND_BIN"
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '%q "$@" 2>/dev/null\nexit 1\n' "$(command -v find)"
+} >"$FAILFIND_BIN/find"
+chmod +x "$FAILFIND_BIN/find"
+PATH="$FAILFIND_BIN:$PATH_SAVED" run_stale wt-st-old
 assert_exit "stale: a scan that fails mid-way is not provable (exit 1)" 1 "$?"
 assert_contains "stale: the refusal says the scan failed" "$OUT" "failed"
+
+mkdir -p "$CFG/projects/-locked"
+chmod 000 "$CFG/projects/-locked"
+if ls -A "$CFG/projects/-locked" >/dev/null 2>&1; then
+  skip_case "unreadable-directory scan fixture: chmod 000 is not enforced here (uid $(id -u)); the stub-find arm above covers this contract"
+else
+  run_stale wt-st-old
+  assert_exit "stale: an unreadable project directory fails the scan (exit 1)" 1 "$?"
+  assert_contains "stale: the unreadable-directory refusal says the scan failed" "$OUT" "failed"
+fi
 chmod 755 "$CFG/projects/-locked"
 
 run_stale wt-st-bare

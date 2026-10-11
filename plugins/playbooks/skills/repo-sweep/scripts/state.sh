@@ -35,6 +35,15 @@
 #   15 several open sweep PRs: listed, pick one
 set -euo pipefail
 
+# A native jq.exe under Git Bash or Cygwin writes text-mode stdout, so every "key value" line
+# would end in a CR that a caller then pastes into a branch name or command; -b keeps the bytes.
+# Pointer: https://jqlang.org/manual/#invoking-jq (--binary), as of 2026-10-11; recheck
+# when jq changes how it opens streams on Windows. REPO_SWEEP_OSTYPE is the test seam for the platform.
+case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
+msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
+*) ;;
+esac
+
 prefix=chore/repo-sweep-
 fields=number,state,mergeable,headRefName,baseRefName,body,isCrossRepository
 # Branch names, playbook names, and step ids reach commands the agent builds, so all three are
@@ -71,6 +80,7 @@ fi
 [[ -s $tmp/pr ]] || exit 10
 
 jq -r '"pr \(.number)\nbranch \(.headRefName)\npr-state \(.state)"' "$tmp/pr"
+# shellcheck disable=SC2310 # jq may be the one-command -b wrapper above; errexit inside it changes nothing
 [[ $(jq -r .state "$tmp/pr") == OPEN ]] || exit 11
 jq -r 'select(.mergeable == "CONFLICTING") | "mergeable CONFLICTING"' "$tmp/pr"
 jq -r .body "$tmp/pr" | tr -d '\r' | awk '

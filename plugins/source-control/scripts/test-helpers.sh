@@ -43,6 +43,16 @@ native_mktemp_dir() {
   if command -v cygpath >/dev/null 2>&1; then cygpath -m "$d"; else printf '%s' "$d"; fi
 }
 
+# physical_dir <existing-dir> — the spelling a script prints after it reads the
+# directory back from git and resolves it with `cd && pwd -P`. On Windows Git
+# Bash git returns the native C:/... form and `pwd -P` turns it into /c/...,
+# while mktemp handed the test /tmp/...; elsewhere it resolves symlinks only.
+physical_dir() {
+  local d="$1"
+  if command -v cygpath >/dev/null 2>&1; then d="$(cygpath -m "$d")"; fi
+  (cd "$d" && pwd -P)
+}
+
 # pass <label>
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
