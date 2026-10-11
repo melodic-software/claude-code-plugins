@@ -60,13 +60,13 @@ if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]
 fi
 
 # silent-skip-ok: no HOME means no resolvable contract path anywhere on this
-# host: nothing this hook could usefully write, and StopFailure gives the
-# hook no channel to report a failure through.
+# host: nothing this hook could usefully write, and by design this hook
+# reports no failure through any StopFailure output field.
 [[ -n "${HOME:-}" ]] || exit 0
 GUARD_DIR="$HOME/.claude/rate-limit-guard"
 EVENTS="$GUARD_DIR/stop-events.jsonl"
 # silent-skip-ok: an uncreatable contract dir cannot be surfaced from a
-# StopFailure hook (no channel reports a failure); the setup skill's
+# StopFailure hook (by design it reports no failure); the setup skill's
 # check probe is the visibility surface for a broken contract path.
 mkdir -p "$GUARD_DIR" 2>/dev/null || exit 0
 # Owner-only contract dir + owner-only files from here on (records, lock,
