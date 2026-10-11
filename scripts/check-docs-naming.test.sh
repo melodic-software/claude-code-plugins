@@ -181,8 +181,10 @@ fi
 #     those literals are normalized and nothing else is. The seeded tree covers
 #     the whole scope: docs/, markdown outside it, and the fixture, eval, and
 #     vendor trees. Every root and exemption the config declares, and every
-#     name in this gate's EXEMPT_NAMES, is seeded, so an entry added on one
-#     side only surfaces as a finding the other side lacks. The emitted gate
+#     name in this gate's EXEMPT_NAMES, is seeded, so an exempt name added on
+#     either side only, or a config entry the gate lacks, surfaces as a finding
+#     the other side lacks. A path exclusion or code extension added to this
+#     gate alone is caught only where a fixed seed below falls under it. The emitted gate
 #     folds case with `tr`, ASCII only, so no seed pairs two paths that differ
 #     only in a non-ASCII letter's case; case 17 covers that here.
 EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"

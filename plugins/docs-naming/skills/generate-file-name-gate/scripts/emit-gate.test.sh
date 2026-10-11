@@ -220,12 +220,49 @@ assert_contains "the summary counts each finding once" "$out" "5 offender(s)"
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
 assert_eq "the emitted suite passes under a root object" "0" "$?"
 
-for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}'; do
+# Under a root below the repository root, where git would match an exclude
+# glob against the wrong base: an exempt glob matching nothing exempts nothing,
+# and one that matches exempts only its own paths.
+for ex in '**/zzz/**' '**/fixtures/**'; do
+  root="$(new_fixture)"
+  jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
+    "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  nested="$TEST_TMPDIR/nested-$RANDOM"
+  mkdir -p "$nested/scripts" "$nested/tools/fixtures" "$nested/docs"
+  cp "$root/scripts/check-file-names.sh" "$nested/scripts/"
+  for f in docs/conforming-name.md tools/Notes_Here.md tools/fixtures/Kept_Name.md; do
+    printf 'x\n' >"$nested/$f"
+  done
+  git init -q "$nested"
+  git -C "$nested" add -A >/dev/null
+  out="$(bash "$nested/scripts/check-file-names.sh" --check 2>&1)"
+  assert_contains "a nested root still judges its offender ($ex)" "$out" "tools/Notes_Here.md: basename"
+  if [[ "$ex" == '**/zzz/**' ]]; then
+    assert_contains "an exempt glob matching nothing exempts nothing" "$out" "tools/fixtures/Kept_Name.md: basename"
+  else
+    assert_absent "a nested root's exempt glob exempts its path" "$out" "tools/fixtures/Kept_Name.md"
+  fi
+done
+
+for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}' '{"path": "../x"}' \
+  '{"path": ".", "exempt_paths": ["/abs/**"]}' '{"path": "docs", "exempt_paths": ["docs/../../x"]}'; do
   root="$(new_fixture)"
   jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
   mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
   emit "$root" >/dev/null
   assert_eq "a root the gate cannot carry is refused ($bad)" "2" "$?"
+done
+
+# A newline in the regex or rule would end the comment line it lands on and
+# run the rest as shell in the emitted checker.
+for filter in '.file_names.regex += "\ntouch PWNED #"' '.file_names.rule += "\ntouch PWNED #"'; do
+  root="$(new_fixture)"
+  jq "$filter" "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  assert_eq "a newline in the config is refused ($filter)" "2" "$?"
 done
 
 # --- --rule -------------------------------------------------------------------

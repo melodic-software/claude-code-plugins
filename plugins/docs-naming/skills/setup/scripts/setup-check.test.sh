@@ -112,6 +112,9 @@ assert_contains "a root object passes the shape check" "$out" "PASS  key shape"
 set_key "$root" roots '["docs",{"path":".","extensions":["m]d"]}]'
 out="$(check "$root")"
 assert_contains "a root extension outside letters and digits is refused" "$out" "FAIL  key shape"
+set_key "$root" roots '["docs",{"path":".","extensions":[5]}]'
+out="$(check "$root")"
+assert_contains "a non-string root extension is refused" "$out" "FAIL  key shape"
 
 # 6. An unknown tier form fails.
 root="$(new_repo)"

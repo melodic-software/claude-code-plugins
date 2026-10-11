@@ -153,16 +153,27 @@ fi
 
 # A root's own exempt_paths cover a path only when no root claims it without
 # exempting it: the judged set is the union of each root's claim minus its own
-# exemptions, and the root-exempt set is what the roots claim beyond that.
+# exemptions, and the root-exempt set is what the roots claim beyond that. The
+# exemptions are their own positive listing, never an `:(exclude)` pathspec
+# beside the root's: git matches an exclude glob against the wrong base once
+# the positive pathspecs share a directory prefix.
 JUDGED=""
 s=0
 while [[ "$s" -lt "$n_scopes" ]]; do
   spec=()
   while IFS= read -r one; do
     [[ -n "$one" ]] && spec+=("$one")
-  done < <(printf '%s' "$SCOPES" |
-    jq -r --argjson s "$s" '.[$s] | (.specs[]), (.exempt[] | ":(exclude,glob)" + .)' | tr -d '\r')
-  JUDGED="$JUDGED$(git -C "$ROOT" ls-files -- "${spec[@]}")
+  done < <(printf '%s' "$SCOPES" | jq -r --argjson s "$s" '.[$s].specs[]' | tr -d '\r')
+  exspec=()
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && exspec+=(":(glob)$one")
+  done < <(printf '%s' "$SCOPES" | jq -r --argjson s "$s" '.[$s].exempt[]' | tr -d '\r')
+  claimed="$(git -C "$ROOT" ls-files -- "${spec[@]}" | LC_ALL=C sort -u)"
+  if [[ "${#exspec[@]}" -gt 0 ]]; then
+    claimed="$(LC_ALL=C comm -23 <(printf '%s\n' "$claimed") \
+      <(git -C "$ROOT" ls-files -- "${exspec[@]}" | LC_ALL=C sort -u))"
+  fi
+  JUDGED="$JUDGED$claimed
 "
   s=$((s + 1))
 done

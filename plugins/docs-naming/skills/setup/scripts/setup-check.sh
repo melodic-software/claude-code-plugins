@@ -141,7 +141,7 @@ shape_errors="$(printf '%s' "$CONFIG" | jq -r '
              (type != "object"
               or (keys - ["path", "extensions", "exempt_paths"]) != []
               or (.path | type) != "string"
-              or ((.extensions // []) | type != "array" or any(.[]; type != "string" or test("^[A-Za-z0-9]+$") | not))
+              or ((.extensions // []) | type != "array" or any(.[]; type != "string" or (test("^[A-Za-z0-9]+$") | not)))
               or ((.exempt_paths // []) | type != "array" or any(.[]; type != "string"))))) | length) > 0
          then "roots must hold strings or {path, extensions, exempt_paths} objects, extensions of letters and digits" else empty end),
       (if ($f.rule | type) != "string" then "rule must be a string" else empty end),

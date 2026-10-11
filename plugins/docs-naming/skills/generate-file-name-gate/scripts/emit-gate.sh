@@ -137,6 +137,9 @@ REGEX="$(cfg '.file_names.regex')"
 RULE="$(cfg '.file_names.rule')"
 [[ -n "$REGEX" && "$REGEX" != "null" ]] || die "the configuration declares no file_names.regex"
 [[ -n "$RULE" && "$RULE" != "null" ]] || die "the configuration declares no file_names.rule"
+# Both land raw on `#` comment lines of the emitted checker, where a newline
+# would end the comment and run the rest as shell on every CI run.
+[[ "$REGEX$RULE" != *$'\n'* ]] || die "file_names.regex or file_names.rule carries a newline"
 
 # The regex is validated here as well as by `setup check`: emission is the last
 # point at which a rule that cannot compile is still a refusal rather than a
@@ -192,6 +195,11 @@ printf '%s' "$SCOPES" | jq -e 'all(.[]; all(.extensions[]; test("^[A-Za-z0-9]+$"
   die "a root's extensions may use letters and digits only"
 printf '%s' "$SCOPES" | jq -e 'all(.[]; ([.path, .exempt[]] | all(test("\n") | not)))' >/dev/null ||
   die "a root's path or exempt_paths entry carries a newline"
+# git ls-files dies on a pathspec outside the repository, and inside the
+# gate's process substitution that death is invisible to `set -e`: the gate
+# would judge nothing and report a clean tree.
+printf '%s' "$SCOPES" | jq -e 'all(.[]; ([.path, .exempt[]] | all(startswith("/") or test("(^|/)\\.\\.(/|$)") | not)))' >/dev/null ||
+  die "a root's path or exempt_paths entry leaves the repository (absolute or a .. segment)"
 
 # The suite seeds its cases under the first root that takes every extension,
 # else under the first root, with probe names cut to that root's extensions.
@@ -204,11 +212,11 @@ PRIMARY_EXTS=" $(printf '%s' "$PRIMARY_JSON" | jq -r '.extensions | map(ascii_do
 PRIMARY_ROOT="$(sq "$(printf '%s' "$PRIMARY_JSON" | jq -r '.path' | tr -d '\r')")"
 
 # One scope entry per git pathspec a root expands to, and beside each the root's
-# exempt_paths as one `:(exclude,glob)` pathspec per line. jq's @sh
+# exempt_paths as one `:(glob)` pathspec per line. jq's @sh
 # single-quotes each value the way `quoted` does.
 SCOPE_SPECS_ARRAY="$(printf '%s' "$SCOPES" | jq -r '[.[] | .specs[]] | @sh' | tr -d '\r')"
 SCOPE_EXEMPTS_ARRAY="$(printf '%s' "$SCOPES" |
-  jq -r '[.[] | . as $r | .specs[] | $r.exempt | map(":(exclude,glob)" + .) | join("\n")] | @sh' | tr -d '\r')"
+  jq -r '[.[] | . as $r | .specs[] | $r.exempt | map(":(glob)" + .) | join("\n")] | @sh' | tr -d '\r')"
 # A root with extensions or exemptions reads as `` `.` (`*.md` files, except
 # under `a`) `` in prose.
 ROOTS_HUMAN="$(printf '%s' "$SCOPES" | jq -r '.[] |
@@ -292,6 +300,12 @@ PROBE_BAD_ARRAY="$(
   die "no probe name this contract knows is rejected by file_names.regex, so the emitted suite could not prove the rule fires"
 
 # The rule file's `paths:` frontmatter, one glob per root.
+# The suite seeds an exempt extension only where the seeding root claims it;
+# elsewhere the case would pass whether or not the exemption works.
+EXEMPT_EXT_SEEDS_ARRAY="$(list '.file_names.exempt_extensions[]' | while IFS= read -r e; do
+  [[ -n "$e" ]] && in_primary_root "x.$e" && printf '%s\n' "$e"
+done | quoted)"
+
 RULE_PATHS="$(printf '%s' "$SCOPES" | jq -r '[.[].rule_paths[]] | join(", ")' | tr -d '\r')"
 
 # The templates carry `@@SHEBANG@@` rather than a literal `#!`. A tracked file
@@ -336,6 +350,7 @@ render() {
     GFG_EE_ARRAY="$EXEMPT_EXTENSIONS_ARRAY" \
     GFG_EE_HUMAN="$EXEMPT_EXTENSIONS_HUMAN" \
     GFG_EPS_ARRAY="$EXEMPT_PATH_SEEDS_ARRAY" \
+    GFG_EES_ARRAY="$EXEMPT_EXT_SEEDS_ARRAY" \
     GFG_RULE_PATHS="$RULE_PATHS" \
     GFG_SCRIPT_NAME="$SCRIPT_NAME" \
     GFG_TEST_NAME="$TEST_NAME" \
@@ -349,7 +364,7 @@ render() {
     awk '
     BEGIN {
       split("REGEX REGEX_SQ RULE RULE_SQ SCOPE_SPECS_ARRAY SCOPE_EXEMPTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
-            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY " \
+            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY EES_ARRAY " \
             "RULE_PATHS SCRIPT_NAME TEST_NAME SCRIPT_PATH SCRIPT_STEM ROOT_HOP " \
             "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY SHEBANG", names, " ")
       # The placeholder for each name, and the value straight out of the
@@ -363,6 +378,7 @@ render() {
       map["EP_ARRAY"] = "@@EXEMPT_PATHS_ARRAY@@";          map["EP_HUMAN"] = "@@EXEMPT_PATHS_HUMAN@@"
       map["EE_ARRAY"] = "@@EXEMPT_EXTENSIONS_ARRAY@@";     map["EE_HUMAN"] = "@@EXEMPT_EXTENSIONS_HUMAN@@"
       map["EPS_ARRAY"] = "@@EXEMPT_PATH_SEEDS_ARRAY@@";    map["RULE_PATHS"] = "@@RULE_PATHS@@"
+      map["EES_ARRAY"] = "@@EXEMPT_EXT_SEEDS_ARRAY@@"
       map["SCRIPT_NAME"] = "@@SCRIPT_NAME@@";              map["TEST_NAME"] = "@@TEST_NAME@@"
       map["SCRIPT_PATH"] = "@@SCRIPT_PATH@@";              map["SCRIPT_STEM"] = "@@SCRIPT_STEM@@"
       map["ROOT_HOP"] = "@@ROOT_HOP@@";                    map["PRIMARY_ROOT"] = "@@PRIMARY_ROOT@@"

@@ -64,7 +64,7 @@ NAME_RE='@@REGEX_SQ@@'
 RULE_NAME='@@RULE_SQ@@'
 ROOTS_PLAIN='@@ROOTS_PLAIN@@'
 # One git pathspec per scope entry, and at the same index that root's
-# exempt_paths as `:(exclude,glob)` pathspecs, one per line.
+# exempt_paths as `:(glob)` pathspecs, one per line.
 SCOPES=(@@SCOPE_SPECS_ARRAY@@)
 SCOPE_EXEMPTS=(@@SCOPE_EXEMPTS_ARRAY@@)
 EXEMPT_BASENAMES=(@@EXEMPT_BASENAMES_ARRAY@@)
@@ -72,34 +72,64 @@ EXEMPT_PATHS=(@@EXEMPT_PATHS_ARRAY@@)
 EXEMPT_EXTENSIONS=(@@EXEMPT_EXTENSIONS_ARRAY@@)
 offenders=()
 
-# Tracked paths under the roots, read once. NUL-delimited, so a path git would
-# otherwise C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw
-# bytes. The basename pass and the case-collision pass both walk this array.
-paths=()
+# Every tracked path, read once. NUL-delimited, so a path git would otherwise
+# C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw bytes.
+all=()
 while IFS= read -r -d '' path; do
-  paths+=("$path")
-done < <(git ls-files -z -- "${SCOPES[@]}")
+  all+=("$path")
+done < <(git ls-files -z)
 
-# judged[i] is set when some scope entry claims paths[i] without its root
-# exempting it. Each entry's own listing is a subsequence of `paths` in the
-# same index order, so one forward walk per entry marks it with no lookup table
-# (stock macOS Bash 3.2 has no associative arrays).
-judged=()
+# Each scope entry's listing, and its root's exempt listing, is a subsequence
+# of `all` in the same index order, so one forward walk marks it with no
+# lookup table (stock macOS Bash 3.2 has no associative arrays). The exempt
+# set is its own positive listing, never an `:(exclude)` pathspec beside the
+# root's: git matches an exclude glob against the wrong base once the positive
+# pathspecs share a directory prefix. ex[k] carries the stamp of the entry
+# whose root exempts all[k]; claimed[k] is set when any entry claims it, and
+# judged_all[k] when one claims it without its root exempting it.
+claimed=()
+judged_all=()
+ex=()
 s=0
 while ((s < ${#SCOPES[@]})); do
-  spec=("${SCOPES[$s]}")
+  stamp=$((s + 1))
+  exspec=()
   while IFS= read -r one; do
-    [[ -n "$one" ]] && spec+=("$one")
+    [[ -n "$one" ]] && exspec+=("$one")
   done <<<"${SCOPE_EXEMPTS[$s]}"
-  i=0
+  if ((${#exspec[@]} > 0)); then
+    k=0
+    while IFS= read -r -d '' one; do
+      while ((k < ${#all[@]})) && [[ "${all[$k]}" != "$one" ]]; do
+        k=$((k + 1))
+      done
+      ex[k]=$stamp
+      k=$((k + 1))
+    done < <(git ls-files -z -- "${exspec[@]}")
+  fi
+  k=0
   while IFS= read -r -d '' one; do
-    while ((i < ${#paths[@]})) && [[ "${paths[$i]}" != "$one" ]]; do
-      i=$((i + 1))
+    while ((k < ${#all[@]})) && [[ "${all[$k]}" != "$one" ]]; do
+      k=$((k + 1))
     done
-    judged[i]=1
-    i=$((i + 1))
-  done < <(git ls-files -z -- "${spec[@]}")
+    claimed[k]=1
+    [[ "${ex[k]:-}" == "$stamp" ]] || judged_all[k]=1
+    k=$((k + 1))
+  done < <(git ls-files -z -- "${SCOPES[$s]}")
   s=$((s + 1))
+done
+
+# The paths in scope, in index order, with judged[i] beside paths[i]. The
+# basename pass and the case-collision pass both walk this array.
+paths=()
+judged=()
+k=0
+while ((k < ${#all[@]})); do
+  if [[ -n "${claimed[k]:-}" ]]; then
+    paths+=("${all[$k]}")
+    judged+=("${judged_all[k]:-}")
+  fi
+  k=$((k + 1))
 done
 
 # One pass for the basename rule. Exemptions are checked in the order the
