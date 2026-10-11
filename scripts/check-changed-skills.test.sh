@@ -198,6 +198,25 @@ else
 fi
 rm -rf "$r"
 
+# --- no merge base: the ref is used as given, with a warning ----------------
+# Unrelated history (an orphan branch) has no merge base with the ref; the gate
+# warns and diffs against the ref itself rather than skipping the check.
+mk_repo r
+printf 'base\n' >"$r/README.md"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+git -C "$r" checkout -q --orphan unrelated
+add_skill "$r" p1 alpha
+commit_all "$r" "unrelated history" >/dev/null
+out="$(run "$r" "$b" 2>&1)"
+if grep -q "Warning: no merge base for $b and HEAD" <<<"$out" &&
+  grep -q "args=--require-evals alpha root=.* base=$b" "$r/checklog" 2>/dev/null; then
+  ok "no merge base warns and checks against the ref as given"
+else
+  fail "no merge base should warn and pass the ref through, got: $out log: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
 # --- an invalid base ref fails closed (env error) --------------------------
 mk_repo r
 add_skill "$r" p1 alpha
