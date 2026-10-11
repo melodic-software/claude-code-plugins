@@ -140,8 +140,9 @@ The gate passing is not the end of the parent's work:
 - **Re-surface `open_questions`.** The dispatched agent cannot call `AskUserQuestion`, so the
   payload is the only route those questions have to a human. The
   dated record for that harness behavior is
-  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
-  "Harness facts the dispatch design rests on".
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent),
+  "`AskUserQuestion` is removed from every non-fork subagent". As of 2026-10-11. Recheck trigger:
+  that record is re-dated, renamed or split.
 - **Dispatch the sibling verifier** against the `index=` path, with the criterion the payload's
   `verification_request` names: each claim's tier is warranted by the sources cited for it, and no
   `Inferred` was promoted. That verifier is a fresh context that has not seen the run, which is the

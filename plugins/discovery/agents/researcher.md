@@ -399,9 +399,9 @@ statement about the corpus ledger only, never about whether anything was written
 **Open questions come back as text.** As a dispatched agent you cannot call `AskUserQuestion`, so
 listing them in the payload is how they reach a human. The dated
 record for that harness behavior is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
-"Harness facts the dispatch design rests on". The parent
-re-surfaces them. Never resolve one silently by picking the option that lets the run finish.
+[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md#askuserquestion-is-removed-from-every-non-fork-subagent),
+"`AskUserQuestion` is removed from every non-fork subagent". As of 2026-10-11. Recheck trigger:
+that record is re-dated, renamed or split. The parent re-surfaces them. Never resolve one silently by picking the option that lets the run finish.
 
 ## You are already the fresh pair of eyes
 

@@ -451,8 +451,10 @@ a fork keeps, see
 
 *What we rely on.* A dispatched run cannot enter plan mode, so a read-only posture there is the
 agent's own instruction rather than a harness boundary. The section's one exception, for a
-subagent run in plan mode, does not apply to any agent here. *Pointer:* the same available-tools
-section. *As of:* 2026-10-11.
+subagent run in plan mode, does not apply to any agent here. *Pointer:* for the plan-mode tools a
+non-fork subagent loses and that exception, see
+[subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
+*As of:* 2026-10-11.
 
 ### The `Workflow` tool is absent from every non-fork subagent
 
