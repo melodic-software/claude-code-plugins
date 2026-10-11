@@ -17,6 +17,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:triage 42
 /work-items:decompose                  # break the topic's PLAN.md into tickets
 /work-items:ship                       # macro map over a spec container: status, shape, next step
+/work-items:ship run #300              # run the container's ready items under its shape (attended)
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
 /work-items:onboard-adapter gitea      # generate an adapter for an unbundled tracker
 ```
@@ -29,7 +30,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
 | `/work-items:triage` | Evaluate raw intake, issues and unsolicited PRs (a PR is an item with attached code), through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
-| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. Thin by design, mechanics stay with their owners. |
+| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters cover the majors. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows, inferring candidate items from the repo and interviewing per item, is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
