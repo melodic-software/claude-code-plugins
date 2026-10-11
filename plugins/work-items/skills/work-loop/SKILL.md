@@ -381,7 +381,7 @@ of every named label came from an actor with `write`, `maintain` or `admin`. Any
 closed for this cycle: a triage or read labeler, a label with no `labeled` event, a failed or empty
 timeline or permission read, an adapter without the operation (exit `6`), and a harness-denied
 call. A refused candidate is neither dispatched nor ratify-queued, the cycle changes none of its
-labels, and the run continues with the other candidates. The cycle report lists each refused row as
+labels, except the body-edit escalation below, and the run continues with the other candidates. The cycle report lists each refused row as
 `labeler refused: #<item> "<label>" applied by <actor> (<role or permission>)`, or, with no actor
 to name, `labeler check failed: #<item> (<reason>)`. A refusal is not progress and does not reset
 the no-progress streak. The contract for the operation is in
