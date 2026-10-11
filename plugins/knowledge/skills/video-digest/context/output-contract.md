@@ -56,27 +56,37 @@ once per process, and the new name wins when both are set.
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
 material at a differently-shaped path (for example `sources/<type>/<slug>/`) lands under
-`library_dir` as written, then re-lays out the closed slice with `relayout-slice.js`:
+`library_dir` as written, then re-lays out the slice with `relayout-slice.js`:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media]
 ```
 
-It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`),
-`frames/all/`, `frames/key/` beside the three frame logs in `frames/`, `media/<id>.<ext>`,
-`analysis/` (`RESEARCH.md`, `research/`, `recommendations/`), and a provenance `README.md` when
-the target has none. The script's header comment is the authoritative mapping. It rewrites each
-slice path the copied markdown names (links and backticked paths) through a path map, relative to
-the file's new location, then link-checks the target and exits 1 listing every slice-internal path
-that still does not resolve; paths under `plugins/`, `docs/`, `templates/` and `.claude/`,
-`AGENTS.md`, and paths that leave the target are not checked. Fix those by hand and re-run the
-script, which overwrites the copied files.
+The media, every extracted frame, the served caption tracks and the info JSON come from the temp
+session `watch.json` records, which `close` removes. To keep them, run in this order:
 
-It refuses a slice whose `run-state/watch.json` status is not `complete`. The media, every
-extracted frame, the served caption tracks and the info JSON come from the temp session that
-`watch.json` records, and it refuses a slice whose temp media is gone unless `--no-media` is
-passed, which re-lays out the slice files alone. `close` removes that temp session when it can,
-so after a normal close only `--no-media` runs.
+1. `evals/check-watch-outcomes.js "<slice-dir>"` passes.
+2. `watch/relayout-slice.js "<slice-dir>" "<target-dir>"`, with media.
+3. `watch/watch-state.js close "<slice-dir>"`.
+
+The script runs on a closed slice, or on an unclosed one whose outcome checks pass (it runs them
+itself and refuses when they fail). It refuses any slice whose temp media is gone unless
+`--no-media` is passed, which re-lays out the slice files alone; after a normal close that is the
+only way it runs.
+
+It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`
+and the companion sources brief), `frames/all/`, `frames/key/` beside the frame logs in
+`frames/`, `media/<id>.<ext>`, `analysis/` (`RESEARCH.md`, `research/`, `recommendations/`, the
+companion digest), and a provenance `README.md` when the target has none. The script's header
+comment is the authoritative mapping. Each slice path the copied markdown names (links and
+backticked paths) is rewritten through a path map relative to the file's new location, and one
+naming a pipeline file the layout does not keep (such as `run-state/watch.json`) becomes plain
+text saying it is not retained. It then link-checks the target and exits 1 listing every
+slice-internal path that still does not resolve. Not checked: paths under `plugins/`, `docs/`,
+`templates/` and `.claude/`, `AGENTS.md`, paths that leave the target, and backticked paths whose
+first segment is neither a top-level directory of the target nor an entry beside the naming file
+(paths into another repository). Fix what it lists by hand and re-run; it overwrites the copied
+files.
 
 ## Agent-written artifacts share the same root
 

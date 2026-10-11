@@ -1,20 +1,25 @@
 #!/usr/bin/env node
 /**
- * Copy a closed video-digest slice into a target directory in the
+ * Copy a finished video-digest slice into a target directory in the
  * knowledge-corpus layout, rewrite the slice-internal paths its markdown names,
- * then link-check the result.
+ * then link-check the result. A slice is finished when it is closed, or when
+ * it is not closed yet and its outcome checks pass (the pre-close run, while
+ * the temp session still holds the media).
  *
  * Target layout: `transcript/` (transcript text and the served caption tracks),
  * `metadata/` (trimmed info JSON, harvested links and repo analysis, deck
- * inventory), `frames/all/` (every extracted frame plus `frame-times.json`),
- * `frames/key/` (promoted key frames) beside the frame logs in `frames/`,
- * `media/<id>.<ext>`, `analysis/` (`RESEARCH.md`, `research/`,
- * `recommendations/`) and a provenance `README.md` when the target has none.
+ * inventory, companion sources), `frames/all/` (every extracted frame plus
+ * `frame-times.json`), `frames/key/` (promoted key frames) beside the frame
+ * logs in `frames/`, `media/<id>.<ext>`, `analysis/` (`RESEARCH.md`,
+ * `research/`, `recommendations/`, `companion-digest/`) and a provenance
+ * `README.md` when the target has none.
  *
  * Every reference is rewritten through a path map built from the copy plan:
  * a reference resolves first against the naming file's own directory, then
- * against the slice root, and is left alone when neither lands on a mapped
- * path. The link check then reports what still does not resolve.
+ * against the slice root. One landing on a copied path is rewritten relative
+ * to the file's new location; one landing on a slice file or directory the
+ * layout does not keep becomes plain text naming it as not retained; anything
+ * else is left alone. The link check then reports what still does not resolve.
  *
  * Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media]
  * Exit: 0 copied and every slice-internal path resolves; 1 refused or
@@ -28,6 +33,7 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { listWorkDirFiles, resolveMediaArtifacts } from "../acquisition/acquire.js";
+import { runCheckWatchOutcomes } from "../evals/check-watch-outcomes.js";
 import { LANES } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -61,29 +67,21 @@ const KEY_FRAME_LOGS = new Set([
   "key-frames-manifest.md",
   "visual-frames.md",
   "key-frame-quality-audit.md",
+  "frame-triage-log.md",
 ]);
 const SOURCE_METADATA = new Set([
   "harvested-links.json",
   "harvested-repo-analysis.json",
   "deck-inventory.md",
+  "companion-sources.md",
 ]);
 const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
-
-/** First path segments that name a slice or corpus-layout location. */
-const LAYOUT_SEGMENTS = new Set([
-  "transcript",
-  "metadata",
-  "frames",
-  "media",
-  "analysis",
-  "SLICE",
-  ...Object.values(LANES),
-]);
 
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$\s]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
 const MARKDOWN_LINK = /(\]\()(<[^>]+>|[^)\s]+)/g;
+const FULL_LINK = /!?\[([^\]\n]*)\]\((<[^>]+>|[^)\s]+)[^)\n]*\)/g;
 const BACKTICK_SPAN = /`([^`\s]+)`/g;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /\/|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)?(?:#.*)?$/;
@@ -100,6 +98,9 @@ export function corpusPathForSliceFile(sliceRel) {
   const name = rest.join("/");
   if (sliceRel === "RESEARCH.md") return "analysis/RESEARCH.md";
   if (lane === LANES.research || lane === LANES.recommendations) return `analysis/${sliceRel}`;
+  if (lane === LANES.source && rest[0] === "companion-digest" && rest.length > 1) {
+    return `analysis/${name}`;
+  }
   if (lane === LANES.source && rest.length === 1) {
     if (TRANSCRIPT_TEXT.test(name)) return `transcript/${name}`;
     if (SOURCE_METADATA.has(name)) return `metadata/${name}`;
@@ -158,7 +159,10 @@ function deriveDirectoryMap(fileMap) {
  * @property {Map<string, string>} dirs - slice-relative directory → target-relative directory
  * @property {Map<string, string>} tempFrames - temp frame file name → target-relative file
  * @property {string} sliceName - the slice directory's own name
+ * @property {Set<string>} sliceEntries - every slice-relative file and directory
  */
+
+/** @typedef {{ target: string, isDir: boolean } | { retired: string }} Lookup */
 
 /**
  * Split a reference into its path and the suffix to carry over unchanged
@@ -180,44 +184,66 @@ function splitReference(ref) {
 }
 
 /**
- * Target-relative location a reference names, or null when the path map does
- * not hold it.
+ * What a reference names: a copied path (its target), a slice file or
+ * directory the layout does not keep (`retired`), or null when it names
+ * neither.
  *
  * @param {string} refPath
  * @param {string} sourceFile - slice-relative path of the file naming it
  * @param {PathMap} map
- * @returns {{ target: string, isDir: boolean }|null}
+ * @returns {Lookup|null}
  */
 function lookUpReference(refPath, sourceFile, map) {
   const bare = refPath.replace(/\/+$/, "");
   if (!bare || URL_SCHEME.test(bare) || PLACEHOLDER.test(bare) || bare.startsWith("/")) {
     return null;
   }
-  const lookup = (/** @type {string} */ key) => {
-    if (map.files.has(key))
-      return { target: /** @type {string} */ (map.files.get(key)), isDir: false };
-    if (map.dirs.has(key))
-      return { target: /** @type {string} */ (map.dirs.get(key)), isDir: true };
+  const lookup = (/** @type {string|null} */ key) => {
+    if (key === null) return null;
+    const file = map.files.get(key);
+    if (file !== undefined) return { target: file, isDir: false };
+    const dir = map.dirs.get(key);
+    if (dir !== undefined) return { target: dir, isDir: true };
     return null;
   };
+  /** @type {(string|null)[]} */
+  let keys;
   // `SLICE/<path>` and `.work/<epic>/<slice>/<path>` name the slice root explicitly.
-  if (bare.startsWith("SLICE/")) return lookup(path.posix.normalize(bare.slice("SLICE/".length)));
   const marker = `/${map.sliceName}/`;
-  if (bare.includes(marker)) {
-    return lookup(path.posix.normalize(bare.slice(bare.indexOf(marker) + marker.length)));
+  if (bare.startsWith("SLICE/")) {
+    keys = [path.posix.normalize(bare.slice("SLICE/".length))];
+  } else if (bare.includes(marker)) {
+    keys = [path.posix.normalize(bare.slice(bare.indexOf(marker) + marker.length))];
+  } else {
+    keys = [
+      path.posix.normalize(path.posix.join(path.posix.dirname(sourceFile), bare)),
+      bare.startsWith(".") ? null : path.posix.normalize(bare),
+    ];
   }
-
-  const fromFile = path.posix.normalize(path.posix.join(path.posix.dirname(sourceFile), bare));
-  const fromRoot = bare.startsWith(".") ? null : path.posix.normalize(bare);
-  const found = lookup(fromFile) ?? (fromRoot === null ? null : lookup(fromRoot));
-  if (found) return found;
+  for (const key of keys) {
+    const found = lookup(key);
+    if (found) return found;
+  }
+  const retired = keys.find((key) => key !== null && map.sliceEntries.has(key));
+  if (retired) return { retired };
+  // An unknown file in a copied directory moves with the directory, so the
+  // link check flags it at its new location.
+  for (const key of bare.includes("/") ? keys : []) {
+    const dir = key === null ? undefined : map.dirs.get(path.posix.dirname(key));
+    if (dir !== undefined && key !== null) {
+      return { target: `${dir}/${path.posix.basename(key)}`, isDir: false };
+    }
+  }
   const frame = bare.includes("/") ? undefined : map.tempFrames.get(bare);
   return frame ? { target: frame, isDir: false } : null;
 }
 
+const NOT_RETAINED = "not retained in this copy";
+
 /**
  * Rewrite every markdown link and backticked path in `text` that names a
- * mapped slice path, relative to the file's target location.
+ * slice path: a copied one relative to the file's target location, one the
+ * layout does not keep as plain text naming it as not retained.
  *
  * @param {string} text
  * @param {string} sourceFile - slice-relative path of the file
@@ -227,10 +253,12 @@ function lookUpReference(refPath, sourceFile, map) {
  */
 export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
+  const unwrap = (/** @type {string} */ target) =>
+    target.startsWith("<") ? target.slice(1, -1) : target;
   const rewrite = (/** @type {string} */ ref) => {
     const { refPath, suffix } = splitReference(ref);
     const found = lookUpReference(refPath, sourceFile, map);
-    if (!found) return ref;
+    if (!found || "retired" in found) return ref;
     const relative = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
     const trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
     const next = `${relative}${trailing}${suffix}`;
@@ -238,30 +266,43 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     return next;
   };
   const rewritten = text
+    .replace(FULL_LINK, (match, label, target) => {
+      const found = lookUpReference(splitReference(unwrap(target)).refPath, sourceFile, map);
+      if (!found || !("retired" in found)) return match;
+      rewrites += 1;
+      return `${label} (${found.retired}, ${NOT_RETAINED})`;
+    })
     .replace(MARKDOWN_LINK, (_match, open, target) =>
-      target.startsWith("<")
-        ? `${open}<${rewrite(target.slice(1, -1))}>`
-        : `${open}${rewrite(target)}`,
+      target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
     )
-    .replace(BACKTICK_SPAN, (match, span) =>
-      PATH_LIKE.test(span) ? `\`${rewrite(span)}\`` : match,
-    );
+    .replace(BACKTICK_SPAN, (match, span) => {
+      if (!PATH_LIKE.test(span)) return match;
+      const found = lookUpReference(splitReference(span).refPath, sourceFile, map);
+      if (found && "retired" in found) {
+        rewrites += 1;
+        return `${found.retired} (${NOT_RETAINED})`;
+      }
+      return `\`${rewrite(span)}\``;
+    });
   return { text: rewritten, rewrites };
 }
 
 /**
- * True when a backticked span reads as a path into the slice: an explicit
- * `./` or `../` path, or one whose first segment is a layout directory or an
- * entry beside the naming file.
+ * True when a backticked span reads as a path into the slice: `SLICE/`, an
+ * explicit `./` or `../` path, or one whose first segment is a top-level
+ * entry of the re-laid-out slice or an entry beside the naming file. Any
+ * other path is one the path map did not know under no slice directory, a
+ * path into another repository.
  *
  * @param {string} refPath
  * @param {string} fileDir - absolute directory of the naming file
+ * @param {Set<string>} topLevel - top-level entries of the re-laid-out slice
  */
-function looksSliceInternal(refPath, fileDir) {
+function looksSliceInternal(refPath, fileDir, topLevel) {
   if (!refPath.includes("/")) return false;
-  if (refPath.startsWith("./") || refPath.startsWith("../")) return true;
+  if (/^(?:\.\.?|SLICE)\//.test(refPath)) return true;
   const first = refPath.split("/")[0];
-  return LAYOUT_SEGMENTS.has(first) || fs.existsSync(path.join(fileDir, first));
+  return topLevel.has(first) || fs.existsSync(path.join(fileDir, first));
 }
 
 /**
@@ -275,6 +316,7 @@ function looksSliceInternal(refPath, fileDir) {
  */
 export function checkLayoutLinks(rootDir) {
   const root = path.resolve(rootDir);
+  const topLevel = new Set(fs.existsSync(root) ? fs.readdirSync(root) : []);
   /** @type {{ file: string, ref: string }[]} */
   const unresolved = [];
   const markdown = listFiles(root).filter(
@@ -288,7 +330,7 @@ export function checkLayoutLinks(rootDir) {
       if (!refPath || URL_SCHEME.test(refPath) || PLACEHOLDER.test(refPath)) return;
       if (refPath.startsWith("/") || refPath.startsWith("~")) return;
       if (ALLOWED_MISS_PREFIXES.some((prefix) => refPath.startsWith(prefix))) return;
-      if (!isLink && !looksSliceInternal(refPath, fileDir)) return;
+      if (!isLink && !looksSliceInternal(refPath, fileDir, topLevel)) return;
       const resolved = path.resolve(fileDir, refPath);
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
@@ -343,7 +385,7 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
     "",
     `- Canonical origin: <${sourceUrl}>`,
     `- Video id: \`${videoId}\``,
-    `- Fetched${fetched} through \`/knowledge:video-digest\` and re-laid out from its closed slice.`,
+    `- Fetched${fetched} through \`/knowledge:video-digest\` and re-laid out from its finished slice.`,
     "",
     "## Contents",
     "",
@@ -361,10 +403,21 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
  */
 
 /**
- * @param {{ sliceDir: string, targetDir: string, noMedia?: boolean }} options
+ * @param {{
+ *   sliceDir: string,
+ *   targetDir: string,
+ *   noMedia?: boolean,
+ *   verifyOutcomes?: (sliceDir: string) => number,
+ * }} options - `verifyOutcomes` gates a slice that is not closed yet; it
+ *   returns 0 when the slice's outcome checks pass
  * @returns {Promise<RelayoutResult>}
  */
-export async function relayoutSlice({ sliceDir, targetDir, noMedia = false }) {
+export async function relayoutSlice({
+  sliceDir,
+  targetDir,
+  noMedia = false,
+  verifyOutcomes = (dir) => runCheckWatchOutcomes(dir),
+}) {
   const slice = path.resolve(sliceDir);
   const target = path.resolve(targetDir);
   const refuse = (/** @type {string} */ message) => {
@@ -378,8 +431,19 @@ export async function relayoutSlice({ sliceDir, targetDir, noMedia = false }) {
   } catch {
     return refuse(`no readable run-state/watch.json under ${slice}`);
   }
-  if (state.status !== "complete") {
-    return refuse(`slice status is "${state.status}", not "complete"; close the slice first`);
+  const outcomesPass = () => {
+    try {
+      return verifyOutcomes(slice) === 0;
+    } catch (error) {
+      writeStderr(`relayout: outcome checks threw: ${/** @type {Error} */ (error).message}`);
+      return false;
+    }
+  };
+  if (state.status !== "complete" && !outcomesPass()) {
+    return refuse(
+      `slice status is "${state.status}" and its outcome checks fail; ` +
+        "re-lay out a closed slice, or one whose check-watch-outcomes.js passes",
+    );
   }
 
   const temp = resolveTempSession(state.tempSession ?? {});
@@ -394,7 +458,13 @@ export async function relayoutSlice({ sliceDir, targetDir, noMedia = false }) {
 
   /** @type {{ from: string, to: string, sourceFile?: string }[]} */
   const plan = [];
-  for (const file of listFiles(slice)) {
+  const sliceFiles = listFiles(slice);
+  const sliceEntries = new Set(
+    sliceFiles.flatMap((file) =>
+      file.split("/").map((_part, index, parts) => parts.slice(0, index + 1).join("/")),
+    ),
+  );
+  for (const file of sliceFiles) {
     const to = corpusPathForSliceFile(file);
     if (to) plan.push({ from: path.join(slice, file), to, sourceFile: file });
   }
@@ -430,6 +500,7 @@ export async function relayoutSlice({ sliceDir, targetDir, noMedia = false }) {
     dirs: deriveDirectoryMap(files),
     tempFrames,
     sliceName: path.basename(slice),
+    sliceEntries,
   };
 
   let rewrites = 0;

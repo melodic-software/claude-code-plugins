@@ -89,7 +89,10 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
       "| `frames/title-slide.png` | `scene_0001.png` |\n\nTiers: [manifest](key-frames-manifest.md)\n",
     "key-frames/key-frames-manifest.md": "| title-slide.png |\n",
     "key-frames/key-frame-quality-audit.md": "| title-slide.png | yes |\n",
+    "key-frames/frame-triage-log.md": "| sheet_001 | promote |\n",
     "key-frames/selection.json": "{}",
+    "source/companion-sources.md": "Companion: [digest](companion-digest/README.md).\n",
+    "source/companion-digest/README.md": "Brief: `source/companion-sources.md`.\n",
     "research/claim-inventory.md": "Transcript: `source/transcript.txt`.\n",
     "research/findings/topic.md":
       "Quote at `SLICE/source/transcript.txt:3`; see [agenda](../claim-inventory.md#sessions).\n",
@@ -97,6 +100,8 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
       "Evidence: `source/transcript.txt` and ![slide](../key-frames/frames/title-slide.png).",
       "Detail: `research/findings/topic.md`, the hub [README](README.md), the [journey](../README.md).",
       "Target file: `plugins/knowledge/skills/video-digest/SKILL.md`.",
+      "Run state: `run-state/watch.json`, [selection](../key-frames/selection.json).",
+      "Upstream: `research/deepening/html-report.md:92` in mattpocock/skills.",
       "",
     ].join("\n"),
     "recommendations/README.md": "# Hub\n",
@@ -129,6 +134,9 @@ describe("relayoutSlice", () => {
       "frames/visual-frames.md",
       "frames/key-frames-manifest.md",
       "frames/key-frame-quality-audit.md",
+      "frames/frame-triage-log.md",
+      "metadata/companion-sources.md",
+      "analysis/companion-digest/README.md",
       `media/${VIDEO_ID}.mp4`,
       "analysis/RESEARCH.md",
       "analysis/research/claim-inventory.md",
@@ -163,8 +171,16 @@ describe("relayoutSlice", () => {
         "Evidence: `../../transcript/transcript.txt` and ![slide](../../frames/key/title-slide.png).",
         "Detail: `../research/findings/topic.md`, the hub [README](README.md), the [journey](../../README.md).",
         "Target file: `plugins/knowledge/skills/video-digest/SKILL.md`.",
+        "Run state: run-state/watch.json (not retained in this copy), selection (key-frames/selection.json, not retained in this copy).",
+        "Upstream: `research/deepening/html-report.md:92` in mattpocock/skills.",
         "",
       ].join("\n"),
+    );
+    expect(read(targetDir, "metadata/companion-sources.md")).toBe(
+      "Companion: [digest](../analysis/companion-digest/README.md).\n",
+    );
+    expect(read(targetDir, "analysis/companion-digest/README.md")).toBe(
+      "Brief: `../../metadata/companion-sources.md`.\n",
     );
     expect(read(targetDir, "frames/visual-frames.md")).toBe(
       "| `key/title-slide.png` | `all/scene_0001.png` |\n\nTiers: [manifest](key-frames-manifest.md)\n",
@@ -190,26 +206,62 @@ describe("relayoutSlice", () => {
     expect(read(targetDir, "README.md")).toBe("# Curated\n");
   });
 
-  it("fails the link check on a slice path the corpus layout does not keep", async () => {
+  it("fails the link check on a missing file under a slice directory", async () => {
     const { sliceDir, targetDir } = makeFixture({
-      extraFiles: { "recommendations/questions.md": "Plan: `key-frames/selection.json`.\n" },
+      extraFiles: { "recommendations/questions.md": "Slide: `key-frames/frames/deleted.png`.\n" },
     });
 
     const result = await relayoutSlice({ sliceDir, targetDir });
 
     expect(result.exitCode).toBe(1);
     expect(result.unresolved).toEqual([
-      { file: "analysis/recommendations/questions.md", ref: "key-frames/selection.json" },
+      { file: "analysis/recommendations/questions.md", ref: "../../frames/key/deleted.png" },
     ]);
   });
 
-  it("refuses a slice that is not closed", async () => {
+  it("re-lays out an unclosed slice, media included, when its outcome checks pass", async () => {
+    const { sliceDir, targetDir } = makeFixture({ status: "synthesizing" });
+    /** @type {string[]} */
+    const verified = [];
+
+    const result = await relayoutSlice({
+      sliceDir,
+      targetDir,
+      verifyOutcomes: (dir) => {
+        verified.push(dir);
+        return 0;
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(verified).toEqual([path.resolve(sliceDir)]);
+    expect(fs.existsSync(path.join(targetDir, `media/${VIDEO_ID}.mp4`))).toBe(true);
+  });
+
+  it("refuses an unclosed slice whose outcome checks fail", async () => {
+    const { sliceDir, targetDir } = makeFixture({ status: "synthesizing" });
+
+    const result = await relayoutSlice({ sliceDir, targetDir, verifyOutcomes: () => 1 });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses an unclosed slice that fails the real outcome checks", async () => {
     const { sliceDir, targetDir } = makeFixture({ status: "synthesizing" });
 
     const result = await relayoutSlice({ sliceDir, targetDir });
 
     expect(result.exitCode).toBe(1);
     expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("skips the outcome checks for a closed slice", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+
+    const result = await relayoutSlice({ sliceDir, targetDir, verifyOutcomes: () => 1 });
+
+    expect(result.exitCode).toBe(0);
   });
 
   it("refuses when the temp session's media is gone, unless --no-media", async () => {
