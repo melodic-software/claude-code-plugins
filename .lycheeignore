@@ -22,6 +22,7 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 
 # Publisher bot block: 403 to the runner and to a browser User-Agent; each DOI resolves in the Crossref API to the cited title (verified 2026-10-11).
 ^https://doi\.org/10\.1145/3133876$
+^https://doi\.org/10\.1145/2464157\.2464160$
 ^https://doi\.org/10\.1016/j\.intcom\.2010\.04\.004$
 ^https://journals\.sagepub\.com/doi/10\.1509/jmkg\.71\.3\.039$
 
