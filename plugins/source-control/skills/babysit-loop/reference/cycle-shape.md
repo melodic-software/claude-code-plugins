@@ -38,10 +38,13 @@ is.
    GitHub did not return, and the tests below fail closed on it.
    **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
    failure and 4 two reads whose lists disagreed (the queue kept moving), and both print
-   nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, change **no
-   counter** (`cycle`, `backoff_level`, `no_progress_streak` hold), and invoke no mechanic. Still
-   upsert the telemetry with a cycle report naming the snapshot failure and its stderr reason and a
-   fresh `heartbeat_at`, then schedule the next wakeup at the current backoff. The drain exit and
+   nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, hold
+   `cycle` and `backoff_level`, and invoke no mechanic. Count the cycle as one with no progress
+   and work in view (fail closed: the queue is unknown, not empty), so `no_progress_streak`
+   increments and a failure that never clears raises the step 6 stall escalation at the threshold,
+   naming the snapshot failure as the cause. Still upsert the telemetry with a cycle report naming
+   the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
+   wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a

@@ -148,6 +148,38 @@ run
 check "pre-prefixed body: exit 0" 0 "$?"
 check "pre-prefixed body: one sentinel" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
+# 13. An unsubstituted ${user_config.…} placeholder falls back to the hostname.
+cat >"$TMP/bin/hostname" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_HOST"
+STUB
+chmod +x "$TMP/bin/hostname"
+setup '[]'
+# shellcheck disable=SC2016 # the literal placeholder is the input under test
+INST='${user_config.lane_instance}' STUB_HOST='Melo_Lap.001' run
+check "placeholder instance: exit 0" 0 "$?"
+check "placeholder instance: hostname-derived marker" \
+  '<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@melo-lap-001 -->'$'\n'"$PAYLOAD" "$(body_of 101)"
+
+# 14. A hostname too long for an instance id: exit 3 before any gh call.
+setup '[]'
+# shellcheck disable=SC2016
+INST='${user_config.lane_instance}' STUB_HOST="$(printf 'h%.0s' {1..40})" run
+check "over-length hostname: exit 3" 3 "$?"
+check "over-length hostname: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 15. Under 16 payload bytes below the sentinel: exit 3 before any gh call.
+setup '[]' "$SENT"$'\n''short'
+run
+check "short body: exit 3" 3 "$?"
+check "short body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 16. gh not on PATH: exit 4.
+setup '[]'
+PATH=/nonexistent "$BASH" "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 \
+  --body-file "$STUB_DIR/body.txt" >/dev/null 2>&1
+check "gh missing: exit 4" 4 "$?"
+
 ((FAILED == 0)) || {
   echo "$FAILED of $N checks failed" >&2
   exit 1
