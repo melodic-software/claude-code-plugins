@@ -144,7 +144,7 @@ Auto-exclude archived/completed work notes and frozen records of past work (fini
 
 ## Special case: Memory entries
 
-Claude Code auto-memory entries (the directory SKILL.md "Auto-memory location" resolves) and `MEMORY.md` indices describe past renames as part of the user's institutional knowledge. They are intentionally append-only historical record.
+Claude Code auto-memory entries (the directory [SKILL.md "Auto-memory location"](../SKILL.md#auto-memory-location) resolves) and `MEMORY.md` indices describe past renames as part of the user's institutional knowledge. They are intentionally append-only historical record. As of: 2026-10-11. Recheck trigger: that record or the memory-docs section it points at changes what moves the directory.
 
 Auto-exclude all memory paths from sweeps. If user explicitly wants to rename within memory (rare), they must opt in: `/docs-hygiene:rename-references <old> to <new> --include-memory`.
 

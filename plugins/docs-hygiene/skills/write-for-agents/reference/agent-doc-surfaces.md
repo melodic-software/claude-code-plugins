@@ -24,7 +24,7 @@ pointers below the table when a write depends on one.
 | User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; we keep the two consistent rather than rely on either ranking above the other (see the user-rules pointer below) |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
 | `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
-| AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it from the sources record behind `/instruction-placement:migrate` rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
+| AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it at the same pointer rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
 | Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
@@ -47,7 +47,8 @@ Load-semantics facts that change how you write:
 - Block-level HTML comments in CLAUDE.md are stripped before injection, which makes them free
   maintainer notes.
 - MEMORY.md loads only its head, so put what must load first; keep CLAUDE.md short for adherence,
-  and treat the 200-line target as ours to grade with (see `/docs-hygiene:audit-progressive-disclosure`).
+  and treat the 200-line target as ours to grade with (the target's source is the CLAUDE.md size
+  pointer below; `/docs-hygiene:audit-progressive-disclosure` runs the grading).
 - These surfaces are context, not enforcement, so a rule that must be mechanically guaranteed
   belongs in a hook or permission policy, not prose.
 
@@ -59,12 +60,14 @@ Load-semantics facts that change how you write:
   <https://code.claude.com/docs/en/memory#import-additional-files> and
   <https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files> live; for user rules,
   <https://code.claude.com/docs/en/memory#user-level-rules>.
-- **Pointer** (AGENTS.md load conditions and the setting that changes them):
-  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
-  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
+- **Pointer** (AGENTS.md load conditions, the setting that changes them, and where support is
+  unavailable): <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>,
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load> and
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
 - **Pointer** (auto-memory location, head limit, CLAUDE.md size handling):
   <https://code.claude.com/docs/en/memory#storage-location> and
-  <https://code.claude.com/docs/en/memory#how-it-works>; subagent memory:
+  <https://code.claude.com/docs/en/memory#how-it-works>; CLAUDE.md size target:
+  <https://code.claude.com/docs/en/memory#write-effective-instructions>; subagent memory:
   <https://code.claude.com/docs/en/sub-agents#enable-persistent-memory>.
 - **Pointer** (what survives compaction):
   <https://code.claude.com/docs/en/context-window#what-survives-compaction>.
@@ -78,7 +81,8 @@ Load-semantics facts that change how you write:
 - **As of**: 2026-10-11
 - **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
   surface, or changes how rule scopes rank; the Project instructions setting is removed or its
-  values change; or the compaction section changes which surfaces survive `/compact`.
+  values change; the CLAUDE.md size target changes; the AGENTS.md unavailability section changes
+  where support is missing; or the compaction section changes which surfaces survive `/compact`.
 
 ### Load triggers
 
