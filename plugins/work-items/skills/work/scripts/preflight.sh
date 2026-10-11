@@ -9,8 +9,8 @@
 #       gh pr create, gh issue comment) is blocked by a matching deny rule, or
 #       is missing from the effective allow-list. Deny wins over allow.
 #   (c) the configured out-of-tree worktree root is not covered by any
-#       permissions.additionalDirectories entry, so acceptEdits prompts on
-#       every write into it.
+#       permissions.additionalDirectories entry, so every write into it
+#       prompts (reference/permission-preflight.md pointer record).
 #
 # REPORT-ONLY by design: the assistant cannot self-apply the
 # remediation: an agent cannot widen its own permissions.allow, and a
@@ -57,7 +57,7 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
                     The autonomous signal: unless a distinct --project-root is given,
                     coverage reads keep the MAIN checkout's settings.local.json (its
-                    rules apply in every worktree since Claude Code v2.1.211) and
+                    rules apply in every worktree) and
                     exclude only a linked-worktree cwd's own local file, which a
                     fresh worker would not inherit
   --project-root P  read project settings from P's checkout instead of the cwd's
@@ -505,7 +505,7 @@ PROBES
 # (c) worktree root not covered by additionalDirectories.
 if [[ -n "$worktree_root" ]]; then
   if ! dir_covered "$worktree_root"; then
-    emit_gap "(c) no permissions.additionalDirectories entry covers the worktree root '$worktree_root'; acceptEdits will prompt on every out-of-tree write. Add it operator-side. See reference/permission-preflight.md."
+    emit_gap "(c) no permissions.additionalDirectories entry covers the worktree root '$worktree_root'; every out-of-tree write will prompt. Add it operator-side. See reference/permission-preflight.md."
   fi
 else
   emit_note "(c) worktree root not provided (--worktree-root / PREFLIGHT_WORKTREE_ROOT unset) — additionalDirectories coverage not checked. Pass the lane's out-of-tree worktree root to verify it."
@@ -521,7 +521,7 @@ if [[ "$cov_local" == "no-local" ]]; then
   if [[ -n "$main_is_proj_base" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
   elif [[ "$main_state" == "verified" ]]; then
-    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', applies in every worktree since Claude Code v2.1.211) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', applies in every worktree) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
   else
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
   fi
@@ -538,7 +538,7 @@ fi
 # interactive one, which prints no header otherwise and would otherwise drop a
 # main-local deny in silence.
 if [[ "$main_state" == "unresolved" ]]; then
-  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Its rules apply in every worktree since Claude Code v2.1.211, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Its rules apply in every worktree, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
 fi
 
 if [[ "${#findings[@]}" -gt 0 ]]; then

@@ -335,7 +335,7 @@ wit_gh_annotate_blocker_reasons() {
 # wont_do_labels label, and closed blockers whose reason could not be read;
 # blocked_by_wont_do_count counts the won't-do ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
-# Older gh reads REST, which sandboxed sessions serve (README "View item"), and maps
+# Older gh reads REST, the path sandboxed sessions need (README "View item"), and maps
 # the REST shape onto the same fields; type comes from .type, and parent and
 # blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
