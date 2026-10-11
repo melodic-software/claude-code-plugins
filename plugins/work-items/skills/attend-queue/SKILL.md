@@ -289,6 +289,11 @@ user request" the hard-stop rule anticipates). This lane keeps no durable state,
 account is held in the session only: apply the **Account switch** bullet on each Monitor tick and
 when the operator returns, and report a resume or a re-latch in the next reply.
 
+`.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface. Its
+verification record is the recheck trigger in the `rate-limit-guard` reader contract
+(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
+provenance only).
+
 ## Spoke paths
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the
