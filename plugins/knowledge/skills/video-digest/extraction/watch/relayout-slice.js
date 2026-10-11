@@ -193,7 +193,8 @@ const HTML_ATTRIBUTE = /[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\
 const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?$/;
 
 /** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
-const HTML_START_TAG = /<([A-Za-z][A-Za-z0-9-]*)(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
+const HTML_START_TAG =
+  /<([A-Za-z][A-Za-z0-9-]*)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?>/g;
 /** An HTML comment. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 /** A CommonMark URI or email autolink: https://spec.commonmark.org/0.31.2/#autolinks */

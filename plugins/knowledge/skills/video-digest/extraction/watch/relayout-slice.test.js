@@ -2030,6 +2030,19 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     );
   });
 
+  it("does not treat an invalid HTML-looking wrapper as a tag around a real link", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": "<a [t](../source/transcript.txt)>\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "<a [t](../transcript/transcript.txt)>\n",
+    );
+  });
+
   it("rewrites and checks upper-case HTML attribute names", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "key-frames/visual-frames.md": '<IMG SRC="frames/title-slide.png">\n' },

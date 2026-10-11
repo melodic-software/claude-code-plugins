@@ -170,6 +170,22 @@ use C today
     expect(result.transcript).toBe("[0:01] these days we use C--.\n\n[0:05] use C today");
   });
 
+  it("drops an overlapping carry-over that differs only by curly quotes", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+she said
+
+00:00:03.000 --> 00:00:05.500
+“very good”.
+
+00:00:05.000 --> 00:00:07.000
+Very good question
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] she said “very good”.\n\n[0:05] question");
+  });
+
   it("keeps a three-word repeat the speaker said when no cue carries it over", () => {
     const autoVtt = `WEBVTT
 

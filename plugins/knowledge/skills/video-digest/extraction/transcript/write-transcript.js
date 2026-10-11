@@ -54,7 +54,8 @@ function comparableWord(word) {
  * Sentence punctuation (quotes, brackets, ellipses) at a word's ends. Hyphens
  * and dashes stay, so C-- and C never compare equal.
  */
-const EDGE_PUNCTUATION = /^[.,;:!?"()[\]{}\u2026]+|[.,;:!?"()[\]{}\u2026]+$/g;
+const EDGE_PUNCTUATION =
+  /^[.,;:!?"\u201c\u201d\u201e\u00ab\u00bb()[\]{}\u2026]+|[.,;:!?"\u201c\u201d\u201e\u00ab\u00bb()[\]{}\u2026]+$/g;
 
 /**
  * The lexical words of `text`: punctuation-only tokens such as `>>` are not
