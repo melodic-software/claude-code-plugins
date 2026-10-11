@@ -307,7 +307,8 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   recheck when its matcher values change).
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive, and only some events
   have an act to block.** Exit-2 stderr reaches Claude as an error message
-  ([hooks: exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2)), so it is not nothing;
+  ([hooks: exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), as of 2026-10-11;
+  recheck when that section stops feeding exit-2 stderr back to Claude), so it is not nothing;
   but it is a one-turn message, never a standing rule. Whether it also carries a *gate* is
   event-specific, and the sole authority on that is the hooks page's
   [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
@@ -389,7 +390,7 @@ its current behavior:
   hooks, with exemptions the settings reference names. Either one silences instruction text this
   session while leaving it on disk, and neither is readable from the tree
   ([hooks: disable or remove hooks](https://code.claude.com/docs/en/hooks#disable-or-remove-hooks);
-  [settings: what runs under allowManagedHooksOnly](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly)).
+  [settings reference: what runs under allowManagedHooksOnly](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly)).
 
 - **Pointer**: when resolving a session's liveness controls, fetch the section each bullet names
   live.

@@ -182,8 +182,15 @@ live. As of: 2026-10-11. Recheck trigger: that section or a release note changes
 does with `${CLAUDE_PLUGIN_DATA}`).
 
 Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
-"when set": that placeholder is substituted inline before this file reaches you, so the literal token
-is never visible and the condition is not yours to evaluate. Derive the key from a command you run.
+"when set": that placeholder is substituted in this skill's markdown before it reaches you, so the
+literal token is never visible and the condition is not yours to evaluate. Derive the key from a
+command you run.
+
+- **Pointer**: when deciding where a skill placeholder is substituted, fetch
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where or when `${CLAUDE_PROJECT_DIR}` is substituted.
 
 **Open the report with a three-line header**, so a file that does survive is self-describing rather
 than merely un-overwritten:

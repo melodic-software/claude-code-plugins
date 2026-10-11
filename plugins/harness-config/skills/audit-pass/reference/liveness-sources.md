@@ -53,7 +53,8 @@ So Phase 1 takes the sources it can hold:
 
   - **Pointer**: when wiring or reading the probe, fetch
     [hooks: InstructionsLoaded input](https://code.claude.com/docs/en/hooks#instructionsloaded-input)
-    live for the payload fields and the `load_reason` values.
+    live for the payload fields and the `load_reason` values. Basis beside it: first-party
+    measurement in this marketplace.
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section changes the event's payload fields or its `load_reason` set.
 

@@ -13,8 +13,9 @@ Run the `state-key.sh` command in `SKILL.md`'s Phase D, whose path is already re
 prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh`
 that `audit-prompting-postures` also uses. Use the result.
 
-Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": it is a skill
-substitution, so whether the literal token ever reaches you is not yours to evaluate.
+Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": in `SKILL.md` the placeholder is substituted before the body reaches you, and in this
+file, read with the Read tool, it arrives as literal text, so in neither place is the condition
+yours to evaluate. Derive the key from the command.
 
 - **Pointer**: when deciding how a skill placeholder reaches the body, fetch
   [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
