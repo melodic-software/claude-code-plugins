@@ -83,6 +83,55 @@ export function maskText(text: string, patterns: readonly RegExp[], mask: string
   return out
 }
 
+// The text around each match and the matches, as `text.split(re)` and `text.match(re)` give them:
+// `parts` has one more entry than `hidden`. Overlapping or touching matches join into one.
+export function splitMatches(text: string, patterns: readonly RegExp[]): { parts: string[]; hidden: string[] } {
+  const ranges: [number, number][] = []
+  for (const pattern of patterns) {
+    for (const m of text.matchAll(pattern)) {
+      if (m[0] !== '' && !isAllowed(m[0], m.index, text)) ranges.push([m.index, m.index + m[0].length])
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0])
+  const merged: [number, number][] = []
+  for (const [start, end] of ranges) {
+    const last = merged[merged.length - 1]
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end)
+    else merged.push([start, end])
+  }
+  const parts: string[] = []
+  let at = 0
+  for (const [start, end] of merged) {
+    parts.push(text.slice(at, start))
+    at = end
+  }
+  parts.push(text.slice(at))
+  return { parts, hidden: merged.map(([start, end]) => text.slice(start, end)) }
+}
+
+const FENCE = /^ {0,3}(```|~~~)/
+const BLANK = /^[ \t]*$/
+
+// Markdown blocks: runs of lines split at blank lines, a fenced block kept whole (to the end of the
+// text when it is not closed).
+export function blocks(text: string): string[] {
+  const out: string[] = []
+  let current: string[] = []
+  let fence: string | undefined
+  for (const line of text.split('\n')) {
+    const marker = FENCE.exec(line)?.[1]
+    if (fence === undefined && BLANK.test(line)) {
+      if (current.length > 0) out.push(current.join('\n'))
+      current = []
+      continue
+    }
+    if (marker !== undefined) fence = fence === undefined ? marker : fence === marker ? undefined : fence
+    current.push(line)
+  }
+  if (current.length > 0) out.push(current.join('\n'))
+  return out
+}
+
 const walk = (value: unknown, patterns: readonly RegExp[], mask: string, depth: number): unknown => {
   if (typeof value === 'string') return maskText(value, patterns, mask)
   // Past the depth limit a structure is replaced whole, so nothing in it draws unmasked.

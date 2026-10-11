@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { compilePatterns, distinct, maskProps, maskText } from './mask.ts'
+import { blocks, compilePatterns, distinct, maskProps, maskText, splitMatches } from './mask.ts'
 
 const M = '[hidden]'
 const { patterns } = compilePatterns([])
@@ -197,4 +197,30 @@ test('maskProps masks a value nested past its depth limit instead of passing it 
   for (let i = 0; i < 100; i++) deep = { next: deep }
   const out = maskProps({ deep }, ['deep'], patterns, M)
   expect(JSON.stringify(out)).not.toContain('kyle@example.com')
+})
+
+test('splitMatches returns the text around each match and the matches, as String.split and match do', () => {
+  expect(splitMatches('Write a@example.com or b@example.com today.', patterns)).toEqual({
+    parts: ['Write ', ' or ', ' today.'],
+    hidden: ['a@example.com', 'b@example.com'],
+  })
+})
+
+test('splitMatches leaves allowed addresses in the text and finds nothing in plain text', () => {
+  const text = 'From noreply@example.com, push to git@github.com:o/r'
+  expect(splitMatches(text, patterns)).toEqual({ parts: [text], hidden: [] })
+})
+
+test('splitMatches joins matches that overlap into one', () => {
+  const { patterns: extra } = compilePatterns(['kyle@example'])
+  expect(splitMatches('to kyle@example.com.', extra)).toEqual({ parts: ['to ', '.'], hidden: ['kyle@example.com'] })
+})
+
+test('blocks splits on blank lines and keeps a fenced block whole', () => {
+  const text = 'One\nstill one\n\n```\na\n\nb\n```\n\n  \nThree'
+  expect(blocks(text)).toEqual(['One\nstill one', '```\na\n\nb\n```', 'Three'])
+})
+
+test('blocks keeps an unclosed fence through the end of the text', () => {
+  expect(blocks('Intro\n\n~~~\nx\n\ny')).toEqual(['Intro', '~~~\nx\n\ny'])
 })
