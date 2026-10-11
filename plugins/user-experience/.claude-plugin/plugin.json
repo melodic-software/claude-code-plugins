@@ -1,6 +1,6 @@
 {
   "name": "user-experience",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Front door for user experience on the app being built, at any stage from idea to legacy: shape detects the app's stage and the project's own research, personas and analytics, then chains user research planning, synthesis, flows and IA, and evaluation, routing to the tools installed, with every deliverable labeled evidence-based, assumption-based or mixed.",
   "author": {
     "name": "Melodic Software",

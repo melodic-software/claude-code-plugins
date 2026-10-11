@@ -1,3 +1,4 @@
+# test-scope: plugins/speech/skills/*/SKILL.md plugins/speech/scripts/* plugins/speech/hooks/*.sh
 """pydeps.py: the hash-locked on-demand install (first install, no-op rerun, a failed install) and the run launcher.
 
 The lock is a local wheel that provides the numpy and onnxruntime modules, installed with pip's own PIP_NO_INDEX and

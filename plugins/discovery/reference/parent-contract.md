@@ -485,21 +485,25 @@ see
 for the depth limit, see
 [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 
-### `${CLAUDE_EFFORT}` is the loading context's level
+### `${CLAUDE_EFFORT}` in a preloaded skill is the session's level
 
-*What we rely on.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the
-skill. A skill or subagent frontmatter `effort` pin overrides the session level while that lane is
-active, so a skill preloaded into a pinned worker expands the pin, not the parent's session level.
+*What we rely on.* `${CLAUDE_EFFORT}` in a skill preloaded into a subagent expands to the session's
+effort level, not the subagent's own `effort` pin, even though the subagent runs at that pin. A
+spawn that passes `effort` was not observed, so what the placeholder expands to then is unknown.
 A body Read from disk is unsubstituted: the placeholder remains the literal characters.
 *Pointer:* for the placeholder, see
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
 for the pin, see
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
 [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+No docs page states which level a preloaded skill expands; our `/harness-ops:behavior-probes`
+case `subagent/preloaded-skill-placeholder-reflects-session-effort`,
+run on Claude Code 2.1.296, is the record. *As of:* 2026-10-10. *Recheck trigger:* that probe case
+fails, or a docs page starts stating which level a preloaded skill's placeholder expands.
 *Why the plugin cares.* `/discovery:research` scales source breadth by caller effort, and
 `discovery:researcher` is pinned `high` so reasoning does not degrade inside a session tuned down
-for cost. The worker's substituted value is therefore the pin. The parent writes
-`Source breadth:` from its own load so the table still follows the caller.
+for cost. The worker's substituted value is therefore the session's level, not the pin it runs
+at. The parent writes `Source breadth:` from its own load, so the table follows the caller either
+way.
 
 ### The built-in Explore agent cannot hold this plugin's contract
 
@@ -511,7 +515,7 @@ agent ID to resume. A caller passes it a thoroughness level (`quick`, `medium`, 
 for preloading and resume, see
 [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
 and [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
-*Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
+*Why the plugin cares.* Each denial removes one required piece of the dispatch contract, which
 is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
 artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
 token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
@@ -762,7 +766,7 @@ legs:
 - **Recheck trigger**: either section changes where plugin variables substitute or how long an
   `allowed-tools` grant lasts.
 
-So the honest statement is the one the rest of this plugin already makes about un-run checks:
+So the rule is the one the rest of this plugin already makes about un-run checks:
 
 > **A gate that could not run is a FAIL, never a skip.** If the invocation is denied, prompts and is
 > declined, or errors out, report that and halt exactly as on a non-zero exit. Do not substitute a

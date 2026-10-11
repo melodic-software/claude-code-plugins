@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json
 """Drift guard tests: census.py's aggregate and classifier, and the `census`/`drift` subcommands.
 
 Classifier cases build store records in memory; the CLI cases read the synthetic store
