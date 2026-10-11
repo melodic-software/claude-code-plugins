@@ -132,5 +132,5 @@ brief is scoped, day-to-day engineering work, and the phase verifier that checks
 - **Pointer:** the `medium` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.
