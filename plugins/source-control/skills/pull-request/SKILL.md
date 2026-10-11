@@ -2,18 +2,18 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|merge|status|full|fetch-logs] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|merge|status|full|fetch-logs] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>
+**Arguments.** `[prep|create|ready|monitor|comments|merge|status|full|fetch-logs|view|list] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+The read actions `view` and `list` skip this section. For every other action, collect these with
+**individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -5`
@@ -69,6 +69,8 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
+| `view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]` | Read only | One PR's facts as JSON, or its diff with `--diff`; no number reads the current branch's PR. See [reference/read.md](reference/read.md) |
+| `list [--head <branch>\|--head-match <ERE>] [--state open\|closed\|merged\|all] [--repo <owner/repo>]` | Read only | PRs as a JSON array, open by default |
 
 For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use
 the sibling skill `/source-control:babysit-prs`. It wraps this skill's per-PR review discipline
@@ -221,6 +223,12 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 **Composition with `monitor`:** `monitor` invokes this action internally on CI failure. Direct `fetch-logs` invocation is for ad-hoc post-mortem (e.g., reviewing a closed PR's CI failure, auditing a green run for warnings).
 
 **Implementation note:** the skill body delegates to the bundled `fetch-annotations.sh` and `fetch-failed-logs.sh` scripts. Those are private. Consumers MUST NOT cite script paths directly. Use this action.
+
+## Read a pull request (`view`, `list`)
+
+`view` and `list` are the read-only actions other skills call instead of a forge CLI. Read
+[reference/read.md](reference/read.md) when invoked with either, and only then: it owns the
+command, the output fields, and the exit codes.
 
 ---
 

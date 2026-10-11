@@ -48,15 +48,15 @@ below.
 
 Used by default, or alongside a bare `/code-review <target>` pass:
 
-1. `gh pr diff` for the change set (page it, since large PRs flood context)
+1. `/source-control:pull-request view <n> --diff` for the change set, invoked via the Skill tool when the `source-control` plugin is installed; otherwise the forge's own diff read (page it, since large PRs flood context)
 2. Apply the project's review criteria (or `<plugin-root>/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff
 3. When the repository runs its own CI review bot (e.g. the managed Code Review service) on PR open/sync, note that its coverage still arrives independently
 4. Lead the report with the findings you would block the merge for. Each gives the file and line, why it is wrong, and how to show it fails (the concrete input or command the CRITICAL test names). Lower tiers follow
 
 ## Prerequisites
 
-- A PR exists for the current branch (`gh pr list --head <branch>`)
-- `gh` CLI authenticated; PR diff accessible
+- A PR exists for the current branch (`/source-control:pull-request view` with no number returns it)
+- The forge is reachable from this session and the PR diff is readable
 
 ## When to use
 

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"sandbox-ok-7f3a\",\"is_error\":false}]}}",
+      "why": "marker printed as the whole tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"sandbox-ok-7f3a\\n\"}]}]}}",
+      "why": "text block with a trailing escaped newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"echo sandbox-ok-7f3a\"}}]}}",
+      "why": "the call alone, no result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"Exit code 1\\nbwrap: Can't create file at /tmp/x/home/cwd/.eval-artifacts: Read-only file system\",\"is_error\":true}]}}",
+      "why": "the sandbox refused the call"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":\"Run exactly one Bash call whose whole command is `echo sandbox-ok-7f3a`.\"}}",
+      "why": "the prompt text names the marker inside a longer string"
+    }
+  ]
+}
