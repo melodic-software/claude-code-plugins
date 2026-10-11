@@ -487,7 +487,7 @@ for dir in "${SHIM_DIRS[@]}"; do
   rc=0
   reply="$(cd "$cwd" && "$CLAUDE_BIN" -p \
     "Quote back, verbatim, every line of your project instructions that contains \"$probe\". If there are none, say NONE." \
-    --model haiku --tools "" </dev/null 2>/dev/null)" || rc=$?
+    --model sonnet --tools "" </dev/null 2>/dev/null)" || rc=$?
   if ((rc != 0)); then
     echo "  $dir: UNREACH, the CLI exited $rc"
     MISS=$((MISS + 1))
