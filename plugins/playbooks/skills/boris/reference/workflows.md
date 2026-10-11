@@ -47,7 +47,7 @@ Plan migration interactively; `/batch` fans work to parallel agents, each in its
 
 Uses: PR babysitting, Slack summaries, deploy monitoring, any repeating workflow.
 
-Learn more: https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-loop
+Learn more: https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval
 
 ## 32. Code Review: Agents Hunt for Bugs
 

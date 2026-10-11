@@ -12,7 +12,7 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > decision that would turn on any figure below, a new frontier-model release, or a suite version
 > bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
 > announcement for that release plus
-> [models overview](https://platform.claude.com/docs/en/models/overview#compare-models), and leave
+> [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison), and leave
 > these lines as history rather than restating a fresh snapshot here. Model specs and rates are
 > not recorded in this file at all; Section 94 points at the pages that own them.
 
@@ -88,7 +88,7 @@ Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *
 
 ## 92. fork: true Runs a Skill in Its Own Context Window (Experimental)
 
-Add `fork: true` to a skill's frontmatter so the skill runs in its own context window, then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
+Mark a skill to run in its own context window (the documented field is in the amendment below, not the tip's `fork: true`), then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
 
 > **Amended:** the `fork: true` key from this tip is not a documented frontmatter field. Use the
 > field the skills page documents for running a skill in its own subagent context instead.
@@ -115,7 +115,7 @@ Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](htt
 Specs and pricing are upstream-owned and not restated here.
 
 - **Pointer**: when a decision turns on this model's id, context window, output limit or
-  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models)
+  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#latest-models-comparison)
   live; for its rates, fetch [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)
   live.
 - **As of**: 2026-10-11

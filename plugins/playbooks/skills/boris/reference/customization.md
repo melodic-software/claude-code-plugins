@@ -153,6 +153,7 @@ Use `"env"` in `settings.json` to avoid wrapper scripts.
 
 - **Pointer**: for the current settings and environment variables, fetch
   [All settings](https://code.claude.com/docs/en/settings-reference#all-settings) and
-  [Environment variables](https://code.claude.com/docs/en/env-vars#environment-variables) live.
+  [Environment variables](https://code.claude.com/docs/en/env-vars) live (that page's list has no
+  section anchor).
 - **As of**: 2026-10-11
 - **Recheck trigger**: either page is renamed or moves its list to another section.

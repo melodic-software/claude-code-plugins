@@ -24,7 +24,7 @@ Source: https://x.com/trq212/status/2032632596572811575
 
 ## 35. Remote Control: Spawn New Sessions
 
-Run `claude remote-control` and spawn a new local session from the mobile app. Available on Max, Team, and Enterprise (v2.1.74+).
+Run `claude remote-control` and spawn a new local session from the mobile app. Which plans and versions it needs is in the amendment below.
 
 ```bash
 $ claude remote-control
@@ -116,8 +116,7 @@ Source: https://x.com/trq212/status/2032632602629386348
 Instead of approving every file write and bash command, or skipping permissions entirely, auto mode lets Claude decide on your behalf. Classifiers evaluate each action before it runs. Safe operations are auto-approved, risky ones still flagged.
 
 ```bash
-# Enable auto mode
-claude --enable-auto-mode
+# Start in auto mode: see the amendment below for the current flag.
 
 # Or cycle with shift+tab during a session:
 # plan mode → auto mode → normal mode
