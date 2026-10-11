@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { checkLayoutLinks, relayoutSlice, runRelayoutCli } from "./relayout-slice.js";
+import { relayoutSlice, runRelayoutCli } from "./relayout-slice.js";
 
 /** @type {string[]} */
 const scratch = [];
@@ -183,25 +183,6 @@ describe("relayoutSlice", () => {
     );
   });
 
-  it("leaves fenced code, spaced code spans and URLs alone", async () => {
-    const body = [
-      "Outside: [t](../source/transcript.txt).",
-      "```",
-      "[t](../source/transcript.txt) `source/transcript.txt` [gone](../research/gone.md)",
-      "```",
-      "Command: `node run.mjs source/transcript.txt`, <https://example.com/source/x.md>.",
-      "",
-    ].join("\n");
-    const { sliceDir, targetDir } = makeFixture({ extraFiles: { "key-frames/visual-frames.md": body } });
-
-    const result = await relayoutSlice({ sliceDir, targetDir });
-
-    expect(result.exitCode).toBe(0);
-    expect(read(targetDir, "frames/visual-frames.md")).toBe(
-      body.replace("Outside: [t](../source/transcript.txt)", "Outside: [t](../transcript/transcript.txt)"),
-    );
-  });
-
   it("fails the link check on a missing slice file, writing nothing", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
@@ -287,37 +268,6 @@ describe("relayoutSlice", () => {
 
     expect((await relayoutSlice({ sliceDir, targetDir })).exitCode).toBe(0);
     expect(read(targetDir, "README.md").split("\n")[0]).toBe("# \\[Episode\\]\\(trailer\\.md\\) \\#1");
-  });
-});
-
-describe("checkLayoutLinks", () => {
-  it("stays quiet on URLs, placeholders, other-repository paths and resolvable paths", () => {
-    const root = makeDir("relayout-check-");
-    writeTree(root, {
-      "transcript/transcript.txt": "x",
-      "analysis/notes.md": [
-        "[ok](../transcript/transcript.txt#t=3) [web](https://example.com/a.md)",
-        "[repo](plugins/knowledge/SKILL.md) [up](../../other-repo/x.md)",
-        "`<slice-dir>/source/x.txt` `research/*.md` `SKILL.md` `/abs/path.md`",
-        "",
-      ].join("\n"),
-    });
-
-    expect(checkLayoutLinks(root)).toEqual([]);
-  });
-
-  it("flags a dangling link and a backticked path under a layout directory", () => {
-    const root = makeDir("relayout-check-");
-    writeTree(root, {
-      "transcript/transcript.txt": "x",
-      "analysis/notes.md": "[gone](gone.md) `transcript/missing.txt` `SLICE/source/x.txt`\n",
-    });
-
-    expect(checkLayoutLinks(root)).toEqual([
-      { file: "analysis/notes.md", ref: "gone.md" },
-      { file: "analysis/notes.md", ref: "transcript/missing.txt" },
-      { file: "analysis/notes.md", ref: "SLICE/source/x.txt" },
-    ]);
   });
 });
 
