@@ -54,6 +54,41 @@
         }
       }
     },
+    "animation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Animation taste defaults read by /user-interface:write-animation, /user-interface:audit-animation and /user-interface:write-css. The project's own tokens beat every layer.",
+      "properties": {
+        "easing": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Easing curves as four cubic Bezier control points [x1, y1, x2, y2]; a skill maps them to the project stack's own form.",
+          "properties": {
+            "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering or leaving, and the default."},
+            "in_out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements already on screen moving or morphing."},
+            "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets."}
+          }
+        },
+        "duration_ms": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The longest duration each role allows, in milliseconds.",
+          "properties": {
+            "press": {"type": "integer", "minimum": 0, "description": "Press feedback."},
+            "small": {"type": "integer", "minimum": 0, "description": "Tooltips and small popovers."},
+            "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus and selects."},
+            "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers and sheets."}
+          }
+        },
+        "gesture": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "velocity_threshold": {"type": "number", "minimum": 0, "description": "Release speed in px/ms above which a small element's swipe dismisses it, whatever the distance."}
+          }
+        }
+      }
+    },
     "routing": {
       "type": "object",
       "additionalProperties": false,

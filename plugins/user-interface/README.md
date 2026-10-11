@@ -60,10 +60,15 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `css.important` | `avoid` | `avoid`, `utilities-only`, `allow` |
 | `css.layer` | `null` (the project's own layer order) | a cascade layer name |
 | `css.token_fallback` | `ask` | `ask`, `propose-token`, `literal` |
+| `animation.easing.out`, `.in_out`, `.drawer` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
+| `animation.duration_ms.press`, `.small`, `.medium`, `.large` | `160`, `200`, `250`, `500` | milliseconds |
+| `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its
-[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes.
+[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes. The
+`animation` keys are taste defaults that apply only where the project has no motion tokens of its
+own; write-css reads the curves and durations.
 `routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
 does not apply it yet: it routes from the bundled rows only.
 

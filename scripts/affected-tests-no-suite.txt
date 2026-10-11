@@ -129,8 +129,10 @@ plugins/context-guard/hooks/zone.ts
 .work/*
 
 # Repository top-level prose and licensing, already covered by *.md above; the
-# bare LICENSE file has no extension, so it needs its own line.
+# bare LICENSE files (the root one and a plugin's own notice) have no extension,
+# so they need their own lines.
 LICENSE
+plugins/*/LICENSE
 
 # Eval data: input the evals read, never code a suite runs, whatever its
 # extension (a fixture repository's .js and .py, a case's scaffold.sh).

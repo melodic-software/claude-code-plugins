@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": ".modal { transition: opacity 400ms var(--ease-out), scale 400ms var(--ease-out); }",
+      "why": "exactly the configured large duration"
+    },
+    {
+      "answer": ".backdrop { transition: opacity .35s ease-out; }",
+      "why": "0.35s"
+    },
+    {
+      "answer": ".modal { transition: opacity 300ms ease-out 500ms; }",
+      "why": "500ms is the delay, not the duration"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".modal { transition: opacity 500ms var(--ease-out), scale 500ms var(--ease-out); }",
+      "why": "500ms is the default large role, not the configured 400"
+    },
+    {
+      "answer": ".backdrop { transition: opacity 0.45s ease-out; }",
+      "why": "0.45s"
+    },
+    {
+      "answer": ".modal { transition: opacity 200ms ease-out, scale 450ms ease-out; }",
+      "why": "450ms on the second item"
+    },
+    {
+      "answer": ".modal { animation: zoom-in-2 1s ease-out; }",
+      "why": "1s after a digit in the animation name"
+    }
+  ]
+}

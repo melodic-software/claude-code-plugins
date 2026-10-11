@@ -9,8 +9,8 @@
       "why": "150ms longhand"
     },
     {
-      "answer": ".dropdown { transition: opacity 300ms ease-out; }",
-      "why": "exactly the limit"
+      "answer": ".dropdown { transition: opacity 250ms ease-out; }",
+      "why": "exactly the default medium role duration"
     },
     {
       "answer": ".tooltip { animation: fade .25s ease-out; }",
@@ -41,6 +41,14 @@
     {
       "answer": ".dropdown { transition-duration: 350ms; }",
       "why": "350ms"
+    },
+    {
+      "answer": ".dropdown { transition: opacity 300ms ease-out; }",
+      "why": "300ms passes the old flat cap but exceeds the default medium role"
+    },
+    {
+      "answer": ".tooltip { animation: fade .3s ease-out; }",
+      "why": "0.3s"
     },
     {
       "answer": ".dropdown { transition: opacity 200ms ease-out, translate 450ms ease-out; }",

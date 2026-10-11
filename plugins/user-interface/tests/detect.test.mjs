@@ -157,6 +157,15 @@ describe("--config", () => {
         layer: META,
         token_fallback: "literal",
       },
+      animation: {
+        easing: {
+          out: [0.23, 1, 0.32, 1],
+          in_out: [0.77, 0, 0.175, 1],
+          drawer: [0.32, 0.72, 0, 1],
+        },
+        duration_ms: { press: 160, small: 200, medium: 250, large: 400 },
+        gesture: { velocity_threshold: 0.11 },
+      },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -170,6 +179,14 @@ describe("--config", () => {
       "css.important": "team",
       "css.layer": "userConfig",
       "css.token_fallback": "local",
+      "animation.easing.out": "defaults",
+      "animation.easing.in_out": "defaults",
+      "animation.easing.drawer": "defaults",
+      "animation.duration_ms.press": "defaults",
+      "animation.duration_ms.small": "defaults",
+      "animation.duration_ms.medium": "defaults",
+      "animation.duration_ms.large": "team",
+      "animation.gesture.velocity_threshold": "defaults",
       routing: "team",
     });
   });
