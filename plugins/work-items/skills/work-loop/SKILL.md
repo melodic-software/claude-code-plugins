@@ -1,6 +1,6 @@
 ---
 description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
-argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
+argument-hint: "[<owner/repo>] [--drain|--standing] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
+Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain|--standing] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
 
 ## Shared tracker context
 
@@ -58,16 +58,15 @@ that does not exit, schedule the next one with `ScheduleWakeup`. Short delays un
 pressure, backing off toward the ceiling when idle. Pacing semantics, the seven-day `/loop` expiry,
 and cycle-budget behavior are owned by the convention (§4); on a budget or expiry hit, write a
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
-blocks on an interview (headless-config floor): take explicit or persisted config, else tier
-defaults, and log the assumption.
+blocks on an interview (headless-config floor) and never guesses its stop mode
+([reference/invocation-argv.md](reference/invocation-argv.md) "Headless launches").
 
 ## Invocation argument surface
 
 Argument grammar, validation, resolution order, and fail-closed rejections are owned by
 [reference/invocation-argv.md](reference/invocation-argv.md). Parse and validate `$ARGUMENTS` per
-that file before telemetry lookup or cycle work. Persist resolved `stop_mode`, `ordering`, `shard`,
-`scope`, and `lane_instance` in the durable state block every cycle so `/loop` relaunch can read
-them back from telemetry.
+that file before telemetry lookup or cycle work. Record the resolved values in the durable state
+block every cycle as a report; run config is never read back from it (that file says why).
 
 ## Telemetry and durable loop state
 
@@ -102,8 +101,8 @@ the source of truth for these counters):
 ```
 
 `stop_mode`, `ordering`, `shard` (`{"index":i,"count":n}` or `null`), and `scope` (label string or
-`null`) record the resolved invocation surface so a `/loop` relaunch can read them back from the
-telemetry comment; they are not re-derived from prose in the launch prompt.
+`null`) record the resolved invocation surface for the operator, output only: each cycle resolves
+them from its invocation line, never from this block or launch-prompt prose.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
@@ -220,7 +219,9 @@ the former default-on pause).
    captured id**, the exit condition tests their union and never re-reads the seam. Test the
    union, not the open ids alone: the two are one derivation apart on paper, but nothing here says
    the snapshot is one read, and an item created between two reads would otherwise be captured yet
-   never tested.
+   never tested. **A snapshot counts only when every read behind it is complete**: an errored,
+   truncated, or unparsable read aborts the cycle with no state change and never sets
+   `first_drain_complete`; a truncated one escalates at once ([reference/snapshot-reads.md](reference/snapshot-reads.md), read first).
    Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
    before any later step reads the snapshot. The drain exit is evaluated against this filtered
    snapshot. New automated intake arriving mid-cycle is **reported, never chased** (per the
@@ -460,7 +461,7 @@ citation. This lane's specifics:
   the cycles covered, and what sat unmoved in the snapshot. The at-most-one-open check matches on
   the exact title plus the seam's configured write identity as author, exactly like the
   `kind=ratify-c3` dedup. A stall item is ordinary human-gated backlog to the exit evaluation
-  (drain-terminal state), never lane infrastructure.
+  (drain-terminal state), never lane infrastructure. A truncated snapshot raises it at once.
 
 ## Exit condition
 
