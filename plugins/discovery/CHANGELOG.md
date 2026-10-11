@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.33.1] - 2026-10-11
+
+### Fixed
+
+- Correct the 0.4.0 entry's link to the retired topic-docs convention: it now points at the convention's last committed version, since the file was removed from `main`.
+
 ## [0.33.0] - 2026-10-11
 
 ### Added
