@@ -36,9 +36,9 @@
 #     same reason: it is the value the event itself carries.
 #
 # There is NO stand-down channel. Both failure shapes fail the creation:
-#   * a non-zero exit — "Any non-zero exit code causes worktree creation to fail";
-#   * exit 0 with no path — "Hook failure or missing path fails creation", which
-#     the harness reports as "hook succeeded but returned no worktree path".
+#   * a non-zero exit (hooks page, sections named in the stamp below);
+#   * exit 0 with no path, which the harness reports as "hook succeeded but
+#     returned no worktree path" (probe).
 # So a WorktreeCreate hook cannot say "not applicable, use your own default". The
 # only way this hook can decline is to fail the creation, which is why the
 # disabled path below exits NON-ZERO rather than exiting 0 silently.
@@ -72,8 +72,8 @@
 # Claim: the four harness behaviors above — last-non-empty-line path read, hook
 #   must create the directory, both failure shapes fail creation, and the
 #   exit-0-stderr/non-zero-stderr channel split.
-# Basis: <https://code.claude.com/docs/en/hooks> raw markdown (`hooks.md`,
-#   "WorktreeCreate output" and the exit-code tables), plus a four-arm probe of
+# Basis: <https://code.claude.com/docs/en/hooks#worktreecreate-output> and
+#   <https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event>, plus a four-arm probe of
 #   `claude -p --worktree <name> --settings <file>` in throwaway repos — control
 #   (no hook), exit-0-no-path, exit-3-with-stderr, and path-without-directory.
 #   The probe is recorded in `skills/worktree/fixtures/README.md`.
@@ -207,7 +207,10 @@ fi
 # The plugin option is read from the environment rather than substituting
 # `${user_config.worktree_root}` into a command: a value substituted into a shell
 # field would be executed by the shell, which is why Claude Code rejects that
-# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead. It rides the
+# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead
+# (pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell>;
+# as-of 2026-10-11; recheck when that section stops rejecting the token in
+# shell-form hook commands). It rides the
 # helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
 # the helper reads from the target repository (includes on) — most specific
 # first, per reference/worktree-root-convention.md (#2610/#2612).

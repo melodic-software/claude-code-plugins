@@ -947,11 +947,14 @@ fetched_recently() {
 
 # refresh_remote_branch <repo-toplevel> <remote> <branch> — bring
 # refs/remotes/<remote>/<branch> current before `fresh` bases on it, mirroring
-# Claude Code's native `fresh` (v2.1.208+): when the repository has not been
-# fetched in the last 24 hours, fetch the default branch, capped at five
-# seconds, and keep the cached ref if the fetch fails. Verified 2026-09-28
-# against https://code.claude.com/docs/en/worktrees ("For a "fresh" base,
-# Claude Code keeps origin/HEAD current"); recheck when that paragraph changes.
+# Claude Code's native `fresh`: when the repository has not been fetched inside
+# the freshness window, fetch the default branch under the cap, and keep the
+# cached ref if the fetch fails. The window and cap above are our mirror of the
+# native values.
+#   Pointer: <https://code.claude.com/docs/en/worktrees#choose-the-base-branch>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section changes how a "fresh" base refreshes the
+#   remote default branch, or the window or cap it names.
 # Returns 0 when no fetch was needed or it succeeded, 1 when it failed or hit
 # the cap. Prompts are disabled so a credential helper cannot stall the cap
 # waiting on input nobody will type.
@@ -972,7 +975,7 @@ fresh)
   # it), refreshing that branch first when the last fetch is over 24 hours old
   # (refresh_remote_branch). When the symref is not cached locally, fall back to local HEAD
   # (matching Claude Code's documented behavior, which is itself origin-centric:
-  # https://code.claude.com/docs/en/worktrees) but warn loudly: "fresh"
+  # https://code.claude.com/docs/en/worktrees#choose-the-base-branch) but warn loudly: "fresh"
   # promises the remote default branch, so a silent fall-through to HEAD could
   # carry unpushed local commits the caller did not want.
   #
@@ -1056,7 +1059,12 @@ fi
 # the include patterns; `check-ignore -q` filters that down to the ones the
 # real .gitignore also ignores (the documented intersection). NUL-delimited
 # (`-z` / `read -d ''`) so paths with spaces, newlines, or quote-triggering
-# characters are not dropped or mangled.
+# characters are not dropped or mangled. The native copy also has a rule for
+# `**/` patterns inside a wholly ignored directory that this reimplementation
+# does not mirror.
+#   Pointer: <https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section changes which files the native copy selects.
 include_file="$toplevel/.worktreeinclude"
 copied=0
 copy_failed=0
