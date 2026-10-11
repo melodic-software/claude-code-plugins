@@ -1574,7 +1574,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
     return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
   }
+  function staleNow(){ const qs = S.doc.questions; return {stale: qs.filter(isStale).map(q => q.id), up: qs.filter(q => q.state === "upstream-pending").map(q => q.id)}; }
+  function depthOf(id, memo, path = []){ // the longest prerequisite chain above id
+    if (!Q[id] || path.includes(id)) return 0;
+    if (memo[id] == null) memo[id] = 1 + Math.max(0, ...(Q[id].dependsOn || []).map(p => depthOf(p, memo, [...path, id])));
+    return memo[id];
+  }
   function nextNeeding(dir){ // next (1) or previous (-1) item needing you, in rail order
+    S.staleQ = (S.staleQ || []).filter(id => id !== S.sel && Q[id] && isStale(Q[id]) && passes(Q[id])); // a save's newly stale dependents come first
+    if (dir > 0 && S.staleQ.length) return S.staleQ[0];
     const order = railOrder(true), len = order.length, i = order.indexOf(S.sel);
     for (let k = 1; k <= len; k++) { const id = order[(((i < 0 && dir < 0 ? len : i) + dir * k) % len + len) % len]; if (id !== S.sel && needsYou(Q[id]) && passes(Q[id])) return id; }
     return null;
@@ -1713,7 +1721,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
-    const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
+    const snap = S.snap[q.id] || snapOf(q), typed = $("note").value, was = staleNow();
     S.busy = true; toast("Saving.");  renderAnswer();
     try {
       const body = {id: q.id, kind, alt: alt || null, text};
@@ -1737,12 +1745,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.armed = null;
       if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer."); fillNote(); renderAll(); return; }
       offerUndo(data.seq, q.id, typed);
+      const now = staleNow(), fresh = now.stale.filter(id => !was.stale.includes(id)), more = now.up.filter(id => !was.up.includes(id)).length;
+      const dm = {}; fresh.sort((a, b) => depthOf(a, dm) - depthOf(b, dm) || byIdCmp(Q[a], Q[b])); // dependency order
+      const sm = fresh.length ? " " + (fresh.length > 1 ? fresh.slice(0, -1).join(", ") + " and " + fresh[fresh.length - 1] + " need" : fresh[0] + " needs") + " review" + (more ? "; " + more + " more wait on " + (fresh.length > 1 ? "them" : "it") : "") + "." : "";
       if (held || noted) { // stays on the question: the answer waits on research, or Claude answers the note
-        toast(held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread." + queued(), false, true);
+        toast((held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.") + sm + (held ? "" : queued()), false, true);
         fillNote(); renderAll(); return;
       }
+      if (fresh.length && !typing) { // go to the first dependent this save made stale, where the filter shows it
+        S.staleQ = fresh.slice(1);
+        if (!passes(Q[fresh[0]])) { S.filter = "review"; lsSet("filter", S.filter); }
+        select(fresh[0], {animate: true}); toast("Saved " + q.id + "." + sm + " Now " + fresh[0] + "." + queued(), false, true); return;
+      }
       const nxt = nextNeeding(1), done = allDone();
-      const msg = "Saved " + q.id + "." + queued();
+      const msg = "Saved " + q.id + "." + sm + queued();
       if (typing) { toast(msg + (nxt && nxt !== q.id ? " Next open: " + nxt + (setting("shortcuts") ? " (Esc, then n)." : ".") : done ? " All answered." : ""), false, true); fillNote(); renderAll(); return; }
       if (nxt && nxt !== q.id) { select(nxt, {animate: true}); toast(msg + " Now " + nxt + ".", false, true); }
       else if (done) { select(SUMMARY, {animate: true}); toast(msg + " All answered.", false, true); }

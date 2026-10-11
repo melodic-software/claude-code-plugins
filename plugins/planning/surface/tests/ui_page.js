@@ -61,6 +61,41 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q1");
     ok("a further revision brings the full banner back on the next open", /Recommendation revised\./.test(await text("#dscroll .banner")) && !(await page.$("#dscroll .revchip")), await text("#dscroll .banner"));
   }
+  if (PHASE === 4) { // Q7 is answered before its prerequisites, then the page changes Q2 under Show: Open
+    const sel = () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || null);
+    const first = () => page.$eval("#choices .choice", el => el.textContent).catch(() => "");
+    for (const id of ["Q7", "Q3", "Q5", "Q4", "Q6"]) await post({id, kind: "accept", alt: null, text: ""});
+    await page.waitForTimeout(900);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q7");
+    const b7 = await text("#dscroll .banner");
+    ok("#5908: prerequisites first decided after this answer read 'was decided after you answered this'", /Stale: Q3Image was decided after you answered this; Q4Cache was decided after you answered this/.test(b7) && !/changed/.test(b7), b7);
+    ok("#5908: the meter shows 1 to review and leaves the stale question out of answered", (await text("#revBtn")) === "1 to review" && (await text("#meterText")) === "5 of 8 answered", await text("#meterText") + " / " + await text("#revBtn"));
+    await pick("Q2"); await page.selectOption("#filter", "open"); await page.waitForTimeout(150);
+    await page.click('#choices .choice:has-text("A self-hosted runner")'); await page.click("[data-save]"); await page.waitForTimeout(1200);
+    const toastT = await text("#toast");
+    ok("#5909: the save lands on the first newly stale dependent and switches Show: Open to Review", await sel() === "Q3" && await page.$eval("#filter", el => el.value) === "review", await sel() + " / " + await page.$eval("#filter", el => el.value));
+    ok("#5909: the toast names the newly stale questions and counts what waits on them", /^Saved Q2\. Q3 and Q5 need review; 2 more wait on them\. Now Q3\./.test(toastT), toastT);
+    const b3 = await text("#dscroll .banner");
+    ok("#5908: a prerequisite whose earlier decision was replaced reads 'changed'", /Stale: Q2Runner changed\. Your decision is kept/.test(b3), b3);
+    ok("#5908: the meter now shows 3 to review and 3 of 8 answered", (await text("#revBtn")) === "3 to review" && (await text("#meterText")) === "3 of 8 answered", await text("#meterText") + " / " + await text("#revBtn"));
+    await page.click("#qhead"); await page.keyboard.press("n"); await page.waitForTimeout(250);
+    ok("#5909: n goes to the other newly stale dependent next", await sel() === "Q5", await sel());
+    ok("#5910: a kept accept whose recommendation is unchanged still offers Reconfirm first", /^Reconfirm/.test((await first()).trim()), await first());
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    ok("#5922: a question two levels below the stale one waits on it, not on its direct prerequisite", /Waiting on Q3(?!,)/.test(await text('.qbtn[data-q="Q6"]')), await text('.qbtn[data-q="Q6"]'));
+    await page.click("#revBtn"); await page.waitForTimeout(150);
+    ok("#5908: the meter's review count opens Show: Review", await page.$eval("#filter", el => el.value) === "review");
+  }
+  if (PHASE === 5) { // the shell revised Q3's recommendation after its kept accept
+    await page.waitForTimeout(600);
+    await pick("Q3");
+    const cs = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
+    ok("#5910: no Reconfirm once the recommendation changed since the accept; Rec shows the revised text", !cs.some(t => /Reconfirm/.test(t)) && /pinned by digest/.test(await text("#choices .choice.rec")), JSON.stringify(cs));
+    ok("#5910: the banner says Pick an answer and Previous keeps the old recommendation", /Pick an answer\./.test(await text("#dscroll .banner")) && /The default image\./.test(await text("#dscroll")), await text("#dscroll .banner"));
+    await page.click("#qhead"); await page.keyboard.press("a"); await page.waitForTimeout(150);
+    ok("#5910: a arms Rec", /pinned by digest/.test(await text("#choices .choice.armed")), await text("#choices .choice.armed"));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");
