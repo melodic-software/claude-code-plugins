@@ -113,6 +113,25 @@ async page => { // the question page itself: choices, chips, banners, header and
     const th = await text("#thread");
     ok("#5817: after a follow-up ask and a reload the reply is still in the Thread, after the ask it answers", REPLY.test(th) && th.indexOf("And who reads them after that") < th.search(REPLY) && th.search(REPLY) < th.indexOf("Who reads the notes first"), th);
   }
+  if (PHASE === 8) { // #5913: a long note or an open conflict box leaves the question body its share of the pane
+    await page.setViewportSize({width: 1280, height: 800}); await page.waitForTimeout(250);
+    await pick("Q2");
+    const body = () => page.evaluate(() => {
+      const d = document.querySelector("main.detail").getBoundingClientRect(), s = document.getElementById("dscroll"), b = s.getBoundingClientRect(), r = s.querySelector(".recbox"), rr = r && r.getBoundingClientRect();
+      return {share: +(b.height / d.height).toFixed(2), top: s.scrollTop, rec: !!rr && rr.top >= b.top && rr.top + 20 <= b.bottom};
+    });
+    const short = await body();
+    await page.fill("#note", Array.from({length: 600}, (_, i) => "word" + i).join(" ")); await page.waitForTimeout(250);
+    const long = await body();
+    ok("a 600-word note leaves the question body at least 45% of the pane with the recommendation in view", long.share >= 0.44 && long.top === 0 && long.rec, JSON.stringify({short, long}));
+    ok("the answer panel scrolls inside its limit and Save is reachable in it", await page.evaluate(() => { const a = document.getElementById("answer"); return a.scrollHeight >= a.clientHeight && !!a.querySelector("[data-save]"); }));
+    await page.evaluate(() => { const c = document.getElementById("conflict"); c.hidden = false; c.innerHTML = "<p>" + "The question changed while you answered. ".repeat(60) + "</p>"; });
+    const conf = await body();
+    ok("an open conflict box leaves the question body the same minimum", conf.share >= 0.44 && conf.rec, JSON.stringify(conf));
+    await page.fill("#note", ""); await page.evaluate(() => { document.getElementById("conflict").hidden = true; }); await page.waitForTimeout(150);
+    const back = await body();
+    ok("with a short note and no conflict the body keeps the space it had", Math.abs(back.share - short.share) <= 0.02, JSON.stringify({short, back}));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

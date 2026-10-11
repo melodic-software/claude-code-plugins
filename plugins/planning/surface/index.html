@@ -175,7 +175,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .chip.aside{color:var(--muted);background:none;border:0;padding-inline:0;font-style:italic;cursor:default}
 .chip.aside::before{display:none}
 
-main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;min-width:0;overflow:hidden}
+main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:grid;grid-template-rows:minmax(45%,1fr) minmax(0,auto);min-height:0;min-width:0;overflow:hidden}
 .dscroll{overflow-y:auto;overscroll-behavior:contain;padding:18px var(--pad) 22px;display:grid;align-content:start;gap:16px;overflow-wrap:anywhere}
 .dscroll.enter{animation:enter .22s ease-out}
 @keyframes enter{from{opacity:0;transform:translateY(8px)}}
@@ -242,7 +242,7 @@ ol.hist li.undone .hb{text-decoration:line-through;color:var(--faint)}
 .rcpt span.no{color:var(--chg)}
 .empty{color:var(--faint);font-size:14px}
 
-section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:grid;gap:8px;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
+section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:grid;gap:8px;min-height:0;overflow-y:auto;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
 section.answer[hidden]{display:none}
 .cur{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;min-height:22px}
 .cur q{color:var(--muted)}
@@ -1184,7 +1184,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel]; if (!q) return;
     lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note")); renderAnswer(); $("note").focus();
   }
-  function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
+  function grow(ta){ // capped inside the answer panel, which keeps the question body at least 45% of the pane
+    const d = ta.closest("main.detail"), cap = Math.min(window.innerHeight * 0.4, d && innerWidth > 820 ? Math.max(64, d.clientHeight * 0.3) : Infinity);
+    ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, cap) + "px";
+  }
 
   // ---------- conflict (409) ----------
   function snapOf(q){ return {rev: crev(q), title: q.title, recommendation: q.recommendation || "", alternatives: (q.alternatives || []).map(a => "(" + a.key + ") " + a.text).join("\n")}; }

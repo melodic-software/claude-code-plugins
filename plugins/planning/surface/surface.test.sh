@@ -367,7 +367,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$g" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
   bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
   gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
-  gphases=7
+  gphases=8
   for n in $(seq 1 "$gphases"); do
     sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
   done
@@ -385,6 +385,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   read -r -a gs <<<"$(unhandled "$g")"
   bash "$here/round.sh" --dir "$g" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
   grun 7
+  grun 8
   bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
@@ -393,7 +394,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
   for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=466 journey=221
+  browser=492 journey=221
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi
