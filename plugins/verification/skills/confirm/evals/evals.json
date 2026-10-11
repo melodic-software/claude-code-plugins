@@ -218,13 +218,13 @@
       "id": "proof-level-08",
       "name": "proof-level-invalid-value-named-and-dropped",
       "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml says `proof_level: thorough`. The user option proof_level is live. The run is unattended, started by a pipeline lane.",
-      "expected_output": "Does not stop and does not ask. Names the file docs/conventions/verification.yaml, the key proof_level and the value thorough, drops the repository layer, and resolves the default path, not the user's live, because a lower layer's value is never used for an invalid higher layer. The report line says so, and Stage 2 continues at path.",
+      "expected_output": "Does not stop and does not ask. Names the file docs/conventions/verification.yaml, the key proof_level and the value thorough, drops the repository layer as absent, and resolves the user's live, because an invalid layer counts as absent and neither layer can lower the other. The report line says so, and Stage 2 continues at live.",
       "files": [],
       "narration": true,
       "expectations": [
         "Names the file, the key proof_level and the value thorough",
         "Continues the run without stopping or prompting",
-        "Resolves path (the default), not the user's live"
+        "Resolves the user's live, not the default path"
       ]
     },
     {
