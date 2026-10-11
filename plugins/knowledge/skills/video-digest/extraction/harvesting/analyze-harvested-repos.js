@@ -48,11 +48,16 @@ export async function shallowCloneGitHubRepo(
   spawnFn = spawn,
   { timeoutMs = CLONE_TIMEOUT_MS } = {},
 ) {
-  const isolatedHome = await fs.mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"));
+  // Never throws: a home that cannot be made fails this clone (never one without
+  // isolation), and one that cannot be removed leaves the clone's result standing.
+  const isolatedHome = await fs
+    .mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"))
+    .catch(() => null);
+  if (!isolatedHome) return false;
   try {
     return await cloneWithHome(url, destDir, spawnFn, timeoutMs, isolatedHome);
   } finally {
-    await fs.rm(isolatedHome, { recursive: true, force: true });
+    await fs.rm(isolatedHome, { recursive: true, force: true }).catch(() => {});
   }
 }
 
