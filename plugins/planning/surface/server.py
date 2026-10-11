@@ -272,8 +272,8 @@ def question_states(doc, r):
 
 
 def derive_states(doc, r):
-    """(states, upstream_changed). states maps each question id to (state, revising); neither is
-    written to questions.json.
+    """(states, upstream_changed, upstream_stale). states maps each question id to (state,
+    revising); none of the three is written to questions.json.
 
     Live decision events replay in seq order, with each question's terminal decision placed by its
     updatedAt against the events' `at` (before a same-second event, as the page decision wins that
@@ -286,7 +286,8 @@ def derive_states(doc, r):
     live decision, and upstream_changed maps each such question to the revised ids that did it; a
     new decision on the question clears both. A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
-    upstream-pending; `archived` wins over both. `revising` marks a question with its own
+    upstream-pending, and upstream_stale maps it to every stale ancestor, nearest first and ties
+    by id; `archived` wins over both. `revising` marks a question with its own
     delivered, unhandled decision event; upstream effects stay in stale and upstream-pending.
     """
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict) and q.get("id")]
@@ -366,35 +367,36 @@ def derive_states(doc, r):
     archived = {q["id"] for q in qs if q.get("archived")}
     stale -= archived
 
-    def upstream(qid):
-        seen, todo = set(), list(deps.get(qid, []))
-        while todo:
-            p = todo.pop()
-            if p in seen:
-                continue
-            seen.add(p)
-            if p in stale:
-                return True
-            todo += deps.get(p, [])
-        return False
+    def upstream(qid):  # stale ancestors, nearest first, ties by id
+        seen, level, found = {qid}, list(deps.get(qid, [])), []
+        while level:
+            level = sorted(set(level) - seen)
+            seen.update(level)
+            found += [p for p in level if p in stale]
+            level = [g for p in level for g in deps.get(p, [])]
+        return found
 
     revising = {
         e["id"]
         for e in events
         if e.get("deliveredAt") and not is_handled(doc, e.get("seq", 0))
     }
-    out = {}
+    out, up = {}, {}
     for qid in deps:
         if qid in archived:
             state = "archived"
         elif qid in stale:
             state = "stale"
-        elif upstream(qid):
+        elif up.setdefault(qid, upstream(qid)):
             state = "upstream-pending"
         else:
             state = "open"
         out[qid] = (state, qid in revising)
-    return out, {c: ids for c, ids in changed.items() if c in stale}
+    return (
+        out,
+        {c: ids for c, ids in changed.items() if c in stale},
+        {c: ids for c, ids in up.items() if ids},
+    )
 
 
 def load_json(path, default):
@@ -851,7 +853,7 @@ class Hub(LoopbackWatcher):
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             release_user_holds(q, r)
-            derived, changed = derive_states(q, r)
+            derived, changed, waits = derive_states(q, r)
             # exporters imports server at module top
             from exporters import latest_decision
 
@@ -860,6 +862,8 @@ class Hub(LoopbackWatcher):
                     x["state"], x["revising"] = derived[x["id"]]
                     if x["id"] in changed:
                         x["upstreamChanged"] = changed[x["id"]]
+                    if x["id"] in waits:
+                        x["upstreamStale"] = waits[x["id"]]
                     x["answered"] = bool(
                         (latest_decision(x, r.get("responses", {})) or {}).get(
                             "decision"

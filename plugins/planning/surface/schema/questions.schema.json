@@ -343,6 +343,11 @@
           "type": "array",
           "items": {"type": "string"},
           "description": "Derived by the server on a stale question: the ids whose recommendation changed while this question held a decision (named in their `affects`, or this question depends on them); never written"
+        },
+        "upstreamStale": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Derived by the server on an upstream-pending question: every stale question up its dependsOn chain, nearest first and ties by id; never written"
         }
       }
     }

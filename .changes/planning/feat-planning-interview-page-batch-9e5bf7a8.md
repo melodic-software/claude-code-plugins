@@ -11,3 +11,4 @@ bump: minor
 
 - Interview page: the Rec choice shows the whole recommendation the user accepts, not only its first sentence; the Accept all list keeps its one-sentence preview (#5815).
 - Interview page: the revised-recommendation banner says "Recommendation revised." once (a change with no `why` now stores `revised: true`, and data holding the old fallback sentence reads the same), and shrinks to a "Revised" chip, with Previous kept, once the user has opened the question since its latest revision (#5916).
+- Interview page: an upstream-pending question names the stale question(s) that cause it, not its direct prerequisites: the server adds a derived `upstreamStale` list (every stale ancestor, nearest first, ties by id; never written), the rail chip reads `Waiting on <them>`, and the banner links them with "Reconfirm … (under Review), or answer this one anyway"; the row is dimmed less and brightens on hover and focus, so it reads as waiting, not locked (#5922).
