@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.4] - 2026-10-10
+
+### Fixed
+
+- **`/review:quality-gate` code mode no longer misdescribes the bundled `/code-review` effort levels.** The boundary section claimed which levels report only the most confident findings, which Claude Code 2.1.290 made untrue. It now states our routing rule instead (choose between this mode and `/code-review` by what the review must ground in and whether it may write, never by effort level), routes convention review to this mode even when `/code-review` reports convention findings, and points at the code-review page's effort section for the current per-level behavior.
+
+## [0.43.3] - 2026-10-10
+
+### Fixed
+
+- `/review:explain-change` on `medium: hosted`: `publish-hosted.mjs` looks up the repository's visibility itself through `gh api repos/<owner>/<repo>` and no longer takes `--repo-visibility`, so a wrong visibility from the caller can no longer send a private repository's page to the public host. A failed, slow or unexpected lookup sends the page private. For a GitHub Enterprise pull request, `--repo <host>/<owner>/<repo>` makes the lookup ask that host, only when this machine's `gh` is already logged in to it; any other host sends the page private, and an IP address is a usage error.
+
 ## [0.43.2] - 2026-10-09
 
 ### Changed

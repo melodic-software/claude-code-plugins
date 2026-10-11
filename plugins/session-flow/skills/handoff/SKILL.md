@@ -116,17 +116,16 @@ calling skill's step naming it, walk the continuation router in
 anywhere but a handoff, recommend that route and write no save-point. A user's explicit
 `/session-flow:handoff` always writes one.
 
-- Mid-task and the user reports the session is heavy, or a context-measuring mechanism says to
-  fork (`context-guard`'s zone report is one), never your own estimate of the remaining window
-- Quality degrading (context rot), responses drifting, repeating, or looping. This is the signal
-  that is yours to read, because decay shows up in the output and never in a budget number
+- A heavy or degrading session (the user's report, a context-measuring mechanism such as
+  `context-guard`'s zone report, or responses drifting, repeating, or looping, never your own
+  estimate of the remaining window), when `/session-flow:workflow`'s continuation router routes
+  here rather than to `/compact`
 - Extending the session chain, the deliberate escape-and-resume cadence (save-point, `/clear`,
   fresh session) whose handoff files carry the `session_id`/`previous_handoff` chain that
   `/session-flow:retro` later walks for retrospective reconstruction. A first-class use this
   skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
-- Last turn had an unexpected compaction
 - Crossing a boundary. Handing the work to a colleague, another repository or checkout, or
   another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine
@@ -276,8 +275,11 @@ ticked. Emit the rails block before ending the turn, always.
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
-- [ ] TaskList captured with literal recreate calls in the environment section, from a live
-  `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
+- [ ] Task list handled per the structure doc's tool-presence branch: with the task tools, captured
+  with literal recreate calls in the environment section from a live `TaskList` call this turn;
+  with `TodoWrite` instead, from the latest `TodoWrite` call; with neither, a line saying this
+  session has no task tools (OR, in every case, an explicit statement that there is nothing to
+  recreate)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -333,7 +335,8 @@ ticked. Emit the rails block before ending the turn, always.
   saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
   4 (`TaskList`) is skipped here unless `prompt` was FORCED, in which case the one `TaskList` call
-  is made rather than the list being guessed from the conversation
+  is made rather than the list being guessed from the conversation (a session with `TodoWrite`
+  instead reads its latest `TodoWrite` call; one with neither falls through to rung 5)
 - [ ] The verbatim goal sits between the resume region's rails above the remaining-work bullets,
   and, when a goal applies, is the condition of the goal region (no `Read @` line on this path);
   when the goal has recorded amendments, the original dated quote travels with EVERY dated

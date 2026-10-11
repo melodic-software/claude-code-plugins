@@ -1050,6 +1050,36 @@ report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$
 assert_exit "render withheld: exit 0" 0 "$REPORT_RC"
 assert_golden "render withheld: the report matches the golden" withheld-downgrade.txt "$REPORT_TEXT"
 
+# --- a self-update whose row is not the first moved row ------------------------
+# alpha sorts ahead of zeta, and zeta is the plugin running the sync, so the note
+# has to name zeta's own row rather than the first update.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+catalog_plugin "$case_dir" market1 zeta 0.2.0
+mkdir -p "$case_dir/self/.claude-plugin"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"zeta","version":"0.1.0"}'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"zeta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/zeta\", \"version\": \"0.1.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "zeta", "source": "zeta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "zeta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/self" CLAUDE_STUB_NEW_VERSION=0.2.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "render self-update: exit 0" 0 "$REPORT_RC"
+assert_eq "render self-update: this plugin's row is not the first update" "alpha@market1" \
+  "$(jq -r '.marketplaces[0].user_sweep.updated[0].id' <<<"$REPORT_DIGEST")"
+assert_eq "render self-update: the digest names this plugin's own row" \
+  '{"id":"zeta@market1","scope":"user","old":"0.1.0","new":"0.2.0"}' \
+  "$(jq -c '.marketplaces[0].self_update' <<<"$REPORT_DIGEST")"
+assert_golden "render self-update: the note names this plugin" self-update-not-first.txt "$REPORT_TEXT"
+
 # --- stale project records plus a cache-content finding ----------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1251,7 +1281,16 @@ stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","cou
 assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
   "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
   $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
+# Every absent record local-scope: the worktree audit has nothing to classify, so no pointer.
+stale_local_only='{"stale_project_records":{"total":2,"paths":1,"project":0,"by_parent":[{"parent":"/g/","count":2,"paths":1}],"more_parents":0,"list_file":null}}'
+assert_not_contains "stale render: local-scope records only name no worktree audit" \
+  "$(needs_digest sync "$stale_local_only" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "/source-control:worktree audit"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
+# A digest written before `self_update` existed: the note names no plugin rather
+# than the first moved row.
+assert_contains "self-update render: a digest without the row names no plugin" \
+  "$(needs_digest sync '{"self_updated":true,"user_sweep":{"updated":[{"id":"a@m","scope":"user","old":"1","new":"2"}]}}' |
+    jq -r -f "$SCRIPT_DIR/render-report.jq")" "Note: this run updated this plugin. The algorithm"
 
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))

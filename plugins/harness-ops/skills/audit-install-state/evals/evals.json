@@ -31,12 +31,12 @@
       "id": 3,
       "name": "swept-path-not-hand-pruned",
       "prompt": "My ~/.claude/projects folder is 4.5 GB. Delete the old transcripts to free up space.",
-      "expected_output": "Reports that projects/ is swept by Claude Code's own retention at cleanupPeriodDays, states the effective window and whether it came from a settings file or the documented 30-day default, and shows the count of files exceeding it. Declines to hand-prune: the only lever that shrinks a healthy swept path is lowering cleanupPeriodDays, a config change rather than a deletion. Routes shedding one project's state to `claude project purge` and tells the user to run /disk-hygiene:clean for actual deletion of anything unmanaged.",
+      "expected_output": "Reports that projects/ is swept by Claude Code's own retention at cleanupPeriodDays, states the effective window and whether it came from a settings file or the documented 30-day default, and shows the count of files exceeding it. Declines to hand-prune: the only lever that shrinks a healthy swept path is lowering cleanupPeriodDays, a config change rather than a deletion. Routes shedding one project's state to `claude purge` and tells the user to run /disk-hygiene:clean for actual deletion of anything unmanaged.",
       "files": [],
       "expectations": [
         "Output identifies projects/ as covered by the product's own retention sweep and names cleanupPeriodDays",
         "Output declines to hand-delete transcripts and explains that lowering cleanupPeriodDays is the lever, not manual deletion",
-        "Output routes per-project state removal to `claude project purge` and tells the user to run /disk-hygiene:clean for any actual deletion rather than performing it"
+        "Output routes per-project state removal to `claude purge` and tells the user to run /disk-hygiene:clean for any actual deletion rather than performing it"
       ]
     },
     {

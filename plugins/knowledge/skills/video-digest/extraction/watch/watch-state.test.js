@@ -33,11 +33,6 @@ const sampleTalk = (overrides = {}) =>
     ...overrides,
   });
 
-// Resolved slice dir passed to the prompt builder — deliberately free of the
-// epic-dir literal so the prompt tests prove paths come from the caller's
-// resolved dir, not from the storage constant.
-const SLICE_DIR = path.join("/custom-root", ".work", "any-epic", "talk-abc");
-
 // In-memory fs fakes: a Map-backed readFile/writeFile/mkdir triple, optionally
 // pre-seeded so a test can read a watch.json it never wrote.
 /** @param {Iterable<[string, string]>} [seed] */
@@ -45,7 +40,7 @@ function memoryStore(seed = []) {
   const store = new Map(seed);
   const readFile = vi.fn(async (p) => {
     const value = store.get(p);
-    if (value === undefined) throw new Error("ENOENT");
+    if (value === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     return value;
   });
   const writeFile = vi.fn(async (p, data) => {
@@ -81,13 +76,13 @@ describe("watch state phase map", () => {
   it("builds continuation prompt with next phase", () => {
     let state = sampleTalk();
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain("talk-abc");
     expect(prompt).toContain("transcript");
     expect(prompt).toContain("recommendations/");
   });
 
-  it("renders resume paths from the resolved slice dir, never the epic constant", () => {
+  it("renders slice-relative paths only: no work root, no epic constant", () => {
     let state = createWatchState({
       videoId: "1001551417340022785",
       videoSlug: "post-1001551623938805763",
@@ -95,17 +90,44 @@ describe("watch state phase map", () => {
       title: "Post",
     });
     state = markPhaseComplete(state, "acquire");
-    const sliceDir = path.join("/custom-root", ".work", "any-epic", "post-1001551623938805763");
-    const prompt = buildContinuationPrompt(state, sliceDir);
-    expect(prompt).toContain(sliceDir);
-    expect(prompt).toContain(watchStatePath(sliceDir));
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).toContain("`run-state/watch.json`");
+    expect(prompt).not.toContain("custom-root");
+    expect(prompt).not.toContain(".work");
     expect(prompt).not.toContain("youtube-watch");
   });
 
+  it("tells a fully marked but unclosed slice to close, not to continue a phase", () => {
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research", "synthesis"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).not.toContain("Continue from");
+    expect(prompt).not.toMatch(/\*\*complete\*\*/);
+    expect(prompt).toContain("watch-state.js close");
+  });
+
+  it("reports a closed slice as complete with no continue line", () => {
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research", "synthesis"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    const prompt = buildContinuationPrompt({ ...state, status: "complete" });
+    expect(prompt).not.toContain("Continue from");
+    expect(prompt).toContain("Nothing to resume");
+  });
+
   it("emits the renamed /knowledge:video-digest command in the resume prompt", () => {
-    const prompt = buildContinuationPrompt(sampleTalk(), SLICE_DIR);
+    const prompt = buildContinuationPrompt(sampleTalk());
     expect(prompt).toContain("# Continue /knowledge:video-digest watch");
     expect(prompt).not.toContain("youtube-digest");
+  });
+
+  it("tells a fresh session how to locate the slice without a machine path", () => {
+    const state = sampleTalk();
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).toContain(`\`watch/run-resume.js ${state.videoSlug}\``);
   });
 
   it("surfaces high-volume frame selection in continuation prompt", () => {
@@ -117,7 +139,7 @@ describe("watch state phase map", () => {
     for (const phase of ["acquire", "transcript", "watching"]) {
       state = markPhaseComplete(state, phase);
     }
-    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain("high volume");
     expect(findNextPhase(state.phases)).toBe("vision");
   });
@@ -151,7 +173,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   it("tells a resumed session to reuse the recorded target instead of re-asking", () => {
     let state = sampleTalk({ target: "acme/webapp" });
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain("Resolved: `acme/webapp`");
     expect(prompt).toContain("do not re-ask");
   });
@@ -159,7 +181,7 @@ describe("synthesis target (resolved --target, resume recovery)", () => {
   it("tells a resumed session to resolve the target when none was recorded", () => {
     let state = sampleTalk();
     state = markPhaseComplete(state, "acquire");
-    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain("Not yet resolved");
   });
 
@@ -285,7 +307,7 @@ describe("watch state temp-path tokenization", () => {
       state = markPhaseComplete(state, phase);
     }
 
-    const prompt = buildContinuationPrompt(state, SLICE_DIR);
+    const prompt = buildContinuationPrompt(state);
     expect(prompt).toContain("{tmp}/video-frames-abc");
     expect(prompt).toContain("{tmp}/video-sheets-abc");
     expect(prompt).not.toContain(framesDir);
@@ -467,6 +489,63 @@ describe("closing the slice (close, and mark-phase synthesis)", () => {
     expect(persisted(store).status).toBe("complete");
   });
 
+  const readmePath = path.join(sliceDir, "README.md");
+  const readmeAt = (/** @type {string} */ status) =>
+    `---\r\nstatus: ${status}\r\ncreated: 2026-10-01T00:00:00Z\r\nupdated: 2026-10-02T00:00:00Z\r\n---\r\n\r\n# Talk\r\n\r\nstatus: in-progress\r\n`;
+
+  it("close sets the README frontmatter status to complete and changes nothing else", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("re-running close on a complete slice repairs a README left in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore({ synthesisMarked: true });
+    store.set(
+      watchStatePath(sliceDir),
+      `${JSON.stringify({ ...persisted(store), status: "complete" }, null, 2)}\n`,
+    );
+    store.set(readmePath, readmeAt("in-progress"));
+    const verifyOutcomes = vi.fn(async () => 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(verifyOutcomes).not.toHaveBeenCalled();
+    expect(store.get(readmePath)).toBe(readmeAt("complete"));
+  });
+
+  it("close fails when the README exists but cannot be read", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+    const denied = Object.assign(new Error("EACCES"), { code: "EACCES" });
+    const failingRead = vi.fn(async (/** @type {string} */ p, /** @type {any} */ enc) => {
+      if (p === readmePath) throw denied;
+      return readFile(p, enc);
+    });
+
+    await expect(
+      runClose(sliceDir, { readFile: failingRead, writeFile, mkdir, verifyOutcomes }),
+    ).rejects.toBe(denied);
+    expect(persisted(store).status).not.toBe("complete");
+  });
+
+  it("a failed close leaves the README status in-progress", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    store.set(readmePath, readmeAt("in-progress"));
+    const { verifyOutcomes } = outcomeCheck(store, 1);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(1);
+    expect(store.get(readmePath)).toBe(readmeAt("in-progress"));
+  });
+
   it("close returns 1 without running the checks when watch.json is missing", async () => {
     const { readFile, writeFile } = memoryStore();
     const verifyOutcomes = vi.fn(async () => 0);
@@ -495,7 +574,7 @@ describe("skip-research phase map (resume routing)", () => {
       state = markPhaseComplete(state, phase);
     }
     state = markPhaseComplete(state, "research", { skipped: true });
-    expect(buildContinuationPrompt(state, SLICE_DIR)).toContain("research (skipped)");
+    expect(buildContinuationPrompt(state)).toContain("research (skipped)");
   });
 });
 

@@ -139,8 +139,8 @@ Before monitoring work on each PR, arm event delivery, in order:
    server delivering webhook events into the session), verify it is healthy and arm its PR
    filter for `<N>` (health checks + arming per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.05)
-3. **Monitor-tool fallback:** channel absent/unhealthy → arm a session-persistent Monitor watch
-   (30s REST `gh api` poll, never `gh pr checks --watch`; arming pattern per
+3. **Monitor-tool fallback:** channel absent/unhealthy → arm a Monitor watch, re-armed at each
+   deadline (30s REST `gh api` poll, never `gh pr checks --watch`; arming pattern per
    [pull-request monitor.md](../../pull-request/reference/monitor.md) §3.0.1)
 4. Proceed to the §5.1.3 checklist
 

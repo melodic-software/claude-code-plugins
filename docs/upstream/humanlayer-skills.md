@@ -119,7 +119,35 @@ travels with the `discovery` files; the notice above covers the show-me text onl
 
 ## Not audited
 
-The other four plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`,
-`build-iterated-agentic-loop`, and `design-control-loop`, were not evaluated for this marketplace.
-This is not a "not adopted" verdict; nobody researched those lanes. Recheck trigger: a change under
-any of those four `plugins/<name>/` paths upstream, or a request for one of those lanes here.
+The other three plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`, and
+`build-iterated-agentic-loop`, were not evaluated for this marketplace. This is not a "not adopted"
+verdict; nobody researched those lanes. Recheck trigger: a change under any of those three
+`plugins/<name>/` paths upstream, or a request for one of those lanes here.
+
+## Evaluated, not adopted: design-control-loop
+
+Evaluated at upstream commit `39fb327`, the only commit under `plugins/design-control-loop/`
+(upstream `main` HEAD was `653b641` on 2026-10-08). Not adopted, wrapped, or depended on, because
+it conflicts with this repository's lane rules on four topics:
+
+- Loop shape: this marketplace's lanes are session-resident queue drains.
+- Permission mode: `AGENTS.md` forbids bypass mode for lanes.
+- Version pinning: lanes run pinned tools.
+- Pull request text: lanes frame it as untrusted content.
+
+The evaluation linked below records what upstream does on each topic.
+
+One idea is worth tracking: a ceiling on open lane pull requests awaiting human review. It is
+tracked separately and is not part of this record.
+
+The evaluation is the Fighting Code Slop video digest, companion
+`loop-engineering-control-loops.md` (item 11 verdict), in `melodic-software/knowledge-corpus`
+(PR #43), under
+`sources/videos/fighting-code-slop-the-state-of-software-ix1qQK1IvmA/analysis/companion/`.
+
+- **Pointer**: when re-deriving this verdict, fetch the evaluated source
+  <https://github.com/humanlayer/skills/tree/39fb32786ae7a7cd864cf2c237148c38b1e4db07/plugins/design-control-loop>
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a new commit under `plugins/design-control-loop/` upstream after `39fb327`
+  (<https://github.com/humanlayer/skills/commits/main/plugins/design-control-loop>).
