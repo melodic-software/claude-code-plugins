@@ -266,8 +266,8 @@ body, so an edit that keeps part of it reads the body first ("View item") and wr
 result back:
 
 ```bash
-gh issue edit <N> --title "$(cat <title-file>)"   # the title travels in a file, never typed
-gh issue edit <N> --body-file <path>
+gh issue edit <N> --repo <owner>/<repo> --title "$(cat <title-file>)"   # the title travels in a file, never typed
+gh issue edit <N> --repo <owner>/<repo> --body-file <path>
 ```
 
 ## List labels
@@ -276,7 +276,7 @@ For `/work-items:track labels` and the label checks in `add` (bare read). `gh la
 returns 30 labels unless `--limit` says otherwise:
 
 ```bash
-gh label list --limit 1000 --json name --jq '.[].name' | tr -d '\r'
+gh label list --repo <owner>/<repo> --limit 1000 --json name --jq '.[].name' | tr -d '\r'
 ```
 
 ## Comment on item / edit a comment
@@ -286,7 +286,7 @@ operations (see the identity note above):
 
 ```bash
 gh issue comment <N> --body "<text>"
-gh issue comment <N> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
+gh issue comment <N> --repo <owner>/<repo> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```
 
@@ -441,7 +441,7 @@ linked=$(gh api graphql --paginate \
     }
   }' \
   -f owner="<owner>" -f repo="<repo>" -F n=<N> \
-  --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | {number, url, state, isDraft} | tojson') \
+  --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | {number, url, state, isDraft}') \
   || { echo "linked-changes read failed for #<N>" >&2; exit 1; }
 printf '%s\n' "$linked" | tr -d '\r' | jq -s '.'
 ```

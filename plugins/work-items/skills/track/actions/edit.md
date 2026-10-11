@@ -7,7 +7,7 @@ question) without naming a tracker's commands.
 ## Usage
 
 ```
-/work-items:track edit <id> [--title-file <path>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--comment-file <path>]
+/work-items:track edit <id> [--repo <owner>/<repo>] [--title-file <path>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--comment-file <path>]
 ```
 
 `<id>` follows `view`'s rules ([view.md](view.md)). At least one change flag is required.
@@ -39,7 +39,10 @@ question) without naming a tracker's commands.
 
    - `--comment-file` (adapter: "Comment on item").
 
-   Writes route through the adapter's identity policy. A provider whose operations reference has no
+   Every write, and the label check, targets the item's own repository: the `<owner>/<repo>` of
+   the qualified ID (or `--repo` for a bare number), passed as the adapter recipe's `--repo`, never
+   the current checkout, which may hold a different item with the same number. Writes route
+   through the adapter's identity policy. A provider whose operations reference has no
    section for a requested change cannot make it: say so for that change.
 
 1. **Confirm** each applied change in one line.

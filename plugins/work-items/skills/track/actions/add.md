@@ -34,7 +34,7 @@ Create a new work item with labels from the taxonomy.
 
 ## Workflow
 
-> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact. Those need explicit authorization. An explicit user `/work-items:track add ...` invocation IS the authorization, as is a step of a skill the user invoked that files this item (a decision map the user asked to chart); model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local note in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`) instead.
+> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact. Those need explicit authorization. An explicit user `/work-items:track add ...` invocation IS the authorization, as is a step of `/planning:wayfind` chart mode filing the map, or its decision items, that the user asked it to chart (chart mode refuses unattended runs); model-initiated filing is not, and no other skill's steps count. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local note in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`) instead.
 
 1. Parse the item text and flags from arguments.
 
