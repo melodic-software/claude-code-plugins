@@ -194,6 +194,83 @@ class SetupApplyTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("fix it by hand", result.stderr)
 
+    def test_a_dangling_target_symlink_is_refused_and_never_written_through(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / ".claude").mkdir(parents=True)
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "size:\n  file_lines: 450\n", encoding="utf-8"
+            )
+            (root / "docs" / "conventions").mkdir(parents=True)
+            victim = Path(tmp) / "bash_profile"
+            (root / "docs" / "conventions" / "code-metrics.yaml").symlink_to(victim)
+            result = run("--dir", str(root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("symlink", result.stderr)
+            self.assertFalse(victim.exists(), "nothing written outside the repo")
+
+    def test_a_symlinked_legacy_file_is_refused_and_never_carried(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / ".claude").mkdir(parents=True)
+            secret = Path(tmp) / "hosts.yml"
+            secret.write_text("size:\n  file_lines: 450\n", encoding="utf-8")
+            (root / ".claude" / "code-metrics.yaml").symlink_to(secret)
+            result = run("--dir", str(root))
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("symlink", result.stderr)
+            self.assertFalse(
+                (root / "docs" / "conventions" / "code-metrics.yaml").exists()
+            )
+
+    def test_a_symlinked_docs_dir_is_refused_and_never_written_through(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            root.mkdir()
+            outside = Path(tmp) / "outside"
+            outside.mkdir()
+            (root / "docs").symlink_to(outside)
+            result = run("--dir", str(root), "size.file_lines=500")
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn("docs is a symlink", result.stderr)
+            self.assertEqual(list(outside.iterdir()), [])
+
+    def test_unknown_carried_keys_are_dropped_and_named(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".claude").mkdir()
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "size:\n  file_lines: 450\n  bogus: 1\n"
+                "oauth_token: gho_example\n"
+                "lanes:\n  go:\n    enabled: false\n",
+                encoding="utf-8",
+            )
+            result = run("--dir", tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            target = root / "docs" / "conventions" / "code-metrics.yaml"
+            self.assertEqual(
+                yaml_subset.parse(target.read_text(encoding="utf-8")),
+                {"size": {"file_lines": 450}, "lanes": {"go": {"enabled": False}}},
+            )
+            self.assertIn("oauth_token", result.stderr)
+            self.assertIn("size.bogus", result.stderr)
+            self.assertNotIn("gho_example", target.read_text(encoding="utf-8"))
+
+    def test_help_prints_usage_even_with_docstrings_stripped(self) -> None:
+        # python -OO drops __doc__, which --help printed.
+        result = subprocess.run(
+            [sys.executable, "-OO", str(SCRIPT), "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "setup-apply.py [--dir <repo-root> | --file <path>]", result.stdout
+        )
+
     def test_template_is_in_the_subset_and_names_only_contract_keys(self) -> None:
         template = SCRIPT_DIR.parent / "templates" / "config-template.yaml"
         doc = yaml_subset.load(template)

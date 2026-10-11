@@ -91,6 +91,21 @@ class QueryProfile(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, "total\n6\n")
 
+    def test_decimal_parameter_binds_as_a_number(self):
+        result = run(
+            QUERY,
+            self.db,
+            "SELECT typeof(:t), typeof(:n), typeof(:s)",
+            "--param",
+            "t=1000.5",
+            "--param",
+            "n=nan",
+            "--param",
+            "s=7:0x1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[1], "real\ttext\ttext")
+
     def test_parameter_too_large_for_sqlite(self):
         self.assert_refused_cleanly(
             run(QUERY, self.db, "SELECT :n", "--param", f"n={2**63}")

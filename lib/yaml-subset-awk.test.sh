@@ -44,6 +44,22 @@ check 'a trailing colon stays legal' "key${T}a:" 0 'key: a:\n'
 check 'a `: ` inside a comment is not part of the value' "key${T}a" 0 'key: a  # note: b\n'
 check 'a nested map item still reads' "l.0.x${T}y" 0 'l:\n  - x: y\n'
 
+# Long blank runs: a plain value keeps its inner blanks, a flow item likewise,
+# and blanks before `#` start a comment. All three lines read within 1 s.
+SP="$(printf '%*s' 200000 '')"
+want="k${T}a${SP}x"$'\n'"l.0${T}b${SP}c"$'\n'"m${T}d"
+start=$(date +%s%N)
+out="$(printf 'k: a%sx\nl: [b%sc]\nm: d%s#e\n' "$SP" "$SP" "$SP" | LC_ALL=C timeout 10 awk -f "$AWK")"
+rc=$?
+ms=$((($(date +%s%N) - start) / 1000000))
+CASE_NUM=$((CASE_NUM + 1))
+if [[ "$out" == "$want" && "$rc" == 0 && "$ms" -lt 1000 ]]; then
+  printf 'PASS: 200,000-blank runs parse in under 1 s (%s ms)\n' "$ms"
+else
+  FAILED=$((FAILED + 1))
+  printf 'FAIL: 200,000-blank runs parse in under 1 s\n  exit %s after %s ms, output %s\n' "$rc" "$ms" "$([[ "$out" == "$want" ]] && echo matches || echo differs)" >&2
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

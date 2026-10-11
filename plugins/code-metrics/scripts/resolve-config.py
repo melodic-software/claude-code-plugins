@@ -13,7 +13,7 @@ whole):
   3. local overlay              <repo>/.claude/code-metrics.local.yaml
 
 The team layer is one file: with both present the docs/conventions file is the
-whole layer and a warning names both paths.
+whole layer and a warning says the .claude file is ignored.
 
 An invalid layer never stops the run. A file outside the YAML subset is named
 and read as absent. A value of the wrong shape (a scalar where a list or a
@@ -257,8 +257,9 @@ def surface_layer_paths(
     if os.path.isfile(docs):
         if os.path.isfile(legacy):
             warnings.append(
-                f"{docs} and {legacy} both exist; the team layer is {docs} and "
-                f"{legacy} is not read (delete it once no older plugin release reads it)"
+                f"{legacy} is ignored: {docs} exists and is the whole team layer. "
+                "The older file is kept only for code-metrics releases that read it; "
+                "delete it once none does, which completes the move to the docs file"
             )
         paths[1] = ("team", docs)
     return paths

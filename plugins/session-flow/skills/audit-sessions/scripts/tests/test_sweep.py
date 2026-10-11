@@ -404,14 +404,26 @@ def test_excerpts_print_stored_typed_turns_inside_since_and_scope(data_dir):
     ]
 
 
-def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir):
-    hostile = "tabs\there\nsecond line $(touch PWNED) `touch PWNED`"
+def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir, tmp_path):
+    # Absolute marker paths: any shell that ever evaluates the text, in any
+    # working directory, creates them where this test looks.
+    marker = tmp_path / "PWNED"
+    hostile = f"tabs\there\nsecond line $(touch {marker}) `touch {marker}2`"
     write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", hostile))
     result = sweep(data_dir, "--excerpts")
     assert result.returncode == 0, result.stderr
     assert len(result.stdout.splitlines()) == 1
     assert excerpt_lines(result)[0]["excerpt"] == hostile
-    assert not Path("PWNED").exists() and not (data_dir / "PWNED").exists()
+    assert not marker.exists() and not marker.with_name("PWNED2").exists()
+
+
+def test_excerpts_leave_out_automated_sessions(data_dir):
+    headless = typed("headless", "2026-09-10T08:00:00Z", "github.com/acme/web", "from a pipeline")
+    headless["entrypoints"] = ["sdk-cli"]
+    write_store(data_dir, headless, typed("typed", "2026-09-10T09:00:00Z", "github.com/acme/web", "from a person"))
+    result = sweep(data_dir, "--excerpts")
+    assert result.returncode == 0, result.stderr
+    assert [line["session"] for line in excerpt_lines(result)] == ["typed"]
 
 
 def test_suppressed_excerpts_print_nothing_and_exit_1(data_dir):

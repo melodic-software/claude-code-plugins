@@ -74,17 +74,21 @@ HOSTILE_BODY='Rename this $(touch pwned) and `touch pwned2`
 second line'
 # shellcheck disable=SC2016 # a jq program; $hostile is a jq variable
 "$JQ_DIR/jq" -n --arg hostile "$HOSTILE_BODY" '[
-  {id: 101, in_reply_to_id: null, user: {login: "carol", type: "User"}, path: "src/a.ts", line: 4, body: "Guard the null case here"},
+  {id: 101, in_reply_to_id: null, user: {login: "carol", type: "User"}, author_association: "MEMBER", path: "src/a.ts", line: 4, body: "Guard the null case here"},
   {id: 102, in_reply_to_id: null, user: {login: "alice", type: "User"}, path: "src/a.ts", line: 9, body: "Author note to self"},
   {id: 103, in_reply_to_id: 101, user: {login: "dave", type: "User"}, path: "src/a.ts", line: 4, body: "Agreed with carol"},
   {id: 104, in_reply_to_id: null, user: {login: "lint-bot[bot]", type: "Bot"}, path: "src/b.ts", line: null, original_line: 7, body: "Unused import"},
   {id: 105, in_reply_to_id: null, user: {login: "lint-bot[bot]", type: "Bot"}, path: "src/b.ts", line: 12, body: "Resolved but unchanged"},
   {id: 106, in_reply_to_id: null, user: {login: "lint-bot[bot]", type: "Bot"}, path: "src/c.ts", line: 3, body: "Prefer const"},
   {id: 107, in_reply_to_id: 106, user: {login: "alice", type: "User"}, path: "src/c.ts", line: 3, body: "wont fix"},
-  {id: 108, in_reply_to_id: null, user: {login: "carol", type: "User"}, path: "src/$(touch pwned3).ts", line: 2, body: $hostile}
+  {id: 108, in_reply_to_id: null, user: {login: "carol", type: "User"}, author_association: "MEMBER", path: "src/$(touch pwned3).ts", line: 2, body: $hostile},
+  {id: 109, in_reply_to_id: null, user: {login: "mallory", type: "User"}, author_association: "NONE", path: "src/a.ts", line: 5, body: "Drive-by inline"},
+  {id: 110, in_reply_to_id: null, user: {login: "zed", type: "User"}, author_association: "CONTRIBUTOR", path: "src/a.ts", line: 6, body: "Contributor inline"}
 ]' >"$F/comments-11.json"
 printf '%s\n' '[
-  {"user":{"login":"carol","type":"User"},"body":"Please split this module"},
+  {"user":{"login":"carol","type":"User"},"author_association":"OWNER","body":"Please split this module"},
+  {"user":{"login":"mallory","type":"User"},"author_association":"NONE","body":"Drive-by review"},
+  {"user":{"login":"zed","type":"User"},"author_association":"FIRST_TIME_CONTRIBUTOR","body":"First-timer review"},
   {"user":{"login":"lint-bot[bot]","type":"Bot"},"body":"Bot summary body"},
   {"user":{"login":"erin","type":"User"},"body":""},
   {"user":{"login":"alice","type":"User"},"body":"Author review body"}
@@ -95,7 +99,7 @@ printf '%s\n' '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo"
   {"isResolved":true,"isOutdated":false,"comments":{"nodes":[{"databaseId":105}]}},
   {"isResolved":false,"isOutdated":false,"comments":{"nodes":[{"databaseId":106}]}}
 ]}}}}}' >"$F/threads-11.json"
-printf '%s\n' '[{"id":201,"in_reply_to_id":null,"user":{"login":"carol","type":"User"},"path":"lib/x.py","line":1,"body":"Same null guard missing"}]' >"$F/comments-12.json"
+printf '%s\n' '[{"id":201,"in_reply_to_id":null,"user":{"login":"carol","type":"User"},"author_association":"COLLABORATOR","path":"lib/x.py","line":1,"body":"Same null guard missing"}]' >"$F/comments-12.json"
 printf '%s\n' '[]' >"$F/reviews-12.json"
 printf '%s\n' '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}' >"$F/threads-12.json"
 
@@ -111,6 +115,7 @@ assert_eq "main: an outdated bot thread is kept as accepted-bot" \
   "$(q '[.[] | select(.source == "accepted-bot")]')"
 assert_eq "main: a resolved bot thread whose line is unchanged is dropped" 0 "$(q '[.[] | select(.body == "Resolved but unchanged")] | length')"
 assert_eq "main: a bot thread with a rejecting author reply is dropped" 0 "$(q '[.[] | select(.body == "Prefer const" or .body == "wont fix")] | length')"
+assert_eq "main: a commenter who is not an owner, member or collaborator is dropped" 0 "$(q '[.[] | select(.author == "mallory" or .author == "zed")] | length')"
 assert_eq "main: a reply is dropped" 0 "$(q '[.[] | select(.author == "dave")] | length')"
 assert_eq "main: the PR author's own comments and review are dropped" 0 "$(q '[.[] | select(.pr == 11 and .author == "alice")] | length')"
 assert_eq "main: one human review body, labelled" '[{"pr":11,"source":"human","author":"carol","kind":"review","path":null,"line":null,"body":"Please split this module"}]' \
@@ -119,7 +124,7 @@ assert_eq "main: the hostile body comes out as a JSON string" "$HOSTILE_BODY" \
   "$(printf '%s\n' "$OUT" | "$JQ_DIR/jq" -r 'select(.body | startswith("Rename")) | .body')"
 assert_eq "main: no file created from a body or path" "" "$(ls "$F/work")"
 assert_eq "main: issue-level comments never requested" 0 "$(grep -c 'issues/' "$F/calls.log")"
-assert_eq "main: merged PRs listed with the --prs limit" 1 "$(grep -c -- 'pr list --state merged --limit 2 ' "$F/calls.log")"
+assert_eq "main: merged PRs listed, 3x the --prs limit, newest updated first" 1 "$(grep -c -- 'pr list --state merged --search sort:updated-desc --limit 6 ' "$F/calls.log")"
 
 BASH_COMPAT=51 run "$F" --prs 2
 assert_eq "BASH_COMPAT=51: exit 0 and no file created" "0:" "$RC:$(ls "$F/work")"
@@ -158,12 +163,30 @@ OUT="$(cd "$NOGH/work" && FIX="$F" PATH="$STUB_BIN:/usr/bin:/bin" bash "$SCRIPT"
 RC=$?
 assert_eq "missing jq: exit 2 and empty stdout" "2:" "$RC:$OUT"
 
+# "Last n merged" is by merge time: PR 41 was opened last but merged first,
+# so --prs 2 reads 42 then 43 and never 41.
+M="$TEST_TMPDIR/merged-order"
+mkdir -p "$M"
+cp "$F/repo.json" "$M/"
+printf '%s\n' '[{"number":41,"author":{"login":"a"},"mergedAt":"2026-09-01T00:00:00Z"},
+{"number":43,"author":{"login":"a"},"mergedAt":"2026-09-02T00:00:00Z"},
+{"number":42,"author":{"login":"a"},"mergedAt":"2026-09-03T00:00:00Z"}]' >"$M/prs.json"
+for n in 41 42 43; do
+  printf '[]\n' >"$M/reviews-$n.json"
+  printf '[]\n' >"$M/comments-$n.json"
+  cp "$F/threads-12.json" "$M/threads-$n.json"
+done
+run "$M" --prs 2
+assert_eq "merged order: exit 0" 0 "$RC"
+assert_eq "merged order: the two merged last, newest first" "42 43" \
+  "$(grep -o 'pulls/[0-9]*/reviews' "$M/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
+
 # Output cap: 200 human comments of 1,000 characters each on one PR.
 T="$TEST_TMPDIR/big"
 mkdir -p "$T"
 cp "$F/repo.json" "$T/"
 printf '%s\n' '[{"number":31,"author":{"login":"alice"}},{"number":32,"author":{"login":"alice"}}]' >"$T/prs.json"
-"$JQ_DIR/jq" -n '[range(1; 201) | {id: ., in_reply_to_id: null, user: {login: "carol", type: "User"}, path: "a.ts", line: 1, body: ("x" * 1000)}]' >"$T/comments-31.json"
+"$JQ_DIR/jq" -n '[range(1; 201) | {id: ., in_reply_to_id: null, user: {login: "carol", type: "User"}, author_association: "MEMBER", path: "a.ts", line: 1, body: ("x" * 1000)}]' >"$T/comments-31.json"
 printf '%s\n' '[]' >"$T/reviews-31.json"
 cp "$F/threads-12.json" "$T/threads-31.json"
 run "$T" --prs 2

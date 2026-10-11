@@ -6,9 +6,9 @@
 #   transcript_dirs.sh --scope all        every directory in the transcript store
 #
 # The store is ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects. A directory's name
-# is the session's working directory with every character that is not a letter
-# or digit replaced by `-`; past 200 characters the name keeps its first 200
-# and gains a hash. CLAUDE_CODE_PROJECT_DIR_NAME, honoured only when
+# is the session's working directory with every UTF-16 code unit that is not an
+# ASCII letter or digit replaced by `-`; past 200 characters the name keeps its
+# first 200 and gains a hash. CLAUDE_CODE_PROJECT_DIR_NAME, honoured only when
 # CLAUDE_CONFIG_DIR is set too, pins one name for every session.
 # Pointer: https://code.claude.com/docs/en/sessions#where-transcripts-are-stored
 # and #name-the-project-directory-yourself. As of 2026-10-04. Recheck when that
@@ -78,9 +78,15 @@ win_form() {
   fi
 }
 
+# Claude Code replaces each UTF-16 code unit that is not an ASCII letter or
+# digit. Over UTF-8 bytes that is: drop continuation bytes, turn a 4-byte lead
+# (a code point past U+FFFF, two code units) into `--`, then every remaining
+# byte that is not [A-Za-z0-9] into `-`.
 encode() {
-  local LC_ALL=C
-  printf '%s' "${1//[^A-Za-z0-9]/-}"
+  local LC_ALL=C s="$1"
+  s="${s//[$'\x80'-$'\xbf']/}"
+  s="${s//[$'\xf0'-$'\xf7']/--}"
+  printf '%s' "${s//[^A-Za-z0-9]/-}"
 }
 
 # Forward slashes and a lower-case drive letter.
@@ -110,7 +116,7 @@ confirm() {
     if [[ -z "$newest" || "$f" -nt "$newest" ]]; then newest="$f"; fi
   done
   [[ -n "$newest" ]] || return 1
-  cwd="$("$PY" -X utf8 -c 'import sys
+  cwd="$("$PY" -I -X utf8 -c 'import sys
 sys.path.insert(0, sys.argv[1])
 import transcript_reader
 sys.stdout.write(transcript_reader.first_cwd(sys.argv[2]) or "")' "$HERE" "$newest" 2>/dev/null)" || return 1

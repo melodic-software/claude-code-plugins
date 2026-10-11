@@ -118,6 +118,11 @@ When `/review:ratchet` is among the available skills, it can hold that count as 
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 
+The frozen count reads no configuration: with no path it scans every tracked and untracked,
+not-ignored file in the repository, so files under `scope.exclude` count, and
+`suppressions.correctness_rules` marks nothing. It can therefore exceed what `--all` reports. To
+freeze the audit's own scope, pass the paths to count, or compare `--all --json` counts.
+
 ## Upstream syntax
 
 The marker catalog follows each tool's own directive syntax, read from these pages:

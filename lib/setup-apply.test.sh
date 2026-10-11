@@ -271,6 +271,24 @@ assert_eq "a failed close: exits 1" "1" "$?"
 one_line "a failed close" "$out"
 assert_eq "a failed close: its temp file is removed" "0" "$(temps "$R")"
 
+# --- Long whitespace runs: the line scan is linear ----------------------------
+# Each line holds a 200,000-space run; all three together finish within 1 s.
+# The expected keys and values follow from the key and comment rules above:
+# a bare key runs to its colon, a value keeps inner spaces with no `#` after
+# them, and a line with no colon is not a key line.
+# shellcheck disable=SC2016 # JavaScript template literals, never expanded here
+out="$(timeout 10 node --input-type=module -e '
+  const { topLevelLines } = await import(process.argv[1]);
+  const sp = " ".repeat(200000);
+  const t = Date.now();
+  const k = topLevelLines(`a${sp}b: 1`);
+  const v = topLevelLines(`mode: fast${sp}x`);
+  const n = topLevelLines(`a${sp}x`);
+  const ms = Date.now() - t;
+  console.log([k.length, k[0]?.key.length, k[0]?.raw, v[0]?.key, v[0]?.raw.length, n.length, ms < 1000].join(" "));
+' "file://$SCRIPT_DIR/setup-apply.mjs" 2>&1)"
+assert_eq "a 200,000-space run is scanned in under 1 s" "1 200002 1 mode 200005 0 true" "$out"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

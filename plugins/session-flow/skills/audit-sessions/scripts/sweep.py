@@ -387,7 +387,8 @@ def main(argv: list[str] | None = None) -> int:
         scope, key, scoped = "machine", "machine", records
     scoped = [r for r in scoped if in_window(r, args.since, args.until)]
     if args.excerpts:
-        return print_excerpts(scoped)
+        # Typed turns come from people: an automated session's turns are a script's.
+        return print_excerpts([r for r in scoped if census.session_class(r) != "automated"])
     drift = census.drift(
         records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor
     )

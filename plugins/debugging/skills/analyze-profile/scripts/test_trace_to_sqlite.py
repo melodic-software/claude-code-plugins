@@ -173,6 +173,29 @@ class RefusesBadInput(TempDirCase):
         out = self.tmp / "bad-edge.db"
         self.assert_refused(run("--in", path, "--out", out), out)
 
+    def test_heap_negative_type_or_name_index(self):
+        # nodes are 7 fields (type, name first); edges are 3 (type, name_or_index,
+        # to_node), and edge 2 is a property edge, so its name indexes strings.
+        for label, array, at in (
+            ("node type", "nodes", 0),
+            ("node name", "nodes", 1),
+            ("edge type", "edges", 0),
+            ("edge name", "edges", 7),
+        ):
+            with self.subTest(label):
+                data = json.loads(HEAP.read_text(encoding="utf-8"))
+                data[array][at] = -1
+                path = self.write_json(f"neg-{at}-{array}.heapsnapshot", data)
+                out = self.tmp / f"neg-{at}-{array}.db"
+                self.assert_refused(run("--in", path, "--out", out), out)
+
+    def test_heap_edges_beyond_the_edge_counts(self):
+        data = json.loads(HEAP.read_text(encoding="utf-8"))
+        data["edges"] += [2, 5, 7]
+        path = self.write_json("extra-edge.heapsnapshot", data)
+        out = self.tmp / "extra-edge.db"
+        self.assert_refused(run("--in", path, "--out", out), out)
+
     def test_unknown_format(self):
         path = self.write_json("other.json", {"rows": [1, 2, 3]})
         out = self.tmp / "other.db"
@@ -398,6 +421,152 @@ class WritesAtomically(TempDirCase):
             with self.assertRaises(KeyboardInterrupt):
                 module.main(["--in", str(CPUPROFILE), "--out", str(out)])
         self.assertFalse(out.exists())
+
+
+FORMATS_DIR = HERE.parent / "reference" / "formats"
+
+
+def doc_query(page, lead):
+    """The first ```sql block after the line starting with lead on a format page."""
+    text = (FORMATS_DIR / page).read_text(encoding="utf-8")
+    after = text[text.index("\n" + lead) :]
+    start = after.index("```sql\n") + len("```sql\n")
+    return after[start : after.index("```", start)]
+
+
+def chunk(pid, pid_id, nodes, samples, deltas):
+    return {
+        "name": "ProfileChunk",
+        "ph": "P",
+        "pid": pid,
+        "id": pid_id,
+        "ts": 0,
+        "args": {
+            "data": {
+                "cpuProfile": {"nodes": nodes, "samples": samples},
+                "timeDeltas": deltas,
+            }
+        },
+    }
+
+
+def node(node_id, name, parent=None):
+    entry = {"id": node_id, "callFrame": {"functionName": name, "url": ""}}
+    if parent is not None:
+        entry["parent"] = parent
+    return entry
+
+
+class FormatPageQueries(TempDirCase):
+    """The format pages' queries keep two profiles of one trace apart."""
+
+    def two_profile_db(self):
+        # Both profiles number their nodes from 1, as each pid:id profile does.
+        trace = self.write_json(
+            "two.trace.json",
+            [
+                chunk(
+                    7,
+                    "0x1",
+                    [
+                        node(1, "(root)"),
+                        node(2, "alpha", 1),
+                        node(3, "(garbage collector)", 1),
+                    ],
+                    [3, 3, 2],
+                    [10, 10, 10],
+                ),
+                chunk(
+                    7,
+                    "0x2",
+                    [node(1, "(root)"), node(2, "beta", 1), node(3, "(program)", 1)],
+                    [3, 2],
+                    [10, 10],
+                ),
+            ],
+        )
+        out = self.tmp / "two.db"
+        result = run("--in", trace, "--out", out)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return out
+
+    def test_caller_path_stays_inside_one_profile(self):
+        db = self.two_profile_db()
+        sql = doc_query("cpuprofile.md", "Caller path above one frame")
+        rows = query(db, sql, {"profile": "7:0x2", "id": 2})
+        self.assertEqual([(d, n) for d, n, *_ in rows], [(0, "beta"), (1, "(root)")])
+
+    def test_outside_javascript_counts_each_sample_once(self):
+        db = self.two_profile_db()
+        sql = doc_query("cpuprofile.md", "Share of the run spent outside JavaScript")
+        self.assertEqual(
+            sorted(query(db, sql)),
+            [("7:0x1", "(garbage collector)", 2), ("7:0x2", "(program)", 1)],
+        )
+
+
+class SamplesOnTheTraceClock(TempDirCase):
+    """samples.ts is the profile's startTime plus the deltas up to that sample."""
+
+    def test_trace_samples_carry_trace_clock_ts_and_join_events(self):
+        trace = self.write_json(
+            "clock.trace.json",
+            [
+                {"name": "Task", "ph": "X", "pid": 7, "tid": 1, "ts": 1150, "dur": 200},
+                {
+                    "name": "Profile",
+                    "ph": "P",
+                    "pid": 7,
+                    "id": "0x1",
+                    "ts": 1000,
+                    "args": {"data": {"startTime": 1000}},
+                },
+                chunk(
+                    7,
+                    "0x1",
+                    [node(1, "(root)"), node(2, "outer", 1), node(3, "leaf", 2)],
+                    [2, 3, 3, 2],
+                    [100, 100, 100, 100],
+                ),
+            ],
+        )
+        db = self.tmp / "clock.db"
+        result = run("--in", trace, "--out", db)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            query(db, "SELECT ts FROM samples ORDER BY seq"),
+            [(1100,), (1200,), (1300,), (1400,)],
+        )
+        sql = doc_query("chrome-trace.md", "Frames sampled inside one event")
+        rows = query(db, sql, {"seq": 0})
+        self.assertEqual([(r[2], r[-1]) for r in rows], [("leaf", 2)])
+
+    def test_trace_without_start_time_leaves_ts_null(self):
+        # A Profile event with no args.data.startTime, and a profile with no
+        # Profile event at all: both keep their samples with ts NULL.
+        trace = self.write_json(
+            "nostart.trace.json",
+            [
+                {"name": "Profile", "ph": "P", "pid": 7, "id": "0x1", "args": {}},
+                chunk(7, "0x1", [node(1, "(root)")], [1, 1], [100, 100]),
+                chunk(8, "0x1", [node(1, "(root)")], [1], [100]),
+            ],
+        )
+        db = self.tmp / "nostart.db"
+        result = run("--in", trace, "--out", db)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            query(db, "SELECT profile, ts FROM samples ORDER BY profile, seq"),
+            [("7:0x1", None), ("7:0x1", None), ("8:0x1", None)],
+        )
+
+    def test_cpuprofile_samples_start_at_its_start_time(self):
+        db = self.tmp / "cpu.db"
+        self.assertEqual(run("--in", CPUPROFILE, "--out", db).returncode, 0)
+        self.assertEqual(
+            query(db, "SELECT ts FROM samples WHERE seq IN (0, 6) ORDER BY seq"),
+            [(1001000,), (1007000,)],
+        )
 
 
 if __name__ == "__main__":

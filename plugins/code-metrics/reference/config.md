@@ -20,8 +20,9 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 The team layer is one file. `<repo>/.claude/code-metrics.yaml`, the team file of earlier releases,
 is read in its place only while `docs/conventions/code-metrics.yaml` is absent; with both present
 the docs file is the whole team layer, the older file's keys are not merged in, and every run
-prints one warning naming both paths. `/code-metrics:setup apply` carries every key of the older
-file into the docs file in the same write.
+prints one warning that the older file is ignored and can be deleted once no older release reads
+it. `/code-metrics:setup apply` carries every declared key of the older file into the docs file in
+the same write, and drops and names any other key.
 
 **An invalid layer never stops the run.** A file outside the YAML subset is named with its line
 and read as absent. A value of the wrong shape is named with its file, key and value, and that

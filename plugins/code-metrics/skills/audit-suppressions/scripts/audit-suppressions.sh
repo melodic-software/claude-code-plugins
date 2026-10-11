@@ -103,12 +103,20 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-read -r CFG_DEFAULT CFG_BASE < <("${PY[@]}" -c '
+# A failed read is named here; an empty CFG_BASE would surface later as a
+# missing merge-base.
+if ! cfg="$("${PY[@]}" -I -c '
 import json, sys
-scope = json.load(open(sys.argv[1], encoding="utf-8")).get("scope") or {}
-base = scope.get("base")
+try:
+    scope = json.load(open(sys.argv[1], encoding="utf-8")).get("scope") or {}
+    base = scope.get("base")
+except (OSError, ValueError, AttributeError) as exc:
+    sys.exit(f"audit-suppressions: cannot read the configuration {sys.argv[1]}: {exc}")
 print(scope.get("default") or "change", base.strip() if isinstance(base, str) and base.strip() else "auto")
-' "$CM_CONFIG")
+' "$CM_CONFIG")"; then
+  exit 2
+fi
+read -r CFG_DEFAULT CFG_BASE <<<"$cfg"
 if [[ "$MODE" == change && "$BASE_SET" -eq 0 && "$CFG_DEFAULT" == all ]]; then MODE=all; fi
 [[ "$BASE_SET" -eq 1 ]] || BASE="$CFG_BASE"
 
@@ -138,7 +146,7 @@ if [[ "$MODE" == change ]]; then
 fi
 
 # The correctness list travels as a file, one rule id per line.
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import json, sys
 config = json.load(open(sys.argv[1], encoding="utf-8"))
 rules = (config.get("suppressions") or {}).get("correctness_rules") or []
@@ -153,7 +161,7 @@ else
   printf '[]\n' >"$WORK/found.json"
 fi
 
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import datetime, json, sys
 config_path, found_path, mode, base, scope_path = sys.argv[1:6]
 config = json.load(open(config_path, encoding="utf-8"))
@@ -187,7 +195,7 @@ source "$PLUGIN_ROOT/scripts/persist-report.sh"
 KEPT="$(cm_persist_report audit-suppressions "$WORK/report.json")" || KEPT=""
 
 # shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
 kept = sys.argv[2]
@@ -235,7 +243,7 @@ elif len(rows) > CAP:
 # reaches a shell.
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die_usage "--findings: not inside a git repository"
 # shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import datetime, json, os, re, sys
 
 doc_path, branch, root, memory_dir = sys.argv[1:5]

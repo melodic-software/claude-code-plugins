@@ -29,3 +29,7 @@ bump: minor
 - **`skill-authoring`'s authoring guidance states the rule first.** An instruction says what to do,
   and gives its reason only where it would mislead without one; the degrees-of-freedom table no
   longer asks for a reason beside each high-freedom instruction.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.

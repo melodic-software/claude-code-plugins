@@ -6,13 +6,16 @@
 #   fetch-review-comments.sh --help
 #
 # <n> is 2-200 (a lesson needs two PRs). Without --repo, the repository of the
-# current directory. For each of the last <n> merged PRs it reads review bodies
+# current directory. The last <n> merged PRs, by merge time, are picked from the
+# 3<n> merged PRs updated most recently. For each, newest first, it reads review bodies
 # and inline review comments (gh api --paginate) and the review threads
 # (gh api graphql), and keeps:
 #
 #   source: human         a comment or non-empty review body by a human
-#                         account that is neither a reply (in_reply_to_id set)
-#                         nor by the PR's author
+#                         account whose author_association is OWNER, MEMBER or
+#                         COLLABORATOR, that is neither a reply (in_reply_to_id
+#                         set) nor by the PR's author; anyone else's comment on
+#                         a public repository is dropped
 #   source: accepted-bot  an inline bot comment, not a reply, whose thread is
 #                         outdated: the line it commented on changed in a later
 #                         commit of the PR. A resolved thread does not count
@@ -75,8 +78,14 @@ fi
 owner="${repo%%/*}"
 name="${repo#*/}"
 
-gh pr list --state merged --limit "$prs" --json number,author --repo "$repo" >"$tmp/prs.json" 2>/dev/null ||
+# gh lists by creation date and search cannot sort by merge time, so read the
+# 3n most recently updated merged PRs (a merge updates a PR) and keep the n
+# merged last, newest first.
+gh pr list --state merged --search "sort:updated-desc" --limit "$((prs * 3))" \
+  --json number,author,mergedAt --repo "$repo" >"$tmp/listed.json" 2>/dev/null ||
   die "gh pr list failed (check gh auth status)"
+jq --argjson n "$prs" 'to_entries | sort_by([(.value.mergedAt // ""), -.key]) | reverse | map(.value) | .[:$n]' "$tmp/listed.json" >"$tmp/prs.json" ||
+  die "unreadable gh pr list output"
 count="$(jq 'length' "$tmp/prs.json")" || die "unreadable gh pr list output"
 [[ "$count" =~ ^[0-9]+$ ]] || die "unreadable gh pr list output"
 
@@ -95,16 +104,17 @@ threads_query='query($owner: String!, $name: String!, $number: Int!, $endCursor:
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
 select_rows='
   def is_bot: (.user.type? == "Bot") or ((.user.login? // "") | endswith("[bot]"));
+  def trusted: .author_association? | IN("OWNER", "MEMBER", "COLLABORATOR");
   def login: .user.login? // null;
   ([$threads[] | .data.repository.pullRequest.reviewThreads.nodes[]?
     | select(.isOutdated == true) | .comments.nodes[0].databaseId]) as $outdated
   | ([$reviews[] | .[]?
-      | select((.body // "") != "" and (is_bot | not) and login != $author)
+      | select((.body // "") != "" and (is_bot | not) and trusted and login != $author)
       | {pr: $pr, source: "human", author: login, kind: "review", path: null, line: null, body}]
     + [$comments[] | .[]?
       | select(.in_reply_to_id == null and login != $author)
       | (if is_bot then (if (.id as $id | $outdated | index($id)) != null then "accepted-bot" else empty end)
-        else "human" end) as $source
+        elif trusted then "human" else empty end) as $source
       | {pr: $pr, source: $source, author: login, kind: "inline", path,
         line: (.line // .original_line), body}])
   | .[]'

@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every key of an older `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
+description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every declared key of an older `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -85,9 +85,12 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    (the root git reports from the current directory; `--dir <root>` or `--file <path>` overrides
    it), writes block style, and prints `already configured` without touching the file when
    nothing changes. When that file does not exist yet and `.claude/code-metrics.yaml` does, the
-   first write carries every key of the older file, so the resolved values stay the same; with no
-   `<key>=<value>` the run is that move alone. The older file stays for plugin releases that read
-   only it; tell the operator it can be deleted once none does.
+   first write carries every declared key of the older file, so the resolved values stay the
+   same, and drops and names any key the contract does not declare; with no `<key>=<value>` the
+   run is that move alone. The older file stays for plugin releases that read only it; tell the
+   operator it can be deleted once none does. A symlinked, hard-linked or non-regular target or
+   older file, or a symlinked `docs/`, `docs/conventions/` or `.claude/`, is refused with exit 1
+   and nothing written.
 4. **Verify.** Re-run `check`; report the persisted values from its table, never from the write
    alone. The tracked-file pair decides the outcome: a WARN `written but untracked` means "commit
    it to share with the team", never success; an ignored team file is FAIL and the operator's

@@ -142,6 +142,9 @@ run "$repo" --check
 assert_true '--check on an unknown key exits 1' code_is 1
 assert_true '--check names the unknown key once' [ "$(grep -c 'key stray is not in the schema' <<<"$OUT")" -eq 1 ]
 assert_true '--check keeps the valid key beside an unknown one' out_has 'worker_continuation: resume'
+# SKILL.md step 7 reads these lines as a PASS/WARN table.
+assert_true '--check prefixes the problem with WARN' [ "$(grep -c '^WARN docs/conventions/session-flow.yaml: key stray is not in the schema$' <<<"$OUT")" -eq 1 ]
+assert_true '--check prefixes each key with PASS' [ "$(grep -c '^PASS worker_continuation: resume$' <<<"$OUT")" -eq 1 ]
 run "$repo" --yes worker_continuation=respawn
 assert_true 'apply beside an unknown key exits 0' code_is 0
 assert_true 'apply names the unknown key in one warning' [ "$(grep -c 'WARN.*key stray is not in the schema' <<<"$OUT")" -eq 1 ]

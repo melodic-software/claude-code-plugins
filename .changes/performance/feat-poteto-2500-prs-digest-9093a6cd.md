@@ -39,3 +39,7 @@ bump: minor
   each in a structure of its own.
   Behavior is unchanged.
 - Reworded the examples in `reference/techniques.md`, the frozen-harness counts rule in `reference/harness-integrity.md` and `/performance:verify`'s matching line in our own words. Behavior is unchanged.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.

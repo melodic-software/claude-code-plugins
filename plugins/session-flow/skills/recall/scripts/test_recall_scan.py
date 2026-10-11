@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -214,6 +215,31 @@ class RecallScanTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.lines(result)), 10)
         self.assertIn("capped", result.stderr)
+
+    def test_run_stops_at_200_matches_and_skips_the_oldest_transcripts(self) -> None:
+        # 25 sessions of 10 matches each, s-00 oldest: the newest 20 fill the
+        # 200-match run cap, so s-00 to s-04 are never read.
+        for n in range(25):
+            session = f"s-{n:02d}"
+            path = write_transcript(
+                self.alpha,
+                session,
+                [
+                    user(session, "2026-09-02T08:00:00Z", f"cache miss {k}")
+                    for k in range(10)
+                ],
+            )
+            os.utime(path, (1_700_000_000 + n, 1_700_000_000 + n))
+
+        result = self.run_scan("--dir", str(self.alpha), "--term", "cache miss")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        sessions = [line["session"] for line in self.lines(result)]
+        self.assertEqual(len(sessions), 200)
+        self.assertEqual(sorted(set(sessions)), [f"s-{n:02d}" for n in range(5, 25)])
+        self.assertIn(
+            "stopped at 200 matches; older transcripts were not read", result.stderr
+        )
 
     def test_skip_session_leaves_that_session_out(self) -> None:
         write_transcript(

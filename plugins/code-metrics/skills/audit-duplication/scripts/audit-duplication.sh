@@ -95,7 +95,7 @@ fi
 # as "no cap"), then the registries from the resolver's own format
 # (`scope.registries`, or `duplication.registries` as its older name), so this
 # script and the dispatcher read the same list the same way.
-if ! "${PY[@]}" -c '
+if ! "${PY[@]}" -I -c '
 import json, sys
 
 section = json.load(open(sys.argv[1])).get("duplication") or {}
@@ -199,7 +199,7 @@ cm_anchor_document "$WORK/final.json" || exit 2
 # shellcheck source=../../../scripts/persist-report.sh
 source "$PLUGIN_ROOT/scripts/persist-report.sh"
 if REPORT_DIR="$(cm_report_dir 2>/dev/null)" && [[ -d "$REPORT_DIR" ]]; then
-  "${PY[@]}" -c '
+  "${PY[@]}" -I -c '
 import json, os, re, stat, sys
 
 directory, current_path, line_path = sys.argv[1:4]

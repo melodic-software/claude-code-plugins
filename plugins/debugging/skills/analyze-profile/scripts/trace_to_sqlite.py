@@ -6,7 +6,11 @@
 Reads one Chrome trace-event file (optionally gzipped), V8 .cpuprofile or V8
 .heapsnapshot and writes the tables below to <out>.partial, renamed to <out>
 only after every row is in. It refuses to overwrite <out>. Every string value
-is checked before insert and secret-shaped text is stored as <REDACTED>.
+is checked before insert, and text matching SECRET is stored as <REDACTED>:
+GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_ and github_pat_), AWS access key
+ids (AKIA, ASIA; not the secret access key) and the value after `Bearer`.
+Nothing else is redacted: passwords, other vendors' keys, cookies, session ids
+and personal data pass through, so the output must still be reviewed by hand.
 Input larger than MAX_INPUT_BYTES, after any gzip decompression, is refused
 without reading past the limit. Every value from the file is bound as a SQL
 parameter and nothing is ever passed to a shell.
@@ -15,7 +19,8 @@ Tables (all present in every output, empty when the format has none):
   meta(key, value)                                   format, source file name
   events(seq, name, cat, ph, ts, dur, pid, tid, args) chrome-trace events
   frames(profile, id, parent, name, url, line, col)   call-tree nodes, 1-based line/col
-  samples(profile, seq, frame, delta_us)              one row per CPU sample
+  samples(profile, seq, frame, delta_us, ts)          one row per CPU sample; ts is the
+                                                     profile startTime plus the deltas so far
   nodes(idx, node_id, type, name, self_size, edge_count)  heap objects
   edges(seq, from_idx, to_idx, type, name)            heap references
 
@@ -49,7 +54,7 @@ CREATE TABLE events (seq INTEGER PRIMARY KEY, name TEXT, cat TEXT, ph TEXT, ts R
                      pid, tid, args TEXT);
 CREATE TABLE frames (profile TEXT, id INTEGER, parent INTEGER, name TEXT, url TEXT, line INTEGER,
                      col INTEGER, PRIMARY KEY (profile, id));
-CREATE TABLE samples (profile TEXT, seq INTEGER, frame INTEGER, delta_us REAL);
+CREATE TABLE samples (profile TEXT, seq INTEGER, frame INTEGER, delta_us REAL, ts REAL);
 CREATE TABLE nodes (idx INTEGER PRIMARY KEY, node_id INTEGER, type TEXT, name TEXT,
                     self_size INTEGER, edge_count INTEGER);
 CREATE TABLE edges (seq INTEGER PRIMARY KEY, from_idx INTEGER, to_idx INTEGER, type TEXT, name TEXT);
@@ -96,7 +101,15 @@ def detect(data):
     raise InputError("unknown format: not a Chrome trace, .cpuprofile or .heapsnapshot")
 
 
-def insert_profile(con, profile, nodes, samples, deltas):
+def number(value):
+    return (
+        value
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+        else None
+    )
+
+
+def insert_profile(con, profile, nodes, samples, deltas, start=None):
     if not isinstance(nodes, list) or not isinstance(samples, list):
         raise InputError("profile nodes and samples must be arrays")
     parents = {}
@@ -117,13 +130,25 @@ def insert_profile(con, profile, nodes, samples, deltas):
             one_based(frame.get("columnNumber")),
         )
     deltas = deltas if isinstance(deltas, list) else []
+    # ts: the profile's start plus every delta so far, on the clock the
+    # trace's events use; unknown from the first missing number on.
+    ts = number(start)
     for seq, frame_id in enumerate(samples):
         delta = deltas[seq] if seq < len(deltas) else None
-        insert(con, "samples", profile, seq, frame_id, delta)
+        step = number(delta)
+        ts = ts + step if ts is not None and step is not None else None
+        insert(con, "samples", profile, seq, frame_id, delta, ts)
 
 
 def load_cpuprofile(con, data):
-    insert_profile(con, "main", data["nodes"], data["samples"], data.get("timeDeltas"))
+    insert_profile(
+        con,
+        "main",
+        data["nodes"],
+        data["samples"],
+        data.get("timeDeltas"),
+        data.get("startTime"),
+    )
 
 
 def load_chrome_trace(con, data):
@@ -131,6 +156,7 @@ def load_chrome_trace(con, data):
     if not isinstance(events, list):
         raise InputError("traceEvents must be an array")
     chunks = {}
+    starts = {}
     for seq, event in enumerate(events):
         if not isinstance(event, dict):
             raise InputError(f"trace event {seq} is not an object")
@@ -148,6 +174,9 @@ def load_chrome_trace(con, data):
             event.get("tid"),
             json.dumps(clean_tree(args)) if args is not None else None,
         )
+        if event.get("name") == "Profile":
+            data = (args or {}).get("data") or {}
+            starts[f"{event.get('pid')}:{event.get('id')}"] = data.get("startTime")
         if event.get("name") == "ProfileChunk":
             payload = (args or {}).get("data") or {}
             cpu = payload.get("cpuProfile") or {}
@@ -157,7 +186,17 @@ def load_chrome_trace(con, data):
             chunk["samples"] += cpu.get("samples") or []
             chunk["deltas"] += payload.get("timeDeltas") or []
     for key, chunk in chunks.items():
-        insert_profile(con, key, chunk["nodes"], chunk["samples"], chunk["deltas"])
+        insert_profile(
+            con, key, chunk["nodes"], chunk["samples"], chunk["deltas"], starts.get(key)
+        )
+
+
+def pick(table, index, what):
+    """table[index] for a non-negative integer index; a negative one would
+    silently count from the end."""
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        raise InputError(f"{what} index {index!r} is not a non-negative integer")
+    return table[index]
 
 
 def load_heapsnapshot(con, data):
@@ -182,8 +221,8 @@ def load_heapsnapshot(con, data):
             "nodes",
             idx,
             row[nf["id"]],
-            node_types[row[nf["type"]]],
-            strings[row[nf["name"]]],
+            pick(node_types, row[nf["type"]], "node type"),
+            pick(strings, row[nf["name"]], "node name"),
             row[nf["self_size"]],
             edge_count,
         )
@@ -194,11 +233,17 @@ def load_heapsnapshot(con, data):
             to_node = erow[ef["to_node"]]
             if to_node % width or not 0 <= to_node < len(nodes):
                 raise InputError(f"edge {edge_seq} points outside the node array")
-            edge_type = edge_types[erow[ef["type"]]]
+            edge_type = pick(edge_types, erow[ef["type"]], "edge type")
             raw_name = erow[ef["name_or_index"]]
-            name = str(raw_name) if edge_type in by_name else strings[raw_name]
+            name = (
+                str(raw_name)
+                if edge_type in by_name
+                else pick(strings, raw_name, "edge name")
+            )
             insert(con, "edges", edge_seq, idx, to_node // width, edge_type, name)
             edge_seq += 1
+    if edge_seq * edge_width != len(edges):
+        raise InputError("the edge array holds more edges than the nodes' edge counts")
 
 
 LOADERS = {

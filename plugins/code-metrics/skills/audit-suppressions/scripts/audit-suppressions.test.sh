@@ -289,5 +289,21 @@ assert_eq "with no current branch --findings exits 2" 2 "$?"
 assert_contains "with no current branch it says no file was written" "$err" "no findings file written"
 assert_eq "with no current branch no file is written" "$before" "$(find "$F/.work" -name '*.md' | wc -l)"
 
+# A configuration the entry point cannot read is named as such, not reported
+# as a missing merge-base.
+printf '{not json\n' >"$TMP/bad-config.json"
+err="$(cd "$REPO" && bash "$SCRIPT" --config "$TMP/bad-config.json" 2>&1 >/dev/null)"
+assert_eq "an unreadable configuration exits 2" 2 "$?"
+assert_contains "an unreadable configuration is named" "$err" "cannot read the configuration $TMP/bad-config.json"
+assert_eq "an unreadable configuration is not blamed on the merge-base" "" "$(grep -o 'merge-base' <<<"$err")"
+
+# A json.py the repository plants at its root is never imported by the
+# entry point's inline Python (python -I keeps the cwd off sys.path).
+P="$TMP/planted"
+git clone -q "$REPO" "$P"
+printf 'open(%s, "w").write("ran")\n' "'$TMP/planted-ran'" >"$P/json.py"
+(cd "$P" && bash "$SCRIPT" --json --all >/dev/null 2>&1)
+assert_eq "a json.py planted in the cwd is not imported" "absent" "$([[ -e "$TMP/planted-ran" ]] && echo present || echo absent)"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
