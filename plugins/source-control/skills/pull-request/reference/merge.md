@@ -31,7 +31,12 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    - Any deferred items (tracked work items)
 2. **Stale-base guard:** confirm the PR head is not behind its base on overlapping
    paths before squash-merging. `gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid`
-   plus `gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>`. If
+   plus `gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>`. Capture that
+   `headRefOid` as `HEAD_SHA` here
+   (`HEAD_SHA=$(gh pr view <pr_number> --json headRefOid -q .headRefOid)`, or `.head.sha` from
+   `gh api "repos/{owner}/{repo}/pulls/<pr_number>"` when GraphQL is refused): it is the head
+   every later step in this phase pins to, so a push after this point holds the merge instead of
+   riding along. If
    `behind_by > 0`, update the branch (merge-forward / `gh pr update-branch`) and re-run
    readiness; do **not** squash-merge a behind head. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
@@ -55,13 +60,13 @@ Default merge mode is squash: one squashed commit per PR onto the default branch
 In a regular checkout:
 
 ```bash
-gh pr merge <pr_number> --squash --delete-branch
+gh pr merge <pr_number> --squash --delete-branch --match-head-commit "$HEAD_SHA"
 ```
 
 In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: on older gh it tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote, never a hardcoded `origin`:
 
 ```bash
-gh pr merge <pr_number> --squash && {
+gh pr merge <pr_number> --squash --match-head-commit "$HEAD_SHA" && {
   if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
     REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
   else
@@ -73,7 +78,7 @@ gh pr merge <pr_number> --squash && {
 When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch. Verified 2026-09-29 against [cli/cli#14007](https://github.com/cli/cli/pull/14007), which ships in gh 2.99.0 and makes `gh pr merge --delete-branch` skip the local delete when the head is checked out in the current linked worktree; earlier gh, such as 2.98.0, fails as described. Recheck when the minimum gh this plugin supports is 2.99.0 or later, at which point the split is no longer needed.
 
 On a merge-queue base, `gh pr merge` returning is not proof the PR is queued: confirm queue entry
-per [4.2.2](#422-confirm-queue-entry), with `HEAD_SHA` set to the head verified in 4.1, before
+per [4.2.2](#422-confirm-queue-entry), with the `HEAD_SHA` captured in 4.1 step 2, before
 reporting the merge as done.
 
 **Through the async merge API.** Use it instead of `gh pr merge` when the session refuses GraphQL
@@ -81,7 +86,7 @@ reporting the merge as done.
 call it with `gh api`, pinned to the head you verified in 4.1 and never with `bypass_rules` true:
 
 ```bash
-HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 gh api -X PUT "repos/{owner}/{repo}/pulls/<pr_number>/merge-async" \
   -f sha="$HEAD_SHA" -f merge_action=direct_merge -f merge_method=squash -F bypass_rules=false
 ```
@@ -125,7 +130,7 @@ after arming, a push by anyone with write access would merge the new head on `ci
 ```bash
 [ "$(gh repo view --json owner --jq .owner.login)" = melodic-software ] \
   || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
-HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
   and any(.parameters.required_status_checks[]; .context == "ci-status"))' <<<"$RULES" >/dev/null \
@@ -189,7 +194,7 @@ returned. It changes what the run reports, not who may merge: it enqueues only a
 already approved in 4.1 step 4 or that 4.2.1 cleared, and only at the head pinned there.
 
 ```bash
-: "${HEAD_SHA:?set HEAD_SHA to the head verified in 4.1}"
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 read_pr() {
   gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
     query($owner: String!, $name: String!, $number: Int!) {
@@ -198,32 +203,39 @@ read_pr() {
     --jq '.data.repository.pullRequest'
 }
 PR=$(read_pr) || exit 1
-[ "$(jq -r '.autoMergeRequest != null' <<<"$PR")" = true ] \
-  && echo 'auto-merge is armed on this PR; tell the user (4.2.1 never arms it)' >&2
+AUTO=$(jq -r '.autoMergeRequest != null' <<<"$PR")
+[ "$AUTO" = true ] && echo 'auto-merge is armed on this PR; tell the user (4.2.1 never arms it)' >&2
+hold() {
+  echo "$1" >&2
+  [ "$AUTO" = true ] && echo 'auto-merge is still armed: a later push could merge on ci-status alone.
+The user may disarm it with: gh pr merge <pr_number> --disable-auto' >&2
+  exit 1
+}
 case "$(jq -r '"\(.state) \(.isInMergeQueue) \(.mergeStateStatus)"' <<<"$PR")" in
   MERGED*) echo 'merged' ;;
   'OPEN true '*) echo 'queued' ;;
   'OPEN false CLEAN')
     [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
-      || { echo 'head moved since 4.1: hold and re-run readiness' >&2; exit 1; }
+      || hold 'head moved since 4.1: hold and re-run readiness'
     gh api graphql --silent -F id="$(jq -r .id <<<"$PR")" -F head="$HEAD_SHA" -f query='
       mutation($id: ID!, $head: GitObjectID!) {
         enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
           mergeQueueEntry { position } } }' \
-      || { echo 'enqueue refused: report the GitHub error above verbatim as the blocker' >&2; exit 1; }
+      || hold 'enqueue refused: report the GitHub error above verbatim as the blocker'
     [ "$(read_pr | jq -r '.isInMergeQueue')" = true ] \
-      || { echo 'enqueue returned but the PR is not in the queue: report it' >&2; exit 1; }
+      || hold 'enqueue returned but the PR is not in the queue: report it'
     echo 'queued' ;;
-  *) echo "not queued and not CLEAN ($(jq -c '{state,isInMergeQueue,mergeStateStatus}' <<<"$PR")): report it" >&2
-     exit 1 ;;
+  *) hold "not queued and not CLEAN ($(jq -c '{state,isInMergeQueue,mergeStateStatus}' <<<"$PR")): report it" ;;
 esac
 ```
 
 A non-zero exit is a hold: report the printed state or GitHub's error text unedited (for example
 "A conversation must be resolved" names the blocker), do not retry the enqueue, and 4.3 does not
 run. One exception: when the error says the PR is already queued, `gh pr merge` won the race;
-re-run the block once, and a `queued` read is the result. Never pass `jump: true`. Only `queued` moves on to the poll in 4.2.1; `merged` moves on to
-4.3.
+re-run the block once, and a `queued` read is the result. A hold with auto-merge armed also tells
+the user that a later push could merge on `ci-status` alone (4.2.1's reason for never arming it)
+and offers `gh pr merge <pr_number> --disable-auto` as their option; this phase does not run it.
+Never pass `jump: true`. Only `queued` moves on to the poll in 4.2.1; `merged` moves on to 4.3.
 
 - **Pointer**: a PR joins a queue through the merge button or auto-merge:
   [managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue);
