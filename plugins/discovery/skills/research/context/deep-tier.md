@@ -125,8 +125,12 @@ the artifact. The bundled `deep-research` workflow is offered to the person, nev
    `error` return means nothing was dispatched: relaunch after fixing `missing-question`; take the
    researcher fallback on `no-sources`.
 5. **Write the artifact from the result**, to the shape in [artifact-shape.md](artifact-shape.md).
-   `findings` become the claims of a findings sidecar; derive each source's `standing:` as that file
-   says, never copy it. A MEDIUM or LOW finding goes to Gaps. Each finding's `consensus` count goes
+   `findings` become the claims of a findings sidecar, whose header is that file's sidecar schema:
+   each finding's `applies_to` is its claim's `applies_to:`, and each of its `sources` keeps `url`
+   (first), `tier`, `pool`, `measures`, `role`, `published` and `applies_to` as written. Add each
+   source's `standing:`, derived as that file says, never copied. `check-source-applicability.py`
+   fails a header missing any of these. A value the result leaves `unstated` is not guessed; the
+   gate fails it. A MEDIUM or LOW finding goes to Gaps. Each finding's `consensus` count goes
    in the evidence table. `dissent` and `refuted` go to Conflicts. `unverified`, `gaps`, `unread`
    and every label in `nulls` go to Gaps by name. Each finding's `fetches` are its fetch-log
    entries, keyed to the claim; every artifact-ladder rung above a source that the run did not
@@ -170,8 +174,8 @@ never scans. **One baseline at the slice root serves every sub-slice**: the gate
 sub-slice index's mtime against the file it is handed, and a baseline touched now is newer than
 anything an earlier run left anywhere under the slice. The source-applicability check
 (`<plugin-root>/scripts/check-source-applicability.py` with `--expect-evidence-use` set to the
-envelope's value) fails an engine artifact without the header fields by design; route that topic to
-the researcher fallback. Cite exit statuses; any non-zero halts.
+envelope's value) grades the header step 5 writes; a topic it fails goes to the researcher fallback.
+Cite exit statuses; any non-zero halts.
 
 ## Gotchas
 

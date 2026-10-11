@@ -780,6 +780,18 @@ for file in skills/research/SKILL.md reference/parent-contract.md \
   assert_present "$file names the source-applicability checker" \
     "$file" 'check-source-applicability\.py|source-applicability'
 done
+# The deep tier writes the sidecar header from the sweep result, so its step 5
+# names every field the checker's rules R1-R5 read (the script's docstring),
+# or each workflow-tier artifact fails the gate and falls back to a researcher.
+step5="$(sed -n '/^5\. \*\*Write the artifact/,/^6\. /p' \
+  "$PLUGIN_ROOT/skills/research/context/deep-tier.md" | tr '\n' ' ' | tr -s ' ')"
+for field in "claim's \`applies_to:\`" '`role`' '`published`' '`applies_to`' '`standing:`'; do
+  if [[ "$step5" == *"$field"* ]]; then
+    pass "deep-tier step 5 writes the gated header field $field"
+  else
+    fail "deep-tier step 5 writes the gated header field $field"
+  fi
+done
 assert_present 'the parent passes its envelope mode to the checker' \
   'skills/research/SKILL.md' '--expect-evidence-use'
 if [[ -f "$PLUGIN_ROOT/scripts/check-source-applicability.py" ]]; then
