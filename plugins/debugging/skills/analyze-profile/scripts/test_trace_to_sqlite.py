@@ -541,6 +541,25 @@ class SamplesOnTheTraceClock(TempDirCase):
         rows = query(db, sql, {"seq": 0})
         self.assertEqual([(r[2], r[-1]) for r in rows], [("leaf", 2)])
 
+    def test_trace_without_start_time_leaves_ts_null(self):
+        # A Profile event with no args.data.startTime, and a profile with no
+        # Profile event at all: both keep their samples with ts NULL.
+        trace = self.write_json(
+            "nostart.trace.json",
+            [
+                {"name": "Profile", "ph": "P", "pid": 7, "id": "0x1", "args": {}},
+                chunk(7, "0x1", [node(1, "(root)")], [1, 1], [100, 100]),
+                chunk(8, "0x1", [node(1, "(root)")], [1], [100]),
+            ],
+        )
+        db = self.tmp / "nostart.db"
+        result = run("--in", trace, "--out", db)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            query(db, "SELECT profile, ts FROM samples ORDER BY profile, seq"),
+            [("7:0x1", None), ("7:0x1", None), ("8:0x1", None)],
+        )
+
     def test_cpuprofile_samples_start_at_its_start_time(self):
         db = self.tmp / "cpu.db"
         self.assertEqual(run("--in", CPUPROFILE, "--out", db).returncode, 0)

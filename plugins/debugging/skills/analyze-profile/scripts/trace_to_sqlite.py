@@ -135,7 +135,8 @@ def insert_profile(con, profile, nodes, samples, deltas, start=None):
     ts = number(start)
     for seq, frame_id in enumerate(samples):
         delta = deltas[seq] if seq < len(deltas) else None
-        ts = ts + delta if ts is not None and number(delta) is not None else None
+        step = number(delta)
+        ts = ts + step if ts is not None and step is not None else None
         insert(con, "samples", profile, seq, frame_id, delta, ts)
 
 
