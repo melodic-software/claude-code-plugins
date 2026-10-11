@@ -23,7 +23,7 @@ them.
 
 | Rule | Source |
 |---|---|
-| [Notation](#notation): `<required>`, `[optional]`, alternatives inside brackets with an unspaced `\|` | Official: the commands page legend and every built-in hint |
+| [Notation](#notation): `<required>`, `[optional]`, alternatives inside brackets with an unspaced `\|` | Official: the commands page legend and the built-in hints, which also group with `()` once (`/mcp`) |
 | `...` marks a repeatable slot | POSIX, not Claude Code |
 | `…` ends a shortened set | House |
 | [Setup hints](#setup-skills) lead with `[check` or `<check` | House |
@@ -33,7 +33,8 @@ them.
 | No em dash, no `Default:`, omit the key when there are no arguments, the `**Arguments.**` line leads with the hint | House |
 
 The official docs set nothing for plugin authors beyond the frontmatter row, so every house rule
-is this repository's. The notation is where the house style matches the official one exactly.
+is this repository's. The notation is where the house style follows the official one; the house
+form has no `()` grouping.
 
 ## Notation
 
@@ -49,11 +50,12 @@ is this repository's. The notation is where the house style matches the official
   It never marks a slot repeatable.
 
 **Record.** Claim: the command table's legend marks required and optional slots with `<arg>` and
-`[arg]`, and every built-in row whose hint offers alternatives writes them inside brackets with an
-unspaced pipe, none with a spaced or bare pipe. Basis:
+`[arg]`. Every built-in row that separates alternatives with `|` uses an unspaced pipe inside an
+outer `[]`, none a spaced or bare pipe; `/mcp` also groups a nested set in parentheses,
+`[reconnect (<server>|all)|enable|disable [<server>|all]]`. Basis:
 [commands § All commands](https://code.claude.com/docs/en/commands#all-commands). As of:
-2026-10-11. Recheck: the legend changes, or a built-in row writes alternatives with a spaced pipe
-or outside brackets.
+2026-10-11. Recheck: the legend changes, a built-in row writes a spaced pipe or a pipe outside
+every bracket, or a row other than `/mcp` groups alternatives in `()`.
 
 **Record.** Claim: "Ellipses ("...") are used to denote that one or more occurrences of an operand
 are allowed". Basis: POSIX.1-2024 (Issue 8) XBD 12.1,
