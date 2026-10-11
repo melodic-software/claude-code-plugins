@@ -10,7 +10,7 @@ import {
 const NO_PATTERNS = { retryable: [], fatal: [], loginRequired: [] };
 
 describe("isCookieProfileRetryableError", () => {
-  it("matches yt-dlp's locked Chrome cookie database error (issue #6816)", () => {
+  it("matches yt-dlp's locked Chrome cookie database error", () => {
     expect(
       isCookieProfileRetryableError(
         "ERROR: Could not copy Chrome cookie database. See  https://github.com/yt-dlp/yt-dlp/issues/7271  for more info",

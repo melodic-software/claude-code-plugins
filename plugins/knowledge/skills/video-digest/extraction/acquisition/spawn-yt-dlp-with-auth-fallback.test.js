@@ -85,7 +85,7 @@ describe("spawnYtDlpWithAuthFallback", () => {
   });
 
   it("advances past Edge and Chrome cookie-extraction failures to Firefox on Windows", async () => {
-    // stderr lines as yt-dlp printed them in the session reported in issue #6816.
+    // stderr lines as yt-dlp prints them when Chrome holds its cookie database open.
     const stderrByBrowser = {
       edge: "ERROR: Failed to decrypt with DPAPI. See  https://github.com/yt-dlp/yt-dlp/issues/10927  for more info",
       chrome:
