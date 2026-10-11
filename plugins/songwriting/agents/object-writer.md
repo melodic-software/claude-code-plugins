@@ -160,6 +160,6 @@ held every run.
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what the `opus` alias resolves to, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of**: 2026-10-03
+- **As of**: 2026-10-10
 - **Recheck trigger**: the next model release, a change to the object-writing eval suite, or the
   model-config table's `medium` or `high` rows changing.

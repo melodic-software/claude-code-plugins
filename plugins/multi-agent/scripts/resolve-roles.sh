@@ -41,6 +41,9 @@
 # "omit_model", "effort", "guarded"}. `omit_model` is true when model is
 # `inherit`: the caller passes no model option and the agent runs on the
 # session model. `guarded` is true when the fan-out guard replaced the model.
+# A role whose single or fanout model is haiku, named or inherited from a haiku
+# session, gains one `notes` entry pointing at reference/routing-rubric.md; the
+# role still resolves.
 #
 # Exit: 0 resolved; 2 usage error, unknown role (valid roles on stderr), or an
 # unreadable bundled layer.
@@ -321,9 +324,14 @@ role_json() {
       fan="${fan:-opus}"
     fi
   fi
-  printf '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s}}' \
+  printf -v ROLE_JSON '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s}}' \
     "$(json_str "$r")" "$(json_str "$r")" "$(variant "$model" "$effort" false)" \
     "$(variant "$fan" "$effort" "$guarded")" "$(json_str "$ms")" "$(json_str "$es")"
+  [[ "$model" == inherit ]] && model="$SESSION_MODEL"
+  [[ "$fan" == inherit ]] && fan="$SESSION_MODEL"
+  if [[ "$model" == haiku || "$fan" == haiku ]]; then
+    NOTES+=("$r: resolves to haiku; no Haiku role until it passes the routing eval (#6901), effort high and never xhigh or max: reference/routing-rubric.md")
+  fi
 }
 
 join() {
@@ -333,7 +341,10 @@ join() {
 
 out_roles=()
 for r in "${ROLES[@]}"; do
-  [[ "$TARGET" == all || "$TARGET" == "$r" ]] && out_roles+=("$(role_json "$r")")
+  if [[ "$TARGET" == all || "$TARGET" == "$r" ]]; then
+    role_json "$r"
+    out_roles+=("$ROLE_JSON")
+  fi
 done
 notes_json=()
 for n in "${NOTES[@]+"${NOTES[@]}"}"; do

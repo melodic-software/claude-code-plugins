@@ -86,7 +86,7 @@ const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
   worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-  retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
+  retrieval: { single: { model: 'sonnet', effort: 'medium' }, fanout: { model: 'sonnet', effort: 'medium' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
 const R = {}
