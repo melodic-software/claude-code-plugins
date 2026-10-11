@@ -55,6 +55,11 @@
       { "name": "scan-dependencies", "status": "in-use" },
       { "name": "test-windows", "status": "in-use" },
       {
+        "name": "unblock",
+        "status": "reserved",
+        "purpose": "Assess a blocked pull request and take the action that unblocks it."
+      },
+      {
         "name": "update",
         "status": "reserved",
         "purpose": "Bring the pull request branch up to date."
@@ -110,6 +115,7 @@
     "address",
     "aggregate",
     "apply",
+    "assess",
     "attest",
     "audit",
     "automerge",
@@ -158,6 +164,7 @@
     "test",
     "tidy",
     "triage",
+    "unblock",
     "update",
     "upload",
     "validate",
