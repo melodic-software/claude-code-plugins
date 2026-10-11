@@ -6,10 +6,13 @@ each of them, with the `gh` CLI. Read it before the first forge operation a skil
 decision that skill bodies stay forge-neutral and the provider detail lives here is
 [ADR 0060](../../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 
-The per-phase spokes under each skill's `reference/` directory (for example the pull-request
-skill's `create.md`, `monitor.md`, `merge.md` and `readiness.md`, and the babysit-prs skill's
-`loop.md` and `safety.md`) still carry their full GitHub procedures. This table is the index from
-an operation to its command; a spoke is the authority on the full step around it.
+This file is the index from an operation to its command; a skill's spoke is the authority on the
+full step around it. A spoke whose steps need more than a table row has a provider file of the same
+name under a directory named for its skill: [`pull-request/`](pull-request/) holds the GitHub
+commands, scripts and `gh` facts behind the pull-request skill's `create.md`, `ready-for-review.md`,
+`monitor.md`, `readiness.md` and `merge.md`, and each spoke links its steps there. The worktree
+skill's spokes need only the rows below. The babysit-prs skill's `loop.md` and `safety.md` still
+carry their full GitHub procedures.
 
 A pull request is GitHub's change request; this file uses its terms.
 
@@ -19,6 +22,7 @@ A pull request is GitHub's change request; this file uses its terms.
 |---|---|
 | The current login | `gh api user --jq .login` |
 | The current repository as `owner/repo` | `gh repo view --json nameWithOwner -q .nameWithOwner` |
+| The repository's default branch | `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; in a sandboxed session, `gh api "repos/{owner}/{repo}" --jq '.default_branch'` |
 | Read a tracked file from a repository's default branch | `gh api repos/<owner>/<repo>/contents/<path>` (the `content` field is base64) |
 
 ## Resolve a pull request
@@ -33,6 +37,7 @@ A pull request is GitHub's change request; this file uses its terms.
 | Head commit | `gh pr view <N> --json headRefOid -q .headRefOid` |
 | Mergeability | `gh pr view <N> --json mergeable`; `CONFLICTING` means GitHub runs no workflows until the base is integrated |
 | The PR for a branch | `gh pr list --head <branch> --json number,title,state` |
+| Whether a branch's PR merged (worktree cleanup) | `gh pr list --state merged --head <branch>`; a non-empty result means merged |
 | Every PR, one batched read for worktree cross-reference | `gh pr list --state all --json number,title,state,headRefName` |
 | Your own open PRs here | `gh pr list --state open --author "@me" --json number` |
 | Your own open PRs across an owner | `gh search prs --state open --author @me --owner <owner> --json repository` |
@@ -48,7 +53,7 @@ entry and pass it to every later `gh` call in that phase.
 | Check out the PR head | `gh pr checkout <N>`, or `gh pr checkout <N> --detach` when the branch is locked in another worktree. It is fork-safe: a fork's head branch is not fetchable from `origin` by name |
 | Merge the base into the head | `gh pr update-branch <N>` (pull-request `ready-for-review.md`) |
 | Flip a draft ready | `gh pr ready <N>`, run only inside `/source-control:pull-request ready`, never bare |
-| Merge pinned to the reviewed head | `gh pr merge <N> --squash --match-head-commit <sha>`, never `--admin` or `--auto` (pull-request `merge.md` §4.2.1 owns the merge-queue form). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
+| Merge pinned to the reviewed head | `gh pr merge <N> --squash --match-head-commit <sha>`, never `--admin` or `--auto` (pull-request `merge.md` §4.2.1 owns the merge-queue form; its commands are in [pull-request/merge.md](pull-request/merge.md#merge-after-ai-review)). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
 | Open a tracking issue | `gh issue create` |
 
 ## Checks and CI logs
@@ -96,7 +101,7 @@ text, and a quote, `$(…)` or backtick inside it can break out of an inline she
 |---|---|
 | Effective rules on a branch | `gh api repos/<owner>/<repo>/rules/branches/<branch>` |
 | Classic protection fallback | `gh api repos/<owner>/<repo>/branches/<branch>/protection` |
-| Whether head branches are deleted on merge | the repository's `delete_branch_on_merge` field |
+| Whether head branches are deleted on merge | the repository's `delete_branch_on_merge` field: `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` |
 
 ## Sandboxed sessions: GraphQL is restricted
 
