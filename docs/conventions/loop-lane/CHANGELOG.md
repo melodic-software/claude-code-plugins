@@ -12,7 +12,7 @@ This is the §Versioning new-model trigger firing for Claude Haiku 5.5.
 
 - **`haiku` stays admissible nowhere, on new grounds (§3 Alias binding).** This supersedes the
   reason recorded in the 8.1.0 entry: on the Anthropic API `haiku` now resolves to a model with a 1M
-  context window and a current knowledge cutoff, so those grounds no longer hold. The exclusion now
+  context window and a current knowledge cutoff, so those grounds no longer hold <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->. The exclusion now
   rests on four grounds, each with a pointer and one shared recheck trigger: the reviewer floor,
   early stop and unverified completion, over-refusal, and the provider alias. The release figures
   are in `docs/upstream/haiku-5-5-launch.md`.
