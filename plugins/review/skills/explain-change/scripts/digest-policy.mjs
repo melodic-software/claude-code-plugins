@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Decide whether to skip, offer, or build the change digest, and where a built
-// page goes. Reads the pull request's facts as `gh pr view --json
-// files,additions,deletions,labels,baseRefOid` prints them, on stdin. Resolves
+// page goes. Reads the pull request's facts as `/source-control:pull-request
+// view` prints them, on stdin; it uses files, additions, deletions, labels and
+// baseRefOid. Resolves
 // the review-digest cascade surface for the policy and thresholds and the
 // rendered-views surface for `medium`. Team files are read from the base commit,
 // never the working tree, so a checked-out pull request cannot configure its

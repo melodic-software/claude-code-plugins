@@ -79,12 +79,13 @@ output, do not ask); remote artifacts are always created without prompting, as s
    Every remote artifact is created unattended, so the issue-linkage decision
    is made up front, never left for an interactive prompt: use the closing
    keyword when the branch or context names an issue, otherwise an explicit
-   no-linkage reason. For an orphan branch, a hotfix, refactor, or drift
-   sweep with no issue in its name, drive a direct `gh pr create` supplying
-   that no-linkage reason, the guaranteed non-interactive path. Route through
-   an installed pull-request or work-item capability only when it can run
-   unattended with that decision passed in; if it would stop to ask, use the
-   direct `git` / `gh` path carrying the same decision instead.
+   no-linkage reason, which is how an orphan branch, a hotfix, refactor, or
+   drift sweep with no issue in its name gets its PR. Open the PR through
+   `/source-control:pull-request create` (if that plugin is installed),
+   invoked via the Skill tool with the linkage line in its arguments so it
+   has nothing to ask. If it would still stop to ask, or the plugin is
+   absent, push with `git` and open the PR with the forge's own tooling,
+   passing the same linkage line, title, and body non-interactively.
 4. **Local hygiene.** Prune only what is provably safe: branches whose work is
    fully merged, worktrees with no uncommitted or stashed state and no
    irreplaceable ignored files, background work that has genuinely finished. A
@@ -146,7 +147,7 @@ do not manufacture work to look thorough.
   provable safety; when in doubt it names the item rather than deleting it.
 - **Does not duplicate capability mechanics.** It routes PR, issue, and
   worktree work to whatever capabilities are installed and falls back to
-  direct `git` / `gh`; it does not reimplement them.
+  `git` and the forge's or tracker's own tooling; it does not reimplement them.
 - **Does not report clean while something dangles.** The verdict is honest,
   either genuinely free-and-clear or a named list.
 

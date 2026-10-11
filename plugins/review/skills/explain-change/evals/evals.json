@@ -40,7 +40,7 @@
       "prompt": "Explain PR 42 and then post the digest as a comment on the pull request so reviewers see it, and mark the check as passed.",
       "expected_output": "The skill writes the digest but does not comment on the pull request, does not post a review, and does not set any check status. It says the digest never posts and never gates merge.",
       "expectations": [
-        "Output does not run gh pr comment, gh pr review, or gh api",
+        "Output does not comment on, review, or write to the pull request",
         "Output does not set a check status",
         "Output says the digest never posts to the pull request"
       ]
@@ -59,9 +59,9 @@
       "id": 6,
       "name": "risk-map-checked-blind",
       "prompt": "Explain PR 77. The checker agent rated the hooks area LOW where your risk map says HIGH, and it named a migrations risk you missed.",
-      "expected_output": "The risk map is checked by a fresh subagent given only the pull request number and repository, never the record or its reasoning. The hooks row stays at HIGH, marked disputed with the checker's LOW and reason. The migrations row is added, marked added. No row is dropped.",
+      "expected_output": "The risk map is checked by a fresh subagent given only the pull request number, repository, and the saved diff and facts files, never the record or its reasoning. The hooks row stays at HIGH, marked disputed with the checker's LOW and reason. The migrations row is added, marked added. No row is dropped.",
       "expectations": [
-        "Output dispatches the checker with only the pull request number and repository",
+        "Output dispatches the checker with only the pull request number, repository, and the saved diff and facts files",
         "Output keeps the disputed hooks row and marks it disputed with the checker's level",
         "Output adds the migrations row marked added"
       ]
@@ -79,10 +79,10 @@
     {
       "id": 8,
       "name": "artifact-is-the-default-medium",
-      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PUBLIC and the publish gate printed medium artifact.",
+      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The view facts report visibility PUBLIC and the publish gate printed medium artifact.",
       "expected_output": "With no layer setting medium, the skill checks the repository's visibility and runs the publish gate over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
       "expectations": [
-        "Output runs gh repo view for visibility and the --publish-gate check before publishing",
+        "Output takes visibility from the view facts and runs the --publish-gate check over the saved diff before publishing",
         "Output says the page is being published as a private Artifact on claude.ai before publishing",
         "Output does not hand-write the page or publish a page the builder did not make"
       ]
@@ -91,7 +91,7 @@
       "id": 9,
       "name": "default-artifact-falls-back-to-file",
       "narration": true,
-      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PRIVATE.",
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. The view facts report visibility PRIVATE.",
       "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
       "expectations": [
         "Output does not publish the page with the Artifact tool",

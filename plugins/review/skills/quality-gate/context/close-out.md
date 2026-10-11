@@ -150,13 +150,15 @@ git check-ref-format "refs/heads/$BRANCH" || {
   echo "UNRESOLVED: not a valid git branch name: $BRANCH" >&2
   exit 1
 }
-
-gh pr list --head "$BRANCH" --state all \
-  --json number,state,baseRefName,headRefName,mergeCommit
 ```
 
+Then list the branch's PRs through `/source-control:pull-request list --head <branch> --state all`,
+invoked via the Skill tool with the checked value; it returns an array carrying `number`, `state`,
+`baseRefName`, `headRefName` and `mergeCommit`. Without the `source-control` plugin, the forge's own
+list of PRs by head branch returns the same fields.
+
 **Branch on how many the query returned. The count is the answer, so do not collapse it.** The
-listing is deliberately left as an array rather than reduced with `--jq '.[0]'`: taking the first
+listing is deliberately left as an array rather than reduced to its first element: taking the first
 element makes "exactly one" indistinguishable from "several, arbitrarily picked", and on an empty
 array it yields `null` rather than saying "none". Same discipline as rung 1 below, where a failed
 query is not an empty set.

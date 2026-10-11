@@ -3,7 +3,7 @@ description: "Single-lens review checkpoint between 'code works' and 'code is re
 argument-hint: "[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
+allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh issue view:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -31,10 +31,6 @@ contains git. The dated record for that composition claim is the worktree skill'
 [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "The pre-compute block runs as one shell invocation".
 
-## Pre-computed context
-
-Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
-
 ## Purpose
 
 Review is the quality checkpoint between "code works" and "code is ready." This skill structures that step so changes are inspected for consistency, correctness, and alignment with the project's conventions before verification or PR creation. Self-review catches errors tests miss. Inconsistencies, loose ends, convention drift, design shortcuts. Delegated reviews (code, architecture, security) bring specialized scrutiny the implementer's tunnel vision would miss.
@@ -46,7 +42,7 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 - **Review diff base**. **mode-scoped override first:** `close-out` does not use this base at all.
   A spec container is not a branch, so that mode derives a container-scoped basis of its own, per
   execution shape ([context/close-out.md](context/close-out.md) "Why it needs its own diff basis").
-  Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
+  Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Read it through `/source-control:pull-request view` with no number (the current branch's PR), invoked via the Skill tool when the `source-control` plugin is installed, and use it only when its `state` is `OPEN`. A failed read cannot tell "no PR" from "lookup failed", and without the plugin there is no read: in both cases say in the report that the PR base is unverified. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary**, the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Criteria resolution**. Review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
 - **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths.
@@ -103,7 +99,7 @@ is an explicitly passed `--container` ref that does not resolve
 
 ## Step 1: Gather context
 
-1. **What changed?**. Pre-computed facts above + the review diff base
+1. **What changed?**. The repository context above + the review diff base
 2. **What was the goal?**, the original task, approved plan, or user intent from conversation. In every mode but `spec` and `close-out` this is background for judging the change; making the goal the thing under judgment is `spec` mode, which owns the spec-source discovery ladder and the fidelity finding classes. `close-out` is that same lens at container scale, reusing both and resolving its spec from the container instead of the branch
 3. **What conventions apply?**. Resolve the project's standards for the changed surfaces through the standards index per the Shared-inputs criteria-resolution binding, so every review mode grounds in the same rows plan formulation loaded
 
