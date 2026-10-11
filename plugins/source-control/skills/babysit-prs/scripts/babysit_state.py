@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
+import babysit_checks
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     is_json_object,
@@ -303,15 +304,9 @@ def record_mutation_ledger_entry(
 
 
 def _check_rerun_key(check: dict[str, Any]) -> str:
-    # The same (type, name, workflow) triple babysit_checks keys identities by,
-    # serialized so no separator inside a check name can collide two checks.
-    return json.dumps(
-        [
-            str(check.get("type") or ""),
-            str(check.get("name") or ""),
-            str(check.get("workflow_name") or ""),
-        ]
-    )
+    # babysit_checks decides what one check is; serialized so no separator
+    # inside a check name can collide two checks.
+    return json.dumps(list(babysit_checks.check_identity_key(check)))
 
 
 class FlakeCapReached(RuntimeError):

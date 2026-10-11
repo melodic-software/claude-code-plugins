@@ -48,7 +48,7 @@ bump: minor
   prompting. Without the section, triage is unchanged.
 - **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new
   `manage_feedback_ledger.py record-rerun` records each rerun in the durable mutation ledger, keyed
-  by PR, head SHA and check, before the rerun is triggered, and refuses a second one for the same
+  by PR, head SHA and check (identified the same way the snapshot identifies a check), before the rerun is triggered, and refuses a second one for the same
   check at the same head (exit 4): that failure is treated as real and fixed or reported. A new
   head starts the count again. The command names the check by its hex id, which the snapshot
   text prints first on each `failing check: rerun_id=<id> name="<name>"` line (check names are now
