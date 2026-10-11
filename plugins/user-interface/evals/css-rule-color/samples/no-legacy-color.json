@@ -1,6 +1,14 @@
 {
   "pass": [
     {
+      "answer": "I avoided #2563eb and used oklch(55% 0.2 260) instead.",
+      "why": "prose naming a hex"
+    },
+    {
+      "answer": "Brand: #2563eb converts to oklch(55% 0.2 260).",
+      "why": "prose label with a colon, no declaration end"
+    },
+    {
       "answer": ":root {\n  --brand: oklch(55% 0.2 260);\n  --gray-1: oklch(96% 0 none);\n}",
       "why": "oklch only"
     },
@@ -33,6 +41,10 @@
     {
       "answer": ".x {\n  color: hsl(220 80% 50%);\n}",
       "why": "hsl declaration"
+    },
+    {
+      "answer": ".x {\n  color: #fff\n}",
+      "why": "last declaration with no semicolon"
     }
   ]
 }

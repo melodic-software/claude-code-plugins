@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "I avoided #2563eb and used var(--color-accent).",
+      "why": "prose naming a hex"
+    },
+    {
       "answer": ".notice {\n  color: var(--color-text);\n  border-inline-start: 4px solid var(--color-accent);\n}",
       "why": "tokens only"
     },
@@ -21,6 +25,10 @@
     {
       "answer": ".notice {\n  background: oklch(97% 0.02 250);\n}",
       "why": "oklch literal"
+    },
+    {
+      "answer": ".notice {\n  color: rgb(20 30 40)\n}",
+      "why": "last declaration with no semicolon"
     }
   ]
 }
