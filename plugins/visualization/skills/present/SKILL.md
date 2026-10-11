@@ -84,10 +84,11 @@ own argument to this invocation names that medium. The output names the `medium`
 - `artifact`: say "publishing as a private Artifact on claude.ai", then create the deck from the
   quickstart's `type_url` with its title set to the `title` the gate printed, which it read from the
   gated `deck.json`; never type it separately. Send the gated files, unchanged, as the type
-  instructs. Give the user the link, and say sharing is their choice; who can see it and how to
-  share it are read live from
-  [Artifacts: Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact)
-  (as of 2026-10-11; recheck when that section changes who can see an unshared artifact).
+  instructs. Give the user the link, and say sharing is their choice.
+  - **Pointer**: when the user asks who can see the deck or how to share it, fetch
+    [Artifacts: Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact)
+    live. **As of**: 2026-10-11. **Recheck trigger**: that section changes who can see an
+    unshared artifact.
 - `terminal` or `file`: publish nothing. Give the outline and the `reason`, and the `opt_in` when
   there is one (`medium: artifact` in `~/.claude/rendered-views.md`).
 - Exit 1 (a deck refused) or 2: publish nothing; fix the named title or rewrite the named slide as

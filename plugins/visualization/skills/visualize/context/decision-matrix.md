@@ -45,15 +45,9 @@ against those sources before relying on a time-sensitive detail; the platform mo
   - **Recheck trigger**: the "Page constraints" section changes its external
     requests or rendered size row.
 - **Theme-aware** (light/dark), **responsive**, and **favicon required**: this
-  plugin builds every published page to these three rules. The Artifact tool's own
-  description in the session is where its page requirements are read; an
-  artifact-design capability, when installed, owns the craft on top of them.
-  - **Pointer**: when a page requirement is in question, read the Artifact tool's
-    description in the current session; the public artifacts page does not list
-    these requirements as of the date below.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: the Artifact tool's description changes its page
-    requirements, or the artifacts page starts listing them.
+  plugin builds every published page to these three rules, and follows the Artifact
+  tool's own description in the session where it asks for more. An artifact-design
+  capability, when installed, owns the craft on top of them.
 - **Connector-backed live data**: a published page can call declared MCP
   connectors at view time, showing current data rather than a build-time snapshot.
   The CSP decision above still holds: the page makes no data call of its own. Who
@@ -266,7 +260,8 @@ what terminal Markdown rendering covers.
   above (Page constraints, Availability, Pull live data with MCP connectors).
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
-  tool's own description in the session, per the theme entry's pointer above.
+  tool's own description in the session (no public docs section covers them as of
+  2026-10-11).
 - Mermaid diagram families: `https://mermaid.js.org/intro/` and the stable
   sidebar at `https://mermaid.js.org/syntax/flowchart.html`.
 - Plugin manifest `userConfig` fixed-value fields, which this plugin's options use:

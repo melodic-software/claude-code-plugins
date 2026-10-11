@@ -22,8 +22,13 @@ never from an in-flow question.
 
 Official contracts:
 
-- <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>
-- <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
+- **Pointer**: when a step turns on how plugin options or default enablement behave, fetch
+  [Plugins reference: User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+  and [Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes how options are prompted for, stored or delivered, or
+  what `defaultEnabled: false` does at install.
 
 ## Task
 

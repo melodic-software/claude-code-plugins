@@ -14,9 +14,10 @@ the same surface in its decision-matrix catalog.
 | Settings can remove the skill | Pointer: when a person asks how to turn `/design` off, fetch [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills) and [`skillOverrides`](https://code.claude.com/docs/en/settings-reference#skilloverrides) live | 2026-10-11 | Either setting is renamed or changes what it removes |
 | No release note names a design-family surface, so the only version floor is the one the first row's pointer reads | Probe: the changelog cross-check in the `design` records of `docs/native-surfaces/records.json` | 2026-09-11 | A changelog entry names `/design` or the hub |
 
-The registration in the 2.1.251 binary (verified 2026-08-31) matches the canvas skill above except
-for the rollout flag's default, which was off at v2.1.234 and is on at v2.1.263; the hub is the
-design-sync family the registry records as a `defer` row.
+Earlier probe history (verified 2026-08-31): the 2.1.251 binary carried the same canvas
+registration as the history row, with its rollout flag defaulting off at v2.1.234 and on at
+v2.1.263; the hub is the design-sync family the registry records as a `defer` row in
+`docs/native-surfaces/records.json`.
 
 ## Why the verdict is complementary
 
