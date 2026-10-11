@@ -59,6 +59,14 @@ on:
         required: false
         type: boolean
         default: true
+      allow-unix-sockets:
+        description: >-
+          Write a managed policy on this throwaway runner that lets sandboxed
+          eval Bash open any Unix socket (sandbox.network.allowAllUnixSockets);
+          playwright-cli's daemon and Chromium need it.
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -131,10 +139,39 @@ jobs:
           fi
 
       # The tools and Chromium go under /opt, outside HOME, which each eval
-      # run replaces with a temporary one. Only these directories are made
-      # while sudo works; no third-party code runs before isolation.
+      # run replaces with a temporary one. Only these directories and the
+      # opt-in policy below are made while sudo works; no third-party code
+      # runs before isolation.
       - name: Create the tool directories
         run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
+
+      # The eval writes its own sandbox settings, which carry only
+      # network.allowedDomains, so Chromium's socket() is denied inside its
+      # Bash calls. Managed settings apply inside an eval run
+      # (code.claude.com/docs/en/plugin-evals), and on Linux the file is
+      # /etc/claude-code/managed-settings.json, merged with any
+      # managed-settings.d/*.json beside it (code.claude.com/docs/en/managed-settings,
+      # "Deploy a managed settings file" and "How Claude Code combines managed
+      # sources", as of 2026-10-11). It is written while sudo still works,
+      # root-owned and world-readable: a root-only file is skipped. The only
+      # claude process in this job is the eval, so nothing else reads it.
+      - name: Write the Unix-socket managed policy
+        if: inputs.allow-unix-sockets
+        run: |
+          dir=/etc/claude-code
+          for path in "$dir/managed-settings.json" "$dir/managed-settings.d"; do
+            if [ -e "$path" ] || [ -L "$path" ]; then
+              echo "::error::$path already exists; refusing to write a managed policy beside one this job did not write"
+              exit 1
+            fi
+          done
+          policy=$RUNNER_TEMP/managed-settings.json
+          echo '{"sandbox":{"network":{"allowAllUnixSockets":true}}}' > "$policy"
+          sudo install -d -o root -g root -m 0755 "$dir"
+          sudo install -o root -g root -m 0644 "$policy" "$dir/managed-settings.json"
+          rm "$policy"
+          ls -l "$dir/managed-settings.json"
+          cat "$dir/managed-settings.json"
 
       # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
       # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
