@@ -230,7 +230,10 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    and apply that file's reading rules: only a `cleared` row is a deletion candidate.
 3. **Propose.** Fill `decisions.md` with one row per candidate: test, rule, quoted line, skeptic
    verdict, action, approved-by. A `cleared` row is a row 4 deletion whose no-contract statement is
-   the skeptic's reason. Any other row is `keep`; when the skeptic names a statement that can throw,
+   the skeptic's reason, unless a reference it quotes as naming a symbol elsewhere lies inside
+   another `cleared` test: skeptics run per file, so two candidates can each be the other's only
+   witness. That row is `keep: compile-time reference only in another candidate (<file:line>)`.
+   Any other row is `keep`; when the skeptic names a statement that can throw,
    the action reads `keep: throw is the only oracle (<file:line>)`, which a gated run or a
    `cant-fail-ok: <why>` annotation can settle later.
 4. **Delete.** Apply each deletion only after the user's yes to that item; unattended, apply none.
