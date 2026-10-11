@@ -1317,6 +1317,22 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  // HTML attributes decode a legacy named reference without its semicolon,
+  // except before a letter, digit or `=`: `&amp.` is `&`, `&ampx` stays.
+  it("decodes a semicolonless legacy named reference in an HTML attribute", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/decks/a&.pdf": "pdf",
+      "metadata/decks/a&x.pdf": "pdf",
+      "metadata/deck-inventory.md":
+        '<a href="decks/a&amp.pdf">deck</a>\n<a href="decks/a&ampx.pdf">x</a>\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "metadata/deck-inventory.md", ref: "decks/a&ampx.pdf" },
+    ]);
+  });
+
   // HTML numeric character reference replacements: 0x80 is windows-1252's
   // euro sign (U+20AC), and 0 becomes U+FFFD.
   it("applies HTML's numeric character reference replacements", () => {

@@ -46,8 +46,13 @@ function tokens(text) {
 /** @param {string} word */
 function comparableWord(word) {
   // Apostrophes in any form (', ’, ʼ) drop out, so don't, don’t and dont match.
-  return word.toLowerCase().replace(/\u02BC|[^\p{L}\p{N}]/gu, "");
+  // Only sentence punctuation at either end goes, so C++. and C# stay distinct.
+  return word.toLowerCase().replace(/['\u2019\u02BC]/g, "").replace(EDGE_PUNCTUATION, "");
 }
+
+/** Sentence punctuation (quotes, brackets, ellipses, dashes) at a word's ends. */
+const EDGE_PUNCTUATION =
+  /^[.,;:!?"()[\]{}\u2026\u2010-\u2015-]+|[.,;:!?"()[\]{}\u2026\u2010-\u2015-]+$/g;
 
 /**
  * The lexical words of `text`: punctuation-only tokens such as `>>` are not
@@ -56,7 +61,7 @@ function comparableWord(word) {
  * @param {string} text
  */
 function words(text) {
-  return tokens(text).filter((token) => comparableWord(token) !== "");
+  return tokens(text).filter((token) => /[\p{L}\p{N}]/u.test(token));
 }
 
 /** @param {string[]} run */

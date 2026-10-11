@@ -283,11 +283,14 @@ const WINDOWS_1252 = [
  * @param {string} value
  */
 function decodeHtmlReferences(value, { attribute = false } = {}) {
-  // HTML attributes also accept a numeric reference without its semicolon; Markdown does not.
+  // HTML attributes also accept a numeric reference without its semicolon, and a
+  // legacy named one (amp, lt, gt, quot) unless a letter, digit or `=` follows;
+  // Markdown accepts neither.
   const pattern = attribute
-    ? /&(?:#(\d+);?|#[xX]([0-9A-Fa-f]+);?|([A-Za-z]+);)/g
+    ? /&(?:#(\d+);?|#[xX]([0-9A-Fa-f]+);?|([A-Za-z]+);|(amp|lt|gt|quot)(?![A-Za-z0-9=]))/g
     : /&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g;
-  return value.replace(pattern, (match, dec, hex, name) => {
+  return value.replace(pattern, (match, dec, hex, named, legacy) => {
+    const name = named ?? legacy;
     if (dec !== undefined || hex !== undefined) {
       const code = dec !== undefined ? Number(dec) : Number.parseInt(hex, 16);
       const invalid = code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff);
