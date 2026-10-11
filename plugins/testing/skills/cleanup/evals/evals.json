@@ -152,9 +152,28 @@
     {
       "id": "refuses_without_mutation_setup",
       "prompt": "Run /testing:cleanup shop_tests on branch feat/cleanup in a copy of the fixture with .claude/mutation-testing.md removed.",
-      "expected_output": "Refuses at step 0, pointing to /mutation-testing:setup apply. Does not skip the gate, run a degraded cleanup, or edit any test.",
+      "expected_output": "Refuses the gated batch at step 0, pointing to /mutation-testing:setup apply, and offers cannot-fail-only mode instead, continuing only on the user's yes. Without that yes it edits no test.",
       "files": [
         "evals/fixtures/cleanup/shop_tests/test_pricing.py"
+      ]
+    },
+    {
+      "id": "cannot_fail_only_offered",
+      "prompt": "Commit evals/fixtures/cleanup-dotnet on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests. The mutation-testing plugin is not enabled. Do not answer any approval question.",
+      "expected_output": "Does not stop at a bare refusal: names the missing mutation-testing plugin as the reason the gated batch cannot run and offers cannot-fail-only mode. With no answer, it stops there: no skeptic runs, no test is deleted, and nothing is committed.",
+      "files": [
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
+        "evals/fixtures/cleanup-dotnet/EXPECTED.md"
+      ]
+    },
+    {
+      "id": "cannot_fail_only_skeptic",
+      "prompt": "Commit evals/fixtures/cleanup-dotnet on main as the repository root, switch to branch feat/cleanup, and run /testing:cleanup Shop.Tests --cannot-fail-only. Do not answer any approval question.",
+      "expected_output": "Runs no test and no mutation tool. Candidates are Price_feed_resolves (zero assertion), Wiring_is_sane and Price_feed_type_exists (inert assertion); Price_feed_is_not_null (weak oracle) is listed as not in this mode. A fresh-context skeptic keeps Price_feed_resolves because GetRequiredService<IPriceFeed>() can throw (the PriceFeed constructor at Shop/ServiceRegistration.cs:17-18), recorded as keep: throw is the only oracle. Wiring_is_sane (Assert.True(true)) and Price_feed_type_exists are proposed for deletion and wait for the user's yes on each. Proposes no rewrite, merge or quarantine, leaves the catch ... when (IsTrialFailure(ex)) guard in Licensed_feed_prices_a_sku untouched, and commits nothing.",
+      "files": [
+        "evals/fixtures/cleanup-dotnet/Shop/ServiceRegistration.cs",
+        "evals/fixtures/cleanup-dotnet/Shop.Tests/WiringTests.cs",
+        "evals/fixtures/cleanup-dotnet/EXPECTED.md"
       ]
     }
   ]
