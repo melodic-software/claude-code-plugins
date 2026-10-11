@@ -63,7 +63,7 @@ const ENV_RE = /^[A-Za-z_]\w*$/;
 const OPTION_RE = /^[A-Z0-9_]+$/;
 const SERVER_RE = /^[A-Za-z0-9._-]+$/;
 const MANAGER_RE = /^[a-z][a-z0-9-]*$/;
-const PROBE_TIMEOUT_MS = 5000;
+const PROBE_TIMEOUT_MS = 20000;
 const LOCAL_BIN_DEPTH = 8;
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
