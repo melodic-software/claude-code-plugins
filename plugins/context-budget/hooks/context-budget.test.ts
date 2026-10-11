@@ -349,8 +349,19 @@ for (const reason of ['clear', 'resume'] as const) {
   })
 }
 
-test('tokens: a value that rounds to 1000k reads as 1M', () => {
-  expect([999, 1_500, 999_499, 999_500, 999_999, 1_000_000, 1_500_000].map(tokens)).toEqual(['999', '2k', '999k', '1M', '1M', '1M', '1.5M'])
+test('band: a refresh in flight when the session ends writes nothing', { options: { live_display: 'band' } }, async ($, on) => {
+  let release = () => {}
+  const w = world(on, 'breakdown', { call: 1, until: new Promise<void>(resolve => (release = resolve)) })
+  const inFlight = measure($)
+  while (w.usageCalls === 0) await new Promise(resolve => setTimeout(resolve, 1))
+  await $.session.end({ reason: 'clear', sessionId: 's1' } as any)
+  release()
+  await inFlight
+  expect(await texts(await mountBand($))).toEqual(['other plugin row'])
+})
+
+test('tokens: a value that rounds up to the next unit reads in that unit', () => {
+  expect([999, 999.6, 1_500, 999_499, 999_500, 999_999, 1_000_000, 1_500_000].map(tokens)).toEqual(['999', '1k', '2k', '999k', '1M', '1M', '1M', '1.5M'])
 })
 
 test('command: session.start registers /context-budget to run mid-turn', async ($, on) => {
