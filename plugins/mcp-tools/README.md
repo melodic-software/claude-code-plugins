@@ -36,9 +36,10 @@ Language-agnostic: it discovers tools in Python (`mcp`), TypeScript (`@modelcont
 
 ## Supply-chain posture audit
 
-A bundled script reads the MCP configuration Claude Code resolves (user and local scope in
-`~/.claude.json`, the project `.mcp.json`, managed `managed-mcp.json` and `managedMcpServers`, and
-any file you pass) and emits a dated inventory: scope, whether the entry is effective, transport,
+A bundled script reads the MCP configuration Claude Code resolves (every
+[MCP installation scope](https://code.claude.com/docs/en/mcp#mcp-installation-scopes), managed
+configuration included, plus any file you pass; as of 2026-10-11, recheck when that section adds
+or moves a scope) and emits a dated inventory: scope, whether the entry is effective, transport,
 launcher, package, pin state, publisher, and whether it runs in the Claude Code sandbox (a stdio
 server does not). The skill then evaluates five criteria:
 
