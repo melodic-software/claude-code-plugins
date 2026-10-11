@@ -1,18 +1,24 @@
 # Cycle-start snapshot reads
 
 `SKILL.md` step 1 takes the cycle-start snapshot this file governs; both stop modes test their exit
-condition against it, and `first_drain_complete` (which lifts the first-drain C3 ratification gate)
-is set from it. An empty id set passes the drain exit test vacuously, so the snapshot is trusted only
+condition against it, and the first-drain completion proposal
+([first-drain-ratification.md](first-drain-ratification.md)) is raised from it. An empty id set passes the drain exit test vacuously, so the snapshot is trusted only
 when the reads behind it were complete.
 
 ## The reads
 
 - **Frontier**: the seam's `list-frontier --autonomous`. Its envelope carries `truncated` (the
   tracker seam's `CONTRACT.md`, "JSON output contract").
-- **Open items**: the seam's `list-items --state open`, which every bundled adapter serves. Its
-  envelope carries `truncated` the same way; each adapter decides it exactly, by reading one item
-  past `limits.list_items_max` where the provider allows, so a backlog of exactly the ceiling is
-  complete. Never pass a provider-specific flag such as `--limit` here.
+- **Open items**: the seam's `list-items --state open`. Its envelope carries `truncated` the same
+  way; each adapter decides it exactly, by reading one item past `limits.list_items_max` where the
+  provider allows, so a backlog of exactly the ceiling is complete. Never pass a
+  provider-specific flag such as `--limit` here.
+
+With `--scope <label>`, both reads take `--label <label>`. Where the bound adapter filters by label
+in its provider query, the ceiling counts only scoped items, so a small scope on a large tracker
+reads complete; where it does not, the seam filters after the read and a listing past the ceiling
+stays truncated (`CONTRACT.md`, "Verbs"). `--shard` has no provider filter and partitions the
+retained ids after the reads.
 
 An envelope with no `truncated` field falls under "Completeness unknown" below, whichever read
 returned it.
@@ -24,7 +30,7 @@ truncation, the cycle aborts with **no state change**:
 
 - no intake sweep, admission, execution, escalation (except the truncation escalation below), or
   exit evaluation;
-- every durable counter, `first_drain_complete` included, is written back as it was read. Only
+- every durable counter, `first_drain_proposed` included, is written back as it was read. Only
   `heartbeat_at` moves, so the lane is not mistaken for a dead one;
 - the cycle report leads with `snapshot unusable: <read>: <reason>`, and the next cycle is scheduled
   as usual.
@@ -53,6 +59,6 @@ backlog; an empty one from a failed or skipped read is not.
 
 A frontier or open-items envelope with no `truncated` field comes from a consumer adapter written
 before the contract added it. Its completeness is **unknown**, not complete: the cycle runs, but its snapshot
-never satisfies the drain exit test or sets `first_drain_complete`, and the report says
+never satisfies the drain exit test or proposes first-drain completion, and the report says
 `snapshot completeness unknown`. The drain-terminal stop still applies, because stopping lifts no
 gate. Regenerating the adapter with `/work-items:onboard-adapter` restores the flag.

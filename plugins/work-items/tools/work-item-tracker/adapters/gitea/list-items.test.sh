@@ -307,6 +307,20 @@ if [[ "$(gitea_requests)" == *"page=3"* ]]; then
 else
   pass "the fixture ceiling governed the walk"
 fi
+
+# --- --label goes to gitea, so the ceiling counts labeled issues only (#7173) ---
+# The same repository, past the ceiling unfiltered, holds one issue with the label. The
+# mock answers the labeled query with that issue, as gitea's `labels` filter would.
+gitea_reset_routes
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed_total "labels=area%3A%20ci" 200 "[$(gitea_issue_json 7 open 'labeled')]" 1
+gitea_seed_total "/issues?state=open&type=issues" 200 "$CLAMPED_PAGE" 9999
+rc="$(WIT_SEAM_LIB_DIR="$GITEA_SEAM_LIB" gitea_run "$GITEA_FIX_ADAPTER/list-items.sh" --label "area: ci")"
+assert_eq "--label past an unlabeled ceiling → exit 0" "0" "$rc"
+assert_contains "the label travels URL-encoded in the query" "$(gitea_requests)" "type=issues&labels=area%3A%20ci&page=1"
+assert_eq "the labeled issue is listed" "gitea:acme/webapp#7" "$(jq -r '[.items[].id] | join(",")' <<<"$(gitea_out)")"
+assert_eq "and the labeled listing is complete" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
+assert_usage_error "$S" --label
 gitea_write_binding
 
 [[ $FAILED -eq 0 ]] || exit 1

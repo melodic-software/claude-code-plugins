@@ -175,6 +175,7 @@ jobs:
           config-path: ${{ inputs.config-path }}
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          head-sha: ${{ steps.gate.outputs.head-sha }}
 
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
       # App key; the caller chose the wrong file.

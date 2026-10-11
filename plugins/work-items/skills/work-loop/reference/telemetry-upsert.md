@@ -30,6 +30,7 @@ bash "<upsert-script>" \
 | `--repo` | The target repository as `owner/name`. |
 | `--issue` | The lane's tracking issue number. |
 | `--body-file` | The file holding this cycle's composed body. |
+| `--app-slug` | Optional; required under an App installation token, where the upsert otherwise exits 15 every cycle. No config key carries the slug yet, so the launch prompt supplies it. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
 
 ## What the upsert writes
 
@@ -37,7 +38,8 @@ The marker is `work-items:work-loop@<instance>` and the comment's first line is 
 `<!-- harness-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
 rendered and distinct per writer, so sibling instances each own one comment on the same issue.
 The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
-sentinel is never adopted. Where the lookup finds nothing the script creates the comment; where it
+sentinel is never adopted, and it counts only comments the write identity authored: the sentinel is
+public text, so a comment anyone else posts with it is never made canonical, written, or tombstoned. Where the lookup finds nothing the script creates the comment; where it
 finds one it edits that comment in place; where it finds several the LOWEST id is canonical
 (numeric sort, deterministic for every session), the canonical comment receives this cycle's full
 state, and every other sentinel comment is edited to a one-line tombstone, but only once the
@@ -84,6 +86,7 @@ to end the loop: the lane records the outcome and continues.
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
 | 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or the counters the comment shows. |
+| 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
