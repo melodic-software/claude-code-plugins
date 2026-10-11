@@ -42,14 +42,14 @@ through `/testing:run-e2e`. Pick by the job, not by habit.
 | The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, `claude --chrome` reaches the user's Windows browser outside documented support (paragraph below); otherwise the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
 | API-only checks, health, structured logs, traces | Orchestrator MCP + `curl` | Anything user-facing |
 
-Claude in Chrome from WSL, outside documented support (the WSL note at the top of
-<https://code.claude.com/docs/en/chrome> still says unsupported). To drive the user's real
-signed-in Windows browser from WSL, start Claude Code with `claude --chrome`; the `/chrome` dialog
-refuses on WSL. The Claude extension must be signed in to the same claude.ai account. No pairing
-prompt appears: confirm with `list_connected_browsers`, which should return a Windows browser, not a
-local one. Screenshots save inside WSL. Console recording starts at the first request, so reload to
-capture load-time messages. The Playwright CLI stays the default for every other job above. Record:
-ADR 0056 Findings. As of: 2026-10-11, Claude Code 2.1.296. Recheck trigger: each Claude Code
+Claude in Chrome from WSL is outside documented support. When the job needs the user's real
+signed-in Windows browser from WSL, start Claude Code with `claude --chrome` and confirm a Windows
+browser is connected before driving it; the Playwright CLI stays the default for every other job
+above. Pointers: the live-test record, with the setup, connection check, screenshot and console
+steps, in the "Claude in Chrome from WSL, live test" subsection of
+[ADR 0056](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md#claude-in-chrome-from-wsl-live-test);
+the WSL note above the Capabilities section of <https://code.claude.com/docs/en/chrome>, which has
+no anchor of its own. As of: 2026-10-11 (Claude Code 2.1.296). Recheck trigger: each Claude Code
 release, or the docs page dropping its WSL note.
 
 **CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks):
