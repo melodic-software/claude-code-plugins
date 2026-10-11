@@ -42,6 +42,7 @@ assert_eq "list-items exit 0" "0" "$RC"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
 assert_eq "paginated across 2 pages → 2 items" "2" "$(jq -r '.items | length' <<<"$OUT")"
 assert_eq "mock curl called twice" "2" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "a walk that reached the last page carries truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 assert_eq "page-1 item id" "jira:test.atlassian.net/SW2#1" "$(jq -r '.items[0].id' <<<"$OUT")"
 assert_eq "page-2 item id" "jira:test.atlassian.net/ABC#42" "$(jq -r '.items[1].id' <<<"$OUT")"
 assert_eq "page-2 item blocked_by_count" "1" "$(jq -r '.items[1].blocked_by_count' <<<"$OUT")"
@@ -242,5 +243,21 @@ printf '200' >"$JIRA_FIX/1.status"
 printf '{"issues":[{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 jira_run "$S" --state open
 assert_eq "un-normalizable issue in a page → unavailable (8)" "8" "$RC"
+assert_eq "and emits no envelope a caller could read as an empty listing" "" "$OUT"
+
+# --- the declared ceiling ends the walk and the envelope says so ---
+# A fixture copy of the adapter declares a ceiling of 1. Page 1 fills it while Jira
+# still offers a continuation token, so the walk stops short of the last page.
+FIX_ROOT="$JIRA_FIX/fixture"
+mkdir -p "$FIX_ROOT/adapters"
+cp -R "$(dirname "$S")" "$FIX_ROOT/adapters/jira"
+cp -R "$(dirname "$S")/../../lib" "$FIX_ROOT/lib"
+jq '.limits.list_items_max = 1' "$(dirname "$S")/capabilities.json" >"$FIX_ROOT/adapters/jira/capabilities.json"
+printf '200' >"$JIRA_FIX/1.status"
+printf '{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":"tok-2","isLast":false}' >"$JIRA_FIX/1.body"
+jira_run "$FIX_ROOT/adapters/jira/list-items.sh" --state open
+assert_eq "a walk stopped at the ceiling → exit 0 (documented truncation)" "0" "$RC"
+assert_eq "the ceiling's worth of items" "1" "$(jq '.items | length' <<<"$OUT")"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
 
 [[ $FAILED -eq 0 ]] || exit 1

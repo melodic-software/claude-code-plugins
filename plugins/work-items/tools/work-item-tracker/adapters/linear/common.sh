@@ -122,9 +122,18 @@ readonly WIT_LINEAR_DEFAULT_DONE_TYPES
 # by the API; 50 keeps a single response small enough to stay well inside the
 # complexity budget on issue queries that also fetch labels and relations.
 readonly WIT_LINEAR_DEFAULT_PAGE_SIZE=50
-# The total list-items pages up to, matching limits.list_items_max in capabilities.json.
-# shellcheck disable=SC2034  # read by list-items.sh; this file is sourced-only
-readonly WIT_LINEAR_LIST_ITEMS_MAX=1000
+# The total list-items pages up to. Read from limits.list_items_max in capabilities.json,
+# as the gitea adapter reads its own, so the manifest callers read and the bound the code
+# enforces are one value, and a test can point a fixture manifest at a lower ceiling.
+# Anything but a positive integer is a setup error (exit 3), never an unbounded walk.
+WIT_LINEAR_LIST_ITEMS_MAX="$(jq -r '.limits.list_items_max' "$WIT_LINEAR_ADAPTER_DIR/capabilities.json" 2>/dev/null)"
+if [[ ! "$WIT_LINEAR_LIST_ITEMS_MAX" =~ ^[1-9][0-9]*$ ]]; then
+  printf 'work-item-tracker linear adapter: limits.list_items_max in %s/capabilities.json must be a positive integer, got: %s\n' \
+    "$WIT_LINEAR_ADAPTER_DIR" "${WIT_LINEAR_LIST_ITEMS_MAX:-<unreadable>}" >&2
+  exit "$EX_CONFIG"
+fi
+# shellcheck disable=SC2034  # read by list-items.sh and create-item.sh; this file is sourced-only
+readonly WIT_LINEAR_LIST_ITEMS_MAX
 
 # The lease marker (CONTRACT.md "Lease protocol"). Linear comments carry markdown
 # bodies, so the marker rides in the body exactly as it does on GitHub.

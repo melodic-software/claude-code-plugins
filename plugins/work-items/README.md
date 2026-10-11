@@ -205,8 +205,8 @@ declares no default, so an unset value stays distinguishable from a configured o
 declared default would collapse into a hard cap.
 
 **`lane_instance`.** Follows the loop-lane convention's lane-instance identity rule. Each lane
-instance owning its own comment protects durable state including `first_drain_complete`, whose loss
-would end one machine's earn-trust ratification gate because a different machine finished a drain.
+instance owning its own comment keeps one machine's durable state, such as its adaptive item cap,
+from being overwritten by another's.
 
 **`work_loop_frontier_item_cap_ceiling`.** A quota guard: items carrying `capability-tier: frontier`
 are bounded by this ceiling instead of the general one.

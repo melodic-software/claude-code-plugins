@@ -17,7 +17,7 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 | Orchestrator tooling/MCP | per the consuming project's orchestrator convention | YES (when orchestrator configured) | App orchestration, start/stop, health, logs |
 | Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`, published at 0.1.19 on 2026-09-06; expect 0.1.x or later) | Recommended | Token-efficient browser automation, screenshots, form filling |
 | Chrome DevTools MCP | `mcp__chrome-devtools__list_pages` | Optional | Lighthouse audits, performance traces, network inspection |
-| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host (see the rubric for WSL) |
+| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host, or from WSL under `claude --chrome` (see the rubric) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
 **If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds. A substitute path produces unverified pass/fail results, defeating live verification.
@@ -59,13 +59,18 @@ through `/testing:run-e2e`. Pick by the job, not by habit.
 | Long-running exploration that holds browser state across many steps | Playwright MCP, opt-in (check how the consuming project enables it in its MCP config) | Routine verification: it streams page payloads into context |
 | Deep performance or network debugging: traces, Core Web Vitals, Lighthouse, protocol-level requests | Chrome DevTools MCP, when configured; the CLI's `console` and `network` cover the basics | UI navigation flows |
 | A regression the suite must keep catching | A committed spec in the project's existing browser-test framework, run in CI; `@playwright/test` when the project has none | One-off checks during development: drive the app once and keep the evidence |
-| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, fetch the WSL note (pointer below) before routing here; while it does not list WSL as supported, and until the live test reports, use the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
+| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, `claude --chrome` reaches the user's Windows browser outside documented support (paragraph below); otherwise the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
 | API-only checks, health, structured logs, traces | Orchestrator MCP + `curl` | Anything user-facing |
 
-Claude in Chrome from WSL. Pointer: the WSL note at the top of
-<https://code.claude.com/docs/en/chrome>; user reports of `claude --chrome` working from WSL are in
-the comments on <https://github.com/anthropics/claude-code/issues/79655>. As of: 2026-10-04. Recheck
-trigger: the page drops its WSL line, or the live test of `claude --chrome` from WSL reports.
+Claude in Chrome from WSL is outside documented support. When the job needs the user's real
+signed-in Windows browser from WSL, start Claude Code with `claude --chrome` and confirm a Windows
+browser is connected before driving it; the Playwright CLI stays the default for every other job
+above. Pointers: the live-test record, with the setup, connection check, screenshot and console
+steps, in the "Claude in Chrome from WSL, live test" subsection of
+[ADR 0056](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md#claude-in-chrome-from-wsl-live-test);
+the WSL note above the Capabilities section of <https://code.claude.com/docs/en/chrome>, which has
+no anchor of its own. As of: 2026-10-11 (Claude Code 2.1.296). Recheck trigger: each Claude Code
+release, or the docs page dropping its WSL note.
 
 **CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks):
 see `/playwright:playwright`, when the playwright plugin is enabled.

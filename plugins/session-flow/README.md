@@ -1,7 +1,7 @@
 # session-flow
 
-A Claude Code plugin bundling eighteen skills for one cohesive capability: managing the lifecycle
-of a working session. The skills answer where you are in the work, how to pause and resume it, how
+A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
+skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
 session's assumptions are still current, what to learn from it while it runs and after, where your
@@ -61,7 +61,7 @@ it for delegation-heavy tasks.
 
 ## Output styles
 
-- **`Brain fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
+- **`Brain Fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
   short answers, two options max). Select it in `/config` → **Output style**. Coexists with
   `/education:explain` for one-shot deep explanations (#1223).
 
@@ -468,10 +468,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. Two surfaces are configurable: the **detached observer** (eight keys, all defaulting
-to zero-config behavior; see `reference/observer.md` for full semantics), and **audit-sessions**
+`userConfig`. Three surfaces are configurable: the **detached observer** (eight keys, all defaulting
+to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
 (five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds; see the options reference below):
+two drift-check bounds), and `cloud_route`, whether the workflow's continuation advice offers a
+cloud session (see the options reference below):
 
 | Key | Default | Effect |
 |---|---|---|
@@ -510,7 +511,8 @@ checkpoint are network-free. Every skill not named above is network-free
 Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only, using
 that reader only to read the launch `cwd` that maps a scope to directories, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
-session network access, but the skill itself performs no egress.
+session network access, or with `--cloud` a `claude --cloud` process that starts a cloud session
+from the pushed branch, but the skill itself performs no egress.
 
 ### Option details
 
@@ -597,6 +599,7 @@ reads it from.
 | `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
+| `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 
 ### How to set these
 

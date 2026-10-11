@@ -111,10 +111,10 @@ exclude = [
   '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
   '^https?://www\.w3\.org/International/wiki/WorkingWithTimeZones/?([?#].*)?$',
-  # Loopback and placeholder hosts: never reachable from the checker.
+  # Loopback hosts: never reachable from the checker. The example.com/.org/.net
+  # placeholder domains need no entry: lychee excludes them by default.
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
-  '^https?://example\.(com|org)',
   # PRIVATE GitHub repos: valid links for authenticated collaborators, but a
   # manual online run checks them unauthenticated, carrying no credential that
   # can read a private repo, so GitHub answers 404.

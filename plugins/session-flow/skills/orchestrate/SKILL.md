@@ -115,15 +115,8 @@ told:
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
-   / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
-   headroom is unobservable**, no live reading is obtainable: `rate-limit-guard`'s pull tool
-   `mcp__rate-limit-guard__status` is missing (mods off, the guard not installed, or a policy
-   refused the tool's registration) or answers with no windows (`verdict: "unknown"`, as under
-   API-key or enterprise auth), and the snapshot its mod writes is absent, stale, or missing
-   `rate_limits` (see rate-limit-guard's reader-contract, "Capability detection (fail-open)").
-   Treat
-   headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
-   waves over a wide tree, and do not invent window percentages. Scale further down on this
+   / rate-limit headroom (thin headroom caps how many workers you run at once). With no live
+   rate-limit reading, do not invent window percentages. Scale down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the
    session (for example review-lane infra comments classifying `api_error_status: 429`); scale
    back up only after those reactive signals stop, never on a guessed recovery. Sizing is
