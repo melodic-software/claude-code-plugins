@@ -103,7 +103,12 @@ class JsComplexityShareTest(unittest.TestCase):
         self.write("plugins/b/lib/shared.mjs", "// cc=30\n// cc=1\n")
         self.write("tools/canon.js", "// cc=2\n")
         self.write("plugins/a/tools/canon.js", "// cc=40\n")
+        # A name that reads as a lizard option is still a file.
+        self.write("src/-oevil.js", "// cc=22\n")
+        # A plugin named evals holds production code.
+        self.write("plugins/evals/lib/prod.mjs", "// cc=5\n")
         # Out of scope.
+        self.write("plugins/a/evals/case.js", "// cc=50\n")
         self.write("src/app.test.mjs", "// cc=50\n")
         self.write("src/app.spec.js", "// cc=50\n")
         self.write("plugins/a/fixtures/big.js", "// cc=50\n")
@@ -121,18 +126,21 @@ class JsComplexityShareTest(unittest.TestCase):
         self.assertEqual(
             handed,
             [
-                "plugins/a/lib/shared.mjs",
-                "src/app.js",
-                "src/mod.cjs",
-                "src/view.jsx",
-                "tools/canon.js",
+                "./plugins/a/lib/shared.mjs",
+                "./plugins/evals/lib/prod.mjs",
+                "./src/-oevil.js",
+                "./src/app.js",
+                "./src/mod.cjs",
+                "./src/view.jsx",
+                "./tools/canon.js",
             ],
         )
         # Functions: app.js 25 and 3, view.jsx 4, mod.cjs 20, shared.mjs 30,
-        # canon.js 2. Six functions, three at or above 20: 50.00 percent.
+        # canon.js 2, -oevil.js 22, prod.mjs 5. Eight functions, four at or
+        # above 20: 50.00 percent.
         self.assertEqual(
             result.stdout.strip(),
-            "lizard=9.9.9 files=5 functions=6 over=3 share=50.00",
+            "lizard=9.9.9 files=7 functions=8 over=4 share=50.00",
         )
 
     def test_missing_lizard_exits_2(self) -> None:
