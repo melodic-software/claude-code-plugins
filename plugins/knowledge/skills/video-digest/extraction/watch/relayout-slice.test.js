@@ -1634,6 +1634,24 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     },
   );
 
+  it("flags a definition or src naming a dropped real file whose name looks like a placeholder", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "run-state/report-{draft}.md": "draft",
+        "research/claim-inventory.md":
+          '[state]: ../run-state/report-{draft}.md\n\nSee [state] and <img src="../run-state/report-{draft}.md">.\n',
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/research/claim-inventory.md", ref: "../run-state/report-{draft}.md" },
+      { file: "analysis/research/claim-inventory.md", ref: "../run-state/report-{draft}.md" },
+    ]);
+  });
+
   it("matches the AGENTS.md allowed miss exactly and the directories by whole segment", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {

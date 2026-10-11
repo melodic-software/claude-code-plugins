@@ -625,22 +625,6 @@ function lookUpReference(refPath, sourceFile, map) {
     const found = lookup(key);
     if (found) return found;
   }
-  // A placeholder (`<slice-dir>/x`, `${ROOT}/x`, `{tmp}/x`, `research/*.md`)
-  // names no real file. It counts as one only now, after the path map found
-  // nothing, so a real `report-{draft}.pdf` is still mapped.
-  if (PLACEHOLDER.test(bare)) return null;
-  // A lane folder the layout knows but this slice never produced (prose such
-  // as "no deck in `source/decks/`") names nothing to point at.
-  // A path below such a folder (`source/decks/slides.pdf`) names nothing either.
-  const absentFolder = keys.find(
-    (key) =>
-      key !== null &&
-      [...KNOWN_LANE_FOLDERS].some(
-        (folder) =>
-          (key === folder || key.startsWith(`${folder}/`)) && !map.sliceEntries.has(folder),
-      ),
-  );
-  if (absentFolder) return { retired: absentFolder, note: "none in this slice" };
   const retired = keys.find((key) => key !== null && map.sliceEntries.has(key));
   if (retired) {
     // A directory whose kept files went to several places (`source/`) has no
@@ -658,6 +642,23 @@ function lookUpReference(refPath, sourceFile, map) {
         splitInto.length > 0 ? `split across ${splitInto.join(", ")} in this copy` : NOT_RETAINED,
     };
   }
+  // A placeholder (`<slice-dir>/x`, `${ROOT}/x`, `{tmp}/x`, `research/*.md`)
+  // names no real file. It counts as one only now, after neither the path map
+  // nor the slice's own entries named it, so a real `report-{draft}.pdf` is
+  // still mapped or retired.
+  if (PLACEHOLDER.test(bare)) return null;
+  // A lane folder the layout knows but this slice never produced (prose such
+  // as "no deck in `source/decks/`") names nothing to point at.
+  // A path below such a folder (`source/decks/slides.pdf`) names nothing either.
+  const absentFolder = keys.find(
+    (key) =>
+      key !== null &&
+      [...KNOWN_LANE_FOLDERS].some(
+        (folder) =>
+          (key === folder || key.startsWith(`${folder}/`)) && !map.sliceEntries.has(folder),
+      ),
+  );
+  if (absentFolder) return { retired: absentFolder, note: "none in this slice" };
   // An unknown file in a copied directory moves with the directory, so the
   // link check flags it at its new location.
   for (const key of bare.includes("/") ? keys : []) {
@@ -886,13 +887,17 @@ export function inlineLinks(text) {
  * @param {string} sourceFile - slice-relative path of the file
  * @param {string} targetFile - target-relative path the file is copied to
  * @param {PathMap} map
- * @returns {{ text: string, rewrites: number, spacedRefs: string[] }} - `spacedRefs`, the
- *   rewritten code spans holding spaces, for the link check to verify
+ * @returns {{ text: string, rewrites: number, spacedRefs: string[], retiredRefs: string[] }} -
+ *   `spacedRefs`, the rewritten code spans holding spaces, for the link check to verify;
+ *   `retiredRefs`, the references left unchanged because they name a slice path the
+ *   layout drops, which the link check must flag whatever their name looks like
  */
 export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
   /** @type {string[]} */
   const spacedRefs = [];
+  /** @type {string[]} */
+  const retiredRefs = [];
   const rewrite = (
     /** @type {string} */ ref,
     /** @type {{ fragments?: boolean, lines?: boolean }} */ split = {},
@@ -948,6 +953,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       });
       continue;
     }
+    if (found && "retired" in found) retiredRefs.push(link.dest);
     const next = rewrite(link.dest, split, link.escapedChars, link.references);
     if (next === link.dest) continue;
     const written = next;
@@ -963,7 +969,8 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
     const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
     const { dest, escapedChars, references } = unescapeDestination(raw);
-    const { split } = findReference(dest, sourceFile, map);
+    const { found, split } = findReference(dest, sourceFile, map);
+    if (found && "retired" in found) retiredRefs.push(dest);
     const rewritten = rewrite(dest, split, escapedChars, references);
     if (rewritten === dest) continue;
     edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
@@ -975,7 +982,9 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     // quotes gets double quotes.
     const value = text.slice(from, to);
     const decoded = decodeHtmlReferences(value);
-    const next = rewrite(decoded, findReference(decoded, sourceFile, map).split);
+    const { found, split } = findReference(decoded, sourceFile, map);
+    if (found && "retired" in found) retiredRefs.push(decoded);
+    const next = rewrite(decoded, split);
     if (next === decoded) continue;
     let escaped = next.replaceAll("&", "&amp;");
     if (group === 2) escaped = escaped.replaceAll('"', "&quot;");
@@ -1015,7 +1024,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const edit of kept.reverse()) {
     rewritten = rewritten.slice(0, edit.from) + edit.text + rewritten.slice(edit.to);
   }
-  return { text: rewritten, rewrites, spacedRefs };
+  return { text: rewritten, rewrites, spacedRefs, retiredRefs };
 }
 
 /**
@@ -1113,14 +1122,23 @@ function looksSliceInternal(refPath, fileDir, topLevel, sliceDirs) {
  * slice (another repository) and the allowed-miss prefixes are skipped.
  *
  * @param {string} rootDir
- * @param {{ sliceDirs?: Set<string>, spacedRefs?: Map<string, string[]> }} [options]
+ * @param {{
+ *   sliceDirs?: Set<string>,
+ *   spacedRefs?: Map<string, string[]>,
+ *   retiredRefs?: Map<string, string[]>,
+ * }} [options]
  *   `sliceDirs`, the source slice's directories, narrows which lane-named paths
  *   count as the slice's;
  *   `spacedRefs` maps a target-relative file to the spaced code-span paths a
- *   rewrite placed in it, which are checked like links
+ *   rewrite placed in it, which are checked like links;
+ *   `retiredRefs` maps a target-relative file to the references a rewrite left
+ *   naming a dropped slice file, never skipped as placeholders
  * @returns {{ file: string, ref: string }[]} unresolved references
  */
-export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } = {}) {
+export function checkLayoutLinks(
+  rootDir,
+  { sliceDirs, spacedRefs = new Map(), retiredRefs = new Map() } = {},
+) {
   const root = path.resolve(rootDir);
   const topLevel = new Set(fs.existsSync(root) ? fs.readdirSync(root) : []);
   /** @type {{ file: string, ref: string }[]} */
@@ -1132,6 +1150,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
   for (const file of markdown) {
     const fileDir = path.dirname(path.join(root, file));
     const text = fs.readFileSync(path.join(root, file), "utf8");
+    const retired = new Set(retiredRefs.get(file));
     const check = (
       /** @type {string} */ ref,
       /** @type {boolean} */ isLink,
@@ -1153,8 +1172,9 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
       if (fs.existsSync(resolved)) return;
-      // A placeholder that names no real file is not a dangling path.
-      if (PLACEHOLDER.test(refPath)) return;
+      // A placeholder that names no real file is not a dangling path; one the
+      // rewrite found naming a dropped slice file is.
+      if (PLACEHOLDER.test(refPath) && !retired.has(ref)) return;
       unresolved.push({ file, ref: literalText(ref) });
     };
     const { fenceMasked, linkMasked, tagText } = maskCode(text);
@@ -1817,6 +1837,8 @@ export async function relayoutSlice({
   let rewrites = 0;
   /** @type {Map<string, string[]>} */
   const spacedRefs = new Map();
+  /** @type {Map<string, string[]>} */
+  const retiredRefs = new Map();
   let copied = 0;
   /** @type {{ file: string, ref: string }[]} */
   let unresolved;
@@ -1837,6 +1859,7 @@ export async function relayoutSlice({
         );
         rewrites += result.rewrites;
         if (result.spacedRefs.length > 0) spacedRefs.set(entry.to, result.spacedRefs);
+        if (result.retiredRefs.length > 0) retiredRefs.set(entry.to, result.retiredRefs);
         write(entry.to, result.text);
       } else {
         fs.mkdirSync(path.dirname(path.join(staging, entry.to)), { recursive: true });
@@ -1875,6 +1898,7 @@ export async function relayoutSlice({
     unresolved = checkLayoutLinks(staging, {
       sliceDirs: new Set([...sliceEntries].filter((entry) => !sliceFiles.includes(entry))),
       spacedRefs,
+      retiredRefs,
     });
   } catch (error) {
     discard(staging);
