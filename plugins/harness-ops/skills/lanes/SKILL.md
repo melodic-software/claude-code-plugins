@@ -149,7 +149,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" --data-dir
 The script strips the leading `consume-restarts` token itself; the next token is
 its sub-action. `check` (read-only report, the default), `run` (relaunch), or
 `print-schedule` (emit the registration commands), and later tokens its options.
-Print the output verbatim. Relaunches delegate to `lane-launcher.sh restart`, so
+Print the output verbatim. Only telemetry comments written by the lanes' own
+account count; when the lanes write under a GitHub App token, pass
+`--app-slug <slug>`. Relaunches delegate to `lane-launcher.sh restart`, so
 each lane's prompt, model, effort, and settings come from the same config this
 skill already uses. **The consumer's polling tick is not lane pacing**: lanes
 stay self-paced via `ScheduleWakeup`, and a tick where no configured lane has a

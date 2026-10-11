@@ -31,7 +31,8 @@
     "cross_repo_edges": true,
     "sub_items": true,
     "leases": true,
-    "labels": true
+    "labels": true,
+    "list_items_label_filter": true
   },
   "limits": {
     "sub_items_per_parent": null,
