@@ -190,6 +190,12 @@ jobs:
           fi
           echo "playwright-cli inside bwrap: $out"
 
+      - name: Record that env scrub is off
+        if: ${{ !inputs.env-scrub }}
+        env:
+          DISPATCHER: ${{ github.actor }}
+        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
+
       - name: Run the plugin eval
         working-directory: .base
         env:
