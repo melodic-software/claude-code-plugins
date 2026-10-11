@@ -309,11 +309,11 @@
       "id": 24,
       "name": "team-routed-phase-falls-back-without-agent-teams",
       "prompt": "/implementation:implement-dispatch phase-3 - interactive session. The approved plan routes phase 3 (three rows with disjoint fences) to an agent team because its workers must message each other. Agent teams are not enabled in this session. Dispatch phase 3.",
-      "expected_output": "Agent teams are not enabled, so phase 3 is not run as a team: its three rows go out as sub-agent workers under the normal dispatch cadence, and the run summary says the team routing fell back to sub-agents. No team is formed and no teammate is spawned.",
+      "expected_output": "Agent teams are not enabled, so phase 3 is not run as a team: its three rows go out as sub-agent workers one at a time rather than in a parallel wave, since the team route existed for messaging between them, each later row's brief carrying the earlier rows' returns, and the run summary says the team routing fell back to sub-agents. No team is formed and no teammate is spawned.",
       "files": [],
       "expectations": [
         "Does NOT form an agent team or spawn teammates for phase 3",
-        "Dispatches phase 3's rows as sub-agent workers with disjoint fences",
+        "Dispatches phase 3's rows as sub-agent workers one at a time, not in one parallel wave, each later brief carrying the earlier rows' returns",
         "States in its output that the team-routed phase fell back to sub-agent workers"
       ]
     }

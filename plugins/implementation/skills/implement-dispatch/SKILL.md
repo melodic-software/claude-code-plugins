@@ -174,7 +174,7 @@ Every rule that binds one phase's wave binds a cross-phase wave, counted over al
 - **Residency.** A phase boundary reached while another phase's rows are still in flight is resident: any clear that Resident-vs-clear calls for waits until the whole wave settles and its returns are verified.
 - **Divergence.** A Major divergence in one phase stops further dispatch (Gates); rows already in flight finish and are verified before the run parks.
 
-**Agent teams.** A phase whose routing row's surface is an agent team runs as one only when agent teams are enabled for this session; otherwise its rows go out as sub-agent workers and the run summary records the fallback. A phase not routed to a team never runs as one, so a sub-agent row is dispatched without a `name`: with teams enabled, a named call can launch a teammate (see the naming rule below).
+**Agent teams.** A phase whose routing row's surface is an agent team runs as one only when agent teams are enabled for this session. Otherwise its rows go out as sub-agent workers one at a time, never in a wave, because the plan routed them to a team for messaging that sub-agents in parallel cannot do: each later row's brief carries the earlier rows' returns, and the run summary records the fallback. A phase not routed to a team never runs as one, so a sub-agent row is dispatched without a `name`: with teams enabled, a named call can launch a teammate (see the naming rule below).
 
 - **Pointer**: whether teams are enabled, and the interactive-session requirement, see <https://code.claude.com/docs/en/agent-teams#enable-agent-teams>; the naming rule, see <https://code.claude.com/docs/en/sub-agents#subagent-names>.
 - **As of**: 2026-10-11
