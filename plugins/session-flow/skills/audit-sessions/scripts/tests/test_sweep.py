@@ -300,10 +300,9 @@ def test_md_names_unknown_record_types(data_dir):
 
 def test_md_renders_metrics_and_findings_from_the_same_data(data_dir):
     write_store(data_dir, record("s1", **{"tools.interrupts": 2}))
-    env = envelope(sweep(data_dir))
     md = sweep(data_dir, "--format", "md")
     assert md.returncode == 0
-    for metric in env["data"]["metrics"]:
+    for metric in RULE:
         assert f"`{metric}`" in md.stdout
     assert "tools.interrupts" in md.stdout.split("## Findings", 1)[1]
 
@@ -385,3 +384,66 @@ def test_since_until_window_filters_on_session_start(data_dir):
     window = envelope(sweep(data_dir, "--since", "2026-09-05", "--until", "2026-09-15"))["data"]["window"]
     assert window["sessions"] == 3 and window["since"] == "2026-09-05" and window["until"] == "2026-09-15"
     assert sweep(data_dir, "--since", "Sept 5").returncode == 2
+
+
+def typed(session_id: str, start: str, identity: str, *excerpts: str | None, suppressed: bool = False) -> dict:
+    """A store record holding typed-turn excerpts, shaped as collect.py writes `human.flagged`."""
+    rec = record(session_id, start=start, identity=identity)
+    rec["human"]["flagged"] = [{"idx": i, "words": 3, "flags": ["short-after-assistant"], "excerpt": e} for i, e in enumerate(excerpts)]
+    rec["redaction"] = {"excerpts_suppressed": suppressed}
+    return rec
+
+
+def excerpt_lines(result) -> list[dict]:
+    return [json.loads(line) for line in result.stdout.splitlines()]
+
+
+def test_excerpts_print_stored_typed_turns_inside_since_and_scope(data_dir):
+    write_store(
+        data_dir,
+        typed("kept", "2026-09-10T08:00:00Z", "github.com/acme/web", "prefer pnpm here", None, "no emoji in commits"),
+        typed("other-repo", "2026-09-11T08:00:00Z", "github.com/acme/api", "run the linter first"),
+        typed("too-early", "2026-08-01T08:00:00Z", "github.com/acme/web", "old habit"),
+    )
+    result = sweep(data_dir, "--excerpts", "--since", "2026-09-01", "--scope", "project", "--state-key", "github.com/acme/web/main")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert excerpt_lines(result) == [
+        {"project": "github.com/acme/web", "session": "kept", "started": "2026-09-10T08:00:00Z", "excerpt": "prefer pnpm here"},
+        {"project": "github.com/acme/web", "session": "kept", "started": "2026-09-10T08:00:00Z", "excerpt": "no emoji in commits"},
+    ]
+    machine = excerpt_lines(sweep(data_dir, "--excerpts", "--since", "2026-09-01"))
+    assert [(line["project"], line["excerpt"]) for line in machine] == [
+        ("github.com/acme/web", "prefer pnpm here"),
+        ("github.com/acme/web", "no emoji in commits"),
+        ("github.com/acme/api", "run the linter first"),
+    ]
+
+
+def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir, tmp_path):
+    # Absolute marker paths: any shell that ever evaluates the text, in any
+    # working directory, creates them where this test looks.
+    marker = tmp_path / "PWNED"
+    hostile = f"tabs\there\nsecond line $(touch {marker}) `touch {marker}2`"
+    write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", hostile))
+    result = sweep(data_dir, "--excerpts")
+    assert result.returncode == 0, result.stderr
+    assert len(result.stdout.splitlines()) == 1
+    assert excerpt_lines(result)[0]["excerpt"] == hostile
+    assert not marker.exists() and not marker.with_name("PWNED2").exists()
+
+
+def test_excerpts_leave_out_automated_sessions(data_dir):
+    headless = typed("headless", "2026-09-10T08:00:00Z", "github.com/acme/web", "from a pipeline")
+    headless["entrypoints"] = ["sdk-cli"]
+    write_store(data_dir, headless, typed("typed", "2026-09-10T09:00:00Z", "github.com/acme/web", "from a person"))
+    result = sweep(data_dir, "--excerpts")
+    assert result.returncode == 0, result.stderr
+    assert [line["session"] for line in excerpt_lines(result)] == ["typed"]
+
+
+def test_suppressed_excerpts_print_nothing_and_exit_1(data_dir):
+    write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", "should never print", suppressed=True))
+    result = sweep(data_dir, "--excerpts")
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "redaction" in result.stderr

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/execution-target/execution-target.schema.json",
+  "title": "Execution target",
+  "description": "Schema for docs/conventions/execution-target.yaml: which host runs each local-lane stage. Contract: docs/conventions/execution-target/README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "default": {
+      "$ref": "#/$defs/target",
+      "description": "Host for any stage no class or skill key names. Absent means local-worktree."
+    },
+    "class": {
+      "type": "object",
+      "description": "Host per work-class label, read as class.<label>.",
+      "additionalProperties": false,
+      "properties": {
+        "read-only": { "$ref": "#/$defs/target" },
+        "mechanical": { "$ref": "#/$defs/target" },
+        "scoped": { "$ref": "#/$defs/target" },
+        "structural": { "$ref": "#/$defs/target" },
+        "untrusted-provenance": { "$ref": "#/$defs/target" }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "description": "Host per stage skill: a map keyed by plugin, then by skill, read as skill.<plugin>.<skill>.",
+      "propertyNames": { "$ref": "#/$defs/segment" },
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": { "$ref": "#/$defs/segment" },
+        "additionalProperties": { "$ref": "#/$defs/target" }
+      }
+    }
+  },
+  "$defs": {
+    "target": {
+      "enum": ["local-worktree", "local-background", "cloud-session", "cloud-routine", "cloud-project"]
+    },
+    "segment": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    }
+  }
+}

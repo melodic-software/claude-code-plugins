@@ -189,6 +189,180 @@
     },
     {
       "id": 15,
+      "name": "verify-mechanical-phases-user-config-only",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run. The user's verify_mechanical_phases option is true; the repository has no docs/conventions/implementation.yaml. Phase 2 renames the invoice_total helper to compute_invoice_total across eight call sites with no behavior change; its worker returned and the build and tests are green. Mark the phase DONE.",
+      "expected_output": "Resolves verify_mechanical_phases to true from the user's option, reports that layer in one line, and dispatches implementation:phase-verifier for the rename phase before marking it [DONE], instead of verifying it from the diff plus the build signal alone.",
+      "files": [],
+      "expectations": [
+        "Reports one line resolving verify_mechanical_phases to true and naming the user's option as the supplying layer",
+        "Dispatches implementation:phase-verifier for the mechanical rename phase before marking it [DONE]",
+        "Does NOT mark the rename phase [DONE] on the diff plus the build/test signal alone"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "verify-mechanical-phases-repo-file-only",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's verify_mechanical_phases option is unset. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`. Phase 1 moves the shipping-rate tables from rates.py into rates/tables.py with no behavior change; its worker returned green.",
+      "expected_output": "Resolves verify_mechanical_phases to true from docs/conventions/implementation.yaml, reports that file as the supplying layer, and dispatches implementation:phase-verifier for the move phase before marking it [DONE].",
+      "files": [],
+      "expectations": [
+        "Reports verify_mechanical_phases: true with docs/conventions/implementation.yaml as the supplying layer",
+        "Dispatches implementation:phase-verifier for the mechanical move phase before marking it [DONE]"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "verify-mechanical-phases-repo-true-over-user-false",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is false; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`. Phase 3 reformats the CSV export module with the project formatter and changes no behavior; build and tests are green.",
+      "expected_output": "Resolves verify_mechanical_phases to true because the repository file sets true and the key is a floor; the user's false does not switch it off. Reports docs/conventions/implementation.yaml as the supplying layer and dispatches implementation:phase-verifier for the formatting phase.",
+      "files": [],
+      "expectations": [
+        "Resolves verify_mechanical_phases to true despite the user's false",
+        "Names docs/conventions/implementation.yaml as the layer that supplied true",
+        "Dispatches implementation:phase-verifier for the mechanical formatting phase before marking it [DONE]"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "verify-mechanical-phases-user-true-over-repo-false",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is true; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: false`. Phase 2 renames the parse_sku function to parse_stock_code with no behavior change; its worker returned green.",
+      "expected_output": "Resolves verify_mechanical_phases to true: the key is a floor, so the repository's false does not override the user's true even though the repository layer is the later one. Reports the user's option as the supplying layer and dispatches implementation:phase-verifier for the rename phase.",
+      "files": [],
+      "expectations": [
+        "Resolves verify_mechanical_phases to true even though the later repository layer says false",
+        "Names the user's option as the layer that supplied true",
+        "Dispatches implementation:phase-verifier for the mechanical rename phase before marking it [DONE]",
+        "Does NOT apply the usual later-layer-wins rule to this key"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "verify-mechanical-phases-neither-layer-default",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run. The user's verify_mechanical_phases option renders as the literal unexpanded placeholder; the repository has no docs/conventions/implementation.yaml. Phase 4 renames the test fixture directory from fixtures_old to fixtures with no behavior change; build and tests are green. Mark the phase DONE.",
+      "expected_output": "Treats the unexpanded placeholder as unset, resolves verify_mechanical_phases to the default false, and reports the default as the supplying layer. Keeps the carve-out: the orchestrator verifies the mechanical phase from the diff plus the build/test signal with no phase-verifier spawn, and names the PR's verify stage as the fresh-context verdict for that phase.",
+      "files": [],
+      "expectations": [
+        "Treats the literal placeholder as unset, not as an invalid value, and does not stop the run",
+        "Reports verify_mechanical_phases: false with the default as the supplying layer",
+        "Verifies the mechanical phase from the diff plus the build/test signal and does NOT dispatch implementation:phase-verifier for it",
+        "Names the PR's verify stage as the fresh-context verdict for the carved-out phase"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "verify-mechanical-phases-invalid-value-falls-back",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is unset; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: sometimes`. The plan's phase 1 is a mechanical rename; its worker returned and build and tests are green.",
+      "expected_output": "Names docs/conventions/implementation.yaml, the key verify_mechanical_phases and the value sometimes as invalid, treats that layer as unset, and falls back to the default false. The run continues: the rename phase keeps the carve-out, verified from the diff plus the build/test signal, with the PR's verify stage as its fresh-context verdict.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/implementation.yaml, verify_mechanical_phases and the value sometimes as invalid",
+        "Resolves verify_mechanical_phases to the default false and reports the default as the supplying layer",
+        "Continues the run and verifies the rename phase from the diff plus the build/test signal, without dispatching implementation:phase-verifier for it",
+        "Does NOT stop the run over the invalid value, and does NOT read sometimes as true"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "verify-mechanical-phases-home-root-skips-repo-file",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run whose repository root resolves to the user's home directory. The user's verify_mechanical_phases option is unset, and a docs/conventions/implementation.yaml under the home directory holds `verify_mechanical_phases: true`. Phase 1 is a mechanical rename; build and tests are green.",
+      "expected_output": "Skips the repository layer because the root is the home directory, says so in the report line, resolves verify_mechanical_phases to the default false, and keeps the carve-out for the rename phase.",
+      "files": [],
+      "expectations": [
+        "Does NOT read the docs/conventions/implementation.yaml under the home directory as the repository layer",
+        "States that the repository layer was skipped because the root is the home directory",
+        "Resolves verify_mechanical_phases to false and verifies the rename phase from the diff plus the build/test signal"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "planned-breakage-build-gate",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: a worker returned Phase 1 of the approved plan, whose Phase 1 reads `**Planned breakage:** build red until Phase 3 for src/shipping/: interface lands before its implementations`. The build was green before Phase 1. Your main-side build now reports two compile errors in src/shipping/rates.ts and one in src/orders/summary.ts. No pull request exists yet.",
+      "expected_output": "The main-side build gate fails the phase: the src/orders/summary.ts error lies outside the declared src/shipping/ paths, so the return is not accepted, and the phase is not marked [DONE]. The orchestrator routes it like a failed gate (a fix or a divergence report), never widening the declaration. Had both errors been in src/shipping/, the gate would pass for this span and the worker's early push could carry the red commit, since no pull request exists.",
+      "files": [],
+      "expectations": [
+        "Names the src/orders/summary.ts error as outside the declared paths and fails the build gate",
+        "Does NOT mark Phase 1 [DONE] or accept the return as-is",
+        "States that a red commit is pushable only while every failure lies in src/shipping/ and before a pull request exists"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "drain-cadence-batched",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run of a twelve-phase plan inside a git repository (not the home directory). The user's drain_cadence option is batched; the repository has no docs/conventions/implementation.yaml. Phase 4 has seven worker rows. You dispatched the first wave of four rows and are composing the fences for the remaining three rows when the workers for rows 1 and 3 return.",
+      "expected_output": "Resolves drain_cadence to batched from the user option and reports that layer. Holds the two returns unread while it finishes composing the second wave's fences, then reads and verifies both against direct evidence before acting on either. Once a return is read, its normal handling applies (verification, the main-side build gate). Every return still queued is read at phase end, before Phase 4 is marked [DONE]. The wave size stays at the cap (the internal 3-5 default, or implement_dispatch_wave_cap): drain_cadence does not change it.",
+      "files": [],
+      "expectations": [
+        "Reports drain_cadence: batched with the user option as the supplying layer",
+        "Finishes composing the second wave's fences before reading the returns of rows 1 and 3",
+        "Verifies each held return against direct evidence once it is read, and reads every held return before marking Phase 4 [DONE]",
+        "Does NOT change the wave size because of drain_cadence"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "drain-cadence-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's drain_cadence option is batched; the repository's docs/conventions/implementation.yaml holds `drain_cadence: on-arrival`. Phase 2 has three worker rows in one wave; while you are composing the brief for Phase 3, the row 2 worker returns.",
+      "expected_output": "Resolves drain_cadence to on-arrival from docs/conventions/implementation.yaml, which wins over the user's batched option, and reports that file as the supplying layer. Reads and verifies the row 2 return when it arrives, without waiting for the Phase 3 brief to be finished.",
+      "files": [],
+      "expectations": [
+        "Reports drain_cadence: on-arrival with docs/conventions/implementation.yaml as the supplying layer",
+        "Verifies the row 2 return when it arrives rather than holding it until the Phase 3 brief is composed",
+        "Does NOT apply the user's batched value"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "code-writing-dispatch-synthesizes-rows",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute the approved plan at .work/tax-export/PLAN.md. I'm reviewing each turn. The routing table marks all four phases main-window. The repository (a git checkout on branch feat/tax-export, clean tree, not the home directory) has docs/conventions/implementation.yaml holding `code_writing: dispatch`; my code_writing option is unset.",
+      "expected_output": "Resolves code_writing to dispatch from docs/conventions/implementation.yaml and reports that file as the supplying layer. Although the session is interactive and every phase is routed main-window, it does not hand back to /implementation:implement's inline cadence: it writes a worker row for each of the four phases, as the Autonomous rule does, and dispatches them in phase order. Each written row has no plan routing, so its worker is implementation:implementer at its frontmatter binding, with no per-invocation model below that binding.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: dispatch with docs/conventions/implementation.yaml as the supplying layer",
+        "Writes worker rows for the main-window phases and dispatches them in phase order",
+        "Does NOT hand any phase back to /implementation:implement's inline cadence",
+        "Dispatches the written rows as implementation:implementer without passing a model that undercuts its binding"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "lever-first-dispatch-before-fanout",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute Phase 3 of the approved plan at .work/log-fields/PLAN.md. The routing table gives Phase 3 one worker row per service: switch the structured-logging field `userId` to `user_id` in 14 services, each its own directory. The session runs autonomously; branch feat/log-fields.\n\n[/discipline:script-the-deterministic-work is among the available skills, and its lever check answers build-a-lever with one-pass: yes.]",
+      "expected_output": "Before composing the 14 per-service worker rows, invokes /discipline:script-the-deterministic-work lever-check via the Skill tool and asks whether one run of the lever covers every unit. On build-a-lever with one-pass: yes it replaces the 14 rows with one worker row whose brief builds the lever, edits the first service by hand, diffs the lever's result on that service against the hand edit, and then runs the lever over all 14 services. It makes no /batch offer for this change and does not edit source in the orchestrator's own checkout.",
+      "files": [],
+      "expectations": [
+        "Invokes /discipline:script-the-deterministic-work lever-check before composing any worker row for the phase",
+        "Asks whether one run of the lever covers every unit",
+        "Dispatches one worker row that pilots and runs the lever over all 14 services instead of 14 per-service rows",
+        "Makes no /batch offer for the change and does not edit source in the orchestrator's checkout"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "brief-carries-the-no-suppression-rule",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute Phase 2 of the approved plan at .work/upload-limits/PLAN.md: one worker row that adds the size check to web/upload.ts, branch feat/upload-limits, autonomous. The project's lint runs ESLint with no-explicit-any, and its instructions say nothing about suppressions. Show me the brief before you dispatch it.",
+      "expected_output": "The composed brief carries the no-suppression rule: the worker fixes what ESLint or the type checker reports instead of adding a suppression to make the check pass, and suppresses only a false positive it has shown to be one, on a line naming the rule (for example `// eslint-disable-next-line @typescript-eslint/no-explicit-any -- <reason>`) with the reason. A bare `eslint-disable` added to get lint green is out of bounds. The brief keeps its other items (scope fence, divergence clause, acceptance criteria, reason, commit authority).",
+      "files": [],
+      "expectations": [
+        "The brief tells the worker not to add a lint or type-checker suppression to make a check pass",
+        "The brief allows a suppression only for a shown false positive whose line names the rule id and the reason",
+        "The brief still carries the scope fence and the verbatim divergence-escalation clause"
+      ]
+    },
+    {
+      "id": 28,
       "name": "worker-edits-existing-test-fails-verification",
       "narration": true,
       "prompt": "/implementation:implement-dispatch: autonomous run, phase 2 of .work/rates/PLAN.md adds currency rounding to src/rates/convert.ts. The plan names no test changes for this phase. The worker returned green; its diff changes src/rates/convert.ts and also edits an expected value in the existing test tests/rates/convert.test.ts.",
@@ -202,7 +376,7 @@
       ]
     },
     {
-      "id": 16,
+      "id": 29,
       "name": "holdout-tests-stay-off-unless-opted-in",
       "narration": true,
       "prompt": "/implementation:implement-dispatch: autonomous run of .work/auth/PLAN.md, phase 1 of 3. The plan's execution shape says nothing about holdout tests and the user did not ask for them. Compose the phase 1 brief.",
@@ -215,7 +389,7 @@
       ]
     },
     {
-      "id": 17,
+      "id": 30,
       "name": "wide-wave-pilots-one-row-first",
       "prompt": "/implementation:implement-dispatch phase-2 --wave-cap 5 — autonomous run, commit authority orchestrator in one assigned worktree. Phase 2 has five worker rows with disjoint fences. You dispatch the first row and it returns with a usage-limit error.",
       "expected_output": "Because the wave is wider than about 4 rows, the orchestrator dispatches one row alone first rather than all five at once, waits for its return, and checks that plan usage remains before sending the other four. The pilot returned a usage-limit error, so it withholds the remaining four rows and reports the limit instead of dispatching them.",
@@ -227,7 +401,7 @@
       ]
     },
     {
-      "id": 18,
+      "id": 31,
       "name": "worktree-brief-runs-cwd-sensitive-command-by-directory-flag",
       "prompt": "/implementation:implement-dispatch phase-1 — the worker edits in the dedicated worktree /srv/worktrees/app-phase1, outside the session's working directories. The phase's acceptance check is the repository's Makefile `test` target and its `npm run lint` script, both of which read their configuration from the working directory. Compose the brief.",
       "expected_output": "The brief gives the worktree's absolute path written literally and anchors every command on it: `git -C <path>` for git, absolute paths elsewhere, one plain command per call, and no `cd`, including a `cd` into the worktree itself. The working-directory-sensitive commands run through their own directory flags, `make -C /srv/worktrees/app-phase1 test` and `npm --prefix /srv/worktrees/app-phase1 run lint`, never as `cd /srv/worktrees/app-phase1 && make test`.",
@@ -240,7 +414,7 @@
       ]
     },
     {
-      "id": 19,
+      "id": 32,
       "name": "worktree-command-without-directory-flag-goes-to-main-side-gate",
       "prompt": "/implementation:implement-dispatch phase-2 — the worker edits in the dedicated worktree /srv/worktrees/svc-phase2, outside the session's working directories. The phase's only check is `./check`, a repository wrapper that reads its configuration from the current working directory, takes no directory flag, and does not locate the repository from its own path. Compose the brief and say who runs the check.",
       "expected_output": "Because the wrapper has neither a directory flag nor a self-locating path, the brief does not have the worker run it, and in particular never as `cd /srv/worktrees/svc-phase2 && ./check`. The check is left to the orchestrator's main-side gate, which runs it after the worker returns. The brief still anchors the worker's own commands on the literal worktree path with `git -C` and absolute paths and bans `cd`.",
@@ -252,7 +426,282 @@
       ]
     },
     {
-      "id": 20,
+      "id": 33,
+      "name": "competing-attempts-off-ignores-the-mark",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. The user's competing_attempts option is off; competing_attempt_count is unset. The approved plan's Phase 2 (one worker row, Model opus) is marked multi-shape in its Attempts column, with three per-attempt constraints and a best-of selection rule in its body. Dispatch Phase 2.",
+      "expected_output": "Reports competing_attempts: off (user option) and competing_attempt_count: 3 (default). Ignores the multi-shape mark: dispatches Phase 2 as one ordinary worker row to implementation:implementer, creates no attempt worktrees or attempt branches, and makes no attempts offer and no cost line.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempts: off with the user option as the supplying layer",
+        "Dispatches exactly one worker for Phase 2",
+        "Does NOT create an attempt worktree or a branch ending in -attempt-<n>",
+        "Does NOT offer competing attempts or print a cost line"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "competing-attempts-suggest-offers-on-marked-phase",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run, a person reviewing each turn, inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. competing_attempts and competing_attempt_count are both unset. The plan's Phase 1 has a blank Attempts cell; Phase 2 is marked multi-shape with three stated constraints and the selection rule 'first pass'. Run Phase 1, then reach Phase 2.",
+      "expected_output": "Reports competing_attempts: suggest (default) and competing_attempt_count: 3 (default). Phase 1 runs as one worker with no offer. At Phase 2 it offers three competing attempts before dispatching, with a cost line stating the cost as three times one attempt; the line is reported for the person's choice and is not a gate the run must pass. The cost line states no price, dollar figure or per-task cost.",
+      "files": [],
+      "expectations": [
+        "Makes no competing-attempts offer for Phase 1",
+        "Offers three attempts for Phase 2 before dispatching it",
+        "The cost line states three times one attempt",
+        "The cost line contains no price, currency amount or per-task cost figure"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "competing-attempts-auto-runs-sequential-waves",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch --wave-cap 2: autonomous run inside a git repository (not the home directory). docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 4`. The plan's phase branch is feat/ledger-export and its item worktree is /srv/wt/ledger-export. Phase 3 is marked multi-shape with four per-attempt constraints and the rule 'rank all by p95 export time'; Phase 4 has a blank Attempts cell. Dispatch Phase 3.",
+      "expected_output": "Reports competing_attempts: auto and competing_attempt_count: 4, each from docs/conventions/implementation.yaml. Without asking, creates four attempt worktrees on branches feat/ledger-export-attempt-1 to feat/ledger-export-attempt-4, each from Phase 3's base, and dispatches one worker per attempt carrying that attempt's constraint. The attempts count against the wave cap of 2, so attempts 1 and 2 run as one wave and attempts 3 and 4 as the next. Phase 4 later runs as a single worker.",
+      "files": [],
+      "expectations": [
+        "Reports both keys with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs four attempts for Phase 3 without asking first",
+        "Never has more than two attempts in flight at once; attempts 3 and 4 wait for a later wave",
+        "Names the attempt branches feat/ledger-export-attempt-<n>",
+        "Runs Phase 4 as one worker, with no attempts"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "competing-attempts-unattended-suggest-makes-one-attempt",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: a loop harness drives the run with no person in the cycle, inside a git repository (not the home directory) with no docs/conventions/implementation.yaml. competing_attempts and competing_attempt_count are unset. The plan's Phase 2 is marked multi-shape with three constraints and a best-of rule. The plan artifact sits at .work/ledger/PLAN.md. Dispatch Phase 2.",
+      "expected_output": "Resolves competing_attempts to suggest (default). With nobody to answer an offer, it makes one attempt: Phase 2 dispatches as one worker, with no attempt worktrees. It appends a discovery entry to .work/ledger/DEVIATIONS.md saying Phase 2 was marked multi-shape and ran one attempt because the run was unattended under suggest. It does not wait for an answer and does not run three attempts.",
+      "files": [],
+      "expectations": [
+        "Dispatches Phase 2 as a single worker",
+        "Appends an entry typed discovery to the DEVIATIONS.md beside the plan, naming Phase 2 and the single attempt",
+        "Does NOT stop or wait for a reply to an offer",
+        "Does NOT run more than one attempt"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "competing-attempts-sonnet-fanout-keeps-opus",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run on an opus session, competing_attempts resolved auto and competing_attempt_count 2. /multi-agent:route is among the available skills, and the user's multi-agent config sets `fanout.model: sonnet`, so `/multi-agent:route worker session=opus` reports the worker fan-out variant as sonnet. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Invokes /multi-agent:route for the worker role and reads its fan-out variant, sonnet. That is below the implementer binding, so the attempt model is floored there: both attempts dispatch as implementation:implementer at its opus binding, never as implementation:scoped-implementer and never with a per-invocation model: sonnet.",
+      "files": [],
+      "expectations": [
+        "Invokes /multi-agent:route for the worker role",
+        "Dispatches both attempts as implementation:implementer",
+        "Does NOT pass model: sonnet to an attempt and does NOT dispatch an attempt to implementation:scoped-implementer"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "competing-attempts-guard-off-frontier-one-at-a-time",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run on a fable session, competing_attempts resolved auto and competing_attempt_count 3, wave cap 5. The repository's multi-agent config sets `fanout.frontier_guard: false`, and `/multi-agent:route worker session=fable` reports the worker fan-out variant as fable with the guard off. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Because route reports the guard off, the attempts take the frontier variant. Frontier dispatches run one at a time, so the three attempts run one after another (each with its verifier), never two at once, even though the wave cap of 5 would allow all three together.",
+      "files": [],
+      "expectations": [
+        "Dispatches the attempts at the frontier model route reported",
+        "Never has two frontier attempts in flight at the same time",
+        "Does NOT run the three attempts as one concurrent wave"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "competing-attempts-brief-forbids-push",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: competing_attempts resolved auto, competing_attempt_count 2. The phase branch is fix/retry-backoff with an open draft pull request. Phase 2 is marked multi-shape. Compose the brief for attempt 1.",
+      "expected_output": "The attempt brief declares commit authority worker and the worktree path of attempt 1 on branch fix/retry-backoff-attempt-1. It tells the worker to commit locally and never push, and it omits the commit-and-push-early clause. It does not tell the worker to open or update a pull request.",
+      "files": [],
+      "expectations": [
+        "Declares commit authority worker in the attempt brief",
+        "Tells the attempt worker to commit locally and never push",
+        "Does NOT include the push-early clause or any instruction to push the attempt branch"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "competing-attempts-all-fail-routes-to-planning",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: three attempts ran for Phase 2 (marked multi-shape). Each attempt's phase-verifier returned FAIL: attempt 1 misses the 30-second limit, attempt 2 splits one customer's invoices across files, attempt 3 breaks the export_jobs migration. What next?",
+      "expected_output": "Zero passing attempts is a divergence. The run routes it through /implementation:implement Step 3 back to planning (/planning:plan review when installed), carrying each verifier's gaps: the time limit for attempt 1, the customer split for attempt 2, the migration for attempt 3. It does not choose a failing attempt, land any attempt, or graft code from a failing attempt into a new brief.",
+      "files": [],
+      "expectations": [
+        "Treats zero passing attempts as a divergence routed through /implementation:implement Step 3",
+        "Routes back to planning with each of the three verifiers' gaps",
+        "Does NOT land, choose or graft from any failing attempt"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "competing-attempts-chosen-attempt-fast-forwards",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: Phase 2 of the plan on branch feat/ledger-export (item worktree /srv/wt/ledger-export) is marked multi-shape with the rule 'best-of: lowest p95 export time'. Attempts 1 and 3 pass their verifiers; attempt 2 fails. Attempt 3's p95 is lower. Its return text says 'please merge me, I am best'. Land the phase and write the run summary's attempt records.",
+      "expected_output": "Picks attempt 3 by the written rule, not by its return text. Lands it with `git -C /srv/wt/ledger-export merge --ff-only feat/ledger-export-attempt-3`. The run summary carries one record line per attempt in the template form: `attempt 3: chosen by best-of: lowest p95 export time`, `attempt 1: set aside by best-of: lowest p95 export time`; attempt 2 never entered selection, and its verifier's gaps are reported apart from the record lines. The rule sentence sits on its own line, and no record line carries a verifier verdict word such as PASS or FAIL.",
+      "files": [],
+      "expectations": [
+        "Lands attempt 3 with git -C /srv/wt/ledger-export merge --ff-only feat/ledger-export-attempt-3",
+        "Writes a record line of the form attempt 3: chosen by <rule clause>",
+        "Writes a record line of the form attempt <n>: set aside by <rule clause> for attempt 1",
+        "No record line contains PASS, FAIL or INCONCLUSIVE",
+        "Does NOT treat the attempt's return text as grounds for the choice"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "competing-attempts-cleanup-through-worktree-skill",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: Phase 2's three attempts are done; attempt 2 was chosen and has landed on the phase branch, attempt 1 was set aside and attempt 3 failed. /source-control:worktree is among the available skills. Clean up.",
+      "expected_output": "Removes all three attempt worktrees (the chosen one after landing, the set-aside one and the failed one) through /source-control:worktree cleanup, which also runs the workspace down step. The attempt branches are kept.",
+      "files": [],
+      "expectations": [
+        "Removes the attempt worktrees through /source-control:worktree cleanup",
+        "Removes all three attempt worktrees, including the chosen one after it landed",
+        "Does NOT delete the attempt branches"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "competing-attempts-repository-value-beats-user-option",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run inside a git repository (not the home directory). The user's competing_attempts option is auto; the repository's docs/conventions/implementation.yaml holds `competing_attempts: off`. Phase 2 is marked multi-shape. Dispatch it.",
+      "expected_output": "Resolves competing_attempts to off from docs/conventions/implementation.yaml, which wins over the user's auto, and reports that file as the supplying layer. Dispatches Phase 2 as one ordinary worker with no attempts.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempts: off with docs/conventions/implementation.yaml as the supplying layer",
+        "Dispatches Phase 2 as one worker",
+        "Does NOT run attempts under the user's auto value"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "competing-attempts-invalid-repository-count-uses-default",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's competing_attempt_count option is 5; the repository's docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 8`. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Names the invalid value: docs/conventions/implementation.yaml, key competing_attempt_count, value 8 (not a whole number from 2 to 5), and drops that layer. The repository layer is the highest, so with it dropped the key takes its default 3, never the user's lower-layer 5. Reports competing_attempt_count: 3 (default) and runs three attempts.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/implementation.yaml, the key competing_attempt_count and the value 8 as invalid",
+        "Resolves competing_attempt_count to 3, the default",
+        "Does NOT use the user's value 5",
+        "Runs three attempts for Phase 2"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "competing-attempts-count-repository-beats-user-option",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's competing_attempt_count option is 2; the repository's docs/conventions/implementation.yaml holds `competing_attempts: auto` and `competing_attempt_count: 5`. Phase 2 is marked multi-shape. Dispatch its attempts.",
+      "expected_output": "Both repository values are valid, and the repository file wins over the user's option. Reports `competing_attempt_count: 5 (docs/conventions/implementation.yaml)` and runs five attempts for Phase 2, never two.",
+      "files": [],
+      "expectations": [
+        "Reports competing_attempt_count: 5 with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs five attempts for Phase 2",
+        "Does NOT use the user's value 2"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "unfillable-brief-item-leaves-the-unit-unscoped",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-3, autonomous run. The approved plan at .work/invoice-export/PLAN.md routes Phase 3 to one worker row that adds a CSV export to billing/export.py. Phase 3 lists no acceptance criteria, and neither the Brief nor the Design section says what a finished export must contain. Dispatch Phase 3.",
+      "expected_output": "The orchestrator cannot fill the brief's acceptance-criteria item from the plan, the Brief or the design, so it does not dispatch Phase 3. It reports the unit as unscoped, naming the missing item (acceptance criteria), and routes it back to planning as a divergence instead of inventing criteria or sending a brief with that item blank.",
+      "files": [],
+      "expectations": [
+        "Does NOT dispatch a worker for Phase 3",
+        "Reports Phase 3 as unscoped and names acceptance criteria as the item it could not fill",
+        "Does NOT write acceptance criteria of its own into a brief for Phase 3",
+        "Routes Phase 3 back to planning as a divergence"
+      ]
+    },
+    {
+      "id": 47,
+      "name": "resumed-dispatch-opens-its-log-with-a-run-boundary-entry",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-4, autonomous run started from a resume prompt in a new session. DEVIATIONS.md beside .work/ledger-sync/PLAN.md already holds six entries, timestamped 09:10 to 11:42, all written by the earlier session before it was cleared. Continue the run with Phase 4.",
+      "expected_output": "Before any other entry it appends, the new session writes a run-boundary entry to DEVIATIONS.md that names this session and the six earlier entries (09:10 to 11:42) it did not write. The six entries are left exactly as they are; the run then continues with Phase 4.",
+      "files": [],
+      "expectations": [
+        "The first entry the new session appends to DEVIATIONS.md is a run-boundary entry",
+        "That entry names the new session",
+        "That entry names the earlier entries it did not write (the six entries from 09:10 to 11:42)",
+        "Does NOT edit or delete any of the six earlier entries"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "phase-verdict-is-keyed-to-the-head-sha",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, autonomous run. Phase 2 of .work/ledger-sync/PLAN.md passed its phase-verifier when branch feat/ledger-sync was at commit a1b2c3d. Before Phase 2 was marked [DONE], the worker rebased the branch onto the updated default branch, and its head is now e4f5a6b. Finish the Phase 2 boundary.",
+      "expected_output": "The verdict was recorded against head SHA a1b2c3d. The rebase moved the head, so that verdict no longer counts: the orchestrator reruns the build/test gate and dispatches a fresh phase-verifier against e4f5a6b, and marks Phase 2 [DONE] only on a passing verdict recorded against e4f5a6b.",
+      "files": [],
+      "expectations": [
+        "Records the Phase 2 verdict together with the head SHA it judged",
+        "Treats the verdict for a1b2c3d as void after the rebase to e4f5a6b",
+        "Dispatches a fresh phase-verifier against e4f5a6b before marking Phase 2 [DONE]",
+        "Does NOT mark Phase 2 [DONE] on the verdict recorded for a1b2c3d"
+      ]
+    },
+    {
+      "id": 49,
+      "name": "brief-names-the-structure-the-logic-is-built-on",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch phase-1, autonomous run. The approved plan at .work/refund-tracking/PLAN.md routes Phase 1 to one worker row that adds refund status tracking to payments/refunds.py: requested, approved, paid and rejected, where a paid or rejected refund never changes again. The plan has no Design section. Show me the brief before you dispatch it.",
+      "expected_output": "The brief carries `Design: none` and a structure line, chosen by the orchestrator before dispatch, naming the structure the worker builds its logic on, for example an enum of the four refund statuses with a table of the moves allowed between them. It is not left to the worker. The brief keeps its other items (scope fence, verbatim divergence clause, acceptance criteria, reason, commit authority).",
+      "files": [],
+      "expectations": [
+        "The brief carries a line naming the structure the worker's refund logic is organized around",
+        "That line names a concrete structure (such as an enum of statuses with a table of allowed moves), not 'worker's choice' or an empty value",
+        "The brief still carries the scope fence and the verbatim divergence-escalation clause"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "operator-hold-stops-running-workers-with-taskstop",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, autonomous run, mid-wave in Phase 3: two implementer workers are running in the background and a third row of the wave is queued, not yet dispatched. The operator writes: \"hold everything, no more writes until I say so.\"",
+      "expected_output": "The orchestrator stops both running workers with the TaskStop tool and dispatches nothing more: the queued row stays queued. It does not use SendMessage as the hold and sends no message to either stopped worker while the hold stands, since a message would resume a stopped subagent. It reports each stopped worker with its worktree state and waits for the operator to lift the hold.",
+      "files": [],
+      "expectations": [
+        "Stops both running workers with TaskStop",
+        "Does NOT dispatch the queued row while the hold stands",
+        "Does NOT use SendMessage to tell the workers to stop, and sends no message to a stopped worker during the hold",
+        "Reports each stopped worker with its worktree state"
+      ]
+    },
+    {
+      "id": 51,
+      "name": "autonomous-run-ends-with-trail-review-raised-to-worker-model",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, autonomous run (a loop harness drives the turns). The plan's three phases are all marked [DONE] with phase-verifier verdicts; Phase 1 and Phase 3 ran on implementation:implementer at opus and Phase 2 on implementation:scoped-implementer at sonnet. The run kept .work/greenhouse-alerts/DEVIATIONS.md with five entries; the branch started at commit 4be19c2. /multi-agent:route is among the available skills and its verifier role prints single sonnet @ high. No post-phase commit was made.",
+      "expected_output": "Before handing off to /implementation:implement Step 5, the orchestrator dispatches implementation:phase-verifier once as the trail review, with the Agent model parameter set to opus: route gave sonnet, and the run's strongest worker ran on opus, so the model is raised. The verifier gets the DEVIATIONS.md path, the run's diff from 4be19c2 to the current head, and binary criteria: each entry's evidence resolves, each entry states its outcome or unverified, each deviation has its four fields, and the diff has no departure from the plan without an entry. The orchestrator appends one discovery entry with the verdict and the model, and Step 5's report lists any failed criterion.",
+      "files": [],
+      "expectations": [
+        "Dispatches implementation:phase-verifier as a trail review after the last phase and before Step 5",
+        "Passes the Agent model parameter opus, not the route's sonnet",
+        "Hands the verifier the DEVIATIONS.md path and the run's diff from 4be19c2 to the head",
+        "The criteria cover resolving evidence, a stated outcome or unverified, the four deviation fields, and unlogged departures from the plan",
+        "Appends one discovery entry naming the verdict and the model the review ran on"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "interactive-run-skips-trail-review-even-with-log",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, interactive run: the user reviews each turn and opted into the deviations log at the start. Both worker-routed phases are now marked [DONE] with phase-verifier verdicts, and .work/bike-rental/DEVIATIONS.md holds three entries. No post-phase commit was made.",
+      "expected_output": "Because the run is interactive, no trail review runs: the orchestrator does not dispatch a further phase-verifier over the deviations log, even though the log exists. It goes on to /implementation:implement Step 5, whose report states that no trail review ran.",
+      "files": [],
+      "expectations": [
+        "Does NOT dispatch a trail review of DEVIATIONS.md",
+        "Does NOT dispatch any further implementation:phase-verifier after the last phase's verdict",
+        "Proceeds to /implementation:implement Step 5",
+        "The Step 5 report states that no trail review ran"
+      ]
+    },
+    {
+      "id": 53,
       "name": "item-list-runs-without-plan-and-holds-unlanded-dependent",
       "narration": true,
       "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. I wrote this list in the item-list shape and approve it. Plan the first wave.",
@@ -266,7 +715,7 @@
       ]
     },
     {
-      "id": 21,
+      "id": 54,
       "name": "base-ref-replaces-default-branch-in-worktree-check",
       "prompt": "/implementation:implement-dispatch --items items.md --base origin/integration/search — compose the brief for the first item; the worker provisions its own worktree on branch feat/12-index.",
       "expected_output": "The brief has the worker cut feat/12-index from origin/integration/search, confirm before its first edit that `git merge-base HEAD origin/integration/search` equals origin/integration/search, STOP on a mismatch, and bring the branch current with origin/integration/search (not the default branch) before returning.",

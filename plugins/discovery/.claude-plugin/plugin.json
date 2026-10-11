@@ -20,5 +20,14 @@
     "subagent",
     "agents",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "explore_output": {
+      "type": "string",
+      "title": "Explore reply shape",
+      "description": "Reply shape of /discovery:explore. auto (default): explain when a person asks how something works, else change-prep, including calls from other skills. change-prep: the handoff summary. explain: a walkthrough citing path:line. EXPLORE.md is unchanged. docs/conventions/discovery.yaml overrides this.",
+      "default": "auto",
+      "options": ["auto", "change-prep", "explain"]
+    }
+  }
 }
