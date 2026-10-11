@@ -868,6 +868,12 @@ jobs:
               core.setFailed(`Reading the PR labels answered ${labelsResponse.status}; the merge is not committed`);
               return;
             }
+            // Only the first page is read; more labels than one page holds
+            // could hide a hold, so that fails instead.
+            if (/rel="next"/.test(labelsResponse.headers.get('link') ?? '')) {
+              core.setFailed('The PR has more labels than one page holds; the merge is not committed');
+              return;
+            }
             const labels = await labelsResponse.json();
             const held = labels.map((label) => label.name).filter((name) => name === 'do-not-merge' || name === HOLD_LABEL);
             if (held.length) {
