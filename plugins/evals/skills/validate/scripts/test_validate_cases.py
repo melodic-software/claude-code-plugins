@@ -173,6 +173,18 @@ class UnknownKeyFixture(ValidatorTestCase):
                 result.stdout,
             )
 
+    def test_removed_tool_is_diagnosed_not_offered_a_grant(self):
+        self.case(
+            "removed-tool",
+            prompt=CLEAN_PROMPT.replace("Skill]", "Skill, TaskOutput]"),
+            graders={"criteria": REGEX_GRADER},
+        )
+        self.samples("removed-tool", "criteria", ["conftest.py"], ["no"])
+        result = self.validate()
+        self.assertNotIn("FAIL", result.stdout)
+        self.assertIn("lists TaskOutput, which Claude Code removed", result.stdout)
+        self.assertNotIn("--allow-tools", result.stdout)
+
 
 class DuplicateGraderFixture(ValidatorTestCase):
     def test_duplicate_grader_name_across_yaml_and_dir_fails(self):
