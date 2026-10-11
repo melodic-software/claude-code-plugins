@@ -287,8 +287,8 @@ With no argument in an interactive session, run the interview:
 
    ## branch_issue_pattern
 
-   <only present when set: one ERE in backticks whose last capture group holds the numeric issue
-   number, e.g. `^[^/]+/([0-9]+)-`. Omit this section entirely to keep the built-in
+   <only present when set: one ERE in backticks whose last capture group holds the issue number
+   or a tracker key such as `SW2-1234`, e.g. `^[^/]+/([0-9]+)-`. Omit this section entirely to keep the built-in (or the bound tracker's)
    `<type>/<N>-<slug>` convention>
    ```
 
