@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-10-10
+
+### Changed
+
+- `/implementation:implement` keys skipping the plan on the diff being quick to review and cheap to retry, not on file count, and routes back to the interview when the diff turns out not to be quick to review. A too-big, foggy effort found mid-build now routes to `/planning:interview`, which escalates to `/planning:wayfind`.
+
 ## [0.25.0] - 2026-10-10
 
 ### Changed

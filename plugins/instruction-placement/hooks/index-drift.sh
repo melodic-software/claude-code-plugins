@@ -15,7 +15,7 @@
 #
 # WHY IT EXISTS AT ALL. Index drift is silent by construction. A rule added
 # without regenerating the index is a rule nothing names, so no agent is told it
-# exists until a read happens to match its glob, and nothing about the
+# exists until Claude works with a matching file, and nothing about the
 # repository looks wrong until someone runs the gate.
 #
 # Kill switch: the plugin's `index_drift_hook_enabled` userConfig boolean,
