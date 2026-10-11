@@ -46,7 +46,7 @@
     "test_judge_effort": {
       "type": "string",
       "title": "Test judge effort",
-      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels.",
+      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels.",
       "default": "medium",
       "options": ["low", "medium", "high", "xhigh", "max"]
     },
