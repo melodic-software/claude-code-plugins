@@ -2,6 +2,9 @@
 type: llm
 arm: both
 ---
+The fixture has no installed dependencies and the run has no shell, so no build can run here.
+Criterion 4 therefore accepts a stated way to check the compiled output, not only a check that ran.
+
 PASS only if the answer (1) identifies that the components use Vue `<style scoped>`, (2) places the
 new rules in PriceTag.vue's scoped style block, (3) reaches `.info-link__icon` with `:deep()` (or an
 equivalent such as moving the rule into InfoLink.vue) and says why a plain descendant selector would

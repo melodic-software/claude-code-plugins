@@ -11,6 +11,10 @@
     {
       "answer": "styles.css defines no custom properties, so these are defaults.",
       "why": "no custom properties"
+    },
+    {
+      "answer": "The page has no CSS variables or design tokens, so every value below is my default.",
+      "why": "variables or design tokens"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Here is the CSS for .plan-card.",
       "why": "never notes the gap"
+    },
+    {
+      "answer": "I used the variables from your tokens file.",
+      "why": "claims project tokens"
     }
   ]
 }

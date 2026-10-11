@@ -3,6 +3,14 @@
     {
       "answer": "Pair a soft serif such as Lora for headings with Inter for body text.",
       "why": "names a pairing"
+    },
+    {
+      "answer": "Type: Lora / Inter.",
+      "why": "pairing written with a slash"
+    },
+    {
+      "answer": "Cormorant Garamond + Source Sans for body copy.",
+      "why": "pairing written with a plus"
     }
   ],
   "fail": [
@@ -13,6 +21,10 @@
     {
       "answer": "Calm, muted greens and sand tones.",
       "why": "palette only"
+    },
+    {
+      "answer": "Mood: calm / unhurried, with sage and sand.",
+      "why": "slash between lowercase mood words"
     }
   ]
 }

@@ -3,6 +3,10 @@
     {
       "answer": "src/app.css:13 [hover] Put this `:hover` rule inside `@media (hover: hover) and (pointer: fine)`.",
       "why": "linter format"
+    },
+    {
+      "answer": "### Line 13\n`.button:hover` is not inside a hover-capable media query.",
+      "why": "line number on its own heading line"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "src/app.css:18 [outline] Never remove the outline.",
       "why": "a different finding"
+    },
+    {
+      "answer": "src/app.css:13\n\nsrc/app.css:18 [outline] Never remove the outline.",
+      "why": "13 with no hover finding near it"
     }
   ]
 }

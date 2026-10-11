@@ -3,9 +3,17 @@
     {
       "answer": ".notice {\n  color: var(--color-text);\n  border-inline-start: 4px solid var(--color-accent);\n}",
       "why": "tokens only"
+    },
+    {
+      "answer": ".notice{color:var(--color-text);background:color-mix(in oklch, var(--color-accent) 10%, transparent)}",
+      "why": "one-line, mixed from a token"
     }
   ],
   "fail": [
+    {
+      "answer": ".notice{border-inline-start:4px solid #2563eb}",
+      "why": "one-line unindented hex"
+    },
     {
       "answer": ".notice {\n  border-inline-start: 4px solid #2563eb;\n}",
       "why": "hex literal"

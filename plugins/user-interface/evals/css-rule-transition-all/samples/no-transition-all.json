@@ -3,6 +3,10 @@
     {
       "answer": ".btn { transition: background-color 150ms, box-shadow 150ms; }",
       "why": "named"
+    },
+    {
+      "answer": ".btn { transition: box-shadow 150ms var(--ease-out); }",
+      "why": "named with a token curve"
     }
   ],
   "fail": [
@@ -13,6 +17,18 @@
     {
       "answer": ".btn { transition-property: all; }",
       "why": "transition-property all"
+    },
+    {
+      "answer": ".btn { transition: 200ms ease-out; }",
+      "why": "implicit all, no property"
+    },
+    {
+      "answer": ".btn { transition: 200ms all; }",
+      "why": "all after the time"
+    },
+    {
+      "answer": ".btn { transition: opacity 150ms, 200ms ease-out; }",
+      "why": "second item names no property"
     }
   ]
 }

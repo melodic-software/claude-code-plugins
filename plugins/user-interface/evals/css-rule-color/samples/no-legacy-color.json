@@ -7,9 +7,21 @@
     {
       "answer": "I converted your hex values.\n\n:root {\n  --tint: color-mix(in oklch, var(--brand) 20%, transparent);\n}",
       "why": "prose plus oklch"
+    },
+    {
+      "answer": ".fade { mask-image: linear-gradient(#000, transparent); color: oklch(30% 0 none); }",
+      "why": "hex inside a mask is allowed"
     }
   ],
   "fail": [
+    {
+      "answer": ".x{color:#fff}",
+      "why": "one-line unindented hex"
+    },
+    {
+      "answer": ":root { --brand: #2563eb; --tint: rgba(37, 99, 235, .2); }",
+      "why": "one-line custom properties"
+    },
     {
       "answer": ":root {\n  --brand: #2563eb;\n}",
       "why": "hex custom property"

@@ -1,6 +1,6 @@
 ---
 type: regex
-flags: m
+flags: i
 arm: both
-pattern: '^[^\n]*(?:\bhover\b[^\n]*\b13\b|\b13\b[^\n]*\bhover\b)'
+pattern: '\bhover\b[^\n]*\b13\b|\b13\b[^\n]*\n?[^\n]*\bhover\b'
 ---

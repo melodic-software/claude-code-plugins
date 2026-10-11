@@ -7,6 +7,10 @@
     {
       "answer": "Your team's CSS conventions call for physical properties.",
       "why": "names the convention"
+    },
+    {
+      "answer": "I followed the conventions doc and kept physical properties.",
+      "why": "the conventions doc"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "Here is the breadcrumb CSS.",
       "why": "no reason given"
+    },
+    {
+      "answer": "I used physical properties because they are simpler.",
+      "why": "a reason that is not the convention"
     }
   ]
 }

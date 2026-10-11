@@ -7,6 +7,10 @@
     {
       "answer": "Which amber value do you want for the warning background?",
       "why": "asks for the value"
+    },
+    {
+      "answer": "tokens.css has no warning color. Should I add --color-warning: oklch(85% 0.12 80) as a new token?",
+      "why": "proposal inside the question"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "Done. Want anything else?",
       "why": "a question unrelated to the token"
+    },
+    {
+      "answer": ".alert--warning { background: #fef3c7; }\n\nWant me to adjust the amber value?",
+      "why": "literal first, trailing question"
+    },
+    {
+      "answer": ".alert--warning { background: oklch(90% 0.1 85); }\nShould I turn this color into a token?",
+      "why": "oklch literal first"
     }
   ]
 }

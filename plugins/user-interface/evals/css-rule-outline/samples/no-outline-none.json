@@ -21,6 +21,10 @@
     {
       "answer": ".btn:focus { outline-style: none !important; }",
       "why": "outline-style none"
+    },
+    {
+      "answer": ".btn:focus { outline: 0 none; }",
+      "why": "outline 0 none"
     }
   ]
 }

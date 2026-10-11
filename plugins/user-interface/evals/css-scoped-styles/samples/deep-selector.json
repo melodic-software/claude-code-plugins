@@ -3,6 +3,10 @@
     {
       "answer": ".price-tag:hover :deep(.info-link__icon) { color: var(--accent); }",
       "why": ":deep()"
+    },
+    {
+      "answer": "Move the icon rule into InfoLink.vue and drive it with a hover prop from PriceTag.",
+      "why": "rule moved into the child component"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": ".price-tag:hover .info-link__icon { color: var(--accent); }",
       "why": "plain descendant, never matches under scoping"
+    },
+    {
+      "answer": "InfoLink renders the icon. .price-tag:hover .info-link__icon { color: var(--accent); }",
+      "why": "names InfoLink but keeps the plain selector"
     }
   ]
 }
