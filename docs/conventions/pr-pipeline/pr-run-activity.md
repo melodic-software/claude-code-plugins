@@ -510,8 +510,15 @@ Both are organization variables declared in github-iac
 ([ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md)).
 
 The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token>` and the JSON
-body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>}`; `pr_number` is the gate's PR
-and is required off `pull_request`. The client sends it once and never retries: the broker
+body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
+`pr_number` is the gate's PR and is required off `pull_request`. `dispatcher_run_id`, a positive
+JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
+the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
+run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
+started by a push or a listed human, with a re-run attempt started by a listed human. Its head
+must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
+`workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
+`updated_at` and `run_started_at` plus 10 minutes. The client sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 
@@ -528,16 +535,19 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 
 | Status | Reason | Meaning |
 |---|---|---|
-| 400 | (none) | The body is not `{lane, activity, pr_number?}` with valid names |
+| 400 | (none) | The body is not `{lane, activity, pr_number?, dispatcher_run_id?}` with valid names and positive integers |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main` |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
 | 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list, or is the lanes bot |
+| 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
+| 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
 | 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, or a repository variable of that name is set to anything else |

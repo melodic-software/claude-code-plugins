@@ -8,6 +8,7 @@
 .github/actions/check-trusted-trigger
 .github/actions/collect-base-activity
 .github/actions/report-check-run
+.github/actions/request-lane-token
 .github/actions/select-trusted-text
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion
