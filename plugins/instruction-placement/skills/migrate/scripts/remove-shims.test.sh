@@ -90,8 +90,18 @@ cat >"$TMP/env-vars.md" <<'EOF'
 EOF
 
 mkdir -p "$TMP/bin"
-# A load looks like the directory's own AGENTS.md coming back.
-printf '#!/usr/bin/env bash\ncat AGENTS.md\n' >"$TMP/bin/claude-met"
+# A load looks like the directory's own AGENTS.md coming back. Given the
+# nested write probe's `--tools Write`, `met` writes the file it was asked for
+# and answers with the root AGENTS.md only: the probe reads that as NO-LOAD.
+# Every call is logged, so a case can tell whether the probe ran.
+cat >"$TMP/bin/claude-met" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/claude-args.log"
+case " \$* " in
+*" --tools Write "*) echo hello >sub/canary.txt; cat AGENTS.md ;;
+*) cat AGENTS.md ;;
+esac
+EOF
 printf '#!/usr/bin/env bash\necho NONE\n' >"$TMP/bin/claude-unmet"
 chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet"
 
@@ -240,8 +250,14 @@ OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plu
   "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met")
 # The command substitution drops the blank line the script prints after it.
 GOT_PRICE="$(printf '%s\n' "$OUT" |
-  awk '/^What removing the shims costs/ { f = 1 } /^Not confirmed/ { exit } f')"
+  awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
+
+# A nested AGENTS.md adds the write-trigger loss to the price, before any
+# confirmation and before the probe that measures it has run.
+assert_contains "a nested AGENTS.md prices the write-trigger loss" "$OUT" \
+  "Nested AGENTS.md files: 1. The nested write probe says: not yet run"
+assert_contains "and names the record behind it" "$OUT" "'The nested write trigger'"
 
 # --- Case 3: a stale installed plugin refuses before anything is removed --
 
@@ -370,9 +386,14 @@ assert_eq "and removes nothing, including the root shim" "" "$(cd "$NOLINE" && g
 # --- Case 7: the happy path, root and nested together ---------------------
 
 rc=0
+: >"$TMP/claude-args.log"
 OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-current.json" \
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "a ready repository exits 0" 0 "$rc"
+assert_contains "with a nested AGENTS.md the write probe runs" "$(cat "$TMP/claude-args.log")" "--tools Write"
+assert_contains "and its NO-LOAD is priced before removal" "$OUT" \
+  "The nested write probe says: NO-LOAD"
+assert_contains "under the post-probe heading" "$OUT" "The price, now that the probe has run:"
 assert_contains "the root shim is removed" "$OUT" "removed CLAUDE.md"
 assert_contains "the nested shim is removed in the same run" "$OUT" "removed svc/CLAUDE.md"
 assert_contains "the root canary returns the AGENTS.md line" "$OUT" ".: the AGENTS.md line came back"
@@ -387,6 +408,23 @@ assert_eq "the root AGENTS.md is byte-identical" "$(printf '# Conventions\n\n%s\
   "$(cat "$READY/AGENTS.md")"
 assert_eq "the nested AGENTS.md is byte-identical" "$(printf '# Service\n\n%s\n' "$NESTED_LINE")" \
   "$(cat "$READY/svc/AGENTS.md")"
+
+# With no nested AGENTS.md there is no write-trigger loss to price, so the
+# probe is skipped instead of spending a metered turn nobody reads.
+FLAT="$TMP/flat"
+make_repo "$FLAT"
+printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$FLAT/AGENTS.md"
+printf '@AGENTS.md\n' >"$FLAT/CLAUDE.md"
+printf 'A repository fixture.\n' >"$FLAT/README.md"
+commit_all "$FLAT"
+rc=0
+: >"$TMP/claude-args.log"
+OUT=$(bash "$SCRIPT" --root "$FLAT" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a flat ready repository exits 0" 0 "$rc"
+assert_not_contains "and spends no write-probe turn" "$(cat "$TMP/claude-args.log")" "--tools Write"
+assert_contains "because the probe was skipped" "$OUT" "--skip-write-probe: the probe did not run"
+assert_not_contains "and no nested loss is priced" "$OUT" "Nested AGENTS.md files"
 
 # --- Case 8: a canary miss restores every shim this run removed -----------
 

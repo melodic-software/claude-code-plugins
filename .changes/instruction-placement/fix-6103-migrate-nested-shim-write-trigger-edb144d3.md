@@ -4,7 +4,8 @@ bump: minor
 
 ### Added
 
-- migrate: `cutover-check.sh` runs a nested write probe after its four graded conditions. One metered `claude -p` turn offered only the Write tool writes into `sub/` of a scratch tree with a root and a `sub/` `AGENTS.md` and no `CLAUDE.md`, and prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]` for the nested file. The probe is reported, not graded, so the exit status is unchanged; `--skip-canary` skips it too.
+- migrate: `cutover-check.sh` runs a nested write probe after its four graded conditions. One metered `claude -p` turn offered only the Write tool writes into `sub/` of a scratch tree with a root and a `sub/` `AGENTS.md` and no `CLAUDE.md`, and prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]` for the nested file. The probe is reported, not graded, so the exit status is unchanged; `--skip-canary` skips it too, and the new `--skip-write-probe` skips only the probe.
+- migrate: `remove-shims.sh` adds the nested write-trigger loss to the price it prints when the repository has a nested `AGENTS.md`. After `cutover-check` runs, it repeats that loss with the probe's result unless the result is `[LOADS]`. For a repository with no nested `AGENTS.md` it passes `--skip-write-probe`, so the probe costs a metered turn only where its answer is priced.
 
 ### Fixed
 

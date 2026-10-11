@@ -257,7 +257,10 @@ Codex leg, and the rollout check are in
 
 ## What shim removal costs
 
-This is the price of the cutover, and `remove-shims` prints it before it asks.
+This is the price of the cutover, and `remove-shims` prints it before it asks. A repository with a
+nested `AGENTS.md` adds one more line, the nested write-trigger loss recorded under
+[The nested write trigger](#the-nested-write-trigger), and repeats it with the probe's result after
+`cutover-check` runs.
 
 Removing the shims costs the hook-visible load. Without a shim, the `InstructionsLoaded` hook no
 longer reports the `AGENTS.md` load, so `verify-load.sh` and any hook-based audit stop seeing it

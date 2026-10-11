@@ -69,6 +69,7 @@ CLAUDE_BIN="claude"
 CANARY_HOME_ROOT=""
 CANARY_ALT_ROOT=""
 SKIP_CANARY=0
+SKIP_WRITE_PROBE=0
 REPOS=()
 
 usage() {
@@ -95,6 +96,8 @@ Usage: cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
                             exists, else $TMPDIR)
   --skip-canary             run no canary: condition 3 and the nested write
                             probe both report [UNREACH]
+  --skip-write-probe        skip only the nested write probe, which reports
+                            [UNREACH]; for a repository with no nested AGENTS.md
   --help                    this message
 
 Each graded condition prints [MET], [UNMET] or [UNREACH] with its evidence.
@@ -160,6 +163,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-canary)
     SKIP_CANARY=1
+    shift
+    ;;
+  --skip-write-probe)
+    SKIP_WRITE_PROBE=1
     shift
     ;;
   *)
@@ -662,6 +669,11 @@ write_probe() {
   echo "Nested write trigger (reported, not graded; shim-droppable.md condition G reads it)"
   if ((SKIP_CANARY == 1)); then
     printf '  [UNREACH] %s\n' "--skip-canary: the probe did not run"
+    WRITE_PROBE_RESULT="UNREACH"
+    return 0
+  fi
+  if ((SKIP_WRITE_PROBE == 1)); then
+    printf '  [UNREACH] %s\n' "--skip-write-probe: the probe did not run"
     WRITE_PROBE_RESULT="UNREACH"
     return 0
   fi

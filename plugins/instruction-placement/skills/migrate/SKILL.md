@@ -346,7 +346,11 @@ so and the run still exits non-zero.
 Removal is priced, and the price is printed before the confirmation: the hook-visible load goes,
 and `/memory` becomes the only place to see the file
 ([`reference/sources.md`](reference/sources.md), "What shim removal costs"). That is a decision to
-make, not tidying.
+make, not tidying. With a nested `AGENTS.md` the price also names the nested write-trigger loss, and
+names it again with the probe's result once `cutover-check` has run, unless the probe printed
+`[LOADS]`. The run does not refuse on it: condition G is where that loss is decided, before
+`--confirm`. A repository with no nested `AGENTS.md` passes `--skip-write-probe`, so it pays no
+turn for the probe.
 
 ## Verify the load, never assume it
 

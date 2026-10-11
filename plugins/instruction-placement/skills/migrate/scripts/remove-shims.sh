@@ -6,7 +6,9 @@
 #
 #   1. It prints what removal costs: the decision and pointer of the pointer
 #      record (decision, pointer, as-of date, recheck trigger) headed "What shim
-#      removal costs" in reference/sources.md.
+#      removal costs" in reference/sources.md. With a nested AGENTS.md it
+#      also prices the nested write-trigger loss, and prints it again with
+#      cutover-check's probe result once that has run.
 #   2. It refuses without --confirm. There is no blanket-yes and no all-repos
 #      mode: one repository per run, one confirmation per run.
 #   3. It refuses unless the INSTALLED harness-memory and instruction-placement
@@ -176,6 +178,22 @@ else
 fi
 echo
 
+# A nested AGENTS.md is where removal can cost more than the record above
+# prices: a load trigger only its shim carries (shim-droppable.md condition G,
+# measured by cutover-check's nested write probe). Counted from disk, tracked
+# or not, so a file the plan would not list still prices the run.
+NESTED_AGENTS="$(find "$REPO" -mindepth 2 -name AGENTS.md -not -path '*/.git/*' 2>/dev/null | wc -l | tr -d ' ')"
+nested_loss() { # <the probe's result, or "not yet run">
+  echo "  Nested AGENTS.md files: $NESTED_AGENTS. The nested write probe says: $1. Unless it says"
+  echo "  LOADS, removing their shims also drops the nested load a Write or Edit there triggers"
+  echo "  through the shim (reference/sources.md, 'The nested write trigger'; shim-droppable.md,"
+  echo "  condition G, which keeps these shims unless the operator accepts that loss)."
+}
+if ((NESTED_AGENTS > 0)); then
+  nested_loss "not yet run; cutover-check runs it after --confirm"
+  echo
+fi
+
 # --- 2. the confirmation --------------------------------------------------
 if ((CONFIRM == 0)); then
   echo "Not confirmed. Re-run with --confirm to remove the shims in this repository."
@@ -220,10 +238,23 @@ echo
 # --- 4. the cutover conditions --------------------------------------------
 echo "Running the cutover check against $REPO:"
 echo
-CHECK_RC=0
-bash "$CUTOVER_CHECK" --repo "$REPO" "${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"}" || CHECK_RC=$?
+# With no nested AGENTS.md the write probe has nothing to price, so it is
+# skipped rather than paying a metered turn whose answer nobody reads.
+PROBE_ARGS=()
+((NESTED_AGENTS > 0)) || PROBE_ARGS=(--skip-write-probe)
+CHECK_OUT="$(mktemp)"
+bash "$CUTOVER_CHECK" --repo "$REPO" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} \
+  "${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"}" | tee "$CHECK_OUT"
+CHECK_RC=${PIPESTATUS[0]}
+PROBE_RESULT="$(sed -n 's/^=== Nested write trigger (not graded): \([A-Z-]*\)\..*/\1/p' "$CHECK_OUT")"
+rm -f "$CHECK_OUT"
 echo
 ((CHECK_RC == 0)) || refuse "cutover-check reported a condition that is not [MET] (exit $CHECK_RC). Nothing was removed."
+if ((NESTED_AGENTS > 0)) && [[ "$PROBE_RESULT" != "LOADS" ]]; then
+  echo "The price, now that the probe has run:"
+  nested_loss "${PROBE_RESULT:-no result}"
+  echo
+fi
 
 # --- 5. the target shape --------------------------------------------------
 PLAN="$(mktemp)"
