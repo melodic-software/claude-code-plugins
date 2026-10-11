@@ -249,13 +249,21 @@ and the run exits non-zero unless every one is `[MET]`.
 | 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
 | 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
 
+One more probe is **reported, not graded**: the nested write trigger. One metered `claude -p` turn
+offered **only the Write tool** writes into `sub/` of a scratch tree holding a root and a `sub/`
+`AGENTS.md` and no `CLAUDE.md`, and prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]` for the nested
+file. It never changes the exit status, because only a repository with nested `AGENTS.md` turns on
+it: condition G of the droppability check below reads it.
+
 **A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
 working directory, a reply quoting that file is equally consistent with the model having read it
 for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
 load at session start, and a quotation from a session that *could* not read anything is evidence
 of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
 nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
-`NONE`.
+`NONE`. The nested write probe keeps the same rule with the one tool its trigger needs: a session
+offered Write alone cannot have opened `sub/AGENTS.md`, and the probe counts nothing unless the
+file it asked for was written.
 
 **`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
 the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and
@@ -284,9 +292,10 @@ detector by design.
 
 `cutover-check` grades the build and the fleet, not whether this repository's users lose
 instructions without the shim. Before offering `remove-shims`, read
-[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its six conditions:
+[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its seven conditions:
 precedence, this machine's mode, the loader's state, the operator's answers for every other user
-and surface, external `@` imports, and `InstructionsLoaded` dependents. It also gives the verdict for
+and surface, external `@` imports, `InstructionsLoaded` dependents, and nested load triggers only
+a shim carries. It also gives the verdict for
 nested `AGENTS.md` under each mode. **Unknown is failed**: any condition not shown to hold keeps the
 recommendation at "keep the shim" and names it. This recommends, never removes.
 
@@ -478,7 +487,9 @@ in sync after the move.
 - **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
   file holding the link target, so the import is the form that works everywhere.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for
-  the same check as `CLAUDE.md`, and no gate in the repository can see it.
+  the same check as `CLAUDE.md`, and no gate in the repository can see it. Offer the gitignored
+  `.claude/rules/<name>.local.md` replacement in `reference/shim-droppable.md`, condition A, with
+  its caveat that an `@` import inside a rule is undocumented and measured per release.
 - **Codex truncates past its project-doc budget**, which is one cumulative allowance across the
   files it loads, not a per-file cap (the dated record is beside `CODEX_PROJECT_DOC_BUDGET` in
   `scripts/plan-migration.sh`). A `BUDGET` row reading `OVER` means a Codex
