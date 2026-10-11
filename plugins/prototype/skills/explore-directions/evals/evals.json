@@ -71,6 +71,19 @@
         "The response declines to promote the prototype variant directly to production as-is",
         "The response recommends rewriting / properly folding the winner in, citing the prototype constraints (no tests, minimal error handling) the variant was written under"
       ]
+    },
+    {
+      "id": 7,
+      "name": "mockup-inlines-bundled-switcher",
+      "prompt": "I don’t have the app running yet. Show me three directions for a pricing card I can flip between in my browser.",
+      "expected_output": "Takes the HTML mockup substrate: one self-contained file:// page with the CSP meta tag, three variant containers marked with data-variant and data-variant-label, each with a named direction and axis, and the bundled assets/variant-switcher.html inlined whole before </body> rather than a hand-written switcher; the handover lists each variant with its axis, when it wins and its cost, without pre-picking a favorite. On a real stack the skill instead builds the framework-idiomatic switcher from step 4.",
+      "files": [],
+      "expectations": [
+        "The page inlines the bundled variant switcher (its .vs nav and script) instead of writing a new switcher",
+        "Each variant container carries data-variant and data-variant-label",
+        "Each variant has a direction name and a stated axis",
+        "The handover does not pre-pick a favorite"
+      ]
     }
   ]
 }

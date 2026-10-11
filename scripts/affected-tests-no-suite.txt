@@ -153,6 +153,13 @@ plugins/*/LICENSE
 # the reference rule before this line is consulted.
 plugins/*/evals/*
 
+# A skill's paste-in assets (plugins/<p>/skills/<s>/assets/): fragments the skill inlines into
+# output it generates, such as the explore-directions variant switcher. No suite runs them; the
+# skill's own evals (plugins/*/skills/*/evals/evals.json, gated by
+# plugins/skill-quality/scripts/check-evals-quality.sh) cover the output they end up in, and a
+# fragment fails check-html-assets.sh's doctype rule by design, so it is not registered there.
+plugins/*/skills/*/assets/*
+
 # Kept-trace fixtures for the evals plugin's result checkers. test_run_validity.py
 # and test_calibrate_judge.py read them through their fixture directories, never
 # by basename, so no rule above selects a suite. The lane covering them is the
