@@ -237,15 +237,17 @@ function resolveRemovableTempDir(dir) {
 }
 
 /**
- * Remove the directories recorded on this slice's tempSession after a successful close.
+ * Remove the directories recorded on this slice's tempSession, after a successful close
+ * or a watch that failed before recording them.
  * Only those three fields, and only when each resolved path is a directory inside the
  * OS temp dir. Never lists or globs the temp directory. Best-effort: a directory
  * that cannot be removed (on Windows, a file another process holds open fails with
  * EBUSY or EPERM) gets a stderr warning naming it, and the others are still tried.
  *
  * @param {WatchState["tempSession"]} tempSession
+ * @param {string} [label] the command named in that warning
  */
-export async function removeRecordedTempSessionDirs(tempSession) {
+export async function removeRecordedTempSessionDirs(tempSession, label = "close") {
   if (!tempSession) return;
   const resolved = resolveTempSession(
     /** @type {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} */ (
@@ -260,7 +262,7 @@ export async function removeRecordedTempSessionDirs(tempSession) {
       await fs.rm(real, { recursive: true, force: true });
     } catch (err) {
       const reason = /** @type {NodeJS.ErrnoException} */ (err).code ?? String(err);
-      writeStderr(`close: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
+      writeStderr(`${label}: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
     }
   }
 }
