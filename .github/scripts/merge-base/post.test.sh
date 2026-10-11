@@ -9,7 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREPARE="$SCRIPT_DIR/prepare.sh"
 POST="$SCRIPT_DIR/post.sh"
 
-# Keep the developer's own git configuration out of every fixture.
+# Keep the developer's own git configuration, and any inherited repository
+# location, out of every fixture.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 TMP="$(mktemp -d)"
