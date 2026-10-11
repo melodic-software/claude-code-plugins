@@ -160,13 +160,12 @@ function table(columns) {
 // literally. Mermaid refuses an empty quoted label, so one with nothing left is a single space.
 const MERMAID_ENTITIES = { "#": "#35;", '"': "#quot;", "%": "#37;", "&": "#amp;", "<": "#lt;", ">": "#gt;" };
 const mermaidLabel = (value) =>
-  capLabel(
-    asText(value)
-      .replace(/\s+/g, " ")
-      .replace(/[`\p{C}]/gu, "")
-      .replace(/ {2,}/g, " ")
-      .trim(),
-  ).replace(/[#"%&<>]/g, (char) => MERMAID_ENTITIES[char]) || " ";
+  asText(value)
+    .replace(/\s+/g, " ")
+    .replace(/[`\p{C}]/gu, "")
+    .replace(/ {2,}/g, " ")
+    .trim()
+    .replace(/[#"%&<>]/g, (char) => MERMAID_ENTITIES[char]) || " ";
 
 /**
  * The diagram as mermaid source, built only from builder-made ids and quoted labels, or null when

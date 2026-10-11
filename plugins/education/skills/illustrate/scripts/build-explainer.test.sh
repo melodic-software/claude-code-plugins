@@ -287,6 +287,19 @@ check(
   sectionOf(shapes, "Layers") === `- Top\n- Bottom\n\n${fence("flowchart TB", '    n1["Top"]', '    n2["Bottom"]', "    n1 --- n2")}`,
   sectionOf(shapes, "Layers"),
 );
+const longWhen = "Between the second and the third studio albums";
+const longHeading = "Options the team weighed in the first planning round";
+const uncut = buildExplainerRecord({
+  diagrams: [
+    { kind: "timeline", points: [{ when: longWhen, label: "Tour" }] },
+    { kind: "compare", columns: [{ heading: longHeading, items: ["a"] }, { heading: "B", items: ["b"] }] },
+  ],
+});
+check(
+  "a long date and a long column heading reach mermaid as the text form shows them",
+  uncut.includes(`- ${longWhen}: Tour`) && uncut.includes(`n1["${longWhen}: Tour"]`) && uncut.includes(`| ${longHeading} |`) && uncut.includes(`subgraph s1["${longHeading}"]`),
+  uncut,
+);
 check("a diagram with nothing to draw gets no mermaid block", !shapes.split("## Nothing")[1]?.includes("```"), shapes);
 
 // Every diagram of the hostile model is followed by exactly one mermaid block.
