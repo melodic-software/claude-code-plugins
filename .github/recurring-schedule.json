@@ -6,7 +6,7 @@
       "cadence": "quarterly",
       "area": [],
       "category": "general",
-      "triggers": ["frontier-model-release"],
+      "triggers": ["claude-model-release"],
       "precondition": {
         "id": "frontier-release-since-last-checked",
         "prompt": "A Claude model release of any class (frontier, Opus, Sonnet or Haiku) must have occurred since last_checked. audit-instructions runs on any release; unhobble runs only when the release is a frontier model. If no release has occurred, unclaim and leave the standing item open; never recheck-close on cadence alone.",
