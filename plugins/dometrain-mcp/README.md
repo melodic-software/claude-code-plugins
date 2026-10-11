@@ -177,7 +177,7 @@ Notes:
 - Grok CLI also loads Claude Code plugin servers, without Claude Code's substitution of
   `${user_config.*}`, and ranks its own config above them. Give it a `dometrain` entry of its own
   in `~/.grok/config.toml`, as
-  [ADR 0005](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)
+  [dotfiles ADR 0005](https://github.com/melodic-software/dotfiles/blob/main/docs/adr/0005-adopt-vault-exec-as-the-secret-resolver.md)
   records.
 
 Basis: [MCP server configuration](https://code.claude.com/docs/en/mcp), "Headers helper," "Plugin

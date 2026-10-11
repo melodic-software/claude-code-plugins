@@ -288,7 +288,7 @@ to the Frequency rule, and `rate-limit-guard`'s threshold line to the Phrasing r
 ### See what a hook or mod sent
 
 For a settings hook's full output, follow
-<https://code.claude.com/docs/en/hooks-guide#debug-techniques> and
+<https://code.claude.com/docs/en/hooks-guide#check-what-a-hook-did> and
 <https://code.claude.com/docs/en/hooks#debug-hooks>; for the hook telemetry event, see
 <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>.
 

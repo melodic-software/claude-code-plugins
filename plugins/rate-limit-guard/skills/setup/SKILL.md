@@ -89,8 +89,8 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    - **Pointer**: [api: add a tool](https://code.claude.com/docs/en/plugins/mods/api#add-a-tool)
      (the `mcp__<plugin>__<name>` form),
      [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
-     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
-   - **As of**: 2026-10-03, Claude Code 2.1.288.
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesn%E2%80%99t-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288; the doesn't-load anchor 2026-10-11.
    - **Recheck trigger**: the full tool name form changes, that table changes a message, or the
      minimum version changes.
 3. **Snapshot freshness.** The module writes after main-thread tool results, so this check's own
