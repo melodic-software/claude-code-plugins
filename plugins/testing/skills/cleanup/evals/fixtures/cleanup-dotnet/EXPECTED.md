@@ -28,7 +28,7 @@ or run: the mode runs no test.
 |---|---|---|
 | `Price_feed_resolves` | `can-fail`: `provider.GetRequiredService<IPriceFeed>()` resolves `PriceFeed`, whose constructor throws when `PriceFeedUrl` is unset (`Shop/ServiceRegistration.cs:17-18`), and throws when the `AddShop` registration is missing | `keep: throw is the only oracle (Shop.Tests/WiringTests.cs:19)`; never a deletion |
 | `Wiring_is_sane` | `cleared`: `Assert.True(true)` is its only statement and cannot fail; the class has no constructor or fixture | deletion proposed, applied only on the user's yes |
-| `Price_feed_type_exists` | `cleared`: `typeof(IPriceFeed)` is a compile-time constant and never null | deletion proposed, applied only on the user's yes |
+| `Price_feed_type_exists` | `cleared`: `typeof(IPriceFeed)` is a compile-time constant and never null, and `IPriceFeed` stays named by the other tests (`Shop.Tests/WiringTests.cs:19`), so no compile-time check is lost | deletion proposed, applied only on the user's yes |
 
 No rewrite, merge or quarantine is proposed. `Price_feed_is_not_null` is weak but can fail, so it is
 listed as `not in this mode` and left as it is. So is `Price_feed_prices_two_letter_sku`: its inert
@@ -39,4 +39,5 @@ deletion candidate.
 
 Step 1's scan parses 6 test blocks. With both deletions approved, the re-scan parses 4, and
 `git status --porcelain` lists only `Shop.Tests/WiringTests.cs`. The `BuildProvider` and
-`IsTrialFailure` helpers stay. Nothing is committed before the user approves the batch.
+`IsTrialFailure` helpers stay. The report says nothing was built or linted and asks the user to
+build the test project. Nothing is committed before the user approves the batch.

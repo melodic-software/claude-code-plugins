@@ -204,7 +204,7 @@ user. Unattended runs stop before the commit.
 
 ## Cannot-fail-only mode
 
-For a folder no mutation tool can gate, such as a .NET suite today. Deleting a test that cannot fail
+For a folder no usable mutation tool can gate. Deleting a test that cannot fail
 loses no kill a mutation run could record, so this mode deletes only such tests and needs no gate.
 It runs no test and no mutation tool, which keeps it safe on suites whose tests reach live systems.
 It proposes no quarantine, rewrite or merge. Step 0's branch, tree and folder checks still apply;
@@ -234,8 +234,9 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    the action reads `keep: throw is the only oracle (<file:line>)`, which a gated run or a
    `cant-fail-ok: <why>` annotation can settle later.
 4. **Delete.** Apply each deletion only after the user's yes to that item; unattended, apply none.
-   Remove the whole test (its attributes, decorators and doc comment) and nothing else: a helper
-   or field the test alone used stays, for `/code-tidying:audit-dead-code`. Keep the file's line
+   Remove the whole test (its attributes, decorators and doc comment) and an import only it used,
+   and nothing else: a helper or field the test alone used stays, for
+   `/code-tidying:audit-dead-code`. Keep the file's line
    endings: a file whose every line ended in CRLF before the edit
    (`grep -c $'\r$' -- "<path>"` equals `wc -l < "<path>"`) still does after it. The
    `test-change: cleanup row 4: <reason>` comment rule of step 5 applies.
@@ -244,7 +245,9 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    folder. Any other result stops the batch and names the difference.
 
 Step 7's report states that the batch ran in this mode, which step 0 check led to it, if any, and that no
-mutation gate ran; it has no K0 or K1. Every deletion here is gate-blind by construction.
+mutation gate ran; it has no K0 or K1. Every deletion here is gate-blind by construction. It also
+states that nothing was built or linted: a helper the deleted test alone used can trip an
+unused-code check, so ask the user to build and lint the test project before approving the batch.
 
 ## What this skill does NOT do
 

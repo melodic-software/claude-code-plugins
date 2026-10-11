@@ -29,6 +29,10 @@ line the scanner flagged. Check every path, including:
 - setup and teardown: a constructor or field initializer of the test class, a `[SetUp]`,
   `beforeEach`, `setUp`, fixture or `IClassFixture` it uses;
 - a call whose result the test discards, and an awaited call;
+- a compile-time reference: a type or member the test names (`typeof`, `nameof`, a type argument,
+  a call) stops the test project compiling when it is removed or renamed, so the test is
+  `can-fail` unless another file the test project compiles still names that symbol; quote that
+  other reference;
 - any other assertion in the test besides the flagged line: one that evaluates a value the code
   computes can fail, so the test is `can-fail`;
 - an assertion that does evaluate: read section 5 of `<plugin-root>/skills/test-value/SKILL.md`
@@ -36,8 +40,9 @@ line the scanner flagged. Check every path, including:
 
 Verdicts:
 
-- `cleared`: every statement the test runs, setup included, cannot throw or fail. State why for
-  each one; "nothing found" is not a reason.
+- `cleared`: every statement the test runs, setup and teardown included, cannot throw or fail,
+  and every symbol it names is named elsewhere in the test project. State why for each one;
+  "nothing found" is not a reason.
 - `can-fail`: name the statement and the failure, quoted with its `file:line`.
 - `undecided`: the files you were given are not enough. Name what is missing. Never guess
   `cleared`.
@@ -55,6 +60,7 @@ Verdicts:
 ## Reading the answer
 
 Write the subagent's table to `<work>/skeptic-answer-<n>.md` unchanged. Only a `cleared` row with a
-quoted line and a reason that covers the test's setup is a deletion candidate. Every other row,
+quoted line and a reason that covers the test's setup, its teardown and every symbol it names is
+a deletion candidate. Every other row,
 and every candidate with no row, is kept, and the decision table says why. A `can-fail` row's
 `file:line` is the one the `keep: throw is the only oracle` action cites.
