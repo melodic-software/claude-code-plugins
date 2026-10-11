@@ -22,6 +22,9 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/;
 // github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
 const ACTIONS_BOT_ID = 41898282;
 const DISPATCHER_EVENTS = new Set(["push", "workflow_dispatch"]);
+// The dispatcher dispatches within seconds of starting; a longer run must not
+// keep its window open.
+const WINDOW_MS = 10 * 60 * 1000;
 
 export class GitHubError extends Error {
   constructor(status, what) {
@@ -169,9 +172,9 @@ async function resolveRunPull(github, repository, run) {
 // A re-run keeps the event, so a stop here could otherwise turn an earlier
 // red check on the same SHA neutral: its reason has no skip mapping, and
 // an empty login stops too.
-function checkRerunnerLogin({ logins }, deniedIds, triggeringActor) {
+function checkRerunnerLogin({ ids, logins }, deniedIds, triggeringActor, pool = ids) {
   const rerunnerId = logins.get(String(triggeringActor).toLowerCase());
-  if (rerunnerId === undefined || deniedIds.has(rerunnerId)) {
+  if (rerunnerId === undefined || !pool.has(rerunnerId) || deniedIds.has(rerunnerId)) {
     throw new Stop("untrusted-rerunner");
   }
 }
@@ -193,9 +196,11 @@ async function readOrRefuse(github, apiPath) {
 
 // A dispatch sent by github-actions[bot] names no human, so it is trusted only
 // through the dispatcher run it names: that workflow, on the default branch,
-// started by a push or a listed human, its head SHA on the default branch, a
-// re-run attempt started by a listed human, and this run created between the
-// dispatcher run's start and its last update. Returns this run's own record.
+// started by a push or a listed human, its head SHA an ancestor of the branch
+// tip, a re-run attempt started by a listed human, and this run, the
+// dispatched workflow on the default branch, created between the dispatcher
+// run's start and the earlier of its last update and WINDOW_MS after its
+// start. Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -204,6 +209,7 @@ async function verifyDispatcher({
   deniedIds,
   dispatcherRunId,
   dispatcherWorkflow,
+  dispatchedWorkflow,
   runId,
 }) {
   const defaultBranch = event.repository?.default_branch;
@@ -211,8 +217,10 @@ async function verifyDispatcher({
     !RUN_ID.test(dispatcherRunId) ||
     !RUN_ID.test(runId) ||
     dispatcherWorkflow === "" ||
+    dispatchedWorkflow === "" ||
     typeof defaultBranch !== "string" ||
-    !HEAD_REF.test(defaultBranch)
+    !HEAD_REF.test(defaultBranch) ||
+    event.ref !== `refs/heads/${defaultBranch}`
   ) {
     throw new Stop("untrusted-actor");
   }
@@ -224,9 +232,12 @@ async function verifyDispatcher({
   );
   const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}`);
   const created = timeOf(own.created_at);
+  const started = timeOf(dispatcher.run_started_at);
   const attempt = dispatcher.run_attempt;
   // Comparisons with NaN are false, so a missing or unparseable time refuses.
   const trusted =
+    own.path === dispatchedWorkflow &&
+    own.event === "workflow_dispatch" &&
     dispatcher.repository?.full_name === repository &&
     dispatcher.path === dispatcherWorkflow &&
     dispatcher.head_branch === defaultBranch &&
@@ -236,14 +247,29 @@ async function verifyDispatcher({
     Number.isInteger(attempt) &&
     attempt >= 1 &&
     (attempt === 1 || isListedHuman(dispatcher.triggering_actor)) &&
-    timeOf(dispatcher.run_started_at) <= created &&
-    created <= timeOf(dispatcher.updated_at);
+    started <= created &&
+    created <= Math.min(timeOf(dispatcher.updated_at), started + WINDOW_MS);
   if (!trusted) {
+    throw new Stop("untrusted-actor");
+  }
+  // A tag with the branch's name would give a run on that tag the same
+  // head_branch, so one must not exist; only a 404 proves that.
+  let tagAbsent = false;
+  try {
+    await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
+  } catch (error) {
+    tagAbsent = error instanceof GitHubError && error.status === 404;
+  }
+  if (!tagAbsent) {
+    throw new Stop("untrusted-actor");
+  }
+  const tip = await readOrRefuse(github, `/repos/${repository}/git/ref/heads/${defaultBranch}`);
+  if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
     throw new Stop("untrusted-actor");
   }
   const comparison = await readOrRefuse(
     github,
-    `/repos/${repository}/compare/${dispatcher.head_sha}...${defaultBranch}`,
+    `/repos/${repository}/compare/${dispatcher.head_sha}...${tip.object.sha}`,
   );
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop("untrusted-actor");
@@ -265,17 +291,22 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
 }
 
 // require-pr: false. A workflow_dispatch checks its sender and the triggering
-// actor, any other event only the triggering actor; no PR is read.
-function evaluateActors({ eventName, event, list, deniedIds, triggeringActor }) {
+// actor, a push only the triggering actor; no PR is read. require-kind human
+// narrows both to actors listed as human.
+function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind }) {
+  if (eventName !== "workflow_dispatch" && eventName !== "push") {
+    throw new Stop("no-pr");
+  }
+  const pool = requireKind === "human" ? list.humans : list.ids;
   if (eventName === "workflow_dispatch") {
     if (Number.isInteger(event.sender?.id) && deniedIds.has(event.sender.id)) {
       throw new Stop("bot-actor");
     }
-    if (!isListed(list.ids, event.sender)) {
+    if (!isListed(pool, event.sender)) {
       throw new Stop("untrusted-actor");
     }
   }
-  checkRerunnerLogin(list, deniedIds, triggeringActor);
+  checkRerunnerLogin(list, deniedIds, triggeringActor, pool);
   return { ...stopped("ok"), proceed: "true" };
 }
 
@@ -290,15 +321,20 @@ export async function evaluateTrigger({
   dispatcherRunId = "",
   dispatcherWorkflow = "",
   requirePr = "true",
+  requireKind = "",
   runId = "",
+  dispatchedWorkflow = "",
   github,
 }) {
   const { ids } = list;
   if (typeof repository !== "string" || !repository.includes("/")) {
     throw new Stop("no-pr");
   }
+  if (requireKind !== "" && requireKind !== "human") {
+    throw new Stop("no-pr");
+  }
   if (requirePr === "false") {
-    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor });
+    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind });
   }
   if (requirePr !== "true") {
     throw new Stop("no-pr");
@@ -351,6 +387,7 @@ export async function evaluateTrigger({
       deniedIds,
       dispatcherRunId,
       dispatcherWorkflow,
+      dispatchedWorkflow,
       runId,
     });
     checkDispatchedRerunner(list, deniedIds, own);
@@ -412,6 +449,8 @@ export async function main({ env = process.env, github } = {}) {
       dispatcherRunId: env.DISPATCHER_RUN_ID ?? "",
       dispatcherWorkflow: env.DISPATCHER_WORKFLOW ?? "",
       requirePr: env.REQUIRE_PR ?? "true",
+      requireKind: env.REQUIRE_KIND ?? "",
+      dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     });

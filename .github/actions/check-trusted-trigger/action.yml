@@ -61,11 +61,25 @@ inputs:
       .github/workflows/<name>.yml. Empty stops every dispatcher-sent run.
     required: false
     default: ""
+  dispatched-workflow:
+    description: >
+      The workflow path this run must have when a dispatcher run sent it, and
+      it must be a workflow_dispatch run on the default branch. Empty stops
+      every dispatcher-sent run.
+    required: false
+    default: ""
+  require-kind:
+    description: >
+      Empty accepts any listed actor. `human` narrows the actor-only checks
+      (require-pr false) to actors listed with kind human, matched by id.
+    required: false
+    default: ""
   require-pr:
     description: >
-      `true` gates a PR as described above. `false` checks only the actors:
-      the sender on workflow_dispatch and the triggering actor on every
-      event; no PR is read and the PR outputs stay empty.
+      `true` gates a PR as described above. `false` checks only the actors
+      of a push or workflow_dispatch: the sender on workflow_dispatch and the
+      triggering actor on both; any other event stops; no PR is read and the
+      PR outputs stay empty.
     required: false
     default: "true"
 
@@ -105,6 +119,8 @@ runs:
         TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
+        DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
+        REQUIRE_KIND: ${{ inputs.require-kind }}
         REQUIRE_PR: ${{ inputs.require-pr }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"

@@ -20,7 +20,9 @@ condition 1 and the actor and author parts of condition 2).
 | `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; empty stops with `untrusted-rerunner` |
 | `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
 | `dispatcher-workflow` | empty | The workflow path that run must have; empty stops every dispatcher-sent run |
+| `dispatched-workflow` | empty | The workflow path this dispatched run must have; empty stops every dispatcher-sent run |
 | `require-pr` | `true` | `false` checks only the actors and reads no PR |
+| `require-kind` | empty | `human` narrows the actor-only checks to actors listed as `kind: human` |
 
 ## Rules
 
@@ -37,26 +39,40 @@ condition 1 and the actor and author parts of condition 2).
   run names who started the dispatcher. When `sender.id` is 41898282 and `dispatcher-run-id` is
   set, the sender check is replaced by a check of that run, read through
   `GET /actions/runs/{dispatcher-run-id}`. It proceeds only when every one of these holds:
+  - this run's payload `ref` is `refs/heads/{repository.default_branch}`, and this run, read
+    through `GET /actions/runs/{github.run_id}`, has `path` equal to `dispatched-workflow` and
+    `event` `workflow_dispatch`;
   - its `repository` is this repository and its `path` equals `dispatcher-workflow`;
-  - its `head_branch` is the payload's `repository.default_branch`, and
-    `GET /compare/{head_sha}...{default branch}` reports `ahead` or `identical`, so its head SHA
-    is on the default branch;
+  - its `head_branch` is the default branch, and no tag has that name
+    (`GET /git/ref/tags/{default branch}` answers 404), so the name cannot stand for a tag;
+  - its `head_sha` is an ancestor of the branch tip: the tip SHA is resolved once through
+    `GET /git/ref/heads/{default branch}`, and `GET /compare/{head_sha}...{tip SHA}` reports
+    `ahead` or `identical`;
   - its `event` is `push`, or `workflow_dispatch` with an `actor` listed as `kind: human`;
   - when its `run_attempt` is above 1, its `triggering_actor` is listed as `kind: human`;
-  - this run's own `created_at`, read through `GET /actions/runs/{github.run_id}`, falls between
-    the dispatcher run's `run_started_at` and `updated_at`, inclusive. The window is checked, not
-    whether that run is still going, so a dispatched run that waited in a queue still passes.
+  - this run's own `created_at` falls between the dispatcher run's `run_started_at` and the
+    earlier of its `updated_at` and ten minutes after `run_started_at`, inclusive. The window is
+    checked, not whether that run is still going, so a dispatched run that waited in a queue still
+    passes; the ten-minute cap keeps a long dispatcher run from holding the window open.
 
   A failed read, a missing or unparseable field, or any failed condition stops with
   `untrusted-actor`. The re-runner of a dispatched run is read by id from this run's
   `triggering_actor`: `github-actions[bot]` on attempt 1, otherwise a listed id that is not
-  denied, or the lane stops with `untrusted-rerunner`. The PR author check still applies. The
-  residual: a forger needs a dispatch created while a real dispatcher run on the default branch
-  was running, or a listed re-runner, and can then start only what the dispatcher would.
-- **Actor-only mode (`require-pr: false`).** No PR is read and the PR outputs stay empty. A
+  denied, or the lane stops with `untrusted-rerunner`. The PR author check still applies.
+
+  The residual: the precondition for a forgery is a `GITHUB_TOKEN` with `actions: write` in this
+  repository, which any workflow on any branch can request. With one, a forger can dispatch
+  `dispatched-workflow` on the default branch naming a real dispatcher run, inside that run's
+  window, with any `pr-number`. This gate then checks only the PR author; what limits a forged
+  `pr-number` is the lane's own `applies-when` (for pr-unblock, a conflicting, non-draft PR
+  without a hold label), so a forger can start only a run the dispatcher could have started.
+- **Actor-only mode (`require-pr: false`).** No PR is read and the PR outputs stay empty. Only
+  `push` and `workflow_dispatch` are handled; any other event stops with `no-pr`. A
   `workflow_dispatch` checks `sender` (denied stops with `bot-actor`, unlisted with
-  `untrusted-actor`); every event checks the re-runner below. Any `require-pr` value other than
-  `true` or `false` stops with `no-pr`.
+  `untrusted-actor`); both events check the re-runner below. With `require-kind: human`, the
+  sender and the re-runner must be listed as `kind: human` (the re-runner's login is mapped to its
+  listed id). Any `require-pr` value other than `true` or `false`, or `require-kind` value other
+  than empty or `human`, stops with `no-pr`.
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.

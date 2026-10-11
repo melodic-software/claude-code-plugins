@@ -28,6 +28,9 @@ function fakeGitHub(routes) {
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
+    if (routes[key] instanceof GitHubError) {
+      throw routes[key];
+    }
     return structuredClone(routes[key]);
   };
   github.calls = calls;
@@ -60,6 +63,8 @@ async function gate({
   dispatcherWorkflow,
   requirePr,
   runId,
+  dispatchedWorkflow,
+  requireKind,
 }) {
   const outputPath = writeJson("output", "");
   await main({
@@ -76,6 +81,8 @@ async function gate({
       ...(dispatcherWorkflow === undefined ? {} : { DISPATCHER_WORKFLOW: dispatcherWorkflow }),
       ...(requirePr === undefined ? {} : { REQUIRE_PR: requirePr }),
       ...(runId === undefined ? {} : { GITHUB_RUN_ID: runId }),
+      ...(dispatchedWorkflow === undefined ? {} : { DISPATCHED_WORKFLOW: dispatchedWorkflow }),
+      ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
     },
     github,
   });
@@ -294,15 +301,27 @@ const DISPATCHER_HEAD = "4444444444444444444444444444444444444444";
 const pullRoute = `GET /repos/${REPOSITORY}/pulls/42`;
 const dispatcherRoute = `GET /repos/${REPOSITORY}/actions/runs/${DISPATCHER_RUN_ID}`;
 const selfRoute = `GET /repos/${REPOSITORY}/actions/runs/${SELF_RUN_ID}`;
-const compareRoute = `GET /repos/${REPOSITORY}/compare/${DISPATCHER_HEAD}...main`;
+const DISPATCHED_WORKFLOW = ".github/workflows/pr-unblock.yml";
+const TIP_SHA = "5555555555555555555555555555555555555555";
+const tipRoute = `GET /repos/${REPOSITORY}/git/ref/heads/main`;
+const tagRoute = `GET /repos/${REPOSITORY}/git/ref/tags/main`;
+const compareRoute = `GET /repos/${REPOSITORY}/compare/${DISPATCHER_HEAD}...${TIP_SHA}`;
 const ACTIONS_BOT = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
 const KYLE = { login: "kyle-sexton", id: 153232337, type: "User" };
+const TIP_REF = { ref: "refs/heads/main", object: { sha: TIP_SHA, type: "commit" } };
 
-function dispatcherRoutes({ dispatcher = {}, self = {}, compare = { status: "ahead" } } = {}) {
+// No tagRoute: the fake answers 404, so no tag shares the branch name.
+function dispatcherRoutes({
+  dispatcher = {},
+  self = {},
+  compare = { status: "ahead" },
+  tip = TIP_REF,
+} = {}) {
   return {
     [pullRoute]: fixture("api-pull-42.json"),
     [dispatcherRoute]: { ...fixture("api-run-dispatcher.json"), ...dispatcher },
     [selfRoute]: { ...fixture("api-run-self.json"), ...self },
+    [tipRoute]: tip,
     [compareRoute]: compare,
   };
 }
@@ -316,6 +335,7 @@ function dispatched({ github, event = fixture("event-workflow-dispatch-dispatche
     triggeringActor: "github-actions[bot]",
     dispatcherRunId: DISPATCHER_RUN_ID,
     dispatcherWorkflow: DISPATCHER_WORKFLOW,
+    dispatchedWorkflow: DISPATCHED_WORKFLOW,
     runId: SELF_RUN_ID,
     ...rest,
   });
@@ -326,9 +346,87 @@ test("dispatcher: a run created inside a push dispatcher run's window proceeds",
   assert.deepEqual(await dispatched({ github }), PROCEED);
   assert.deepEqual(
     [...github.calls].sort(),
-    [compareRoute, dispatcherRoute, pullRoute, selfRoute].sort(),
+    [compareRoute, dispatcherRoute, pullRoute, selfRoute, tagRoute, tipRoute].sort(),
   );
 });
+
+test("dispatcher: the window closes ten minutes after the dispatcher run started", async () => {
+  const long = { updated_at: "2026-10-11T12:30:00Z" };
+  const edge = fakeGitHub(
+    dispatcherRoutes({ dispatcher: long, self: { created_at: "2026-10-11T12:10:05Z" } }),
+  );
+  assert.deepEqual(await dispatched({ github: edge }), PROCEED);
+  const late = fakeGitHub(
+    dispatcherRoutes({ dispatcher: long, self: { created_at: "2026-10-11T12:10:06Z" } }),
+  );
+  assert.deepEqual(await dispatched({ github: late }), STOPPED("untrusted-actor"));
+});
+
+for (const [label, overrides] of [
+  ["this run's path is another workflow", { self: { path: ".github/workflows/pr-refine.yml" } }],
+  ["this run's event is not workflow_dispatch", { self: { event: "push" } }],
+  ["the tip ref resolves to another ref", {
+    tip: { ...TIP_REF, ref: "refs/heads/main-old" },
+  }],
+]) {
+  test(`dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(dispatcherRoutes(overrides));
+    assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+test("dispatcher: an empty dispatched-workflow stops even against a run with an empty path", async () => {
+  const github = fakeGitHub(dispatcherRoutes({ self: { path: "" } }));
+  assert.deepEqual(
+    await dispatched({ github, dispatchedWorkflow: "" }),
+    STOPPED("untrusted-actor"),
+  );
+});
+
+test("dispatcher: a tag sharing the default branch name stops with untrusted-actor", async () => {
+  const github = fakeGitHub({
+    ...dispatcherRoutes(),
+    [tagRoute]: { ref: "refs/tags/main", object: { sha: DISPATCHER_HEAD, type: "commit" } },
+  });
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+});
+
+test("dispatcher: a tag lookup that fails other than 404 stops with untrusted-actor", async () => {
+  const github = fakeGitHub({ ...dispatcherRoutes(), [tagRoute]: new GitHubError(500, "tag") });
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+});
+
+test("dispatcher: a tip ref without a commit SHA stops before the compare", async () => {
+  const github = fakeGitHub({
+    ...dispatcherRoutes({ tip: { ...TIP_REF, object: { sha: "main" } } }),
+    [`GET /repos/${REPOSITORY}/compare/${DISPATCHER_HEAD}...main`]: { status: "ahead" },
+  });
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  assert.ok(!github.calls.some((call) => call.includes("/compare/")));
+});
+
+test("dispatcher: a failed tip ref read stops with untrusted-actor", async () => {
+  const all = dispatcherRoutes();
+  delete all[tipRoute];
+  assert.deepEqual(await dispatched({ github: fakeGitHub(all) }), STOPPED("untrusted-actor"));
+});
+
+for (const [label, ref] of [
+  ["a tag ref", "refs/tags/main"],
+  ["another branch", "refs/heads/feat/x"],
+  ["no ref", undefined],
+]) {
+  test(`dispatcher: this run dispatched on ${label} stops with untrusted-actor`, async () => {
+    const event = fixture("event-workflow-dispatch-dispatcher.json");
+    if (ref === undefined) {
+      delete event.ref;
+    } else {
+      event.ref = ref;
+    }
+    const github = fakeGitHub(dispatcherRoutes());
+    assert.deepEqual(await dispatched({ github, event }), STOPPED("untrusted-actor"));
+  });
+}
 
 test("dispatcher: a dispatcher run that has since completed still proceeds", async () => {
   const github = fakeGitHub(
@@ -452,7 +550,7 @@ test("dispatcher: a malformed dispatcher run id stops before any run read", asyn
 test("dispatcher: a head_sha that is not a SHA stops before the compare", async () => {
   const github = fakeGitHub({
     ...dispatcherRoutes({ dispatcher: { head_sha: "main" } }),
-    [`GET /repos/${REPOSITORY}/compare/main...main`]: { status: "identical" },
+    [`GET /repos/${REPOSITORY}/compare/main...${TIP_SHA}`]: { status: "ahead" },
   });
   assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
   assert.ok(!github.calls.some((call) => call.includes("/compare/")));
@@ -611,9 +709,65 @@ test("actor-only: a pr-number is not read", async () => {
   assert.deepEqual(calls, []);
 });
 
-test("require-pr: a value other than true or false stops with no-pr", async () => {
-  const { outputs } = await actorOnly({ requirePr: "no" });
+for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
+  test(`actor-only: a ${eventName} event stops with no-pr`, async () => {
+    const { outputs } = await actorOnly({ eventName });
+    assert.deepEqual(outputs, STOPPED("no-pr"));
+  });
+}
+
+const LISTED_BOT = { login: "claude[bot]", id: 209825114, type: "Bot" };
+
+test("require-kind: empty keeps a listed bot sender acceptable in actor-only mode", async () => {
+  const { outputs } = await actorOnly({
+    event: { sender: LISTED_BOT },
+    triggeringActor: "claude[bot]",
+    requireKind: "",
+  });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("require-kind: human accepts a listed human sender and triggering actor", async () => {
+  const { outputs } = await actorOnly({ requireKind: "human" });
+  assert.deepEqual(outputs, ACTORS_OK);
+});
+
+test("require-kind: human refuses a listed bot sender with untrusted-actor", async () => {
+  const { outputs } = await actorOnly({ event: { sender: LISTED_BOT }, requireKind: "human" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("require-kind: human refuses a listed bot triggering actor with untrusted-rerunner", async () => {
+  const { outputs } = await actorOnly({ triggeringActor: "claude[bot]", requireKind: "human" });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("require-kind: human refuses a listed bot re-runner of a push", async () => {
+  const { outputs } = await actorOnly({
+    eventName: "push",
+    triggeringActor: "claude[bot]",
+    requireKind: "human",
+  });
+  assert.deepEqual(outputs, STOPPED("untrusted-rerunner"));
+});
+
+test("require-kind: a value other than empty or human stops with no-pr", async () => {
+  const { outputs } = await actorOnly({ requireKind: "bot" });
   assert.deepEqual(outputs, STOPPED("no-pr"));
+});
+
+test("require-pr: a value other than true or false stops with no-pr, even for a valid PR", async () => {
+  const github = fakeGitHub({ [pullRoute]: fixture("api-pull-42.json") });
+  assert.deepEqual(
+    await gate({
+      eventName: "workflow_dispatch",
+      event: fixture("event-workflow-dispatch.json"),
+      github,
+      prNumber: "42",
+      requirePr: "no",
+    }),
+    STOPPED("no-pr"),
+  );
 });
 
 test("require-pr: true keeps today's PR rules", async () => {
