@@ -159,7 +159,7 @@ It writes a fragment, with the bump and section the title's Conventional Commits
 
 ### 2.4.0 Resolve linked issue(s)
 
-Before building PR body, parse branch for the primary (numeric GitHub) issue number and prompt for any additional closures. Keyword line is injected at top of body in §2.4.1.
+Before building PR body, resolve the work item the branch names and its link line, and prompt for any additional links. The line is injected at top of body in §2.4.1. With a work-item tracker bound, its adapter owns the link text and the default branch grammar (the tracker-bound path below); otherwise the GitHub default applies.
 
 The parser resolves the grammar itself: the `branch_issue_pattern` key across the three `source-control.md` layers, then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
@@ -173,14 +173,24 @@ If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue
 ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
 ```
 
-The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used, and a note naming the source and the reason (never the pattern text) when a layer's section exists but yields no usable pattern (a near-miss heading such as `## branch_issue_pattern:`, no value, a heading or HTML comment as the first value line, an empty or unterminated code fence, or a pattern that is invalid, holds a backreference, or breaks the length, bound, or nested-quantifier limit), which stops resolution with no issue number whatever the lower sources say; when the userConfig value breaks one of those pattern checks and is ignored; or when a match yields no numeric id. Relay any note to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a pattern with no capture group, or a non-numeric capture such as a bare Jira key, prints nothing and takes the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used, and a note naming the source and the reason (never the pattern text) when a layer's section exists but yields no usable pattern (a near-miss heading such as `## branch_issue_pattern:`, no value, a heading or HTML comment as the first value line, an empty or unterminated code fence, or a pattern that is invalid, holds a backreference, or breaks the length, bound, or nested-quantifier limit), which stops resolution with no issue number whatever the lower sources say; when the userConfig value breaks one of those pattern checks and is ignored; or when a match yields no usable reference. Relay any note to the user; stdout carries only the reference. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to an issue number or a tracker key such as `SW2-1234` (a pattern with no capture group, or a capture of another shape, prints nothing and takes the no-closure path); configure a scheme that captures the reference wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+
+**Tracker-bound path.** When the `work-items` plugin is installed and the repository has a work-item tracker binding (`.work-item-tracker.json`), the bound adapter owns the link text (`Closes #42`, `Closes ENG-123`, a Jira key) and the default branch grammar, so this flow writes neither. Parse with `--no-default` as the third positional (pass `''` as the second when no userConfig value is set), so only a consumer `branch_issue_pattern` applies:
+
+```bash
+ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' --no-default); PARSE_RC=$?
+```
+
+Then invoke `/work-items:track link` via the Skill tool, `<owner>/<repo>` being this PR's repository: on `PARSE_RC` 0, `link --branch-ref "$ISSUE_NUM" --repo <owner>/<repo>`; on `PARSE_RC` 3 (no consumer pattern), `link --branch "<current branch>" --repo <owner>/<repo>`, which applies the adapter's grammar; on `PARSE_RC` 1, no item, so go to the orphan-PR prompt. From the JSON it prints: an item whose `state` is `open` (or `null`, unchecked) sets `CLOSES_LINE` to its `closes` text, or to its `refs` text when `closes` is `null` (a merge closes nothing on that tracker: tell the user to close the item with `/work-items:track done` after the merge). A `missing` or closed item, or "no linked item", goes to the orphan-PR prompt. Only when the action reports that the adapter predates `change-link` does the GitHub default below run instead. `REFS_LINES` starts empty on this path too. In the multi-issue and orphan-PR prompts below, build each extra line from `/work-items:track link <item>` the same way rather than writing `Closes #X`.
+
+**Without a tracker binding**, the GitHub default:
 
 ```bash
 CLOSES_LINE=""
 REFS_LINES=""  # newline-separated `Refs #Y — <why>` bullets for the ## Related section, populated
                 # by the multi-issue or orphan-PR prompts below; never a closing keyword and
                 # not a linkage line — see §2.4.1 for routing.
-if [[ -n "$ISSUE_NUM" ]]; then
+if [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then   # the GitHub default needs an issue number
   # Validate issue exists in current repo BEFORE shipping `Closes #N`.
   # GitHub auto-close only fires when the issue exists, lives in this repo,
   # and is open at merge time. A typo'd branch like

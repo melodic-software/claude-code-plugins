@@ -42,7 +42,7 @@ Claim a work item through the seam (assignee + lease record).
 
 1. **Confirm:** "Claimed **`<id>`**: {title}. Ready to work. Follow the project's development workflow."
 
-1. **Suggest branch name.** Signal the closing-keyword link upstream so `/source-control:pull-request create` can auto-inject `Closes #N` from the branch parse. The agent NEVER runs `git checkout` itself; it emits the command for the user.
+1. **Suggest branch name.** The branch name carries the item, so `/source-control:pull-request create` can resolve it from the branch and write the bound adapter's link line. The token it carries is the adapter's `branch_ref` for the claimed `<id>` (`42` on GitHub, `ENG-123` on Linear): `bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" change-link <id>`, field `.branch_ref` (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Change links"). `<ref>` below is that value. On exit `6` (an adapter that predates `change-link`), use the number after `#` in `<id>`. The agent NEVER runs `git checkout` itself; it emits the command for the user.
 
    **Derive the branch `<type>` vocabulary** (the commit-layer prefix: `feat`/`fix`/`chore`/…) from the item's **issue type**. Prefer the native GitHub Issue Type when present: `Bug` → `fix`, `Feature` → `feat`, `Task` → `chore`. Fall back to a `type:` label (personal / non-org repos, or a not-yet-migrated org item). The coarse long-form labels map like the native types: `type: bug` → `fix`, `type: feature` → `feat`, `type: task` → `chore`. A legacy commit-style label maps by Conventional Commits priority: `feat > fix > refactor > docs > chore > test > build > perf`, first match wins, strip the `type:` prefix. Default to `chore` when neither is present.
 
@@ -52,9 +52,15 @@ Claim a work item through the seam (assignee + lease record).
 
    ```bash
    BRANCH="$(git branch --show-current 2>/dev/null || true)"
-   CURRENT_N=""
-   if [[ "$BRANCH" =~ ^[a-z]+/(routine-issue-)?([0-9]+)- ]]; then
-     CURRENT_N="${BASH_REMATCH[2]}"
+   # The item the current branch names, through the adapter's branch grammar. The
+   # change's repository is the claimed id's <owner>/<repo>.
+   ID="<id>"
+   ITEM_REPO="${ID#*:}"
+   ITEM_REPO="${ITEM_REPO%#*}"
+   CURRENT_ID=""
+   if [[ -n "$BRANCH" ]]; then
+     CURRENT_ID="$(bash "${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" \
+       change-link --branch "$BRANCH" --repo "$ITEM_REPO" 2>/dev/null | jq -r '.item_id // empty')"
    fi
    # Resolve <base-ref> for the suggestions below from the remote's OWN default
    # branch. Ask the REMOTE first: refs/remotes/origin/HEAD is a local cache that
@@ -88,18 +94,18 @@ Claim a work item through the seam (assignee + lease record).
    fi
    ```
 
-   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<N>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment, so emitting the variable unexpanded would hand over an empty pathspec. Substitute the value verbatim, in its `refs/remotes/origin/<name>` form: the abbreviation is what a same-named local tag hijacks, and the qualified ref still sets the branch's upstream exactly as the abbreviation does.
+   `<base-ref>` below is a placeholder the agent substitutes with the resolved value, exactly as it substitutes `<type>` / `<ref>` / `<slug>`. The emitted command runs in the USER's terminal, which never saw the agent's `BASE_REF` assignment, so emitting the variable unexpanded would hand over an empty pathspec. Substitute the value verbatim, in its `refs/remotes/origin/<name>` form: the abbreviation is what a same-named local tag hijacks, and the qualified ref still sets the branch's upstream exactly as the abbreviation does.
 
-   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch): do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<N>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
+   **`BASE_REF` empty** (offline, no `origin` remote, a remote with no HEAD, a name outside the accepted charset, or one that still does not resolve after a fetch): do NOT substitute a guessed default branch, which is the failure this resolution exists to prevent. Emit the command with no start-point (`git checkout -b <type>/<ref>-<slug>`, which branches from the current `HEAD`) and say the default branch could not be resolved, so the user can supply a base explicitly.
 
-   - **`CURRENT_N` == claimed `<N>`** → acknowledge: "Already on `<current-branch>`. Branch matches claimed #N. No rename needed." Skip prompt. Done.
-   - **`CURRENT_N` is a different number** → multi-claim 3-option (below).
-   - **`CURRENT_N` empty** (no number on current branch) → present bare suggestion: "Suggest branch `<type>/<N>-<slug>`. Switch? (yes, or no for the orphan-PR path)". On `yes`, emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user. On `no`, continue on current branch, and `/source-control:pull-request create` falls through to its interactive Closes-keyword prompt.
+   - **`CURRENT_ID` == claimed `<id>`** → acknowledge: "Already on `<current-branch>`. Branch matches claimed `<id>`. No rename needed." Skip prompt. Done.
+   - **`CURRENT_ID` is a different item** → multi-claim 3-option (below).
+   - **`CURRENT_ID` empty** (the current branch names no item) → present bare suggestion: "Suggest branch `<type>/<ref>-<slug>`. Switch? (yes, or no for the orphan-PR path)". On `yes`, emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user. On `no`, continue on current branch, and `/source-control:pull-request create` falls through to its interactive linkage prompt.
 
-   **Multi-claim 3-option**, used when on `<other-type>/<OTHER>-<other-slug>` and just claimed #N (different item):
+   **Multi-claim 3-option**, used when on a branch naming `<other-id>` and just claimed `<id>` (different item):
 
-   1. **Switch to `<type>/<N>-<slug>`.** WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<N>-<slug> <base-ref>` for the user.
-   1. **Stay on current branch and cover both in one PR.** `/source-control:pull-request create` will inject `Closes #<OTHER>` + `Closes #<N>` at PR-time via its multi-issue prompt.
+   1. **Switch to `<type>/<ref>-<slug>`.** WARN: uncommitted work on the current branch must be committed or stashed first; the agent never runs `git stash` on a shared branch without confirming. Emit `git checkout -b <type>/<ref>-<slug> <base-ref>` for the user.
+   1. **Stay on current branch and cover both in one PR.** `/source-control:pull-request create` will add the adapter's closing line for both items at PR-time via its multi-issue prompt.
    1. **Skip.** Decide later; continue on current branch without rename.
 
 ## Notes

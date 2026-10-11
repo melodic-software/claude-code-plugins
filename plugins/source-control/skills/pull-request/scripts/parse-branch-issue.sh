@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Parse the (numeric GitHub) issue number from a branch name. The default
-# convention is `<type>/<N>-<slug>` (or the cloud-routine variant
+# Parse the work-item reference from a branch name. The default convention is
+# `<type>/<N>-<slug>` (or the cloud-routine variant
 # `<type>/routine-issue-<N>-<slug>`), but the grammar is configurable so a
-# consumer whose branches place the number differently, e.g. a username-scoped
-# scheme `alice/1234-slug` or a trailing-number scheme `feat/add-widget-1234`,
-# is not silently unparsable.
+# consumer whose branches place the reference differently, e.g. a
+# username-scoped scheme `alice/1234-slug`, a trailing-number scheme
+# `feat/add-widget-1234`, or a tracker key `feat/SW2-1234-slug`, is not
+# silently unparsable.
 #
 # Usage:
-#   parse-branch-issue.sh [branch-name] [pattern]
+#   parse-branch-issue.sh [branch-name] [pattern] [--no-default]
 #
 # With no branch arg, falls back to `git branch --show-current`.
-# The grammar is an ERE whose LAST capture group holds the issue id; it must
-# resolve to the numeric GitHub issue number (the caller emits `Closes #<id>`,
-# which GitHub honors only for a numeric issue in this repo). A pattern with
-# no capture group, or a capture that is not all digits, yields no output and
-# exit 1. It resolves, first hit wins:
+# `--no-default` is for a caller bound to a work-item tracker, whose adapter
+# owns the default branch grammar: when no consumer pattern (step 1 or 2 below)
+# is set, the script prints nothing and exits 3 instead of applying step 3, so
+# the caller asks the adapter.
+# The grammar is an ERE whose LAST capture group holds the reference: an issue
+# number (`1234`) or a tracker key (`SW2-1234`, `ENG-12`); the caller turns it
+# into link text. A pattern with no capture group, or a capture of any other
+# shape, yields no output and exit 1. It resolves, first hit wins:
 #   1. The `## branch_issue_pattern` section of the layered
 #      `.claude/source-control.md` surface (reference/config-resolution.md):
 #      `<repo>/.claude/source-control.local.md` over
@@ -34,7 +38,7 @@
 #      literal `${user_config...}` placeholder), then
 #      CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN. Using it prints a deprecation
 #      note on stderr.
-#   3. The built-in default.
+#   3. The built-in default (skipped with `--no-default`: exit 3).
 # A layer whose section exists but yields no usable pattern stops resolution:
 # the script prints nothing and exits 1, so a lower layer, the userConfig, or
 # the default never supplies an issue number the author did not intend. That
@@ -46,7 +50,7 @@
 # lower layer is never read. A userConfig value that breaks a limit is
 # reported and ignored, so the default applies. Notes name the source and the
 # reason, never the pattern text.
-# Prints the captured issue id on stdout and exits 0 on match.
+# Prints the captured reference on stdout and exits 0 on match.
 # Exits 1 with no stdout if the branch does not match.
 set -uo pipefail
 
@@ -287,6 +291,9 @@ if [[ -z "$PATTERN" ]]; then
     note "the ${KEY} userConfig is deprecated; set a \`## ${KEY}\` section in .claude/source-control.md instead."
   fi
 fi
+if [[ -z "$PATTERN" && "${3:-}" == "--no-default" ]]; then
+  exit 3
+fi
 [[ -n "$PATTERN" ]] || PATTERN='^[a-z]+/(routine-issue-)?([0-9]+)-' SOURCE="default"
 
 [[ "$BRANCH" =~ $PATTERN ]] || exit 1
@@ -300,8 +307,8 @@ if [[ "$n" -lt 2 ]]; then
   exit 1
 fi
 id="${BASH_REMATCH[n - 1]}"
-if [[ ! "$id" =~ ^[0-9]+$ ]]; then
-  note "${SOURCE}: ${KEY} captured a non-numeric id; no issue id emitted"
+if [[ ! "$id" =~ ^([0-9]+|[A-Za-z][A-Za-z0-9_]*-[0-9]+)$ ]]; then
+  note "${SOURCE}: ${KEY} captured a non-numeric id that is not a tracker key either; no issue id emitted"
   exit 1
 fi
 echo "$id"
