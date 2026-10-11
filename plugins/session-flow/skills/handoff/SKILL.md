@@ -53,8 +53,9 @@ save-point engine, different delivery.
 `$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
 
 - **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
-  changes only the `/export` step (record the suggestion in output, do not ask) and is never read as
-  the topic or a method; the Method rule below then applies to the next token.
+  changes only the steps that would ask the user: the `/export` step (record the suggestion in
+  output, do not ask) and stuck dependent work ("Settle in-flight work before writing"). It is
+  never read as the topic or a method; the Method rule below then applies to the next token.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -182,6 +183,31 @@ warns on the second copy.
 The constraints re-scan attestation is not a cumulative entry. It goes on the `Re-scan:` line of
 `## This session`, which is rewritten every hop, so it never accumulates.
 
+## Settle in-flight work before writing
+
+Hand off only once everything the handoff describes is settled. A save-point written while work
+it describes is still running goes stale the moment that work returns: the result lands in this
+session, and the brief, the criteria, Environment and the `Next:` headlines still describe it as
+in flight. Repairing the file afterwards is a hand edit of a file the script owns.
+
+Before `save_point.py new` (or, on the prompt-only path, before the rails prompt), take every
+still-running item of off-thread work this session started, the kinds in
+[`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
+with spawned subagents the usual case, read its real state there, and sort it:
+
+- **The handoff depends on it**: its result would change the brief, the next action, a decision,
+  or a completion criterion. When it is progressing and expected to finish, wait for its result,
+  fold the result into this session's state, then write the save-point.
+- **The handoff does not depend on it**: it writes its own durable output and the next session only
+  reads that output, such as a background workflow writing to a known path. Hand off without
+  waiting and record it in Environment to re-establish, as the subagent inventory below does.
+- **Dependent but stuck or long-running**: say so with the evidence from its real state, and let
+  the user choose: wait, cancel it, or hand off with it recorded as in flight, its pending result
+  marked `UNVERIFIED (<item> still running)` wherever the save-point leans on it. Under
+  `unattended` no one is asked: take the third option and say so.
+
+A user who asked to hand off now, without waiting, gets the third option for every dependent item.
+
 ## Produce the save-point
 
 The save-point machinery, destination resolution, locating the position, full-vs-prompt-only
@@ -233,7 +259,10 @@ ticked. Emit the rails block before ending the turn, always.
   current unit marked, completeness line, and the three one-line blocks, OR an explicit line saying
   the units would not resolve. Never a rail whose units were invented to fill it
 - [ ] `memory_dir` resolved (a root `CLAUDE.md` / `.claude/rules/` declares, else `.work`; never
-  the literal `.work` assumed), the root-equivalence refusal and the self-ignore guard run, and
+  the literal `.work` assumed), in-flight work settled before `new` per "Settle in-flight work
+  before writing" (each still-running item named as waited for, independent, or recorded in
+  flight, OR a line saying none was running), the root-equivalence refusal and the self-ignore
+  guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
   `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
   later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
@@ -331,6 +360,9 @@ ticked. Emit the rails block before ending the turn, always.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] In-flight work settled before the rails prompt per "Settle in-flight work before writing"
+  (each still-running item named as waited for, independent, or recorded in flight, OR a line
+  saying none was running)
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), OR an explicit line
   saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung

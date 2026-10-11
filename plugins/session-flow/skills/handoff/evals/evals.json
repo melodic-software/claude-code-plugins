@@ -343,6 +343,19 @@
         "The compaction is left for the user to type; the response does not claim to have run `/compact` or `/clear`",
         "The recommendation names the evidence it rests on: the next work is the same refactor using this session's files"
       ]
+    },
+    {
+      "id": 25,
+      "name": "dependent-subagent-still-running-is-settled-before-the-save-point",
+      "prompt": "/session-flow:handoff file rename-pass\n\n(Context: earlier this session you spawned a background subagent named `name-tournament` to pick the new module name; the rename itself, the next action, uses whatever name it returns. Its transcript shows it scoring the last round of candidates now.)",
+      "expected_output": "Before running `save_point.py new`, the model reads the `name-tournament` subagent's real state, judges that the handoff depends on it (its result decides the next action and the brief), and since it is progressing and close to done, waits for its result and folds the chosen name into the session's state before writing the save-point. It does not write the file first and leave the tournament recorded only as still running. Had the tournament been stuck, it would say so with the evidence and ask the user to wait, cancel it, or hand off with it recorded in flight.",
+      "files": [],
+      "expectations": [
+        "The response reads the `name-tournament` subagent's actual state before writing any save-point file",
+        "The response identifies the tournament's result as something the handoff depends on, because the next action uses the chosen name",
+        "The save-point is written only after the tournament's result is in hand, and its brief or next action names the chosen module name rather than describing the tournament as in flight",
+        "The response does not hand-edit the handoff file afterwards to fold in a late result"
+      ]
     }
   ]
 }
