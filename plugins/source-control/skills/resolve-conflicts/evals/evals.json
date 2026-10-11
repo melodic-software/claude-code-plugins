@@ -114,11 +114,12 @@
       "name": "ci-mode-makes-no-workflow-edit",
       "narration": true,
       "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit. One path is unmerged: scripts/package.sh, where main renamed the helper build_bundle to make_bundle and the PR added a --compress flag to build_bundle. Git auto-merged .github/workflows/release.yml without conflict, and it still calls build_bundle from a step the PR added.",
-      "expected_output": "The skill recovers both intents in scripts/package.sh (main's rename to make_bundle, the PR's --compress flag). Its semantic sweep finds the stale build_bundle call in .github/workflows/release.yml, which needs a workflow change. In CI mode it never edits or stages a path under .github/workflows/, so it escalates instead: it leaves scripts/package.sh, the conflicted path the stale call traces to, unstaged, and its final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file needing a human. It asks nothing, runs no gates, and does not commit, continue or push.",
+      "expected_output": "The skill recovers both intents in scripts/package.sh (main's rename to make_bundle, the PR's --compress flag). Its semantic sweep finds the stale build_bundle call in .github/workflows/release.yml, which needs a workflow change. It stages nothing before that sweep finishes. In CI mode it never edits or stages a path under .github/workflows/, so it escalates instead: it leaves scripts/package.sh, the conflicted path the stale call traces to, unstaged, and its final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file needing a human. It asks nothing, runs no gates, and does not commit, continue or push.",
       "files": [],
       "expectations": [
         "No file under .github/workflows/ is edited, written or staged (no Edit or Write on it, no git add naming it)",
-        "scripts/package.sh is left unstaged: no git add names it",
+        "scripts/package.sh is left unstaged: no git add names it at any point, including before the semantic sweep finds the stale call",
+        "No git add runs before the semantic sweep across the tree has finished",
         "The final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file whose stale build_bundle call needs a human",
         "No question is put to the user, and no git commit, git merge --continue, git push, build or test command is run"
       ]
