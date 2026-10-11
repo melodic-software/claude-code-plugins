@@ -105,7 +105,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   into records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
   `slices`, `roles` and `maxConcurrent` (default 4). `roles` is the map `/multi-agent:route all`
   prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
-  `sonnet` at `low`. The reviewer agents, slices included, keep the model and effort pinned in
+  `sonnet` at `medium`. The reviewer agents, slices included, keep the model and effort pinned in
   their own definitions.
 
 ## Requirements

@@ -2,6 +2,7 @@
 # Tests for check.sh: a healthy plugin passes every row; a PATH without node
 # fails the node and gate rows but still reports registration; a hooks.json
 # without the gate fails registration.
+# test-scope: plugins/multi-agent/hooks/hooks.json
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

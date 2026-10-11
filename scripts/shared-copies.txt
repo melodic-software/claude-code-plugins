@@ -409,3 +409,4 @@ lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
 lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
 lib/installed.mjs plugins/user-interface/scripts/lib/installed.mjs
+lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs

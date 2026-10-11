@@ -1,6 +1,6 @@
 {
   "name": "session-flow",
-  "version": "0.51.1",
+  "version": "0.53.0",
   "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, audit-friction, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options, tidy-work (.work tiers), check, setup.",
   "author": {
     "name": "Melodic Software",
@@ -48,8 +48,14 @@
     "observer_analysis_model": {
       "type": "string",
       "title": "Observer analysis model",
-      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth.",
-      "default": "claude-haiku-4-5"
+      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
+      "default": "claude-opus-5-5"
+    },
+    "observer_analysis_effort": {
+      "type": "string",
+      "title": "Observer analysis effort",
+      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
+      "default": "medium"
     },
     "observer_analysis_bare": {
       "type": "boolean",

@@ -4,6 +4,8 @@
 # explicitly, so each is consumed by a grader (check-orphaned-fixtures.sh's
 # contract), and every script the driver loads is named as a whole token so the
 # affected-tests mapping reaches this suite from any of them.
+# test-scope: plugins/testing/skills/audit/evals/fixtures/*
+# test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
@@ -48,7 +50,7 @@ assert_matches() {
   # about the SHAPE of a field's value: a substring check on a prefix of that
   # value passes for every malformed value sharing the prefix, which is the
   # can't-fail shape this scanner exists to find.
-  if printf '%s\n' "$2" | LC_ALL=C grep -qE "$3"; then
+  if LC_ALL=C grep -qE "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "expected output to match ERE: $3"
@@ -1465,6 +1467,7 @@ corpus_files=(
   js-vitest/bad/vitest-loop-over-empty-mapped-literal.test.ts.fixture
   js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture
   js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture
+  js-vitest/bad/vitest-pitch-detail-source-order-verbatim.test.ts.fixture
   js-vitest/bad/vitest-post-limit-restated.test.ts.fixture
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
   js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
@@ -1483,6 +1486,7 @@ corpus_files=(
   js-vitest/good/vitest-poll-helper-rejects.test.ts.fixture
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
+  js-vitest/good/vitest-route-module-imported.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
   js-vitest/good/vitest-two-statements-one-line.test.ts.fixture
   planted/bad/PlantedShouldAloneTests.cs.fixture
@@ -1699,6 +1703,26 @@ printf '%s\n' '#!/usr/bin/env bash' 'set -uo pipefail' 'REPO="$(cd "$(dirname "$
 run_scan "$RO/policy"
 assert_contains "(b) the policy tree was examined" "$out" "test files: 2 examined of 2 enumerated"
 assert_not_contains "(b) a self-written file, a glob and a walk are never a source-text read" "$out" "rule-source-text-read"
+
+# (const) a `$` route segment and a same-file const path are read as the path; a
+# const built from a temp directory is still no candidate.
+ro_repo "$RO/const" 'routes/_app.$id.tsx' src/b.ts
+printf '%s\n' "import { readFileSync } from 'fs';" "import { join } from 'path';" "import { tmpdir } from 'os';" \
+  "const B = 'src/b.ts';" "const T = join(tmpdir(), 'b.ts');" \
+  "test('inline dollar', () => {" "  expect(readFileSync(join(__dirname, '..', 'routes', '_app.\$id.tsx'), 'utf8').indexOf('a')).toBe(1);" "});" \
+  "test('one-line const', () => {" "  expect(readFileSync(B, 'utf8')).toContain('x');" "});" \
+  "test('temp const', () => {" "  expect(readFileSync(T, 'utf8')).toContain('x');" "});" \
+  "test('let redeclares', () => {" "  let B = makeTemp();" "  expect(readFileSync(B, 'utf8')).toContain('x');" "});" \
+  "const P: string = 'src/b.ts';" "let Q = 'src/b.ts';" "Q = join(tmpdir(), 'b.ts');" \
+  "test('typed const, reassigned let', () => {" "  expect(readFileSync(P, 'utf8')).toContain('x');" \
+  "  expect(readFileSync(Q, 'utf8')).toContain('x');" "});" >"$RO/const/test/const.test.ts"
+run_scan "$RO/const"
+assert_contains "(const) an inline join to a \$-named route file fires" "$out" "const.test.ts:7: reads tracked source file routes/_app.\$id.tsx as text"
+assert_contains "(const) a read of a one-line const path fires" "$out" "const.test.ts:10: reads tracked source file src/b.ts as text"
+assert_not_contains "(const) a const built from a temp directory is no candidate" "$out" "const.test.ts:13:"
+assert_not_contains "(const) a let redeclaring the name forgets the const path" "$out" "const.test.ts:17:"
+assert_contains "(const) a read of a typed const path fires" "$out" "const.test.ts:23: reads tracked source file src/b.ts as text"
+assert_not_contains "(const) a let path is never recorded, since it can be reassigned" "$out" "const.test.ts:24:"
 
 # (d) a contract constant under cant-fail-ok: is exempt, and counted.
 printf '%s\n' "import { X_POST_CHARACTER_LIMIT } from '../src/post';" \

@@ -8,6 +8,7 @@
 # call -- never gate CI. SKIPs (exit 0) when Python 3.10+ is unavailable,
 # matching the floor this skill's other launchers (observer-arm.sh, SKILL.md)
 # already enforce.
+# test-scope: plugins/session-flow/skills/running-retro/scripts/arm_observer.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

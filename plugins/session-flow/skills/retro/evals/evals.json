@@ -70,6 +70,30 @@
         "The /export step records the suggestion in the output and does not ask the operator",
         "`unattended` is not read as a mode and does not change anything other than the /export step"
       ]
+    },
+    {
+      "id": 7,
+      "name": "mechanical-finding-routes-to-check-owner",
+      "prompt": "/retro codify: twice this session you imported from the deprecated `legacy/http` module even though the rules file says not to. Make sure it doesn't happen again.",
+      "expected_output": "Codify mode treats a repeated mechanical mistake (a banned import) as something a deterministic check could catch: it proposes handing it to /review:audit-enforceability (when installed) to pick the cheapest check, rather than only adding more prose to the rules file. It proposes the check without adopting it, and waits for the user's approval before any change.",
+      "files": [],
+      "expectations": [
+        "The skill identifies the repeated banned import as a candidate for a deterministic check rather than only another written rule",
+        "It routes the finding to /review:audit-enforceability (or, if that plugin is absent, recommends the check type directly) instead of choosing and building the check itself",
+        "It proposes the check and asks for approval; it does not create a hook, lint rule, or CI job on its own"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "first-occurrence-policy-class-proposes-check",
+      "prompt": "/retro session. Earlier you pushed a release tag to the public repo before I'd decided to release, and it published an image that can't be overwritten. It only happened once.",
+      "expected_output": "Session mode classes the unapproved release tag push as a policy-class mistake (irreversible and public), so a single occurrence is enough to propose a check. The Phase 3 recommendation routes to an owner skill or a hook recommendation and is presented for approval, not applied.",
+      "files": [],
+      "expectations": [
+        "The skill proposes a deterministic check on this first occurrence, citing that the mistake is irreversible or public",
+        "It does not dismiss the finding for lack of a repeat",
+        "The check is a Phase 3 recommendation awaiting the user's approval; nothing is built or applied without it"
+      ]
     }
   ]
 }

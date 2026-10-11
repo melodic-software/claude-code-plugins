@@ -26,6 +26,11 @@ Scan the recent conversation for learnings:
 | Project context | Auto-memory project entry | "Middleware rewrite driven by compliance, not tech debt" |
 | Tool/API discovery | The repo's rules gotcha section | "Flag Z breaks the test runner" |
 
+A mistake a deterministic check could catch, or a finding about instructions, CLI output, or agent
+docs, goes to the owner skill in the Owner skills table of
+`<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`, which also says when to
+propose a check.
+
 ### 2. Apply the placement decision tree
 
 1. Would another contributor on a fresh clone need this? → **project** (the repo's tracked

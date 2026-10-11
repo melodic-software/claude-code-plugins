@@ -3,6 +3,7 @@
 # so the eval cases that read them have a workspace: the nightly-etl
 # repository for the brainstorm cases, and the partner-feed tracker export for
 # the wayfind work-mode cases.
+# test-scope: plugins/planning/evals/observed-fact-evidence-bar/scaffold.sh plugins/planning/evals/work-*/scaffold.sh
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

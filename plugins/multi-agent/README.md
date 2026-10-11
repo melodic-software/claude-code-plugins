@@ -27,10 +27,12 @@ answer.
    model is `inherit` and always passes `opts.effort`.
 
 The map governs generic `agent()` calls and Agent dispatches that name no
-agent type. A named agent, such as `implementation:implementer`,
-`implementation:scoped-implementer` or `implementation:phase-verifier`, owns
-its tier through its own frontmatter and its dispatcher's rules, and the
-fan-out guard does not reach it.
+agent type; a caller of the Agent tool passes one variant's model and effort
+on the call, as `/multi-agent:route` describes. A named agent, such as
+`implementation:implementer`, `implementation:scoped-implementer` or
+`implementation:phase-verifier`, owns its tier through its own frontmatter
+and its dispatcher's rules, including any model or effort the dispatcher
+passes on the call, and the fan-out guard does not reach it.
 
 When `/multi-agent:route` is not in the session's skill listing, the caller
 omits `args.roles`, the script's fallbacks apply, and the caller says once
@@ -59,6 +61,19 @@ web access: the only repository text a checker holds is the quoted claim
 lines, and the hook below confines its fetches. The
 workflow returns findings and, for the defaults, a proposed diff; applying any
 of it is a reviewed edit.
+
+The `docs-fetcher` and `drift-checker` definitions set `omitClaudeMd: true`:
+each reads untrusted pages and follows only the prompt the workflow gives it,
+so both opt out of the CLAUDE.md instruction hierarchy. The pointer sits
+here, not in the agent bodies, so neither agent spends a fetch on it.
+
+- **Pointer**: when you need what the field drops and what still loads, fetch
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  and [sub-agents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the sub-agents `omitClaudeMd` row or the startup
+  section changes what the field drops or keeps.
 
 A `PreToolUse` hook on `WebFetch` (`hooks/drift-checker-fetch-gate.mjs`) makes
 the host rule a gate: inside a `drift-checker` subagent it denies any fetch
@@ -96,10 +111,17 @@ the guard off (`fanout.frontier_guard: false`) is an explicit opt-in to
 frontier fan-outs. The basis for each default is recorded beside it in
 [`reference/defaults.yaml`](reference/defaults.yaml).
 
+## Haiku
+
+No role routes to Haiku until it passes this repository's routing eval, and a
+role that does runs at effort `high`. `/multi-agent:route` still resolves a
+role set to `haiku`, or inheriting a Haiku session, and adds a note. The rule
+and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
+
 ## Configuration
 
 One surface, layered user-global (`~/.claude/multi-agent.yaml`), team (a
-```` ```yaml config ```` block in `docs/conventions/multi-agent.md`, else
+fenced block tagged `yaml config` in `docs/conventions/multi-agent.md`, else
 `.claude/multi-agent.yaml`) and a gitignored overlay
 (`.claude/multi-agent.local.yaml`), each overriding the bundled defaults per
 key. `/multi-agent:setup` writes any of the three. Keys, values and layering:

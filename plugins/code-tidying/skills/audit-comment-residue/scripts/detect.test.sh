@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Self-contained tests for detect.sh (no external test lib — ships with the
 # plugin; fixtures are built inline in a tmpdir).
+# test-scope: plugins/code-tidying/skills/audit-comment-residue/SKILL.md
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

@@ -1,0 +1,7 @@
+# Project team layer.
+routing:
+  - id: r1
+widget:
+  mode: safe
+  disable:
+    - gamma

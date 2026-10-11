@@ -12,13 +12,18 @@ config block below is what the skill reads here.
 - `offer` (the default): the skill offers the digest when any trigger below fires, and stays
   quiet when none does.
 - `always`: the skill builds the digest when the pull request is marked ready. At any other
-  point it behaves as `offer`.
+  point it behaves as `offer`. `/source-control:pull-request ready` invokes the skill with
+  `--event ready` right after it marks the pull request ready.
 
 A reader who invokes the skill directly has asked for the digest. That request is the explicit
 argument tier, so the skill builds it whatever the policy says.
 
 Whatever the policy, the digest never posts to the pull request, never comments on it, and never
 sets a check status. It does not gate merge.
+
+Marking a pull request ready also starts the `pr-refine` lane. That lane can push a docs-fix
+commit to the branch, so a digest built at that moment may describe a head that is about to
+change.
 
 ## The triggers
 

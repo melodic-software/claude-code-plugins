@@ -405,7 +405,7 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/surface/surface.test.sh 1
+plugins/planning/surface/surface.test.sh 390
 plugins/planning/surface/test_exporters.py 92
 plugins/planning/surface/test_round.py 49
 plugins/planning/surface/test_schema.py 1

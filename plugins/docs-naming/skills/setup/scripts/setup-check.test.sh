@@ -103,6 +103,24 @@ out="$(check "$root")"
 assert_eq "duplicate tier names exit 1" "1" "$(status "$root")"
 assert_contains "duplicate tier names are listed" "$out" "FAIL  tier names"
 
+# 5b. A root object with an extension filter and exemptions passes the shape
+#     check; one whose extension could not sit in a glob bracket does not.
+root="$(new_repo)"
+set_key "$root" roots '["docs",{"path":".","extensions":["md"],"exempt_paths":["**/fixtures/**"]}]'
+out="$(check "$root")"
+assert_contains "a root object passes the shape check" "$out" "PASS  key shape"
+set_key "$root" roots '["docs",{"path":".","extensions":["m]d"]}]'
+out="$(check "$root")"
+assert_contains "a root extension outside letters and digits is refused" "$out" "FAIL  key shape"
+set_key "$root" roots '["docs",{"path":".","extensions":[5]}]'
+out="$(check "$root")"
+assert_contains "a non-string root extension is refused" "$out" "FAIL  key shape"
+for bad in '"../x"' '{"path":"../x"}' '{"path":"/abs"}' '{"path":".","exempt_paths":["docs/../../x"]}' '{"path":"a\nb"}'; do
+  set_key "$root" roots "[\"docs\",$bad]"
+  out="$(check "$root")"
+  assert_contains "a root the emitter cannot carry is refused ($bad)" "$out" "must stay inside the repository"
+done
+
 # 6. An unknown tier form fails.
 root="$(new_repo)"
 set_key "$root" tiers '[{"name":"a","paths":["x/**"],"forms":"sometimes"}]'

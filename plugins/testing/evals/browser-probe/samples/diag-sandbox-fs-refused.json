@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: https://example.com/\\n- Page Title: Example Domain\"}",
+      "why": "no filesystem refusal"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_FILE_NOT_FOUND at file:///x/peek/canary.html\",\"is_error\":true}",
+      "why": "the expected hiding of the canary page"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"bwrap: Creating new namespace failed: Operation not permitted\",\"is_error\":true}",
+      "why": "sandbox could not start"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: EROFS: read-only file system, mkdir '/x/.cache'\",\"is_error\":true}",
+      "why": "write outside the workspace refused"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"Error: listen EACCES: permission denied /x/daemon.sock\",\"is_error\":true}",
+      "why": "daemon socket refused"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_FILE_NOT_FOUND at file:///x/probe/index.html\",\"is_error\":true}",
+      "why": "browser cannot see a workspace file"
+    }
+  ]
+}

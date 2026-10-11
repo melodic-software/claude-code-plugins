@@ -766,11 +766,11 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - aliases: checkup
   - native description: Health-check the user's Claude Code setup and fix issues: diagnose installation health - what the `claude doctor` terminal diagnostics cover - from local data (duplicate or leftover installs, PATH, unparsable settings files, broken or colliding agent definitions, skills whose frontmatter fails to parse); find unused skills, MCP servers, and plugins versus their context cost and disable dead weight; deduplicate local CLAUDE.md files against checked-in ones; trim checked-in CLAUDE.md files by cutting content a session could derive from the codebase (directory layouts, tech-stack lists, architecture overviews) while keeping gotchas, rationale, and non-standard conventions; migrate always-loaded CLAUDE.md guidance into lazy skills and nested CLAUDE.md files; flag slow hooks and context-heavy extensions; check the installed version is current; make auto mode the default permission mode; and pre-approve frequently denied read-only commands. Use when the user asks for a doctor run, checkup, audit, tune-up, or cleanup of their Claude Code setup or configuration.
   - argument hint: [prompt-audit [<path>]]
-  - invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled
+  - invocation mode (2026-10-10, Claude Code 2.1.296): user-invocable only, model invocation disabled (`disableModelInvocation: true`, `aliases: ["checkup"]` read from the binary)
   - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0565)
   - docs cross-check (commands reference, 2026-09-29): documented
-- **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
-- **Recheck trigger:** a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it (verified 2026-09-29)
+- **Observation:** extraction: read from binary v2.1.296 on 2026-10-10: the doctor skill registration carries `disableModelInvocation: true` and `aliases: ["checkup"]`; the native description and argument hint above are from the v2.1.284 extraction of 2026-09-29 (2026-10-10)
+- **Recheck trigger:** a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it (verified 2026-10-10)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -1019,12 +1019,12 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ## Bundled workflows
 
-### `deep-research` → `discovery:research-deep`
+### `deep-research` → `discovery:research`
 
-- **Verdict:** `complementary`: The bundled workflow is a fan-out web research harness (scope, search, fetch, verify, synthesize) producing a cited report; ours dispatches multi-topic research to the heaviest isolated tier with source tiers and a coverage ledger. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: The bundled workflow is a fan-out web research harness (scope, search, fetch, verify, synthesize) producing a cited report; ours researches with source tiers and a coverage ledger and, in its deep tier, splits a multi-topic ask across researchers or runs its own research-sweep workflow. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
 - **Integration:** `suggest`
 - **Native surface:** `deep-research` (bundled workflow; markers: model-invocation-disabled)
-- **Our component:** `discovery:research-deep` (skill)
+- **Our component:** `discovery:research` (skill)
 - **Evidence:**
   - `deep-research` present in the extraction as bundled-workflow
   - markers: model-invocation-disabled
@@ -1407,8 +1407,8 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `config` | builtin-command | `harness-config:draft-auto-mode-rules` | /config opens the preferences UI; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `context` | builtin-command | `architecture:map-context` | /context shows context-window usage; ours charts a C4 system context from configuration. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `copy` | builtin-command | `discipline:point-dont-copy` | /copy puts the last response on the clipboard; ours is a pointer-over-copy writing discipline. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `deep-research` | bundled-workflow | `discipline:do-your-research-deep` | The workflow researches a new question on the web; ours verifies the session's own claims against primary sources. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `deep-research` | bundled-workflow | `discovery:research-verifier (agent)` | An agent that grades one research artifact's outcome rows for the discovery skills that dispatch it. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `deep-research` | bundled-workflow | `discipline:do-your-research` | The workflow researches a new question on the web; ours verifies the session's own claims against primary sources, in its fan-out tier. The research pair is recorded against discovery:research. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `deep-research` | bundled-workflow | `discovery:research-verifier (agent)` | An agent that grades one research artifact's outcome rows for the discovery skills that dispatch it. The research pair is recorded against discovery:research. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `design` | bundled-skill | `evals:design` | The bundled skill drafts UI mockups on a Claude Design canvas; ours designs an LLM evaluation suite. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `design` | bundled-skill | `planning:design` | The bundled skill drafts UI mockups on a Claude Design canvas; ours resolves types, contracts, and module boundaries. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `design` | bundled-skill | `planning:design-handoff` | The bundled skill drafts UI mockups on a Claude Design canvas; ours gates a finished code design for planning. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |

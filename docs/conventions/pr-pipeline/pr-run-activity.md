@@ -154,8 +154,9 @@ Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`
 `act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
-default branch. `act-outcome` is the activity step's outcome, except that a gate skill whose step
-succeeded takes the outcome of the verdict check (below), a step that runs after the skill.
+default branch. `act-outcome` is the activity step's outcome, except that a skill whose step
+succeeded is a failure when it took no model turn, or when it is a gate skill and the verdict check
+(below) fails. Both checks are steps that run after the skill.
 
 ### Skill activities
 
@@ -181,13 +182,20 @@ read-only `GITHUB_TOKEN` in the read file. `claude_args` passes `--setting-sourc
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
-plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
+plugin installs only from `$RUNNER_TEMP/base-marketplace` and loads from there, outside the working
+directory, so `--allowedTools` also carries `Read(/$RUNNER_TEMP/base-marketplace/**)`: without
+it the skill cannot read its own reference files. Commits go through the API, signed
 (`use_commit_signing`), on a lane branch (`CLAUDE_BRANCH`) the job makes at the gated head SHA
 when the grant can commit.
 
 A skill with any effect but `read` also gets what it needs to do its job: `Edit`, `Write`, `Agent`
 (for subagents such as a fix flow's semantic-diff check or a rubric fan-out) and
-`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`. Its
+`mcp__github_file_ops__commit_files`, the action's signed-commit tool on `CLAUDE_BRANCH`, and a
+scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `Edit` rule on it so
+its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
+directory, says no one can answer a question, and, when the grant can commit, tells it to commit
+every file it changed with that tool: the prompt is the slash command alone, so without this the
+skill leaves its edits uncommitted and the lane moves nothing. Its
 `Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
 (`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
@@ -243,6 +251,14 @@ neutralized) for audit. It is model output, printed as data. The same text is up
 artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
 ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
 reads that artifact.
+
+A slash command whose expansion fails ends with a `success` result and no model turn: claude-code-action
+reports success, but the skill did nothing. A skill pre-compute (`` !`...` ``) line with a command
+that matches no `allowed-tools` grant does this under `--permission-mode dontAsk`. A step after the
+skill reads the execution file and fails when `num_turns` is 0 or `modelUsage` is empty. It writes
+`subtype`, `is_error`, `num_turns`, `duration_ms`, the model names, and any `<local-command-stderr>`
+text (lane token cut out) to the step summary and to `act-turns.json` in the same artifact. The
+full execution file is not uploaded: it holds head text and tool output.
 
 ### Script activities
 
@@ -369,7 +385,9 @@ Residuals the split does not close:
 
 The write file's run job exchanges its GitHub OIDC token for the lane token at an Azure Function
 that holds the App key as a sign-only Key Vault key. Why:
-[ADR 0058](../../adr/0058-mint-lane-app-tokens-through-an-oidc-broker.md).
+[ADR 0058](../../adr/0058-mint-lane-app-tokens-through-an-oidc-broker.md). Its code and Azure
+resources live in `melodic-software/azure-iac`; its operations are not yet documented there
+([Outside this repository](README.md#outside-this-repository)).
 
 | Variable | Value |
 |---|---|
