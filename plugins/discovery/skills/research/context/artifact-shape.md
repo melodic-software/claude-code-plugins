@@ -186,12 +186,12 @@ header. A family with no row, and no public source repository, records `publishe
 
 | Family | Method (`dated_by:`) | Pointer | As of | Recheck trigger |
 |---|---|---|---|---|
-| code.claude.com | `sitemap-lastmod`: the `<lastmod>` beside that page's `<loc>` | [docs sitemap](https://code.claude.com/docs/sitemap.xml) | 2026-10-11 | the docs host changes how it builds the sitemap, or a spot check finds a `lastmod` that moved with no content change |
-| docs.github.com | `source-commit`: the date of the last commit that touched the page's source file | [github/docs `content/`](https://github.com/github/docs/tree/main/content) | 2026-10-11 | the page's source moves out of that repository |
-| Microsoft Learn | `ms-date`: the page's `ms.date` metadata; else `source-commit`, the last commit on its source file | [Learn metadata reference, required metadata](https://learn.microsoft.com/en-us/contribute/content/metadata#required-metadata) | 2026-10-11 | the metadata reference changes what `ms.date` means |
+| code.claude.com `/docs/en/` pages | `sitemap-lastmod`: the `<lastmod>` beside that page's `<loc>` | [docs sitemap](https://code.claude.com/docs/sitemap.xml) | 2026-10-11 | the docs host changes how it builds the sitemap, or a spot check finds a `lastmod` that moved with no content change |
+| docs.github.com | `source-commit`: the date of the last commit that touched the page's source file | [github/docs `content/`](https://github.com/github/docs/tree/main/content) | not re-derived; no date yet | the page's source moves out of that repository |
+| Microsoft Learn | `ms-date`: the page's `ms.date` metadata, which the page shows, so it counts as `printed`; else `source-commit`, the last commit on its source file | [Learn metadata reference, required metadata](https://learn.microsoft.com/en-us/contribute/content/metadata#required-metadata) | 2026-10-11 | the metadata reference changes what `ms.date` means |
 | any other family | `source-commit` when the source repository is public, else `undated` | the page's own repository | n/a | the vendor starts printing a date |
 
-Basis for the code.claude.com row, from a spot check on 2026-10-11: `lastmod` varies per `<loc>`
+Basis for the code.claude.com row, from a spot check on 2026-10-11, limited to `/docs/en/` pages (localized pages are rewritten in batches, so their `lastmod` does not mark a content edit; about 450 non-en entries share a two-minute stamp on 2026-10-10, 41 per language, so a localized page is `undated` by this method): `lastmod` varies per `<loc>`
 across the sitemap rather than carrying one build stamp, and the one page whose content date is
 independently checkable agreed with it, the changelog page, whose newest entry date matched that
 page's `lastmod` day. That is one agreeing check, not proof for every page. If a later spot check

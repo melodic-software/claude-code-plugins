@@ -74,7 +74,8 @@ APPLIES_TO = re.compile(r"^(.+?)\s+(\d+(?:\.\d+)*)(?:\s*-\s*(\d+(?:\.\d+)*)|(\+)
 DATE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
 KEY = re.compile(r"^([A-Za-z_][\w-]*)\s*:(?:\s+(.*)|\s*)$")
 SERVE_TIME = re.compile(
-    r"^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)$", re.IGNORECASE
+    r"^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)(?:[ _-]*headers?)?$",
+    re.IGNORECASE,
 )
 DASH = re.compile(r"^-(?:\s+(.*))?$")
 INF = float("inf")

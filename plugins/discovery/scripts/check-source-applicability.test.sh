@@ -419,6 +419,12 @@ run 1 "dated_by etag is a serve-time header" --err "$SERVE etag is a serve-time 
   "$(dated_slice dby-etag etag)"
 run 1 "a quoted dated_by header value is rejected" --err "$SERVE Last-Modified is a serve-time header" \
   "$(dated_slice dby-quoted '"Last-Modified"')"
+run 1 "dated_by 'Last-Modified header' is rejected" --err "$SERVE Last-Modified header is a serve-time header" \
+  "$(dated_slice dby-lm-hdr 'Last-Modified header')"
+run 1 "dated_by 'Date header' is rejected" --err "$SERVE Date header is a serve-time header" \
+  "$(dated_slice dby-date-hdr 'Date header')"
+run 1 "dated_by last-modified-header is rejected" --err "$SERVE last-modified-header is a serve-time header" \
+  "$(dated_slice dby-lm-dash last-modified-header)"
 run 1 "an empty dated_by is rejected" --err 'source 2: dated_by is empty' \
   "$(dated_slice dby-empty '')"
 
