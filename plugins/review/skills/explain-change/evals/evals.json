@@ -106,6 +106,7 @@
       "expected_output": "No digest, policy check, or page. The rows are checked blind, the auth row is disputed with the checker's HIGH, and demote is true because a disputed row counts at its higher level. The answer says demote can only send the merge to a human and that demote false would never have made the pull request merge-eligible on its own.",
       "expectations": [
         "Output does not run digest-policy.mjs or build-digest.mjs",
+        "Output dispatches the checker with only the pull request number and repository, not the rated rows",
         "Output sets demote true because of the checker's HIGH on the disputed auth row",
         "Output says the result can only route the merge to a human and never makes a pull request merge-eligible"
       ]
