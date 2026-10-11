@@ -1345,6 +1345,29 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "metadata/decks/€.pdf")).toBe("pdf");
   });
 
+  // The URL parser trims leading and trailing spaces and controls from an attribute URL.
+  it("trims edge whitespace from an HTML URL", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/ok.md": "ok\n",
+      "metadata/notes.md": '<a href=" ok.md ">ok</a>\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  // Known limit: a definition title is not masked, so link-shaped text in it is checked
+  // and a missing path there makes the run refuse rather than pass.
+  it("refuses a missing path written as a link inside a definition title", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/ok.md": "ok\n",
+      "metadata/notes.md": '[real]: ok.md "see [fake](missing.md)"\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "missing.md" }]);
+  });
+
   // The HTML parser decodes references before the URL parser drops tab, LF and CR,
   // so an encoded line break in an attribute is removed too.
   it("drops a line break written as a reference in an HTML URL", () => {

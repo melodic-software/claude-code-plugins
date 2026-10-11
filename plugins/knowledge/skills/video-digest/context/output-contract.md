@@ -159,6 +159,9 @@ passes silently.
 When a retained file's name literally contains such a reference and the layout leaves its path
 unchanged, the link is left as written and is not flagged.
 
+Link-shaped text inside a reference definition's title is read as a link: the rewrite may update
+it, and if it names a missing path the link check refuses the run.
+
 ## Agent-written artifacts share the same root
 
 **Do not split the slice.** Every `.work/<watch-epic>/…` path in this skill and its `context/`

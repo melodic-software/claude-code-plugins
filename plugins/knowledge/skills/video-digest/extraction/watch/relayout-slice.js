@@ -244,8 +244,11 @@ function htmlAttributeValues(text) {
  * @param {string} value
  */
 function htmlAttributeUrl(value) {
-  // The HTML parser decodes references first; the URL parser then drops tab, LF and CR.
-  return decodeHtmlReferences(value, { attribute: true }).replace(/[\t\n\r]/g, "");
+  // The HTML parser decodes references first; the URL parser then trims leading and
+  // trailing C0 controls and spaces and drops tab, LF and CR.
+  return decodeHtmlReferences(value, { attribute: true })
+    .replace(/^[\x00-\x20]+|[\x00-\x20]+$/g, "")
+    .replace(/[\t\n\r]/g, "");
 }
 
 /**
