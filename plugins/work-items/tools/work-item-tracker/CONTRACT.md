@@ -55,14 +55,19 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ### Degradation without `gh` (cloud / MCP-only sessions)
 
-Some execution environments have GitHub access but no `gh` binary, notably cloud sessions
-whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+Some execution environments have GitHub access but no `gh` binary: their GitHub surface is MCP
+tools (model-plane, not shell-plane). Anthropic-hosted cloud sessions are not that case by
+default, since `gh` is in their
+[installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools), but their
+[GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) refuses
+GraphQL-backed `gh` calls, so a verb that makes one fails there even with `gh` present. In a
+session with no `gh` the
 seam **cannot run any `github` verb that shells out**, reads and writes alike: the
 dispatcher's presence gate exits `3` (the same first-run signal as a missing binding), and
 there is deliberately no silent fallback to another provider (the binding names the
 coordination surface; "Offline role activates only by manual binding switch" applies to
 degradation too). `capabilities` is the sole verb that still answers, since it reads the
-adapter manifest rather than the provider. Honest limitation, recorded 2026-08-17 (#2942):
+adapter manifest rather than the provider. Limitation, recorded 2026-08-17 (#2942):
 this repository's own spec board (#2933) had to be published through MCP tools with
 blocking edges as body text, because the publishing session had no `gh`.
 
@@ -244,15 +249,21 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 - `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
-  silently). Exceeding the ceiling is a documented truncation, not an error.
+  silently). Exceeding the ceiling is a documented truncation, not an error, and the
+  envelope reports it: `truncated: true` when items past the ceiling exist and were not
+  returned, `false` when the listing is complete. A listing that holds exactly
+  `list_items_max` items is complete; an adapter that cannot tell the two apart (it
+  stopped at the ceiling without learning whether more exist) reports `true`.
 - `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
   envelope, each item's `parent_id` set to the container. Where a provider's list surface
   omits parent linkage (GitHub's does, see "JSON output contract"), the adapter resolves
   children through the provider's native sub-item link (GitHub's `subIssues`) and intersects
   with `list-items` output; its truncation bound is therefore `list-items`' own
-  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`. A child in
+  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`, and its
+  `truncated` is the intersected `list-items` envelope's. A child in
   another repo is out of scope for this repo-keyed intersect (documented truncation, not an
-  error). A parent with no children returns an empty `items` array, never an error.
+  error, and not reported by `truncated`). A parent with no children returns an empty `items`
+  array, never an error.
 - An adapter MAY keep shared helpers (e.g. `common.sh`); only `<verb>.sh` files named in
   the manifest are contract surface.
 - A verb declared `false` in the manifest exits `6` with a clear stderr message when
@@ -362,7 +373,11 @@ Normalized item object:
   `get-item` is authoritative for parent linkage.
 
 Envelopes: `list-items`, `list-sub-items`, and `list-frontier` emit
-`{"schema_version":"1.0","items":[…]}`.
+`{"schema_version":"1.0","items":[…],"truncated":false}`. `truncated` is a boolean every
+bundled adapter emits (see "Adapter contract"); `list-frontier` passes its source envelope's
+flag through unchanged, so a frontier filtered from a truncated listing is truncated even when
+its `items` is empty. An adapter written before the field emits none, and `list-frontier` then
+emits none either: a reader treats an absent `truncated` as **unknown, never as complete**.
 
 Per-verb result objects:
 

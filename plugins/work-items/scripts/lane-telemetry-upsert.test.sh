@@ -114,6 +114,10 @@ patch)
   if [[ -n "$body_file" ]]; then
     if [[ "${FAKE_GH_PATCH_MANGLE:-0}" == "1" ]]; then
       tail -n +2 "$body_file" >"$target"
+    elif [[ "${FAKE_GH_PATCH_STALE:-0}" == "1" ]]; then
+      : # reports success and stores nothing: the comment keeps its earlier body
+    elif [[ "${FAKE_GH_PATCH_LF:-0}" == "1" ]]; then
+      tr -d '\r' <"$body_file" >"$target"
     else
       cp "$body_file" "$target"
     fi
@@ -156,7 +160,7 @@ fresh_state() {
   rm -rf "$FAKE_GH_STATE"
   mkdir -p "$FAKE_GH_STATE"
   : >"$FAKE_GH_ARGV"
-  unset FAKE_GH_FAIL FAKE_GH_BAD_JSON FAKE_GH_POST_DROP FAKE_GH_PATCH_MANGLE
+  unset FAKE_GH_FAIL FAKE_GH_BAD_JSON FAKE_GH_POST_DROP FAKE_GH_PATCH_MANGLE FAKE_GH_PATCH_STALE FAKE_GH_PATCH_LF
   export FAKE_GH_STATE FAKE_GH_ARGV
 }
 
@@ -437,6 +441,31 @@ if grep -q 'sibling duplicate body' "$FAKE_GH_STATE/c-88.body"; then
 else
   fail "duplicates were superseded on an unverified write"
 fi
+
+# A PATCH that reports success while the comment keeps the previous cycle's body:
+# that body is well-formed telemetry, so only a comparison with THIS cycle's body
+# file catches it.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf '%s\nsibling duplicate body\n' "$SENT" >"$FAKE_GH_STATE/c-88.body"
+FAKE_GH_PATCH_STALE=1
+export FAKE_GH_PATCH_STALE
+run "$GOOD"
+check_rc 14 "$RC" "a write that leaves the previous cycle's well-formed body in place exits 14"
+if grep -q 'sibling duplicate body' "$FAKE_GH_STATE/c-88.body"; then
+  pass "a stale read-back never tombstones a racing session's comment"
+else
+  fail "duplicates were superseded on a stale read-back"
+fi
+
+# The comparison tolerates line endings: a CRLF body file read back as LF verifies.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf '%s\r\ncycle=7 clean_streak=1 item_cap=2\r\n' "$SENT" >"$WORK/crlf2.md"
+FAKE_GH_PATCH_LF=1
+export FAKE_GH_PATCH_LF
+run "$WORK/crlf2.md"
+check_rc 0 "$RC" "a CRLF body stored with LF line endings still verifies"
 
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"

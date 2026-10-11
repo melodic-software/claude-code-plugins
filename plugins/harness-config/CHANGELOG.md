@@ -5,6 +5,18 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.3] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
+## [1.14.2] - 2026-10-11
+
+### Changed
+
+- `audit-instructions` criteria cover Claude Haiku 5.5: I17 (pairing arm, plus thinking disabled with a per-message effort change), I17-c and I25 widen to it, I17-b's remediation no longer offers a per-message effort change with thinking disabled on a model whose docs refuse that pairing, and the other model-scoped rows the Sonnet 5.5 rollout decided record a dated decline or re-read with a pointer into the Haiku 5.5 prompting guide.
+
 ## [1.14.1] - 2026-10-11
 
 ### Fixed

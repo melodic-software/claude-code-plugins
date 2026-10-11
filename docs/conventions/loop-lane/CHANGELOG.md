@@ -5,6 +5,16 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [11.0.0] - 2026-10-11
+
+Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.
+
+- **Pausing is opt-in (§6).** The inlined floor's **Pause threshold** and **Drain-then-pause**
+  bullets now pause only a lane whose session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`.
+  Without it a lane at or above 95% keeps working at the same model, effort and review depth, and
+  reports the window, its reset time and the options: continue, switch accounts, or opt in.
+  Every inlined copy moved with the reader contract. Evidence: #7118.
+
 ## [10.3.0] - 2026-10-11
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

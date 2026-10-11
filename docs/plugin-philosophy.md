@@ -1247,7 +1247,7 @@ a Haiku role runs at. The release evidence behind it is recorded in
 - **Pointer:** for what each alias resolves to on each provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). For
   where the `sonnet` row's model fits against `opus`, see the
-  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#compare-models)
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
   recheck when those docs pages cover what the post adds).

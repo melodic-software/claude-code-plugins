@@ -84,6 +84,44 @@ rc="$(lin_run "$S")"
 assert_eq "paged listing → exit 0" "0" "$rc"
 assert_eq "both pages collected" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_contains "the cursor is sent on the second call" "$(lin_bodies)" '"after":"cursor-1"'
+assert_eq "a listing whose last page arrived carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
+
+# --- the declared ceiling ends the walk and the envelope says so ---
+# A fixture copy of the adapter declares a ceiling of 2, so two one-item pages reach it
+# and the third page, asked for one node past the ceiling, proves more exist.
+FIX_ADAPTER="$LIN_FIX/adapter"
+mkdir -p "$FIX_ADAPTER"
+cp "$D"/*.sh "$FIX_ADAPTER/"
+jq '.limits.list_items_max = 2' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+lin_reset
+seed_page "[$(lin_issue_json 12 started)]" true "cursor-1"
+seed_page "[$(lin_issue_json 13 started)]" true "cursor-2"
+seed_page "[$(lin_issue_json 14 started)]" true "cursor-3"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
+assert_eq "a walk stopped at the ceiling → exit 0 (documented truncation)" "0" "$rc"
+assert_eq "the ceiling's worth of items" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$(lin_out)")"
+assert_contains "and stderr announces it" "$(lin_err)" "ceiling of 2 items"
+assert_contains "the page after the ceiling asks for one node" "$(lin_bodies)" '"first":1'
+
+# --- a ceiling below the page size bounds one page too ---
+# Ceiling 25, 30 issues: the request asks for 26, and a provider that returns all 30 on
+# one last page still yields 25 items and truncated:true, never 30 and false.
+jq '.limits.list_items_max = 25' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+THIRTY="$(for n in $(seq 1 30); do lin_issue_json "$n" started; done | jq -cs '.')"
+lin_reset
+seed_page "$THIRTY"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
+assert_eq "ceiling 25, 30 issues → exit 0" "0" "$rc"
+assert_eq "ceiling 25, 30 issues: 25 items" "25" "$(jq -r '.items | length' <<<"$(lin_out)")"
+assert_eq "ceiling 25, 30 issues: truncated:true" "true" "$(jq -c '.truncated' <<<"$(lin_out)")"
+assert_contains "the first page asks for one node past the ceiling" "$(lin_bodies)" '"first":26'
+TWENTY_FIVE="$(jq -c '.[:25]' <<<"$THIRTY")"
+lin_reset
+seed_page "$TWENTY_FIVE"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
+assert_eq "exactly the ceiling: 25 items" "25" "$(jq -r '.items | length' <<<"$(lin_out)")"
+assert_eq "exactly the ceiling: truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
 
 # An empty result is an empty envelope, never an error.
 lin_reset

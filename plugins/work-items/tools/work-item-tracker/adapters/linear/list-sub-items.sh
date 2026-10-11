@@ -97,7 +97,7 @@ done
 # ITEMS travels on STDIN, not argv — see list-items.sh. An empty envelope emitted because the
 # exec failed would read as "this container has no children", which the closed-children
 # invariant would then treat as "nothing open under it".
-jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: ., truncated: false}' <<<"$ITEMS" || {
   printf 'list-sub-items.sh: could not emit the child envelope for %s\n' "$PARENT_ID" >&2
   exit "$EX_INTERNAL"
 }
