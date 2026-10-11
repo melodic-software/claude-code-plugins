@@ -41,14 +41,20 @@ echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$
 If those lines reached you as literal commands, run them yourself with Bash. `PY=unresolved` means
 no Python runs here, and `KEY=unresolved` means no hash tool: stop and say which. An empty `TRANSCRIPT` is `none`.
 
+- **Pointer**: when the `TRANSCRIPT` line finds no file in a session that has one, fetch
+  [the application data table](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  live for where session transcripts are kept. **As of**: 2026-10-11. **Recheck trigger**: that
+  table moves the session transcript out of `projects/`.
+
 `DATA` is the `DATA` line when it is not empty, else `${CLAUDE_PLUGIN_DATA}/go-faster/<KEY>`,
 spelled out literally in every later command. `EVAL_GO_FASTER_DATA` and `EVAL_GO_FASTER_TRANSCRIPT`
-exist only for plugin-eval runs, whose sandbox cannot reach the plugin data folder or the session
-transcript; nothing else sets them.
+exist only so a plugin-eval run, whose isolation decides what it can reach, can hand the skill a
+data folder and a transcript; nothing else sets them.
 
-- **Pointer**: [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
-  and [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)
-- **As of**: 2026-10-03
+- **Pointer**: when deciding what an eval run can reach, fetch
+  [How runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)
+  and [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools) live.
+- **As of**: 2026-10-11
 - **Recheck trigger**: either section changes what a run's Bash can read or write, or which
   variables reach the run.
 
@@ -83,18 +89,20 @@ line. Dispatch the `performance:go-faster-sweeper` agent with a prompt carrying 
 `ROOT` (`${CLAUDE_PLUGIN_ROOT}`), `RUN`, `DATA`, `SESSION`, `TRANSCRIPT`, `MODE` and `EVIDENCE`,
 each on its own line. `MODE` is `unattended` when the argument says so, else `attended`.
 
-- **Attended**: an interactive session runs the sweeper in the background. Tell the user in one
-  line that the sweep is running, and carry on with the work in hand. Present at the next natural
-  break after the sweeper returns, never mid-task. Do not enter or leave a worktree while the
-  sweep runs: a run belongs to the checkout it started in. If you must move, let the sweep finish
-  or stop it, release the lock, then run `/performance:go-faster` again from the new checkout.
+- **Attended**: do not wait on the sweeper where the session lets it run in the background. Tell
+  the user in one line that the sweep is running, and carry on with the work in hand. Present at
+  the next natural break after the sweeper returns, never mid-task. Do not enter or leave a
+  worktree while the sweep runs: a run belongs to the checkout it started in. If you must move, let
+  the sweep finish or stop it, release the lock, then run `/performance:go-faster` again from the
+  new checkout.
 - **Unattended**: wait for the sweeper's result before doing anything else.
 
-Background and foreground behavior is the harness's choice, not a parameter you set:
+This skill sets no foreground or background mode on the sweeper.
 
-- **Pointer**: [Run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background)
-- **As of**: 2026-10-03
-- **Recheck trigger**: that section changes which sessions run a subagent in the background.
+- **Pointer**: when deciding whether the sweeper runs in the background in this session, fetch
+  [Run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which cases run a
+  subagent in the background, or what a request or a definition field can choose.
 
 If the sweeper fails or returns `write-denied` or `refused-by-guard`, release the lock (Step 4) and
 report what it said, including the refused command.

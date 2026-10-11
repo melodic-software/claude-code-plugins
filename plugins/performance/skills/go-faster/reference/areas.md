@@ -113,7 +113,8 @@ Never invoked, named only as a fix owner or as a step for the user:
 - `/harness-ops:audit-performance`: it writes a report file.
 
 **Upstream pointers.** The commands and file lists below depend on these upstream specifics; read
-them live when a command's output, or the files you find, do not match the entry.
+them live when a command's output, or the files you find, do not match the entry. The
+`permissions` and `instructions` entries fetch theirs in every run.
 
 - **Pointer**: [git update-index, `--test-untracked-cache` and UNTRACKED CACHE](https://git-scm.com/docs/git-update-index)
 - **As of**: 2026-10-03
@@ -134,16 +135,15 @@ them live when a command's output, or the files you find, do not match the entry
 - **Pointer**: [Claude Code settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect),
   [where the local settings file sits in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository),
   and [ask and deny rules](https://code.claude.com/docs/en/permissions#manage-permissions)
-- **As of**: 2026-10-03
+- **As of**: 2026-10-11
 - **Recheck trigger**: a settings file moves, or `permissions.ask` or `permissions.deny` is renamed.
 
 - **Pointer**: [how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
   [when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md),
   [path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
   [user-level rules](https://code.claude.com/docs/en/memory#user-level-rules)
-- **As of**: 2026-10-03
-- **Recheck trigger**: the set of files loaded at launch changes, or rules stop using a `paths:`
-  frontmatter key.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections moves, or rules stop using a `paths:` frontmatter key.
 
 - **Pointer**: [gh auth status](https://cli.github.com/manual/gh_auth_status),
   [gh auth login](https://cli.github.com/manual/gh_auth_login) and
@@ -214,10 +214,11 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## permissions
 
-- **Source**: the permission rules in the settings files this run can read: the project's
-  `.claude/settings.json` and `.claude/settings.local.json`, and the user's `settings.json` under
-  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. Outside Windows, in a git repository, the local file
-  sits at the repository root (the main checkout's root in a worktree).
+- **Source**: the permission rules in the project, local and user settings files this run can
+  read. Resolve each file's path from the settings pointers under **Upstream pointers** above,
+  fetched live in this run the way a catalog pointer is: where each file sits, including where the
+  local file sits in a git repository or a worktree, is the page's to state. The user file honors
+  `CLAUDE_CONFIG_DIR` (its record is below).
   Settings files can hold tokens in `env`, so never Read them; findings.py reads them and prints
   only counts.
 - **Run**: `"$PY" "$ROOT/scripts/findings.py" permission-counts --file <path> --file <path> ...`
@@ -238,13 +239,11 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## instructions
 
-- **Source**: the instruction files loaded at launch, read only: `CLAUDE.md` and
-  `CLAUDE.local.md` in the working directory and every directory above it, `.claude/CLAUDE.md`,
-  `AGENTS.md` and `.claude/AGENTS.md` when a `CLAUDE.md` imports them or when no `CLAUDE.md`,
-  `.claude/CLAUDE.md` or `CLAUDE.local.md` other than the user's own exists in the working
-  directory or above it, the user's `~/.claude/CLAUDE.md`, and each project
-  `.claude/rules/**/*.md` and user `~/.claude/rules/**/*.md` with no `paths:` key in its
-  frontmatter. Startup token history through its owner.
+- **Source**: the instruction files loaded at launch, read only: the instruction files, the
+  `AGENTS.md` files and the rules without a `paths:` key that the memory pointers under
+  **Upstream pointers** above say load at launch. Fetch those sections live in this run the way a
+  catalog pointer is, and take the file list and the conditions on it from them; this file keeps
+  no copy. Startup token history through its owner.
 - **Run**: `wc -l` over the files that exist; `/context-budget:audit --ledger`.
 - **Owner**: context-budget (history only). A missing or stopped owner drops only the token
   finding; the line-count candidate still stands.
