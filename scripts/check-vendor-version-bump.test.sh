@@ -273,15 +273,16 @@ else
 fi
 rm -rf "$f"
 
-# --- a vendor/ nested below the plugin root is out of scope -----------------
+# --- an ADDED skill-level vendor/ tree is in scope (#6782) ------------------
+# Formerly asserted out of scope; it installs with the plugin, so it needs a bump.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
 git -C "$f" add plugins/alpha/skills/digest
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
-  ok "a vendor/ nested below the plugin root is out of scope"
+  fail "an added skill-level vendor/ tree without a bump should fail, got success: $out"
 else
-  fail "nested vendor dir should not trip the gate, got: $out"
+  ok "an added skill-level vendor/ tree without a bump fails"
 fi
 rm -rf "$f"
 
@@ -433,6 +434,41 @@ if [[ "$status" -eq 1 ]] && grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$
   ok "an added non-ASCII vendor path without a bump fails as STALE VERSION"
 else
   fail "a non-ASCII vendor path should fail as STALE VERSION for alpha, got status $status: $out"
+fi
+rm -rf "$f"
+
+# --- a skill-level vendor/ tree needs a bump too ----------------------------
+# plugins/<name>/skills/<skill>/vendor/ installs with the plugin exactly like
+# the plugin-root vendor/, so an unbumped edit never reaches consumers.
+base_fixture f
+mkdir -p "$f/plugins/alpha/skills/lookup/vendor/pkg"
+echo 'module.exports = 1;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"
+git -C "$f" add -A
+git_test_config "$f" commit -qm skill-vendor
+echo 'module.exports = 2;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "skill-level vendor edit without a bump should fail, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/" <<<"$out"; then
+  ok "a skill-level vendor edit without a bump fails as STALE VERSION"
+else
+  fail "expected STALE VERSION for alpha on a skill-level vendor edit, got: $out"
+fi
+set_version "$f" alpha 1.0.1
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a skill-level vendor edit with a bump passes"
+else
+  fail "skill-level vendor edit + bump should pass, got: $out"
+fi
+rm -rf "$f"
+
+# --- a vendor/ nested deeper than one skill segment is not claimed ----------
+base_fixture f
+mkdir -p "$f/plugins/alpha/skills/lookup/scripts/vendor"
+echo 'x' >"$f/plugins/alpha/skills/lookup/scripts/vendor/a.js"
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a vendor/ nested deeper than skills/<s>/ is not claimed by this gate"
+else
+  fail "deeper-nested vendor/ should not trip the gate, got: $out"
 fi
 rm -rf "$f"
 
