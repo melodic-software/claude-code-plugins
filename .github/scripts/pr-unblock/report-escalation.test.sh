@@ -48,7 +48,15 @@ printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
-POST*) echo '{}' ;;
+"GET repos/o/r/pulls/42") printf '{"number":42,"head":{"sha":"%s"}}' "$(cat "$STUB/live_head")" ;;
+"POST repos/o/r/issues/42/labels")
+  [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
+  echo '{}'
+  ;;
+"POST repos/o/r/issues/42/comments")
+  [[ -f $STUB/fail_comments ]] && { echo 'stub gh: comment POST failed' >&2; exit 1; }
+  echo '{}'
+  ;;
 *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
 EOF
@@ -61,6 +69,7 @@ setup() {
   mkdir -p "$STUB/ws/.base"
   printf '{"number":42,"labels":%s}' "$1" >"$STUB/issue.json"
   printf '%s' "$2" >"$STUB/comments.json"
+  printf '%s' "$HEAD_A" >"$STUB/live_head"
   : >"$STUB/calls"
   : >"$STUB/requests"
   : >"$STUB/bodies"
@@ -94,8 +103,8 @@ for reason in protected-path-conflict workflow-staged repeat-cap unresolved-conf
   setup '[]' '[]'
   run "$reason"
   check "$reason: exit 0" 0 "$RC"
-  check "$reason: writes a comment then the label" \
-    $'POST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/labels' \
+  check "$reason: writes the label then a comment" \
+    $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' \
     "$(grep '^POST' "$STUB/requests")"
   check "$reason: marker is the first line" "$MARKER" "$(head -n 1 "$STUB/bodies")"
   has "$reason: comment names the reason" "$reason" "$STUB/bodies"
@@ -144,7 +153,35 @@ check "labeled, marker for another head: comment only" 'POST repos/o/r/issues/42
 setup '[]' "$(bot_marker "$HEAD_A")"
 run unresolved-conflict
 check "label removed by a human, same head: escalates again" \
-  $'POST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/labels' "$(grep '^POST' "$STUB/requests")"
+  $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+
+# Partial failure: a failed label write posts no comment, and a retry after a
+# failed comment write posts exactly one comment.
+setup '[]' '[]'
+touch "$STUB/fail_labels"
+run unresolved-conflict
+check "label write fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "label write fails: no comment posted" 0 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
+
+setup '[]' '[]'
+touch "$STUB/fail_comments"
+run unresolved-conflict
+check "comment write fails after the label: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
+rm "$STUB/fail_comments"
+: >"$STUB/requests"
+: >"$STUB/bodies"
+run unresolved-conflict
+check "retry after a failed comment: exit 0" 0 "$RC"
+check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+
+# Superseded: the PR head moved past the gated head, so nothing is written.
+setup '[]' '[]'
+printf '%s' "$HEAD_B" >"$STUB/live_head"
+run unresolved-conflict
+check "head moved: exit 0" 0 "$RC"
+check "head moved: no write" 0 "$(writes)"
+has "head moved: says superseded" "superseded" "$STUB/out"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
 run unresolved-conflict
@@ -170,6 +207,6 @@ run workflow-staged
 check "never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"
 check "never calls the contents API" 0 "$(grep -c 'contents/' "$STUB/calls" || true)"
 check "writes only the issue comments and labels" 0 \
-  "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments|/labels)?$' "$STUB/requests" | grep -c . || true)"
+  "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments|/labels)?$|^GET repos/o/r/pulls/42$' "$STUB/requests" | grep -c . || true)"
 
 exit "$FAILED"
