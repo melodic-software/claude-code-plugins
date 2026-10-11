@@ -59,8 +59,20 @@ extraction waits for the third (Rule of Three).
   beside `source.md`, a second immutable original, and recover that text from it; a row quoting
   such text cites `source.html`. Of the three, only (c) also binds
   `claude.dev/blog`, the other correlate-only host.
-- **Blog posts (`claude.dev/blog/...`, correlate-only):** fetch the rendered page as
-  `source.html`, then write `source.md` with
+- **Blog posts (`claude.dev/blog/...`, correlate-only):** a raw-markdown channel exists. Drop
+  the trailing slash and append `.md` (`https://claude.dev/blog/<slug>.md`); it answers
+  `text/markdown` with the article itself. Verified 2026-10-11 on four posts
+  (`claude-code-in-the-cloud`, `spending-your-effort`, `getting-the-most-out-of-opus-5-5`,
+  `how-we-made-claude-ai-faster`); **re-verify per post**. Save that fetch as `source.md` and
+  name the channel in the checklist. Its known artifacts, reproduced and never repaired: it opens
+  with the H1 title, the subtitle, and `Author`, `Published` and `URL` list items above a `---`
+  rule, so the metadata is read from `source.md`; it backslash-escapes markdown characters inside
+  image alt text (`duration\_ms`); images arrive as `![alt](url)` and videos as a
+  `[Video: <title>](<mp4>)` link followed by a description; a static chart arrives as an italic
+  `*Figure: ...*` summary, not its axis labels or values; and an interactive figure arrives as an
+  italic one-line description pointing at the rendered page. So (c) still binds: also fetch the
+  rendered page as `source.html`, the second immutable original for figure text.
+  **Fallback** when the `.md` channel fails: write `source.md` from `source.html` with
   `python3 <skill-dir>/scripts/extract_blog_body.py <work-root>/source.html <work-root>/source.md`
   and name the extractor in the checklist's channel line. The extractor's known artifacts are
   recorded here and never repaired in `source.md`: it keeps only the article body (the element
