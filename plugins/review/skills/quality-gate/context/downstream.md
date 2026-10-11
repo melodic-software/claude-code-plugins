@@ -87,7 +87,7 @@ value: the read is at `origin/<default>`, so a branch cannot switch its own prob
 other than `run` or `report` is named with the option, key and value and dropped the same way. The
 run never stops on an invalid value. Resolve: `report` when any remaining layer says `report`;
 otherwise `run`. Report one line before presenting, naming the value and every layer that set it,
-for example `downstream_probe: report (docs/conventions/review.yaml at origin/main, commit <sha>)`,
+for example `downstream_probe: report (docs/conventions/review.yaml at origin/<default>, commit <sha>)`,
 `downstream_probe: report (userConfig)` or `downstream_probe: run (default)`.
 
 ## Worker brief

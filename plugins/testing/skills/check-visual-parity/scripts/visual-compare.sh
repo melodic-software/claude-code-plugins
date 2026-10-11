@@ -321,7 +321,7 @@ default_ref() {
   local ref
   ref="$(git -C "$1" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || ref=""
   if [[ -z "$ref" ]]; then
-    for ref in origin/main origin/master ""; do
+    for ref in origin/main origin/master ""; do # portability-ok: probed only after the origin/HEAD symbolic-ref read above finds nothing
       [[ -z "$ref" ]] || git -C "$1" rev-parse --verify --quiet "refs/remotes/$ref^{commit}" >/dev/null && break
     done
   fi

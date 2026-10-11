@@ -107,7 +107,7 @@ before Stage 2, by the steps in
   unattended always gets a level.
 
 Report one line before Stage 2 with the level and the layer that supplied it, for example
-`proof_level: strict (docs/conventions/verification.yaml at origin/main, commit <sha>)` or
+`proof_level: strict (docs/conventions/verification.yaml at origin/<default>, commit <sha>)` or
 `proof_level: path (default)`.
 
 ## Live workers
@@ -126,7 +126,7 @@ beside the proof level, by
   never a lower layer's value. The run never stops on it.
 
 Report one line before Stage 2 with the count and the layer that supplied it, for example
-`live_workers: 2 (docs/conventions/verification.yaml at origin/main, commit <sha>)` or
+`live_workers: 2 (docs/conventions/verification.yaml at origin/<default>, commit <sha>)` or
 `live_workers: 1 (default)`.
 
 ## Stage 1. Mechanical prerequisite (delegate, don't reimplement)

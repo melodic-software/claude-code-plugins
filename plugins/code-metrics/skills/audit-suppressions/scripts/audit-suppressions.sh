@@ -130,7 +130,7 @@ if [[ "$MODE" == change ]]; then
   if [[ "$BASE" == auto ]]; then
     BASE="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
     if [[ -z "$BASE" ]]; then
-      for candidate in origin/main origin/master main master; do
+      for candidate in origin/main origin/master main master; do # portability-ok: probed only after the origin/HEAD symbolic-ref read above finds nothing; --base overrides
         if git rev-parse --verify --quiet "$candidate" >/dev/null; then
           BASE="$candidate"
           break
