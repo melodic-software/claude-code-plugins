@@ -127,7 +127,9 @@ describe("watch state phase map", () => {
   it("tells a fresh session how to locate the slice without a machine path", () => {
     const state = sampleTalk();
     const prompt = buildContinuationPrompt(state);
-    expect(prompt).toContain(`\`watch/run-resume.js ${state.videoSlug}\``);
+    expect(prompt).toContain("watch/run-resume.js");
+    expect(prompt).toContain(state.videoSlug);
+    expect(prompt).not.toMatch(/[A-Za-z]:\\|\/Users\/|\/home\//);
   });
 
   it("surfaces high-volume frame selection in continuation prompt", () => {
