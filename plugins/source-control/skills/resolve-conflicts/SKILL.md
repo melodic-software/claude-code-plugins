@@ -111,7 +111,8 @@ pushes it. Steps 1 to 3 hold with these changes:
   per resolved path, including files the sweep fixed, skipping every escalated path. An unstaged
   edit never ships. Never `git add -A`, `.` or a directory.
 - **Version bumps.** A `plugin.json` or `CHANGELOG.md` still unmerged is one the runner's script
-  left; resolve it by hand under step 3. Do not run the script.
+  left; resolve it by hand under step 3. Do not run the script. When that plugin is in
+  changelog-fragment mode, step 3's abort-and-convert route is closed here: escalate both paths.
 - **Never edit or stage a path under `.github/workflows/`.** The runner escalates any staged
   workflow change. When a resolution or the semantic sweep calls for a workflow change, escalate
   the conflicted path it traces to and name the workflow file in the reply.
