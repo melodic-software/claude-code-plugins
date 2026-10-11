@@ -3384,6 +3384,22 @@ class TestInstructionFiles(unittest.TestCase):
             got, {"a/CLAUDE.md": "on-demand", "a/b/AGENTS.md": "not-by-default"}
         )
 
+    @unittest.skipUnless(os.name == "posix", "needs a filesystem that takes raw bytes")
+    def test_a_non_utf8_path_drops_only_itself(self) -> None:
+        # One file whose name is not UTF-8 must not cost the nested files git
+        # found beside it.
+        odd = os.path.join(os.fsencode(self.repo), b"caf\xe9")
+        try:
+            os.makedirs(odd)
+        except OSError as exc:
+            self.skipTest(f"filesystem refuses a non-UTF-8 name: {exc}")
+        with open(os.path.join(odd, b"CLAUDE.md"), "wb") as fh:
+            fh.write(b"Latin-1 folder.\n")
+        paths = [e["path"] for e in self.run_from(self.repo, self.make_home("home-a"))]
+        self.assertIn("billing/CLAUDE.md", paths)
+        self.assertIn(".claude/rules/api.md", paths)
+        self.assertFalse(any(p.startswith("caf") for p in paths), paths)
+
     def test_managed_policy_claude_md_is_listed_under_a_symbolic_prefix(self) -> None:
         self.write(
             self.base, {"managed/CLAUDE.md": "Follow the org security policy.\n"}

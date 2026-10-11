@@ -5691,13 +5691,21 @@ def _repo_instruction_paths(root: Path) -> list[str]:
             capture_output=True,
             check=True,
         ).stdout
-        return sorted({p for p in out.decode("utf-8").split("\0") if p})
-    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+    except (OSError, subprocess.CalledProcessError):
         found = [*_CLAUDE_MD_SET, "AGENTS.md", ".claude/AGENTS.md"]
         rules = root / ".claude" / "rules"
         if rules.is_dir():
             found += [p.relative_to(root).as_posix() for p in rules.rglob("*.md")]
         return sorted(p for p in found if (root / p).is_file())
+    # A name that is not UTF-8 is skipped on its own; the rest still count.
+    paths = set()
+    for raw in out.split(b"\0"):
+        try:
+            paths.add(raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            continue
+    paths.discard("")
+    return sorted(paths)
 
 
 def _path_scoped(data: bytes) -> bool:
