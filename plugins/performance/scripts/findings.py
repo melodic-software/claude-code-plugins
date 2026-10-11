@@ -18,6 +18,7 @@ folder passed as a literal argument. Subcommands:
     adopted --data <dir> --session <id> this session's adoptions, one JSON object per line
     compare --data <dir> --findings <findings.json> --id <id>
     transcript-counts <transcript.jsonl>
+    stop-hook-timing <transcript.jsonl> per-hook Stop durations from stop_hook_summary records
     status-timing --data <dir> [--runs N]  time git status in the current repository via trace2
     ci-timing --repo OWNER/REPO [--runs N] [--job-runs M]
                                         list N completed runs (default 20), fetch jobs for the M
@@ -56,6 +57,14 @@ variables, flags and arguments, URL credentials, signed-URL signatures, known to
 replaced by *** and backticks by quotes, cut to 60 characters; a shown text that differs from the
 command ends in " #" and the first 8 hex digits of the redacted text's SHA-256. Repeats that show
 alike add up. Repeated file paths are shown the same way, without the cut or tag.
+
+stop-hook-timing reads the `stop_hook_summary` records of a transcript, the whole file, and from
+each only its `hookInfos` entries (`command` and `durationMs`); it skips every other record. An
+entry with a non-negative `durationMs` is a timed sample; one without is counted under `untimed`
+and never ranked. Per hook it prints `samples`, `max_ms`, and `p50_ms` and `p95_ms` by linear
+interpolation, each null below the sample count the percentile needs (2 and 20). `records`
+counts the summary records read. Hooks are shown as repeated commands are, sorted slowest first
+by p95, then p50, then max.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
@@ -945,6 +954,72 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
     return 0
 
 
+STOP_SUMMARY = "stop_hook_summary"
+# A percentile p is expressible only from n >= 1/(1-p) samples (summarize.py's floor).
+P50_FLOOR, P95_FLOOR = 2, 20
+
+
+def percentile(ordered: list[float], p: float) -> float:
+    """Linear interpolation between the two nearest ranks of a sorted list."""
+    k = (len(ordered) - 1) * p / 100
+    low = int(k)
+    high = min(low + 1, len(ordered) - 1)
+    return ordered[low] + (ordered[high] - ordered[low]) * (k - low)
+
+
+def stop_hook_timing(path: Path) -> dict:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+    import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
+
+    records = 0
+    timed: dict[str, list[float]] = {}
+    untimed: dict[str, int] = {}
+    for record in tr.iter_records(path):
+        if record.get("subtype") != STOP_SUMMARY:
+            continue
+        records += 1
+        infos = record.get("hookInfos")
+        for info in infos if isinstance(infos, list) else []:
+            if not isinstance(info, dict):
+                continue
+            hook = shown_command(str(info.get("command", "")))
+            ms = info.get("durationMs")
+            if isinstance(ms, (int, float)) and not isinstance(ms, bool) and ms >= 0:
+                timed.setdefault(hook, []).append(float(ms))
+            else:
+                untimed[hook] = untimed.get(hook, 0) + 1
+    hooks = []
+    for hook, samples in timed.items():
+        ordered = sorted(samples)
+        n = len(ordered)
+        hooks.append(
+            {
+                "hook": hook,
+                "samples": n,
+                "p50_ms": round(percentile(ordered, 50)) if n >= P50_FLOOR else None,
+                "p95_ms": round(percentile(ordered, 95)) if n >= P95_FLOOR else None,
+                "max_ms": round(ordered[-1]),
+            }
+        )
+    # Slowest first: the expressible tail, then the median, then the single worst sample.
+    hooks.sort(
+        key=lambda h: tuple(
+            -1 if h[k] is None else h[k] for k in ("p95_ms", "p50_ms", "max_ms")
+        ),
+        reverse=True,
+    )
+    return {"records": records, "hooks": hooks, "untimed": untimed}
+
+
+def cmd_stop_hook_timing(args: argparse.Namespace) -> int:
+    path = Path(args.file)
+    if not path.is_file():
+        die(f"no transcript at {path}")
+    print(json.dumps(stop_hook_timing(path), indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_run_start(args: argparse.Namespace) -> int:
     t = now()
     stamp = datetime.fromtimestamp(t, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -1319,6 +1394,7 @@ def main() -> int:
         ("rank", cmd_rank),
         ("render", cmd_render),
         ("transcript-counts", cmd_transcript_counts),
+        ("stop-hook-timing", cmd_stop_hook_timing),
     ):
         p = sub.add_parser(name)
         p.add_argument("file")

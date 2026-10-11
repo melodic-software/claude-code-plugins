@@ -162,6 +162,15 @@ them live when a command's output, or the files you find, do not match the entry
 - **As of**: 2026-10-03
 - **Recheck trigger**: the `tool_decision` event is renamed or removed.
 
+- **Pointer**: [Run hooks in the background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background),
+  for which hooks hold the turn's end. The hook-timing record `stop-hook-timing` reads is on no
+  docs page; its shape, and which hooks it leaves untimed, is the observation in
+  [#6784](https://github.com/melodic-software/claude-code-plugins/issues/6784) and its PR.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the hooks page documents a per-hook timing record; `stop-hook-timing`
+  prints `records` 0 for a transcript of a session whose Stop hooks ran; or a background hook
+  appears under `hooks` with a duration.
+
 ## git
 
 - **Source**: `git status` timed under trace2; git's untracked-cache test run in a scratch repo.
@@ -194,18 +203,39 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## hooks
 
-- **Source**: hook execution latency from locally captured telemetry, through its owner.
-- **Run**: `/harness-ops:observability latency`.
-- **Owner**: harness-ops.
+- **Source**: hook execution latency from locally captured telemetry, through its owner. When that
+  gives no finding, the per-hook Stop durations the harness writes into this session's transcript
+  as `stop_hook_summary` records, read by findings.py (the record shape is observed, not
+  documented: see the hook-timing pointer above).
+- **Run**: `/harness-ops:observability latency`. When it records no measured finding (no rows, it
+  cannot evaluate, it is not in the listing, or the call fails) and `TRANSCRIPT` is not `none`:
+  `"$PY" "$ROOT/scripts/findings.py" stop-hook-timing "$TRANSCRIPT"`. It reads only the
+  `stop_hook_summary` records and, from each, only its `hookInfos`; never read the transcript for
+  this area any other way.
+- **Owner**: harness-ops for the telemetry; none for the transcript fallback.
 - **Record**: one measured finding per hook event it flags: unit `elapsed-ms`, value the p95, tier
   E2 (a per-event total spans every matching hook), workload `hook latency, last 7 days`,
   `command` exactly `/harness-ops:observability latency`, `fix_owner`
   `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`. Flags nothing: one measured finding for the
   slowest event it lists.
-- **Not checked**: no rows, or it cannot evaluate: `no-data`, reason "no hook latency rows;
-  /harness-ops:observability says it needs <the telemetry it names>; set that up and rerun
-  /performance:go-faster". Not in the listing, or the call fails: `owner-unavailable`, with the
-  owner-call table's reason.
+  From the fallback instead: one measured finding per entry in `hooks` whose `p50_ms` is not
+  null: unit `elapsed-ms`, value `p95_ms`, or `p50_ms` when `p95_ms` is null, title naming the
+  hook as printed, its `p50_ms`, its `p95_ms` (or "p95 needs 20 samples"), its `samples`, and
+  "Stop event only", tier E1 (one hook's own duration, recorded by the harness before this sweep),
+  workload `stop hook durations, this session`, `command` the stop-hook-timing line, `fix_owner`
+  `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`. Every hook under
+  `untimed` stays out of that ranking: this area ranks only time that holds the turn's end, and
+  in the observation the hook-timing pointer above records, the background (`async`,
+  `asyncRewake`) hooks are the ones with no duration. Add one `not-checked` finding, `no-data`,
+  reason "no duration recorded for <the untimed hooks, comma-separated>; this ranking applies
+  only to hooks the harness timed".
+- **Not checked**: no rows, or it cannot evaluate, and the fallback measured nothing: `no-data`,
+  reason "no hook latency rows; /harness-ops:observability says it needs <the telemetry it
+  names>, and no Stop hook in this session's transcript was timed twice; set up that telemetry
+  and rerun /performance:go-faster". Not in the listing, or the call fails, and the
+  fallback measured nothing: `owner-unavailable`, with the owner-call table's reason. With
+  fallback findings, these are not added: the fallback titles say the area covers the Stop event
+  only.
 - **Guard**: a hook that blocks, denies or asks is a guard. A finding that would disable, skip or
   narrow one is `flag-only`. A slow guard is reported by its time only; making it faster without
   changing what it stops is `/harness-ops:audit-performance`'s to judge.
