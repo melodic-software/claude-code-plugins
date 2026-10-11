@@ -119,10 +119,10 @@
       "id": 7,
       "name": "applies-the-admission-test",
       "prompt": "/architecture:record-decision Write an ADR recording that we raised the lint job's timeout from 30 seconds to 60 seconds because the job started failing on the larger repo.",
-      "expected_output": "Applies the admission test and says once that this decision does not earn a record: it is trivially reversed (change the number back), it is unsurprising to a future reader (a timeout was too short and was raised), and there was no real trade-off between genuine alternatives. Offers to record it anyway if the human still wants it, and writes nothing until they say so. Does not lecture, does not repeat the refusal, and does not silently write the record.",
+      "expected_output": "Applies the admission test and says once that this decision does not earn a record: it is not costly to undo (change the number back), it is obvious from the code to a future reader (a timeout was too short and was raised), and it was not chosen over a live alternative. Offers to record it anyway if the human still wants it, and writes nothing until they say so. Does not lecture, does not repeat the refusal, and does not silently write the record.",
       "files": [],
       "expectations": [
-        "Names all three parts of the admission test and states which the decision fails: hard to reverse (fails), surprising without context (fails), the result of a real trade-off (fails)",
+        "Names all three parts of the admission test and states which the decision fails: costly to undo (fails), not obvious from the code (fails), chosen over a live alternative (fails)",
         "Says so ONCE and offers to proceed anyway, rather than refusing outright or repeating the objection",
         "Writes no file before the human answers",
         "If the human insists, the record is written into the discovered convention without further argument, because the human's call wins",

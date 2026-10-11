@@ -81,7 +81,7 @@
       "id": 7,
       "name": "close-out-publishes-plan-to-pr-and-issue",
       "prompt": "/planning:plan close-out\n\nThe approved plan is complete and lives in .work/webhook-retry-budgets/PLAN.md. Close it out for the PR.",
-      "expected_output": "Pastes the approved PLAN.md into the PR description inside a details block and into the linked issue, recording distilled values only and citing no path into the memory slice. A decision that passes the ADR admission test (hard to reverse, surprising without context, a real trade-off) becomes an ADR; follow-ups go to the tracker. It commits nothing under the memory slice and does not move or delete files to prune a slice.",
+      "expected_output": "Pastes the approved PLAN.md into the PR description inside a details block and into the linked issue, recording distilled values only and citing no path into the memory slice. A decision that passes the ADR admission test (costly to undo, not obvious from the code, chosen over a live alternative) becomes an ADR; follow-ups go to the tracker. It commits nothing under the memory slice and does not move or delete files to prune a slice.",
       "files": [],
       "expectations": [
         "Publishes PLAN.md to the PR description (in a details block) and the linked issue",

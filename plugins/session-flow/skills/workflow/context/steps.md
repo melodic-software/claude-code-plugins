@@ -91,8 +91,8 @@ design section, which is how they reach the implementer.
 - Skip conditions: a single-file bug fix, a config or doc change, a rename, a pure test addition.
   The skip is recorded as a one-line early exit with its reason, not left implicit, so the plan
   stage can see it. On the full path, size alone never skips it
-- Domain modeling, prototypes, and architecture surveys feed it; a decision that is hard to
-  reverse, surprising without context, and the result of a real trade-off is recorded as an
+- Domain modeling, prototypes, and architecture surveys feed it; a decision that is costly to
+  undo, not obvious from the code, and chosen over a live alternative is recorded as an
   architecture decision before planning
 - **Effort:** settling contracts and boundaries with the human, where a wrong boundary is paid for
   in every later phase

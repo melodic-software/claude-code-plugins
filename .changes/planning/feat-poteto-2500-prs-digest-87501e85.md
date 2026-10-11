@@ -27,6 +27,7 @@ bump: minor
 - Reworded more passages adapted from upstream skills in our own words: `design`'s SKILL.md and its `type-discipline.md` and `type-discipline/typescript.md` references, `draft-goal-condition`'s SKILL.md and eval prose, and `prd`'s SKILL.md. Every rule and eval expectation is unchanged.
 - Reworded `design`'s type-discipline references in our own words: the TypeScript narrowing order and type derivation are now tables, and the examples come from this repository (lane runs, plugin manifests, plan phases). Every rule is unchanged.
 - Reworded `design`'s TypeScript narrowing guidance in our own words: the table now orders checks by where a value is and cites this repository's context-guard code, and the non-empty-list rule uses context-guard's `showCrossing` as its example. Every rule is unchanged.
+- The ADR admission test's three checks are now named costly to undo, not obvious from the code, and chosen over a live alternative in `interview`, `plan` close-out and `design-handoff`, and `interview`'s frontier rounds, non-blocking lookups, domain probes and stop condition are reworded in our own words; every rule is unchanged.
 
 ### Fixed
 
