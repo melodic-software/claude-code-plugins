@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
 # state install.sh wrote and never reaches a network or the real gh: any command it does not serve
-# exits 1 naming itself, so a run cannot touch GitHub through it.
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr update-branch` is refused on
+# purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
 
@@ -16,8 +17,8 @@ refuse() {
   exit 1
 }
 
-# Split argv into positionals plus the --json, --jq and --name-only options gh accepts.
-json="" jq_expr="" name_only=0 args=()
+# Split argv into positionals plus the --json, --jq, --head and --name-only options gh accepts.
+json="" jq_expr="" head="" name_only=0 args=()
 parse() {
   while (($#)); do
     case "$1" in
@@ -32,6 +33,11 @@ parse() {
         ;;
       --jq=*) jq_expr="${1#--jq=}" ;;
       --name-only) name_only=1 ;;
+      -H | --head)
+        head="${2:-}"
+        shift
+        ;;
+      --head=*) head="${1#--head=}" ;;
       -R | --repo) shift ;;
       -*) ;;
       *) args+=("$1") ;;
@@ -92,11 +98,6 @@ case "$cmd $sub" in
     ;;
   "pr list")
     shift 2
-    head=""
-    for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --head ]] && {
-      j=$((i + 1))
-      head="${!j}"
-    }; done
     parse "$@"
     if [[ -z "$head" || "$head" == "$PR_HEAD" ]]; then doc="[$(pr_doc)]"; else doc="[]"; fi
     if [[ -n "$json" ]]; then

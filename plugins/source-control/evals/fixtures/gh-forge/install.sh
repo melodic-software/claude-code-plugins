@@ -16,6 +16,13 @@
 set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
+
+# Refuse outside an eval run, so a scaffold run by hand never edits the operator's own ~/.zshenv.
+real_home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)"
+if [[ -n "$real_home" && "$HOME" -ef "$real_home" ]]; then
+  echo "gh-forge/install.sh: HOME is the account's real home; run this only from an eval scaffold" >&2
+  exit 1
+fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 forge="$(git rev-parse --absolute-git-dir)/eval-forge"
 
