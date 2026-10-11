@@ -99,9 +99,10 @@ the companion sources brief, and the fetched `decks/` and `attachments/`), `fram
 (`RESEARCH.md`, `research/`, `recommendations/`, the companion digest), and a provenance
 `README.md` when the target has none; the trimmed `info.json` also drops the local download
 paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
-the copied markdown names (inline and reference-style links, HTML `src`/`href` in any quoting,
-and backticked paths, percent-encoded or with `\` separators) is rewritten through a path map relative to the
-file's new location, and a relative link that leaves the slice keeps pointing at the same file.
+the copied markdown names is rewritten through a path map relative to the file's new location:
+inline links (destinations with balanced or escaped parentheses too), reference-style links,
+HTML `src`/`href` in any quoting, and backticked paths, percent-encoded or with `\` separators.
+A relative link that leaves the slice keeps pointing at the same file.
 One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
 own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
 saying it is not retained; one naming a directory whose files went to several places (`source/`)
@@ -115,8 +116,13 @@ under a top-level directory of the target or an entry beside the naming file (pa
 repository, such as `research/deepening/...` from an upstream repo). Only a passing check moves
 the staging directory into place; on any failure the staging directory is removed and the target
 is left as it was. Without `--replace` the install never replaces anything that appeared during
-the run, even an empty directory: on POSIX it claims the target with an exclusive mkdir before
-renaming onto it. Fix what it lists in the slice and re-run.
+the run, even an empty directory. On POSIX it claims the target before staging with an exclusive
+mkdir and a `.relayout-claim` marker holding its pid, then removes the marker and renames the
+staged layout onto the claim, so the installed target never carries it; a failed run releases
+its claim. A run killed while holding the claim leaves a directory holding only that marker: the
+next run removes it with a notice and proceeds, unless the marker's pid is still running, which
+it refuses. A target holding the marker beside anything else stays refused. Fix what it lists in
+the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

@@ -111,8 +111,6 @@ const SLICE_LANE_NAMES = new Set([...Object.values(LANES), "SLICE"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
-const MARKDOWN_LINK = /(\]\()(<[^>]+>|[^)\s]+)/g;
-const FULL_LINK = /!?\[([^\]\n]*)\]\((<[^>]+>|[^)\s]+)[^)\n]*\)/g;
 const BACKTICK_SPAN = /`([^`\s]+)`/g;
 /** `[label]: path` reference-style link definitions. */
 const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
@@ -319,6 +317,109 @@ function lookUpReference(refPath, sourceFile, map) {
 const NOT_RETAINED = "not retained in this copy";
 
 /**
+ * @typedef {Object} InlineLink
+ * @property {string} dest - the destination, angle brackets removed and `\(` `\)` unescaped
+ * @property {number} destStart - offset of the destination as written (its `<` when angled)
+ * @property {number} destEnd - offset just past it
+ * @property {boolean} angle - written as `<...>`
+ * @property {boolean} escaped - held backslash-escaped parentheses
+ * @property {string} label - the link text, `!` and brackets removed
+ * @property {number} labelStart - offset of the link's `[` (or its `!`), -1 when unmatched
+ * @property {number} linkStart - offset where the whole link starts
+ * @property {number} linkEnd - offset just past the link's closing `)`
+ */
+
+/**
+ * Every inline link in `text`, scanned the way CommonMark reads a
+ * destination: `<...>`, or a run with balanced or backslash-escaped
+ * parentheses up to whitespace or the unbalanced `)`. A regex stops at the
+ * first `)`, which breaks `slides_(final).pdf`.
+ *
+ * @param {string} text
+ * @returns {InlineLink[]}
+ */
+export function inlineLinks(text) {
+  /** @type {InlineLink[]} */
+  const links = [];
+  let from = 0;
+  for (;;) {
+    const open = text.indexOf("](", from);
+    if (open === -1) return links;
+    from = open + 2;
+    let at = open + 2;
+    while (text[at] === " " || text[at] === "\t") at += 1;
+    const destStart = at;
+    let raw;
+    let angle = false;
+    if (text[at] === "<") {
+      const close = text.indexOf(">", at);
+      if (close === -1 || text.slice(at, close).includes("\n")) continue;
+      angle = true;
+      raw = text.slice(at + 1, close);
+      at = close + 1;
+    } else {
+      let depth = 0;
+      while (at < text.length) {
+        const ch = text[at];
+        if (ch === "\\" && (text[at + 1] === "(" || text[at + 1] === ")")) {
+          at += 2;
+          continue;
+        }
+        if (/\s/.test(ch)) break;
+        if (ch === "(") depth += 1;
+        else if (ch === ")") {
+          if (depth === 0) break;
+          depth -= 1;
+        }
+        at += 1;
+      }
+      if (at === destStart || depth !== 0) continue;
+      raw = text.slice(destStart, at);
+    }
+    const destEnd = at;
+    // An optional title, then the closing `)`.
+    while (text[at] === " " || text[at] === "\t") at += 1;
+    const quote = text[at];
+    if (quote === '"' || quote === "'") {
+      const closeQuote = text.indexOf(quote, at + 1);
+      if (closeQuote === -1) continue;
+      at = closeQuote + 1;
+      while (text[at] === " " || text[at] === "\t") at += 1;
+    }
+    if (text[at] !== ")") continue;
+    const linkEnd = at + 1;
+    // The `[` that opens this link's text, matching nested brackets.
+    let labelStart = -1;
+    let depth = 0;
+    for (let back = open - 1; back >= 0; back -= 1) {
+      if (text[back - 1] === "\\") continue;
+      if (text[back] === "]") depth += 1;
+      else if (text[back] === "[") {
+        if (depth === 0) {
+          labelStart = back;
+          break;
+        }
+        depth -= 1;
+      } else if (text[back] === "\n" && text[back - 1] === "\n") break;
+    }
+    const label = labelStart === -1 ? "" : text.slice(labelStart + 1, open);
+    const linkStart = labelStart > 0 && text[labelStart - 1] === "!" ? labelStart - 1 : labelStart;
+    links.push({
+      dest: raw.replace(/\\([()])/g, "$1"),
+      destStart,
+      destEnd,
+      angle,
+      escaped: /\\[()]/.test(raw),
+      label,
+      labelStart: linkStart,
+      linkStart,
+      linkEnd,
+    });
+    from = linkEnd;
+  }
+}
+
+/**
  * Rewrite every markdown link and backticked path in `text` that names a
  * slice path: a copied one relative to the file's target location, one the
  * layout does not keep as plain text naming it as not retained.
@@ -351,16 +452,43 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     if (next !== ref) rewrites += 1;
     return next;
   };
-  const rewritten = text
-    .replace(FULL_LINK, (match, label, target) => {
-      const found = lookUpReference(splitReference(unwrap(target)).refPath, sourceFile, map);
-      if (!found || !("retired" in found)) return match;
+  // Inline links: a link naming a file the layout drops becomes its label plus
+  // not-retained text; any other destination takes the path rewrite. Edits
+  // apply back to front; one overlapping an earlier-starting edit (an image
+  // inside a link that is itself replaced) is dropped.
+  /** @type {{ from: number, to: number, text: string }[]} */
+  const edits = [];
+  for (const link of inlineLinks(text)) {
+    const found = lookUpReference(splitReference(link.dest).refPath, sourceFile, map);
+    if (found && "retired" in found && link.labelStart !== -1) {
       rewrites += 1;
-      return `${label} (${found.retired}, ${found.note})`;
-    })
-    .replace(MARKDOWN_LINK, (_match, open, target) =>
-      target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
-    )
+      edits.push({
+        from: link.linkStart,
+        to: link.linkEnd,
+        text: `${link.label} (${found.retired}, ${found.note})`,
+      });
+      continue;
+    }
+    const next = rewrite(link.dest);
+    if (next === link.dest) continue;
+    const written = link.escaped ? next.replace(/[()]/g, "\\$&") : next;
+    edits.push({
+      from: link.destStart,
+      to: link.destEnd,
+      text: link.angle ? `<${written}>` : written,
+    });
+  }
+  edits.sort((a, b) => a.from - b.from);
+  /** @type {typeof edits} */
+  const kept = [];
+  for (const edit of edits) {
+    if (kept.length === 0 || edit.from >= kept[kept.length - 1].to) kept.push(edit);
+  }
+  let linked = text;
+  for (const edit of kept.reverse()) {
+    linked = linked.slice(0, edit.from) + edit.text + linked.slice(edit.to);
+  }
+  const rewritten = linked
     // Reference-style definitions and HTML src/href attributes take the same
     // path rewrite. One naming a file the layout drops is left for the link
     // check to flag: a definition or attribute has no prose to rewrite into.
@@ -447,10 +575,9 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
       if (!fs.existsSync(resolved)) unresolved.push({ file, ref });
     };
-    for (const pattern of [MARKDOWN_LINK, REFERENCE_DEFINITION]) {
-      for (const match of text.matchAll(pattern)) {
-        check(match[2].replace(/^<|>$/g, ""), true);
-      }
+    for (const link of inlineLinks(text)) check(link.dest, true);
+    for (const match of text.matchAll(REFERENCE_DEFINITION)) {
+      check(match[2].replace(/^<|>$/g, ""), true);
     }
     for (const match of text.matchAll(HTML_PATH_ATTRIBUTE)) {
       check(match[2] ?? match[3] ?? match[4], true);
@@ -528,6 +655,40 @@ function readJsonObject(file) {
   return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
     ? /** @type {Record<string, unknown>} */ (parsed)
     : null;
+}
+
+/** The file a run writes into the target directory it has claimed. */
+export const CLAIM_MARKER = ".relayout-claim";
+
+/**
+ * Whether `target` is a claim left by a relayout: `"none"` when it is not a
+ * directory holding only the claim marker, `"live"` when the marker names a
+ * process still running on this host, `"stale"` otherwise.
+ *
+ * @param {string} target
+ * @returns {"none"|"live"|"stale"}
+ */
+function staleClaimProblem(target) {
+  let entries;
+  try {
+    if (!fs.lstatSync(target).isDirectory()) return "none";
+    entries = fs.readdirSync(target);
+  } catch {
+    return "none";
+  }
+  if (entries.length !== 1 || entries[0] !== CLAIM_MARKER) return "none";
+  const claim = readJsonObject(path.join(target, CLAIM_MARKER));
+  const pid = claim?.pid;
+  if (typeof pid === "number" && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
+    try {
+      process.kill(pid, 0);
+      return "live";
+    } catch (error) {
+      // EPERM: the process exists but belongs to someone else.
+      if (/** @type {NodeJS.ErrnoException} */ (error).code === "EPERM") return "live";
+    }
+  }
+  return "stale";
 }
 
 /** A video id as yt-dlp's `%(id)s` writes it: no separator, no `..`. */
@@ -735,6 +896,19 @@ export async function relayoutSlice({
     writeStderr(`relayout: restored ${target} from the backup an interrupted run left`);
   }
 
+  // A run interrupted while it held the target's claim leaves a directory
+  // holding only the claim marker. Unless that run is still alive, the claim
+  // is stale: remove it and go on. Anything else in the target stays refused.
+  const stale = staleClaimProblem(target);
+  if (stale === "live") {
+    return refuse(`${target} is claimed by a relayout that is still running`);
+  }
+  if (stale === "stale") {
+    fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
+    fs.rmdirSync(target);
+    writeStderr(`relayout: removed a stale claim on ${target} an interrupted run left`);
+  }
+
   let state;
   try {
     state = JSON.parse(fs.readFileSync(watchStatePath(slice), "utf8"));
@@ -907,11 +1081,42 @@ export async function relayoutSlice({
   // Build the whole layout in a sibling staging directory and move it into
   // place only after the link check passes, so a failure never leaves a
   // partial target.
+  // Without --replace on POSIX, claim the target before staging: an exclusive
+  // mkdir (EEXIST when anything is there, an empty directory included), then a
+  // marker naming this run, so an interrupted run's claim is recognizable and
+  // recoverable at the next start. POSIX rename replaces an empty directory,
+  // so the install removes the marker and renames onto the claim; anything
+  // someone else writes into the claim makes that rename fail. Windows rename
+  // never replaces an existing directory, so there the rename is the claim.
+  const claim = !replace && process.platform !== "win32";
+  let claimed = false;
+  const releaseClaim = () => {
+    if (!claimed) return;
+    fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
+    try {
+      fs.rmdirSync(target);
+    } catch {
+      // Not empty: someone else's files now sit in the claim; leave them.
+    }
+  };
   let staging;
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (claim) {
+      fs.mkdirSync(target);
+      claimed = true;
+      fs.writeFileSync(
+        path.join(target, CLAIM_MARKER),
+        `${JSON.stringify({ pid: process.pid, claimedAt: new Date().toISOString() })}\n`,
+      );
+    }
     staging = fs.mkdtempSync(path.join(path.dirname(target), stagingPrefix));
   } catch (error) {
+    const code = /** @type {NodeJS.ErrnoException} */ (error).code;
+    if (claim && !claimed && code === "EEXIST") {
+      return refuse(`${target} appeared during the run; pass --replace to replace it`);
+    }
+    releaseClaim();
     return refuse(`cannot stage beside ${target}: ${/** @type {Error} */ (error).message}`);
   }
   const discard = (/** @type {string} */ dir) => fs.rmSync(dir, { recursive: true, force: true });
@@ -975,41 +1180,25 @@ export async function relayoutSlice({
     });
   } catch (error) {
     discard(staging);
+    releaseClaim();
     return refuse(`copy failed, target left untouched: ${/** @type {Error} */ (error).message}`);
   }
   if (unresolved.length > 0) {
     discard(staging);
+    releaseClaim();
     return { exitCode: 1, copied: 0, rewrites, unresolved };
   }
 
   // The backup keeps a fixed name so a run killed between the two renames is
   // recovered at the next start (see the backup check above).
-  // Without --replace the install never replaces anything that appeared after
-  // the early check (another run, a person), even an empty directory. POSIX
-  // rename replaces an empty directory, so the run first claims the target
-  // with an exclusive mkdir (EEXIST when anything is there) and renames onto
-  // its own empty claim; anything written into the claim meanwhile makes the
-  // rename fail with ENOTEMPTY. Windows rename never replaces an existing
-  // directory, so there the rename alone is the claim.
   const hadTarget = replace && fs.existsSync(target);
-  const claim = !replace && process.platform !== "win32";
-  let claimed = false;
   try {
     if (hadTarget) fs.renameSync(target, backup);
-    if (claim) {
-      fs.mkdirSync(target);
-      claimed = true;
-    }
+    if (claimed) fs.rmSync(path.join(target, CLAIM_MARKER));
     fs.renameSync(staging, target);
   } catch (error) {
     if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) fs.renameSync(backup, target);
-    if (claimed) {
-      try {
-        fs.rmdirSync(target);
-      } catch {
-        // Not empty: someone else's files now sit in the claim; leave them.
-      }
-    }
+    releaseClaim();
     discard(staging);
     if (!replace && fs.existsSync(target)) {
       return refuse(`${target} appeared during the run; pass --replace to replace it`);
