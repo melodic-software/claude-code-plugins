@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.9] - 2026-10-11
+
+### Fixed
+
+- Drop the Pyxel verification record's links into the `kitao/pyxel` GitHub repository, which no longer resolves, and watch for new releases on the PyPI project page instead.
+
 ## [0.6.8] - 2026-10-07
 
 ### Changed

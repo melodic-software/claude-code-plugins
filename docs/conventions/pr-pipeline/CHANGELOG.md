@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## 1.5.0 - 2026-10-11
+
+Composite activities, three new predicates and the `unblock` stage. `version` stays 1: no config
+in this repository or the sandbox used the removed `respond` stage or the retired lanes.
+
+- The `respond` stage is now `unblock`. `lane-rules.json` gains `pr-unblock` (stage `unblock`,
+  forbidden effect `merge`) and drops `pr-address-feedback`, `pr-fix-ci` and `pr-update`, so a
+  config that still names one of those lanes fails `lane-stage`.
+- An activity is a leaf or a composite. A composite lists `children:` slots and may set
+  `applies-when`; it declares no effect. The reader expands it into its leaves, applies lane rules
+  to each, ANDs `enabled` down the path, requires every predicate on the path to match, and
+  rejects an undefined child, a non-sibling `needs:`, a cycle, a composite inside a composite, and
+  a leaf that appears twice in a lane. `resolveGrant` grants a leaf only.
+- A leaf may set `prepare: merge-base` (a writing skill only); resolve-config outputs it.
+- New predicates: `mergeable` (`conflicting`, `clean`; read only from `GET /pulls/{n}` at the new
+  `head-sha` input, re-read while unknown, then `prerequisite-missing`), `labels-absent` (a listed
+  label on the PR skips with `awaiting-human`) and `draft`.
+- New trust-root `resolve-config/activity-rules.json`: per-leaf `never` text and optional
+  `forbidden-effects`. A leaf with no row is valid.
+- The example config replaces the three `respond` lanes with `pr-unblock` and its
+  `resolve-conflicts` and `report-escalation` leaves.
+
 ## 1.4.2 - 2026-10-10
 
 Docs only. `version` stays 1.

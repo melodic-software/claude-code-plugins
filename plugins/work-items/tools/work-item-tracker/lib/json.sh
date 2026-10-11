@@ -7,6 +7,22 @@ readonly _WIT_JSON_LOADED=1
 readonly WIT_SCHEMA_VERSION="1.0"
 export WIT_SCHEMA_VERSION
 
+# jq definition every adapter normalizer prepends to emit `created_at` (CONTRACT.md "JSON
+# output contract"): an ISO 8601 timestamp with a `Z` or numeric offset and optional
+# fractional seconds becomes UTC `YYYY-MM-DDTHH:MM:SSZ`, which sorts as text. Anything
+# else, null included, becomes null.
+# shellcheck disable=SC2016,SC2034  # jq program text; read by the adapters that source this file
+readonly WIT_JQ_DEF_UTC_TS='def wit_utc_ts:
+  if type != "string" then null
+  else (try (capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:?[0-9]{2})$")
+      | (.z | sub(":"; "")) as $z
+      | ((.d + "Z") | fromdateiso8601)
+        - (if $z == "Z" then 0
+           else (if $z[0:1] == "-" then -1 else 1 end)
+             * (($z[1:3] | tonumber) * 3600 + ($z[3:5] | tonumber) * 60) end)
+      | todateiso8601) catch null) // null
+  end;'
+
 # wit_strip_cr — stdin filter removing carriage returns (Windows/Git Bash can
 # contaminate captured command output; stdout must be CR-free).
 wit_strip_cr() {
