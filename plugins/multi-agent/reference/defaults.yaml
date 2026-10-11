@@ -41,19 +41,22 @@ roles:
     pointer: https://code.claude.com/docs/en/workflows#cost
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
+    pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     as_of: 2026-10-10
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a new model row on the cost page, or a role proposed for haiku (see routing-rubric.md)
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a new model row on the cost page, the Agent tool's per-spawn effort parameter changes, or a role proposed for haiku (see routing-rubric.md)
   verifier:
     model: inherit
     effort: high
     pointer: https://code.claude.com/docs/en/workflows#cost
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
-    as_of: 2026-10-02
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section
+    pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
+    as_of: 2026-10-10
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or the Agent tool's per-spawn effort parameter changes
   retrieval:
     model: sonnet
     effort: medium
     pointer: https://code.claude.com/docs/en/workflows#cost
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
+    pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
     as_of: 2026-10-10
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a model-config change to the sonnet alias, or a role proposed for haiku (see routing-rubric.md)
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a model-config change to the sonnet alias, the Agent tool's per-spawn effort parameter changes, or a role proposed for haiku (see routing-rubric.md)

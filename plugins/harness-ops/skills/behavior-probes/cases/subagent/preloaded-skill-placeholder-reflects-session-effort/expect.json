@@ -1,0 +1,23 @@
+{
+  "claim": "Limitation: ${CLAUDE_EFFORT} in a skill preloaded into a subagent expands to the session effort (effortLevel medium), not the subagent's own effort: low pin.",
+  "purpose": "A fail that shows effort=low is good news: the placeholder now tracks the subagent's effort. Update plugins/discovery/reference/parent-contract.md, which relies on this limitation, then flip this case.",
+  "tags": [
+    "effort",
+    "subagent",
+    "Agent tool",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "effortLevel"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "target": {
+    "tool": "Bash",
+    "input_match": "echo effort=(low|medium|high|xhigh|max)\\b",
+    "in_subagent": true,
+    "example": {
+      "command": "echo effort=medium"
+    }
+  },
+  "outcome": "ran",
+  "match": "effort=medium"
+}
