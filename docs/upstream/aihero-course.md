@@ -449,11 +449,13 @@ the glossary carries the vocabulary, this table carries why.
 | highway / stale highway | **REJECT** (as canonical) | Metaphor duplicating "navigation pointer"; survives only as the quoted mnemonic in #2987's C7 note |
 | grill-execute-clear (loop name) | **REJECT** (mapping recorded) | Lane 5 Q36: a second name for a loop the house workflow taxonomy already owns |
 | design tree | **EQUIVALENT** (no action) | Lane 5: equivalent to our "decision tree"; recorded, nothing to adopt |
+| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/conventions/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary defines it as agent sessions "started by triggers ... rather than by a human" ([entry](https://www.aihero.dev/ai-coding-dictionary/software-factory)); a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
+| dark factory | **RECORDED** (definition only) | His [entry](https://www.aihero.dev/ai-coding-dictionary/dark-factory): a software factory that "writes the code and no human reads it", with automated checks and automated review as the only gates. Recorded so the term can be matched when upstream material uses it; no project term adopted. As-of 2026-10-10 |
 
 **Cross-skill invocation phrasing (the routed lane 7 candidate):** ADOPT (adapted). Upstream
 standardized cross-skill dependencies on explicit "Call the Skill tool with \"name\"" phrasing
-(`.agents/invocation.md`, PRs #878/#880), on his measured claim — his repo's measurement, named
-provenance, bucket ii — that it outperforms bare `/name` prose. This fleet practices the
+(`.agents/invocation.md`, PRs #878/#880), on his asserted, unmeasured claim (`.agents/invocation.md`
+gives no data; named provenance, bucket ii) that it outperforms bare `/name` prose. This fleet practices the
 equivalent in part ("invoke `/plugin:skill` via the Skill tool" appears across the verification
 and implementation families) but the practice was mixed — several operative chains hand off
 bare — and codified nowhere; the doctrine now lives in
