@@ -208,6 +208,9 @@ commit 'sensitive files'
 tg checkout -q -b pr
 put a.txt 'pr\n'
 put .claude/settings.json '{"pr": true}\n'
+ODD=$'.claude/odd "name"\\\twith\ttabs\nand a newline.md'
+mkdir -p "$R/.claude"
+printf 'odd\n' >"$R/$ODD"
 commit 'pr side'
 side main a.txt 'main\n'
 put CLAUDE.md 'main rules\n'
@@ -225,6 +228,8 @@ check 'sensitive-reset: passes' 0/ "$RC/$(reason)"
 check 'sensitive-reset: CLAUDE.md is the base edit again' "100644 $(printf 'main rules\n' | blob) 0" "$(entry CLAUDE.md)"
 check 'sensitive-reset: .claude keeps the PR edit' "100644 $(printf '{"pr": true}\n' | blob) 0" "$(entry .claude/settings.json)"
 check 'sensitive-reset: a model-added sensitive path is dropped' '' "$(entry .mcp.json)"
+check 'sensitive-reset: a path with quotes, tabs and a newline is re-applied' "100644 $(printf 'odd\n' | blob) 0" "$(entry "$ODD")"
+check 'sensitive-reset: no other .claude entry appears' 2 "$(tg ls-files -z -- .claude | tr -cd '\0' | wc -c | tr -d ' ')"
 check 'sensitive-reset: other staged paths are kept' "100644 $(printf 'resolved\n' | blob) 0" "$(entry a.txt)"
 
 echo '# git-config-rewrite'

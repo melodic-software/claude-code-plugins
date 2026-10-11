@@ -74,16 +74,27 @@ case $(g rev-parse --show-object-format) in
   *) die 'unknown object format' ;;
 esac
 
+# --index-info must be update-index's last option, so it reads lines, not
+# NUL-terminated records: every path goes in C-quoted.
+cquote() {
+  local q=${1//\\/\\\\}
+  q=${q//\"/\\\"}
+  q=${q//$'\n'/\\n}
+  q=${q//$'\t'/\\t}
+  q=${q//$'\r'/\\r}
+  printf '"%s"' "$q"
+}
 # Mode 0 removes a path at every stage; the snapshot lines re-add the entries.
 g ls-files -s -z >"$tmp/index"
 while IFS= read -r -d '' record; do
   path=${record#*$'\t'}
-  if [[ $path =~ $SENSITIVE_RE ]]; then printf '0 %s\t%s\0' "$null_oid" "$path"; fi
+  if [[ $path =~ $SENSITIVE_RE ]]; then printf '0 %s\t%s\n' "$null_oid" "$(cquote "$path")"; fi
 done <"$tmp/index" >"$tmp/repair"
 while IFS= read -r -d '' record; do
-  if [[ ${record#*$'\t'} =~ $SENSITIVE_RE ]]; then printf '%s\0' "$record"; fi
+  path=${record#*$'\t'}
+  if [[ $path =~ $SENSITIVE_RE ]]; then printf '%s\t%s\n' "${record%%$'\t'*}" "$(cquote "$path")"; fi
 done <"$out/index-snapshot" >>"$tmp/repair"
-g update-index -z --index-info <"$tmp/repair"
+g update-index --index-info <"$tmp/repair"
 
 reason() {
   printf 'escalation-reason=%s\n' "$1"
