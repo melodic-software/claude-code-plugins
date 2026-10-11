@@ -19,9 +19,11 @@ A file the caller or the user writes, one entry per item:
   `acceptance` bind. The brief carries it in place of the Design excerpt (Dispatch cadence item 11)
   inside the untrusted-data fence below, and says `Design: none` when it is absent.
 - `branch` and `model` (optional): the item's branch name and its routing row's `Model` value.
+  Without `branch`, the name is `item/<slug>`, where `<slug>` is the id lowercased with every
+  character outside `a-z 0-9` replaced by `-`; two entries that derive one name are a STOP.
 
-An entry with no `targets` or no `acceptance` is not dispatchable: STOP and report it, never infer
-either.
+An entry with no `targets` or no `acceptance` is not dispatchable, and neither is inferred: that
+entry is returned as `stopped` with the reason, and the rest of the list runs.
 
 ### Who may set the fence
 
@@ -34,9 +36,8 @@ approval; an unattended run holds such a list and reports it. An `acceptance` co
 when it is one of the repository's own test, lint or build commands; hold any other entry and
 report it.
 
-`branch` and `<base>` are written into git commands, so each must pass
-`git check-ref-format --branch <value>` and must not start with `-` before any use. STOP and report a
-value that fails.
+Every `branch`, given or derived, passes the ref check SKILL.md states under `--base` before any
+use; an entry whose branch fails it is returned as `stopped`.
 
 ### Item text in a brief
 
@@ -94,8 +95,10 @@ default, or an assigned worktree under commit authority `orchestrator`. After ea
 re-read readiness for the items still waiting and dispatch the next ready set.
 
 An item that depends on one dispatched in this run waits until that item lands on `<base>`.
-Landing belongs to the caller. In a direct run, each accepted item goes through
-`/implementation:implement` Step 5 (the review and verification hand-off before its PR). A runner
+Landing belongs to the caller. In a direct run on the default base, each accepted item goes through
+`/implementation:implement` Step 5 (the review and verification hand-off before its PR). With a
+non-default `<base>` no PR is opened, because that route targets the default branch: the run
+returns the accepted branches for the caller to land on `<base>`. A runner
 that calls this skill owns that step instead, for example by merging each accepted branch into its
 integration branch and closing the item. When no waiting item is ready, the run ends and returns
 the held items with what blocks each one. The caller lands what it can, removes the landed entries,
