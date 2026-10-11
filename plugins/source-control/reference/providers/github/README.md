@@ -11,8 +11,8 @@ full step around it. A spoke whose steps need more than a table row has a provid
 name under a directory named for its skill: [`pull-request/`](pull-request/) holds the GitHub
 commands, scripts and `gh` facts behind the pull-request skill's `create.md`, `ready-for-review.md`,
 `monitor.md`, `readiness.md` and `merge.md`, and each spoke links its steps there. The worktree
-skill's spokes need only the rows below. The babysit-prs skill's `loop.md` and `safety.md` still
-carry their full GitHub procedures.
+skill's spokes need only the rows below. The babysit-prs and babysit-loop skills' spokes link
+their commands in [`babysit-prs/`](babysit-prs/) and [`babysit-loop/`](babysit-loop/).
 
 A pull request is GitHub's change request; this file uses its terms.
 
