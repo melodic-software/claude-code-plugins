@@ -593,9 +593,9 @@ fi
 [[ -n "$APPLIED_LINES" ]] && APPLIED_LINES+=$'\n'
 [[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES+=$'\n'
 
-# Compose ONE stdout document. We emit exactly one JSON object, so the
+# Compose ONE stdout document: we emit exactly one JSON object, so the
 # agent-channel context and the user-channel message are built here and
-# emitted together; printing twice risks losing half the disclosure.
+# emitted together rather than printed twice.
 # Pointer: for how stdout is parsed, fetch
 # https://code.claude.com/docs/en/hooks#exit-code-0 live. As of: 2026-10-11.
 # Recheck trigger: that section changes how a multi-object stdout is parsed.
