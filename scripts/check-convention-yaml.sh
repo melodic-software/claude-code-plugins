@@ -16,10 +16,12 @@
 # nobody can trust. Only files directly under docs/conventions/ are read; YAML
 # in a convention folder (examples, fixtures) is not a team layer.
 #
-# Before the schema check each file goes through lib/yaml-subset.awk, the parser
-# the plugins read these files with at runtime. check-jsonschema accepts full
-# YAML (anchors, tags, block scalars); the runtime parser rejects them and falls
-# back to defaults, so a parse failure is a finding.
+# Before the schema check each file goes through lib/yaml-subset.awk, the
+# shared YAML-subset parser most plugins read these files with at runtime.
+# check-jsonschema accepts full YAML (anchors, tags, block scalars); that parser
+# rejects them and the plugin falls back to defaults, so a parse failure is a
+# finding. A plugin with its own reader (code-metrics reads its file with
+# yaml_subset.py, which is stricter) is not covered by this check.
 #
 # The validator is check-jsonschema, the tool the repository's other schema
 # steps run. CHECK_JSONSCHEMA_BIN overrides the command (a path or a name on
