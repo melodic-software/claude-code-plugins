@@ -203,9 +203,17 @@ out-of-workspace write that prompts unless the worktree root is registered as a 
 via `permissions.additionalDirectories`.
 
 The fleet convention is a dedicated worktree root **sibling to the repo**, not the OS temp dir: a
-`.worktrees/`-style directory (`source-control:worktree` creates worktrees under Claude Code's
-default sibling layout; `babysit-prs` defaults its `babysit_worktree_root` to the `worktrees`
-subdirectory of the plugin data directory). The exact root is operator-configurable and not yet a
+`.worktrees/`-style directory (`source-control:worktree` places worktrees under its configured external root rather than Claude
+Code's default worktree location; `babysit-prs` defaults its `babysit_worktree_root` to the
+`worktrees` subdirectory of the plugin data directory).
+
+- **Pointer**: when comparing the fleet root with Claude Code's own placement, fetch
+  [worktrees § Start Claude in a worktree](https://code.claude.com/docs/en/worktrees#start-claude-in-a-worktree)
+  and [§ Replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where worktrees are
+  created by default, or a release note names worktree placement.
+
+The exact root is operator-configurable and not yet a
 single documented constant across the fleet (the interim loop stopgap trusts `~/.claude-loop-worktrees`),
 so the preflight checks **coverage of whatever root the lane is configured to use**. It does not
 hardcode a path. Register that root once, operator-side:
