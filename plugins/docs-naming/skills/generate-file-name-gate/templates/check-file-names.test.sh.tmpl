@@ -128,7 +128,7 @@ assert_eq "each newline-bearing finding stays one line" "3" "$(grep -c '' <<<"${
 # passes proves the exemption carried it rather than the rule accepting it.
 
 EXEMPT_BASENAMES=(@@EXEMPT_BASENAMES_ARRAY@@)
-EXEMPT_EXTENSIONS=(@@EXEMPT_EXTENSIONS_ARRAY@@)
+EXEMPT_EXTENSIONS=(@@EXEMPT_EXT_SEEDS_ARRAY@@)
 EXEMPT_PATH_SEEDS=(@@EXEMPT_PATH_SEEDS_ARRAY@@)
 
 for name in ${EXEMPT_BASENAMES+"${EXEMPT_BASENAMES[@]}"}; do
