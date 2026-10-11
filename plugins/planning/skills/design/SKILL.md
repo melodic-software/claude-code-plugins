@@ -62,6 +62,7 @@ Tier B (required): the type sketch, inline or as a link to type-inventory.md.
 These hold after a compaction re-attach. Later sections say how to carry them out.
 
 - **Collaborative always.** Never autonomously decide design. Ask in frontier rounds (Key behaviors).
+- **Abstract is never the agent's pick.** A variation-point verdict of abstract comes only from the user: interactively ask, recommending contain; unattended, apply contain and record the question as a human decision. Full rule: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md) "Autonomy".
 - **Every recommendation carries a `Basis:` line**: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented; one research cannot settle is withheld, recorded as a `deferred` thread whose research tag names the evidence that would settle it rather than presented as a recommendation.
 
 ## Action Router
@@ -114,6 +115,8 @@ Track resolution status: **resolved** (decision made), **directional** (directio
 For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: single- vs multi-tenant, isolation model, shared vs tenant-scoped data catalog.
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
+
+**Variation-point pass.** For `integration`, `module`, and `system` scopes, always run it; for `library` and `data`, run it when the design touches an external system or a domain category. List every variation point (every external integration is one), ask the two questions (likelihood of a second variant, cost of change after shipping), and open one thread per point that resolves to a verdict: abstract now, contain now and abstract later (the default for anything external), or leave inline (internal one-offs only). Run the leak test on every abstraction and every contained boundary, and place seams where the solution's existing architecture style already puts them. Questions, verdicts, leak test, autonomy rule, and canonical sources: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md). An intent answer from `/planning:interview` is a settled prerequisite, never re-asked.
 
 For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
@@ -248,7 +251,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
 - **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if enabled). When the session tail is reached, suggest the `terminology` then `handoff` actions
-- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
+- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Extension points start from the Phase 2 variation-point pass, which runs unconditionally for `integration`, `module`, and `system`. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
 

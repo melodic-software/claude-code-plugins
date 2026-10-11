@@ -21,7 +21,7 @@ PLAN.md *file* shape; the plan *body* template scaled by task size is a differen
 <interfaces, type shapes, signatures, typed-artifact blocks, quoted>
 
 ### Variation verdicts
-<per axis the design considered: designed to vary (and through which seam) or held fixed, with the reason>
+<per variation point and axis the design considered: abstract now, contain now, or leave inline; the seam or containing module; the reason. Every external integration has a row>
 
 ### Conventions followed
 <repository paths of the existing patterns, rules, and ADRs this design follows>
