@@ -32,6 +32,7 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
@@ -83,6 +84,7 @@ const SOURCE_METADATA = new Set([
 const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 
 const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
+const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$\s]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
@@ -401,6 +403,53 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
 }
 
 /**
+ * What the frames dir lacks for a complete `frames/all/`: `frame-times.json`
+ * (an object keyed by frame file), at least one frame image, and every frame
+ * the sidecar lists. Empty when nothing is missing.
+ *
+ * @param {string|undefined} framesDir
+ * @returns {string[]}
+ */
+function missingFrames(framesDir) {
+  if (!framesDir || !fs.existsSync(framesDir)) {
+    return [`the frames (${framesDir ?? "no tempSession.framesDir"})`];
+  }
+  const names = new Set(fs.readdirSync(framesDir));
+  const missing = [];
+  /** @type {unknown} */
+  let times = null;
+  try {
+    times = JSON.parse(fs.readFileSync(path.join(framesDir, "frame-times.json"), "utf8"));
+  } catch {
+    missing.push(`a readable frame-times.json (${framesDir})`);
+  }
+  if (![...names].some((name) => FRAME_IMAGE.test(name))) {
+    missing.push(`any frame image (${framesDir})`);
+  }
+  if (times && typeof times === "object") {
+    const listed = Object.keys(times).filter((name) => !names.has(name));
+    if (listed.length > 0) missing.push(`the frames frame-times.json lists: ${listed.join(", ")}`);
+  }
+  return missing;
+}
+
+/**
+ * posix paths, relative to `dir`, of every symlink under it.
+ *
+ * @param {string} dir
+ * @param {string} [prefix]
+ * @returns {string[]}
+ */
+function findSymlinks(dir, prefix = "") {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isSymbolicLink()) return [rel];
+    return entry.isDirectory() ? findSymlinks(path.join(dir, entry.name), rel) : [];
+  });
+}
+
+/**
  * Real path of `p`, resolving symlinks through its nearest existing ancestor
  * when `p` itself does not exist yet.
  *
@@ -462,16 +511,35 @@ export async function relayoutSlice({
     return { exitCode: 1, copied: 0, rewrites: 0, unresolved: [] };
   };
 
-  // A target that is, holds, or sits inside the slice would copy the slice
-  // into itself, and `--replace` would move the slice away and delete it.
+  // Every path this run creates, renames or deletes: the target, its backup
+  // and its staging dirs (`.<name>.relayout-*` beside the target). One that
+  // is, holds, or sits inside the slice would copy the slice into itself or
+  // move it away and delete it. Real paths, so a symlink cannot hide overlap.
+  const backup = `${target}.relayout-backup`;
   const realSlice = realPathOf(slice);
-  const realTarget = realPathOf(target);
-  if (isSameOrInside(realTarget, realSlice) || isSameOrInside(realSlice, realTarget)) {
-    return refuse(`target ${target} overlaps the slice ${slice}; pick a target outside it`);
+  const stagingPrefix = `.${path.basename(target)}.relayout-`;
+  const overlapsSlice = (/** @type {string} */ p) => {
+    const real = realPathOf(p);
+    return isSameOrInside(real, realSlice) || isSameOrInside(realSlice, real);
+  };
+  const sliceInStaging = path
+    .relative(realPathOf(path.dirname(target)), realSlice)
+    .split(path.sep)[0]
+    .startsWith(stagingPrefix);
+  for (const written of [target, backup]) {
+    if (overlapsSlice(written)) {
+      return refuse(`${written} overlaps the slice ${slice}; pick a target outside it`);
+    }
+  }
+  if (sliceInStaging) {
+    return refuse(`the slice ${slice} sits in a relayout staging dir of ${target}`);
+  }
+  const symlinks = findSymlinks(slice);
+  if (symlinks.length > 0) {
+    return refuse(`the slice holds symlinks, which a copy would follow: ${symlinks.join(", ")}`);
   }
 
   // An interrupted `--replace` swap leaves the previous target at this name.
-  const backup = `${target}.relayout-backup`;
   if (fs.existsSync(backup)) {
     if (fs.existsSync(target)) {
       return refuse(
@@ -509,6 +577,22 @@ export async function relayoutSlice({
 
   // `--no-media` takes nothing from the temp session, even when it still exists.
   const temp = resolveTempSession(noMedia ? {} : (state.tempSession ?? {}));
+  // watch.json names the temp dirs, and the watch only ever makes them in the
+  // OS temp dir; anything else (a hand-edited path, the slice, the target) is
+  // not a temp session to read from.
+  const realTmp = fs.realpathSync.native(os.tmpdir());
+  for (const dir of [temp.workDir, temp.framesDir]) {
+    if (!dir) continue;
+    if (!isSameOrInside(realPathOf(dir), realTmp) || realPathOf(dir) === realTmp) {
+      return refuse(`temp session dir ${dir} is not inside the OS temp dir`);
+    }
+    if (
+      overlapsSlice(dir) ||
+      [target, backup].some((p) => isSameOrInside(realPathOf(p), realPathOf(dir)))
+    ) {
+      return refuse(`temp session dir ${dir} overlaps the slice or the target`);
+    }
+  }
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];
   // The watch does not record which work file is the primary entry's, so only
   // a work dir holding exactly one video is unambiguous (an X post with
@@ -531,14 +615,17 @@ export async function relayoutSlice({
   };
   if (!noMedia) {
     // A partly removed temp session would yield a layout silently missing a part.
-    const frameNames = temp.framesDir ? listFiles(temp.framesDir) : [];
     const captioned = Boolean(state.phases?.acquire?.metrics?.captionRung);
     const missing = [
       ...(media.videoPath ? [] : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
+      ...(media.videoPath && fs.statSync(media.videoPath).size === 0
+        ? [`a non-empty video (${path.basename(media.videoPath)} is empty)`]
+        : []),
       ...(media.videoPath && !media.metadataPath ? [`the info JSON (${mediaId}.info.json)`] : []),
-      ...(frameNames.length > 0
-        ? []
-        : [`the frames (${temp.framesDir ?? "no tempSession.framesDir"})`]),
+      ...missingFrames(temp.framesDir),
+      ...[temp.workDir, temp.framesDir]
+        .flatMap((dir) => (dir ? findSymlinks(dir).map((link) => path.join(dir, link)) : []))
+        .map((link) => `regular files in place of symlinks (${link})`),
       ...(captioned && media.captionPaths.length === 0 ? ["the caption tracks"] : []),
     ];
     if (missing.length > 0) {
@@ -599,10 +686,13 @@ export async function relayoutSlice({
   // Build the whole layout in a sibling staging directory and move it into
   // place only after the link check passes, so a failure never leaves a
   // partial target.
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  const staging = fs.mkdtempSync(
-    path.join(path.dirname(target), `.${path.basename(target)}.relayout-`),
-  );
+  let staging;
+  try {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    staging = fs.mkdtempSync(path.join(path.dirname(target), stagingPrefix));
+  } catch (error) {
+    return refuse(`cannot stage beside ${target}: ${/** @type {Error} */ (error).message}`);
+  }
   const discard = (/** @type {string} */ dir) => fs.rmSync(dir, { recursive: true, force: true });
   let rewrites = 0;
   let copied = 0;

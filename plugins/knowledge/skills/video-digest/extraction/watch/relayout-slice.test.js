@@ -65,7 +65,7 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
     writeTree(framesDir, {
       "scene_0001.png": "png",
       "anchor_00012000_0001.png": "png",
-      "frame-times.json": "{}",
+      "frame-times.json": JSON.stringify({ "scene_0001.png": { timestampSec: 1 } }),
     });
   } else {
     fs.rmSync(workDir, { recursive: true, force: true });
@@ -399,6 +399,125 @@ describe("relayoutSlice", () => {
   it("refuses a temp session whose info JSON is gone though the video survives", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     fs.rmSync(path.join(workDir, `${VIDEO_ID}.info.json`));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it.each([
+    [
+      "is the backup path",
+      (/** @type {string} */ parent) => path.join(parent, "out.relayout-backup"),
+    ],
+    [
+      "sits inside the backup path",
+      (/** @type {string} */ parent) => path.join(parent, "out.relayout-backup", "slice"),
+    ],
+    [
+      "sits inside a staging dir",
+      (/** @type {string} */ parent) => path.join(parent, ".out.relayout-abc123", "slice"),
+    ],
+  ])("refuses when the slice %s of the target", async (_label, toSlice) => {
+    const { sliceDir: original } = makeFixture();
+    const parent = makeDir("relayout-overlap-");
+    const sliceDir = toSlice(parent);
+    fs.mkdirSync(path.dirname(sliceDir), { recursive: true });
+    fs.renameSync(original, sliceDir);
+    const before = fs.readdirSync(sliceDir).sort();
+
+    const result = await relayoutSlice({
+      sliceDir,
+      targetDir: path.join(parent, "out"),
+      replace: true,
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(sliceDir).sort()).toEqual(before);
+    expect(fs.existsSync(path.join(parent, "out"))).toBe(false);
+  });
+
+  it("refuses a slice holding a symlink, which a copy would follow", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const outside = path.join(makeDir("relayout-secret-"), "secret.md");
+    fs.writeFileSync(outside, "secret\n");
+    fs.symlinkSync(outside, path.join(sliceDir, "research", "leak.md"));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it.each([
+    ["outside the OS temp dir", () => path.parse(os.tmpdir()).root],
+    ["the slice itself", (/** @type {string} */ slice) => slice],
+  ])("refuses a recorded temp dir %s", async (_label, toWorkDir) => {
+    const { sliceDir, targetDir } = makeFixture();
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const state = JSON.parse(read(sliceDir, "run-state/watch.json"));
+    state.tempSession.workDir = toWorkDir(sliceDir);
+    fs.writeFileSync(statePath, JSON.stringify(state));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it.each([
+    [
+      "frame-times.json is gone",
+      (/** @type {string} */ dir) => fs.rmSync(path.join(dir, "frame-times.json")),
+    ],
+    [
+      "a frame frame-times.json lists is gone",
+      (/** @type {string} */ dir) => fs.rmSync(path.join(dir, "scene_0001.png")),
+    ],
+    [
+      "only the sidecar is left",
+      (/** @type {string} */ dir) => {
+        for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".png"))) {
+          fs.rmSync(path.join(dir, name));
+        }
+      },
+    ],
+  ])("refuses a temp session where %s", async (_label, damage) => {
+    const { sliceDir, targetDir, framesDir } = makeFixture();
+    damage(framesDir);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses a temp session holding a symlink, which a copy would follow", async () => {
+    const { sliceDir, targetDir, framesDir } = makeFixture();
+    const outside = path.join(makeDir("relayout-secret-"), "secret.png");
+    fs.writeFileSync(outside, "secret");
+    fs.symlinkSync(outside, path.join(framesDir, "scene_0002.png"));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses, without throwing, a target whose parent is a file", async () => {
+    const { sliceDir } = makeFixture();
+    const blocker = path.join(makeDir("relayout-blocker-"), "file");
+    fs.writeFileSync(blocker, "");
+
+    const result = await relayoutSlice({ sliceDir, targetDir: path.join(blocker, "out") });
+
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("refuses an empty video file", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.mp4`), "");
 
     const result = await relayoutSlice({ sliceDir, targetDir });
 

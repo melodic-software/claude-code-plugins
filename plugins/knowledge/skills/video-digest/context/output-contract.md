@@ -73,11 +73,15 @@ The script runs on a closed slice, or on an unclosed one whose outcome checks pa
 itself and refuses when they fail). It refuses any slice whose temp media is gone unless
 `--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
 tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
-Without `--no-media` it also refuses a partly removed temp session, naming the missing video,
-info JSON, frames or caption tracks, and a temp session holding several videos (an X post with
-more than one), naming them, since the watch does not record which one is primary. It refuses a target that is the slice, contains it, or sits inside it,
-and an existing target unless `--replace` is passed, which replaces the target and keeps its
-`README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
+Without `--no-media` it also refuses a partly removed temp session, naming the missing piece: the
+video (or an empty one), the info JSON, `frame-times.json`, any frame image, a frame
+`frame-times.json` lists, or the caption tracks. It refuses a temp session holding several videos
+(an X post with more than one), naming them, since the watch does not record which one is
+primary; a recorded temp dir outside the OS temp dir or overlapping the slice or target; and a
+symlink in the slice or the temp session, since a copy would follow it. It refuses when the slice
+is, holds, or sits inside a path the run writes: the target, `<target>.relayout-backup`, or a
+`.<target-name>.relayout-*` staging dir beside the target. It refuses an existing target unless
+`--replace` is passed, which replaces the target and keeps its `README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
 new layout is in place. If a run is interrupted mid-swap, the next run restores the target from
 that backup when the target is missing (and says so), and refuses, naming the backup, when both
 exist; remove whichever one you do not want to keep.
