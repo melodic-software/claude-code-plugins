@@ -10,7 +10,7 @@ that shows it, at the consumer's binary, and stamped with that binary's version.
 | Rung | Mode | Precision | Requires | Recorded caveats |
 |---|---|---|---|---|
 | 1 | `sdk` | `exact` (integer tokens) | `@anthropic-ai/claude-agent-sdk` resolvable from `--sdk-dir` or the working directory | none |
-| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table with at least one of the two system-tool rows. The engine spawns the binary directly; a hand check from Git Bash must run `MSYS_NO_PATHCONV=1 claude -p "/context"`, because path conversion otherwise rewrites `/context` and the session answers in prose | rounded values; a system-tool row the table lacks is named in a caveat and left unmeasured; headless `/context` is not listed as a `-p`-capable command, so this rung depends on unsanctioned behavior (record below the table); its counts are not always a measured API count (record under "Session-kind boundary") |
+| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table with at least one of the two system-tool rows. The engine spawns the binary directly; a hand check from Git Bash must run `MSYS_NO_PATHCONV=1 claude -p "/context"`, because path conversion otherwise rewrites `/context` and the session answers in prose | rounded values; a system-tool row the table lacks is named in a caveat and left unmeasured; headless `/context` is not listed as a `-p`-capable command, so this rung depends on unsanctioned behavior (record below the table); its counts are not always a measured API count (record under "Session-kind boundary"); both relays as of 2026-10-11, recheck when a relayed record's trigger fires or its heading moves |
 | 3 | n/a | n/a | n/a | exit 3 with a `context-budget.error/1` record naming the remediation; **never a wrong number** |
 
 The `/context` output format carries no stability guarantee in either direction and has materially
@@ -54,9 +54,10 @@ Each row is our decision; what the upstream section says about it is read live a
 | A `/context` count is not assumed to be a measured API count | "Session-kind boundary" below |
 
 - **As of:** 2026-10-11.
-- **Recheck trigger:** a row's section changes what it says about that row's topic, or a release
+- **Recheck trigger:** a row's section changes what it says about that row's topic, a release
   note names deny rules, the `EndConversation` exception, deferred tool loading, the
-  `--disallowedTools` flag, or the Agent SDK control protocol.
+  `--disallowedTools` flag, or the Agent SDK control protocol, or the "Session-kind boundary"
+  record the last row relays changes its pointer or its heading moves.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine
@@ -122,7 +123,8 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
   labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
   never enters either attributed headless bucket, and deny rules treat it differently (the
-  bare-name row in "Mechanism claims and citations" carries the pointer). A deny can empty a
+  bare-name row in "Mechanism claims and citations" carries the pointer, relayed as of 2026-10-11;
+  recheck when that table's trigger fires or its heading moves). A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in
@@ -182,12 +184,17 @@ it. The spawned session's prompt is `/context`. We treat its count as not a gene
 not always a measured API count, and we do not assume every connector is present at the first
 turn.
 
-- **Pointer:** for deferral, [MCP § Scale with MCP tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
-  and [§ Configure tool search](https://code.claude.com/docs/en/mcp#configure-tool-search); for how
+- **Pointer:** for MCP tool deferral,
+  [MCP § Scale with MCP tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
+  and [§ Configure tool search](https://code.claude.com/docs/en/mcp#configure-tool-search). Those
+  sections cover MCP tools only; no docs section says what decides deferral of the built-in tools,
+  so for the `System tools (deferred)` bucket the basis is the observation under "Degradation
+  ladder", not a docs pointer. For how
   `/context` counts, the [changelog 2.1.261 entry](https://code.claude.com/docs/en/changelog#2-1-261)
   (the `/context` row in [commands § All commands](https://code.claude.com/docs/en/commands#all-commands)
   does not name the counting method); for late connectors, the same 2.1.261 entry.
 - **As of:** 2026-10-11.
-- **Recheck trigger:** the tool search sections change what decides deferral, a release note says
+- **Recheck trigger:** the tool search sections change what decides deferral, a docs page or
+  release note says what decides deferral of built-in tools, a release note says
   `/context` always calls the token-counting API, the `/context` row names its counting method, or
   a release note says a missed connector fetch is no longer retried.

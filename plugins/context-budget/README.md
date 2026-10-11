@@ -5,8 +5,9 @@ pinned binary, and record what every trim actually saved.
 
 Per-skill, per-agent, and per-MCP-tool attribution stays with the built-in `/context` command.
 This plugin covers what our measurements see `/context` report only as totals: the built-in tool
-pools, `System tools` and `System tools (deferred)`. It attributes
-them per tool by A/B differencing: a baseline headless session versus one session per candidate
+pools, `System tools` and `System tools (deferred)`. Together they are typically the largest
+single contributor to the fixed payload, which is why the plugin targets them. It attributes them
+per tool by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
 deferred-side deltas add, so a basket's deferred saving is the sum of its members, while
 prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix
@@ -91,10 +92,12 @@ reacts after the write rather than asking before it. That is a different control
 and this plugin does not register it.
 
 - **Pointer:** [hooks § ConfigChange](https://code.claude.com/docs/en/hooks#configchange) and
-  [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control).
+  [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control);
+  for what a PreToolUse matcher filters on,
+  [hooks § Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns).
 - **As of:** 2026-10-11.
 - **Recheck trigger:** those sections give `ConfigChange` an `ask` outcome or a visible message,
-  or the hooks page gives PreToolUse a matcher on target path.
+  or the Matcher patterns section gives PreToolUse a matcher on target path.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
@@ -135,8 +138,9 @@ stays unconditioned until upstream matching reaches those paths.
   not offered.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
-  as resting on a surface the docs do not list for `-p`; `skills/audit/reference/engine.md`
-  carries the record). When neither works, it emits a structured error with a remediation, never
+  as resting on a surface the docs do not list for `-p`; the record is under "Degradation ladder"
+  in `skills/audit/reference/engine.md`, relayed as of 2026-10-11; recheck this relay when that
+  heading moves or its record's recheck trigger fires). When neither works, it emits a structured error with a remediation, never
   a wrong number.
 
 ## Prerequisites

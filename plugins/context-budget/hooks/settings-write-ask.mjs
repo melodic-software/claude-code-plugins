@@ -5,7 +5,8 @@
 //
 // This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
 // modes decide what happens to its ask. README "Hook" holds the pointer record
-// for those limits. Probe (headless -p runs of this hook, Linux,
+// for those limits (relayed as of 2026-10-11; recheck this relay when that
+// heading moves or its record's trigger fires). Probe (headless -p runs of this hook, Linux,
 // Claude Code 2.1.263, 2026-09-06): the ask fires and blocks in a
 // headless run that skips permissions, under default, auto, and
 // bypassPermissions, surfacing as a tool error carrying the

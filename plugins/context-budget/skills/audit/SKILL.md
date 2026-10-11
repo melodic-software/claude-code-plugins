@@ -14,7 +14,8 @@ metadata:
 
 Per-skill, per-agent, and per-MCP-tool attribution stays with `/context`, which the person runs
 (the Boundary section below). This skill covers what our measurements see `/context` report only
-as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. It measures
+as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. Together they
+are typically the largest single contributor to the fixed startup payload. This skill measures
 that attribution on the consumer's own machine by A/B differencing: a baseline session versus one
 session per candidate tool with that tool denied by bare name. The two attributed buckets compose differently, so price a basket
 per bucket rather than as one number: deferred-side deltas add, and a basket's deferred saving is
@@ -134,7 +135,8 @@ live in [reference/native-skill-doctor.md](reference/native-skill-doctor.md).
 This skill measures **the local Claude Code CLI, in a headless session**. On cloud or web surfaces
 (where the container's binary and settings are not the operator's own), the numbers describe the
 container, not the operator's machine. Say so in the report. Interactive sessions can differ from
-headless ones (the deferral pointer is in `reference/engine.md` under "Session-kind boundary");
+headless ones (the deferral record is in `reference/engine.md` under "Session-kind boundary",
+relayed as of 2026-10-11; recheck this relay when that heading moves or its record's trigger fires);
 the stamp's `sessionKind: headless` is the honest boundary of the claim.
 
 ## Prerequisites
@@ -143,8 +145,10 @@ the stamp's `sessionKind: headless` is the honest boundary of the claim.
 - The Claude Code CLI (`claude` on PATH, or a `--binary` path the operator names).
 - `@anthropic-ai/claude-agent-sdk`. Required for exact mode only. Absent, the engine degrades to
   parsing headless `/context` output, display-rounded and resting on a surface the docs do not
-  list for `-p` (the `cli-parse` rung in [reference/engine.md](reference/engine.md) carries the
-  record; the run record carries both caveats). To enable exact mode, offer the operator this
+  list for `-p` (the `cli-parse` rung under "Degradation ladder" in
+  [reference/engine.md](reference/engine.md) carries the record, relayed as of 2026-10-11; recheck
+  this relay when that heading moves or its record's trigger fires; the run record carries both
+  caveats). To enable exact mode, offer the operator this
   one-time install into the plugin's own data directory (network access; their call):
 
   ```shell
@@ -169,8 +173,9 @@ The audit's artifacts live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/`, key
 one machine's many checkouts never share a ledger. Pass this resolved absolute path wherever
 `<data-dir>` appears below. Note near the ledger what an uninstall does to this directory and how
 to keep it, read live at
-[plugins CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
-(the dated record is in the plugin README "Data" section).
+[plugins CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+As of 2026-10-11. Recheck when that section changes when a plugin's data directory is deleted or
+how to keep it.
 
 ### 2. Take the baseline snapshot
 
@@ -182,7 +187,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot \
 Each measurement spawns a short-lived headless session against the pinned binary and records
 per-category tokens, the live tool list, per-agent tokens, the skill-listing signature, and the
 binary stamp. How `/context` counts those tokens is not always a measured API count; the dated
-record is in `reference/engine.md` under "Session-kind boundary." Exit 3 means measurement is
+record is in `reference/engine.md` under "Session-kind boundary", relayed as of 2026-10-11
+(recheck this relay when that heading moves or its record's trigger fires). Exit 3 means measurement is
 unavailable. The JSON record names the remediation; relay it and stop. Never substitute an estimate of your own.
 
 ### 3. Attribute the built-in tool pools
@@ -285,9 +291,11 @@ otherwise use the payload's share of the measured window.
 
 - **A scoped deny saves nothing.** We price only bare-name denies, and never treat a scoped rule
   as a saving; which denies remove a schema, and the tool they cannot remove, are read at the
-  pointer in [`reference/engine.md`](reference/engine.md) "Mechanism claims and citations".
+  pointer in [`reference/engine.md`](reference/engine.md) "Mechanism claims and citations"
+  (relayed as of 2026-10-11; recheck when that heading moves or the table's trigger fires).
 - **The deferred bucket is recurring request weight.** Do not present it as already-saved weight;
-  the deferral pointer is in the same engine.md table.
+  the deferral pointer is in the same engine.md table (relayed as of 2026-10-11; recheck when that
+  heading moves or the table's trigger fires).
 - **`System tools` deltas are valid only between runs with identical skill listings.** The engine
   enforces this via the listing signature; relay its verdict rather than overriding it.
 - **Zero is a finding.** A lever that measures zero here is reported as measuring zero here, at
@@ -319,7 +327,9 @@ Each of these produces a confidently wrong number unless the engine's guard is h
 Bare invocation is the audit. It changes no configuration. When a measured result suggests a
 trim, print the exact config the operator would apply and let them apply it, with the ledger
 loop verifying the result. For persistent denies, print a `permissions.deny` entry, never a
-`disallowedTools` settings key (the engine.md mechanism table carries the pointer).
+`disallowedTools` settings key (the engine.md "Mechanism claims and citations" table carries the
+pointer, relayed as of 2026-10-11; recheck this relay when that heading moves or the table's
+trigger fires).
 
 ### Fix path (`fix` in the arguments only)
 
@@ -341,7 +351,8 @@ Write posture splits by scope, and the split is not negotiable:
   decide what happens to its `ask`, including in `bypassPermissions` and headless runs. Before
   describing the protection, read those limits at the pointers in the "Hook" section of
   `${CLAUDE_PLUGIN_ROOT}/README.md` (`PermissionRequest` hooks, `disableAllHooks`, hook order
-  against the mode check, and `-p` denials) and say so.
+  against the mode check, and `-p` denials) and say so. This relay is as of 2026-10-11; recheck it
+  when that heading moves or its record's trigger fires.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
   human-confirmation guarantee: in auto mode the classifier, not a person, decides a write there.
