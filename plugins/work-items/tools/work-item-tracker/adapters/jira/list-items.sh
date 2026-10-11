@@ -7,14 +7,19 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: list-items [--state open|closed|all] [--repo <site>/<PROJECTKEY>]" "$@"
+wit_help_if_requested "usage: list-items [--state open|closed|all] [--repo <site>/<PROJECTKEY>] [--label <name>]" "$@"
 
-state="open" repo_override=""
+state="open" repo_override="" label=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --state)
     [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
     state="$2"
+    shift 2
+    ;;
+  --label)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
+    label="$2"
     shift 2
     ;;
   --repo)
@@ -73,7 +78,22 @@ all) status_clause="" ;;
 *) wit_usage_error "internal: unexpected --state '$state'" ;; # pre-validated above; defensive guard
 esac
 projects_clause="project in ($(jql_value_list "$projects_json"))"
-jql="$projects_clause$status_clause ORDER BY created ASC"
+# The label narrows the search itself, so the ceiling counts labeled issues only. It is
+# caller text inside a quoted JQL literal, where only `"`, `\` and line breaks are
+# special, so a label holding a quote or backslash is refused rather than escaped. A
+# Jira label cannot hold whitespace, so a label with any carries no issue: the exact
+# answer is an empty, complete listing, with no request made.
+label_clause=""
+if [[ -n "$label" ]]; then
+  [[ "$label" != *[\"\\]* ]] ||
+    wit_usage_error "--label '$label' holds a double quote or a backslash, which this adapter refuses in JQL"
+  if [[ "$label" =~ [[:space:]] ]]; then
+    jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: [], truncated: false}'
+    exit 0
+  fi
+  label_clause=" AND labels = \"$label\""
+fi
+jql="$projects_clause$status_clause$label_clause ORDER BY created ASC"
 
 limit="$(jq -r '.limits.list_items_max' "$WIT_JIRA_ADAPTER_DIR/capabilities.json")"
 fields_json="$(jq -cn --arg f "$WIT_JIRA_FIELDS" '$f | split(",")')"
