@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { validate } from "../scripts/lib/routing-validate.mjs";
 
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = join(PLUGIN, "../..");
@@ -15,43 +16,6 @@ const PLUGIN_SKILL_ID = /^\/([a-z0-9-]+):([a-z0-9-]+)$/;
 const repoSkillExists = (plugin, skill) => existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md"));
 /** A row for one of this marketplace's own plugin skills: a bare detect and a `/<plugin>:<skill>` id. */
 const isOwn = (r) => r.kind === "skill" && !r.detect.includes("@") && PLUGIN_SKILL_ID.test(r.id);
-
-/** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
- * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
-function validate(s, value, at = "$") {
-  const errors = [];
-  const fail = (msg) => errors.push(`${at}: ${msg}`);
-  const isObject = typeof value === "object" && value !== null && !Array.isArray(value);
-  if ("const" in s && value !== s.const) fail(`must be ${s.const}`);
-  if (s.enum && !s.enum.includes(value)) fail(`must be one of ${s.enum.join(", ")}`);
-  if (s.type === "object" && !isObject) return [`${at}: must be an object`];
-  if (s.type === "array" && !Array.isArray(value)) return [`${at}: must be an array`];
-  if (s.type === "string" && typeof value !== "string") return [`${at}: must be a string`];
-  if (isObject) {
-    for (const k of s.required ?? []) if (!(k in value)) fail(`missing ${k}`);
-    for (const [k, v] of Object.entries(value)) {
-      if (s.properties?.[k]) errors.push(...validate(s.properties[k], v, `${at}.${k}`));
-      else if (s.additionalProperties === false) fail(`unknown key ${k}`);
-    }
-  }
-  if (Array.isArray(value)) {
-    if (value.length < (s.minItems ?? 0)) fail(`needs at least ${s.minItems} items`);
-    if (s.uniqueItems && new Set(value).size !== value.length) fail("items must be unique");
-    if (s.items) value.forEach((v, i) => errors.push(...validate(s.items, v, `${at}[${i}]`)));
-  }
-  if (typeof value === "string") {
-    if (value.length < (s.minLength ?? 0)) fail("too short");
-    if (s.pattern && !new RegExp(s.pattern).test(value)) fail(`must match ${s.pattern}`);
-  }
-  if (s.type === "integer" && (!Number.isInteger(value) || value < (s.minimum ?? -Infinity))) fail(`must be an integer >= ${s.minimum}`);
-  for (const sub of s.allOf ?? []) errors.push(...validate(sub, value, at));
-  if (s.if) {
-    const branch = validate(s.if, value, at).length === 0 ? s.then : s.else;
-    if (branch) errors.push(...validate(branch, value, at));
-  }
-  if (s.not && validate(s.not, value, at).length === 0) fail("must not match a forbidden shape");
-  return errors;
-}
 
 /** Schema errors for routing.json holding one row: the first row's shared fields plus `fields`. */
 function rowErrors(fields) {
@@ -180,4 +144,10 @@ test("Mac-only rows are deferred and account-bound rows are never unconfirmed", 
     if (macOnly) assert.equal(r.status, "deferred", `${r.concern}/${r.id}`);
     if (r.account !== "none") assert.notEqual(r.status, "unconfirmed", `${r.concern}/${r.id}`);
   }
+});
+
+test("a team row may set every field a bundled row may, each by reference to the row schema", () => {
+  const team = read("reference/team.schema.json").properties.routing.properties.rows.items.properties;
+  assert.deepEqual(Object.keys(team).sort(), Object.keys(schema.properties.rows.items.properties).sort());
+  for (const [k, v] of Object.entries(team)) assert.equal(v.$ref, `routing.schema.json#/properties/rows/items/properties/${k}`, k);
 });
