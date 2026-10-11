@@ -44,6 +44,14 @@ test("routing.json matches its schema", () => {
   assert.deepEqual(validate(schema, routing), []);
 });
 
+test("css-authoring routes first to write-css, an account-free skill on every platform", () => {
+  const rows = routing.rows.filter((r) => r.concern === "css-authoring");
+  assert.deepEqual(rows.map(({ rank, id, kind, detect, account, status }) => ({ rank, id, kind, detect, account, status })), [
+    { rank: 1, id: "/user-interface:write-css", kind: "skill", detect: "user-interface", account: "none", status: "confirmed" },
+  ]);
+  assert.deepEqual(rows[0].platforms, ["windows", "macos", "linux"]);
+});
+
 test("the schema check rejects a bad row", () => {
   const bad = structuredClone(routing);
   Object.assign(bad.rows[0], { rank: 0, account: "free", extra: true });
