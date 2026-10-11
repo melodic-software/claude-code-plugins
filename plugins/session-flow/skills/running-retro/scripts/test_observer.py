@@ -23,6 +23,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _SPEC = importlib.util.spec_from_file_location(
     "observer", str(Path(__file__).with_name("observer.py"))
@@ -1276,9 +1277,13 @@ class LedgerAndRetention(unittest.TestCase):
                 ob = make_observer(tmp, analysis=True, session_id="ef", **overrides)
                 ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
                 captured: dict = {}
-                with fake_analysis_run(captured):
+                with (
+                    mock.patch.dict(os.environ, {"CLAUDE_CODE_EFFORT_LEVEL": "max"}),
+                    fake_analysis_run(captured),
+                ):
                     self.assertTrue(ob._run_analysis())
                 cmd = captured["cmd"]
+                self.assertNotIn("CLAUDE_CODE_EFFORT_LEVEL", captured["env"])
                 self.assertEqual(cmd[cmd.index("--effort") + 1], effort)
                 self.assertEqual(
                     cmd[cmd.index("--model") + 1],

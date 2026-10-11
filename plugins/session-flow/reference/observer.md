@@ -104,8 +104,10 @@ fewest events.
 
 The run always passes `--effort`, even at the default, and also passes
 `--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,
-and the child re-applies it from any settings file's `env` block, so dropping it from the inherited
-environment is not enough: a `--settings` `env` value outranks user, project and local settings.
+and the child re-applies it from any settings file's `env` block, so the run both drops it from the
+child environment (an exported value) and pins it with `--settings` (a `--settings` `env` value
+outranks user, project and local settings). Whether an exported value outranks the pin is
+undocumented, hence both.
 Probed on Claude Code 2.1.296 with a project `env` of `max` and `--effort low`: output tokens rose
 about fourfold without the `--settings` pin and returned to the `low` range with it.
 

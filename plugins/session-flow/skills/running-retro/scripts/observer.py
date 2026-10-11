@@ -749,6 +749,8 @@ class Observer:
         # re-arming on `sdk-cli` entrypoint, but mark the environment explicitly
         # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
+        # An exported variable may outrank the --settings pin; drop it too.
+        env.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
         self.log(
             f"firing analysis: {self.model} at {self.effort} over {self.obs_path.name}"
         )
