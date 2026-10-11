@@ -4,7 +4,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   upstream-version: 1.0.0
-  synced: 2026-10-11
+  synced: 2026-03-17
   workflow-stage: anytime
   summary: Anthropic's internal skill-authoring playbook and patterns
 shell: bash
