@@ -23,10 +23,12 @@ unchanged and bind every member.
 1. **Fan out, audit-only**, after the preflight above has proved inheritance.
    For each in-scope corrector, dispatch a
    conversation-inheriting **fork** subagent, the Agent tool's
-   `subagent_type: "fork"`, which inherits the full conversation history the
-   audit must read. A fresh/typed subagent receives no history, and a
-   skill-level `context: fork` also discards it. Neither can audit this
-   conversation. The dated record for every fork claim in this pass is
+   `subagent_type: "fork"`, because the audit must read this conversation; a
+   typed subagent and a skill-level `context: fork` are not used for it (what
+   each one starts with: fetch
+   [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents)
+   live; as of 2026-10-11; recheck when that section changes what a fork or a
+   typed subagent inherits). The dated record for every fork claim in this pass is
    [`inheritance-preflight.md`](inheritance-preflight.md), whose stamp opens
    that file. The forks read the live working tree. Do NOT isolate them
    (see Gotchas: isolation would hide the uncommitted work in flight, which is
