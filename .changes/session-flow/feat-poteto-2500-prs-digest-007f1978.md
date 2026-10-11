@@ -4,6 +4,7 @@ bump: minor
 
 ### Fixed
 
+- **`retro codify reviews` reads the last merged pull requests by merge time**: `fetch-review-comments.sh` lists three times `--prs` merged PRs by most recent update and keeps the ones merged last, where `gh pr list` alone ordered them by creation date.
 - **The `transcript_scope` setting names `/session-flow:recall` beside find-handoff** in the repository schema and in `/session-flow:setup`, since both skills read it.
 - **`/session-flow:setup check` prints its repository-settings lines with `PASS` and `WARN` prefixes**, as the skill's table reads them; the setup script now uses the shared library's report instead of its own unprefixed copy.
 - **`sweep.py --excerpts` leaves out automated sessions**, as the metrics already did, so a headless or SDK run's turns are never read as a preference you repeat.

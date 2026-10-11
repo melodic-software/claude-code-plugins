@@ -124,7 +124,7 @@ assert_eq "main: the hostile body comes out as a JSON string" "$HOSTILE_BODY" \
   "$(printf '%s\n' "$OUT" | "$JQ_DIR/jq" -r 'select(.body | startswith("Rename")) | .body')"
 assert_eq "main: no file created from a body or path" "" "$(ls "$F/work")"
 assert_eq "main: issue-level comments never requested" 0 "$(grep -c 'issues/' "$F/calls.log")"
-assert_eq "main: merged PRs listed with the --prs limit" 1 "$(grep -c -- 'pr list --state merged --limit 2 ' "$F/calls.log")"
+assert_eq "main: merged PRs listed, 3x the --prs limit, newest updated first" 1 "$(grep -c -- 'pr list --state merged --search sort:updated-desc --limit 6 ' "$F/calls.log")"
 
 BASH_COMPAT=51 run "$F" --prs 2
 assert_eq "BASH_COMPAT=51: exit 0 and no file created" "0:" "$RC:$(ls "$F/work")"
@@ -162,6 +162,24 @@ assert_eq "missing gh: exit 2 and empty stdout" "2:" "$RC:$OUT"
 OUT="$(cd "$NOGH/work" && FIX="$F" PATH="$STUB_BIN:/usr/bin:/bin" bash "$SCRIPT" --prs 2 2>/dev/null)"
 RC=$?
 assert_eq "missing jq: exit 2 and empty stdout" "2:" "$RC:$OUT"
+
+# "Last n merged" is by merge time: PR 41 was opened last but merged first,
+# so --prs 2 reads 42 then 43 and never 41.
+M="$TEST_TMPDIR/merged-order"
+mkdir -p "$M"
+cp "$F/repo.json" "$M/"
+printf '%s\n' '[{"number":41,"author":{"login":"a"},"mergedAt":"2026-09-01T00:00:00Z"},
+{"number":43,"author":{"login":"a"},"mergedAt":"2026-09-02T00:00:00Z"},
+{"number":42,"author":{"login":"a"},"mergedAt":"2026-09-03T00:00:00Z"}]' >"$M/prs.json"
+for n in 41 42 43; do
+  printf '[]\n' >"$M/reviews-$n.json"
+  printf '[]\n' >"$M/comments-$n.json"
+  cp "$F/threads-12.json" "$M/threads-$n.json"
+done
+run "$M" --prs 2
+assert_eq "merged order: exit 0" 0 "$RC"
+assert_eq "merged order: the two merged last, newest first" "42 43" \
+  "$(grep -o 'pulls/[0-9]*/reviews' "$M/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
 
 # Output cap: 200 human comments of 1,000 characters each on one PR.
 T="$TEST_TMPDIR/big"

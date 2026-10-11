@@ -6,7 +6,8 @@
 #   fetch-review-comments.sh --help
 #
 # <n> is 2-200 (a lesson needs two PRs). Without --repo, the repository of the
-# current directory. For each of the last <n> merged PRs it reads review bodies
+# current directory. The last <n> merged PRs, by merge time, are picked from the
+# 3<n> merged PRs updated most recently. For each, newest first, it reads review bodies
 # and inline review comments (gh api --paginate) and the review threads
 # (gh api graphql), and keeps:
 #
@@ -77,8 +78,14 @@ fi
 owner="${repo%%/*}"
 name="${repo#*/}"
 
-gh pr list --state merged --limit "$prs" --json number,author --repo "$repo" >"$tmp/prs.json" 2>/dev/null ||
+# gh lists by creation date and search cannot sort by merge time, so read the
+# 3n most recently updated merged PRs (a merge updates a PR) and keep the n
+# merged last, newest first.
+gh pr list --state merged --search "sort:updated-desc" --limit "$((prs * 3))" \
+  --json number,author,mergedAt --repo "$repo" >"$tmp/listed.json" 2>/dev/null ||
   die "gh pr list failed (check gh auth status)"
+jq --argjson n "$prs" 'to_entries | sort_by([(.value.mergedAt // ""), -.key]) | reverse | map(.value) | .[:$n]' "$tmp/listed.json" >"$tmp/prs.json" ||
+  die "unreadable gh pr list output"
 count="$(jq 'length' "$tmp/prs.json")" || die "unreadable gh pr list output"
 [[ "$count" =~ ^[0-9]+$ ]] || die "unreadable gh pr list output"
 
