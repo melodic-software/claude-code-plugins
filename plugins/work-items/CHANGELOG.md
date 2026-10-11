@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.1] - 2026-10-10
+
+### Changed
+
+- `/work-items:triage` `## Next` names `/session-flow:workflow` for a session unsure where it stands, and drops `/work-items:attend-queue` to stay within four bullets.
+
 ## [0.50.0] - 2026-10-10
 
 ### Added

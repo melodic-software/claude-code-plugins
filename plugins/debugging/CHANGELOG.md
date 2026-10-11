@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-10-10
+
+### Changed
+
+- `/debugging:debug` `## Next` sends a root cause that needs a design change to `/planning:interview` and names `/session-flow:workflow` for a session unsure where it stands.
+
 ## [0.9.1] - 2026-10-07
 
 ### Changed
