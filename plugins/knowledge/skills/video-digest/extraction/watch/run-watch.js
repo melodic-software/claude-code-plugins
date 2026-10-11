@@ -135,7 +135,7 @@ export async function runWatchCli(argv) {
   try {
     return await watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
   } finally {
-    if (!temp.recorded) await removeRecordedTempSessionDirs(temp.dirs);
+    if (!temp.recorded) await removeRecordedTempSessionDirs(temp.dirs, "watch");
   }
 }
 
