@@ -35,6 +35,41 @@ saving.
   approval. User-global `~/.claude/settings.json` is only ever printed, and every applied lever
   is re-measured and ledgered before the next.
 
+## Live breakdown
+
+A mod shows what the session's context is made of right now, by category, with each category's
+tokens, share of the window and theme color. It needs Claude Code 2.1.287 or later; mods are
+unsupported below that, and the plugin ships no shim
+([ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md)).
+
+The `live_display` option picks where it shows:
+
+- `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
+  `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
+  only when auto-compaction is on. Each category follows with its tokens, percent and color;
+  deferred categories are listed dimmed with "deferred" in place of a percent.
+- `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
+  other plugins' rows, fitted to the available width, and out of the way while a survey prompt
+  shows. `/context-budget live` opens or closes it. This multi-row band is an opt-in exception to
+  the repository's one-row-per-mod display guidance
+  ([mods](../user-interface/reference/types/mods.md)).
+- `off`. Nothing shows and nothing is measured.
+
+`/context-budget live pane`, `live band` and `live off` set the mode for the session and survive a
+hot reload. In `off` mode, `/context-budget live` shows a toast that says how to turn the display
+on.
+
+**Refresh and cost.** The mod reads Claude Code's local estimate of the breakdown, with no network
+call, when you open or switch the view and, while it is shown, when context usage changes. `off`
+makes no reads.
+
+**States.** Before the first response the pane says "waiting for next response" and the band draws
+nothing. When no breakdown is available, the pane shows the basic usage header and one "usage
+unavailable" line, and the band draws nothing.
+
+Tested in: the plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus
+`claude plugin validate` and `tsc`. No live interactive, `--bg` or Desktop session has run it yet.
+
 ## Hook
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
@@ -49,7 +84,8 @@ prompt. It is a
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
 removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
-An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+A mod (this plugin's or any other installed one) can keep `PreToolUse` settings hooks such as this
+plugin's settings-write checkpoint from running: they run after the last
 mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
 ([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
 A mod can also approve a call they blocked, because its `tool.check` hook runs after them
@@ -139,7 +175,9 @@ passed.
   Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
   Recheck when that section sends the question to another command.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
-- Live in-session occupancy zones belong to the `context-guard` plugin.
+- This plugin answers "what is my context made of": the startup measurement and the live
+  breakdown. How full the context is and what happens as it fills (zones, notices to Claude,
+  toasts, optional blocking, the one-line level row) belongs to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
@@ -156,6 +194,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
+| `live_display` | string | `"pane"` | `CLAUDE_PLUGIN_OPTION_LIVE_DISPLAY` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these
 
