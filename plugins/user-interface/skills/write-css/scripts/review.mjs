@@ -9,8 +9,10 @@
    or the whole resolver output ({"values":{…}}), as a JSON string or a file.
    Exit: 0 no findings (suppressed ones do not count), 1 findings, 2 usage
    error or crash. */
-import { existsSync, globSync, readFileSync, statSync } from "node:fs";
-import { check, checkFile } from "../vendor/check-css.mjs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+
+/* Loaded inside the try at the bottom, so a failed load exits 2, not Node's 1. */
+let globSync, check, checkFile;
 
 const USAGE = "Usage: node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]";
 
@@ -91,6 +93,9 @@ function main(argv) {
 }
 
 try {
+  ({ globSync } = await import("node:fs"));
+  if (typeof globSync !== "function") throw new Error("fs.globSync is missing; this Node is too old.");
+  ({ check, checkFile } = await import("../vendor/check-css.mjs"));
   process.exitCode = main(process.argv.slice(2));
 } catch (error) {
   console.error(error instanceof UsageError ? `${error.message}\n${USAGE}` : `review.mjs failed: ${error.stack ?? error}`);

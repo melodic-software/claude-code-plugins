@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -129,6 +129,21 @@ describe("usage and crash exit 2", () => {
   test("a path that cannot be read as a file exits 2 even beside a file with findings", () => {
     const r = review(["--config", "{}", at("all-rules.css"), FIX]);
     assert.equal(r.status, 2);
+  });
+
+  test("a vendored linter that fails to load exits 2, not 1", () => {
+    const root = mkdtempSync(join(tmpdir(), "ui-review-novendor-"));
+    try {
+      mkdirSync(join(root, "scripts"));
+      copyFileSync(REVIEW, join(root, "scripts/review.mjs"));
+      const r = spawnSync(process.execPath, [join(root, "scripts/review.mjs"), "--config", "{}", at("clean.css")], {
+        encoding: "utf8",
+      });
+      assert.equal(r.status, 2, r.stderr);
+      assert.match(r.stderr, /review\.mjs failed/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
