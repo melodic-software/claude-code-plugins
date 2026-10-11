@@ -92,10 +92,13 @@ expect_lacks() { # <name> <haystack> <needle>
   if [[ "$2" != *"$3"* ]]; then pass "$1"; else bad "$1" "unexpected '$3' in: $2"; fi
 }
 
+# gh prints a bot author as app/<slug> with is_bot true.
+BOT_AUTHOR='"author":{"is_bot":true,"login":"app/github-actions"}'
+USER_AUTHOR='"author":{"is_bot":false,"login":"mallory"}'
 LIST_NONE="$TMP/list-none.json"
-printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra"}]\n' >"$LIST_NONE"
+printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s}]\n' "$BOT_AUTHOR" >"$LIST_NONE"
 LIST_OPEN="$TMP/list-open.json"
-printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra"},{"number":12,"title":"Upstream drift: acme/widgets"}]\n' >"$LIST_OPEN"
+printf '[{"number":5,"title":"Upstream drift: acme/widgets-extra",%s},{"number":12,"title":"Upstream drift: acme/widgets",%s}]\n' "$BOT_AUTHOR" "$BOT_AUTHOR" >"$LIST_OPEN"
 
 DRIFT="$TMP/drift.txt"
 printf '%s\n' \
@@ -114,7 +117,7 @@ GH_STUB_LIST="$LIST_NONE"
 run_sut "$DRIFT"
 expect_code "create: exit 0" 0
 c="$(calls)"
-expect_has "create: list searches the exact title" "$c" 'issue list --state open --search in:title "Upstream drift: acme/widgets" --json number,title'
+expect_has "create: list searches the exact title" "$c" 'issue list --state open --author app/github-actions --search in:title "Upstream drift: acme/widgets" --json number,title,author'
 expect_has "create: creates the titled issue from a body file" "$c" 'issue create --title Upstream drift: acme/widgets --body-file'
 expect_lacks "create: a near-match title is not edited" "$c" 'issue edit'
 body="$(body_of create)"
@@ -153,6 +156,28 @@ expect_code "clean, none open: exit 0" 0
 c="$(calls)"
 expect_lacks "clean, none open: no create" "$c" 'issue create'
 expect_lacks "clean, none open: no close" "$c" 'issue close'
+
+# --- a same-titled issue someone else opened is never edited or closed ------
+LIST_SPOOF="$TMP/list-spoof.json"
+printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s},{"number":12,"title":"Upstream drift: acme/widgets",%s}]\n' "$USER_AUTHOR" "$BOT_AUTHOR" >"$LIST_SPOOF"
+GH_STUB_LIST="$LIST_SPOOF"
+run_sut "$DRIFT"
+c="$(calls)"
+expect_has "spoof: edits the bot's issue 12" "$c" 'issue edit 12 --body-file'
+expect_lacks "spoof: never edits the user's issue 9" "$c" 'issue edit 9'
+run_sut "$CLEAN"
+c="$(calls)"
+expect_has "spoof: closes the bot's issue 12" "$c" 'issue close 12'
+expect_lacks "spoof: never closes the user's issue 9" "$c" 'issue close 9'
+LIST_SPOOF_ONLY="$TMP/list-spoof-only.json"
+printf '[{"number":9,"title":"Upstream drift: acme/widgets",%s}]\n' "$USER_AUTHOR" >"$LIST_SPOOF_ONLY"
+GH_STUB_LIST="$LIST_SPOOF_ONLY"
+run_sut "$DRIFT"
+c="$(calls)"
+expect_has "spoof only: creates its own issue" "$c" 'issue create'
+expect_lacks "spoof only: never edits the user's issue 9" "$c" 'issue edit 9'
+run_sut "$CLEAN"
+expect_lacks "spoof only, clean: never closes the user's issue 9" "$(calls)" 'issue close'
 
 # --- untracked page touches nothing -----------------------------------------
 UNTRACKED="$TMP/untracked.txt"

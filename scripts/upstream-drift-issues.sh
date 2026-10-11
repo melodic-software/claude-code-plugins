@@ -7,7 +7,9 @@
 #
 # Each upstream repository gets at most one open issue titled
 # `Upstream drift: <owner>/<repo>`, found with `gh issue list` and an exact
-# title match in jq. A repository with a drifted page gets that issue created,
+# title match in jq, among issues opened by the workflow's github-actions bot
+# only: a same-titled issue anyone else opens is never edited or closed. A
+# repository with a drifted page gets that issue created,
 # or its body replaced in place; a repository whose pages are all clean gets
 # an open issue closed with a comment; a repository whose pages are all
 # `untracked` is left alone. The body names the pin, head, run date and run URL,
@@ -147,11 +149,14 @@ trap 'rm -rf "$TMPDIR_RUN"' EXIT
 failed=0
 
 # open_issue <title>: prints the number of the open issue with exactly that
-# title, or nothing; returns 1 when the list call fails.
+# title opened by the workflow's own bot ($BOT), or nothing; returns 1 when the
+# list call fails. Anyone can open an issue with the same title, so the author
+# is checked both in the search and in jq.
+BOT=app/github-actions
 open_issue() {
   local json num
-  json="$(gh issue list --state open --search "in:title \"$1\"" --json number,title)" || return 1
-  num="$(jq -r --arg t "$1" '[.[] | select(.title == $t) | .number] | first // empty' <<<"$json")" || return 1
+  json="$(gh issue list --state open --author "$BOT" --search "in:title \"$1\"" --json number,title,author)" || return 1
+  num="$(jq -r --arg t "$1" --arg bot "$BOT" '[.[] | select(.title == $t and .author.is_bot == true and .author.login == $bot) | .number] | first // empty' <<<"$json")" || return 1
   [[ -z "$num" || "$num" =~ ^[0-9]+$ ]] || return 1
   printf '%s' "$num"
 }
