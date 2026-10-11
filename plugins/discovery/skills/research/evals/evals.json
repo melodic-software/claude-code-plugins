@@ -601,13 +601,14 @@
       "id": 42,
       "name": "dispatched-run-never-takes-deep-tier",
       "prompt": "[You are a discovery:researcher subagent dispatched by a parent session; /discovery:research arrived preloaded. The dispatch prompt's Topic line reads: 'deep Compare Kafka, Pulsar and NATS JetStream for our event bus, with skeptics refuting each claim.']",
-      "expected_output": "Runs the research inline in its own context as the dispatched worker. It does not select the deep tier: it does not launch the discovery:research-sweep workflow, does not promise that the workflow engine will run, and does not split the ask across further per-topic researchers, because Workflow and a dependable Agent spawn belong to the main conversation. The leading deep token is stripped from the topic it echoes back.",
+      "expected_output": "Runs the research inline in its own context as the dispatched worker. It does not select the deep tier: it does not launch the discovery:research-sweep workflow, does not promise that the workflow engine will run, and does not split the ask across further per-topic researchers, because Workflow and a dependable Agent spawn belong to the main conversation. The leading deep token is a routing signal the dispatched run declines, not part of the subject: its topic_as_received echo quotes the dispatched Topic line verbatim, deep included, while the research itself works on the topic without the token.",
       "files": [],
       "expectations": [
         "Output does NOT launch or promise the discovery:research-sweep workflow from the dispatched context",
-        "Output does NOT spawn per-topic discovery:researcher agents from the dispatched context",
+        "Output spawns no discovery:researcher, discovery:research-verifier or discovery:sweep-worker from the dispatched context, and any general-purpose workers it spawns only gather sources and return no verdicts",
         "Output runs the research discipline inline in the dispatched context",
-        "The topic it works on does not carry the leading deep token"
+        "The topic_as_received echo quotes the dispatched Topic line character for character, leading deep token included, while the research title and queries work on the topic without the token",
+        "Output's routing decision names the leading deep token and declines the deep tier because the run is a dispatched context, rather than ignoring the token or treating it only as a typo"
       ]
     },
     {
@@ -617,8 +618,8 @@
       "expected_output": "Strips the deep token and takes the deep tier for one topic. Because the Workflow tool is not observed in this session's toolset, it does not infer availability from the settings file and takes the researcher fallback: one discovery:researcher with the full envelope, then the post-dispatch boundary (acceptance gate, sibling verifier, project fit, write-back) before anything is surfaced.",
       "files": [],
       "expectations": [
-        "Output does not treat the settings file as evidence that the Workflow tool is available",
-        "Output dispatches one discovery:researcher rather than launching the research-sweep workflow",
+        "Output states that it checked Workflow availability by observing this session's toolset, found the tool absent, and did not treat the settings file as evidence that the Workflow tool is available",
+        "Output dispatches one discovery:researcher rather than launching the research-sweep workflow, and names that dispatch as the deep tier's researcher fallback rather than the default route",
         "The Topic line in the dispatch does not carry the deep token",
         "Output closes the post-dispatch boundary (verifier and project fit written back) before surfacing the result",
         "The findings state that SQLite WAL mode does not work over a network filesystem because all processes using the database must be on the same host computer, citing https://sqlite.org/wal.html"
