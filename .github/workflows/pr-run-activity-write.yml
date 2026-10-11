@@ -297,6 +297,7 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
