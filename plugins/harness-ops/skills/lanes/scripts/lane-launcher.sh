@@ -168,8 +168,11 @@
 #                       the prompt gains the stage-start probe preamble
 #     cloud-routine,    print setup steps; launch nothing
 #     cloud-project
-#   A refused cloud launch runs local-worktree, except for a stage whose input
-#   is always untrusted, which is skipped with an error instead.
+#   A lane whose stage may read untrusted input is never launched on a cloud
+#   host: cloud-session, cloud-routine and cloud-project skip it with an error.
+#   ET_TRUSTED_STAGES is empty, so today that is every lane, a lane with no
+#   stage and any unknown stage included. Any other refused cloud launch runs
+#   local-worktree.
 #
 # Lane-stop gate arming (#1784):
 #   A lane whose settings request the autonomy lane-stop gate
