@@ -47,7 +47,7 @@ with whether origin's default branch declares a Workspace environment entry, dec
 | `reuse_running_instance` | Entry | What the run does |
 |---|---|---|
 | `true`, or `auto` on an attended run | either | drives that app and starts nothing, so no second instance runs; an `unattended` run labels its evidence "instance not started by this run" |
-| `auto` on an `unattended` run | none | drives that app, evidence labelled "instance not started by this run" |
+| `auto` on an `unattended` run | none | drives that app, evidence labeled "instance not started by this run" |
 | `auto` on an `unattended` run, or `false` in either mode | declared | starts its own instance: runs `up`, then `info`, and drives the URL `info` reports, never the app that answered |
 | `false` | none | stops with the gap report naming the collision (the running app, its URL or port, and the setting) |
 

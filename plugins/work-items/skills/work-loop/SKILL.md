@@ -341,7 +341,7 @@ dispositions bind:
 | C4 structural/contract, C5 untrusted-provenance | Human-gated / per-contract floors |
 | Unclassified | **Fail-closed human-gated** |
 
-An item labelled `provenance: signal` is C5 whatever its `work-class:` label.
+An item labeled `provenance: signal` is C5 whatever its `work-class:` label.
 
 **In-flight precondition (before any classification).** A frontier candidate that already has an
 open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply

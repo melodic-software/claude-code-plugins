@@ -81,7 +81,7 @@ different contract revision, and guessing produces a manifest that lies.
 recently, that person's permission on the repository, and whether the label is trusted
 (permission `admin` or `write`). It returns `id`, `admitted` (`true` only when every named
 label is trusted) and one `labels` row per label (`CONTRACT.md` "JSON output contract").
-The work-loop admission gate admits a labelled item only on exit `0` with `admitted: true`.
+The work-loop admission gate admits a labeled item only on exit `0` with `admitted: true`.
 An adapter that cannot read who applied a label, or that person's permission, must fail
 closed: declare the verb `false`, so the gate gets exit `6` and admits nothing, or return an
 untrusted row with a `reason`. It must never report a label as trusted without having read

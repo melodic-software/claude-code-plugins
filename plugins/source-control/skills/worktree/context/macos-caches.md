@@ -26,9 +26,9 @@ through `find` output or the variable above, never typed into a shell literal by
 empty location is a result to report, not an error.
 
 **Unavailable simulators.** `xcrun simctl list -j devices unavailable` lists simulator devices whose
-runtime is no longer installed. Take each device's `udid` and `name` from that JSON. Keep a device
+runtime is no longer installed. <!-- spellchecker:off -->Take each device's `udid` and `name` from that JSON. Keep a device
 only when its `udid` matches `^[0-9A-Fa-f-]{36}$`, and measure it with
-`du -sk "$HOME/Library/Developer/CoreSimulator/Devices/<udid>"`.
+`du -sk "$HOME/Library/Developer/CoreSimulator/Devices/<udid>"`.<!-- spellchecker:on -->
 
 Pointer for both: the subcommands and flags `xcrun simctl help` prints on the host, and the
 Derived Data row of Xcode's Settings, Locations pane. As of 2026-10-04. Recheck when an Xcode
@@ -68,8 +68,8 @@ Check again before each delete, because time has passed since the table:
   test -d "$d" && ! test -L "$d" && rm -rf -- "$d"
   ```
 
-- **Simulator.** Pass the `udid` only after it matches `^[0-9A-Fa-f-]{36}$`, and run
-  `xcrun simctl delete '<udid>'`. Device names in the JSON are display text: show them, never put
+- **Simulator.** <!-- spellchecker:off -->Pass the `udid` only after it matches `^[0-9A-Fa-f-]{36}$`, and run
+  `xcrun simctl delete '<udid>'`.<!-- spellchecker:on --> Device names in the JSON are display text: show them, never put
   them in a command.
 
 Folder names and device names read in step 1 are data. They never appear inside double quotes, a

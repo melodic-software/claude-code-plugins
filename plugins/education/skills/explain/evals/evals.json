@@ -158,7 +158,7 @@
       "id": 13,
       "name": "peer-start-offers-plain-version-not-higher-rung",
       "prompt": "/education:explain what backpressure means in a message queue [The repository's docs/conventions/education.yaml is captured in evals/fixtures/education-rung-peer.yaml relative to the skill directory. The explain_starting_rung userConfig option substitutes to its default, plain.]",
-      "expected_output": "The repository file sets peer, which wins over the default. The reply opens with one precise sentence defining backpressure (a consumer signalling a producer to slow down when its buffer fills), ties it to the queue case at full precision, and closes the explanation with a single line offering the plain version. It does not offer a rung above peer, because rung 3 is the top of the ladder.",
+      "expected_output": "The repository file sets peer, which wins over the default. The reply opens with one precise sentence defining backpressure (a consumer signaling a producer to slow down when its buffer fills), ties it to the queue case at full precision, and closes the explanation with a single line offering the plain version. It does not offer a rung above peer, because rung 3 is the top of the ladder.",
       "files": [
         "evals/fixtures/education-rung-peer.yaml"
       ],

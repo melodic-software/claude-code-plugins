@@ -81,7 +81,7 @@ no build identifier, the doctor line names the other two checks and ends `build:
 Each feature file opens with an H1 naming the feature and one sentence on what the user gets from
 it. Four H2 sections follow, always in this order:
 
-1. `## Parts`: the distinct behaviours inside the feature, one short line each, so a change can be
+1. `## Parts`: the distinct behaviors inside the feature, one short line each, so a change can be
    matched to the part it touches.
 2. `## Entry points`: every way a user reaches the feature (a button, a keyboard shortcut, a route,
    a command, an API call), one line each. A run drives each one the change can affect; a proof

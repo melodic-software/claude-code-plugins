@@ -139,7 +139,7 @@ starting with a letter or digit).
 ## No entry
 
 With no `docs/conventions/workspace-environment.md` on the default branch, or no "Workspace
-environment" section in it, every skill keeps its behaviour from before this contract:
+environment" section in it, every skill keeps its behavior from before this contract:
 `/testing:run-e2e` starts the app through the project's documented start command and assumes the
 address that command documents. It also says once in its report that parallel workspaces may
 collide on ports, containers and databases.

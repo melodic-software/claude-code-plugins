@@ -11,7 +11,7 @@ execution:
 graders:
   - name: probes-second-run
     type: regex
-    pattern: 'twice|second run|runs? again|re-?runs?\b|re-?execut|overlapping run|starts? again'
+    pattern: 'twice|second run|runs? again|re-?runs?\b|re-?execut|overlapping run|starts? again' # spellchecker:disable-line
     flags: i
     arm: both
   - name: probes-half-finished-run

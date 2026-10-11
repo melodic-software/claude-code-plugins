@@ -57,7 +57,7 @@ for field in ${records[@]+"${records[@]}"}; do
   fi
 done
 
-# Print the added hunks of one diff, labelled with the path given.
+# Print the added hunks of one diff, labeled with the path given.
 hunks() {
   local path="$1" line spec start count diff
   shift

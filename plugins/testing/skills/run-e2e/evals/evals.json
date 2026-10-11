@@ -179,7 +179,7 @@
       "id": "e2e-settings-08",
       "name": "reuse-auto-unattended-labels-evidence",
       "prompt": "/testing:run-e2e unattended the cart page. reuse_running_instance resolves to auto, no orchestrator governs the start, and the app already answers at http://localhost:4200.",
-      "expected_output": "The probe of http://localhost:4200 gets a response, so the run drives the running app and starts nothing. Because the run is unattended, the evidence is labelled 'instance not started by this run'.",
+      "expected_output": "The probe of http://localhost:4200 gets a response, so the run drives the running app and starts nothing. Because the run is unattended, the evidence is labeled 'instance not started by this run'.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -392,12 +392,12 @@
     {
       "id": "feature-map-05",
       "name": "refused-map-dir-falls-back",
-      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: /home/shared/maps`; a map exists at .claude/skills/feature-map/.",
+      "prompt": "/testing:run-e2e the export page. docs/conventions/testing.yaml sets `feature_map_dir: /srv/shared/maps`; a map exists at .claude/skills/feature-map/.",
       "expected_output": "The absolute feature_map_dir is refused: the resolver names docs/conventions/testing.yaml, feature_map_dir and the value, the run does not stop, and the key takes the default .claude/skills/feature-map, where the map is read from.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Names docs/conventions/testing.yaml, feature_map_dir and /home/shared/maps as refused",
+        "Names docs/conventions/testing.yaml, feature_map_dir and /srv/shared/maps as refused",
         "Reads the map from .claude/skills/feature-map without stopping the run"
       ]
     },

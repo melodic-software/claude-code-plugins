@@ -120,15 +120,15 @@ C1="work-class: read-only"
 # --- triage-role labeler on the work-class label: refused ---
 TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
-assert_eq "triage-labelled C1: exit 0 (the read succeeded)" "0" "$RC"
-assert_eq "triage-labelled C1: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
-assert_eq "triage-labelled C1: work-class row names the actor" "triager-d" \
+assert_eq "triage-labeled C1: exit 0 (the read succeeded)" "0" "$RC"
+assert_eq "triage-labeled C1: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_eq "triage-labeled C1: work-class row names the actor" "triager-d" \
   "$(jq -r --arg l "$C1" '.labels[] | select(.label == $l) | .actor' <<<"$OUT")"
-assert_eq "triage-labelled C1: role reported as triage" "triage" \
+assert_eq "triage-labeled C1: role reported as triage" "triage" \
   "$(jq -r --arg l "$C1" '.labels[] | select(.label == $l) | .role' <<<"$OUT")"
-assert_eq "triage-labelled C1: work-class row untrusted" "false" \
+assert_eq "triage-labeled C1: work-class row untrusted" "false" \
   "$(jq -r --arg l "$C1" '.labels[] | select(.label == $l) | .trusted' <<<"$OUT")"
-assert_eq "triage-labelled C1: maintain labeler of agent-ready still trusted" "true" \
+assert_eq "triage-labeled C1: maintain labeler of agent-ready still trusted" "true" \
   "$(jq -r --arg l "$AR" '.labels[] | select(.label == $l) | .trusted' <<<"$OUT")"
 assert_eq "result carries schema_version and the id" "1.0 $ID" "$(jq -r '"\(.schema_version) \(.id)"' <<<"$OUT")"
 
@@ -145,9 +145,9 @@ assert_eq "read-role labeler: not admitted" "false" "$(jq -r '.admitted' <<<"$OU
 # --- write, maintain and admin labelers: admitted ---
 TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
-assert_eq "write-labelled item: exit 0" "0" "$RC"
-assert_eq "write-labelled item: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
-assert_eq "write-labelled item: no reasons" "null null" "$(jq -r '[.labels[].reason] | map(tostring) | join(" ")' <<<"$OUT")"
+assert_eq "write-labeled item: exit 0" "0" "$RC"
+assert_eq "write-labeled item: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
+assert_eq "write-labeled item: no reasons" "null null" "$(jq -r '[.labels[].reason] | map(tostring) | join(" ")' <<<"$OUT")"
 TL="[$(ev "$AR" owner-a 2026-10-01T10:00:00Z),$(ev "$C1" maint-b 2026-10-01T10:05:00Z)]"
 run "$TL" "$ID" --label "$AR" --label "$C1"
 assert_eq "admin + maintain labelers: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
@@ -211,7 +211,7 @@ assert_eq "odd label name: nothing executed" "absent" "$([[ -e "$MARK" ]] && ech
 TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10:05:00Z)]"
 OUT="$(BASH_COMPAT=51 PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
   GH_STUB_TIMELINE="$TL" bash "$S" "$ID" --label "$AR" --label "$C1" 2>/dev/null)"
-assert_eq "BASH_COMPAT=51: triage-labelled C1 still refused" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_eq "BASH_COMPAT=51: triage-labeled C1 still refused" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
 # --- a timeline split across two pages is read whole ---
 P1="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z)]"

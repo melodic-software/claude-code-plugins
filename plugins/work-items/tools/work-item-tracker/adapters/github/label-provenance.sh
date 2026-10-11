@@ -97,7 +97,7 @@ done
 
 # Body edits after admission: a brief in the body that its author rewrote after a trusted
 # labeler admitted the item is not the brief the labeler admitted. REST carries no edit time,
-# so this one read is GraphQL; a failed or unparseable read refuses, like any failed read.
+# so this one read is GraphQL; a failed or unparsable read refuses, like any failed read.
 errfile="$(mktemp)"
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
 edit_json="$(gh api graphql \

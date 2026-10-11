@@ -119,7 +119,7 @@ case "$1 $2" in
   if [[ -n "${STUB_GH_FAIL:-}" ]]; then exit 1; fi
   cat "$STUB_GH_JSON"
   ;;
-"repo view") printf '{"nameWithOwner":"%s","url":"%s","sshUrl":"%s"}\n' "${STUB_GH_NWO:-octo/demo}" "$STUB_GH_URL" "${STUB_GH_SSH:-}" ;;
+"repo view") printf '{"nameWithOwner":"%s","url":"%s","sshUrl":"%s"}\n' "${STUB_GH_NWO:-octo/demo}" "$STUB_GH_URL" "${STUB_GH_SSH:-}" ;; # spellchecker:disable-line
 *) exit 1 ;;
 esac
 EOF
@@ -218,6 +218,7 @@ g -C "$BUILD" push -q "$FORK" main
 W="$(fresh_clone)"
 git -C "$W" remote set-url origin "$FORK"
 : >"$STUB_GH_LOG"
+# spellchecker:ignore-next-line
 OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 RC=$?
 assert_exit "a fork clone exits 0" 0 "$RC"
@@ -249,12 +250,14 @@ assert_eq "an SSH origin naming gh's repository ranks" yes "$(has_row "$OUT" "$(
 W="$(fresh_clone)"
 git -C "$W" remote set-url origin git@github.com:me/fork.git
 git -C "$W" config url."$REMOTE".insteadOf git@github.com:up/stream.git
+# spellchecker:ignore-next-line
 OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_SSH=git@github.com:up/stream.git \
   STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
 assert_eq "an SSH fork clone fetches gh's sshUrl" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 
 # Neither origin nor gh's URL serves the heads: the gap line carries git's error.
 W="$(fresh_clone)"
+# spellchecker:ignore-next-line
 OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" \
   bash "$SCRIPT" --prs 50 2>&1)"
 assert_contains "an unfetchable head names its source and git's error" "$OUT" "gap: PR #1 head could not be fetched from $NOWHERE: "

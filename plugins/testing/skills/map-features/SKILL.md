@@ -153,7 +153,7 @@ each filled from what Step 2 found and never a placeholder:
 **Feature files.** An H1 naming the feature, one sentence on what the user gets, then four H2
 sections, ordered as listed:
 
-1. `## Parts`: the behaviours inside the feature, one line each.
+1. `## Parts`: the behaviors inside the feature, one line each.
 2. `## Entry points`: every way a user reaches it (button, shortcut, route, command, API call).
 3. `## Drive`: the starting data, then each user action with its exact handle and the result to
    observe, including a second read of anything stored or sent.

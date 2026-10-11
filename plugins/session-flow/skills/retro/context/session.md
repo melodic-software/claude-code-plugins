@@ -229,8 +229,8 @@ true of this session alone.
 
 | Test | It fails when |
 | --- | --- |
-| Names its trigger | Nothing in the wording lets a later session recognise the situation it covers |
-| Changes behaviour | A later session would read it and then do exactly what it would have done anyway |
+| Names its trigger | Nothing in the wording lets a later session recognize the situation it covers |
+| Changes behavior | A later session would read it and then do exactly what it would have done anyway |
 | Lasts six months | Renamed files, new versions or new commit hashes in that time would make it false |
 
 "PR 412's first CI run timed out in the Playwright suite" records an event and fails the last test.

@@ -13,7 +13,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `work-class: mechanical` | C2 | Deterministic, trivially reversible maintenance: dependency bumps, lint/format, sync. |
 | `work-class: scoped` | C3 | A briefed fix or small feature; blast radius bounded by the brief, tests exist. |
 | `work-class: structural` | C4 | Refactors, migrations, contract changes; cross-cutting and hard to reverse. |
-| `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labelled `provenance: signal`); isolated, human-merged. |
+| `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labeled `provenance: signal`); isolated, human-merged. |
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **exactly one**
@@ -30,7 +30,7 @@ as of 2026-10-04, recheck trigger: the endpoint's role mapping changes), so befo
 `label-provenance` operation over the item's `work-class:` label and its autonomous-eligible role
 label, and refuses the item for that cycle on a triage or read labeler, a missing `labeled` event,
 or a failed read ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate",
-labeler precondition). A provider adapter without that operation refuses every labelled item, so
+labeler precondition). A provider adapter without that operation refuses every labeled item, so
 triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
 
 ## Human-floor classes exclude the autonomous-eligible role label

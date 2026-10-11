@@ -65,8 +65,8 @@ Example Wisdom rows, one from a PostgreSQL query-plan workspace and one from a s
 
 | Community | Go here for |
 |---|---|
-| [PostgreSQL project bug tracker and its triage threads]({URL}) | Checking whether a planner behavior you hit is a known defect before you design around it |
-| [Class association's published race protest decisions archive]({URL}) | Reading how rules disputes about right of way were decided, to test your own reading of a rule |
+| `[PostgreSQL project bug tracker and its triage threads]({URL})` | Checking whether a planner behavior you hit is a known defect before you design around it |
+| `[Class association's published race protest decisions archive]({URL})` | Reading how rules disputes about right of way were decided, to test your own reading of a rule |
 
 A workspace written before this layout may use bulleted entries under other headings; read it by
 meaning and convert it when the file is next edited.

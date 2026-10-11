@@ -8,7 +8,7 @@
 # The store is ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects. A directory's name
 # is the session's working directory with every UTF-16 code unit that is not an
 # ASCII letter or digit replaced by `-`; past 200 characters the name keeps its
-# first 200 and gains a hash. CLAUDE_CODE_PROJECT_DIR_NAME, honoured only when
+# first 200 and gains a hash. CLAUDE_CODE_PROJECT_DIR_NAME, honored only when
 # CLAUDE_CONFIG_DIR is set too, pins one name for every session.
 # Pointer: https://code.claude.com/docs/en/sessions#where-transcripts-are-stored
 # and #name-the-project-directory-yourself. As of 2026-10-04. Recheck when that

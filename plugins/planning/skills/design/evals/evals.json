@@ -172,7 +172,7 @@
     {
       "id": 14,
       "name": "look-and-feel-thread-goes-to-explore-directions",
-      "prompt": "/planning:design module for seat selection in a theatre ticketing app. One thread is how the seat map should look and behave when a patron picks seats on a phone: zoom, tapping a seat, showing held seats. The prototype plugin is enabled and /prototype:explore-directions is among the available skills.",
+      "prompt": "/planning:design module for seat selection in a theater ticketing app. One thread is how the seat map should look and behave when a patron picks seats on a phone: zoom, tapping a seat, showing held seats. The prototype plugin is enabled and /prototype:explore-directions is among the available skills.",
       "expected_output": "The skill identifies the seat-map thread as a look-and-feel question, confirms the scope of a throwaway with the user, and invokes /prototype:explore-directions through the Skill tool for that thread instead of drafting the layouts itself. The other threads (seat hold types, contracts) stay in the design session.",
       "files": [],
       "expectations": [

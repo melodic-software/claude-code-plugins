@@ -67,7 +67,7 @@
       "id": 6,
       "name": "collision-hotspots-fall-back-without-gh",
       "prompt": "/coupling:reduce dry-run src\n\ngh is not installed on this machine.",
-      "expected_output": "Attempts the collision-hotspot measure or recognises it cannot run without gh, ranks coupling by co-change history from git alone, and records a gap: line saying collision hotspots were not measured and why, without failing the pass or editing files.",
+      "expected_output": "Attempts the collision-hotspot measure or recognizes it cannot run without gh, ranks coupling by co-change history from git alone, and records a gap: line saying collision hotspots were not measured and why, without failing the pass or editing files.",
       "files": [],
       "expectations": [
         "Falls back to co-change mining from version-control history for the hotspot evidence",

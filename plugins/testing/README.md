@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Nine
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Twelve
 skills, one concern: proving behavior with tests.
 
 | Skill | What it does |
@@ -193,7 +193,7 @@ layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resol
 an invalid value instead of stopping. When an app already answers and the default branch declares a
 Workspace environment entry, `reuse_running_instance: false`, and `auto` on an unattended run,
 start the run's own instance through the entry's `up` and `info` and never drive the answering app;
-with no entry, unattended `auto` reuses the app with labelled evidence and `false` stops, as
+with no entry, unattended `auto` reuses the app with labeled evidence and `false` stops, as
 before. Under `auto` a run now drives through the repository's own
 harness when a spec covers the changed flow, and otherwise through the path it used before. A fifth
 key, `feature_map_dir` (default `.claude/skills/feature-map`), says where `/testing:map-features`
@@ -299,7 +299,7 @@ reads it from.
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
-| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labelled evidence and false stops. docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
 | `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 

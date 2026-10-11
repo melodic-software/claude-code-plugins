@@ -127,7 +127,7 @@ images captured and the seconds the capture and compare took.
 
 | Claim | Pointer | As of | Recheck trigger |
 |---|---|---|---|
-| pixelmatch counts a pixel as differing by a perceptual colour threshold, `0.1` by default, which the script passes and prints | [pixelmatch README, API](https://github.com/mapbox/pixelmatch#api) | 2026-10-10, pixelmatch 8.0.0 | A pixelmatch release that changes the default or the option's meaning (a Dependabot bump of this skill's lockfile) |
+| pixelmatch counts a pixel as differing by a perceptual color threshold, `0.1` by default, which the script passes and prints | [pixelmatch README, API](https://github.com/mapbox/pixelmatch#api) | 2026-10-10, pixelmatch 8.0.0 | A pixelmatch release that changes the default or the option's meaning (a Dependabot bump of this skill's lockfile) |
 | Packages a plugin loads at run time install on first use from a committed lockfile with `npm ci` into the plugin data directory | [On-demand dependencies, Rule 2](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md#rule-2-install-on-first-use-with-npm-ci-into-the-plugin-data-directory-spec) | 2026-10-10, version 2.2.0 | A new version of that convention |
 
 ## Next

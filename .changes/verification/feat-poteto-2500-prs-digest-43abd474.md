@@ -16,7 +16,7 @@ bump: minor
 
 ### Fixed
 
-- **The shared `yaml-subset.awk` parser trims trailing blanks and strips ` #` comments in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
 - **`proof_level` reader results in `reference/config.md` cover a bad `live_workers` beside an unset level.** `setup-apply.mjs --check` exits 1 with `PASS proof_level: (unset)` when the committed file sets no `proof_level` and an invalid `live_workers`; the list now reads that as an unset layer, not an invalid one.
 - **`/verification:setup apply` writes `live_workers`.** It resolves whichever of `proof_level` and `live_workers` the arguments name, asks once per missing value (recommending `1` for `live_workers`), and shows the call for each key; the description no longer says it writes `proof_level` only.
 - **`/verification:confirm` runs one live worker for an untrusted stage.** When the stage reads untrusted input and the session is not on a cloud host whose stage-start probe passed, `/testing:run-e2e` runs neither verb of the Workspace environment entry, so the entry isolates nothing: one worker drives every entry point and the report says how many were asked for and why one ran.

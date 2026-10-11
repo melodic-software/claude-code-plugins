@@ -40,7 +40,7 @@
     {
       "id": 4,
       "name": "renamed-handle-corrected-in-map-only",
-      "prompt": "/testing:refresh-feature-map. The live pass shows the dashboard button the map's start-a-timer.md calls `Start` is now labelled `Begin`, and the timer still works through it. The source pass cites src/components/TimerRow.tsx:41 for the new label.",
+      "prompt": "/testing:refresh-feature-map. The live pass shows the dashboard button the map's start-a-timer.md calls `Start` is now labeled `Begin`, and the timer still works through it. The source pass cites src/components/TimerRow.tsx:41 for the new label.",
       "expected_output": "The outcome is changed. Only .claude/skills/feature-map/start-a-timer.md (and the index's written-at commit) is edited to use `Begin`; src/components/TimerRow.tsx is not touched. Because the pass is attended, the skill shows the proposed edit and asks before writing it, committing to feature-map-upkeep/claude-skills-feature-map or opening a pull request.",
       "files": [],
       "expectations": [
@@ -89,7 +89,7 @@
     {
       "id": 8,
       "name": "driver-unavailable-writes-no-candidate",
-      "prompt": "/testing:refresh-feature-map unattended. The source pass found that the `Export` button in weekly-timesheet-export.md is now labelled `Download` (src/timesheet/Toolbar.tsx:42). The app builds and the doctor passes, but /testing:run-e2e stops with a gap report: the recorded playwright driver has no browser installed on this host.",
+      "prompt": "/testing:refresh-feature-map unattended. The source pass found that the `Export` button in weekly-timesheet-export.md is now labeled `Download` (src/timesheet/Toolbar.tsx:42). The app builds and the doctor passes, but /testing:run-e2e stops with a gap report: the recorded playwright driver has no browser installed on this host.",
       "expected_output": "The outcome is blocked: driver unavailable, with run-e2e's gap report. The Export-to-Download candidate is not written into the map, because no drive confirmed it; the report lists it with src/timesheet/Toolbar.tsx:42. No branch is created, nothing is committed, no pull request is opened, and the driver is not switched.",
       "files": [],
       "expectations": [
@@ -114,7 +114,7 @@
     {
       "id": 10,
       "name": "untracked-map-committed-with-corrections",
-      "prompt": "/testing:refresh-feature-map unattended. /testing:map-features wrote the map at .claude/skills/feature-map and nobody committed it: `git ls-files -- .claude/skills/feature-map` prints nothing, and `git status --porcelain --untracked-files=all` prints only `??` lines for SKILL.md, start-a-timer.md and weekly-timesheet-export.md under .claude/skills/feature-map/. The live pass shows the `Start` button in start-a-timer.md is now labelled `Begin` (src/components/TimerRow.tsx:41). The branch feature-map-upkeep/claude-skills-feature-map does not exist.",
+      "prompt": "/testing:refresh-feature-map unattended. /testing:map-features wrote the map at .claude/skills/feature-map and nobody committed it: `git ls-files -- .claude/skills/feature-map` prints nothing, and `git status --porcelain --untracked-files=all` prints only `??` lines for SKILL.md, start-a-timer.md and weekly-timesheet-export.md under .claude/skills/feature-map/. The live pass shows the `Start` button in start-a-timer.md is now labeled `Begin` (src/components/TimerRow.tsx:41). The branch feature-map-upkeep/claude-skills-feature-map does not exist.",
       "expected_output": "The untracked map does not block the pass. The skill creates feature-map-upkeep/claude-skills-feature-map from the default branch, and the untracked map files move with the switch. It writes the `Begin` correction and the index's written-at commit, then stages SKILL.md, start-a-timer.md and weekly-timesheet-export.md by path and commits them in one commit with the correction, so `git status --porcelain -- .claude/skills/feature-map` prints nothing. No file outside the map directory is staged, and a pull request is opened from the branch.",
       "files": [],
       "expectations": [
@@ -126,7 +126,7 @@
     {
       "id": 11,
       "name": "untracked-map-with-outside-change-blocked",
-      "prompt": "/testing:refresh-feature-map unattended. The map at .claude/skills/feature-map was never committed: `git ls-files -- .claude/skills/feature-map` prints nothing. `git status --porcelain --untracked-files=all` prints `??` lines for the map files under .claude/skills/feature-map/ and also ` M src/timesheet/Toolbar.tsx`. The live pass found that the `Export` button in weekly-timesheet-export.md is now labelled `Download`.",
+      "prompt": "/testing:refresh-feature-map unattended. The map at .claude/skills/feature-map was never committed: `git ls-files -- .claude/skills/feature-map` prints nothing. `git status --porcelain --untracked-files=all` prints `??` lines for the map files under .claude/skills/feature-map/ and also ` M src/timesheet/Toolbar.tsx`. The live pass found that the `Export` button in weekly-timesheet-export.md is now labeled `Download`.",
       "expected_output": "The outcome is blocked before any branch switch. The report names src/timesheet/Toolbar.tsx as the uncommitted change outside the map directory that blocks the pass, and says the untracked map files alone would not have blocked it. No branch is created or switched to, nothing is staged or committed, the Export-to-Download correction goes in the report unwritten, and no pull request is opened.",
       "files": [],
       "expectations": [

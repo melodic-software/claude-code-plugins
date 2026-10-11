@@ -88,12 +88,12 @@
     {
       "id": 8,
       "name": "non-goals-reason-per-option-keeps-configurability",
-      "prompt": "/planning:prd synthesize one-pager: shared grocery lists for households. Primary user: two adults sharing one weekly shop. Success metric: 20% of active households create a shared list within 45 days. Options in v1: a per-list colour picker, a toggle for push notifications on every edit, a sort-by-aisle switch, and a choice of three list fonts. Our platform rule is that every user-facing behaviour stays configurable, so keep options rather than cutting them. Write it.",
-      "expected_output": "The PRD records a reason for each of the four options (or marks an option with no stated reason as an open question or a Non-goal candidate), keeps the options rather than cutting them to ship less because the platform rule keeps behaviour configurable, and adds no new Scope or Options section: the reasons sit with the existing sections, the unexplained ones under Non-goals or Open questions.",
+      "prompt": "/planning:prd synthesize one-pager: shared grocery lists for households. Primary user: two adults sharing one weekly shop. Success metric: 20% of active households create a shared list within 45 days. Options in v1: a per-list color picker, a toggle for push notifications on every edit, a sort-by-aisle switch, and a choice of three list fonts. Our platform rule is that every user-facing behavior stays configurable, so keep options rather than cutting them. Write it.",
+      "expected_output": "The PRD records a reason for each of the four options (or marks an option with no stated reason as an open question or a Non-goal candidate), keeps the options rather than cutting them to ship less because the platform rule keeps behavior configurable, and adds no new Scope or Options section: the reasons sit with the existing sections, the unexplained ones under Non-goals or Open questions.",
       "files": [],
       "expectations": [
-        "Every one of the four options (colour picker, push-notification toggle, sort-by-aisle switch, font choice) has a stated reason or is explicitly flagged as lacking one",
-        "Does NOT remove options only to ship less; the platform's keep-it-configurable rule is honoured",
+        "Every one of the four options (color picker, push-notification toggle, sort-by-aisle switch, font choice) has a stated reason or is explicitly flagged as lacking one",
+        "Does NOT remove options only to ship less; the platform's keep-it-configurable rule is honored",
         "Adds no new section beyond the seven required ones (no separate Scope or Options section)"
       ]
     },

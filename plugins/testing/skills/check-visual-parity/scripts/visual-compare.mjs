@@ -15,7 +15,7 @@ import { join, relative, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
-// pixelmatch's documented default colour threshold, passed explicitly so the
+// pixelmatch's documented default color threshold, passed explicitly so the
 // report can print the value the count used.
 const THRESHOLD = 0.1;
 const MANIFEST = 'manifest.json';
