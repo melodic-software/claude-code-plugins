@@ -59,7 +59,7 @@ verify() {
 SENSITIVE_RE='^(\.claude|\.mcp\.json|\.claude\.json|\.gitmodules|\.ripgreprc|CLAUDE\.md|CLAUDE\.local\.md|\.husky)(/|$)'
 WORKFLOW_RE='^\.github/workflows/'
 
-OID_RE='^[0-9a-f]{40,64}$'
+OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 
 (($# == 1)) || die 'usage: post.sh <out-dir>'
 out=$1

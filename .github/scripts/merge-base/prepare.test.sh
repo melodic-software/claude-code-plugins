@@ -122,6 +122,11 @@ run_prepare
 check 'binary-conflict: escalates unresolved-conflict' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 check 'binary-conflict: MERGE_HEAD set' "$(tg rev-parse main)" "$(merge_head)"
 check 'binary-conflict: snapshot holds stages 1 2 3' 123 "$(stages a.bin)"
+# A binary head side whose bytes hold marker-shaped lines: git leaves the
+# head's file in the worktree, and that is still no conflict to resolve.
+conflict a.bin 'base\0\n' 'pr\0\n<<<<<<< x\n=======\n>>>>>>> y\n' 'main\0\n'
+run_prepare
+check 'binary-conflict: a head side holding marker-shaped lines still escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 # Markers longer than seven characters (conflict-marker-size from the base's
 # attributes) are still markers, so this text conflict goes to the model.
 new_repo
@@ -246,7 +251,10 @@ RC=0
   bash "$PREPARE" "$(tg rev-parse main)" "$(tg rev-parse main)" "$NOOP_BUMP" "$DIR" 2>/dev/null) || RC=$?
 check 'preconditions: HEAD other than the gated head fails' 1 "$RC"
 check 'preconditions: no merge started' '' "$(merge_head)"
-for bad in pr HEAD --output=x "$(tg rev-parse --short main)"; do
+# Hex of a length between the two object-id sizes is a ref name, never an id.
+L41=$(printf 'a%.0s' {1..41}) L45=$(printf 'a%.0s' {1..45}) L63=$(printf 'a%.0s' {1..63})
+for n in "$L41" "$L45" "$L63"; do tg branch -f "$n" main; done
+for bad in pr HEAD --output=x "$(tg rev-parse --short main)" "$L41" "$L45" "$L63"; do
   invoke "$(tg rev-parse pr)" "$bad"
   check "preconditions: a trusted base given as '$bad' is refused" 1 "$RC"
   invoke "$bad" "$(tg rev-parse main)"

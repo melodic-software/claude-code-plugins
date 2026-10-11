@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # prepare.sh <gated-head> <trusted-base-sha> <version-bump-script> <out-dir>
+# <version-bump-script> must be the trusted base's copy, never the head checkout's.
 #
 # The prepare half of the write runner's merge-base mode, run from the root of
 # the PR head checkout before any model turn: start a merge of the trusted base
@@ -52,7 +53,7 @@ sha256() {
 }
 
 TRAILER_VALUE=pr-unblock/resolve-conflicts
-OID_RE='^[0-9a-f]{40,64}$'
+OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 # The paths claude-code-action restores from the base branch before the model
 # runs (SENSITIVE_PATHS in src/github/operations/restore-config.ts, read at
 # pin ed670b4 on 2026-10-11; recheck when the action pin moves). post.sh holds
@@ -140,13 +141,14 @@ g rev-parse -q --verify MERGE_HEAD >/dev/null || die 'the version-bump script en
 g ls-files -s -z >"$out/index-snapshot"
 printf 'snapshot-sha256=%s\n' "$(sha256 "$out/index-snapshot")"
 
-declare -A stages=()
+declare -A stages=() ours=()
 paths=()
 protected=0
 : >"$out/unmerged-paths"
 while IFS= read -r -d '' record; do
   path=${record#*$'\t'}
-  read -r mode _ stage <<<"${record%%$'\t'*}"
+  read -r mode oid stage <<<"${record%%$'\t'*}"
+  if [[ $stage == 2 ]]; then ours[$path]=$oid; fi
   if [[ -z ${stages[$path]:-} ]]; then
     paths+=("$path")
     printf '%s\0' "$path" >>"$out/unmerged-paths"
@@ -163,6 +165,10 @@ for path in "${paths[@]}"; do
   [[ ${stages[$path]} == *2* && ${stages[$path]} == *3* && ${stages[$path]} != *x* ]] ||
     escalate unresolved-conflict
   [[ -f $path && ! -L $path ]] || escalate unresolved-conflict
+  # In place of a conflict it cannot mark up (binary), git leaves the head's
+  # bytes, whatever they look like.
+  [[ $(g hash-object --path="$path" -- "$path") != "${ours[$path]}" ]] ||
+    escalate unresolved-conflict
   found=$(tr -d '\r' <"$path" | LC_ALL=C awk "$MARKER_AWK")
   [[ $found == 1 ]] || escalate unresolved-conflict
 done

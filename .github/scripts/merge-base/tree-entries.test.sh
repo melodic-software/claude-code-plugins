@@ -167,7 +167,14 @@ conflict_with plain.txt
 put c.txt 'resolved\n'
 tg add c.txt
 TREE=$(tg write-tree)
-for bad in main HEAD --output=x "$(tg rev-parse --short main)"; do
+# Hex of a length between the two object-id sizes is a ref name, never an id:
+# a branch and a tag named with 45 hex digits must not resolve.
+L45=$(printf 'a%.0s' {1..45}) B45=$(printf 'b%.0s' {1..45})
+tg branch -f "$L45" main
+tg tag "$B45" "$TREE"
+run_entries "" "" "$B45"
+check 'unsafe input: a 45-hex tag naming the tree is refused' 1 "$RC"
+for bad in main HEAD --output=x "$(tg rev-parse --short main)" "$L45"; do
   run_entries "$bad" "" "$TREE"
   check "unsafe input: a gated head given as '$bad' is refused" 1 "$RC"
   run_entries "" "$bad" "$TREE"

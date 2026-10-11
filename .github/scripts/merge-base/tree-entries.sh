@@ -29,7 +29,7 @@ die() {
   printf 'tree-entries.sh: %s\n' "$*" >&2
   exit 1
 }
-OID_RE='^[0-9a-f]{40,64}$'
+OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 
 (($# == 3)) || die 'usage: tree-entries.sh <gated-head> <trusted-base-sha> <tree>'
 head=$1 base=$2 tree=$3

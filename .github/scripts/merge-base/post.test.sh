@@ -130,7 +130,10 @@ check 'merge-guard: HEAD moved under a live merge fails' 1 "$RC"
 tg update-ref HEAD "$GATED_HEAD"
 run_post TRUSTED_BASE="$(tg rev-parse main~1)"
 check 'merge-guard: MERGE_HEAD other than the trusted base fails' 1 "$RC"
-for bad in main HEAD "$(tg rev-parse --short main)"; do
+# Hex of a length between the two object-id sizes is a ref name, never an id.
+L45=$(printf 'a%.0s' {1..45})
+tg branch -f "$L45" main
+for bad in main HEAD "$(tg rev-parse --short main)" "$L45"; do
   run_post TRUSTED_BASE="$bad"
   check "merge-guard: a trusted base given as '$bad' is refused" 1 "$RC"
   run_post GATED_HEAD="$bad"
