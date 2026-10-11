@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.13.1] - 2026-10-11
+
+### Fixed
+
+- The morning brief switches to REST on the cloud GitHub proxy's current GraphQL refusal text; the old pinned-set wording no longer matched, so a cloud run reported every section unreadable instead of reading it over REST.
+
 ## [3.13.0] - 2026-10-11
 
 ### Changed

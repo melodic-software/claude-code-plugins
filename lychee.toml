@@ -80,37 +80,23 @@ exclude = [
   # claude-code-plugins#3340): a per-client bot block on a live crate page,
   # scoped to the one cited crate.
   '^https?://lib\.rs/crates/cargo-udeps/?([?#].*)?$',
-  # Reported by the checker as "SSL certificate not trusted". The chain verifies
-  # locally: `openssl s_client` returns `Verify return code: 0 (ok)` against a
-  # Cloudflare TLS Issuing ECC CA intermediate, and curl fetches it 200 under
-  # strict verification (both 2026-07-30), so this is the runner or checker
-  # trust store failing to complete an ECC chain, not an untrustworthy host.
-  # Re-test before removing; a genuinely bad chain would fail locally too.
-  '^https?://www\.ntia\.gov/files/ntia/publications/sbom_minimum_elements_report\.pdf$',
-  # Social hosts whose answer to an unauthenticated checker proves little:
   # bsky.app serves its JavaScript app shell with 200 even for a post that does
-  # not exist, and LinkedIn answers its non-standard 999 to curl (lychee passed
-  # it after redirects). x.com passed lychee and answered 404 for a missing
-  # post, so it is the first of the three to drop if a GitHub-runner re-test
-  # agrees (all from one workstation, 2026-10-11). twitter.com needs no entry:
-  # lychee excludes it by default.
-  '^https?://(www\.)?x\.com/',
-  '^https?://(www\.)?linkedin\.com/',
+  # not exist (on a GitHub runner too, 2026-10-11), so a pass proves nothing.
   '^https?://bsky\.app/',
+  # x.com answers 403 to the runner for a profile page, while status posts pass
+  # and a made-up status answers 404 (GitHub-runner retest, 2026-10-11). Status
+  # posts stay checked; profiles, articles and the terms page stay excluded.
+  # twitter.com needs no entry: lychee excludes it by default.
+  '^https?://(www\.)?x\.com/[^/?#]+(/(article|tos)(/[^?#]*)?)?/?([?#].*)?$',
+  '^https?://(www\.)?x\.com/i/article/',
   # Bot blocks on live pages, each scoped to the cited URL so the rest of the
-  # host stays checked. Medium, npmjs and isdown.app answer 403 to lychee, curl
-  # and a browser User-Agent alike; dev.mysql.com answers 403 to lychee while a
-  # plain curl gets 200; help.miro.com answers 403 to lychee's default
-  # User-Agent; w3.org answers 403 to a browser User-Agent but passed lychee,
-  # so it is the first of these to drop if a GitHub-runner re-test agrees (all
-  # from one workstation, 2026-10-11).
+  # host stays checked: 403 to lychee on a GitHub runner (2026-10-11). Medium
+  # and npmjs also answer 403 to curl and a browser User-Agent; dev.mysql.com
+  # answers 200 to a plain curl.
   '^https?://(www\.)?medium\.com/@ziobrando/the-rise-and-fall-of-the-dungeon-master-c2d511eed12f/?([?#].*)?$',
   '^https?://(www\.)?medium\.com/fortmatic/postmortem-service-disruption-from-expired-ssl-certificate-a993a59272a0/?([?#].*)?$',
   '^https?://dev\.mysql\.com/doc/refman/8\.4/en/innodb-transaction-isolation-levels\.html/?([?#].*)?$',
-  '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
-  '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
-  '^https?://www\.w3\.org/International/wiki/WorkingWithTimeZones/?([?#].*)?$',
   # Loopback hosts: never reachable from the checker. The example.com/.org/.net
   # placeholder domains need no entry: lychee excludes them by default.
   '^https?://localhost',
@@ -130,3 +116,15 @@ exclude = [
   '^https?://github\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
   '^https?://raw\.githubusercontent\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
 ]
+
+# Per-host pacing for hosts that answer a GitHub runner's burst with 429 even
+# after lychee's retries (online runs, 2026-10-11), while the same pages answer
+# 200 from a workstation. One request at a time, two seconds apart, so each
+# link is still checked rather than accepted.
+[hosts."testing.googleblog.com"]
+concurrency = 1
+request_interval = "2s"
+
+[hosts."jackrighteous.com"]
+concurrency = 1
+request_interval = "2s"
