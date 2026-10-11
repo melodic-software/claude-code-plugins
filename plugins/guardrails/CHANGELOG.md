@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.2] - 2026-10-11
+
+### Fixed
+
+- **`check-bash-file-changes` exited silently on an unexpected error.** It now gives the notice the shell hooks' abort boundary gives a fail-open hook, "guardrails check-bash-file-changes: guard did not run (internal error, rc=1); this call was not checked", on stderr and as a `systemMessage`, and still exits 0. A normal run stays quiet ([#6905](https://github.com/melodic-software/claude-code-plugins/issues/6905)).
+
 ## [0.50.1] - 2026-10-10
 
 ### Fixed

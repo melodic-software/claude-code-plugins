@@ -410,3 +410,6 @@ lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
 lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
 lib/installed.mjs plugins/user-interface/scripts/lib/installed.mjs
 lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
+lib/config-cascade.mjs plugins/user-interface/scripts/lib/config-cascade.mjs
+lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh

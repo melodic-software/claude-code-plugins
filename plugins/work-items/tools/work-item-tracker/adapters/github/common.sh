@@ -165,9 +165,8 @@ wit_resolve_repo() {
 
 # --- Assignee ops (REST) -----------------------------------------------------
 # These deliberately use `gh api` (REST) rather than `gh issue view/edit`. The
-# `gh issue` subcommands resolve assignees through GraphQL, and sandboxed
-# sessions (Claude Code on the web / remote execution) serve only a pinned set
-# of GraphQL operations, refusing the rest with HTTP 403 — which made the whole
+# `gh issue` subcommands resolve assignees through GraphQL, which cloud
+# sessions behind the GitHub proxy refuse with HTTP 403 — which made the whole
 # lease protocol unrunnable there. REST `…/issues/<n>/assignees` is served.
 # The <writer> argument keeps the identity routing intact: `read` = bare gh =
 # the session identity the claim carve-out requires (README "Edit labels /
@@ -243,7 +242,7 @@ wit_parse_edge_args() {
 }
 
 # shellcheck disable=SC2016  # jq program — $sv/$or are jq variables, not bash expansions
-readonly WIT_ITEM_JQ='{
+readonly WIT_ITEM_JQ="$WIT_JQ_DEF_UTC_TS"'{
   schema_version: $sv,
   id: ("github:" + $or + "#" + (.number | tostring)),
   title: .title,
@@ -262,7 +261,8 @@ readonly WIT_ITEM_JQ='{
           | "github:" + .o + "/" + .r + "#" + .n)
     else null
     end),
-  url: .url
+  url: .url,
+  created_at: (.createdAt | wit_utc_ts)
 }'
 
 # wit_gh_load_wont_do_labels — set WIT_GH_WONT_DO_LABELS (JSON array, lowercased) from
@@ -341,10 +341,10 @@ wit_gh_annotate_blocker_reasons() {
 # blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {
   local owner="$1" repo="$2" number="$3"
-  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url}'
+  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at}'
   if wit_gh_has_native_surface; then
     wit_run_gh read issue view "$number" -R "$owner/$repo" \
-      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url
+      --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt
     wit_gh_load_wont_do_labels
     printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
       jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"

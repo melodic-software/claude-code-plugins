@@ -153,6 +153,7 @@ gitea_issue_json() {
   jq -cn --argjson n "$number" --arg s "$state" --arg t "$title" \
     '{id: 9001, number: $n, state: $s, title: $t,
       html_url: ("https://git.example.invalid/acme/webapp/issues/" + ($n|tostring)),
+      created_at: "2026-03-01T18:30:00+08:00",
       assignees: [{login: "kyle"}], labels: [{id: 3, name: "type: fix"}],
       repository: {id: 7, name: "webapp", owner: "acme", full_name: "acme/webapp"},
       pull_request: null, body: "not carried by the seam"}'
