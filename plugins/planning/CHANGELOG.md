@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.3] - 2026-10-11
+
+### Changed
+
+- `/planning:interview` words each question so a bare "yes" accepts the recommendation: a negative recommendation is asked as "Should X stay out of this change?", not "Should we do X?" answered "No". The `interview-negative-recommendation-yes-accepts` eval case failed on all three with-plugin runs before this rule.
+
 ## [0.72.2] - 2026-10-11
 
 ### Added
