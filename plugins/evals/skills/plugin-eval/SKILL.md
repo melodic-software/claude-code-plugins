@@ -122,6 +122,9 @@ When `same_model` is `yes`, print this line under the report. It is advice: the 
 warning: the judge is the model under test; pass a different --judge-model
 ```
 
+A run that feeds a decision passes `--judge-model opus`; the CLI's default judge is uncalibrated
+for decisions, so a run without the flag is exploratory only.
+
 - **Pointer**: for how each model is chosen, see
   <https://code.claude.com/docs/en/plugin-evals#command-options>.
 - **As of**: 2026-10-01
@@ -164,14 +167,13 @@ Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); 
 are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
 arm costs are not symmetric.
 
-Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
-with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD, 16 runs (two runs, haiku judge) 0.98 USD, and 42 short single-arm calibration runs
-1.79 USD: 0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run.
+Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02, with no `--model` (it served
+opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 42 single-arm calibration runs 1.79 USD: 0.04 to
+0.07 USD a run on average with judging. An opus-judged decision run costs more per run than that sonnet-judged pass; size it from its own first run.
 
 **A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
-spend. 0.1 USD is 1.4 to 2.4 times the per-run cost of each pass above, and prices six cases at
+spend. 0.1 USD is 1.4 to 2.4 times the per-run cost of the two passes above, and prices six cases at
 three runs and two arms at 3.6 USD. Once a suite has run, scale from its own last `costUsd` instead.
 
 The older anchor of 0.8 USD per without-run, which prices the same six cases at about 16 USD, comes
@@ -179,9 +181,8 @@ from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the 
 skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
 arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
 when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.1 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
-from the last three passes when a Claude Code release note touches `plugin eval`, the model a run
-serves changes, or a pass averages more than 0.1 USD per run.
+at 0.1 alone. Re-derive these anchors from the latest passes when a Claude Code release note
+touches `plugin eval`, the model a run serves changes, or a pass averages more than 0.1 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -221,14 +222,13 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 
 2. Run "Calibrating a judge" first unless every `llm` grader it can reproduce has passed with this
    run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
-
 3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
-   claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
+   claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a decision run keeps `--judge-model opus`, dropped only for an exploratory run.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
    about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
    ends with the session. The run is finished when the process exits and `results.json` exists; read
