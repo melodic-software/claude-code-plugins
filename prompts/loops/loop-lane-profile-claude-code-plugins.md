@@ -140,7 +140,7 @@ machines; neither on the attended box.
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Runtime surfaces in this repo: **every tracked markdown file**

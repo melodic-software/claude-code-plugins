@@ -169,7 +169,7 @@ this lane's and any sibling's) are excluded from the 0-open-issues evaluation, e
 work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
 loop: every remaining open item human-gated, escalated, or `C5` on the issue-author provenance
 test (`work-classes.md`) and no PR in flight. Report and stop cleanly rather than idling forever.
-Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot; mid-cycle intake is reported, never chased.
+Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot, only when confirmed complete ([cycle-shape](reference/cycle-shape.md) step 1; a failed or partial read is never an empty queue); mid-cycle intake is reported, never chased.
 
 ## Cycle shape
 

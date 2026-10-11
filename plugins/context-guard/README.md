@@ -31,6 +31,10 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   including the two that do carry live occupancy and still cannot supply a snapshot, and why
   `unknown` in a session where the module does not run is structural rather than a defect.
 
+This plugin answers "how full is my context and what happens as it fills". For "what is my context
+made of" (the startup measurement and the live per-category breakdown), see the `context-budget`
+plugin.
+
 ## The module
 
 The module decides from the live session's figures in interactive, `-p`, `--bg` and `/loop`

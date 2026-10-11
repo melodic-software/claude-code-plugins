@@ -460,19 +460,20 @@ launches on changes.
 ## Concurrent workers on one repository
 
 Two worker lanes can run on one repository. Each launch line passes its own
-`--shard`, `--ordering`, and `--instance`. Flag grammar and validation live in
+`--shard`, `--ordering`, and `--instance`, plus a stop mode (`--standing` or
+`--drain`), without which a headless launch stops. Flag grammar and validation live in
 [`invocation-argv.md`](../../plugins/work-items/skills/work-loop/reference/invocation-argv.md).
 
 Lane A keeps issue numbers where `number % 2 == 0` and fills cap slots oldest first:
 
 ```text
-/loop /work-items:work-loop --shard 0/2 --ordering oldest-first --instance worker-a
+/loop /work-items:work-loop --standing --shard 0/2 --ordering oldest-first --instance worker-a
 ```
 
 Lane B keeps issue numbers where `number % 2 == 1` and fills cap slots newest first:
 
 ```text
-/loop /work-items:work-loop --shard 1/2 --ordering newest-first --instance worker-b
+/loop /work-items:work-loop --standing --shard 1/2 --ordering newest-first --instance worker-b
 ```
 
 `--shard <i>/<n>` keeps items whose issue number satisfies `number % n == i`
@@ -507,7 +508,7 @@ variable that sets it).
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `{{REPO}}`
 > Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`
