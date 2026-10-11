@@ -1402,6 +1402,38 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
   });
 
+  it("applies CommonMark's label rules: line endings yes, blank lines, brackets, blanks and 1000 characters no", async () => {
+    const body = [
+      "[deck",
+      "slides]: ../source/transcript.txt",
+      "",
+      "[long]: ../source/transcript.txt",
+      `[${"x".repeat(999)}]: ../source/transcript.txt`,
+      `[${"x".repeat(1000)}]: ../research/gone.md`,
+      "[ ]: ../research/gone.md",
+      "[a[b]: ../research/gone.md",
+      "",
+      "[split",
+      "",
+      "label]: ../research/gone.md",
+      "",
+      "[text",
+      "  ",
+      "more](../research/gone.md)",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      body.replaceAll("]: ../source/transcript.txt", "]: ../transcript/transcript.txt"),
+    );
+  });
+
   it("reads labels holding escaped brackets in definitions and inline links", async () => {
     const body = [
       "[deck\\]][d] and [a\\]b](../source/transcript.txt)",

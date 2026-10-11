@@ -114,9 +114,26 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$]/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
-/** `[label]: path` reference-style link definitions (a label may hold escaped brackets, `[a\]b]`); the path may follow one line ending. */
+/**
+ * `[label]: path` reference-style link definitions, with CommonMark's label
+ * rules: up to 999 characters, backslash escapes allowed (`[a\]b]`), no
+ * unescaped bracket, line endings allowed but not a blank line. The path may
+ * follow one line ending. A label must also hold a non-space character,
+ * checked by definitionLabelOk.
+ */
 const REFERENCE_DEFINITION =
-  /^( {0,3}\[(?:\\[^\n]|[^\]\\\n])+\]:[ \t]*(?:\r?\n[ \t]*)?)(<[^>\n]+>|\S+)/dgm;
+  /^( {0,3}\[(?:\\[^\n]|[^[\]\\\n]|\r?\n(?![ \t]*\r?\n)){1,999}\]:[ \t]*(?:\r?\n[ \t]*)?)(<[^>\n]+>|\S+)/dgm;
+
+/**
+ * True when a REFERENCE_DEFINITION match has a label holding a non-space
+ * character (CommonMark rejects an all-whitespace label).
+ *
+ * @param {RegExpMatchArray} match
+ */
+function definitionLabelOk(match) {
+  const prefix = match[1];
+  return /\S/.test(prefix.slice(prefix.indexOf("[") + 1, prefix.lastIndexOf("]:")));
+}
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
 const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
@@ -638,7 +655,13 @@ export function inlineLinks(text) {
     let labelStart = -1;
     let depth = 0;
     for (let back = open - 1; back >= 0; back -= 1) {
-      if (text[back] === "\n" && text[back - 1] === "\n") break;
+      // Link text never crosses a blank line (one holding only spaces counts).
+      if (
+        text[back] === "\n" &&
+        /^[ \t\r]*$/.test(text.slice(text.lastIndexOf("\n", back - 1) + 1, back))
+      ) {
+        break;
+      }
       if ((text[back] === "[" || text[back] === "]") && isEscaped(text, back)) {
         if (text[back] === "[" && depth === 0) break;
         continue;
@@ -746,6 +769,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   // rewrite. One naming a file the layout drops is left for the link check to
   // flag: a definition or attribute has no prose to rewrite into.
   for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
+    if (!definitionLabelOk(match)) continue;
     const [from, to] = /** @type {[number, number]} */ (match.indices?.[2]);
     const target = text.slice(from, to);
     const { dest, escapedChars } = unescapeDestination(unwrap(target));
@@ -934,6 +958,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
     const { fenceMasked, linkMasked } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
     for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
+      if (!definitionLabelOk(match)) continue;
       // A line such as `[0:33]: implementing ...` parses as a definition but is
       // prose; only a destination that reads as a path is checked.
       const destination = unescapeDestination(match[2].replace(/^<|>$/g, "")).dest;
