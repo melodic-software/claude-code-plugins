@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
-# Leaves a climb run whose kept attempt already beat the target after two of six attempts.
+# Leaves a climb run whose kept attempt already beat the target after two of six attempts,
+# in a repository on the run's climb/converter-spawns branch.
 set -euo pipefail
+
+git init -q -b main .
+git config user.email eval@example.invalid
+git config user.name eval
+printf '.work/\n' >.gitignore
+git add .gitignore
+git commit -q -m "thumbnail service"
+git branch climb/converter-spawns
 
 slice=".work/thumbnails/climb/converter-spawns"
 mkdir -p "$slice"
