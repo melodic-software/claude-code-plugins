@@ -72,9 +72,9 @@ Rules:
 - Never start from `scale(0)`. If the element scales in, start at `scale(0.95)` with `opacity: 0`.
 - The `::backdrop` needs the same three states and its own transition, or it snaps while the dialog
   fades.
-- Write no fallback. Where the exit is unsupported the element closes at once. Some engines
-  animate the entry only, or close `<dialog>` and popovers at once while animating a class toggle
-  both ways (tested 2026-10-01).
+- Write no fallback: where the exit is unsupported the element closes at once, which is acceptable.
+  Which engines animate the exit is read live from the `transition-behavior` and `@starting-style`
+  compat entries above. As of 2026-10-11; recheck when either entry's Baseline status changes.
 - Keep `[popover]:popover-open` out of the selector list that opens the dialog: a browser that does
   not know one selector drops the whole rule, and the dialog opens at `opacity: 0`. Inside
   `@starting-style` the shared list is safe, because every browser that reads the block knows the
