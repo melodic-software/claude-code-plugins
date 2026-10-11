@@ -4,13 +4,22 @@ Observed failure modes and their recovery behavior. Terse operational directives
 
 ## YouTube bot / sign-in check
 
-Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (platform order: Edge/Chrome on Windows). No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+Acquisition tries without cookies first; on *"Sign in to confirm you're not a bot"* it auto-retries with `--cookies-from-browser` using installed browsers (on Windows: Edge, Chrome, Firefox, Brave, Chromium), moving to the next browser when one's cookies cannot be read. No configuration required when you are signed into YouTube in a local browser. Optional overrides via the plugin's personal `userConfig`: the `yt_dlp_cookies_from_browser` option (force one browser) or the `yt_dlp_cookies_file` option (Netscape cookies.txt path). Never commit cookie files.
+
+This skill's decision: a browser whose cookies yt-dlp cannot read counts as a failed rung, so the fallback moves on (the stderr patterns it matches live in `extraction/acquisition/acquire-yt-dlp-auth.js`). On Windows, when forcing one browser, prefer Firefox or a cookies file over Chromium-based browsers.
+
+- **Pointer**: when Chromium-based cookie extraction fails on Windows, fetch
+  <https://github.com/yt-dlp/yt-dlp/issues/7271> (database locked while the browser runs) and
+  <https://github.com/yt-dlp/yt-dlp/issues/10927> (DPAPI decryption) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: either issue closes, or a yt-dlp release note changes `--cookies-from-browser`
+  on Windows.
 
 ## HTTP 429 throttling
 
 Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk.
 
-A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run.
+A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run. When another track already landed a usable English caption, the run continues on it and records the failed track's `ERROR:` line in `transcriptDegradation`.
 
 ## Temp-session expiry
 
