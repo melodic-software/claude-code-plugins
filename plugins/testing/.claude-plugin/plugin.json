@@ -32,7 +32,7 @@
     "test_judge_model": {
       "type": "string",
       "title": "Test judge model",
-      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. The judge was not calibrated on haiku, so its verdicts may be less consistent.",
+      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. haiku is the last resort: the judge is uncalibrated on it and may favor outputs labeled as Claude's own (self-preference bias).",
       "default": "sonnet",
       "options": ["fable", "opus", "sonnet", "haiku"]
     },

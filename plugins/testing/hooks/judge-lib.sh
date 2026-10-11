@@ -467,6 +467,7 @@ judge::transcript_class() {
 # every writer class (the main session's always counts; each writing session's
 # transcript and subagent transcript add theirs), and EFFORT; false when none
 # remains. Walks the configured model, the fallback, then opus, sonnet, haiku.
+# haiku is the last resort: uncalibrated, and biased toward Claude-labeled outputs.
 judge::pick() {
   local tdir="${TPATH%[/\\]*}" writers=" " sid agent c m fb
   writers+="$(judge::transcript_class "$TPATH") "
