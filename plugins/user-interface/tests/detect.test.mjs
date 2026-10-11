@@ -212,6 +212,42 @@ describe("--config", () => {
     assert.doesNotMatch(errors, /rows\[0\]/);
   });
 
+  test("a complete team routing row is held to the full row schema, allOf included", () => {
+    const team = join(scratch, "team-full-row.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: css-authoring\n      rank: 1\n      id: noslash\n      kind: skill\n      detect: user-interface\n" +
+        "      account: none\n      status: confirmed\n      platforms:\n        - linux\n      as_of: 2026-10-10\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, []);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.rows\[0\]\.id: must match/);
+  });
+
+  test("--team leaves no scratch path in the output, even for an absent local file", () => {
+    const team = join(scratch, "team-plain.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const project = join(FIX, "no-ds");
+    const r = spawnSync(process.execPath, [DETECT, "--project", project, ...seams, "--config", "--team", team], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /ui-home-/);
+    const local = JSON.parse(r.stdout).config.layers.find((l) => l.name === "local");
+    assert.equal(local.path, join(project, "docs/conventions/user-interface.local.yaml"));
+  });
+
+  test("--team reads a convention home whose name merely starts with two dots", () => {
+    const dir = join(scratch, "dotdot-home");
+    mkdirSync(join(dir, "..conf"), { recursive: true });
+    writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `..conf`.\n<!-- END GENERATED: convention-home -->\n");
+    writeFileSync(join(dir, "..conf/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+    const team = join(scratch, "team-dotdot.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const { config: c } = detect(["--project", dir, ...seams, "--config", "--team", team]);
+    assert.equal(c.home, "..conf");
+    assert.equal(c.layers.find((l) => l.name === "local").state, "loaded");
+    assert.equal(c.values.css.token_fallback, "literal");
+  });
+
   test("a project with no pointer line uses docs/conventions", () => {
     const { config: plain } = detect(["--project", join(FIX, "no-ds"), ...seams, "--config"]);
     assert.equal(plain.home, "docs/conventions");

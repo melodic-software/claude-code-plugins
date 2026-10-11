@@ -17,7 +17,7 @@
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, extname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolve } from "./lib/config-cascade.mjs";
@@ -182,7 +182,7 @@ function conventionHome() {
 function escapesProject(dir) {
   try {
     const rel = relative(realpathSync(opts.project), realpathSync(dir));
-    return rel.startsWith("..") || isAbsolute(rel);
+    return rel === ".." || rel.startsWith("../") || rel.startsWith(`..${sep}`) || isAbsolute(rel);
   } catch {
     return false;
   }
@@ -225,6 +225,7 @@ function scratchHome(home) {
   for (const name of [`${PLUGIN}.md`, `${PLUGIN}.local.yaml`, `${PLUGIN}.local.md`]) {
     const from = join(real, name);
     const to = join(dir, name);
+    names.set(to, from); // an absent file is still reported at its real path
     let st;
     try {
       st = lstatSync(from);
@@ -233,8 +234,6 @@ function scratchHome(home) {
     }
     if (st.isSymbolicLink()) symlinkSync(readlinkSync(from), to); // the resolver refuses it as it would the original
     else if (st.isFile()) copyFileSync(from, to);
-    else continue;
-    names.set(to, from);
   }
   return { dir, names };
 }
@@ -250,11 +249,12 @@ const relabel = (v, names) => {
 function checkRoutingRows(out) {
   const rows = out.values.routing?.rows;
   if (!Array.isArray(rows)) return;
-  const { properties } = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
-  const rowSchema = { type: "object", required: ["concern", "id"], additionalProperties: false, properties };
+  const full = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
+  const partial = { type: "object", required: ["concern", "id"], additionalProperties: false, properties: full.properties };
+  const isComplete = (row) => isMapping(row) && full.required.every((k) => Object.hasOwn(row, k));
   const team = out.layers.find((l) => l.name === "team");
   out.values.routing.rows = rows.filter((row, i) => {
-    const errors = validate(rowSchema, row, `routing.rows[${i}]`);
+    const errors = validate(isComplete(row) ? full : partial, row, `routing.rows[${i}]`);
     team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`));
     return errors.length === 0;
   });
