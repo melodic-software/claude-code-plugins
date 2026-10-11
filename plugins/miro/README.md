@@ -103,9 +103,10 @@ and launches a different server process instead.
    before relying on it.
 
 4. Because that command differs from the plugin's own `node ${CLAUDE_PLUGIN_ROOT}/...` entry,
-   Claude Code runs both servers (see the `dometrain` plugin's README for a case where it
-   collapses two). Disable the plugin's own `miro` server with `/mcp` so only the wrapped one
-   runs, and repeat that once in every project where you use `miro`.
+   the two servers can both run (whether Claude Code collapses them is read live from the
+   pointer below; the `dometrain` plugin's README covers a case where it does). Disable the
+   plugin's own `miro` server with `/mcp` so only the wrapped one runs, and repeat that once in
+   every project where you use `miro`.
 
 Tool names move from `mcp__plugin_miro_miro__<tool>` (plugin-provided) to `mcp__miro__<tool>`
 (directly configured) once the override is active. Update any permission rule written against the

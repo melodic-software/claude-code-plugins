@@ -66,10 +66,9 @@ against those sources before relying on a time-sensitive detail; the platform mo
 
 ### Availability gating (why the surface is often absent)
 
-Publishing an Artifact is gated by plan, sign-in, model provider, organization
-policy and surface. When the surface is absent, this skill **writes a local HTML
-file** instead. Which conditions apply, and the version floors and execution
-contexts that turn the surface off, are read live, never from this file.
+Publishing an Artifact is gated, and the conditions are read live from the pointer
+below, never from this file. When the surface is absent, this skill **writes a
+local HTML file** instead.
 
 - **Pointer**: when deciding whether the published-Artifact tier can be offered,
   fetch [Artifacts: Availability](https://code.claude.com/docs/en/artifacts#availability)
@@ -169,8 +168,8 @@ delivered per the delivery tiers above (local HTML file or published Artifact).
 A hand-tweakable visual layout for UI mockups, screen flows, landing pages and
 posters, which the person edits after Claude drafts it. It rides the
 published-Artifact surface, so every Artifact gate above applies, **plus** the
-skill's own gates (template, version, settings and platform), which are read live.
-How the person edits and exports it is the upstream page's to state.
+skill's own gates, which are read live from the pointer below, as is how the
+person edits and exports it.
 
 - **Pointer**: when offering `/design` or answering what it produces or requires,
   fetch [Artifacts: Draft a design canvas](https://code.claude.com/docs/en/artifacts#draft-a-design-canvas)
@@ -186,8 +185,8 @@ How the person edits and exports it is the upstream page's to state.
 **Reserved for the person to run** (probed behavior): our binary extraction of
 v2.1.285 reads the `design` registration as model-invocation-disabled and
 user-invocable, so the model never lists or invokes it and the person runs
-`/design`. A local skill named `design` takes the name over from the bundled one;
-which skill wins a shared name is read live from
+`/design`. A local skill named `design` can collide with the bundled one; which
+skill wins a shared name is read live from
 [Skills: Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name).
 
 - **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.

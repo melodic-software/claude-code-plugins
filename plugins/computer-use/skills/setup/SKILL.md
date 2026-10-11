@@ -47,8 +47,8 @@ allowlist and the active grant flags.
 
 - Tools reachable → PASS, and report the current allowlist and grant flags as INFO.
 - Tools absent → FAIL. Remediation: enable the `computer-use` MCP server for this project, and
-  confirm the session meets each eligibility condition (plan, sign-in, provider, interactive
-  session) the pointer lists, naming each unmet one in the report.
+  confirm the session meets each eligibility condition the pointer lists, naming each unmet one
+  in the report.
   - **Pointer**: when the tools are absent, fetch
     [Computer use: Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting)
     live for the CLI's eligibility checks, and
