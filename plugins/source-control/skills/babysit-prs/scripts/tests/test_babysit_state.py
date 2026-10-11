@@ -451,6 +451,17 @@ class FlakeRerunCapTests(unittest.TestCase):
                 state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, upper), 1
             )
 
+    def test_only_the_latest_head_keeps_rerun_records(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.record(ledger, "owner/a#1", SECOND_HEAD, LINT)
+        by_head = ledger["owner/a#1"]["check_reruns"]  # type: ignore[index]
+        self.assertEqual(list(by_head), [SECOND_HEAD])
+        self.record(ledger, "owner/a#1", SECOND_HEAD, LINT_NIGHTLY)
+        by_head = ledger["owner/a#1"]["check_reruns"]  # type: ignore[index]
+        self.assertEqual(list(by_head), [SECOND_HEAD])
+        self.assertEqual(len(by_head[SECOND_HEAD]), 2)
+
     def test_a_recorded_rerun_survives_the_next_snapshot_save(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             path = state.state_path_for(state_dir)

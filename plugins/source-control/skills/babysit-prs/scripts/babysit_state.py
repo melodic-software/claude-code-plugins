@@ -345,8 +345,10 @@ def record_rerun(
             "time(s) at this head; treat the failure as real"
         )
     entry = ledger.setdefault(key, {})
-    by_head = entry.setdefault("check_reruns", {})
-    by_check = by_head.setdefault(head_sha, {})
+    # Only the head being judged keeps records: an older head's counts can
+    # never apply again, so they are dropped rather than kept forever.
+    by_check = json_object(json_object(entry.get("check_reruns")).get(head_sha))
+    entry["check_reruns"] = {head_sha: by_check}
     by_check[_check_rerun_key(check)] = {
         "check": {
             "type": str(check.get("type") or ""),
