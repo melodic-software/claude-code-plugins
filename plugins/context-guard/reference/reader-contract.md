@@ -229,11 +229,16 @@ every other snapshot value). The bundled resolver implements both gates.
 
 **Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
 constants. Anthropic's system cards for the current Claude models give no per-length
-long-context scores (the pointer below names the sections). The published per-length data is
-retrieval and graph traversal, not agentic work, and no study we found links those scores to
-agentic task quality. We read two such sources, Google's GraphWalks BFS table and Context Arena's
-8-needle MRCR, both at the pointer below. The 1M row's `smart` edge, 128000, is the last length at
-which those current-model scores were still near their best when we set it. Its `acceptable` edge,
+long-context scores (the pointer below names the sections); as observed 2026-10-09, each card
+reports one aggregate ProgramBench score, an agentic task whose episodes run up to the full 1M
+window. The published per-length data is retrieval and graph traversal, not agentic work, and no
+study we found links those scores to agentic task quality. We read two such sources, both at the
+pointer below. As observed 2026-10-09: on GraphWalks BFS, run by Google at max reasoning and
+published with Gemini 4 Argon, Opus 5.5 scored 90.6% up to 128K and 66.8% from 256K to 1M, and
+Fable 5.1 91.4% and 65.0%; on Context Arena's 8-needle MRCR (max effort), Claude Opus 5 scored
+0.913 at 128K, 0.656 at 256K and 0.425 at 512K, and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M
+row's `smart` edge, 128000, is the last length at which those current-model scores were still near
+their best when we set it. Its `acceptable` edge,
 500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
 Between the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
 `acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
