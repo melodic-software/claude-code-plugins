@@ -200,6 +200,28 @@ done
 out="$(cd "$REPO" && bash "$SCRIPT" "$base")"
 assert_equal "with diff.external set, rows come from git's own diff" "1${TAB}1${TAB}evil.txt" "$out"
 
+# --- A failing git diff fails the run ----------------------------------------------
+# A git wrapper prints the real output of one diff call and then exits 128, as a git
+# that dies partway would. Neither the listing nor a per-file diff may pass as success.
+
+REPO="$TEST_TMPDIR/gitfail"
+make_repo "$REPO"
+printf 'x\n' >"$REPO/a.py"
+commit_all "$REPO" base
+base="$(git -C "$REPO" rev-parse HEAD)"
+printf 'x\ny\n' >"$REPO/a.py"
+FAILGIT="$TEST_TMPDIR/failgit"
+mkdir -p "$FAILGIT"
+# shellcheck disable=SC2016 # the wrapper's source; its variables expand when it runs
+printf '#!/usr/bin/env bash\nif [[ " $* " == *" $FAIL_ON "* ]]; then %q "$@"; exit 128; fi\nexec %q "$@"\n' \
+  "$(command -v git)" "$(command -v git)" >"$FAILGIT/git"
+chmod +x "$FAILGIT/git"
+for flag in --name-status -U0; do
+  rc=0
+  (cd "$REPO" && FAIL_ON="$flag" PATH="$FAILGIT:$PATH" bash "$SCRIPT" "$base" >/dev/null 2>&1) || rc=$?
+  assert_exit "a git diff $flag failure exits 2" 2 "$rc"
+done
+
 # --- Final report ---------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
