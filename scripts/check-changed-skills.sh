@@ -15,10 +15,15 @@
 # the legacy WARN-only posture.
 # Any FAIL fails this gate.
 #
-# <base-ref> (e.g. origin/main) is BOTH the changed-file diff base and
-# CHECK_SKILL_BASE_REF, so the checker's git-backed checks compare the PR head
-# against the same base a reviewer would — a rewrite that silently drops a
-# `description` trigger phrase is caught here, not at merge.
+# <base-ref> (e.g. origin/main) is resolved to `git merge-base <base-ref> HEAD`
+# (#7014), and that merge base is BOTH the changed-file diff base and
+# CHECK_SKILL_BASE_REF. A branch behind <base-ref> is thereby judged on what it
+# changed, not on what <base-ref> changed after the branch point (a two-dot diff
+# against the tip would flag every skill only main touched). The checker's
+# git-backed checks compare the PR head against the same base a reviewer would —
+# a rewrite that silently drops a `description` trigger phrase is caught here,
+# not at merge. When no merge base resolves (shallow clone, unrelated history)
+# the ref is used as given, with a warning: the stricter superset, never a skip.
 #
 # markdownlint (check 6) is skipped here (CHECK_SKILL_SKIP_MARKDOWNLINT=1):
 # SKILL.md markdown is already gated by the hygiene lane's markdown check, and
@@ -48,6 +53,12 @@ if ! gate_entry::classify "$@" || [[ "$GE_MODE" != base ]]; then
   exit 2
 fi
 BASE="$GE_REF"
+# A branch behind $BASE must not inherit $BASE's own newer commits (#7014).
+if merge_base="$(git merge-base "$BASE" HEAD 2>/dev/null)" && [[ -n "$merge_base" ]]; then
+  BASE="$merge_base"
+else
+  printf 'Warning: no merge base for %s and HEAD; diffing against the ref as given.\n' "$BASE" >&2
+fi
 
 CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if [[ ! -f "$CHECKER" ]]; then
