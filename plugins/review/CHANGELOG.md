@@ -3,6 +3,22 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.44.0] - 2026-10-11
+
+### Added
+
+- **`/review:explain-change --risk-only`** rates a pull request's risk areas without the digest, page, or policy check, runs the same fresh-context check on them, and returns a JSON result with `demote: true` when any area, or the checker's level for it, is HIGH or CRITICAL. The result may only send an unattended merge to a human; it never makes a pull request merge-eligible. No merge gate reads it yet.
+
+### Changed
+
+- Shared `standards-contract.md` synced to standards contract 1.0.3: the `.claude/rules` seam now says a path-scoped rule fires when Claude works with a matching file, not only when it reads one, and points at the memory docs for what loads a rule; no change to this plugin's behavior.
+
+- Reviewer agents: the model and effort pin records are rechecked against their upstream pages after the latest model release and re-dated; the pins are unchanged.
+
+- `/review:fanout-sweep` runs its extractor on `sonnet` at effort `medium` when no role map is passed, matching the multi-agent retrieval default.
+
+- `/review:explain-change` and `/review:quality-gate` read pull requests through `/source-control:pull-request view` and `list` instead of calling `gh` themselves. explain-change has the read write the facts and the diff to files under the OS temp directory, and its risk checker, publish gate, and recording check read those files. quality-gate drops its pre-computed open-PR list and finds the current branch's open pull request with `list --head`; a failed read stops the review as an unresolved base instead of falling back to the default branch. The explain-change publish gate takes `--facts <file>` and reads the visibility itself.
+
 ## [0.43.4] - 2026-10-10
 
 ### Fixed

@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.8] - 2026-10-11
+
+### Changed
+
+- object-writing: an agent spawn now takes an `effort` as well as a model, so the effort lever no longer requires a workflow; a spawn of the pinned `object-writer` omits it so the pin holds.
+
+- object-writer: the effort pin record is rechecked against its upstream pages after the latest model release and re-dated; the pin is unchanged.
+
 ## [1.6.7] - 2026-10-10
 
 ### Fixed
