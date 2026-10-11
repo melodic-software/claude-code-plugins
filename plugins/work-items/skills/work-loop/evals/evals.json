@@ -235,15 +235,16 @@
     {
       "id": 16,
       "name": "work-loop-truncated-snapshot-aborts-without-lifting-the-gate",
-      "prompt": "/work-items:work-loop --drain\n\nCycle start. Durable state shows first_drain_complete=false, no_progress_streak=1, item_cap=2. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[],\"truncated\":true}. The open-items read returned no rows.",
-      "expected_output": "The frontier envelope reports truncated: true, so the cycle-start snapshot is unusable and the cycle aborts with no state change. It runs no intake sweep, admission, execution, or escalation, and evaluates no exit condition: the empty item set is not an empty backlog, so the drain is not complete and first_drain_complete stays false. The durable counters (no_progress_streak 1, item_cap 2, first_drain_complete false) are written back as read, with only heartbeat_at moving. The cycle report leads with a snapshot-unusable line naming the frontier read and the truncation, and the lane schedules the next cycle instead of stopping.",
+      "prompt": "/work-items:work-loop --drain\n\nInteractive /loop session with the operator present. Cycle start. Durable state shows first_drain_complete=false, no_progress_streak=1, item_cap=2. The bound adapter is github, whose capabilities declare limits.list_items_max 1000. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[],\"truncated\":true}. The open-items read returned no rows. No open `Lane stall: work-loop` item exists.",
+      "expected_output": "The frontier envelope reports truncated: true, so the cycle-start snapshot is unusable and the cycle aborts with no state change. It runs no intake sweep, admission or execution and evaluates no exit condition: the empty item set is not an empty backlog, so the drain is not complete and first_drain_complete stays false. Because truncation does not clear on its own, the cycle raises the stall escalation now, without waiting for the no-progress threshold: a `Lane stall: work-loop` item with the human-gated role label and the machine-marked escalation comment, reporting the truncated frontier read, the github adapter and its list_items_max of 1000. The durable counters (no_progress_streak 1, item_cap 2, first_drain_complete false) are written back as read, with only heartbeat_at moving. The cycle report leads with a snapshot-unusable line naming the frontier read and the truncation, and, the launch being interactive, the lane schedules the next cycle instead of stopping.",
       "files": [],
       "expectations": [
         "Treats the truncated frontier envelope as an unusable snapshot rather than an empty backlog",
         "Does not set first_drain_complete and does not stop the drain as complete",
-        "Runs no intake sweep, admission, execution, or escalation this cycle",
+        "Runs no intake sweep, admission, or execution this cycle",
+        "Raises the stall escalation in this cycle without waiting for no_progress_streak to reach the threshold, naming the truncated read, the adapter and its list_items_max",
         "Leaves no_progress_streak, item_cap and the other durable counters as they were read",
-        "Reports the snapshot as unusable, naming the read and the truncation, and schedules the next cycle"
+        "Reports the snapshot as unusable, naming the read and the truncation, and schedules the next cycle because the launch is interactive"
       ]
     },
     {
@@ -257,6 +258,20 @@
         "Does not adopt stop_mode=drain or scope=area:api from the telemetry durable state block",
         "Does not fall back to the standing default for a headless launch",
         "Writes no telemetry and starts no cycle work before stopping"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "work-loop-headless-truncated-snapshot-escalates-and-stops",
+      "prompt": "/work-items:work-loop --standing\n\nHeadless launch (claude -p from a launcher-stored prompt). Cycle start. Durable state shows no_progress_streak=0, item_cap=3. The bound adapter is linear, whose capabilities declare limits.list_items_max 1000. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[{\"id\":\"linear:ENG-12\"}],\"truncated\":true}. No open `Lane stall: work-loop` item exists.",
+      "expected_output": "The truncated frontier read makes the snapshot unusable, so the cycle aborts with no state change: no intake sweep, admission, execution or exit evaluation, and the durable counters are written back as read with only heartbeat_at moving. In the same cycle, without waiting for the no-progress threshold, it raises the stall escalation (`Lane stall: work-loop`, human-gated role label, machine-marked escalation comment) naming the truncated read, the linear adapter and its list_items_max of 1000. Because the launch is headless, the lane then stops the loop with a message saying the snapshot was truncated at the linear adapter's list_items_max of 1000 and the lane cannot see its whole backlog, instead of scheduling another cycle.",
+      "files": [],
+      "expectations": [
+        "Aborts the cycle on the truncated read and does not admit or execute linear:ENG-12",
+        "Raises the stall escalation in this cycle even though no_progress_streak is 0",
+        "Leaves the durable counters as they were read",
+        "Stops the loop because the launch is headless, with a message naming the linear adapter and the list_items_max of 1000",
+        "Does not schedule another cycle"
       ]
     }
   ]

@@ -19,11 +19,29 @@ when the reads behind it were complete.
 When any read exits non-zero (seam exit 8 included), prints no parseable result, or reports
 truncation, the cycle aborts with **no state change**:
 
-- no intake sweep, admission, execution, escalation, or exit evaluation;
+- no intake sweep, admission, execution, escalation (except the truncation escalation below), or
+  exit evaluation;
 - every durable counter, `first_drain_complete` included, is written back as it was read. Only
   `heartbeat_at` moves, so the lane is not mistaken for a dead one;
 - the cycle report leads with `snapshot unusable: <read>: <reason>`, and the next cycle is scheduled
   as usual.
+
+## A truncated read escalates at once
+
+Truncation does not clear on its own: a backlog past the ceiling reads as truncated every cycle,
+and because the abort writes `no_progress_streak` back unchanged, the threshold would never be
+reached. So in the same aborted cycle, without waiting for the streak:
+
+- raise the stall escalation (`SKILL.md`, "No-progress detector", "Stall escalation"), with the
+  same title, label, marker and at-most-one-open check, reporting the truncated read, the bound
+  adapter, and its `limits.list_items_max` instead of a streak;
+- a **headless** launch (as defined in [invocation-argv.md](invocation-argv.md), "Headless
+  launches") then stops the loop with: `work-loop: snapshot truncated: <read> returned more than
+  the <adapter> adapter's list_items_max of <n> items; the lane cannot see its whole backlog`. An
+  interactive launch schedules the next cycle as usual.
+
+The escalation is a tracker write, not a durable-state change: every counter is still written back
+as read. A read that errored or was unparseable gets no escalation; those are transient.
 
 A failed read is never reported as an idle cycle. An empty snapshot from complete reads is an empty
 backlog; an empty one from a failed or skipped read is not.

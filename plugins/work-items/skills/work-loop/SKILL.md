@@ -221,7 +221,8 @@ the former default-on pause).
    the snapshot is one read, and an item created between two reads would otherwise be captured yet
    never tested. **A snapshot counts only when every read behind it is complete**: an errored,
    truncated, or unparseable read aborts the cycle with no state change and never sets
-   `first_drain_complete`. Read [reference/snapshot-reads.md](reference/snapshot-reads.md) first.
+   `first_drain_complete`; a truncated one also raises the stall escalation in that cycle, and a
+   headless lane then stops. Read [reference/snapshot-reads.md](reference/snapshot-reads.md) first.
    Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
    before any later step reads the snapshot. The drain exit is evaluated against this filtered
    snapshot. New automated intake arriving mid-cycle is **reported, never chased** (per the
@@ -461,7 +462,8 @@ citation. This lane's specifics:
   the cycles covered, and what sat unmoved in the snapshot. The at-most-one-open check matches on
   the exact title plus the seam's configured write identity as author, exactly like the
   `kind=ratify-c3` dedup. A stall item is ordinary human-gated backlog to the exit evaluation
-  (drain-terminal state), never lane infrastructure.
+  (drain-terminal state), never lane infrastructure. A truncated snapshot read raises it at once,
+  bypassing the threshold ([reference/snapshot-reads.md](reference/snapshot-reads.md)).
 
 ## Exit condition
 
