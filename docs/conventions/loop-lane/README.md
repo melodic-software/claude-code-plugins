@@ -401,7 +401,7 @@ pairings are valid); a security-surface work class routes to the frontier tier u
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)
   and the warning about a checker that passes bad work in
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.
 - **Judgment:** the sources state a model-capability rule only. That a reviewer or verifier also
   runs at an effort level no lower than the implementer's is our judgment, as is reading the
@@ -416,8 +416,8 @@ from the model page whenever it matters, and never restated in this convention.
 - **Pointer:** for what each alias resolves to on each provider, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
-  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
-- **As of:** 2026-10-01.
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#compare-models).
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 The reasons behind each binding:
@@ -435,9 +435,30 @@ The reasons behind each binding:
   overview) pay. The tier has nothing to do with Claude Code's fast mode, a separate speed setting
   for Opus (for fast mode, see
   [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
-- **`haiku` is admissible nowhere in these lanes today.** We read the model it resolves to as
-  having a smaller context window and an older knowledge cutoff than these lanes need (for both,
-  see the models overview), so no tier binds it.
+- **`haiku` is admissible nowhere in these lanes today, and no tier binds it.** Four grounds, each
+  our reading of the source it points at; the release figures behind them are in
+  [docs/upstream/haiku-5-5-launch.md](../../upstream/haiku-5-5-launch.md):
+  1. **Reviewer floor.** Lanes need a reviewer at least as capable as the executor it checks (the
+     fixed rules above; see
+     [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility)).
+     The launch benchmarks place Haiku 5.5 well below the models the strong and fast tiers bind, so
+     a Haiku reviewer fails the floor against every tier's executor.
+  2. **Early stop and unverified completion.** The prompting guide records Haiku 5.5 stopping
+     early under a long agent prompt and reporting code changes done without running a check
+     (see [prevent early stopping](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#prevent-early-stopping-in-long-agent-prompts)
+     and [tell coding agents to verify](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#tell-coding-agents-to-verify-their-changes)).
+     Unattended lanes rely on a worker finishing and checking its own work.
+  3. **Over-refusal.** The system card reports Haiku 5.5 over-refusing more than any other model
+     it tested in its automated agentic behavioral audit
+     ([system card](https://www.anthropic.com/claude-haiku-5-5-system-card), section 6.2.2). A
+     lane cannot tell a refusal from a stall without a human.
+  4. **Provider alias.** `haiku` resolves to Haiku 5.5 only on the Anthropic API and to Haiku 4.5 on
+     the other providers (see [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)),
+     so one binding would not mean one model across operators.
+  - **As of:** 2026-10-10.
+  - **Recheck trigger:** a Haiku role passes this repository's routing eval
+    ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901)), a revised
+    Haiku 5.5 system card, a change to either prompting-guide section, or Haiku 4.5 retiring.
 
 **Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
 here rather than left as an unstated assumption:
@@ -456,7 +477,7 @@ here rather than left as an unstated assumption:
   [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads);
   for usage-credit consent, see
   [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** a model gains or loses a fallback target, a new model on Claude Code's model
   page runs safety classifiers, or non-interactive mode starts asking for usage-credit consent.
 
