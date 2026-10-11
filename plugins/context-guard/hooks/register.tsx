@@ -1,11 +1,10 @@
-import type { EngineInterface, PromptOrigin, Register, Timer, ToolCallInput } from 'claude-code'
+import type { EngineInterface, PromptOrigin, Register, Timer } from 'claude-code'
 import { RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
 const PREFIX = 'context-guard: '
 const NEXT_ZONE: Partial<Record<Zone, Zone>> = { smart: 'acceptable', acceptable: 'dumb' }
 const SESSION_ID = /^[A-Za-z0-9_-]+$/
-const GATED_TOOLS = ['Write', 'Edit', 'NotebookEdit', 'Agent', 'Workflow']
 const PERSON_ORIGINS = ['composer', 'bridge']
 const REOFFER_MS = 5_000
 const FLOOR_MS = 60_000
@@ -13,12 +12,11 @@ const FLOOR_MS = 60_000
 const WRITE_TIMER_MS = 15_000
 const HELPER = 'lib/write-snapshot.mjs'
 const DATA_ITEMS = ['zone', 'percent', 'tokens', 'window']
-const ACTIONS = ['none', 'save-state', 'handoff', 'block'] as const
+const ACTIONS = ['none', 'save-state', 'handoff'] as const
 const ACTION_TEXT: Record<Action, string> = {
   none: '',
   'save-state': 'save-state',
   handoff: 'handoff',
-  block: 'new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed',
 }
 
 type Action = (typeof ACTIONS)[number]
@@ -30,9 +28,6 @@ type Config = {
   lines: boolean
   operator: boolean
   data: Set<string>
-  blocking: boolean
-  grace: number
-  blockUnattended: boolean
   band: boolean
   toast: boolean
 }
@@ -49,6 +44,10 @@ type Snapshot = {
     remaining_percentage: number | null
     current_usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number } | null
   }
+  // The published zone: what this body resolves to and the edges in force, for readers such as a status line.
+  zone?: Zone | 'unknown'
+  evidence_degraded?: boolean
+  bands?: { smart_max_used_percentage: number; acceptable_max_used_percentage: number; smart_max_tokens: number | null; acceptable_max_tokens: number | null }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
 // shown: the person's channel has handled it: the batch's last crossing got the transcript line
@@ -68,7 +67,6 @@ type Session = {
   pending: Event[]
   restate: boolean
   reading: Reading | undefined
-  grace: number
   written: { sig: string; at: number } | undefined
   body: Snapshot | undefined
   offered: Event[]
@@ -111,20 +109,11 @@ export const parseConfig = (options: Record<string, unknown>): Config & { bad: s
     bad.push(badOption('zone_line_data', `has an item that is not zone, percent, tokens or window (${quote(unknown.join(', '))})`, 'zone'))
     items = []
   }
-  let grace = Number(options.zone_gate_grace_calls ?? 20)
-  const graceKind = !Number.isInteger(grace) ? 'not a whole number' : grace < 0 ? 'a negative number' : grace > 999_999_999 ? 'above 999999999' : undefined
-  if (graceKind !== undefined) {
-    bad.push(badOption('zone_gate_grace_calls', `is ${graceKind}`, '20'))
-    grace = 20
-  }
   return {
     enabled: options.context_guard_hooks_enabled !== false,
-    lines: options.zone_lines_enabled !== false,
+    lines: options.model_notices === true,
     operator: options.zone_report_mode === 'operator',
     data: new Set(['zone', ...items]),
-    blocking: options.zone_hook_mode === 'blocking',
-    grace,
-    blockUnattended: options.zone_block_unattended === 'same-as-typed',
     band: options.context_guard_band === true,
     toast: options.context_guard_toast !== false,
     bad,
@@ -148,6 +137,8 @@ const oneLine = (s: string): string => {
 const asRule = (value: unknown): Rule | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
+  // `block` armed the removed gate; it reads as `none`, text dropped, so its threshold keeps its lines.
+  if (v.action === 'block') return { action: 'none' }
   if (!ACTIONS.includes(v.action as Action)) return undefined
   // one line: a newline in the operator's text must not start a line that reads as the guard's own
   const text = typeof v.text === 'string' ? oneLine(v.text) : ''
@@ -192,7 +183,6 @@ const newSession = (restate: Session['restate']): Session => ({
   pending: [],
   restate,
   reading: undefined,
-  grace: 0,
   written: undefined,
   body: undefined,
   offered: [],
@@ -275,27 +265,13 @@ const sentence = (source: string, rule: Rule) => {
   return text === '' || rule.action === 'none' && rule.text === undefined ? '' : ` context-guard (${source}): ${text}.`
 }
 
-// The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone.
-const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule }[] => {
-  const set = settings.actions[zone]
-  if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set }]
-  return zone === 'dumb' && cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' } }] : []
-}
-
-// The zone whose block is in force for this session now, if any: its zone's, or a passed threshold's.
-const blockFor = (s: Session, settings: Settings, cfg: Config) => {
-  const zone = s.reading?.zone
-  if (zone === undefined) return undefined
-  if (zoneRules(zone, settings, cfg).some(r => r.rule.action === 'block')) return zone
-  return settings.thresholds.some(th => th.action === 'block' && s.fired.has(th.at)) ? zone : undefined
-}
-
 export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Settings) => {
   const data = dataText(s.reading, cfg)
-  const action = (zone: Zone) =>
-    zoneRules(zone, settings, cfg)
-      .map(z => sentence(z.source, z.rule))
-      .join('')
+  // The sentence a zone's zones.json action adds, if any.
+  const action = (zone: Zone) => {
+    const rule = settings.actions[zone]
+    return rule ? sentence(`operator setting for the ${zone} zone`, rule) : ''
+  }
   // A verdict line states facts only; the options line renderAll adds is the one that names choices.
   const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
   // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
@@ -406,10 +382,20 @@ async function refresh($: EngineInterface, st: State) {
   }
   const zone = s.compacted ? 'dumb' : word === 'unknown' ? undefined : word
   const token = tokenShape(body.context_window, body.cli_version, settings.bands)
+  body.zone = zone ?? 'unknown'
+  body.evidence_degraded = s.compacted
+  body.bands = {
+    smart_max_used_percentage: settings.bands.smart,
+    acceptable_max_used_percentage: settings.bands.acceptable,
+    smart_max_tokens: token?.smart ?? null,
+    acceptable_max_tokens: token?.acceptable ?? null,
+  }
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
+  // The kept figures still publish a compaction seen since: degraded, and dumb.
+  else if (s.compacted) s.body = { ...s.body, zone: 'dumb', evidence_degraded: true }
   st.reading = reading
   const band = bandText(reading)
   if (band !== st.band) {
@@ -602,7 +588,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
     : `Bands: smart up to ${smart}%, acceptable up to ${acceptable}%`
   return [
     `${verdict}, ${figures}`,
-    `${bands}; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
+    `${bands}; approach margin ${settings.margin} points`,
     `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
     `Settings: ${zones}`,
   ].join('\n')
@@ -628,7 +614,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
       acceptable_max_tokens: t?.acceptable ?? null,
     },
     approach_margin: settings.margin,
-    gate: { mode: cfg.blocking ? 'blocking' : 'advisory', grace_calls: cfg.grace, calls_counted: s.grace },
   })
 }
 
@@ -691,7 +676,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb), and the gate's mode (advisory or blocking) with its grace calls and calls counted. Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. By default context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
+        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
@@ -704,31 +689,6 @@ async function registerSurfaces($: EngineInterface, st: State) {
     const reason = tool.reason instanceof Error ? tool.reason.message : String(tool.reason)
     logOnce($, st, 'tool-register', `the status tool could not register: ${reason}`)
   }
-}
-
-// Blocking: the reason a gated call is denied, or undefined to let it run. A typed turn gets the
-// configured block; an unattended turn only the post-compaction one, unless configured otherwise.
-// The budget counts in memory, synchronously after the reading, so calls dispatched together never
-// overspend it.
-async function gate($: EngineInterface, st: State, cfg: Config, e: ToolCallInput, fire: Fire) {
-  if (!cfg.enabled || !GATED_TOOLS.includes(e.tool)) return undefined
-  const { s, settings } = await refresh($, st)
-  const block = blockFor(s, settings, cfg)
-  if (block === undefined) {
-    s.grace = 0
-    return undefined
-  }
-  if (!isPersonTurn(st) && !cfg.blockUnattended && !s.compacted) return undefined
-  const input = e as unknown as { file_path?: unknown; notebook_path?: unknown }
-  const target = String(input.file_path ?? input.notebook_path ?? '')
-  if (/handoff/i.test(target)) return undefined
-  s.grace += 1
-  if (s.grace <= cfg.grace) return undefined
-  await emitTelemetry($, 'zone-gate', 'blocked', { zone: block, grace: cfg.grace, calls_seen: s.grace }, fire)
-  return (
-    `${PREFIX}${e.tool} denied: ${block} zone, grace budget of ${cfg.grace} calls spent. ` +
-    'Reads, Bash, Skill and handoff-path writes still run.'
-  )
 }
 
 export const register: Register = (on, options) => {
@@ -787,7 +747,6 @@ export const register: Register = (on, options) => {
       const s = await current($, st)
       s.compacted = true
       s.restate = true
-      s.grace = 0
     }
     return result
   }).catch(($, e, next) => next(e))
@@ -894,19 +853,12 @@ export const register: Register = (on, options) => {
 
   on('tool.call', async ($, e, next) => {
     if (e.tool === `mcp__${$.plugin.name}__status`) return { result: await statusJson($, st, cfg) }
-    const fire: Fire = { event: 'tool.call', startMs: await $.clock.now(), toolUseId: (e as { tool_use_id?: unknown }).tool_use_id, agentId: e.agentId }
-    const deny = await gate($, st, cfg, e, fire)
-    if (deny !== undefined) {
-      $.ui.log(deny, { to: 'debug' })
-      return { deny }
-    }
     const result = await next(e)
-    // The gate's envelope timed the call before the tool ran; the line work after it starts its own clock.
-    const after: Fire = { ...fire, startMs: await $.clock.now() }
+    const fire: Fire = { event: 'tool.call', startMs: await $.clock.now(), toolUseId: (e as { tool_use_id?: unknown }).tool_use_id, agentId: e.agentId }
     await refresh($, st)
     await queueWrite($, st)
     if (e.agentId !== undefined) return result
     if (result.deny !== undefined || result.isError) return result
-    return withLines($, result, await takeLines($, st, cfg, after))
+    return withLines($, result, await takeLines($, st, cfg, fire))
   }).catch(($, e, next) => next(e))
 }
