@@ -103,12 +103,20 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-read -r CFG_DEFAULT CFG_BASE < <("${PY[@]}" -I -c '
+# A failed read is named here; an empty CFG_BASE would surface later as a
+# missing merge-base.
+if ! cfg="$("${PY[@]}" -I -c '
 import json, sys
-scope = json.load(open(sys.argv[1], encoding="utf-8")).get("scope") or {}
-base = scope.get("base")
+try:
+    scope = json.load(open(sys.argv[1], encoding="utf-8")).get("scope") or {}
+    base = scope.get("base")
+except (OSError, ValueError, AttributeError) as exc:
+    sys.exit(f"audit-suppressions: cannot read the configuration {sys.argv[1]}: {exc}")
 print(scope.get("default") or "change", base.strip() if isinstance(base, str) and base.strip() else "auto")
-' "$CM_CONFIG")
+' "$CM_CONFIG")"; then
+  exit 2
+fi
+read -r CFG_DEFAULT CFG_BASE <<<"$cfg"
 if [[ "$MODE" == change && "$BASE_SET" -eq 0 && "$CFG_DEFAULT" == all ]]; then MODE=all; fi
 [[ "$BASE_SET" -eq 1 ]] || BASE="$CFG_BASE"
 
