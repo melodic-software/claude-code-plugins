@@ -242,6 +242,26 @@ assert_block "Refs #N without a colon is not linkage" "$GATED" \
 assert_block "a closing keyword split across lines is not linkage" "$GATED" \
   "$(gh_body $'Closes\n#5'"$SECTIONS")"
 
+# Tracker link lines: `/work-items:track link` prints the bound adapter's link
+# text, which is not GitHub's `#N` grammar on every tracker (work-items
+# CONTRACT.md "Change links"). Each line below is one an adapter emits.
+assert_allow "Linear closing link line accepted" "$GATED" \
+  "$(gh_body $'Closes ENG-123'"$SECTIONS")"
+assert_allow "Linear non-closing link line (no colon) accepted" "$GATED" \
+  "$(gh_body $'Refs ENG-123'"$SECTIONS")"
+assert_allow "Jira non-closing link line accepted" "$GATED" \
+  "$(gh_body $'Refs: SW2-12345'"$SECTIONS")"
+assert_allow "Relates to: with a tracker key accepted" "$GATED" \
+  "$(gh_body $'Relates to: SW2-7'"$SECTIONS")"
+assert_allow "local-markdown non-closing link line accepted" "$GATED" \
+  "$(gh_body $'Refs: local-markdown:local/markdown#7'"$SECTIONS")"
+assert_block "a lower-case key-shaped token is not a tracker key" "$GATED" \
+  "$(gh_body $'Fixes utf-8'"$SECTIONS")"
+assert_block "a tracker key with trailing prose is not a link line" "$GATED" \
+  "$(gh_body $'Refs: SW2-12 for context'"$SECTIONS")"
+assert_block "a tracker key after other text on the line is not a link line" "$GATED" \
+  "$(gh_body $'See also Closes ENG-123'"$SECTIONS")"
+
 # Negated closers: GitHub's parser ignores the negation and closes the issue
 # anyway, so CI fails them even beside valid linkage.
 assert_block "negated closer blocks" "$GATED" \

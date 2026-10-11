@@ -61,7 +61,7 @@ Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, o
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained, every action runs on plain `git`, plus `gh` for PR cross-referencing where available. Where it mentions an adjacent capability (an issue tracker, a build/lint verifier, a session-start setup hook), treat it as optional: use it when your environment provides it, proceed without it otherwise. Project-specific conventions, branch naming, worktree layout, which gitignored files a fresh worktree needs, come from the consuming project's own `CLAUDE.md`, rules, and hooks; read them before creating or removing anything.
+This skill is self-contained, every action runs on plain `git`, plus the forge CLI for PR cross-referencing where available ([GitHub provider reference](../../reference/providers/github/README.md)). Where it mentions an adjacent capability (an issue tracker, a build/lint verifier, a session-start setup hook), treat it as optional: use it when your environment provides it, proceed without it otherwise. Project-specific conventions, branch naming, worktree layout, which gitignored files a fresh worktree needs, come from the consuming project's own `CLAUDE.md`, rules, and hooks; read them before creating or removing anything.
 
 ## Arguments
 
@@ -90,7 +90,7 @@ Detect current state and guide user to the right action.
 4. **Branch-based guidance**:
 
    - **On the default branch** → "You're on `<default-branch>`. Create a branch (`git checkout -b <type>/<description>`) or use `/source-control:worktree create` if you need parallel session isolation."
-   - **In a worktree** → Show current worktree info: branch name, last commit, associated PR (via `gh pr list --head <branch> --json number,title,state`). If a PR exists, suggest the next `/source-control:pull-request` phase.
+   - **In a worktree** → Show current worktree info: branch name, last commit, associated PR (the forge's PR list for the branch). If a PR exists, suggest the next `/source-control:pull-request` phase.
    - **On a feature branch (not worktree)** → Show branch info and any associated PR.
 
 5. **Check for stale/prunable worktrees**: Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` and read its `prunable` column. If any worktrees are prunable or branches have merged PRs → suggest `/source-control:worktree cleanup`.
@@ -130,7 +130,7 @@ Exit 4 prints `FOREIGN CLAIM: <reason>`. Stop; another session holds a live clai
 
 ## Action: `status`
 
-Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched `gh pr list` and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), the reap-age hours `cleanup` reads (48 default; `${user_config.worktree_reap_after_hours}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched forge PR list and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), the reap-age hours `cleanup` reads (48 default; `${user_config.worktree_reap_after_hours}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
 
 The **Work** axis answers a question age and PR state cannot: whether removing a worktree would destroy a commit. It is classified first and outranks the rest, so a worktree holding unpushed unlanded commits is `stranded`, never merely `stale`. An unprovable verdict reports `unknown` and is treated exactly as `stranded`, the engine reports `?` rather than `no` so that an ambiguity is never read as safe.
 
@@ -223,7 +223,7 @@ session, never that it is present. The four-part records live in
 - **Does not push, create, merge, or close PRs**, `/source-control:pull-request` owns the back-half (prep, create, monitor, merge).
 - **Does not commit or stage code**, staging and committing stay user-controlled; `/source-control:commit` owns the commit mechanic.
 - **Does not run CI, build, test, or lint**, use your project's build/test/lint tooling or skills.
-- **Does not manage remote branches**, GitHub's `delete_branch_on_merge` handles remote cleanup on merge (when enabled); local `git branch -D` is emitted for the user, never run inline.
+- **Does not manage remote branches**, the forge's delete-branch-on-merge setting handles remote cleanup on merge (when enabled); local `git branch -D` is emitted for the user, never run inline.
 - **Does not uninstall plugins, and does not touch user or local scope.** `cleanup`'s reap removes only the *project-scope install records keyed to the worktree it is tearing down*, through `claude plugin uninstall -s project`. It never runs `-s user` or `-s local`, never passes `--prune`, and never edits `installed_plugins.json`. Fleet-wide plugin state is a plugin-management concern, not a worktree one.
 - **Does not enforce branch naming**, the consuming project's hooks and CI are the gates. This skill only surfaces the project's convention (read it from the project's `CLAUDE.md` / rules; default suggestion: `<type>/<kebab-description>` with a Conventional Commits type prefix).
 
@@ -240,7 +240,7 @@ This skill complements other workflow components. It does not duplicate their lo
 
 ## Graceful Degradation
 
-- **`gh` CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the `delete_branch_on_merge` check are skipped with note: "GitHub API unavailable. PR status unknown."
+- **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "GitHub API unavailable. PR status unknown."
 - **Not in a git repo**: All actions exit immediately with "Not in a git repository."
 - **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
 - **`worktree_reap_after_hours` invalid or unexpanded**: Falls back to 48 hours silently (treat a literal `${user_config.worktree_reap_after_hours}` token as unset).
