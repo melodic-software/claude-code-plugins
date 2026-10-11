@@ -117,6 +117,19 @@
         "Does not apply the autonomous-eligible role label or stamp a work class on #900",
         "Records the ratification as a reply comment"
       ]
+    },
+    {
+      "id": 9,
+      "name": "attend-queue-lists-first-drain-proposal-despite-infrastructure-exclusion",
+      "prompt": "/work-items:attend-queue\n\nBuild the attention view. Open items: #900 'Lane telemetry: work-loop' carries needs-human and a comment by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=ratify-first-drain -->. #901 'Lane telemetry: attend-queue' carries needs-human and a comment by the write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #950 is an ordinary work item with needs-human and a kind=escalated marker from the write identity. #960 is unlabeled raw intake.",
+      "expected_output": "The view lists #900 as a [ratify] row even though it is a lane telemetry issue, because a kind=ratify-first-drain marker from the write identity on a human-gated telemetry issue is the one exception to the lane-infrastructure exclusion. #901 stays out of the view: it is lane infrastructure and its marker kind is not ratify-first-drain. #950 lists as [escalated] and #960 as [intake]. [ratify] rows sort before [escalated] before [intake] at equal age.",
+      "files": [],
+      "expectations": [
+        "Lists #900 as a [ratify] row",
+        "Does not list #901 in any row",
+        "Lists #950 as [escalated] and #960 as [intake]",
+        "Names the ratify-first-drain marker as the reason #900 appears despite being a telemetry issue"
+      ]
     }
   ]
 }

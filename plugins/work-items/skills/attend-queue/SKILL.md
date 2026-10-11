@@ -74,9 +74,12 @@ Build a single merged view, oldest first, each row tagged by kind:
    them, but take no claim and make no change from this lane; the operator decides (drop the
    edge, re-scope, or close) outside it.
 
-Lane-infrastructure items never enter the view, and this lane re-derives nothing to keep them out:
-the composed triage view already excludes the per-lane telemetry tracking issues (`/work-items:triage`,
-"Scope: raw intake only"), so `[intake]` inherits that exclusion the same way it inherits the buckets.
+Lane-infrastructure items never enter the view, with one exception. The composed triage view
+already excludes the per-lane telemetry tracking issues (`/work-items:triage`, "Scope: raw intake
+only"), so `[intake]` inherits that exclusion and this lane re-derives nothing for it. The
+exception: a telemetry issue carrying a `kind=ratify-first-drain` marker from the seam's write
+identity while it wears the human-gated role label is a `[ratify]` row, since that issue is where
+a worker loop asks to end its first-drain period. No other marker kind lists a telemetry issue.
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,

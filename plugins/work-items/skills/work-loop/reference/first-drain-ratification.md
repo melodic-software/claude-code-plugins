@@ -9,10 +9,10 @@ own telemetry comment, which the lane rewrites every cycle, so it can never be t
 
 The period is over when the lane's telemetry issue (`Lane telemetry: work-loop`) carries the label
 `loop-lane: first-drain-ratified` and a person applied it. Check it once per cycle, before
-admission, with:
+admission, running the script at the absolute path `SKILL.md`'s admission gate gives for it:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/first-drain-ratified.sh" --repo "$REPO" --issue "$ISSUE"
+bash "<ratified-script>" --repo "$REPO" --issue "$ISSUE"
 ```
 
 Only exit `0` lifts the gate for this cycle. Every other exit leaves it in place: `1` (label absent,
