@@ -765,31 +765,40 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(path.join(targetDir, `media/${VIDEO_ID}.mp4`))).toBe(true);
   });
 
-  it("refuses a recorded contact-sheets dir outside the OS temp dir", async () => {
-    const { sliceDir, targetDir } = makeFixture();
-    const statePath = path.join(sliceDir, "run-state", "watch.json");
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    state.tempSession.contactSheetsDir = path.join(path.parse(os.tmpdir()).root, "relayout-sheets");
-    fs.writeFileSync(statePath, JSON.stringify(state));
+  it.each([false, true])(
+    "refuses a recorded contact-sheets dir outside the OS temp dir (noMedia: %s)",
+    async (noMedia) => {
+      const { sliceDir, targetDir } = makeFixture();
+      const statePath = path.join(sliceDir, "run-state", "watch.json");
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      state.tempSession.contactSheetsDir = path.join(
+        path.parse(os.tmpdir()).root,
+        "relayout-sheets",
+      );
+      fs.writeFileSync(statePath, JSON.stringify(state));
 
-    const result = await relayoutSlice({ sliceDir, targetDir });
+      const result = await relayoutSlice({ sliceDir, targetDir, noMedia });
 
-    expect(result.exitCode).toBe(1);
-    expect(fs.existsSync(targetDir)).toBe(false);
-  });
+      expect(result.exitCode).toBe(1);
+      expect(fs.existsSync(targetDir)).toBe(false);
+    },
+  );
 
-  it("refuses a recorded contact-sheets dir that overlaps the slice", async () => {
-    const { sliceDir, targetDir } = makeFixture();
-    const statePath = path.join(sliceDir, "run-state", "watch.json");
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    state.tempSession.contactSheetsDir = path.join(sliceDir, "key-frames");
-    fs.writeFileSync(statePath, JSON.stringify(state));
+  it.each([false, true])(
+    "refuses a recorded contact-sheets dir that overlaps the slice (noMedia: %s)",
+    async (noMedia) => {
+      const { sliceDir, targetDir } = makeFixture();
+      const statePath = path.join(sliceDir, "run-state", "watch.json");
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      state.tempSession.contactSheetsDir = path.join(sliceDir, "key-frames");
+      fs.writeFileSync(statePath, JSON.stringify(state));
 
-    const result = await relayoutSlice({ sliceDir, targetDir });
+      const result = await relayoutSlice({ sliceDir, targetDir, noMedia });
 
-    expect(result.exitCode).toBe(1);
-    expect(fs.existsSync(targetDir)).toBe(false);
-  });
+      expect(result.exitCode).toBe(1);
+      expect(fs.existsSync(targetDir)).toBe(false);
+    },
+  );
 
   it("reads no link inside a code span that spans lines, and treats a lone backtick as text", async () => {
     const body = [
@@ -1728,6 +1737,23 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "frames/vision-plan.md")).toBe(
       "[deck][d]\n\n[d]:\n  ../metadata/decks/slides.pdf\n",
     );
+  });
+
+  it("checks a bare-file definition destination carrying a query, a fragment or both", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/claim-inventory.md":
+          "[notes]: missing.md?download=1\n[both]: gone.md?download=1#top\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved.map((entry) => entry.ref)).toEqual([
+      "missing.md?download=1",
+      "gone.md?download=1#top",
+    ]);
   });
 
   it("flags a reference-style definition to a path that does not exist", async () => {

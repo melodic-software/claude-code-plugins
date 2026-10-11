@@ -87,9 +87,10 @@ without a finite number or null `timestampSec`), any frame image, a frame
 (anchor frames carry their time in their name), or the caption tracks. It refuses a temp session
 holding several videos (an X post with more than one), naming them, since the watch does not
 record which one is primary; a video whose id is not this slice's (for an X post, whose
-info JSON does not name this post as its `display_id`); a recorded work, frames or
-contact-sheets dir outside the OS temp dir or overlapping the slice; and a symlink in the slice
-or the temp session, since a copy would follow it. It refuses when the slice is, holds, or sits
+info JSON does not name this post as its `display_id`); and a symlink in the slice or the temp
+session, since a copy would follow it. In every mode, `--no-media` included, it refuses a recorded
+work, frames or contact-sheets dir outside the OS temp dir or overlapping the slice, existing or
+not, since `close` deletes those. It refuses when the slice is, holds, or sits
 inside a path the run writes: the target, `<target>.relayout-backup`, or a
 `.<target-name>.relayout-*` staging dir beside the target. In
 every mode, `--no-media` included, it refuses when one of those paths is, holds, or sits inside a

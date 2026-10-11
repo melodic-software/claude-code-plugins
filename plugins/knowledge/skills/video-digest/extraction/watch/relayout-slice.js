@@ -172,8 +172,11 @@ function referenceDefinitions(text) {
  * `src=` inside another attribute's quoted value is never read as a name.
  */
 const HTML_ATTRIBUTE = /[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/dy;
-/** A backticked span names a path when it holds a separator or ends in an extension. */
-const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
+/**
+ * A backticked span names a path when it holds a separator or ends in an
+ * extension, optionally followed by a `?query`, a `#fragment`, or both.
+ */
+const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?$/;
 
 /** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
 const HTML_START_TAG = /<([A-Za-z][A-Za-z0-9-]*)(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
@@ -1549,13 +1552,12 @@ export async function relayoutSlice({
     }
   }
 
-  // `--no-media` reads nothing from the temp session.
-  const temp = noMedia ? {} : recorded;
   // watch.json names the temp dirs, and the watch only ever makes them in the
   // OS temp dir; anything else (a hand-edited path, the slice, the target) is
-  // not a temp session to read from.
+  // not a temp session, and `close` would delete it. Checked in every mode,
+  // whether or not the dir still exists.
   const realTmp = fs.realpathSync.native(os.tmpdir());
-  for (const dir of [temp.workDir, temp.framesDir, temp.contactSheetsDir]) {
+  for (const dir of [recorded.workDir, recorded.framesDir, recorded.contactSheetsDir]) {
     if (!dir) continue;
     if (!isSameOrInside(realPathOf(dir), realTmp) || realPathOf(dir) === realTmp) {
       return refuse(`temp session dir ${dir} is not inside the OS temp dir`);
@@ -1564,6 +1566,8 @@ export async function relayoutSlice({
       return refuse(`temp session dir ${dir} overlaps the slice`);
     }
   }
+  // `--no-media` reads nothing from the temp session.
+  const temp = noMedia ? {} : recorded;
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];
   // The watch does not record which work file is the primary entry's, so only
   // a work dir holding exactly one video is unambiguous (an X post with
