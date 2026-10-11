@@ -15,6 +15,14 @@
     {
       "answer": "Q1: Should the export respect the current filters?\nMy recommendation: **No** - export everything.\n\nQ2: Should the React rewrite wait for its own change?\nMy recommendation: **Yes**.",
       "why": "a No recommendation on an unrelated question is out of this grader's scope"
+    },
+    {
+      "answer": "Q2: Should the React rewrite stay out of this change?\nMy recommendation: **Yes**.\n\nQ3: Should the export respect the current filters?\nMy recommendation: **No** - export everything.",
+      "why": "the next question's No does not count against the rewrite question"
+    },
+    {
+      "answer": "Q1: Is the page already using React components?\nMy recommendation: **No** - it is server-rendered.",
+      "why": "a fact question that names React, not the rewrite"
     }
   ],
   "fail": [

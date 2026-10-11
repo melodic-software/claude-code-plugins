@@ -9,8 +9,8 @@
       "why": "rewriting in a bold question"
     },
     {
-      "answer": "Q4: Should React replace the server-rendered templates now?",
-      "why": "names React in a question"
+      "answer": "Q4: Should we port the page to React now?",
+      "why": "asks about moving the page to React"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "The React rewrite is out of scope.\nQ1: Which columns should the CSV include?",
       "why": "states the rewrite decision instead of asking it"
+    },
+    {
+      "answer": "Q1: Is the page already using React components?",
+      "why": "mentions React but does not ask about the rewrite"
     }
   ]
 }
