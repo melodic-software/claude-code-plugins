@@ -31,9 +31,9 @@
       "name": "rejected-layer-value-is-reported",
       "prompt": "What effort does the worker role resolve to for research work? My .claude/multi-agent.local.yaml sets roles.worker.model to claude-opus-5-5.",
       "narration": true,
-      "expected_output": "Runs route.sh worker research with the session alias. The worker resolves to effort low; the notes say roles.worker.model was rejected because a full model id is not an alias, and the model comes from the layer below.",
+      "expected_output": "Runs route.sh worker research with the session alias. The worker resolves to effort medium, its own effort, since no layer sets a research workload; the notes say roles.worker.model was rejected because a full model id is not an alias, and the model comes from the layer below.",
       "expectations": [
-        "The research workload is passed so effort resolves to low",
+        "The worker's model is reported as supplied by the layer below the overlay, not the overlay",
         "The rejected key is reported from notes, with the reason that only aliases are accepted",
         "The skill does not edit the overlay file"
       ]

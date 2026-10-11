@@ -760,6 +760,15 @@ jobs:
             { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
           exit "$rc"
 
+      # The test selector's cases against the live tree: the derived shared-lib
+      # copy sets and real fan-outs. Each runs the selector over the whole tree,
+      # so no test selection can say when it must run, and it runs here on every
+      # pull request rather than as a case of scripts/affected-tests.test.sh.
+      - name: Check the test selector against the live tree
+        id: selector_live
+        continue-on-error: true
+        run: bash scripts/affected-tests-live.sh
+
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
       # at a time, so an unchanged file's verdict is the one its last green run
       # gave. The whole tree when there is no diff base (a schedule or dispatch
@@ -837,6 +846,22 @@ jobs:
         with:
           config: .gitleaks.toml
           scan-mode: git
+
+      # Offline links and anchors: local files and #fragments only, no
+      # network. Ungated like the other whole-repo scanners, because a
+      # docs-only diff is exactly what can break a link. The excludes are test
+      # data whose links are meant not to resolve here: the attribution audit's
+      # golden fixtures, and a verbatim copy of an upstream table with a
+      # site-root-relative link.
+      - name: Check local links and anchors
+        id: lychee
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        with:
+          config: lychee.toml
+          exclude: >-
+            (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
+            (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
 
       - name: Check editorconfig conformance
         id: editorconfig
@@ -1088,9 +1113,11 @@ jobs:
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
             test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
+            selector-live=${{ steps.selector_live.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
+            lychee-offline=${{ steps.lychee.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
@@ -1849,12 +1876,15 @@ jobs:
       # strace, so its suite runs first here: no other lane runs a scripts/
       # suite that needs strace. The counts depend on the image's bash, git, jq
       # and coreutils, so the versions are printed beside every check: an ABOVE
-      # after an image bump reads in one log.
+      # after an image bump reads in one log. The js-complexity-share counter
+      # runs lizard from the pinned install above (.github/requirements-ci.txt),
+      # and its version is printed the same way.
       - name: Check performance counter ceilings
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           bash scripts/hook-census.test.sh
           bash scripts/hook-census.sh --versions
+          echo "lizard $(lizard --version)"
           python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff

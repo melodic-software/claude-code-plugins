@@ -6,6 +6,7 @@
 
 import { acquireYouTubeMedia, adapterSourceDeclarations } from "../acquisition/acquire.js";
 import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "../acquisition/acquire-yt-dlp-auth.js";
+import { YT_DLP_SKIP_TRANSLATED_SUBS } from "../acquisition/build-yt-dlp-args.js";
 import { findPinnedComment } from "../acquisition/video-metadata.js";
 import { deduplicateHarvestedLinks, linksFromText } from "../harvesting/harvest-links.js";
 import { createAcquisitionEnvelope, createSourceAdapter } from "./adapter-contract.js";
@@ -35,7 +36,7 @@ export const YOUTUBE_UNAVAILABLE_PATTERNS = Object.freeze([
   /is not a valid URL/i,
 ]);
 
-const YOUTUBE_EXTRACTOR_ARGS = "youtube:max_comments=20,all,top;comment_sort=top";
+const YOUTUBE_EXTRACTOR_ARGS = `youtube:max_comments=20,all,top;comment_sort=top;${YT_DLP_SKIP_TRANSLATED_SUBS}`;
 
 const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
 /** Path prefixes whose NEXT segment carries the video id (`/live/<id>`, `/embed/<id>`, …). */

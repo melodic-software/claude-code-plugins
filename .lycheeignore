@@ -1,28 +1,50 @@
 # Lychee link-check exclusions. One regex per line (matches anywhere in URL).
+# Every entry carries a one-line reason; an external URL is listed exactly, never by host.
 
-# Vendored upstream baselines (plugins/*/skills/*/vendor/) are byte-exact
-# snapshots kept solely for drift diffing. Their relative links may point at
-# upstream sibling files that are deliberately not vendored — do not check
-# links that resolve into a vendor directory.
+# Vendored upstream snapshots: their relative links may target upstream files that are not vendored.
 /plugins/[^/]+/skills/[^/]+/vendor/
 
-# Claude Code expands these runtime variables after loading an installed
-# plugin. In source Markdown they are intentionally not filesystem paths.
+# Claude Code runtime variables, expanded after a plugin installs: not filesystem paths in source.
 CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
 
-# Synthetic ai-briefing eval fixtures use a fictional release feed. The URLs
-# are test data for ranking/deduplication behavior, not external dependencies.
+# Fictional release feed in the ai-briefing eval fixtures: test data, not an external dependency.
 github\.com/meridian-labs/agent-cli/releases/tag/
 
-# Product UI on claude.ai blocks automated clients: 403 even with a browser
-# User-Agent (verified 2026-08-21). Docs on code.claude.com stay checked.
-^https?://claude\.ai/
+# Fictional forge URLs in the docs-naming audit-file-names fixture tree: test data, not an external dependency.
+^https://(github\.com|raw\.githubusercontent\.com)/acme/fixture/
 
-# ACM Digital Library blocks automated clients outright: 403 even with a
-# browser User-Agent (verified 2026-08-21). Recurring — new DOI citations
-# keep arriving; host-level so the weekly report does not re-file the next one.
-^https?://dl\.acm\.org/
+# Fictional repository in the playwright saved-login eval prompt: test data, not an external dependency.
+^https://github\.com/acme-example/widgets$
 
-# Reddit blocks automated clients: 403 even with a browser User-Agent
-# (verified 2026-08-21). Community citations stay in the docs.
-^https?://(www\.)?reddit\.com/
+# ISO bot block on GitHub runners: 403 on the runner, 200 to a browser User-Agent from a workstation (verified 2026-10-11).
+^https://www\.iso\.org/standard/77520\.html$
+^https://www\.iso\.org/standard/63500\.html$
+
+# Publisher bot block: 403 to the runner and to a browser User-Agent; each DOI resolves in the Crossref API to the cited title (verified 2026-10-11).
+^https://doi\.org/10\.1145/3133876$
+^https://doi\.org/10\.1016/j\.intcom\.2010\.04\.004$
+^https://journals\.sagepub\.com/doi/10\.1509/jmkg\.71\.3\.039$
+
+# Cloudflare challenge: 403 to the runner and to a browser User-Agent; a rendering fetch returns the cited page (verified 2026-10-11).
+^https://queue\.acm\.org/detail\.cfm\?id=3595878$
+^https://www\.nesdev\.org/wiki/APU_Pulse$
+^https://medium\.com/jobs-to-be-done/know-the-two-very-different-interpretations-of-jobs-to-be-done-5a18b748bd89$
+^https://dba\.stackexchange\.com/questions/tagged/join$
+
+# claude.ai sign-in UI: answers 200 to a made-up path, so a passing check proves nothing about these pages (verified 2026-10-11).
+^https://claude\.ai/code$
+^https://claude\.ai/code/routines$
+^https://claude\.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf$
+
+# ACM Digital Library bot block: 403 to lychee and to a browser User-Agent (verified 2026-10-11).
+^https://dl\.acm\.org/doi/10\.1145/3183519\.3183521$
+^https://dl\.acm\.org/doi/10\.1109/TSE\.2010\.62$
+^https://dl\.acm\.org/doi/10\.1145/2470654\.2481287$
+
+# Reddit search API bot block: 403 to lychee and to a browser User-Agent (verified 2026-10-11).
+^https://www\.reddit\.com/r/ClaudeCode/search\.json\?q=function\+hooks\+OR\+mods$
+
+# Reddit bot block: 403 on the GitHub runner, and a workstation gets the same 200 page for a made-up post id; the Arctic Shift archive lists all three posts, none removed (verified 2026-10-11).
+^https://www\.reddit\.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/$
+^https://www\.reddit\.com/r/SunoAI/comments/1g5qzes/style_order/$
+^https://www\.reddit\.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/$

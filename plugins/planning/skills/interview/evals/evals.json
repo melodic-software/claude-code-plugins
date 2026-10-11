@@ -111,6 +111,7 @@
         "Because this is an engineering session that hands off downstream, output frames the recommendation as configuring the downstream execution session (not the current/next session)",
         "Output recommends a model tier and effort level, distinguishing capability (model) from thoroughness (effort)",
         "Output recommends advisor pairing when the main model is a faster tier, rather than a faster main with no advisor",
+        "When it recommends an advisor pairing, output names the stronger model alone at low effort as the baseline the pairing must beat and tells the user to check that the advisor actually engages on their workload, stating no fixed advisor-call rate",
         "Output recommends a separate effort level for the implement phase and for the verify phase, each naming the model-config effort-table row it matched, and neither below medium",
         "Current model names / tiers / pairings are sourced from the live official docs, not pinned in the skill",
         "On a doc-fetch failure the skill degrades to the durable distinction with a visible note, recommends no effort level for either the implement or the verify phase, and does not halt the interview or guess a model name",
@@ -129,6 +130,7 @@
         "The stop-boundary recommendation is a refresh of the early read, and when the config was raised only at the end (or not at all) the output offers to re-evaluate the reached understanding under the raised config",
         "Output recommends a model tier and effort level, distinguishing capability (model) from thoroughness (effort)",
         "Output recommends advisor pairing when the main model is a faster tier, rather than a faster main with no advisor",
+        "When it recommends an advisor pairing, output names the stronger model alone at low effort as the baseline the pairing must beat and tells the user to check that the advisor actually engages on their workload, stating no fixed advisor-call rate",
         "Current model names / tiers / pairings are sourced from the live official docs, not pinned in the skill",
         "On a doc-fetch failure the skill degrades to the durable distinction with a visible note and does not halt the interview or guess a model name",
         "The recommendation is framed as advisory (applied via /model, /advisor, effort setting), not as a read of the user's current config"

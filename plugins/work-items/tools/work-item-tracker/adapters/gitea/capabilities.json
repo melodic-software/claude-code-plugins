@@ -1,8 +1,12 @@
 {
+  "change_link": {
+    "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-"
+  },
   "features": {
     "cross_repo_edges": true,
     "labels": true,
     "leases": false,
+    "list_items_label_filter": true,
     "sub_items": false
   },
   "limits": {
@@ -16,6 +20,7 @@
   "verbs": {
     "add-sub-item": false,
     "capabilities": true,
+    "change-link": true,
     "claim": false,
     "create-item": true,
     "get-item": true,

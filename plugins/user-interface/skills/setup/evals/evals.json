@@ -1,0 +1,76 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-each-value-with-its-provenance",
+      "prompt": "/user-interface:setup check — docs/conventions/user-interface.yaml sets css.important: utilities-only and css.rules.disable: [hover]; docs/conventions/user-interface.local.yaml sets css.token_fallback: literal. No css_* plugin option has a stored value.",
+      "expected_output": "Writes the userConfig values to a JSON file with the Write tool, runs detect.mjs --config --user-config with that file, and presents one row per css key with its value and provenance: css.important from team, css.token_fallback from local, css.rules.disable from defaults and team, the rest from defaults or userConfig. With no css_* option stored, no key shows userConfig provenance, and no literal ${user_config...} placeholder is written into the userConfig JSON. Writes no config file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs detect.mjs with --config rather than reading the YAML files and merging them by hand",
+        "Passes the userConfig values through a file written with the Write tool, not on a shell command line",
+        "Shows each css key's value with its provenance layer (team, local, defaults or userConfig)",
+        "Names both defaults and team as the provenance of css.rules.disable",
+        "Reports css.important and css.token_fallback provenance as their file or defaults layer, never userConfig, when no css_* option is stored",
+        "Leaves out of the userConfig JSON any key whose value is empty or a literal ${user_config...} placeholder",
+        "Does not write or edit any config file"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "check-warns-when-worktree-lacks-the-main-checkout-local-file",
+      "prompt": "/user-interface:setup check — this is a linked worktree. The main checkout (first entry of git worktree list --porcelain) has docs/conventions/user-interface.local.yaml; this worktree has no user-interface.local.* file.",
+      "expected_output": "The table carries a WARN that this worktree has no personal user-interface.local file while the main checkout has one, explains the file is gitignored so a new worktree does not carry it, and offers to copy it. Nothing is copied during check.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Identifies the main checkout from the first entry of git worktree list --porcelain",
+        "Reports a WARN that the worktree lacks the personal .local file the main checkout has",
+        "Says the file is gitignored, which is why the worktree lacks it",
+        "Offers to copy the file but does not copy it during check"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-writes-one-key-in-the-team-file",
+      "prompt": "/user-interface:setup apply css.important=allow — docs/conventions/user-interface.yaml exists with version: 1 and css.token_fallback: propose-token, plus a comment line.",
+      "expected_output": "Runs check, writes only css.important: allow into the team file in block style, keeps css.token_fallback and the comment, re-runs check and reports css.important = allow with provenance team from the new table.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes css.important: allow in docs/conventions/user-interface.yaml and changes no other key",
+        "Keeps the existing comment and css.token_fallback",
+        "Uses block-style YAML, no flow mapping",
+        "Re-runs check and reports the stored value with provenance team"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "check-reports-broken-convention-home",
+      "prompt": "/user-interface:setup check — detect.mjs --config returns config.home null and config.home_error saying the convention home is unresolved.",
+      "expected_output": "A FAIL row says the convention-home pointer line is broken, so the team and personal layers were not read, and points at fixing the pointer line; the skill does not fall back to docs/conventions.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports home_error as a FAIL",
+        "Says the team and personal layers were not read",
+        "Does not read or write docs/conventions/user-interface.yaml as a fallback"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-userconfig-key-points-at-config",
+      "prompt": "/user-interface:setup apply --user css_layer=components",
+      "expected_output": "Recognizes css_layer as a userConfig option, which this skill does not write, and sends the user to the routes in the plugin README's Options section to set it; alternatively offers to write css.layer: components to the user-global file instead.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not edit settings.json itself",
+        "Points the user at the plugin README's Options section for setting the userConfig value",
+        "Offers css.layer in the user-global file as the file-layer alternative"
+      ]
+    }
+  ]
+}

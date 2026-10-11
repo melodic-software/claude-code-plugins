@@ -1,5 +1,5 @@
 ---
-description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -133,7 +133,7 @@ skill for that stage, name it; otherwise describe the inline work. Add that stag
 
 When the just-finished work closed out a stage (its artifact exists), or the user is asking how
 to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
-`/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
+`/clear`, handoff, background, clean-stop, or compact, with a cloud session offered as advice. Load `context/continuation.md` and walk
 its ordered router; recommend exactly one mechanism with its rationale, zone-informed when
 context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
 conservative when it does not. Mid-stage with a healthy window,
@@ -145,14 +145,30 @@ that drove it, and executing the routed mechanism takes an explicit per-invocati
 (`continue auto`, or the user's own words), which expires with the invocation. Its inputs beyond
 the gather above are presence-gated pointers to the siblings that own them; the rules live there.
 
+| Key | Value | Unset behavior |
+| --- | --- | --- |
+| `cloud_route` | `${user_config.cloud_route}` | A surviving literal placeholder, or any value other than `off`, means `offer`. `off`: the router never mentions the cloud option. |
+
 ### 5. Track progress (tasks ≥3 stages)
 
-For work expected to span 3+ stages, create a task per applicable stage via TaskCreate, mark
-completed stages `completed` and the current one `in_progress`. For durable cross-`/clear` tracking,
+For work expected to span 3+ stages, when this session has the task tools (`TaskCreate` is in its
+tool list; branch on that, never on the model), create a task per applicable stage via TaskCreate,
+mark completed stages `completed` and the current one `in_progress`. With `TodoWrite` instead,
+keep the same stage list in `TodoWrite`. With neither, the checklist
+file below (or the plan artifact that replaces it) is the only progress tracker. For durable
+cross-`/clear` tracking,
 also copy `templates/checklist.md` into the artifact location (see "Consumer conventions") as
 `workflow-checklist.md` and tick boxes as stages produce their outputs. Skip the file when the
 consuming repo already tracks the same stages in its own plan artifact, never mirror progress in
 two files.
+
+Which sessions get the task tools is an upstream default we do not restate.
+
+- **Pointer**: when deciding whether this session has the task tools, fetch
+  [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions, models, or opt-ins get the task tools.
 
 ## On-ramps: work that merges into the flow partway
 

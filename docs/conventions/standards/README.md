@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.0.2
+standards-contract: 1.0.3
 ---
 
 # Standards Convention
@@ -50,7 +50,7 @@ in the index itself. A short scope preamble is allowed.
 
 ```markdown
 ---
-standards-contract: 1.0.2
+standards-contract: 1.0.3
 ---
 
 # Standards index
@@ -202,8 +202,14 @@ auto-rewrite in either direction.
 
 ## `.claude/rules` seam (division of content)
 
-- **Rules = push** (fire on matching file reads): short imperative
-  directives, consumer-owned.
+- **Rules = push** (fire when Claude works with a matching file): short
+  imperative directives, consumer-owned.
+  - **Pointer**: when a rule's load timing matters, fetch
+    [memory: path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)
+    live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: that section changes which tool use loads a
+    path-scoped rule.
 - **Standards = pull** (index-routed at plan/review stages): substantial
   criteria and prose.
 - **Pointer pattern:** a path-scoped rule may carry an imperative pointer

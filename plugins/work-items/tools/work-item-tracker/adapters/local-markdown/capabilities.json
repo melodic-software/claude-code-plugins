@@ -12,18 +12,23 @@
     "add-sub-item": true,
     "list-items": true,
     "list-sub-items": true,
-    "capabilities": true
+    "capabilities": true,
+    "change-link": true
   },
   "features": {
     "cross_repo_edges": false,
     "sub_items": true,
     "leases": true,
-    "labels": true
+    "labels": true,
+    "list_items_label_filter": true
   },
   "limits": {
     "sub_items_per_parent": 100000,
     "sub_item_depth": 100000,
     "dependencies_per_type": 100000,
     "list_items_max": 100000
+  },
+  "change_link": {
+    "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-"
   }
 }

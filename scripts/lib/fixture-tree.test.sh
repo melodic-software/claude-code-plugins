@@ -15,6 +15,7 @@
 #
 # fixture-isolation-scope: exports GIT_DIR, GIT_WORK_TREE and GIT_CONFIG into a
 # child on purpose, to prove the builder clears what it inherits.
+# test-scope: scripts/lib/*
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

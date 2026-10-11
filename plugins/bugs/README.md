@@ -74,8 +74,9 @@ or as a daily routine. Two properties are worth knowing before you rely on it:
   three verified findings or a complete lane sample. Filing happens only when you pass
   `--track`, and a complete lane sample is never reported as the lane being bug-free.
 - **Cost follows the scope, never the precision.** Hunters and gates take their models from the
-  multi-agent role map (the skill's sizing table names the roles), and a gate never runs on a
-  weaker model than the hunters it checks; the scope's
+  multi-agent role map (the skill's sizing table names the roles); hunters run at the session's
+  effort and gates at the map's verifier effort. A gate never runs on a weaker model, or at a
+  lower effort, than the hunters it checks; the scope's
   size picks how many lenses run and how many candidates reach a gate, and the session's effort
   level is the ceiling. A main-thread triage step seeds from the previous run's ungated tail, merges
   same-cause candidates, and parks cosmetic ones before any gate is spent.

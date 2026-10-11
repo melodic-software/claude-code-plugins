@@ -4,7 +4,23 @@
 
 import { resolveEnvWithLegacy } from "../lib/env-compat.js";
 
-export const YT_DLP_SUB_LANGS = "en.*,-live_chat";
+// `en-orig` (the original speech track) first: yt-dlp writes tracks in this
+// order and stops at the first failed one, so a throttled translated `en`
+// cannot keep the original from landing.
+export const YT_DLP_SUB_LANGS = "en-orig,en.*,-live_chat";
+// YouTube extractor arg that drops translations of manual tracks (`en-de`,
+// `en-en`); the post-ladder caption retry lifts it when no English landed.
+export const YT_DLP_SKIP_TRANSLATED_SUBS = "skip=translated_subs";
+
+/**
+ * Remove the translated-subs skip from an extractor-args value.
+ *
+ * @param {string|null|undefined} extractorArgs
+ * @returns {string|null|undefined}
+ */
+export function allowTranslatedSubs(extractorArgs) {
+  return extractorArgs?.replace(`;${YT_DLP_SKIP_TRANSLATED_SUBS}`, "");
+}
 export const YT_DLP_SUB_FORMAT = "vtt";
 // biome-ignore lint/security/noSecrets: yt-dlp format selector string, not a credential
 export const YT_DLP_VIDEO_FORMAT = "bestvideo[height<=1080]+bestaudio/best[height<=1080]";

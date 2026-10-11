@@ -58,13 +58,17 @@ Org architecture (cross-repo decisions, glossary, why each trust link exists): p
 Each line names a rule CI does not enforce; the linked file states it in full.
 
 - Org-wide criteria: [`REVIEW.md`](REVIEW.md), synced from `melodic-software/standards`.
-- Skill and agent bodies link volatile upstream specifics with an as-of date and recheck trigger,
-  never restate them: [rule](.claude/rules/skill-bodies-state-current-rules.md).
+- Skill and agent bodies never restate a volatile upstream specific (behavior, limit, default,
+  version), even with a stamp; they point at the exact section, and the pointer carries an as-of
+  date and recheck trigger: [rule](.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
   eval evidence of no loss:
   [skill criteria](plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
 - Cost claims: no prices or per-task costs, outside two named exceptions:
   [rule](.claude/rules/cost-claims.md).
+- A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
+  owner or in a declared-provider surface:
+  [ADR 0060](docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 - Eval cases hold no raw session or product transcript:
   [rule](.claude/rules/eval-case-transcripts.md).
 - Cross-plugin citations name the skill by `/plugin:skill`, never by path:

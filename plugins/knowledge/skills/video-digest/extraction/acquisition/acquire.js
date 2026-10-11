@@ -18,7 +18,7 @@ import {
 } from "./acquire-retry-policy.js";
 import { withAcquireThrottle } from "./acquire-throttle.js";
 import { spawnFailureDetail } from "./acquire-with-retry.js";
-import { buildYtDlpArgs } from "./build-yt-dlp-args.js";
+import { allowTranslatedSubs, buildYtDlpArgs } from "./build-yt-dlp-args.js";
 import { selectCaptionFile } from "./select-caption.js";
 import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js";
 import { parseVideoMetadata } from "./video-metadata.js";
@@ -198,15 +198,26 @@ async function runYtDlpAcquire({
 async function runAcquirePass(deps, url, workDir, { mode, source, sleepSubtitlesSec }) {
   const { spawn, listFiles } = deps;
   const spawnResult = await runYtDlpAcquire({ spawn, url, workDir, mode, source, sleepSubtitlesSec });
-  if (!spawnResult.success) {
-    return {
-      spawnResult,
-      detail: spawnFailureDetail(spawnResult),
-      files: /** @type {string[]} */ ([]),
-    };
-  }
+  // Listed on failure too: yt-dlp stops at the first failed caption track,
+  // so tracks written before it are still usable.
   const files = await listFiles(workDir);
-  return { spawnResult, detail: "", files };
+  return { spawnResult, detail: spawnResult.success ? "" : spawnFailureDetail(spawnResult), files };
+}
+
+/**
+ * The `ERROR:` lines of a yt-dlp failure detail (its last line when none),
+ * naming the track that failed and why.
+ *
+ * @param {string} detail
+ * @returns {string}
+ */
+function captionErrorLine(detail) {
+  const lines = detail
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const errors = lines.filter((line) => line.startsWith("ERROR:"));
+  return (errors.length > 0 ? errors : lines.slice(-1)).join("; ");
 }
 
 /**
@@ -227,7 +238,7 @@ function captionsOnlyPass(source) {
  * @param {string} videoId
  * @param {SourceAcquisitionDeclarations} source
  * @returns {Promise<
- *   {ok: true, artifacts: MediaArtifacts, acquireMetrics: object} |
+ *   {ok: true, artifacts: MediaArtifacts, acquireMetrics: object, captionError: string} |
  *   {ok: false, error: string, acquireMetrics: object}
  * >}
  */
@@ -266,9 +277,7 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
     runAcquirePass(deps, url, workDir, captionsOnlyPass(source)),
   );
 
-  if (captionPass.spawnResult.success) {
-    artifacts = resolveMediaArtifacts(await deps.listFiles(workDir), videoId);
-  }
+  artifacts = resolveMediaArtifacts(captionPass.files, videoId);
 
   const captionPassMs = Date.now() - captionStarted;
 
@@ -276,6 +285,7 @@ async function acquireFullStaged(deps, url, workDir, videoId, source) {
     ok: true,
     artifacts,
     acquireMetrics: { stagedAcquire: true, videoPassMs, captionPassMs },
+    captionError: captionPass.detail,
   };
 }
 
@@ -313,6 +323,8 @@ export async function acquireYouTubeMedia(
   let artifacts;
   /** @type {object | undefined} */
   let acquireMetrics;
+  // yt-dlp failure detail of the caption download the selection comes from.
+  let captionError = "";
 
   if (mode === "full") {
     const staged = await acquireFullStaged(mergedDeps, url, workDir, videoId, source);
@@ -321,23 +333,37 @@ export async function acquireYouTubeMedia(
       return failVideo(staged.error);
     }
     artifacts = staged.artifacts;
+    captionError = staged.captionError;
   } else {
     const single = await throttle(() =>
       runAcquirePass(mergedDeps, url, workDir, { mode, source }),
     );
-    if (!single.spawnResult.success) {
-      return failVideo(single.detail || "yt-dlp failed");
-    }
     artifacts = resolveMediaArtifacts(single.files, videoId);
+    if (!single.spawnResult.success) {
+      const salvageable =
+        mode !== "video-only" &&
+        artifacts.metadataPath &&
+        selectCaptionFile(artifacts.captionPaths, source.captionClass).success;
+      if (!salvageable) {
+        return failVideo(single.detail || "yt-dlp failed");
+      }
+      captionError = single.detail;
+    }
   }
 
   let captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
 
-  if (!captionResult.success && mode === "full" && artifacts.videoPath) {
+  const retryCaptions = (mode === "full" && artifacts.videoPath) || mode === "transcript";
+  if (!captionResult.success && retryCaptions) {
+    // No English landed, so the ladder needs the translated tracks the first pass skipped.
+    const retrySource = { ...source, extractorArgs: allowTranslatedSubs(source.extractorArgs) };
     const captionRetry = await throttle(() =>
-      runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(source)),
+      runAcquirePass(mergedDeps, url, workDir, captionsOnlyPass(retrySource)),
     );
-    if (!captionRetry.spawnResult.success) {
+    artifacts = resolveMediaArtifacts(captionRetry.files, videoId);
+    captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
+    captionError = captionRetry.detail;
+    if (!captionResult.success && !captionRetry.spawnResult.success) {
       // No caption file was fetched, so the ladder's "no captions" message would hide the cause.
       return failVideo(
         isRetryableAcquireError(captionRetry.detail)
@@ -345,8 +371,6 @@ export async function acquireYouTubeMedia(
           : `Caption download failed: ${captionRetry.detail || "yt-dlp failed"}`,
       );
     }
-    artifacts = resolveMediaArtifacts(await mergedDeps.listFiles(workDir), videoId);
-    captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
   }
 
   if (!captionResult.success) {
@@ -388,11 +412,27 @@ export async function acquireYouTubeMedia(
     return failVideo(finalCaption.error);
   }
 
+  let caption = finalCaption.selection;
+  if (captionError) {
+    // A failed track beside the chosen one is recorded, not dropped.
+    const errorLine = captionErrorLine(captionError);
+    caption = {
+      ...caption,
+      provenanceNote: [
+        caption.provenanceNote,
+        `caption download exited non-zero (${errorLine}); ${path.basename(caption.path)} was already written and is used`,
+      ]
+        .filter(Boolean)
+        .join("; "),
+    };
+    acquireMetrics = { ...acquireMetrics, captionDownloadErrors: [errorLine] };
+  }
+
   return ok(
     {
       artifacts,
       metadata,
-      caption: finalCaption.selection,
+      caption,
       workDir,
       acquireMetrics,
     },

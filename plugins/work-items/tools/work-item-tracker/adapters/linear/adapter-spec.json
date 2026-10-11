@@ -1,5 +1,6 @@
 {
   "spec_version": "1.0",
+  "change_link": { "branch_pattern": "^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-" },
   "provider": "linear",
   "display_name": "Linear",
   "api": {
@@ -23,13 +24,15 @@
     "add-sub-item": true,
     "list-items": true,
     "list-sub-items": true,
-    "capabilities": true
+    "capabilities": true,
+    "change-link": true
   },
   "features": {
     "cross_repo_edges": true,
     "sub_items": true,
     "leases": true,
-    "labels": true
+    "labels": true,
+    "list_items_label_filter": true
   },
   "limits": {
     "sub_items_per_parent": null,

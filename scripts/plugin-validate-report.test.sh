@@ -52,6 +52,36 @@ else
   fail "clean report (rc=$rc): $out"
 fi
 
+# gatingHooks item shape and the "gating hook without .catch: tool.call"
+# wording come from the plugin commands reference and the mods create page.
+out="$(run '{
+  "success": true,
+  "strict": false,
+  "target": "/tmp/mod",
+  "manifest": null,
+  "contents": [
+    {
+      "file": "/tmp/mod/hooks/index.ts",
+      "errors": [],
+      "warnings": [],
+      "notes": [],
+      "gatingHooks": [
+        {"module": "./guard.tsx", "pattern": "tool.call", "hook": "tool.call", "hasCatch": false},
+        {"module": "./caught.tsx", "pattern": "prompt.submit", "hook": "prompt.submit", "hasCatch": true}
+      ]
+    }
+  ]
+}')"
+rc=$?
+if [[ $rc -eq 0 ]] \
+  && grep -q $'contents\t/tmp/mod/hooks/index.ts\twarnings\t./guard.tsx gating hook without .catch: tool.call' <<<"$out" \
+  && ! grep -q 'caught' <<<"$out" \
+  && [[ $(wc -l <<<"$out") -eq 2 ]]; then
+  pass "a gating hook without .catch renders as a warning; one with .catch does not"
+else
+  fail "gatingHooks render (rc=$rc): $out"
+fi
+
 out="$(run 'not json' 2>/dev/null)"
 rc=$?
 if [[ $rc -eq 2 ]]; then

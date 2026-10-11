@@ -83,7 +83,9 @@ def main() -> int:
     p.add_argument("--topic", default="")
     p.add_argument("--previous-running-retro", default="")
     p.add_argument("--previous-session-id", default="")
-    p.add_argument("--model", default="claude-haiku-4-5")
+    # Empty = observer.py reads the plugin.json userConfig default.
+    p.add_argument("--model", default="")
+    p.add_argument("--effort", default="")
     p.add_argument("--analysis", action="store_true")
     p.add_argument("--bare", action="store_true")
     p.add_argument("--poll-seconds", default="5")
@@ -148,6 +150,8 @@ def main() -> int:
         args.previous_session_id,
         "--model",
         args.model,
+        "--effort",
+        args.effort,
         "--poll-seconds",
         args.poll_seconds,
         "--idle-seconds",

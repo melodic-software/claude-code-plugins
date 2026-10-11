@@ -3,6 +3,7 @@
 # RUNS the full abstract suite against the consume-only jira adapter, once normally and
 # once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/jira/*
+# test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"

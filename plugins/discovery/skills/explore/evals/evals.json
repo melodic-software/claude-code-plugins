@@ -199,6 +199,44 @@
         "The acceptance gate (check-dispatch-artifact.sh against the parent's own slice path) is run before the run is accepted; the payload's own status: complete is not enough",
         "The artifact set is graded off disk, not from the payload's description of it"
       ]
+    },
+    {
+      "id": 16,
+      "name": "index-pins-commit-and-states-reference-coverage",
+      "prompt": "Explore the payments rounding module inline; I will come back to this in a fresh session next week, so the EXPLORE.md has to tell me whether its line citations still hold.",
+      "files": [],
+      "expected_output": "Writes EXPLORE.md whose frontmatter carries a repos: list with the repository's name (never an absolute path), the full HEAD sha taken before the first file read, and a dirty flag, and whose body has a Code references section listing the cited repo-relative paths grouped by area, opening with coverage: exhaustive or coverage: key-files. The index itself carries the instruction that a resuming session compares the sha with HEAD and, on a mismatch or dirty: true, diffs the cited paths and re-reads the changed ones before relying on a citation.",
+      "expectations": [
+        "The EXPLORE.md frontmatter has a repos: entry whose sha is the full 40-character output of git rev-parse HEAD, not a short sha or a branch name",
+        "The repos: entry carries a dirty flag and names the repository without an absolute machine path",
+        "The index body has a Code references section whose first line is exactly coverage: exhaustive or coverage: key-files",
+        "The EXPLORE.md index itself states the staleness check as comparing the recorded sha with HEAD and diffing the cited paths, not as re-running the whole exploration"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "pass-claim-requires-ran",
+      "prompt": "Explore the payments rounding module and tell me whether its tests pass. Do not run anything that writes to the repo.",
+      "files": [],
+      "expected_output": "Reads the rounding tests and records what they assert as verified: read. Because the user ruled out commands that write, and a test runner writes caches or build output, it does not claim the tests pass; the pass/fail question becomes a numbered gap or open question. If it does run a command that writes nothing, the finding carries verified: ran with the exact command and the observed result.",
+      "expectations": [
+        "No finding says the tests pass, fail or build while carrying verified: read, grep or inferred",
+        "Any pass/fail finding carries verified: ran together with a command: and the observed result:",
+        "Tests that were only opened are recorded as verified: read and describe what they assert, not whether they pass",
+        "When the tests were not run, whether they pass is left as a numbered gap or open question rather than asserted"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "abstracts-state-findings-section-names-stay-fixed",
+      "prompt": "Explore how the payments module applies rounding and write up the EXPLORE.md.",
+      "files": [],
+      "expected_output": "Each sidecar abstract, and the index abstract, asserts what was found (for example where and when rounding happens) rather than naming the area covered ('Rounding overview', 'Test coverage of payments'). Sidecar filenames and section ids keep the fixed EXPLORE-<section>.md names the section table and gate key on.",
+      "expectations": [
+        "Every abstract states a finding about the code, not a topic label for what was looked at",
+        "The index copies each sidecar abstract verbatim",
+        "Sidecar filenames stay EXPLORE-<section>.md with stable section ids rather than being renamed after their findings"
+      ]
     }
   ]
 }

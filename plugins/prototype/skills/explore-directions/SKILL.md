@@ -197,6 +197,8 @@ it leaves room (and always on the HTML mockup substrate) each variant also decla
 direction rather than sharing one default aesthetic. If two drafts come out too similar, redo one
 with an explicit constraint ("do not use a card grid").
 
+On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The HTML mockup has no project styling to defer to, so write its CSS here from each variant's declared direction.
+
 ### 3. Wire them together
 
 A single switcher component on the route. Framework-idiomatic routing. Use the `?variant=` param

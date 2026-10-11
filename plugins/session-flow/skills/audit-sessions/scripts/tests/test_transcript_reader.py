@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/reader/subagents/*
 """Unit tests for transcript_reader.py, the one reader of Claude Code transcript JSONL.
 
 Drives the public interface only: `iter_records`, `record_kind`, `UsageLedger`, `is_typed_turn`

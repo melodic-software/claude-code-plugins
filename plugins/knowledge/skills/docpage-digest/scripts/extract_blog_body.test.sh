@@ -2,6 +2,7 @@
 # Cross-platform wrapper so plugin-gate (plugins/**/*.test.sh) runs the
 # extract_blog_body fixture suite.
 # test-scope: plugins/knowledge/skills/docpage-digest/scripts/fixtures/blog-body.html
+# test-scope: plugins/knowledge/skills/docpage-digest/scripts/test_extract_blog_body.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

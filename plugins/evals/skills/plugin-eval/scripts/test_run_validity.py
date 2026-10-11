@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/evals/skills/plugin-eval/scripts/fixtures/run-validity/traces/*
 """Fixture suite for run-validity.py.
 
 fixtures/run-validity/ holds two result files trimmed from one real

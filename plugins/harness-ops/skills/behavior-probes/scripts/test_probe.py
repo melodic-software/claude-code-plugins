@@ -1,3 +1,4 @@
+# test-scope: plugins/harness-ops/skills/behavior-probes/cases/*
 """Tests for probe.py. Nothing here starts `claude`: every run uses --dry-run or a stub runner."""
 
 from __future__ import annotations

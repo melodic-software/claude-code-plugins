@@ -5,6 +5,7 @@
 # refuses must fail the check wherever it was planted (a consumer, the shared
 # classifier library, the Bash row's argv, or a token-only path), and a
 # branch-only refusal must not.
+# test-scope: plugins/guardrails/*
 # shellcheck disable=SC2016  # planted source lines are literal shell
 set -uo pipefail
 

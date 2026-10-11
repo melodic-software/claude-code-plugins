@@ -28,6 +28,7 @@ export const COOKIE_PROFILE_RETRY_HINT_PATTERNS = [
   /unsupported browser/i,
   /could not find .* cookies/i,
   /Failed to decrypt with DPAPI/i,
+  /Could not copy .* cookie database/i,
   /extracting cookies/i,
   /no such browser/i,
 ];

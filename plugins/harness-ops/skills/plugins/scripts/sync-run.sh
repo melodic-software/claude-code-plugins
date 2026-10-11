@@ -66,7 +66,7 @@
 #    project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
-#    delisted_project, delisted_settings_only, self_updated,
+#    delisted_project, delisted_settings_only, self_updated, self_update,
 #    updated_with_monitors, errors}
 #   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
 #   each install this run performed whose CLI output named userConfig options
@@ -79,6 +79,8 @@
 #   and `delisted_settings_only[]` the effective `true` enabledPlugins keys at
 #   this marketplace with no install record that the names no longer carry; a
 #   catalog with an empty plugins array produces none of the three.
+#   `self_update` is `{id, scope, old, new}` for the first record of this plugin
+#   the run moved (the row `self_updated` is true for), else null.
 #   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
 #   run moved whose installed manifest declares a monitor.
 #   `catalog_last_updated` is the marketplace's lastUpdated as Step 2's read saw
@@ -87,7 +89,8 @@
 #   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
-#   `{total, paths, by_parent:[{parent,count,paths}], more_parents, list_file}`,
+#   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
+#   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
@@ -711,7 +714,7 @@ reset_marketplace_state() {
   US_UPDATED=() US_FAILED=() US_WOULD=()
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
-  SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
+  SELF_UPDATED="false" SELF_UPDATE="null" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
   REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
@@ -1082,7 +1085,14 @@ run_marketplace() {
     for row in ${IR_UPDATED[@]+"${IR_UPDATED[@]}"} ${US_UPDATED[@]+"${US_UPDATED[@]}"} \
       ${DOWNGRADED[@]+"${DOWNGRADED[@]}"}; do
       case "$row" in
-      *"\"id\":\"$own@"*) SELF_UPDATED="true" ;;
+      *"\"id\":\"$own@"*)
+        SELF_UPDATED="true"
+        # The digest names this plugin's own row, so the render never has to
+        # pick it out of the moved rows. The first match wins.
+        if [[ "$SELF_UPDATE" == "null" ]]; then
+          jq_to SELF_UPDATE -c '{id, scope, old, new}' <<<"$row"
+        fi
+        ;;
       *) ;;
       esac
     done
@@ -1401,6 +1411,7 @@ report_extras() {
                                 | sort_by(-.count, .parent)) as $groups
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
+                                  project: ($absent | map(select(.scope == "project")) | length),
                                   by_parent: $groups[:$cap],
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
@@ -1617,7 +1628,7 @@ emit_marketplace_block() {
     --argjson deferred "$INSTALL_DEFERRED" --argjson stopped "$STOPPED_BEFORE_INSTALL" \
     --argjson normalize "$NORMALIZE_JSON" --argjson cache "$CACHE_JSON" \
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
-    --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
+    --argjson div "$div" --argjson self_updated "$SELF_UPDATED" --argjson self_update "$SELF_UPDATE" \
     --argjson extras "$extras" --argjson checkout "${checkout:-null}" \
     --argjson unset_cfg "${unset_cfg:-[]}" --argjson installed_disabled "${installed_disabled:-[]}" \
     --argjson monitors "${monitors:-[]}" \
@@ -1682,6 +1693,7 @@ emit_marketplace_block() {
                           else {interval: $reg_interval, rows: $reg_rows} end),
      divergences: $div,
      self_updated: $self_updated,
+     self_update: $self_update,
      updated_with_monitors: $monitors,
      errors: $errors}'
   printf '%s\n' "$block" >>"$RUN_DIR/.blocks.jsonl"

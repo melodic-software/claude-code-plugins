@@ -27,7 +27,10 @@
 // so it never takes the index lock a concurrent git command needs, and with
 // fsmonitor and textconv off, so a repository config the command wrote starts
 // no program outside the sandbox. Snapshots live only under CLAUDE_PLUGIN_DATA;
-// without it both modes do nothing. Every error exits 0. A skip that leaves a
+// without it both modes do nothing. Every error exits 0, and one nothing here
+// expected says so the way the shell hooks' abort boundary (abort-boundary.sh)
+// does for a fail-open hook: a "guard did not run" line on stderr and as a
+// systemMessage for the user. A skip that leaves a
 // change unexamined is reported as a note, never a block: a missing snapshot, a
 // failed or oversized git status, a symbolic link, files past the first
 // MAX_FILES in path order or past the time budget, and a run_in_background
@@ -517,4 +520,13 @@ function invokedDirectly() {
   return Boolean(arg) && realPath(arg) === realPath(fileURLToPath(import.meta.url));
 }
 
-if (invokedDirectly()) main().catch(() => {});
+// An uncaught error would end Node with status 1, so the notice names rc=1.
+const DID_NOT_RUN =
+  "guardrails check-bash-file-changes: guard did not run (internal error, rc=1); this call was not checked. Details: claude --debug.";
+
+if (invokedDirectly()) {
+  main().catch((error) => {
+    process.stderr.write(`${DID_NOT_RUN}\n${error?.stack ?? error}\n`);
+    process.stdout.write(`${JSON.stringify({ systemMessage: DID_NOT_RUN })}\n`);
+  });
+}

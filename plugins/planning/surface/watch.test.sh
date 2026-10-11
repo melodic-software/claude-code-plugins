@@ -10,6 +10,7 @@
 # lease is reclaimed after leaseTimeout), the fallback watcher id and a release mid-wait, and
 # round.sh stop ending the data dir's watch.sh (the lease records its pid).
 # test-scope: plugins/planning/surface/schema/*
+# test-scope: plugins/planning/.claude-plugin/plugin.json
 set -u
 # Every watcher in the suite is one session unless a case names another.
 export WATCH_ID=suite

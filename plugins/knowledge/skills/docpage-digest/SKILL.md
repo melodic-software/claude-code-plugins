@@ -293,9 +293,8 @@ so nothing substitutes a token in them before it reaches the Bash tool.
   the profile. See the active profile's filter section. An inferred tag that skips the
   profile's evidence rule is exactly how stale guidance enters a corpus.
 - **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
-  effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the
-  route live before relying on a "high effort" verification claim, and record the effective effort
-  and its source in verification records.
+  effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the route live before relying on a "high effort"
+  verification claim, and record the effective effort and its source in verification records.
   - **Pointer**: for the Workflow route only, `docs/plugin-philosophy.md` "Effort tiers", the
     "Where per-task effort is set" record, in the marketplace repository; no docs page covers
     per-call Workflow effort.
@@ -304,5 +303,5 @@ so nothing substitutes a token in them before it reaches the Bash tool.
   - **Pointer**: when an Agent tool dispatch carries the effort, fetch
     <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
   - **As of**: 2026-10-10
-  - **Recheck trigger**: that section changes what the per-call `effort` overrides or what
-    overrides it.
+  - **Recheck trigger**: that section changes what the per-call `effort` overrides, what
+    overrides it, or which spawns honor it.

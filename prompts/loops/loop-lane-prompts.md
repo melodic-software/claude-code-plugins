@@ -366,7 +366,10 @@ read them there rather than from this file.
 - **Conflict and security subagents: frontier tier**, which babysit-loop
   requires for conflict workers unconditionally.
 - **No `haiku` dispatch.** The convention admits it nowhere in these lanes,
-  mechanical greps and log pulls included.
+  mechanical greps and log pulls included, on the four grounds listed under
+  [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding):
+  the reviewer floor, early stop and unverified completion, over-refusal, and
+  the provider alias.
 
 **The implementer tier is enforced structurally in the dispatch agents'
 frontmatter (#1649).** `/implementation:implement-dispatch` dispatches workers and
@@ -416,10 +419,10 @@ advisor pairing is a settings value fixed at launch.
 
 - **Claim:** decline `/advisor` in unattended lane prompts, including the
   headless text form.
-- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-advisor-command>.
+- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-/advisor-command>.
   The text form sets or clears the advisor where there is no picker, and Fable
   as advisor can require one-time usage-credit consent the lane cannot give.
-- **As of:** 2026-09-28.
+- **As of:** 2026-10-11.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
@@ -436,8 +439,12 @@ The lanes config sets the level per lane (`lanes[].effort`), and the launcher
 refuses a lane that names none.
 
 The lane's `--effort` covers the orchestrator's own turns. A Workflow dispatch
-sets effort per task, and an Agent-tool dispatch runs at the effort pinned in
-the agent's definition.
+sets effort per task. An Agent-tool spawn runs at the `effort` it passes; one
+that passes none runs at the effort pinned in the agent's definition, or at the
+lane's level when there is no pin. The parameter applies to non-fork spawns only
+([subagents, "Choose an effort level"](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
+as of 2026-10-10; recheck when that section changes precedence or which spawns
+honor `effort`).
 
 The level a lane passes is not proof of the level it ran at. An organization
 effort cap or the `maxEffortLevel` setting clamps it, a level the model does
@@ -453,19 +460,20 @@ launches on changes.
 ## Concurrent workers on one repository
 
 Two worker lanes can run on one repository. Each launch line passes its own
-`--shard`, `--ordering`, and `--instance`. Flag grammar and validation live in
+`--shard`, `--ordering`, and `--instance`, plus a stop mode (`--standing` or
+`--drain`), without which a headless launch stops. Flag grammar and validation live in
 [`invocation-argv.md`](../../plugins/work-items/skills/work-loop/reference/invocation-argv.md).
 
 Lane A keeps issue numbers where `number % 2 == 0` and fills cap slots oldest first:
 
 ```text
-/loop /work-items:work-loop --shard 0/2 --ordering oldest-first --instance worker-a
+/loop /work-items:work-loop --standing --shard 0/2 --ordering oldest-first --instance worker-a
 ```
 
 Lane B keeps issue numbers where `number % 2 == 1` and fills cap slots newest first:
 
 ```text
-/loop /work-items:work-loop --shard 1/2 --ordering newest-first --instance worker-b
+/loop /work-items:work-loop --standing --shard 1/2 --ordering newest-first --instance worker-b
 ```
 
 `--shard <i>/<n>` keeps items whose issue number satisfies `number % n == i`
@@ -500,7 +508,7 @@ variable that sets it).
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `{{REPO}}`
 > Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`
@@ -557,7 +565,7 @@ variable that sets it).
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
-> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> dispatch, on the four grounds "Alias binding" lists. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
 > leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
 > bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
@@ -702,7 +710,7 @@ wakeup ceiling for days rather than finishing.
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
 > loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
-> `haiku` dispatch. Never leave it to inherit. One explicit exception to
+> `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias. Blocker resolution under that path never runs at the review-work
@@ -1169,8 +1177,10 @@ with the operator's signature on them.
 > provenance: the `rate-limit-guard` reader contract):
 >
 > - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-> - **Pause threshold (fixed):** pause when **either** window reports
->   `used_percentage >= 95`
+> - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
+>   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
+>   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
+>   pauses when **either** window reports `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than
@@ -1183,9 +1193,16 @@ with the operator's signature on them.
 >   **`account.email` field when the writer could attribute the
 >   observation**, so a write is still the signal that the windows
 >   changed under you (account switch, another session's refresh).
-> - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
->   new work, pause until the pause end, and report; a hard stop happens
->   only on explicit user request.
+> - **Drain-then-pause:** for an opted-in lane, on a trip, finish
+>   in-flight work, stop claiming new work, pause until the pause end, and
+>   report; a hard stop happens only on explicit user request. Without
+>   the opt-in, a window at or above 95 never pauses, slows, or stops the
+>   lane and never lowers its model, effort, or review depth: it keeps
+>   working and reports the window, its `used_percentage` and `resets_at`,
+>   and the operator's options: continue, switch accounts (a human action
+>   a lane never performs or scripts;
+>   https://github.com/melodic-software/claude-code-account-rotation), or
+>   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
 >   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot

@@ -1,7 +1,7 @@
 # session-flow
 
-A Claude Code plugin bundling eighteen skills for one cohesive capability: managing the lifecycle
-of a working session. The skills answer where you are in the work, how to pause and resume it, how
+A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
+skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
 session's assumptions are still current, what to learn from it while it runs and after, where your
@@ -59,7 +59,7 @@ it for delegation-heavy tasks.
 
 ## Output styles
 
-- **`Brain fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
+- **`Brain Fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
   short answers, two options max). Select it in `/config` → **Output style**. Coexists with
   `/education:explain` for one-shot deep explanations (#1223).
 
@@ -342,8 +342,7 @@ a spawned subagent's internal task list is not readable. It touches no git state
 
 ### show-options
 
-Turns the installed catalog from something the operator must remember into something they consult.
-Renders five buckets: **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
+Lets the operator consult the installed catalog instead of remembering it. Renders five buckets: **Now**, **Next**, **Skipped upstream** (artifact-grounded), **Later** (the
 in-domain remainder beyond the near horizon, rendered as bare names only), and a rotating
 **Spotlight** of three, each as a ranked shortlist of at most five in full treatment plus the
 complete remainder by bare name with an explicit count, so nothing is off-screen unstated.
@@ -427,16 +426,18 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. Two surfaces are configurable: the **detached observer** (seven keys, all defaulting
-to zero-config behavior; see `reference/observer.md` for full semantics), and **audit-sessions**
+`userConfig`. Three surfaces are configurable: the **detached observer** (eight keys, all defaulting
+to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
 (five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds; see the options reference below):
+two drift-check bounds), and `cloud_route`, whether the workflow's continuation advice offers a
+cloud session (see the options reference below):
 
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
-| `observer_analysis_model` | `claude-haiku-4-5` | Analysis model, the dominant cost lever. |
+| `observer_analysis_model` | see options reference | Analysis model, chosen for faithful findings; with effort, the dominant cost lever. |
+| `observer_analysis_effort` | see options reference | Analysis effort, passed as `--effort` and pinned through `--settings` so `CLAUDE_CODE_EFFORT_LEVEL` cannot override it. |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_poll_seconds` | `5` | How often the observer re-reads the transcript and re-checks the idle threshold. Minimum 1. |
@@ -465,7 +466,8 @@ checkpoint are network-free. Every skill not named above is network-free
 Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only with no
 parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
-session network access, but the skill itself performs no egress.
+session network access, or with `--cloud` a `claude --cloud` process that starts a cloud session
+from the pushed branch, but the skill itself performs no egress.
 
 ### Option details
 
@@ -490,7 +492,8 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `observer_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED` | Arms the detached running-retro observer at SessionStart for every real interactive session. Off by default, so installing session-flow changes nothing until you turn it on. The manual /session-flow:running-retro arm action works either way. |
 | `observer_analysis_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED` | When the armed observer sees the session end (transcript idle), runs a headless running-retro checkpoint and writes its findings to the running-retro ledger. On by default. Off, the observer only distills observations and keeps them under its plugin work dir for manual inspection. |
-| `observer_analysis_model` | string | `"claude-haiku-4-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth. |
+| `observer_analysis_model` | string | `"claude-opus-5-5"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL` | Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost. |
+| `observer_analysis_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT` | Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md. |
 | `observer_analysis_bare` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE` | Passes --bare to the analysis run, dropping auto-discovery as a further cost lever. Off by default because --bare fails on OAuth-login installs (the run reports Not logged in); turn it on only where auth is an env-var API key. See reference/observer.md. |
 | `observer_idle_seconds` | number | `900` | `CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS` | How long the transcript must stop growing before the observer treats the session as ended; default 900. Keep it above the longest single turn (large fan-outs, long builds), or a mid-turn pause is misread as the end and analysis runs on a partial transcript. |
 | `observer_poll_seconds` | number<br>*min 1* | `5` | `CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS` | How often the observer re-reads the transcript to distill new observations and re-check the idle threshold; default 5, minimum 1. Lower detects the end sooner at the cost of more wakeups; raise it on a busy machine. The idle threshold, not this, decides when the session is over. |
@@ -500,6 +503,7 @@ reads it from.
 | `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_WORDS` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
+| `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 
 ### How to set these
 

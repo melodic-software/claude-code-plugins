@@ -4,6 +4,8 @@
 # explicitly, so each is consumed by a grader (check-orphaned-fixtures.sh's
 # contract), and every script the driver loads is named as a whole token so the
 # affected-tests mapping reaches this suite from any of them.
+# test-scope: plugins/testing/skills/audit/evals/fixtures/*
+# test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
@@ -48,7 +50,7 @@ assert_matches() {
   # about the SHAPE of a field's value: a substring check on a prefix of that
   # value passes for every malformed value sharing the prefix, which is the
   # can't-fail shape this scanner exists to find.
-  if printf '%s\n' "$2" | LC_ALL=C grep -qE "$3"; then
+  if LC_ALL=C grep -qE "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "expected output to match ERE: $3"

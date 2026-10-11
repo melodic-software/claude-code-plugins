@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .work-item-tracker.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # Offline: the skill-script contract (--help), the pre-I/O usage-error paths, and
 # the subIssues + intersect path against a gh stub that reproduces gh's real
@@ -74,6 +75,8 @@ if command -v jq >/dev/null 2>&1; then
     "github:o/r#11" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
   assert_eq "child row is re-parented to the container" \
     "github:o/r#99" "$(jq -r '.items[0].parent_id' <<<"$OUT")"
+  assert_eq "the intersect carries list-items' truncated flag" \
+    "false" "$(jq -c '.truncated' <<<"$OUT")"
   # The cross-repo drop is a documented truncation, not a fault, so a well-formed
   # node set must stay silent or the diagnostic below is noise on every read.
   assert_eq "well-formed nodes emit no derivable-repo warning" \

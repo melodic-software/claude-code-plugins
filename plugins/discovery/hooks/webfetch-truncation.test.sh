@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/discovery/hooks/fixtures/* plugins/discovery/hooks/hooks.json
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
 # this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 set -uo pipefail

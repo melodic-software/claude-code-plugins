@@ -40,4 +40,22 @@ describe("resolveWorkSliceDir", () => {
       path.join("/repo", ".work", YOUTUBE_WATCH_EPIC_DIR, "talk-abc"),
     );
   });
+
+  it("accepts real-shaped slice slugs (mixed-case and underscore slice keys)", () => {
+    for (const slug of [
+      "boris-cherny-we-cut-80-of-claude-code-s-qyPCVqFUyDo",
+      "post-1001551623938805763",
+      "talk-a_B-c9",
+    ]) {
+      expect(resolveWorkSliceDir("/repo", slug)).toBe(
+        path.join("/repo", ".work", YOUTUBE_WATCH_EPIC_DIR, slug),
+      );
+    }
+  });
+
+  it("fails closed on a slug that could leave the epic dir", () => {
+    for (const hostile of ["../../x", "..", ".", "a/b", "a\\b", "a.b", ""]) {
+      expect(() => resolveWorkSliceDir("/repo", hostile), hostile).toThrow(/Unsafe slice slug/);
+    }
+  });
 });

@@ -85,7 +85,9 @@ each on its own line. `MODE` is `unattended` when the argument says so, else `at
 
 - **Attended**: an interactive session runs the sweeper in the background. Tell the user in one
   line that the sweep is running, and carry on with the work in hand. Present at the next natural
-  break after the sweeper returns, never mid-task.
+  break after the sweeper returns, never mid-task. Do not enter or leave a worktree while the
+  sweep runs: a run belongs to the checkout it started in. If you must move, let the sweep finish
+  or stop it, release the lock, then run `/performance:go-faster` again from the new checkout.
 - **Unattended**: wait for the sweeper's result before doing anything else.
 
 Background and foreground behavior is the harness's choice, not a parameter you set:
@@ -94,7 +96,8 @@ Background and foreground behavior is the harness's choice, not a parameter you 
 - **As of**: 2026-10-03
 - **Recheck trigger**: that section changes which sessions run a subagent in the background.
 
-If the sweeper fails or returns `write-denied`, release the lock (Step 4) and report what it said.
+If the sweeper fails or returns `write-denied` or `refused-by-guard`, release the lock (Step 4) and
+report what it said, including the refused command.
 
 ## Step 4: Present and release
 

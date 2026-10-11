@@ -177,14 +177,32 @@ fi
 #     exit codes, stdout, and stderr must agree. The comparison is behavioral,
 #     not textual: the two differ by construction in the script's name and
 #     path, in the rule's display name (`lower-kebab-case` here, the config's
-#     `rule` there), in how the roots are spelled in the clean-run line, and in
-#     that line's clause for the markdown scope outside docs/, which the
-#     template has no key for, so exactly those literals are normalized and
-#     nothing else is. The seeded tree therefore holds no markdown outside
-#     docs/; cases 12 to 15 cover that scope. Every root and exemption the
-#     config declares is seeded, so an entry added on one side only surfaces as
-#     a finding the other side lacks.
+#     `rule` there), and in how the clean-run line spells the scope, so exactly
+#     those literals are normalized and nothing else is. The seeded tree covers
+#     the whole scope: docs/, markdown outside it, and the fixture, eval, and
+#     vendor trees. Every root and exemption the config declares, and every
+#     name in this gate's EXEMPT_NAMES, is seeded, so an exempt name added on
+#     either side only, or a config entry the gate lacks, surfaces as a finding
+#     the other side lacks. A path exclusion or code extension added to this
+#     gate alone is caught only where a fixed seed below falls under it. The emitted gate
+#     folds case with `tr`, ASCII only, so no seed pairs two paths that differ
+#     only in a non-ASCII letter's case; case 17 covers that here.
 EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"
+ROOT_SCOPES="$SCRIPT_DIR/../plugins/docs-naming/scripts/root-scopes.jq"
+
+# script_exempt_names <gate>: one name per line from the gate's EXEMPT_NAMES.
+script_exempt_names() {
+  sed -n "s/^EXEMPT_NAMES=' \(.*\) '\$/\1/p" "$1" | tr ' ' '\n' | sed '/^$/d'
+}
+
+# exempt_name_seeds <gate>: each exempt name, from the config and from the
+# gate's own list, under docs/ and outside it, one path per line.
+exempt_name_seeds() {
+  {
+    jq -r '.file_names.exempt_basenames[]' "$REPO_CONFIG"
+    script_exempt_names "$1"
+  } | sort -u | awk 'NF {print "docs/x/" $0; print "plugins/x/" $0}'
+}
 REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
 EMITTED_RULE=""
 EMITTED_ROOTS=""
@@ -253,10 +271,10 @@ exempt_seeds=()
 offender_seeds=()
 if [[ -n "$drift_ready" ]]; then
   EMITTED_RULE="$(jq -r '.file_names.rule' "$REPO_CONFIG")"
-  EMITTED_ROOTS="$(jq -r '.file_names.roots | join(", ")' "$REPO_CONFIG")"
+  EMITTED_ROOTS="$(jq -r -f "$ROOT_SCOPES" "$REPO_CONFIG" | jq -r 'map(.label) | join(", ")')"
   while IFS= read -r one; do
-    [[ -n "$one" ]] && exempt_seeds+=("docs/x/$one")
-  done < <(jq -r '.file_names.exempt_basenames[]' "$REPO_CONFIG")
+    [[ -n "$one" ]] && exempt_seeds+=("$one")
+  done < <(exempt_name_seeds "$SUT_SRC")
   while IFS= read -r one; do
     [[ -n "$one" ]] && exempt_seeds+=("docs/a/Bad_Name.$one")
   done < <(jq -r '.file_names.exempt_extensions[]' "$REPO_CONFIG")
@@ -268,9 +286,22 @@ if [[ -n "$drift_ready" ]]; then
     one="${one%/}"
     [[ -n "$one" ]] && exempt_seeds+=("$one/Exempt_By-PATH.md")
   done < <(jq -r '.file_names.exempt_paths[]' "$REPO_CONFIG")
+  # A probe the rule rejects under every root, in each extension a root object
+  # claims; and for each glob a root exempts, one path under it (exempt) and
+  # the same path under docs/ (judged, since the docs root exempts nothing).
   while IFS= read -r one; do
-    [[ -n "$one" ]] && offender_seeds+=("$one/Root_Probe.md")
-  done < <(jq -r '.file_names.roots[]' "$REPO_CONFIG")
+    [[ -n "$one" ]] && offender_seeds+=("$one")
+  done < <(jq -r -f "$ROOT_SCOPES" "$REPO_CONFIG" |
+    jq -r '.[] | (.path | rtrimstr("/") | if . == "." or . == "" then "" else . + "/" end) as $p
+      | if .extensions == [] then $p + "Root_Probe.md"
+        else .extensions[] | ($p + "Root_Probe." + .), ($p + "Root_Probe_Upper." + ascii_upcase) end')
+  while IFS= read -r one; do
+    one="${one#\*\*/}"
+    one="${one%/\*\*}"
+    [[ -n "$one" && "$one" != *'*'* ]] || continue
+    exempt_seeds+=("p/$one/Exempt_By-ROOT.md")
+    offender_seeds+=("docs/p/$one/Judged_By-DOCS.md")
+  done < <(jq -r '.file_names.roots[] | objects | .exempt_paths[]?' "$REPO_CONFIG")
   # Every offender shape the header names, the exemption boundaries (a case
   # variant of an exempt name, an exempt extension in the wrong case), case
   # collisions including one against an exempt name, and non-markdown files
@@ -283,6 +314,9 @@ if [[ -n "$drift_ready" ]]; then
     docs/a/Bad_Name.PY "docs/x/caf"$'\303\251'".py" "docs/x/Caf"$'\303\251'".py"
     "docs/New"$'\n'"line/foo.md" "docs/new"$'\n'"line/foo.md"
     Top_Level.txt other/Bad_Name.json
+    plugins/p/NOTES.md plugins/p/skills/s/NOT_IMPLEMENTED.md plugins/p/Skill.md
+    plugins/p/Foo.md plugins/p/foo.md p/fixtures/A.md p/fixtures/a.md
+    plugins/p/NOTES.MD docs/x/fixtures/NOTES.md
   )
 fi
 
@@ -338,7 +372,10 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
       '.file_names.exempt_basenames |= .[1:]' \
       '.file_names.exempt_paths += ["docs/a/**"]' \
       '.file_names.exempt_extensions |= .[1:]' \
-      '.file_names.regex = "^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+$"'; do
+      '.file_names.regex = "^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+$"' \
+      '.file_names.roots |= map(strings)' \
+      '.file_names.roots |= map(if type == "object" then .exempt_paths |= .[:-1] else . end)' \
+      '.file_names.roots |= map(if type == "object" then .extensions = ["txt"] else . end)'; do
       n=$((n + 1))
       jq "$filter" "$REPO_CONFIG" >"$repo/.git/mutant-$n.json"
       if drift_emit "$repo" "$repo/.git/mutant-$n.json" "scripts/mutant-$n"; then
@@ -352,6 +389,28 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
         fail "template drift: mutant emission failed ($filter): $(cat "$repo/.git/emit.err")"
       fi
     done
+
+    # 11d. The other direction: a name this gate exempts that the config does
+    #      not carry is drift too. The seeds come from the gate under test, so
+    #      the extra name is seeded and the emitted gate reports it.
+    sed "s/^EXEMPT_NAMES=' /&MUTANT.md /" "$SUT_SRC" >"$repo/scripts/check-docs-naming.sh"
+    if [[ -z "$(script_exempt_names "$SUT_SRC")" ]]; then
+      fail "template drift: no names parsed from EXEMPT_NAMES in $SUT_SRC, so its exemptions are not seeded"
+    elif ! grep -qx MUTANT.md < <(script_exempt_names "$repo/scripts/check-docs-naming.sh"); then
+      fail "template drift: the script mutant did not take"
+    else
+      seeds=()
+      while IFS= read -r one; do
+        seeds+=("$one")
+      done < <(exempt_name_seeds "$repo/scripts/check-docs-naming.sh")
+      drift_seed "$repo" "${seeds[@]}"
+      drift_compare "$repo" scripts/check-file-names.sh --check
+      if [[ -n "$DRIFT_REPORT" ]]; then
+        ok "template drift: a name exempt here but not in the config is caught"
+      else
+        fail "template drift: a name exempt here but not in the config agreed, so the comparison cannot see it"
+      fi
+    fi
   else
     fail "template drift: emission failed: $(cat "$repo/.git/emit.err")"
   fi

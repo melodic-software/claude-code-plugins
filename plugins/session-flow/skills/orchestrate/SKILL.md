@@ -97,15 +97,8 @@ told:
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
-   / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
-   headroom is unobservable**, no live reading is obtainable: `rate-limit-guard`'s pull tool
-   `mcp__rate-limit-guard__status` is missing (mods off, the guard not installed, or a policy
-   refused the tool's registration) or answers with no windows (`verdict: "unknown"`, as under
-   API-key or enterprise auth), and the snapshot its mod writes is absent, stale, or missing
-   `rate_limits` (see rate-limit-guard's reader-contract, "Capability detection (fail-open)").
-   Treat
-   headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
-   waves over a wide tree, and do not invent window percentages. Scale further down on this
+   / rate-limit headroom (thin headroom caps how many workers you run at once). With no live
+   rate-limit reading, do not invent window percentages. Scale down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the
    session (for example review-lane infra comments classifying `api_error_status: 429`); scale
    back up only after those reactive signals stop, never on a guessed recovery. Sizing is
@@ -136,13 +129,16 @@ lead session; the docs do not state whether a fork of the lead can drive one) an
 (withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`, if that value reads as a literal
 placeholder, this body was read directly rather than skill-loaded, so the substitution never ran:
 resolve the session's effort yourself before using it. Feed the value
-into imperative 7's tier calibration: we treat it as the effort every spawn runs at unless its
-agent definition sets its own, so its gap from what a subtask needs IS the over-provisioning
-imperative 7 exists to stop. Never read ultracode from this value. Pointer: for the subagent
-`effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>; for
-how ultracode relates to effort, see
-<https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-01. Recheck
-trigger: either section moves or changes how a subagent's effort or ultracode is set. Where a
+into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
+passes no `effort` and the agent's definition pins none, so its gap from what a subtask needs IS
+the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
+non-fork spawn of an unpinned agent, and omit it on a pinned named agent. Never read ultracode from this value. Pointer: for
+the subagent `effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>;
+for the per-spawn `effort` and its precedence, see
+<https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>; for how ultracode relates to
+effort, see <https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-10.
+Recheck trigger: any of those sections moves or changes how a subagent's effort or ultracode is
+set, or which spawns honor `effort`. Where a
 `SendMessage` tool resolves in this session, run imperative 4's worker reuse and mid-flight
 intervention through it, addressed by the worker's agent ID. Never re-invoke the dispatch tool to
 continue a worker: that starts a second, independent worker. Read a refused message as a worker

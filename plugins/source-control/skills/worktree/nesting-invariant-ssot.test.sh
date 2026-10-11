@@ -18,6 +18,7 @@
 #     so the result does not depend on where it runs; unset skips that arm with a
 #     counted skip.
 # test-scope: plugins/source-control/*
+# test-scope: .gitattributes
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

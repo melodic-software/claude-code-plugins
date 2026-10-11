@@ -1,0 +1,128 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body-fix-null-user.md",
+            "content": "## Summary\n\nReturn an empty user instead of null.\n\n## Verification\n\n- Unit tests pass.\n\nLeft out: end-to-end suite, needs a staging environment.\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "Left out line closes Verification before the next heading"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Related\n\nN/A\n\n## Verification\n\n- Ran \"npm test\": pass.\n- Left out: e2e suite (no staging env)"
+          }
+        }
+      ],
+      "why": "bulleted Left out as the last line of the body, with an escaped quote earlier in the section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\n**Left out:** e2e suite, needs staging.\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "bold Left out label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Verification\n\n- Unit tests pass.\n- The end-to-end suite was not run.\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "names the gap but has no Left out line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out: nothing\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "Left out line ignores the end-to-end suite the user said was skipped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out:\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "empty Left out line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out: end-to-end suite\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "names the skipped suite without its reason"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nFix.\n\n## Verification\n\nLeft out: end-to-end suite, needs staging.\n- Unit tests pass.\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "Left out line is present but does not end the section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nLeft out: nothing.\n\n## Verification\n\n- Unit tests pass.\n"
+          }
+        }
+      ],
+      "why": "Left out line sits in another section"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr create --draft --body '## Verification\nLeft out: e2e'"
+          }
+        }
+      ],
+      "why": "body passed inline, never written with the Write tool"
+    }
+  ]
+}

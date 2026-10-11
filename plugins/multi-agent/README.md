@@ -111,6 +111,13 @@ the guard off (`fanout.frontier_guard: false`) is an explicit opt-in to
 frontier fan-outs. The basis for each default is recorded beside it in
 [`reference/defaults.yaml`](reference/defaults.yaml).
 
+## Haiku
+
+No role routes to Haiku until it passes this repository's routing eval, and a
+role that does runs at effort `high`. `/multi-agent:route` still resolves a
+role set to `haiku`, or inheriting a Haiku session, and adds a note. The rule
+and its evidence: [`reference/routing-rubric.md`](reference/routing-rubric.md).
+
 ## Configuration
 
 One surface, layered user-global (`~/.claude/multi-agent.yaml`), team (a
