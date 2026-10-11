@@ -245,10 +245,24 @@ apply_refuses "a block list" $'proof_level:\n  - true\n'
 apply_refuses "a block map" $'proof_level:\n  on: true\n'
 apply_refuses "an empty double-quoted string" $'proof_level: ""\n'
 apply_refuses "an empty single-quoted string" $'proof_level: \'\'\n'
-apply_refuses "an unknown key alone" $'stray: 1\n'
-apply_refuses "an unknown empty key" $'stray:\n'
-assert_contains "case 12: an unknown empty key is named" "$APPLY_OUT" "stray"
-apply_refuses "an unknown empty key beside the real one" $'proof_level: strict\nstray:\n'
+apply_refuses "an unknown key set twice" $'stray: 1\nstray: 2\n'
+apply_refuses "an unknown key holding a block map" $'stray:\n  a: 1\n'
+apply_refuses "an unknown key holding a flow list" $'stray: [1]\n'
+# An unknown key in the file is named in one warning, ignored, and its line is
+# kept byte for byte; the asked-for key is written.
+apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file>
+  local r f out
+  r="$(new_root "ak-$1")"
+  f="$(yaml_of "$r")"
+  printf '%s' "$2" >"$f"
+  out="$(run --root "$r" --yes proof_level=live)"
+  assert_eq "case 12: apply beside $1 exits 0" "0" "$?"
+  assert_eq "case 12: apply beside $1 warns once" "1" "$(printf '%s\n' "$out" | grep -c 'WARN.*key stray is not in the schema')"
+  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(cat "$f")"
+}
+apply_keeps_unknown "an unknown key alone" $'stray: 1\n' $'stray: 1\nproof_level: live'
+apply_keeps_unknown "an unknown empty key" $'stray:\n' $'stray:\nproof_level: live'
+apply_keeps_unknown "an unknown empty key beside the real one" $'proof_level: strict\nstray:\n' $'proof_level: live\nstray:'
 apply_refuses "a parse error on another line" $'proof_level: strict\nother: "open\n'
 apply_refuses "a parse error on the key's own line" $'proof_level: "open\n'
 apply_refuses "an unclosed flow list on the key's own line" $'proof_level: [true\n'
@@ -607,7 +621,13 @@ file_level() { # file_level <label> <file body>
   assert_eq "case 24: $1 exits 1" "1" "$?"
   assert_eq "case 24: $1 prints no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
 }
-file_level "an unknown key" $'stray: 1\nproof_level: strict\n'
+R24U="$(new_root fl-unknown)"
+printf 'stray: 1\nproof_level: strict\n' >"$(yaml_of "$R24U")"
+out="$(run --root "$R24U" --check)"
+assert_eq "case 24: an unknown key exits 1" "1" "$?"
+assert_eq "case 24: an unknown key is one WARN" "1" "$(printf '%s\n' "$out" | grep -c '^WARN.*key stray is not in the schema')"
+assert_contains "case 24: an unknown key leaves the valid key's PASS line" "$out" "PASS proof_level: strict"
+file_level "an unknown key holding a map" $'stray: {a: 1}\nproof_level: strict\n'
 file_level "a parse error" $'other: "open\nproof_level: strict\n'
 R24="$TEST_TMPDIR/c24"
 mkdir -p "$R24/docs/conventions"
@@ -725,7 +745,11 @@ lw_refuses "an empty quoted string" $'live_workers: ""\n'
 lw_refuses "a flow list" $'live_workers: [2]\n'
 lw_refuses "a block map" $'live_workers:\n  n: 2\n'
 lw_refuses "a duplicate live_workers key" $'live_workers: 2\nlive_workers: 3\n'
-lw_refuses "an unknown key beside live_workers" $'live_workers: 2\nworkers: 3\n'
+R29U="$(new_root lf-unknown)"
+printf 'live_workers: 2\nworkers: 3\n' >"$(yaml_of "$R29U")"
+run --root "$R29U" --yes live_workers=4 >/dev/null
+assert_eq "case 29: apply beside an unknown key exits 0" "0" "$?"
+assert_eq "case 29: apply beside an unknown key keeps its line" $'live_workers: 4\nworkers: 3' "$(cat "$(yaml_of "$R29U")")"
 lw_refuses "an invalid proof_level it is not writing" $'proof_level: maybe\nlive_workers: 2\n'
 pair_twice "live_workers twice" live_workers=2 live_workers=3
 

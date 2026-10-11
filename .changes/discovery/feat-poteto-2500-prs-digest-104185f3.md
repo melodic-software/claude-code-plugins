@@ -24,3 +24,7 @@ bump: minor
   For such a target, `context/evidence-categories.md` adds incident and follow-up tickets to the
   tracker search and postmortems to the long-form documents search, queried by error text and
   constant values as well as the symbol.
+
+### Fixed
+
+- **`/discovery:setup` runs the shared `lib/setup-apply.mjs`.** A key the schema does not list in `docs/conventions/discovery.yaml` is named in one warning and ignored: `--check` still prints the valid keys (exit 1), and `apply` writes beside it and keeps its line as written; such a key set twice or holding a map or list is still refused. `apply` and `--check` now refuse a root that is `$HOME` or an ancestor of it, a CRLF file is written back with CRLF (one mixing CRLF and LF is refused), and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).

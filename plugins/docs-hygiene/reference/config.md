@@ -32,8 +32,8 @@ reported as the default level, since the two cannot be told apart, and a literal
 
 A key the schema does not list is reported as a warning and does not drop the layer for the other
 keys: a valid `compress_articles` beside it still applies, both in `compress` and in what
-`/docs-hygiene:setup check` reports. `/docs-hygiene:setup apply` still refuses to write over such
-a file until the unknown key is removed by hand.
+`/docs-hygiene:setup check` reports. `/docs-hygiene:setup apply` names it in one warning, writes
+the asked-for key and keeps the unknown key's line as written.
 
 ## Keys
 

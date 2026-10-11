@@ -102,14 +102,17 @@ check 'a key outside the schema exits 1 and writes nothing' test "$CODE" -eq 1 -
 run "$repo" 'phase_order='
 check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
 
-# An existing file holding a key outside the schema is refused and kept.
+# An existing key outside the schema is named in one warning and ignored: its
+# line is kept byte for byte and the asked-for key is written. --check warns
+# on it, still prints the valid key, and exits 1.
 repo="$(new_repo)"
 f="$repo/docs/conventions/planning.yaml"
 mkdir -p "$repo/docs/conventions"
 printf 'phase_order: composed\nverbosity: high\n' >"$f"
-before="$(cat "$f")"
+run "$repo" --check
+if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS phase_order: composed"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes phase_order=riskiest-first
-if [[ "$CODE" -eq 1 && "$OUT" == *"verbosity"* && "$(cat "$f")" == "$before" ]]; then pass 'an existing unknown key is refused and the file kept'; else fail 'an existing unknown key is refused and the file kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$f")" == $'phase_order: riskiest-first\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # An invalid existing value is replaced by a valid one.
 printf 'phase_order: risky-first\n' >"$f"
@@ -155,7 +158,8 @@ shape_case 'a ~ value' replace 'phase_order=~ is not one of' $'phase_order: ~\n'
 shape_case 'an out-of-list value' replace 'phase_order=risky-first is not one of' $'phase_order: risky-first\n'
 shape_case 'an anchor on the target line' refuse 'not part of the subset' $'phase_order: &a composed\n'
 shape_case 'an unclosed quote on the target line' refuse 'unclosed quote' $'phase_order: "composed\n'
-shape_case 'an unknown key with an empty value' refuse 'stray is not in the schema' $'stray:\n'
+shape_case 'an unknown key set twice' refuse 'key stray is set more than once' $'stray: a\nstray: b\n'
+shape_case 'an unknown key holding a map' refuse 'stray is not in the schema and holds a map or a list' $'stray:\n  a: 1\n'
 shape_case 'an out-of-list value on a key not being written' refuse 'plan_store=bogus is not one of' $'plan_store: bogus\n'
 
 # scaffold_stubs is a boolean: true and false only, written unquoted.

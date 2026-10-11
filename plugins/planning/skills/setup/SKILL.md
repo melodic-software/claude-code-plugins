@@ -70,8 +70,9 @@ only where a choice genuinely needs the user. No silent writes. Every write is u
 
    The script checks each value against the schema and validates the whole resulting document
    before it writes; an invalid value or key exits 1 and writes nothing. It writes only
-   `<git toplevel>/docs/conventions/planning.yaml`, refuses a root that is `$HOME` or an ancestor of
-   it, a symlink, a hard-linked target, or a `docs/conventions` that resolves outside the
+   `<git toplevel>/docs/conventions/planning.yaml`, resolves a symlinked root first, then refuses
+   a root that is `$HOME` or an ancestor of it, a symlinked `docs`, `docs/conventions` or target,
+   a hard-linked target, or a `docs/conventions` that resolves outside the
    repository, checks the path again right before the write and the rename, and writes through a
    new temp file in the same directory. Every refusal is one line. A missing file is created; a
    value already in place prints `already configured` and writes nothing.

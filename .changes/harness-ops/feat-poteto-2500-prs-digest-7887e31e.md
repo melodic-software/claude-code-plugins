@@ -11,3 +11,4 @@ bump: minor
 ### Fixed
 
 - **`/harness-ops:lanes` no longer stops every lane over one bad `stage`.** A `stage` that is not a `<plugin>:<skill>` string, including a non-string such as `5`, now prints a warning naming the config file, the lane and the value, and that lane runs with no stage (so it counts as one that may read untrusted input); before, it exited 3 before any lane launched.
+- **The shared `yaml-subset.awk` refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).** Both parsed before although a YAML loader rejects them; a file holding either now reads as a parse error, so quote a value that holds a colon followed by a space. A tab in a markdown fence's base indent is still accepted.

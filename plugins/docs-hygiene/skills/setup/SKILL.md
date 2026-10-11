@@ -47,8 +47,8 @@ Report a PASS/INFO/WARN/FAIL table with one remediation line per FAIL. Modify no
    parse. A key the schema does not list gets its own WARN and leaves the other keys' values in
    force, the same way `/docs-hygiene:compress` reads them. An invalid value never stops
    `/docs-hygiene:compress`, which names it and drops that layer, so these rows are WARNs. `apply`
-   fixes only a value that is outside the list, empty or null; every other WARN, the unknown key
-   included, needs a hand edit first.
+   fixes only a value that is outside the list, empty or null, and leaves an unknown key's line as
+   written; every other WARN needs a hand edit first.
 4. **Effective `compress_articles`.** Read the rendered `${user_config.compress_articles}`; a
    literal unexpanded token means unset. Do not inspect or edit `settings.json`,
    `settings.local.json`, managed settings or `pluginConfigs`. Resolve as `compress` does
@@ -95,8 +95,10 @@ repository instead, use `apply`.
    untouched when a command-line key is outside the schema or given twice, a command-line value is
    outside the key's list, or the existing file sets a key twice (`key : v` counts as `key: v`),
    holds a map or list in any form, holds an empty quoted string, names a key the schema does not
-   list, does not parse, or mixes CRLF and LF line endings (a file written with CRLF throughout
-   is updated in place and keeps CRLF). It writes only `<git toplevel>/docs/conventions/docs-hygiene.yaml`: it
+   list twice or with a map or list, does not parse, or mixes CRLF and LF line endings (a file
+   written with CRLF throughout is updated in place and keeps CRLF). Any other unknown key is
+   named in one warning and its line kept as written. It writes only
+   `<git toplevel>/docs/conventions/docs-hygiene.yaml`: it resolves a symlinked root first, then
    refuses a root that is `$HOME` or an ancestor of it (where `compress` does not read the file),
    a symlinked `docs`, `docs/conventions` or target, a directory that resolves outside the
    repository, and a target with more than one hard link, and checks the path again before each

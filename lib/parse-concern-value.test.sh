@@ -60,7 +60,7 @@ assert_eq 'quoted value with trailing comment drops comment, keeps inner #' \
 # for a value the repo really chose.
 assert_eq 'space before the colon resolves' ".scratch" "$(resolve 'memory_dir : .scratch')"
 assert_eq 'indented root mapping resolves' ".scratch" "$(resolve '  memory_dir: .scratch')"
-assert_eq 'tab-indented key resolves' ".scratch" "$(resolve "$(printf '\tmemory_dir: .scratch')")"
+assert_eq 'a tab-indented key is a parse error, so it reads as unset' "" "$(resolve "$(printf '\tmemory_dir: .scratch')")"
 assert_eq 'space before colon does not defeat the fallback path' \
   ".notes" "$(resolve 'memory_dir :' memory_dir '.notes')"
 # A same-named key nested under another mapping is a DIFFERENT key.

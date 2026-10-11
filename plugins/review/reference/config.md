@@ -25,8 +25,10 @@ A skill resolves each key lowest layer first, and the later layer wins:
    empty value, `null`, a quoted string, a list such as `[]`) is an invalid layer, not an unset
    one. A WARN on one key's value (including a key set twice) makes this layer invalid for that
    key only: the reader exits 1 and still prints a PASS line for every other key, which this layer
-   then sets. Any whole-file problem prints no PASS line, and the layer is dropped for every key:
-   a parse error, an unknown key, or a refusal of the file itself (a symlink, a hard link, a path
+   then sets. A key the schema does not list is one WARN and is ignored the same way, so a valid
+   `downstream_probe` floor beside it still counts. Any whole-file problem prints no PASS line,
+   and the layer is dropped for every key: a parse error, an unknown key set twice or holding a
+   map or list, or a refusal of the file itself (a symlink, a hard link, a path
    that resolves outside the repository, a target that is not a regular file, a file that cannot
    be read, or a committed entry that is not a regular file).
 
@@ -54,7 +56,8 @@ else `git rev-parse --show-toplevel`) is inside a git working tree and is neithe
 ancestor of it. Otherwise the repository layer is skipped and the report line says why.
 
 **Older releases.** A plugin release without a key has no option for it, and its schema does not
-list the key, so its reader reports the repository key as unknown and drops the whole repository
-layer. Each key then resolves as it does for an invalid layer: `ratchet_offer` takes its default,
+list the key, so its reader reports the repository key as unknown. A reader that ignores an
+unknown key keeps the file's other keys; an older reader drops the whole repository layer, and
+each key then resolves as it does for an invalid layer: `ratchet_offer` takes its default,
 never the lower userConfig value, and `downstream_probe` still takes `report` from userConfig. A
 repository shared with users on an older release should add a key only once they have updated.

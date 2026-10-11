@@ -69,8 +69,9 @@ Report a PASS/INFO/WARN table. Write nothing.
    key's list, a key set twice, an empty or null value, a map or list where one string belongs, or a
    key the schema does not list), quoting the file, key and value. An invalid value never stops
    `/education:explain`, which names it and drops that layer, so the row is a WARN. `apply` fixes
-   only a value that is outside the list, empty or null; every other WARN needs a hand edit first,
-   and `apply` refuses the file until it gets one. Then state the effective `explain_starting_rung`: the file's value when valid, else the
+   only a value that is outside the list, empty or null, and keeps an unknown key's line as
+   written; every other WARN needs a hand edit first, and `apply` refuses the file until it gets
+   one. Then state the effective `explain_starting_rung`: the file's value when valid, else the
    `userConfig` value when it is `plain` or `peer`, else `plain`, naming the layer that supplied it.
 6. State the tradeoff instead of asking: machine-private plugin data (default) versus a dedicated
    corpus checkout for long-lived recall across machines. For a repository-backed library,
@@ -113,8 +114,10 @@ Report a PASS/INFO/WARN table. Write nothing.
    untouched when a command-line key is outside the schema or given twice, a command-line value is
    outside the key's list, or the existing file sets a key twice (`key : v` counts as `key: v`),
    holds a map or list in any form (`[]`, `[peer]`, `{level: peer}` or an indented block), holds an
-   empty quoted string, names a key the schema does not list, or does not parse. It writes
-   only `<git toplevel>/docs/conventions/education.yaml`: it refuses a symlinked `docs`,
+   empty quoted string, names a key the schema does not list twice or with a map or list, or does
+   not parse. Any other unknown key is named in one warning and its line kept as written. It writes
+   only `<git toplevel>/docs/conventions/education.yaml`: it resolves a symlinked root first, then
+   refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`,
    `docs/conventions` or target, a `docs/conventions` that resolves outside the repository, and a
    target with more than one hard link, and checks the path again right before the write, which
    goes to a new temp file beside the target and is renamed over it. A directory or file in the way

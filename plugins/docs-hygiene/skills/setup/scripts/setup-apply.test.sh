@@ -132,8 +132,19 @@ shape 'an empty value' replace $'compress_articles:\n'
 shape 'a null value' replace $'compress_articles: null\n'
 shape 'a tilde value' replace $'compress_articles: ~\n'
 shape 'a value outside the list' replace $'compress_articles: drop\n'
-shape 'an unknown key' refuse $'compress_articles: keep\nverbosity: high\n'
-shape 'an empty unknown key' refuse $'compress_articles: keep\nstray:\n'
+shape 'an unknown key set twice' refuse $'compress_articles: keep\nverbosity: high\nverbosity: low\n'
+shape 'an unknown key holding a list' refuse $'compress_articles: keep\nstray: [a]\n'
+
+# A key outside the schema, with a value or empty, is named in one warning and
+# ignored: apply writes the asked-for key and keeps that line byte for byte.
+for extra in 'verbosity: high' 'stray:'; do
+  repo="$(repo_new)"
+  mkdir -p "$repo/docs/conventions"
+  printf 'compress_articles: keep\n%s\n' "$extra" >"$repo/$REL"
+  run "$repo" --yes compress_articles=cut
+  expect "apply beside '$extra' exits 0 and keeps its line" test "$CODE" -eq 0 -a "$(cat "$repo/$REL")" = "compress_articles: cut"$'\n'"$extra"
+  expect "apply beside '$extra' warns once" test "$(grep -c 'WARN.*is not in the schema' <<<"$OUT")" -eq 1
+done
 
 # --check names the effective repository value per key (ADR 0060 Decision 7):
 # an invalid value drops this layer for its key, which then resolves to the

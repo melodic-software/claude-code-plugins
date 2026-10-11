@@ -123,7 +123,8 @@ the later layer wins:
    - exit 1 with no `PASS ratchet_offer:` line: `ratchet_offer` or the whole file is invalid.
      Each `WARN` line, or the one refusal line, names the file, the
      key and the value (an empty value, `null`, a quoted `"false"`, a list such as `[]`, a key set
-     twice, an unknown key, a parse error). The layer is present and invalid: drop it and resolve
+     twice, an unknown key set twice or holding a map or list, a parse error). The layer is
+     present and invalid: drop it and resolve
      `true` from the default, never from userConfig.
    - exit 2, or node is not installed: the layer cannot be read; skip it and say so.
 

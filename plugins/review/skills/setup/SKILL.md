@@ -42,11 +42,13 @@ when the operator names a key or asks to change a setting, as described under
 root and add each line it prints to the table with its own INFO, PASS or WARN prefix. INFO when the
 file is absent (every key comes from `userConfig` or its default); PASS with each key's value when
 it validates; WARN when it does not (a value outside the key's values, a quoted boolean, a key set
-twice, an empty value, an unknown key, a file that does not parse, or a map or list where one value
-belongs), quoting the file, key and value.
+twice, an empty value, a key the schema does not list, a file that does not parse, or a map or list
+where one value belongs), quoting the file, key and value. A key the schema does not list is
+ignored: the other keys keep their PASS lines, so a valid `downstream_probe` floor beside it counts.
 A WARN never stops a review skill: the skill names the value and drops that layer for the key the
 WARN names. Any whole-file problem prints no PASS line and drops the layer for every key: a parse
-error, an unknown key, or a refusal of the file itself (a symlink, a hard link, a path outside the
+error, an unknown key set twice or holding a map or list, or a refusal of the file itself (a
+symlink, a hard link, a path outside the
 repository, a target that is not a regular file, an unreadable file, a committed entry that is not
 a regular file). `apply` is the fix.
 
@@ -68,11 +70,14 @@ a regular file). `apply` is the fix.
    The script checks each value against the schema, refuses a key given twice, validates the
    existing file, and validates the whole resulting document before it writes. In the existing
    file it overwrites only a value outside the key's values, an empty value or null; it refuses a
-   key set twice, a map or list in block or flow form, an empty quoted string, an unknown key, or
-   a file that does not parse. It writes only `<git toplevel>/docs/conventions/review.yaml`, and
-   refuses a root that is `$HOME` or an ancestor of it, a symlink, a hard-linked target, or a
-   `docs/conventions` that resolves outside the repository, checked again before each directory it
-   creates and right before the write. Every refusal is one line, exits 1 and leaves the file as it
+   key set twice, a map or list in block or flow form, an empty quoted string, an unknown key set
+   twice or holding a map or list, or a file that does not parse; any other unknown key is named
+   in one warning and its line kept as written. It writes only
+   `<git toplevel>/docs/conventions/review.yaml`. It resolves a symlinked root first, then
+   refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`, `docs/conventions` or
+   target, a hard-linked target, or a `docs/conventions` that resolves outside the repository,
+   checked again before each directory it creates and right before the write. Every refusal is
+   one line, exits 1 and leaves the file as it
    was; a failed write removes only its own temp file. A missing file is created; a value already
    in place prints `already configured`.
 3. **An existing file that would change** exits 3 and prints a unified diff without writing. Show

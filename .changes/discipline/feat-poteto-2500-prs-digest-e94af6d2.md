@@ -11,3 +11,7 @@ bump: minor
 ### Changed
 
 - **`/discipline:wait-what` states its description and opening instruction in this repository's own words.** A word-overlap check against the skill it was adapted from found both still followed the original's sentences. Behavior is unchanged: re-explain from the missing premise, in ASD-STE100 Simplified Technical English, with the project's domain terms.
+
+### Fixed
+
+- **`/discipline:setup` runs the shared `lib/setup-apply.mjs`.** A key the schema does not list in `docs/conventions/discipline.yaml` is named in one warning and ignored: `--check` still prints the valid keys (exit 1), and `apply` writes beside it and keeps its line as written; such a key set twice or holding a map or list is still refused. A symlinked `--root` is resolved first and every path check applies to the resolved directory, a CRLF file is written back with CRLF (one mixing CRLF and LF is refused), and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).

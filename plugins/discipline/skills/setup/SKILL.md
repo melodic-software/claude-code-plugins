@@ -123,8 +123,9 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
 
    The script checks each value against the schema and validates the whole resulting
    document before it writes; an invalid value or key exits 1 and writes nothing. It
-   writes only `<git toplevel>/docs/conventions/discipline.yaml`, refuses a root that is
-   `$HOME` or an ancestor of it, a symlink, a hard-linked target, or a `docs/conventions`
+   writes only `<git toplevel>/docs/conventions/discipline.yaml`, resolves a symlinked root
+   first, then refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`,
+   `docs/conventions` or target, a hard-linked target, or a `docs/conventions`
    that resolves outside the repository, checks the path again before each directory it
    creates and right before the write and the rename, and writes through a new temp file
    in the same directory. Every refusal is one line. A missing file is created; a value

@@ -63,9 +63,10 @@ and note that re-enabling restores the FAIL semantics.
    `userConfig` or its default); PASS with each key's value when the file validates; WARN, never
    FAIL, when it does not (an invalid value, an unknown or repeated key, an empty or non-scalar
    value, or a path that is not a plain file), quoting the line the script prints. An invalid
-   value never stops a session-flow skill: the skill names it and drops that layer. `apply`
-   overwrites only a value that is out of the list, empty or null; it refuses every other shape
-   (a repeated or unknown key, a map or list, an empty quoted string), which the operator fixes by
+   value never stops a session-flow skill: the skill names it and drops that layer. An unknown key
+   is named and ignored, and the valid keys still print. `apply` overwrites only a value that is
+   out of the list, empty or null; it refuses every other shape (a repeated key, an unknown key
+   holding a map or list, a map or list, an empty quoted string), which the operator fixes by
    hand.
 
 ## `apply` (writes `docs/conventions/session-flow.yaml` only)
@@ -89,9 +90,11 @@ and note that re-enabling restores the FAIL semantics.
 
    The script checks each value against the schema, refuses a key given twice, validates the
    existing file first (refusing it unless every problem is a value out of the list, empty or
-   null), and validates the whole resulting file (no unknown or repeated key, one non-empty scalar
-   per key) before it writes; any refusal exits 1 and writes nothing. It writes only `<git toplevel>/docs/conventions/session-flow.yaml`:
-   it refuses a symlink on that path or on `docs/conventions`, a directory resolving outside the
+   null, or an unknown key it names in one warning and keeps as written), and validates the whole
+   resulting file (no repeated key, one non-empty scalar per key) before it writes; any refusal
+   exits 1 and writes nothing. It writes only `<git toplevel>/docs/conventions/session-flow.yaml`:
+   it resolves a symlinked root first, then refuses a root that is `$HOME` or an ancestor of it, a
+   symlink on that path, on `docs` or on `docs/conventions`, a directory resolving outside the
    repository, and a target with more than one hard link, and writes through a temp file renamed
    into place. A missing file is created. A value already in place prints `already configured` and
    writes nothing.

@@ -120,7 +120,21 @@ shape 'an empty single-quoted string' refuse $'explain_starting_rung: \'\'\n'
 shape 'an empty value' replace $'explain_starting_rung:\n'
 shape 'a null value' replace $'explain_starting_rung: null\n'
 shape 'a value outside the list' replace $'explain_starting_rung: expert\n'
-shape 'an unknown key' refuse $'explain_starting_rung: plain\nverbosity: high\n'
+shape 'an unknown key set twice' refuse $'explain_starting_rung: plain\nverbosity: high\nverbosity: low\n'
+shape 'an unknown key holding a map' refuse $'explain_starting_rung: plain\nverbosity: {a: b}\n'
+
+# A key outside the schema is named in one warning and ignored: --check still
+# prints the valid key and exits 1, and apply keeps its line byte for byte.
+repo="$(repo_new)"
+mkdir -p "$repo/docs/conventions"
+printf 'explain_starting_rung: plain\nverbosity: high\n' >"$repo/$REL"
+run "$repo" --check
+expect '--check on an unknown key exits 1' test "$CODE" -eq 1
+expect '--check names the unknown key in one WARN' test "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1
+if [[ "$OUT" == *"PASS explain_starting_rung: plain"* ]]; then ok '--check keeps the valid key beside an unknown one'; else bad '--check keeps the valid key beside an unknown one'; fi
+run "$repo" --yes explain_starting_rung=peer
+expect 'apply beside an unknown key exits 0 and keeps its line' test "$CODE" -eq 0 -a "$(cat "$repo/$REL")" = $'explain_starting_rung: peer\nverbosity: high'
+expect 'apply names the unknown key in one warning' test "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1
 
 # Path guards: symlinks, a hard link, and the wrong kind of file in the way.
 repo="$(repo_new)"

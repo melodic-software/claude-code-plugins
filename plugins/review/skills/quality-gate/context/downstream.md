@@ -71,11 +71,13 @@ valid layer wins. Layers:
    result:
    - exit 0 with `INFO ... absent` or `PASS downstream_probe: (unset)`: this layer is unset.
    - exit 0 with `PASS downstream_probe: run` or `report`: this layer sets that value.
-   - exit 1 with a `PASS downstream_probe:` line: a WARN sits on another key only. Name it, and
+   - exit 1 with a `PASS downstream_probe:` line: a WARN sits on another key only, such as a key
+     the schema does not list, so a valid floor beside it counts. Name it, and
      read this layer's `downstream_probe` from the PASS line as above.
    - exit 1 with no `PASS downstream_probe:` line: `downstream_probe` or the whole committed file
      is invalid. Each `WARN` line names the file, the key and the value (`maybe`, a quoted string,
-     an empty value, a list, a key set twice, an unknown key, a parse error, a symlink). Name them,
+     an empty value, a list, a key set twice, an unknown key set twice or holding a map or list, a
+     parse error, a symlink). Name them,
      drop this layer, and continue.
    - exit 2 (no `origin/<default>`, or a ref that does not resolve), or node is not installed: the
      layer cannot be read; skip it and say why.

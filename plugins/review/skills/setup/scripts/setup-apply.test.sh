@@ -245,10 +245,24 @@ apply_refuses "a block list" $'ratchet_offer:\n  - true\n'
 apply_refuses "a block map" $'ratchet_offer:\n  on: true\n'
 apply_refuses "an empty double-quoted string" $'ratchet_offer: ""\n'
 apply_refuses "an empty single-quoted string" $'ratchet_offer: \'\'\n'
-apply_refuses "an unknown key alone" $'stray: 1\n'
-apply_refuses "an unknown empty key" $'stray:\n'
-assert_contains "case 12: an unknown empty key is named" "$APPLY_OUT" "stray"
-apply_refuses "an unknown empty key beside the real one" $'ratchet_offer: true\nstray:\n'
+apply_refuses "an unknown key set twice" $'stray: 1\nstray: 2\n'
+apply_refuses "an unknown key holding a block map" $'stray:\n  a: 1\n'
+apply_refuses "an unknown key holding a flow list" $'stray: [1]\n'
+# An unknown key in the file is named in one warning, ignored, and its line is
+# kept byte for byte; the asked-for key is written.
+apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file>
+  local r f out
+  r="$(new_root "ak-$1")"
+  f="$(yaml_of "$r")"
+  printf '%s' "$2" >"$f"
+  out="$(run --root "$r" --yes ratchet_offer=false)"
+  assert_eq "case 12: apply beside $1 exits 0" "0" "$?"
+  assert_eq "case 12: apply beside $1 warns once" "1" "$(printf '%s\n' "$out" | grep -c 'WARN.*key stray is not in the schema')"
+  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(cat "$f")"
+}
+apply_keeps_unknown "an unknown key alone" $'stray: 1\n' $'stray: 1\nratchet_offer: false'
+apply_keeps_unknown "an unknown empty key" $'stray:\n' $'stray:\nratchet_offer: false'
+apply_keeps_unknown "an unknown empty key beside the real one" $'ratchet_offer: true\nstray:\n' $'ratchet_offer: false\nstray:'
 apply_refuses "a parse error on another line" $'ratchet_offer: true\nother: "open\n'
 apply_refuses "a parse error on the key's own line" $'ratchet_offer: "open\n'
 apply_refuses "an unclosed flow list on the key's own line" $'ratchet_offer: [true\n'
@@ -569,7 +583,13 @@ file_level() { # file_level <label> <file body>
   assert_eq "case 24: $1 exits 1" "1" "$?"
   assert_eq "case 24: $1 prints no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
 }
-file_level "an unknown key" $'stray: 1\ndownstream_probe: report\n'
+R24U="$(new_root fl-unknown)"
+printf 'stray: 1\ndownstream_probe: report\n' >"$(yaml_of "$R24U")"
+out="$(run --root "$R24U" --check)"
+assert_eq "case 24: an unknown key exits 1" "1" "$?"
+assert_eq "case 24: an unknown key is one WARN" "1" "$(printf '%s\n' "$out" | grep -c '^WARN.*key stray is not in the schema')"
+assert_contains "case 24: an unknown key leaves the floor key's PASS line" "$out" "PASS downstream_probe: report"
+file_level "an unknown key holding a map" $'stray: {a: 1}\ndownstream_probe: report\n'
 file_level "a parse error" $'other: "open\ndownstream_probe: report\n'
 R24="$TEST_TMPDIR/c24"
 mkdir -p "$R24/docs/conventions"

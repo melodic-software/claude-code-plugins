@@ -54,3 +54,7 @@ bump: minor
   `skills/audit-noise/scripts/lib/`.** The reader takes dotted keys, `--list`, stdin (`-`), a
   validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the
   parser rejects now yields the fallback with one stderr line.
+
+### Fixed
+
+- **`/docs-hygiene:setup` runs the shared `lib/setup-apply.mjs`.** `apply` names a key the schema does not list in `docs/conventions/docs-hygiene.yaml` in one warning, writes beside it and keeps its line as written, where it refused the file before; such a key set twice or holding a map or list is still refused. A symlinked `--root` is resolved first and every path check applies to the resolved directory, `--check` now also refuses a root that is `$HOME` or an ancestor of it, and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).

@@ -201,6 +201,13 @@ printf 'pixel_tolerance:\n  pixels: 2\n  reason: "fonts: hinting differs"\n' >"$
 run config --repo "$R"
 assert_eq "a quoted reason with ': ' prints whole and unquoted, last" \
   "pixel_tolerance=2 source=team (working tree, no origin) reason=fonts: hinting differs" "$out"
+printf 'pixel_tolerance:\n  pixels: 1\n  reason: narrow: crop\n' >"$R/$OVERLAY"
+run config --repo "$R"
+assert_eq "an unquoted reason with ': ' in the overlay: exit 0" 0 "$rc"
+assert_contains "the overlay is named" "$err" "$R/$OVERLAY"
+assert_eq "and dropped while the team value still decides" \
+  "pixel_tolerance=2 source=team (working tree, no origin) reason=fonts: hinting differs" "$out"
+rm -f "$R/$OVERLAY"
 
 # An invalid layer is named and dropped; the others still decide; never exit 2.
 layer "$R/$TEAM" 2 "team reason"

@@ -449,3 +449,11 @@ lib/suppression-scan.py plugins/code-metrics/skills/audit-suppressions/scripts/s
 lib/suppression-scan.py plugins/review/skills/ratchet/scripts/suppression-scan.py
 lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
 lib/installed.mjs plugins/user-interface/scripts/lib/installed.mjs
+lib/setup-apply.mjs plugins/discipline/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/discovery/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/docs-hygiene/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/education/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/planning/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/review/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/session-flow/lib/setup-apply.mjs
+lib/setup-apply.mjs plugins/verification/lib/setup-apply.mjs

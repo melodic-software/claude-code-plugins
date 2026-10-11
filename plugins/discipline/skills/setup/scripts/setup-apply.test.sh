@@ -103,14 +103,17 @@ check 'a key outside the schema exits 1 and writes nothing' test "$CODE" -eq 1 -
 run "$repo" 'lever_scope='
 check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
 
-# An existing file holding a key outside the schema is refused and kept.
+# An existing key outside the schema is named in one warning and ignored: its
+# line is kept byte for byte and the asked-for key is written. --check warns
+# on it, still prints the valid key, and exits 1.
 repo="$(new_repo)"
 f="$repo/docs/conventions/discipline.yaml"
 mkdir -p "$repo/docs/conventions"
 printf 'lever_scope: deterministic\nverbosity: high\n' >"$f"
-before="$(cat "$f")"
+run "$repo" --check
+if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS lever_scope: deterministic"* ]]; then pass '--check warns on an existing unknown key and keeps the valid key'; else fail '--check warns on an existing unknown key and keeps the valid key'; fi
 run "$repo" --yes lever_scope=non-trivial
-if one_line_refusal && [[ "$OUT" == *"verbosity"* && "$(cat "$f")" == "$before" ]]; then pass 'an existing unknown key is a one-line refusal and the file kept'; else fail 'an existing unknown key is a one-line refusal and the file kept'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$f")" == $'lever_scope: non-trivial\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # Shapes a schema validator rejects although each line looks plausible.
 # --check reports each as WARN. apply overwrites only an out-of-list, empty
@@ -152,7 +155,8 @@ shape_case 'a ~ value' replace 'lever_scope=~ is not one of' $'lever_scope: ~\n'
 shape_case 'an out-of-list value' replace 'lever_scope=always is not one of' $'lever_scope: always\n'
 shape_case 'an anchor on the target line' refuse 'not part of the subset' $'lever_scope: &a deterministic\n'
 shape_case 'an unclosed quote on the target line' refuse 'unclosed quote' $'lever_scope: "deterministic\n'
-shape_case 'an unknown key with an empty value' refuse 'stray is not in the schema' $'stray:\n'
+shape_case 'an unknown key set twice' refuse 'key stray is set more than once' $'stray: a\nstray: b\n'
+shape_case 'an unknown key holding a map' refuse 'stray is not in the schema and holds a map or a list' $'stray:\n  a: 1\n'
 shape_case 'a parse error on another line' refuse 'unclosed quote' $'lever_scope: deterministic\nnote: "open\n'
 shape_case 'a $schema flow map' refuse '$schema holds a map or a list' $'"$schema": {a: 1}\nlever_scope: deterministic\n'
 shape_case 'an empty $schema flow list' refuse '$schema holds a map or a list' $'"$schema": []\nlever_scope: deterministic\n'

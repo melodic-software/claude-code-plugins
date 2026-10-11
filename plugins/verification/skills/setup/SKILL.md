@@ -35,8 +35,10 @@ Report a PASS/INFO/WARN table. Do not write anything.
    (`proof_level` and `live_workers` come from `userConfig` or their defaults), PASS with each
    key's value when it validates, WARN when it does not (a `proof_level` outside `path`, `live`,
    `strict`, a `live_workers` that is not a whole number of at least 1, a key set twice, an empty
-   value, null, an unknown key, a file that does not parse, a list or map, a symlink or hard link),
-   quoting the file, key and value. A WARN never stops `/verification:confirm`: it names the value,
+   value, null, a key the schema does not list, a file that does not parse, a list or map, a
+   symlink or hard link), quoting the file, key and value. A key the schema does not list is
+   ignored: the other keys keep their PASS lines, so a valid `proof_level` floor beside it counts.
+   A WARN never stops `/verification:confirm`: it names the value,
    drops the layer and resolves that key's default (`path`, `1`). `apply` is the fix. `/verification:confirm` reads the default
    branch's committed copy, so say that a working-tree value takes effect once it is merged there.
 
@@ -66,11 +68,14 @@ Report a PASS/INFO/WARN table. Do not write anything.
    of at least 1, so `0`, `1.5` and `'2'` are refused), refuses a key given twice, validates the
    existing file, and validates the whole resulting document before it writes. In the existing file
    it overwrites only a value outside the key's values, an empty value or null; it refuses a key set
-   twice, a map or list in block or flow form, an empty quoted string, an unknown key, or a file
-   that does not parse. It writes only `<git toplevel>/docs/conventions/verification.yaml`, and
-   refuses a root that is `$HOME` or an ancestor of it, a symlink, a hard-linked target, or a
-   `docs/conventions` that resolves outside the repository, checked again before each directory it
-   creates and right before the write. Every refusal is one line, exits 1 and leaves the file as it
+   twice, a map or list in block or flow form, an empty quoted string, an unknown key set twice or
+   holding a map or list, or a file that does not parse; any other unknown key is named in one
+   warning and its line kept as written. It writes only
+   `<git toplevel>/docs/conventions/verification.yaml`. It resolves a symlinked root first, then
+   refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`, `docs/conventions` or
+   target, a hard-linked target, or a `docs/conventions` that resolves outside the repository,
+   checked again before each directory it creates and right before the write. Every refusal is
+   one line, exits 1 and leaves the file as it
    was; a failed write removes only its own temp file. A missing file is created; a value already
    in place prints `already configured`.
 3. **An existing file that would change** exits 3 and prints a unified diff without writing. Show

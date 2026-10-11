@@ -78,13 +78,16 @@ if [[ ! -e "$repo/docs" ]]; then pass 'an invalid value writes nothing'; else fa
 run "$repo" verbosity=high
 if [[ "$CODE" -eq 1 && "$OUT" == *"verbosity"* && ! -e "$repo/docs" ]]; then pass 'a key outside the schema exits 1 and writes nothing'; else fail 'a key outside the schema exits 1 and writes nothing'; fi
 
-# Existing file holding a key outside the schema: the result would not validate.
+# Existing file holding a key outside the schema: the key is named in one
+# warning and ignored, its line is kept byte for byte, and --check still
+# prints the valid key and exits 1.
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf 'explore_output: auto\nverbosity: high\n' >"$repo/docs/conventions/discovery.yaml"
-before="$(cat "$repo/docs/conventions/discovery.yaml")"
+run "$repo" --check
+if [[ "$CODE" -eq 1 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$OUT" == *"PASS explore_output: auto"* ]]; then pass '--check warns on an unknown key and keeps the valid key'; else fail '--check warns on an unknown key and keeps the valid key'; fi
 run "$repo" --yes explore_output=explain
-if [[ "$CODE" -eq 1 && "$OUT" == *"verbosity"* && "$(cat "$repo/docs/conventions/discovery.yaml")" == "$before" ]]; then pass 'an existing file with an unknown key is refused and left as it was'; else fail 'an existing file with an unknown key is refused and left as it was'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*key verbosity is not in the schema' <<<"$OUT")" -eq 1 && "$(cat "$repo/docs/conventions/discovery.yaml")" == $'explore_output: explain\nverbosity: high' ]]; then pass 'an existing unknown key is one warning and its line is kept'; else fail 'an existing unknown key is one warning and its line is kept'; fi
 
 # An invalid existing value is replaced by a valid one.
 printf 'explore_output: tutorial\n' >"$repo/docs/conventions/discovery.yaml"
@@ -144,13 +147,14 @@ shape_case 'an empty double-quoted string' refuse $'explore_output: ""\n'
 shape_case 'an empty single-quoted string' refuse $'explore_output: \'\'\n'
 shape_case 'an empty value' replace $'explore_output:\n'
 shape_case 'a null value' replace $'explore_output: null\n'
-shape_case 'an unknown key with an empty value' refuse $'stray:\n'
+shape_case 'an unknown key set twice' refuse $'stray: a\nstray: b\n'
+shape_case 'an unknown key holding a list' refuse $'stray:\n  - a\n'
 
 repo="$(new_repo)"
 mkdir -p "$repo/docs/conventions"
 printf 'stray:\n' >"$repo/docs/conventions/discovery.yaml"
 run "$repo" --yes explore_output=explain
-if [[ "$CODE" -eq 1 && "$(wc -l <<<"$OUT")" -eq 1 && "$OUT" == *"stray"* ]]; then pass 'an unknown empty key is a one-line refusal that names it'; else fail 'an unknown empty key is a one-line refusal that names it'; fi
+if [[ "$CODE" -eq 0 && "$(grep -c 'WARN.*stray' <<<"$OUT")" -eq 1 && "$(cat "$repo/docs/conventions/discovery.yaml")" == $'stray:\nexplore_output: explain' ]]; then pass 'an unknown empty key is one warning that names it, and its line is kept'; else fail 'an unknown empty key is one warning that names it, and its line is kept'; fi
 
 # A key given twice on the command line is refused before anything is read or
 # written, whether or not the file exists.

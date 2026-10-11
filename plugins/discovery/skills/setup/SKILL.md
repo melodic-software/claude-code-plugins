@@ -117,8 +117,10 @@ Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a
    The script checks each value against the schema and validates the whole resulting document
    before it writes; an invalid value or key, or an existing file with a key set twice, an empty
    string, a map or a list, exits 1 with one line and writes nothing. It writes only
-   `<git toplevel>/docs/conventions/discovery.yaml`, and refuses a symlink, a hard-linked target,
-   or a `docs/conventions` that resolves outside the repository, checked again right before the
+   `<git toplevel>/docs/conventions/discovery.yaml`. It resolves a symlinked root first, then
+   refuses a root that is `$HOME` or an ancestor of it, a symlinked `docs`, `docs/conventions` or
+   target, a hard-linked target, or a `docs/conventions` that resolves outside the repository,
+   checked again right before the
    write, so nothing lands outside `docs/conventions/`. A missing file is created. A value already in place prints
    `already configured` and writes nothing.
 4. **An existing file that would change** exits 3 and prints a unified diff without writing. Show

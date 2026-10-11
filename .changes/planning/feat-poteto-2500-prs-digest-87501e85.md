@@ -28,3 +28,4 @@ bump: minor
 ### Fixed
 
 - **`/planning:interview`'s fallback for a resolved domain term now names a real home.** Without `/domain-driven-design:curate-language`, the term and its definition go in the resolution field of the open-question register row that resolved it; the Brief has no glossary heading for the old "Brief's glossary notes" to point at.
+- **`/planning:setup` runs the shared `lib/setup-apply.mjs`.** A key the schema does not list in `docs/conventions/planning.yaml` is named in one warning and ignored: `--check` still prints the valid keys (exit 1), and `apply` writes beside it and keeps its line as written; such a key set twice or holding a map or list is still refused. A symlinked `--root` is resolved first and every path check applies to the resolved directory, a CRLF file is written back with CRLF (one mixing CRLF and LF is refused), and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).

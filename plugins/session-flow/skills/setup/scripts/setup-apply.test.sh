@@ -103,10 +103,11 @@ for doc in 'worker_continuation:\n' \
 done
 
 # Duplicate keys (also with a space before the colon), a block or one-line
-# flow map or list, an empty quoted string and a stray empty key: --check
-# flags each, and apply refuses with the file unchanged. The existing file is
-# validated before any line is replaced, so a value apply could overwrite does
-# not hide a shape the operator must fix by hand.
+# flow map or list, an empty quoted string, and a key outside the schema set
+# twice or holding a map: --check flags each, and apply refuses with the file
+# unchanged. The existing file is validated before any line is replaced, so a
+# value apply could overwrite does not hide a shape the operator must fix by
+# hand.
 for doc in 'worker_continuation: resume\nworker_continuation: respawn\n' \
   'worker_continuation: resume\nworker_continuation : respawn\n' \
   'worker_continuation:\n  mode: resume\n' \
@@ -116,7 +117,8 @@ for doc in 'worker_continuation: resume\nworker_continuation: respawn\n' \
   'worker_continuation: []\n' \
   'worker_continuation: ""\n' \
   "worker_continuation: ''\n" \
-  'stray:\n'; do
+  'stray: a\nstray: b\n' \
+  'stray:\n  a: b\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
   before="$(cat "$repo/$REL")"
@@ -130,6 +132,20 @@ repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\nworker_continuation: respawn\n'
 run "$repo" --check
 assert_true 'a duplicate key is named as appearing twice' out_has 'appears 2 times'
+
+# A key outside the schema, empty or with a value, is named in one line and
+# ignored: --check still prints the valid key and exits 1, and apply writes
+# the asked-for key and keeps that line byte for byte.
+repo="$(new_repo)"
+seed "$repo" 'worker_continuation: resume\nstray:\n'
+run "$repo" --check
+assert_true '--check on an unknown key exits 1' code_is 1
+assert_true '--check names the unknown key once' [ "$(grep -c 'key stray is not in the schema' <<<"$OUT")" -eq 1 ]
+assert_true '--check keeps the valid key beside an unknown one' out_has 'worker_continuation: resume'
+run "$repo" --yes worker_continuation=respawn
+assert_true 'apply beside an unknown key exits 0' code_is 0
+assert_true 'apply names the unknown key in one warning' [ "$(grep -c 'WARN.*key stray is not in the schema' <<<"$OUT")" -eq 1 ]
+assert_true 'apply keeps the unknown key line' [ "$(cat "$repo/$REL")" = $'worker_continuation: respawn\nstray:' ]
 
 # An invalid existing scalar is replaced by a valid one.
 repo="$(new_repo)"

@@ -53,8 +53,10 @@ result as a person.
      the layer is unset or sets the printed level, never invalid for `proof_level`.
    - exit 1 with no `PASS proof_level` line: the committed `proof_level` or the whole committed
      file is invalid. Each `WARN` line names the file, the key and the value (an unlisted word, a
-     capitalized level, an empty value, a list, a key set twice, an unknown key, a parse error, a
-     committed symlink). The layer is invalid for `proof_level`.
+     capitalized level, an empty value, a list, a key set twice, an unknown key set twice or
+     holding a map or list, a parse error, a committed symlink). The layer is invalid for
+     `proof_level`. Any other unknown key is one WARN beside the PASS lines, so a valid
+     `proof_level` floor in the same file still counts.
    - exit 2 (no `origin/<default>`, a ref that does not resolve) or node not installed: the layer
      cannot be read; skip it and say why.
 

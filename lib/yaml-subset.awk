@@ -5,18 +5,20 @@
 #
 # The subset: block mappings and block sequences by indentation, flow
 # sequences and flow mappings closed on the same line, plain and quoted
-# scalars, `#` comments (whole-line, or after whitespace). A sequence item is
-# keyed by its zero-based index (`lanes.pr-merge.slots.0.activity`). An empty
-# value, an empty flow collection and a key with nothing under it print
-# nothing. Keys and scalars may be quoted: `''` inside single quotes is one
-# quote, and inside double quotes `\"`, `\\`, `\/` and `\t` are unescaped while
-# any other `\x` is kept as written. No anchors, aliases, tags, block scalars or
-# multi-line flow collections.
+# scalars, `#` comments (whole-line, or after whitespace). A plain scalar may
+# not hold `: ` (a colon then a space or tab); quote such a value. A sequence
+# item is keyed by its zero-based index (`lanes.pr-merge.slots.0.activity`).
+# An empty value, an empty flow collection and a key with nothing under it
+# print nothing. Keys and scalars may be quoted: `''` inside single quotes is
+# one quote, and inside double quotes `\"`, `\\`, `\/` and `\t` are unescaped
+# while any other `\x` is kept as written. No anchors, aliases, tags, block
+# scalars or multi-line flow collections.
 #
 # The document may sit at a uniform base indent, the leading whitespace of its
-# first content line (tabs allowed there); below that base, indentation is
-# spaces. `---` and `...` markers and `%` directives are skipped; CRLF and a
-# leading byte-order mark are accepted.
+# first content line; indentation is spaces. A tab in a line's leading
+# whitespace is a parse error, except in the base indent of a -v BLOCK=1 fence,
+# which may hold tabs. `---` and `...` markers and `%` directives are skipped;
+# CRLF and a leading byte-order mark are accepted.
 #
 # -v BLOCK=1 reads only the lines inside the first ```yaml config fence (a
 # docs convention file); line numbers still name the .md file's own lines.
@@ -179,6 +181,7 @@ function value(path, s, ind, opener,   c, end, rest) {
     unsupported(c)
     sub(/[ \t]+#.*$/, "", s)
     sub(/[ \t]+$/, "", s)
+    if (s ~ /:[ \t]/) fail("a plain value may not hold `: `; quote it")
     emit(path, s)
     return
   }
@@ -225,6 +228,7 @@ BEGIN { n = 0; based = 0; pending = 0; inblock = (BLOCK == 1) ? 0 : 1; seen = 0 
   if (line ~ /^(---|\.\.\.)([ \t]|$)/ || line ~ /^%/) next
 
   match(line, /^[ \t]*/)
+  if (BLOCK != 1 && substr(line, 1, RLENGTH) ~ /\t/) fail("tab indentation")
   if (!based) { base = substr(line, 1, RLENGTH); based = 1 }
   if (substr(line, 1, length(base)) != base) fail("indentation below the document's base")
   line = substr(line, length(base) + 1)
