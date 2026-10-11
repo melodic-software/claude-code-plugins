@@ -1192,7 +1192,9 @@ export function maskCode(text) {
   return {
     fenceMasked: blank(fenceMasked, html),
     linkMasked: blank(codeMasked, html),
-    tagText: codeMasked.replace(HTML_COMMENT, (comment) => comment.replace(/[^\n]/g, " ")),
+    tagText: codeMasked
+      .replace(HTML_COMMENT, (comment) => comment.replace(/[^\n]/g, " "))
+      .replace(HTML_OTHER, (raw) => raw.replace(/[^\n]/g, " ")),
   };
 }
 

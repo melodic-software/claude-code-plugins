@@ -1362,6 +1362,16 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
   });
 
+  it("does not read attributes inside CDATA, declarations or processing instructions", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md":
+        '<![CDATA[<a href="missing.md">]]> <?pi <img src="gone.png"> ?> <a href="lost.md">x</a>\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "lost.md" }]);
+  });
+
   // The URL parser trims leading and trailing spaces and controls from an attribute URL.
   it("trims edge whitespace from an HTML URL", () => {
     const root = makeDir("relayout-check-");
