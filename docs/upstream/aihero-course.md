@@ -449,8 +449,6 @@ the glossary carries the vocabulary, this table carries why.
 | highway / stale highway | **REJECT** (as canonical) | Metaphor duplicating "navigation pointer"; survives only as the quoted mnemonic in #2987's C7 note |
 | grill-execute-clear (loop name) | **REJECT** (mapping recorded) | Lane 5 Q36: a second name for a loop the house workflow taxonomy already owns |
 | design tree | **EQUIVALENT** (no action) | Lane 5: equivalent to our "decision tree"; recorded, nothing to adopt |
-| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/conventions/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary defines it as agent sessions "started by triggers ... rather than by a human" ([entry](https://www.aihero.dev/ai-coding-dictionary/software-factory)); a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
-| dark factory | **RECORDED** (definition only) | His [entry](https://www.aihero.dev/ai-coding-dictionary/dark-factory): a software factory that "writes the code and no human reads it", with automated checks and automated review as the only gates. Recorded so the term can be matched when upstream material uses it; no project term adopted. As-of 2026-10-10 |
 
 **Cross-skill invocation phrasing (the routed lane 7 candidate):** ADOPT (adapted). Upstream
 standardized cross-skill dependencies on explicit "Call the Skill tool with \"name\"" phrasing
@@ -463,6 +461,17 @@ bare — and codified nowhere; the doctrine now lives in
 lane and scoped to new/edited text, with the fleet normalization sweep filed as
 [#3002](https://github.com/melodic-software/claude-code-plugins/issues/3002). The sweep landed
 2026-08-21; the scoping note is retired and the rule is now unconditional.
+
+### Terms from the v1.3 video pass (decided 2026-10-10)
+
+Graded outside lane 6, in the interview on Matt Pocock's "New Skills! v1.3" video
+([#6947](https://github.com/melodic-software/claude-code-plugins/issues/6947)), under the same
+admission rule. The glossary mirrors the REJECT row.
+
+| Term | Verdict | Basis |
+|---|---|---|
+| software factory | **REJECT** (mapping recorded) | Maps to our loop lane (`docs/conventions/loop-lane/README.md`: `work-items:work-loop`, `source-control:babysit-loop`, CI intake triage). His dictionary defines it as agent sessions "started by triggers ... rather than by a human" ([entry](https://www.aihero.dev/ai-coding-dictionary/software-factory)); a second name for a concept the house already owns violates vocabulary parsimony. As-of 2026-10-10 |
+| dark factory | **RECORDED** (definition only) | His [entry](https://www.aihero.dev/ai-coding-dictionary/dark-factory): a software factory that "writes the code and no human reads it", with automated checks and automated review as the only gates. Recorded so the term can be matched when upstream material uses it; no project term adopted. As-of 2026-10-10 |
 
 ## Coverage index (the journey's completion gate)
 
