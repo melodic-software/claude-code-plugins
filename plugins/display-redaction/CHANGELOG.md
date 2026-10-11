@@ -16,5 +16,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The `mask_style` option: `block`, the default, draws each match in replies, prompts and command
   output as a solid bar that shows the value on hover, as the hide-email mod in Anthropic's "Mods
   in Claude Code" video does; `text` draws `[hidden]`, which tool rows always use.
+- `block` uses the video's exact colors only where the terminal advertises full color
+  (`COLORTERM` is `truecolor` or `24bit`), and theme colors otherwise.
 - The `extra_patterns` option for your own patterns.
 - `/display-redaction on` and `/display-redaction off` for the current session.

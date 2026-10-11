@@ -50,6 +50,9 @@ output, question prompts and info notices.
   as plain wrapping text with each match a bar, and so does a fenced code block with a match. A
   reply drawn this way has no reply bullet and no summary mark. A task notification or a message
   from another agent, and text holding terminal control characters, draw as `[hidden]`.
+  The video's exact colors need a terminal that advertises full color; set `COLORTERM=truecolor`
+  if yours supports it but does not say so (for example WSL inside Windows Terminal); otherwise
+  the bar uses your theme's colors.
 - **`text`** swaps each match for `[hidden]` before Claude Code draws, so all of its formatting is
   kept.
 

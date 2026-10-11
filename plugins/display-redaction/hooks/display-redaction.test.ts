@@ -1,5 +1,5 @@
 import type { CommandRunInput, On, RenderComponent, RenderPropsOf } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
+import { type Engine, expect, mock, test } from 'claude-code/testing'
 import { register } from './register.tsx'
 
 const M = '[hidden]'
@@ -27,6 +27,14 @@ const TEXT_MODE = { options: { mask_style: 'text' } }
 const VIDEO_MASKED = { backgroundColor: '#3B4252', color: '#3B4252' }
 const VIDEO_SHOWN = { backgroundColor: '#4C566A', color: '#ECEFF4', bold: true }
 const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
+// The theme keys the engine's types list (ThemeKey); a raw color is any other string.
+const THEME_KEYS = [
+  'text', 'inverseText', 'inactive', 'subtle', 'suggestion', 'remember', 'success', 'error', 'warning', 'merged',
+  'claude', 'permission', 'planMode', 'autoAccept', 'promptBorder', 'bashBorder', 'ide', 'diffAdded', 'diffRemoved',
+  'diffAddedDimmed', 'diffRemovedDimmed', 'diffAddedWord', 'diffRemovedWord',
+]
+// A terminal that advertises full color sets COLORTERM to one of these.
+const FULL_COLOR = ['truecolor', '24bit']
 
 type Node = { type?: string; props?: Record<string, unknown>; hover?: unknown; children?: unknown[] }
 
@@ -40,7 +48,8 @@ const barsIn = (node: unknown, keyed = false): { text: string; props: unknown; h
   return children.flatMap((c) => barsIn(c, type === 'Box' && typeof props?.key === 'string'))
 }
 
-test('block mode draws each match as a bar the color of its text, readable while hovered', async ($) => {
+test('block mode draws each match as a bar the color of its text, readable while hovered', async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({
       plugin: 'display-redaction',
@@ -57,7 +66,8 @@ test('block mode draws each match as a bar the color of its text, readable while
   }
 })
 
-test('block mode draws a fenced block with a match as text, the match a bar', async ($) => {
+test('block mode draws a fenced block with a match as text, the match a bar', async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
   const ui = await $.ui.mount({
     plugin: 'display-redaction',
     surface: 'terminal',
@@ -71,7 +81,8 @@ test('block mode draws a fenced block with a match as text, the match a bar', as
   ])
 })
 
-test('block mode draws a bar in a typed prompt and in command output', async ($) => {
+test('block mode draws a bar in a typed prompt and in command output', async ($, on) => {
+  mock.env(on, { COLORTERM: '24bit' })
   const user = await $.ui.mount({
     plugin: 'display-redaction',
     surface: 'desktop',
@@ -89,6 +100,62 @@ test('block mode draws a bar in a typed prompt and in command output', async ($)
     expect(spans.map((s) => s.text)).toEqual([` ${EMAIL} `])
     expect(spans[0]?.props).toMatchObject(VIDEO_MASKED)
   }
+})
+
+const drawBar = async ($: Engine) => {
+  const ui = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  return barsIn(await ui.drawn())
+}
+
+// Without full color the terminal approximates a hex color, so the bar uses the person's theme.
+const expectThemeBar = (bars: ReturnType<typeof barsIn>) => {
+  expect(bars.length).toBe(1)
+  const { text, props, hover } = bars[0] as { text: string; props: Record<string, unknown>; hover: Record<string, unknown> }
+  expect(text).toBe(` ${EMAIL} `)
+  expect(props.color).toBe(props.backgroundColor)
+  expect(THEME_KEYS.includes(props.color as string)).toBe(true)
+  expect(THEME_KEYS.includes(hover.color as string)).toBe(true)
+  expect(THEME_KEYS.includes(hover.backgroundColor as string)).toBe(true)
+  expect(hover.color).not.toBe(hover.backgroundColor)
+}
+
+for (const value of FULL_COLOR) {
+  test(`block mode uses the video colors where COLORTERM is ${value}`, async ($, on) => {
+    mock.env(on, { COLORTERM: value })
+    expect((await drawBar($)).map((b) => [b.props, b.hover])).toEqual([[VIDEO_MASKED, VIDEO_SHOWN]])
+  })
+}
+
+test('block mode uses theme colors, a solid bar, when COLORTERM is unset', async ($, on) => {
+  mock.env(on, {})
+  expectThemeBar(await drawBar($))
+})
+
+test('block mode uses theme colors when COLORTERM names less than full color', async ($, on) => {
+  mock.env(on, { COLORTERM: '256color' })
+  expectThemeBar(await drawBar($))
+})
+
+test('block mode uses theme colors, still masked, when the environment cannot be read', async ($, on) => {
+  on('env.get', () => ({ deny: 'environment unavailable' }))
+  expectThemeBar(await drawBar($))
+})
+
+test('text mode rewrites the text whatever the color support', TEXT_MODE, async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
+  const seen = capture(on, 'AssistantMessage')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL} today.`, isFirstOfReply: true },
+  })
+  expect(seen.props).toEqual({ text: `Write to ${M} today.`, isFirstOfReply: true })
 })
 
 test('block mode rewrites a task notification row, which the engine draws compact', async ($, on) => {
