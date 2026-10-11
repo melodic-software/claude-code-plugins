@@ -54,8 +54,10 @@
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
 # over whole-tree CI runs; a suite the file does not list counts 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
-# seconds. Suites go longest first to the least-loaded leg, so the legs finish
-# close together, and every selected suite lands on exactly one leg.
+# seconds. A leg's load is the larger of its suite-seconds and three times its
+# longest suite that runs three at a time, since one suite cannot be split
+# across workers. Suites go longest first to the least-loaded leg, so the legs
+# finish close together, and every selected suite lands on exactly one leg.
 #
 # Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no
 # lane runs.
@@ -286,19 +288,25 @@ done <<<"$packages"
 
 # --- legs -------------------------------------------------------------------
 
-# pack <lane> <budget> <cap> <force> <list> [<serial-list>]: the lane's legs,
-# plan and needs. A suite on <serial-list> runs alone while the other suites run
-# three at a time (scripts/run-plugin-tests.sh), so it weighs three times its
-# seconds.
+# pack <lane> <budget> <cap> <force> <workers> <list> [<serial-list>]: the
+# lane's legs, plan and needs. A leg runs <workers> suites at a time
+# (scripts/run-plugin-tests.sh), so a suite on <serial-list>, which runs alone,
+# weighs <workers> times its seconds. One suite cannot be split, so a leg is
+# estimated at the larger of its suite-seconds and <workers> times its longest
+# parallel suite.
 pack() {
-  local lane="$1" budget="$2" cap="$3" force="$4" list="$5" serial="${6:-/dev/null}"
-  awk -v def="$DEFAULT_SECONDS" '
+  local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
+  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" '
     FILENAME == ARGV[1] { if ($0 !~ /^[[:blank:]]*(#|$)/) secs[$1] = $2; next }
     FILENAME == ARGV[2] { sub(/#.*/, ""); if (NF) alone[$1] = 1; next }
-    NF { printf "%s\t%s\n", (($1 in secs) ? secs[$1] : def) * (($1 in alone) ? 3 : 1), $1 }' \
+    NF {
+      s = ($1 in secs) ? secs[$1] : def
+      printf "%s\t%s\t%s\n", s * (($1 in alone) ? workers : 1), $1, ($1 in alone) ? 0 : s * workers
+    }' \
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
     awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
+      function est(l) { return load[l] > top[l] ? load[l] : top[l] }
       function need(p,   s) {
         s = ""
         # The animation wheels are also where the speech suites get numpy.
@@ -309,7 +317,7 @@ pack() {
       }
       {
         if ($2 ~ /["\\]/) { print "plan-test-lanes: a suite path carries a quote or a backslash: " $2 > "/dev/stderr"; bad = 1; exit }
-        n++; sec[n] = $1 + 0; path[n] = $2; total += $1
+        n++; sec[n] = $1 + 0; path[n] = $2; span[n] = $3 + 0; total += $1
       }
       END {
         if (bad) exit 2
@@ -324,8 +332,9 @@ pack() {
         if (legs < 1) legs = 1
         for (i = 1; i <= n; i++) {
           best = 0
-          for (l = 1; l < legs; l++) if (load[l] < load[best]) best = l
+          for (l = 1; l < legs; l++) if (est(l) < est(best)) best = l
           load[best] += sec[i]
+          if (span[i] > top[best]) top[best] = span[i]
           items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
           split(need(path[i]), w, " ")
           for (k in w) if (w[k] != "") has[best, w[k]] = 1
@@ -347,8 +356,8 @@ pack() {
       }' || die "planning the $lane legs failed"
 }
 
-pack bash 120 6 "$whole" "$WORK/bash" scripts/run-plugin-tests-serial.txt
-pack python 180 4 0 "$WORK/python"
+pack bash 120 6 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
+pack python 180 4 0 1 "$WORK/python"
 echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
 echo "node_packages=$node_packages"
 echo "node: ${node_packages:-nothing selected}" >&2
