@@ -33,9 +33,11 @@ operator needs it most, and it cannot tell that it is blind.
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
 **Rung 1 is a reuse, not a reimplementation.** `harness-ops:inventory` owns whole-fleet enumeration
-and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: only the cache's
-*existence* is documented, its `<marketplace>/<plugin>/<version>` nesting is not, and the version
-directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
+and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: we treat its
+`<marketplace>/<plugin>/<version>` nesting as no contract (the docs show it only inside an error
+example: [Troubleshoot plugins § Install a plugin](https://code.claude.com/docs/en/plugins/troubleshooting#install-a-plugin);
+as of 2026-10-11; recheck trigger: a docs page documents the cache layout as stable), and the
+version directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
 that move on exactly those grounds.
 
 **Rung 1 supplies names only.** Verified against its output: entries are bare leaf names under a
