@@ -11,7 +11,7 @@
 #
 # Exit codes:
 #   0  no drift
-#   1  drift: an upstream file changed, or a vendored copy no longer matches
+#   1  drift: an upstream file changed or is gone, or a vendored copy no longer matches
 #   2  unverifiable (curl or git missing, network, auth or rate limit) or usage
 #
 # Tests source this file and replace fetch_blob_sha and PLUGIN_DIR.
@@ -33,23 +33,28 @@ log() { printf '%s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 section() { printf '\n== %s ==\n' "$*"; }
 
-# Print the blob SHA of one upstream path on the default branch; return 1 when
-# the API answers nothing usable. A token in GH_TOKEN or GITHUB_TOKEN raises
-# the rate limit; none is needed for this public repository.
+# Print the blob SHA of one upstream path on the default branch; return 3 when
+# the path is gone (404), 1 when the API answers nothing usable. A token in
+# GH_TOKEN or GITHUB_TOKEN raises the rate limit; none is needed for this
+# public repository.
 fetch_blob_sha() {
-  local path="$1" body sha
+  local path="$1" body status sha
   local headers=(-H "Accept: application/vnd.github+json")
   local token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
   [[ -n "$token" ]] && headers+=(-H "Authorization: Bearer ${token}")
-  body=$(curl -sS --fail --max-time 30 "${headers[@]}" \
+  body=$(curl -sS --max-time 30 -w '\n%{http_code}' "${headers[@]}" \
     "https://api.github.com/repos/${UPSTREAM_REPO}/contents/${path}?ref=${UPSTREAM_BRANCH}" 2>/dev/null) || return 1
+  status="${body##*$'\n'}"
+  [[ "$status" == 404 ]] && return 3
+  [[ "$status" == 200 ]] || return 1
+  body="${body%$'\n'*}"
   sha=$(printf '%s' "$body" | grep -oE '"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]{40}"' | head -1 | grep -oE '[0-9a-f]{40}')
   [[ -n "$sha" ]] || return 1
   printf '%s' "$sha"
 }
 
 run_check() {
-  local entry path pinned copy current local_sha drift=0 fetch_failed=0
+  local entry path pinned copy current status local_sha drift=0 fetch_failed=0
 
   section "Vendored copies vs pin"
   for entry in "${PINNED[@]}"; do
@@ -69,7 +74,12 @@ run_check() {
   section "Upstream ${UPSTREAM_REPO}@${UPSTREAM_BRANCH} vs pin ${PIN:0:12}"
   for entry in "${PINNED[@]}"; do
     IFS='|' read -r path pinned copy <<<"$entry"
-    if ! current=$(fetch_blob_sha "$path"); then
+    current=$(fetch_blob_sha "$path")
+    status=$?
+    if ((status == 3)); then
+      log "GONE       ${path}  (deleted or renamed upstream)"
+      drift=1
+    elif ((status != 0)); then
       err "could not read the blob SHA of ${path} (network, auth or rate limit)"
       fetch_failed=1
     elif [[ "$current" == "$pinned" ]]; then

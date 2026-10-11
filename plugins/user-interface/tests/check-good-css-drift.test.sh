@@ -84,6 +84,20 @@ fetch_blob_sha() { return 1; }
 out=$(run_check 2>&1)
 code=$?
 assert_eq "fetch failure: exit 2" 2 "$code"
+
+# 3b. An upstream file is gone (404): drift, not unverifiable.
+fetch_blob_sha() {
+  case "$1" in
+    scripts/check-css.mjs) return 3 ;;
+    LICENSE) printf '%s' "$SHA_LICENSE" ;;
+    PRACTICES.md) printf '%s' "$SHA_PRACTICES" ;;
+    *) return 1 ;;
+  esac
+}
+out=$(run_check 2>&1)
+code=$?
+assert_eq "upstream file gone: exit 1" 1 "$code"
+assert_contains "upstream file gone: names the file" "$out" "GONE       scripts/check-css.mjs"
 eval "$saved_fetch"
 
 # 4. A vendored copy edited locally, upstream unchanged.
