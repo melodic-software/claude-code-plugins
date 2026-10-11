@@ -292,16 +292,29 @@ export function findNextPhase(phases) {
 /**
  * Build a continuation prompt for `/video-digest resume`.
  *
- * Prompt paths render from the resolved slice dir the caller already holds —
- * never re-derived from the epic-dir constant — so a non-default `--work-root`
- * always yields resumable paths (storage invariant A1 (4)).
+ * The prompt is written inside the slice and may be committed, so every path
+ * in it is slice-relative (temp paths `{tmp}`-tokenized): no work root, no
+ * epic dir, no machine path. Resume finds the slice by its slug.
  *
  * @param {WatchState} state
- * @param {string} sliceDir - resolved slice directory
  * @returns {string}
  */
-export function buildContinuationPrompt(state, sliceDir) {
+export function buildContinuationPrompt(state) {
   const next = findNextPhase(state.phases);
+  const closed = state.status === "complete";
+  const closeCommand = "`watch/watch-state.js close <slice-dir>`";
+  let nextLine;
+  let step3;
+  if (closed) {
+    nextLine = "**complete**. Nothing to resume: the slice is closed.";
+    step3 = "Nothing to resume: `status` is `complete`";
+  } else if (next === null) {
+    nextLine = `None: every phase is marked, but the slice is not closed. Run ${closeCommand}.`;
+    step3 = `Run ${closeCommand} so the outcome checks run and the slice closes`;
+  } else {
+    nextLine = `**${next}**: resume from this slice's artifacts (paths below are relative to the slice directory).`;
+    step3 = `Continue from the **${next}** phase per SKILL.md watch protocol`;
+  }
   const completed = Object.entries(state.phases)
     .filter(([, value]) => value !== null)
     .map(([name, value]) =>
@@ -311,6 +324,7 @@ export function buildContinuationPrompt(state, sliceDir) {
   return `# Continue /knowledge:video-digest watch — ${state.title}
 
 Video slug: \`${state.videoSlug}\`
+Locate the slice: \`watch/run-resume.js ${state.videoSlug}\` (SKILL.md resume) reports it as \`sliceDir\`.
 Source: ${state.sourceUrl}
 
 ## Completed phases
@@ -319,7 +333,7 @@ ${completed.length > 0 ? completed.map((p) => `- ${p}`).join("\n") : "- (none ye
 
 ## Next phase
 
-**${next ?? "complete"}** — resume from \`${sliceDir}\` artifacts.
+${nextLine}
 
 ## Synthesis target
 
@@ -343,9 +357,9 @@ ${state.tempSession ? `- Frames temp: \`${normalizePortableTempPath(state.tempSe
 
 ## Instructions
 
-1. Read \`${watchStatePath(sliceDir)}\` for phase markers
+1. Read \`${LANES.runState}/${WATCH_STATE_FILENAME}\` for phase markers
 2. Read \`source/transcript.txt\` and the existing lane deliverables (\`research/\`, \`key-frames/\`, \`recommendations/\`)
-3. Continue from the **${next ?? "synthesis"}** phase per SKILL.md watch protocol
+3. ${step3}
 4. Default-on research stage unless user passed \`--skip-research\`
 5. Emit \`recommendations/\` hub (README + menu/takeaways/questions/interview) — no auto-implement, no auto-filed issues
 `;
@@ -407,7 +421,7 @@ export async function writeContinuationPrompt(
   writeFile = fs.writeFile,
   mkdir = fs.mkdir,
 ) {
-  const prompt = buildContinuationPrompt(state, sliceDir);
+  const prompt = buildContinuationPrompt(state);
   await mkdir(lanePath(sliceDir, LANES.runState), { recursive: true });
   await writeFile(continuationPromptPath(sliceDir), prompt, "utf8");
   return prompt;
