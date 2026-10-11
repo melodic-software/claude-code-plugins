@@ -71,7 +71,9 @@ read the matching file on demand. These apply in every session:
 A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
 in user scope. User scope keeps only personal style, meaning the voice, length and format of
 replies to the user, set in the user CLAUDE.md, user rules or an output style.
-`docs/conventions/` holds marketplace plugin contracts, not team standards.
+Convention folders under `docs/conventions/` hold marketplace plugin contracts; the
+`<concern>.yaml` and `.md` files there hold this repository's plugin settings (ADR 0064). Team
+standards live in `docs/standards/`.
 
 ## Code Review Rules
 
