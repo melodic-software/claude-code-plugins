@@ -36,7 +36,7 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
 | Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Absent → the `os_toast` channel is a silent no-op. |
-| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is in [Emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications). |
+| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above, which carries this cell's as-of date and recheck trigger. |
 
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
