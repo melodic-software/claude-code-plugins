@@ -98,20 +98,8 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
 ## Always-on rules
 
 Each applies only where the project is silent, and `css.rules.disable` turns one off by its id.
-Provisional: each stays here until the three-arm eval measures it; a rule with no measured gain
-moves to its topic reference.
-
-- `hover`: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`.
-- `logical`: inline and block properties and start and end values, never left, right, top, bottom.
-- `outline`: focus is styled with `:focus-visible` and `outline`; never `outline: none` or `0`.
-- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen.
-- `color`: colors in `oklch()`, with `none` as the hue of grays; variants via `color-mix(in oklch, …)`.
-- `transition-all`: a transition names its properties, never `all`.
-- `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
-- `duration`: a UI transition takes 300ms or less; a modal or drawer up to 500ms.
-
-Details: `hover` and `outline` in interaction.md, `logical` and `color` in foundations.md, the rest
-in motion.md.
+The rules live in the topic references: `hover` and `outline` in interaction.md, `logical` and
+`color` in foundations.md, `ease-in`, `transition-all`, `motion` and `duration` in motion.md.
 
 ## Review mode
 
