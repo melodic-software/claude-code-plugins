@@ -18,7 +18,8 @@ them from the file rather than from a copy of tool output.
   `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
   `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
   `INTERNAL`, or `UNKNOWN` when the lookup fails). `<pr>` is a number or a head branch; with none
-  it reads the current branch's PR. `--diff` prints the unified diff instead. `view` reads through
+  it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
+  name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through
   the forge's REST API only, so it also works in a session that refuses GraphQL. `--repo` also
   takes `HOST/OWNER/REPO`.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,

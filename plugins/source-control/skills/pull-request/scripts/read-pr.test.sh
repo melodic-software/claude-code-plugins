@@ -39,6 +39,8 @@ done
 ep="$1"
 repo="${ep#repos/}" repo="${repo%%/pulls*}"
 [[ "$repo" == "{owner}/{repo}" ]] && repo=acme/app
+# A forge can report a pull request URL on a different host or repo than the one asked.
+url_host="${GH_STUB_URL_HOST:-$host}" url_repo="${GH_STUB_URL_REPO:-$repo}"
 case "$ep" in
 repos/*/pulls\?head=*)
   # The stub's branch feat/7-x has a closed pull request 6 and an open one 7.
@@ -58,9 +60,9 @@ repos/*/pulls/7)
   if [[ "$accept" == "Accept: application/vnd.github.diff" ]]; then
     printf 'diff --git a/a.md b/a.md\n'
   elif [[ "${GH_STUB_MERGED:-}" == 1 ]]; then
-    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"closed","draft":false,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[]}' "$host" "$repo"
+    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"closed","draft":false,"merged_at":"2026-01-01T00:00:00Z","merge_commit_sha":"m1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[]}' "$url_host" "$url_repo"
   else
-    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"open","draft":true,"merged_at":null,"merge_commit_sha":"t1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[{"node_id":"L1","name":"bug","description":"d","color":"f00"}]}' "$host" "$repo"
+    printf '{"number":7,"html_url":"https://%s/%s/pull/7","state":"open","draft":true,"merged_at":null,"merge_commit_sha":"t1","title":"t","base":{"ref":"main","sha":"b1"},"head":{"ref":"feat/7-x","sha":"h1"},"additions":3,"deletions":1,"labels":[{"node_id":"L1","name":"bug","description":"d","color":"f00"}]}' "$url_host" "$url_repo"
   fi
   ;;
 repos/acme/app | repos/acme/ghe-app)
@@ -109,6 +111,10 @@ assert_eq "visibility on another host asks that host" "PRIVATE" "$(jq -r .visibi
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "--repo HOST/OWNER/REPO reads from that host" "$calls" "api --hostname ghe.example repos/acme/ghe-app/pulls/7"
 assert_contains "the visibility host comes from the pull request URL" "$calls" "api --hostname ghe.example repos/acme/ghe-app --jq"
+
+out=$(GH_STUB_URL_HOST=ghe.example GH_STUB_URL_REPO=acme/ghe-app run view 7)
+assert_eq "visibility asks the host in the pull request URL, not the requested host" "PRIVATE" "$(jq -r .visibility <<<"$out")"
+assert_contains "a URL host that differs from the requested host reaches the visibility lookup" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example repos/acme/ghe-app --jq"
 
 out=$(run view https://ghe.example/acme/ghe-app/pull/7)
 assert_eq "a pull request URL names its own host and repository" "https://ghe.example/acme/ghe-app/pull/7" "$(jq -r .url <<<"$out")"
