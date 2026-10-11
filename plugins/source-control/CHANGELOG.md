@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-10-11
+
+### Changed
+
+- `pull-request` and `worktree` spokes name forge operations and link their GitHub commands, which now live in per-spoke provider files under `reference/providers/github/pull-request/` and in the provider README (#6941).
+
+- The `babysit-prs` spokes (`loop.md`, `safety.md`, `orchestration.md`, `freshness.md`, `stuck-checks.md`) and the `babysit-loop` `cycle-shape.md` spoke name forge operations instead of `gh` commands; the GitHub commands, procedures and CLI facts moved to new files under `reference/providers/github/babysit-prs/` and `reference/providers/github/babysit-loop/`, linked from each call site. Behavior is unchanged: every command is still reachable from its spoke, and the worker prompt, the pinned approve mechanic and the pre-computed context keep their `gh` lines.
+
+### Fixed
+
+- The babysit engine recognizes the cloud GitHub proxy's current GraphQL refusal text, and the pull-request, setup and babysit skills now say only to switch to REST on that refusal, pointing at the upstream section.
+
 ## [1.0.1] - 2026-10-11
 
 ### Added

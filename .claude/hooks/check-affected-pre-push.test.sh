@@ -8,8 +8,9 @@
 # MUST-stay-quiet: the `if: "Bash(git push *)"` filter also fires on any command
 # holding $(), backticks or $VAR, so a commit whose message mentions "git push"
 # reaches this hook; it must not spend a check run on it. Delete-only, tag-only
-# and dry-run pushes, a repository with no check-affected.sh, and a branch that
-# changes check tooling against origin/main stay quiet too.
+# and dry-run pushes, a repository with no check-affected.sh, and a tree with no
+# origin/main stay quiet too. A branch that changes check tooling runs the
+# merge-base copy of it, never its own.
 #
 # The fixture repository's scripts/check-affected.sh is a stub that records that
 # it ran and exits with $STUB_RC, so these cases test the hook, not the checks.
@@ -41,6 +42,7 @@ echo "check-affected: FAIL markdown (stub)" >&2
 exit "\${STUB_RC:-1}"
 EOF
 chmod +x "$fixture/scripts/check-affected.sh"
+cp "$fixture/scripts/check-affected.sh" "$tmp/stub"
 # origin/main holds the stub, so a branch that leaves the tooling alone runs it.
 git_test_config "$fixture" add -A
 git_test_config "$fixture" commit -q -m stub
@@ -126,8 +128,9 @@ git_test_config "$fixture" worktree add -q -b wt "$tmp/wt"
 run_hook "$tmp/wt" 'git push origin wt'
 expect "another worktree of the project's clone stays quiet" 0 0
 
-# A branch checked out in the project tree that changes check tooling must not
-# get its own check code run; one that leaves the tooling alone still runs.
+# A branch checked out in the project tree that changes check tooling gets the
+# merge-base copy run, never its own; one that leaves the tooling alone runs in
+# place.
 git_test_config "$fixture" checkout -q -b docs-only
 mkdir -p "$fixture/docs"
 echo x >"$fixture/docs/a.md"
@@ -137,26 +140,125 @@ run_hook "$fixture" 'git push origin docs-only'
 expect "a branch that leaves the tooling alone still runs" 2 1
 
 git_test_config "$fixture" checkout -q -b edits-check origin/main
-printf 'touch "%s"\n' "$tmp/payload" >>"$fixture/scripts/check-affected.sh"
+{
+  head -n 1 "$tmp/stub"
+  printf 'touch "%s"\n' "$tmp/payload"
+  tail -n +2 "$tmp/stub"
+} >"$fixture/scripts/check-affected.sh"
 git_test_config "$fixture" commit -q -am payload
 run_hook "$fixture" 'git push origin edits-check'
-expect "a branch that edits scripts/check-affected.sh is not run" 0 0
-if [[ "$ERR" == *"changes check tooling (scripts/check-affected.sh)"* && ! -e "$tmp/payload" ]]; then
-  ok "the skip names the changed tooling path"
+expect "a branch that edits scripts/check-affected.sh runs the merge-base copy" 2 1
+if [[ ! -e "$tmp/payload" ]]; then
+  ok "the branch's own check-affected.sh does not run"
 else
-  bad "the skip names the changed tooling path" "$ERR"
+  bad "the branch's own check-affected.sh does not run" "$ERR"
+fi
+run_hook "$fixture" 'git push origin edits-check' 0
+if [[ "$RC" == 0 && "$ERR" == *"changes check tooling (scripts/check-affected.sh)"*"merge-base copy"* ]]; then
+  ok "the notice names the changed tooling path"
+else
+  bad "the notice names the changed tooling path" "exit $RC; stderr: $ERR"
+fi
+
+# A committed tooling edit the working tree reverts is still the branch's code:
+# the HEAD checkout the dirty run uses would carry it.
+git_test_config "$fixture" show refs/remotes/origin/main:scripts/check-affected.sh >"$fixture/scripts/check-affected.sh"
+run_hook "$fixture" 'git push origin edits-check'
+expect "a committed tooling edit the working tree reverts runs the merge-base copy" 2 1
+if [[ ! -e "$tmp/payload" ]]; then
+  ok "the reverted branch script does not run from the HEAD checkout"
+else
+  bad "the reverted branch script does not run from the HEAD checkout" "$ERR"
+fi
+git_test_config "$fixture" checkout -q -- scripts/check-affected.sh
+
+git_test_config "$fixture" checkout -q -b nested-md origin/main
+mkdir -p "$fixture/docs"
+echo 'module.exports = {};' >"$fixture/docs/.markdownlint-cli2.cjs"
+echo x >"$fixture/docs/b.md"
+git_test_config "$fixture" add docs
+git_test_config "$fixture" commit -q -m nested
+run_hook "$fixture" 'git push origin nested-md' 0
+if [[ "$RC" == 0 && "$ERR" == *"changes check tooling (docs/.markdownlint-cli2.cjs)"* ]]; then
+  ok "a nested markdownlint config is check tooling"
+else
+  bad "a nested markdownlint config is check tooling" "exit $RC; stderr: $ERR"
 fi
 
 git_test_config "$fixture" checkout -q docs-only
 mkdir -p "$fixture/scripts/lib"
 echo 'touch /dev/null' >"$fixture/scripts/lib/helper.sh"
 run_hook "$fixture" 'git push origin docs-only'
-expect "an untracked script the checks could call is not run" 0 0
+expect "an untracked script moves the run to the merge-base copy" 2 1
 rm -rf "$fixture/scripts/lib"
 
 git_test_config "$fixture" update-ref -d refs/remotes/origin/main
 run_hook "$fixture" 'git push origin docs-only'
 expect "no origin/main to compare against is not run" 0 0
+
+# The real check-affected.sh at the merge-base lints a branch that edits check
+# tooling, and lints the committed version of a file with uncommitted edits.
+if command -v shellcheck >/dev/null 2>&1; then
+  real="$tmp/real"
+  mkdir -p "$real/scripts" "$real/tools"
+  git_init_test_repo "$real" || exit 2
+  cp "$repo_root/scripts/check-affected.sh" "$real/scripts/"
+  cp "$repo_root/.shellcheckrc" "$real/"
+  git_test_config "$real" add -A
+  git_test_config "$real" commit -q -m tooling
+  git_test_config "$real" update-ref refs/remotes/origin/main HEAD
+  run_real() {
+    local payload
+    payload="$(jq -cn --arg d "$real" \
+      '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:$d,tool_input:{command:"git push origin x"}}')"
+    RC=0
+    ERR="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$real" bash "$hook" 2>&1 >/dev/null)" || RC=$?
+  }
+  bad_sh=$'#!/usr/bin/env bash\nif true; then\n  echo hi\n'
+  good_sh=$'#!/usr/bin/env bash\necho hi\n'
+
+  git_test_config "$real" checkout -q -b edits-scripts
+  printf '%s' "$bad_sh" >"$real/scripts/foo.sh"
+  chmod +x "$real/scripts/foo.sh"
+  {
+    head -n 1 "$repo_root/scripts/check-affected.sh"
+    printf "touch '%s'\n" "$tmp/real-payload"
+    tail -n +2 "$repo_root/scripts/check-affected.sh"
+  } >"$real/scripts/check-affected.sh"
+  git_test_config "$real" add -A
+  git_test_config "$real" commit -q -m scripts
+  run_real
+  if [[ "$RC" == 2 && "$ERR" == *"FAIL shellcheck"* && "$ERR" == *"scripts/foo.sh"* ]]; then
+    ok "a shellcheck error in a changed scripts/ file blocks the push"
+  else
+    bad "a shellcheck error in a changed scripts/ file blocks the push" "exit $RC; stderr: $ERR"
+  fi
+  if [[ ! -e "$tmp/real-payload" ]]; then
+    ok "the branch's modified check-affected.sh does not execute"
+  else
+    bad "the branch's modified check-affected.sh does not execute" "payload created"
+  fi
+
+  git_test_config "$real" checkout -q -b dirty origin/main
+  printf '%s' "$bad_sh" >"$real/tools/bad.sh"
+  chmod +x "$real/tools/bad.sh"
+  git_test_config "$real" add -A
+  git_test_config "$real" commit -q -m bad
+  printf '%s' "$good_sh" >"$real/tools/bad.sh"
+  run_real
+  if [[ "$RC" == 2 && "$ERR" == *"FAIL shellcheck"* && "$ERR" == *"tools/bad.sh"* ]]; then
+    ok "a file with uncommitted edits is linted as committed"
+  else
+    bad "a file with uncommitted edits is linted as committed" "exit $RC; stderr: $ERR"
+  fi
+  if [[ "$(git_test_config "$real" worktree list | wc -l)" -eq 1 && "$(cat "$real/tools/bad.sh")" == "${good_sh%$'\n'}" ]]; then
+    ok "the HEAD checkout is removed and the working tree is untouched"
+  else
+    bad "the HEAD checkout is removed and the working tree is untouched" "$(git_test_config "$real" worktree list)"
+  fi
+else
+  ok "SKIP real check-affected cases (shellcheck not installed)"
+fi
 
 # The .claude/settings.json command runs the hook only when the hook script and
 # lib/hook-utils.sh match the merge-base with origin/main.
