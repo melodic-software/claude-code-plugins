@@ -59,5 +59,28 @@ out="$(PATH="$bare" bash -c 'source "$1"; cm_resolve_python; printf "%s:%s" "$?"
 rm -rf "$bare"
 assert_eq "no interpreter returns 1 with an empty PY" "1:0" "$out"
 
+# 4. Whatever this machine's interpreter writes, PY hands bash LF-only lines.
+#    On native Windows Python (CRLF stdout) this is the case that exercises
+#    the wrapper; elsewhere the interpreter runs unwrapped.
+out="$("${PY[@]}" -c 'print("a"); print("b")' | od -An -c | tr -s ' \n' ' ')"
+assert_eq "PY output carries no CR on this machine" " a \n b \n " "$out"
+
+# 5. A CRLF interpreter (a stub that appends a CR to every line, as native
+#    Windows Python's text-mode stdout does) is wrapped: PY strips the CR,
+#    keeps the interpreter's exit status, and CM_PY_NATIVE names the
+#    interpreter itself (#6794).
+crlf="$(mktemp -d)"
+cat >"$crlf/python3" <<EOF
+#!/usr/bin/env bash
+"$real_python" "\$@" | sed 's/\$/\r/'
+exit "\${PIPESTATUS[0]}"
+EOF
+chmod +x "$crlf/python3"
+out="$(PATH="$crlf:$PATH" bash -c 'source "$1"; cm_resolve_python && printf "%s|%s|" "${PY[*]}" "${CM_PY_NATIVE[*]}"; "${PY[@]}" -c "print(\"a\"); print(\"b\")" | od -An -c | tr -s " \n" " "' _ "$SCRIPT")"
+assert_eq "a CRLF interpreter is wrapped and its output is LF-only" "cm_py_lf|python3| a \n b \n " "$out"
+out="$(PATH="$crlf:$PATH" bash -c 'source "$1"; cm_resolve_python; "${PY[@]}" -c "raise SystemExit(3)"; printf "%s" "$?"' _ "$SCRIPT")"
+assert_eq "the wrapper keeps the interpreter's exit status" "3" "$out"
+rm -rf "$crlf"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
