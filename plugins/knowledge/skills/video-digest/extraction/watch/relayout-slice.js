@@ -75,6 +75,12 @@ const SOURCE_FOLDERS = new Map([
   ["decks", "metadata/decks"],
   ["attachments", "metadata/attachments"],
 ]);
+/** Lane folders the output contract names, present in a slice only when produced. */
+const KNOWN_LANE_FOLDERS = new Set([
+  ...[...SOURCE_FOLDERS.keys()].map((folder) => `${LANES.source}/${folder}`),
+  `${LANES.research}/findings`,
+  `${LANES.keyFrames}/frames`,
+]);
 /** The pipeline's extracted frame names: scene, interval and anchor frames. */
 const FRAME_NAME = /^(?:(?:scene|interval)_\d{4}|anchor_\d+_\d{4})\.png$/;
 /** Frames scene detection writes and records in `frame-times.json`. */
@@ -97,6 +103,8 @@ const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 
 const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
 const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
+/** The slice lane directories, plus the `SLICE/` root alias. */
+const SLICE_LANE_NAMES = new Set([...Object.values(LANES), "SLICE"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$\s]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
@@ -245,6 +253,12 @@ function lookUpReference(refPath, sourceFile, map) {
     const found = lookup(key);
     if (found) return found;
   }
+  // A lane folder the layout knows but this slice never produced (prose such
+  // as "no deck in `source/decks/`") names nothing to point at.
+  const absentFolder = keys.find(
+    (key) => key !== null && KNOWN_LANE_FOLDERS.has(key) && !map.sliceEntries.has(key),
+  );
+  if (absentFolder) return { retired: absentFolder, note: "none in this slice" };
   const retired = keys.find((key) => key !== null && map.sliceEntries.has(key));
   if (retired) {
     // A directory whose kept files went to several places (`source/`) has no
@@ -338,12 +352,21 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
  * @param {string} refPath
  * @param {string} fileDir - absolute directory of the naming file
  * @param {Set<string>} topLevel - top-level entries of the re-laid-out slice
+ * @param {Set<string>} [sliceDirs] - posix directories of the source slice
  */
-function looksSliceInternal(refPath, fileDir, topLevel) {
+function looksSliceInternal(refPath, fileDir, topLevel, sliceDirs) {
   if (!refPath.includes("/")) return FRAME_NAME.test(refPath);
   if (/^(?:\.\.?|SLICE)\//.test(refPath)) return true;
   const first = refPath.split("/")[0];
-  return topLevel.has(first) || fs.existsSync(path.join(fileDir, first));
+  if (topLevel.has(first) || fs.existsSync(path.join(fileDir, first))) return true;
+  // A path left under an original slice lane (`source/missing.txt`) is a
+  // slice path the rewrite could not place. With the slice's directories
+  // known, it counts when its parent directory existed in the slice, so a
+  // path into another repository that shares a lane name
+  // (`research/deepening/x.md`) stays external; without them, any lane name
+  // counts.
+  if (!SLICE_LANE_NAMES.has(first)) return false;
+  return sliceDirs === undefined || sliceDirs.has(path.posix.dirname(refPath.replace(/\/+$/, "")));
 }
 
 /**
@@ -353,9 +376,11 @@ function looksSliceInternal(refPath, fileDir, topLevel) {
  * slice (another repository) and the allowed-miss prefixes are skipped.
  *
  * @param {string} rootDir
+ * @param {{ sliceDirs?: Set<string> }} [options] - `sliceDirs`, the source
+ *   slice's directories, narrows which lane-named paths count as the slice's
  * @returns {{ file: string, ref: string }[]} unresolved references
  */
-export function checkLayoutLinks(rootDir) {
+export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
   const root = path.resolve(rootDir);
   const topLevel = new Set(fs.existsSync(root) ? fs.readdirSync(root) : []);
   /** @type {{ file: string, ref: string }[]} */
@@ -371,7 +396,7 @@ export function checkLayoutLinks(rootDir) {
       if (!refPath || URL_SCHEME.test(refPath) || PLACEHOLDER.test(refPath)) return;
       if (refPath.startsWith("/") || refPath.startsWith("~")) return;
       if (ALLOWED_MISS_PREFIXES.some((prefix) => refPath.startsWith(prefix))) return;
-      if (!isLink && !looksSliceInternal(refPath, fileDir, topLevel)) return;
+      if (!isLink && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
       const resolved = path.resolve(fileDir, refPath);
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
@@ -451,22 +476,31 @@ function missingFrames(framesDir) {
   const missing = [];
   /** @type {unknown} */
   let times = null;
+  let readable = true;
   try {
     times = JSON.parse(fs.readFileSync(path.join(framesDir, "frame-times.json"), "utf8"));
   } catch {
+    readable = false;
     missing.push(`a readable frame-times.json (${framesDir})`);
+  }
+  // Scene detection writes an object keyed by frame file; null, an array or
+  // a scalar is not one, and `Object.keys` would read it as an empty listing.
+  const isTimesObject = times !== null && typeof times === "object" && !Array.isArray(times);
+  if (readable && !isTimesObject) {
+    missing.push(`a frame-times.json holding a JSON object (${framesDir})`);
   }
   if (![...names].some((name) => FRAME_IMAGE.test(name))) {
     missing.push(`any frame image (${framesDir})`);
   }
-  if (times && typeof times === "object") {
-    const listed = Object.keys(times);
+  if (isTimesObject) {
+    const listing = /** @type {Record<string, unknown>} */ (times);
+    const listed = Object.keys(listing);
     const gone = listed.filter((name) => !names.has(name));
     if (gone.length > 0) missing.push(`the frames frame-times.json lists: ${gone.join(", ")}`);
     // Scene detection records every scene and interval frame it writes; an
     // anchor frame carries its time in its own name and is never listed.
     const untimed = [...names].filter(
-      (name) => TIMED_FRAME.test(name) && !Object.hasOwn(times, name),
+      (name) => TIMED_FRAME.test(name) && !Object.hasOwn(listing, name),
     );
     if (untimed.length > 0) {
       missing.push(`frame-times.json entries for: ${untimed.sort().join(", ")}`);
@@ -814,7 +848,9 @@ export async function relayoutSlice({
       );
     }
 
-    unresolved = checkLayoutLinks(staging);
+    unresolved = checkLayoutLinks(staging, {
+      sliceDirs: new Set([...sliceEntries].filter((entry) => !sliceFiles.includes(entry))),
+    });
   } catch (error) {
     discard(staging);
     return refuse(`copy failed, target left untouched: ${/** @type {Error} */ (error).message}`);
@@ -826,17 +862,32 @@ export async function relayoutSlice({
 
   // The backup keeps a fixed name so a run killed between the two renames is
   // recovered at the next start (see the backup check above).
-  // Without --replace the install is a single rename onto the target path,
-  // never a backup-and-swap: a target that appeared after the early check
-  // (another run, a person) makes the rename fail (ENOTEMPTY or EEXIST on
-  // POSIX, EPERM on Windows) instead of being replaced. POSIX lets the rename
-  // replace an empty directory, which holds nothing to lose.
+  // Without --replace the install never replaces anything that appeared after
+  // the early check (another run, a person), even an empty directory. POSIX
+  // rename replaces an empty directory, so the run first claims the target
+  // with an exclusive mkdir (EEXIST when anything is there) and renames onto
+  // its own empty claim; anything written into the claim meanwhile makes the
+  // rename fail with ENOTEMPTY. Windows rename never replaces an existing
+  // directory, so there the rename alone is the claim.
   const hadTarget = replace && fs.existsSync(target);
+  const claim = !replace && process.platform !== "win32";
+  let claimed = false;
   try {
     if (hadTarget) fs.renameSync(target, backup);
+    if (claim) {
+      fs.mkdirSync(target);
+      claimed = true;
+    }
     fs.renameSync(staging, target);
   } catch (error) {
     if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) fs.renameSync(backup, target);
+    if (claimed) {
+      try {
+        fs.rmdirSync(target);
+      } catch {
+        // Not empty: someone else's files now sit in the claim; leave them.
+      }
+    }
     discard(staging);
     if (!replace && fs.existsSync(target)) {
       return refuse(`${target} appeared during the run; pass --replace to replace it`);

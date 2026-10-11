@@ -308,6 +308,26 @@ describe("relayoutSlice", () => {
     expect(result.unresolved).toEqual([{ file: "frames/visual-frames.md", ref: "scene_0099.png" }]);
   });
 
+  it("refuses, without --replace, an empty target directory created during the run", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    let calls = 0;
+
+    const result = await relayoutSlice({
+      sliceDir,
+      targetDir,
+      copyFile: (from, to) => {
+        calls += 1;
+        // Created late and still empty: a plain POSIX rename would replace it.
+        if (calls === 1) fs.mkdirSync(targetDir);
+        fs.copyFileSync(from, to);
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(targetDir)).toEqual([]);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
+  });
+
   it("refuses, without --replace, a target that appears after the early check", async () => {
     const { sliceDir, targetDir } = makeFixture();
     let calls = 0;
@@ -558,6 +578,15 @@ describe("relayoutSlice", () => {
       (/** @type {string} */ dir) => fs.writeFileSync(path.join(dir, "interval_0001.png"), "png"),
     ],
     [
+      "frame-times.json holds null",
+      (/** @type {string} */ dir) => fs.writeFileSync(path.join(dir, "frame-times.json"), "null"),
+    ],
+    [
+      "frame-times.json holds an array",
+      (/** @type {string} */ dir) =>
+        fs.writeFileSync(path.join(dir, "frame-times.json"), '["scene_0001.png"]'),
+    ],
+    [
       "only the sidecar is left",
       (/** @type {string} */ dir) => {
         for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".png"))) {
@@ -742,6 +771,44 @@ describe("checkLayoutLinks", () => {
     });
 
     expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  it("flags an unresolved path under a slice lane whose directory the slice had", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "recommendations/questions.md":
+          "Typo: `source/missing.txt`. Upstream: `research/deepening/html-report.md:92`.\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/recommendations/questions.md", ref: "source/missing.txt" },
+    ]);
+  });
+
+  it("says so when prose names a lane folder this slice never produced", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/vision-plan.md": "No deck in the `source/decks/` lane.\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/vision-plan.md")).toBe(
+      "No deck in the source/decks (none in this slice) lane.\n",
+    );
+  });
+
+  it("treats any lane-named path as the slice's when no slice directories are given", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "analysis/RESEARCH.md": "See `run-state/watch.json`.\n" });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "analysis/RESEARCH.md", ref: "run-state/watch.json" },
+    ]);
   });
 
   it("flags a bare extracted-frame name but not other bare file names", () => {
