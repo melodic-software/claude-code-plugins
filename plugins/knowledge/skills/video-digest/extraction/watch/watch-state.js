@@ -324,6 +324,7 @@ export function buildContinuationPrompt(state) {
   return `# Continue /knowledge:video-digest watch — ${state.title}
 
 Video slug: \`${state.videoSlug}\`
+Locate the slice: \`watch/run-resume.js ${state.videoSlug}\` (SKILL.md resume) reports it as \`sliceDir\`.
 Source: ${state.sourceUrl}
 
 ## Completed phases

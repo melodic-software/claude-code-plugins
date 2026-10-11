@@ -124,6 +124,12 @@ describe("watch state phase map", () => {
     expect(prompt).not.toContain("youtube-digest");
   });
 
+  it("tells a fresh session how to locate the slice without a machine path", () => {
+    const state = sampleTalk();
+    const prompt = buildContinuationPrompt(state);
+    expect(prompt).toContain(`\`watch/run-resume.js ${state.videoSlug}\``);
+  });
+
   it("surfaces high-volume frame selection in continuation prompt", () => {
     let state = sampleTalk();
     state = {
