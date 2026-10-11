@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.1] - 2026-10-11
+
+### Added
+
+- **An offline gh fixture for the `pull-request` ready eval cases.** `evals/fixtures/gh-forge/` gives a scaffolded repository a bare local `origin` and a `gh` stand-in that serves one open draft pull request (view, list, diff, ready) and refuses everything else, so no run reaches GitHub. A case cannot set `PATH`, so the scaffold puts the stand-in on it through `~/.zshenv` in the run's temporary home, which zsh reads for every command; the fixture therefore reaches the stand-in only when the operator's shell is zsh. `pull-request-ready-hands-pr-to-explain-change` and `pull-request-ready-merges-base-never-rebases` now use it, so a correct ready run gets past the pull request lookup to the base merge, the flip and the explain-change hand-off. The skill body is unchanged.
+
+### Changed
+
+- The `ready` step runs `scripts/check-affected.sh --tests` on the merged head as its deterministic gate when the repository ships that script.
+
+### Fixed
+
+- The PR-body linkage gates judge a body whose section ends in a long run of blanks in linear time. The old whitespace trim was quadratic, so about 18,000 trailing blanks ran past the 15 s hook timeout and the gate stopped checking that body (#7069).
+
+- `pull-request` and `babysit-prs`: the cloud-session polling rule no longer says cloud sessions have no PR-event route. It keeps the decision to poll, with a pointer to the upstream auto-fix section, an as-of date and a recheck trigger.
+- The `pr-linkage-mcp-gate` docs and hook comment no longer say cloud sessions lack `gh`: `gh pr create` there is absent or refused by the cloud GitHub proxy, which is why PRs go through the MCP tools.
+
+- `/source-control:resolve-conflicts` now triggers when a stopped merge or rebase comes with a request to skip resolution by taking `--ours`/`--theirs` on every file or aborting, the case where its protections matter most (#7070).
+
+- `babysit-loop` takes its cycle-start snapshot through a new `lane-snapshot.mjs`, which reads every open pull request and issue through GraphQL cursor pagination and exits non-zero on a read failure (3) or on a list incomplete on two reads (4): a repeated number, or a count that differs from the `totalCount` each page reported, so an item skipped or duplicated between pages never yields `complete: true`. On a failed snapshot the cycle takes no drain exit and holds `cycle` and `backoff_level`, so a failed read is never an empty queue; it counts toward the no-progress streak, so a snapshot failure that never clears raises the stall escalation (#7143).
+- `babysit-loop`'s telemetry upsert is now `telemetry-upsert.sh`, with distinct exit codes (3 invalid input, 4 no gh, 5 a failed API call, 6 an unconfirmed write) and a read-back byte-compared with the body sent, so a stale or overwritten comment no longer passes as this cycle's telemetry (#7143).
+
+- only adopt babysit-loop telemetry comments the lane wrote
+
+  The telemetry upsert matched any comment opening with the public
+  sentinel, so an outsider's lookalike with a lower id became canonical.
+  The lookup and the lowest-id reconcile now consider only comments
+  written by the script's own write identity (the `gh api user` login,
+  or `<app-slug>[bot]` under an App token via `--app-slug`), and a new
+  `--read` mode gives re-anchor the same filtered read (#7167). A create
+  that lands under another login (a wrong `--app-slug`) deletes that
+  comment and exits 5, naming the login it landed under.
+
 ## [1.0.0] - 2026-10-11
 
 ### Changed
