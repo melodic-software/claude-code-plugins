@@ -17,6 +17,7 @@
 #
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
+# test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

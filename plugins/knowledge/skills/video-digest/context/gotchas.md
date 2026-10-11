@@ -17,7 +17,7 @@ This skill's decision: a browser whose cookies yt-dlp cannot read counts as a fa
 
 ## HTTP 429 throttling
 
-Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk.
+Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk. A `watch` also pauses 3 seconds between its video and caption passes; a 429 on the caption pass is a reason to lengthen that pause with the leading `run.mjs` flag `--acquire-phase-gap <sec>` (`reference/sources/youtube.md`, "Auth and throttle overrides").
 
 A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run. When another track already landed a usable English caption, the run continues on it and records the failed track's `ERROR:` line in `transcriptDegradation`.
 

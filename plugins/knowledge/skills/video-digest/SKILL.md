@@ -143,21 +143,22 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 4. **Watch checklist**. Materialize via `init-watch-checklist.js`; tick `[ ]` → `[x]` only with
    verification evidence. Ordered checkboxes: `templates/watch-checklist.md`.
 
-**Skill-session phases** (mirror checklist phases 2–9; fan out per the execution model in
-`context/watch-pipeline.md`)
+**Skill-session phases** (numbers are the checklist's, which `context/watch-pipeline.md` and
+`context/quality-gates.md` also use; Phase 1 is the CLI bootstrap above; fan out per the execution
+model in `context/watch-pipeline.md`)
 
-1. **Vision planning**. `key-frames/vision-plan.md`: content class, segments, triage scope
-2. **Claim inventory**. `research/claim-inventory.md` before any research agenda
-3. **Staged deck harvest**. Type harvested URLs; fetch decks; feed pass-1 triage
-4. **Vision absorption (three-pass)**. Sheet triage → detail reads → transcript alignment →
-   vision-gated promote + post-promotion audit
-5. **High-volume advisory**. Fan out vision subagents on `highVolume`, or on the context-cost
-   read-count trigger
-6. **Research stage** (default-on). Gate on `check-research-complete.js` exit 0
-7. **Synthesis**. `recommendations/**` against one resolved `--target`; no auto-implement
-8. **Interview handoff**. `recommendations/interview.md`; offer `/planning:interview`
-9. **Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must exit 0,
-   then `watch/watch-state.js close <slice-dir>` closes the slice
+- **Phase 2. Vision planning**. `key-frames/vision-plan.md`: content class, segments, triage scope
+- **Phase 3. Claim inventory**. `research/claim-inventory.md` before any research agenda
+- **Phases 3b and 4b. Staged deck harvest**. Type harvested URLs; fetch decks; feed pass-1 triage
+- **Phases 4 to 6. Vision absorption (three-pass)**. Sheet triage (4), detail reads (5),
+  transcript alignment, vision-gated promote and post-promotion audit (6)
+- **High-volume advisory** (no phase of its own). Fan out vision subagents on `highVolume`, or on
+  the context-cost read-count trigger
+- **Phase 7. Research stage** (default-on). Gate on `check-research-complete.js` exit 0
+- **Phase 8. Synthesis**. `recommendations/**` against one resolved `--target`; no auto-implement;
+  item 8.4 is the interview handoff, `recommendations/interview.md`, offering `/planning:interview`
+- **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
+  exit 0, then `watch/watch-state.js close <slice-dir>` closes the slice
 
 **Phase markers.** After each phase, `watch/watch-state.js mark-phase <slice-dir> <phase>`
 (idempotent). Never `mark-phase` while that phase's verify script fails. `close` is the only path
@@ -166,8 +167,8 @@ included), and writes `complete` only on a pass. `mark-phase <slice-dir> synthes
 it.
 
 **A 0-video source result** (an X post with no video) is well-formed, not a failure: it enqueues
-at preflight, skips phases 1, 3, 4, and 5, and produces a text-only digest. How much provenance
-it carries depends on which 0-case it is. See `reference/sources/x.md`.
+at preflight, skips the vision phases (2, 3b, 4, 4b, 5 and 6), and produces a text-only
+digest. How much provenance it carries depends on which 0-case it is. See `reference/sources/x.md`.
 
 ## Resume action
 
@@ -218,6 +219,10 @@ plugin. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
 lists the Bash tool among the processes that receive the variables.
+
+## Next
+
+/planning:interview, which takes the slice's `recommendations/interview.md`.
 
 ## Gotchas
 

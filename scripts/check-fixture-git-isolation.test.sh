@@ -1121,13 +1121,8 @@ else
   fail "heredoc fixture-only: rc=$rc out='$out'"
 fi
 
-# --- the LIVE corpus is clean against its own baseline ------------------------
-out="$(cd "$ROOT" && bash scripts/check-fixture-git-isolation.sh 2>&1)"
-rc=$?
-if [[ $rc -eq 0 ]]; then
-  ok "live corpus passes against scripts/$BASELINE_NAME"
-else
-  fail "live corpus: rc=$rc out='$out'"
-fi
+# The live corpus against its baseline is the "Check fixture git isolation"
+# step of lint-shell, which runs whenever a shell or Python file changes; run
+# here, it read every shell and Python file of the tree.
 
 test_harness::report
