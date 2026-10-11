@@ -91,17 +91,18 @@ skill is not installed, say the STE register is unavailable and write in the pla
 
 ## Step 3. Build the record and the page
 
-Pick a short kebab-case slug for the topic. Pass the model on stdin:
+Pick a short kebab-case slug for the topic. Write the model with the Write tool to
+`${CLAUDE_PLUGIN_DATA}/illustrate/models/<slug>.json`, then pass that path:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/build-explainer.mjs" \
   --record "${CLAUDE_PLUGIN_DATA}/illustrate/records/<slug>.md" \
-  --page "${CLAUDE_PLUGIN_DATA}/illustrate/views/<slug>.html" <<'EOF'
-{ ...the model... }
-EOF
+  --page "${CLAUDE_PLUGIN_DATA}/illustrate/views/<slug>.html" \
+  --model "${CLAUDE_PLUGIN_DATA}/illustrate/models/<slug>.json"
 ```
 
-Omit `--page` for the `markdown` format. The builder fills the checked-in template
+The model goes in a file, not inline in the command, so no topic text becomes part of a shell
+command. Omit `--page` for the `markdown` format. The builder fills the checked-in template
 (`templates/explainer.html`) with the model
 as escaped JSON data through the shared view builder, so the page is safe whatever the topic's
 source. Do not hand-write the HTML, do not pre-escape values, and do not add script. When the
@@ -147,7 +148,9 @@ format delivers the record by the same rules, with no page.
 ## Step 5. Offer the video view
 
 When `/explainer-video:produce` is in this session's skill listing, offer a narrated video of the
-record. On a yes, invoke it via the Skill tool with the record's path. When it is not listed, say
+record. On a yes, invoke it via the Skill tool with the record's path and no output directory:
+`/explainer-video:produce` decides where the video goes and keeps it out of the record's folder.
+When it is not listed, say
 in one line that the video view is unavailable because the explainer-video plugin is not
 installed. Never install it.
 

@@ -28,7 +28,7 @@ const POLICY = join(SKILL, "scripts/digest-policy.mjs");
 const BUILDER = join(SKILL, "scripts/build-digest.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, configBlock, decide, findSecret, globRegExp, publishGate } = await import(pathToFileURL(POLICY).href);
+const { DEFAULTS, MAX_GLOB_LENGTH, MAX_RISK_PATHS, configBlock, decide, findSecret, globMatcher, publishGate } = await import(pathToFileURL(POLICY).href);
 const { buildDigest, shapeDigest } = await import(pathToFileURL(BUILDER).href);
 const { validateView } = await import(pathToFileURL(join(PLUGIN, "lib/view-builder.mjs")).href);
 
@@ -131,10 +131,40 @@ describe("globs", () => {
     ["src/*.js", "src/a/b.js", false],
     ["a?.md", "ab.md", true],
     ["a.b", "axb", false],
+    ["**/hooks/x", "hooks/x", true],
+    ["a/**/b", "a/b", true],
+    ["a/**/b", "a/x/y/b", true],
+    ["a/**/b", "a/xb", false],
+    ["a**b", "a/x/b", true],
+    ["a*b", "a/b", false],
+    ["***", "a/b", true],
+    ["(x)+[y]", "(x)+[y]", true],
+    ["(x)+[y]", "xxy", false],
+    ["", "", true],
+    ["", "a", false],
   ];
   for (const [glob, path, hit] of cases) {
-    test(`${glob} ${hit ? "matches" : "misses"} ${path}`, () => assert.equal(globRegExp(glob).test(path), hit));
+    test(`${glob} ${hit ? "matches" : "misses"} ${path}`, () => assert.equal(globMatcher(glob).test(path), hit));
   }
+  test("nocase folds both sides", () => {
+    assert.equal(globMatcher(".claude/review-digest.json", { nocase: true }).test(".CLAUDE/Review-Digest.JSON"), true);
+    assert.equal(globMatcher(".claude/review-digest.json").test(".CLAUDE/Review-Digest.JSON"), false);
+  });
+  test("a star-heavy glob against a long non-matching path finishes promptly", () => {
+    const glob = "**a".repeat(12) + "**b";
+    const path = "a".repeat(5000);
+    const start = process.hrtime.bigint();
+    assert.equal(globMatcher(glob).test(path), false);
+    assert.equal(globMatcher("*a".repeat(12) + "*b").test(path), false);
+    assert.ok(Number(process.hrtime.bigint() - start) / 1e6 < 2000, "matching took under two seconds");
+  });
+  test("decide() survives a star-heavy risk_paths glob", () => {
+    const config = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { value: v, source: "default" }]));
+    config.risk_paths = { value: ["**a".repeat(12) + "**b"], source: "test" };
+    const files = [{ path: "a".repeat(5000), additions: 1, deletions: 0 }];
+    const result = decide({ files }, { policy: "offer", event: "ready", blastRadius: "LOW", requested: false }, config);
+    assert.ok(!result.triggers.includes("risk-path"));
+  });
 });
 
 describe("config block", () => {
@@ -208,6 +238,16 @@ describe("cascade layers resolve through the CLI", () => {
     assert.match(warnings, /invalid max_files/);
     assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
+  });
+  test("risk_paths past the glob-length or count cap is invalid and the layer below supplies it", () => {
+    for (const globs of [["*".repeat(MAX_GLOB_LENGTH + 1)], Array.from({ length: MAX_RISK_PATHS + 1 }, (_, i) => `d${i}/**`)]) {
+      writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: globs }));
+      const result = run(facts);
+      assert.match(result.warnings.join("\n"), /invalid risk_paths; key ignored/);
+      assert.notDeepEqual(result.config.risk_paths.value, globs);
+    }
+    writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: ["a".repeat(MAX_GLOB_LENGTH)] }));
+    assert.deepEqual(run(facts).config.risk_paths.value, ["a".repeat(MAX_GLOB_LENGTH)], "a glob at the cap is kept");
   });
   test("both team locations: the docs block wins with a warning", () => {
     writeFileSync(join(repo, ".claude/review-digest.json"), '{"max_files": 0}');
