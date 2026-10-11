@@ -146,8 +146,9 @@ future session instead of relocating them.
 
 Rather than reading a single scope, resolve the **effective** state with the algorithm the sibling
 `stateless` skill already owns in
-[`skills/stateless/context/status.md`](../../stateless/context/status.md), "Resolve the effective
-state", which also holds the precedence it applies and its pointers. A `false` in a
+[Step 3: Resolve the effective state](../../stateless/context/status.md#step-3-resolve-the-effective-state),
+which also holds the precedence it applies and its pointers (as of 2026-10-11; recheck when that
+step is renamed or moved, or stops carrying its own precedence pointers). A `false` in a
 lower-precedence scope does not by itself disable the destination.
 When the resolved state is off, either name a destination that does load or state that enabling auto
 memory is a precondition of the move, rather than proposing it unconditionally.
@@ -156,8 +157,9 @@ memory is a precondition of the move, rather than proposing it unconditionally.
 `@some/file.md` has its *imported* content inlined at session start while the rule's own body
 correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
 nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
-The same caveat, with its pointer, is in [official-guidance.md](official-guidance.md), "Rules
-files".
+The same caveat, with its pointer, is in
+[official-guidance.md, Rules files](official-guidance.md#rules-files) (as of 2026-10-11; recheck
+when that section is renamed or moved, or drops the caveat or its pointer).
 **Provenance**: empirical extension, not doc-derived, so the `update` action must not overwrite it
 with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 

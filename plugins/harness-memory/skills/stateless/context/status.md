@@ -29,7 +29,7 @@ listed `PRESENT`, Read the file and extract:
 - `autoMemoryDirectory` (string, if set)
 - `env.CLAUDE_CODE_DISABLE_AUTO_MEMORY` (if set in the `env` block)
 
-Absent keys inherit the default: `autoMemoryEnabled` defaults to `true` (auto memory is on).
+An absent key inherits the default; Step 3 says how to resolve it.
 On Windows, managed policy may be in the registry rather than a file, so note it as unread if
 you cannot inspect it, don't assume it is empty.
 

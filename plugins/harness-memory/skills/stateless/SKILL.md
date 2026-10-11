@@ -123,8 +123,10 @@ which `status` reports.
   `${CLAUDE_CONFIG_DIR:-~/.claude}` (scripts + workflows); the snapshot reports the resolved root,
   and `purge`'s relocation check treats it as expected.
 - **Windows managed policy**: we treat it as possibly held in the registry rather than a file,
-  which `scope-report.sh` can't read. Report managed scope as unread, don't assume empty. The
-  reference file's "Settings scopes and precedence" points at where each location is documented.
+  which `scope-report.sh` can't read. Report managed scope as unread, don't assume empty.
+  [Settings scopes and precedence](reference/official-guidance.md#settings-scopes-and-precedence)
+  points at where each location is documented (as of 2026-10-11; recheck when that section is
+  renamed or moved, or drops its managed-settings location pointer).
 - **`disable` leaves this session's loaded memory in place.** What auto memory loaded at startup
   stays in the current context whether or not the setting reloads mid-session, so tell the user a
   new session is the first one that starts without it.

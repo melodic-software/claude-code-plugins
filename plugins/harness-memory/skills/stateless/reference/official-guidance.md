@@ -60,7 +60,12 @@ is set. A set env var of `0` alongside `autoMemoryEnabled: false` means auto mem
 being unset.
 
 - **Pointer**: the `CLAUDE_CODE_DISABLE_AUTO_MEMORY` row of
-  [Environment variables](https://code.claude.com/docs/en/env-vars).
+  [Environment variables](https://code.claude.com/docs/en/env-vars) (rows carry no anchor), and
+  [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory),
+  the nearest section naming the variable.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the env-vars row or that section changes what a set value of the variable
+  does, or whether it outranks `autoMemoryEnabled`.
 
 ## Storage location
 
@@ -92,8 +97,12 @@ workflows) resolves the config root this way, so a relocated root is honored rat
 for an `autoMemoryDirectory` override.
 
 - **Pointer**: the `CLAUDE_CONFIG_DIR` row of
-  [Environment variables](https://code.claude.com/docs/en/env-vars), and
+  [Environment variables](https://code.claude.com/docs/en/env-vars) (rows carry no anchor),
+  [Storage location](https://code.claude.com/docs/en/memory#storage-location), the nearest section
+  naming the variable, and
   [claude-directory](https://code.claude.com/docs/en/claude-directory#explore-the-directory).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the env-vars row or either section changes what the variable relocates.
 
 The directory holds a `MEMORY.md` index plus topic files; the layout is in the Storage location section.
 
@@ -156,8 +165,10 @@ settings file's `env` block, which applies to every session and the subprocesses
   This skill names `claude purge` as the official per-project wipe, and treats it as confirming
   before it deletes and as covering auto memory along with other per-project data. When a user
   needs its scope (what it deletes, what it leaves alone and why), this skill reads it from the
-  pointer at the time, never from this file or from memory. The command was renamed; when a user's
-  Claude Code rejects `claude purge`, give the former name the page records, never one from memory.
+  pointer at the time, never from this file or from memory. `sessions/` appears nowhere in the
+  page's deletion list. That is this plugin's reading of that list, not a separate upstream
+  statement. The command was renamed; when a user's Claude Code rejects `claude purge`, give the
+  former name the page records, never one from memory.
 
   - **Pointer**: when stating the command's name, arguments or flags, fetch
     [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live; for what it

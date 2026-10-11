@@ -69,8 +69,11 @@ Present to the user:
   If the intent is the full per-project wipe, point to `claude purge` instead, and state
   its scope to the user (what it deletes and what it leaves alone) from a live read of
   [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data), never
-  from memory; [reference/official-guidance.md](../reference/official-guidance.md), "Out of scope
-  for this skill", holds how this skill treats the command and the record's as-of date and trigger.
+  from memory (as of 2026-10-11; recheck when that section changes what `claude purge` deletes or
+  keeps). How this skill treats the command is in
+  [Out of scope for this skill](../reference/official-guidance.md#out-of-scope-for-this-skill-verified-deliberate)
+  (as of 2026-10-11; recheck when that section is renamed or moved, or drops its `claude purge`
+  record).
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
 ## Step 3: Confirmation gate (with backup offer)

@@ -241,9 +241,15 @@ counting is our gate's rule, not a documented load behavior.
 ## Auto-memory storage
 
 The audit resolves the auto-memory directory the same way the sibling `stateless` skill does,
-default location and `autoMemoryDirectory` override included. That skill's
-[reference](../../stateless/reference/official-guidance.md), "Storage location", holds the model
-and its pointer.
+default location and `autoMemoryDirectory` override included; that skill's reference holds the
+model.
+
+- **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location), and
+  for our model of it, the stateless reference's
+  [Storage location](../../stateless/reference/official-guidance.md#storage-location).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the docs section moves the default directory or changes which scopes may
+  set `autoMemoryDirectory`, or the stateless section is renamed or stops holding that model.
 
 ## Subagent persistent memory
 
@@ -307,7 +313,7 @@ and prices a recommended move with that destination's row:
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read, write or edit |
 | Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; recently invoked bodies re-attached within a budget, older ones can drop | `/skill` or model choice |
-| Subagents | Name + description | Listing re-injected | Dispatch |
+| Subagents | Name + description | Listing re-injected (our model; no docs row covers it) | Dispatch |
 | Hooks | N/A (deterministic) | N/A | Every tool call |
 | Auto-memory MEMORY.md | The start of the file, up to the load limit ([Auto-memory limits](#auto-memory-limits)) | Re-injected from disk | None |
 | Output style | If non-default | Persists for session | `/config` |
