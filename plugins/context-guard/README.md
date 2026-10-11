@@ -137,6 +137,33 @@ whether a compaction degraded the evidence, the bands and the gate state. Where 
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
 logs one debug line saying so, and the lines, gate, band and writes carry on.
 
+### Prompt-cache status-line segment (optional)
+
+The main conversation's prompt-cache state reaches only a status line: a mod's
+`$.session.usage()` carries no cache expiry, so the band row cannot show it without guessing the
+lifetime, which depends on plan and usage-credit state a mod cannot read. `scripts/cache-line.mjs`
+reads the status line's `prompt_cache` object and prints one segment:
+
+```text
+cache ● warm until 14:32 (1h) · hit 91%
+cache ○ cold · next message re-caches ~82k · hit 88% · misses 2 (last: tools_changed)
+```
+
+It shows the expiry as a clock time, not a countdown, because Claude Code re-runs the status line
+when a warm cache expires; no `refreshInterval` is needed. It prints nothing before the first
+response, covers the main conversation only (subagents and workflows have their own, shorter
+lifetime the object leaves out), and does not appear in cloud or `-p` sessions, where a status line
+does not run. `NO_COLOR` turns its color off. A plugin cannot add a status-line segment, so
+`/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`
+and prints the `statusLine` edit for you to paste; it never writes your settings. Pointer: for the
+object's fields, see
+[Prompt cache fields](https://code.claude.com/docs/en/statusline#prompt-cache-fields). As of:
+2026-10-10. Recheck trigger: that section renames a field the script reads.
+
+The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never
+come. For the lifetime rules and the settings that change them, see
+[Prompt caching](https://code.claude.com/docs/en/prompt-caching).
+
 ### Telemetry
 
 With `HOOK_TELEMETRY_SINK` set, the module sends envelopes per the
