@@ -13,19 +13,20 @@
 #       every write into it.
 #
 # REPORT-ONLY by design: the assistant cannot self-apply the
-# remediation — the auto-mode classifier blocks an agent editing its own
-# permissions.allow, and a permissions block shipped in a plugin settings.json
-# is inert (docs/conventions/permission-rule-hygiene). This script never edits
+# remediation: an agent cannot widen its own permissions.allow, and a
+# permissions block shipped in a plugin settings.json is inert
+# (reference/permission-preflight.md "Why a preflight, not a fixer" holds the
+# pointer record; docs/conventions/permission-rule-hygiene). This script never edits
 # settings; it prints the exact operator remediation and ALWAYS exits 0.
 # Findings never fail the run.
 #
 # Effective settings (union of permissions.allow / additionalDirectories):
 #   user-global : ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json (applies everywhere)
 #   project     : <project-root>/.claude/settings.json, .../settings.local.json
-#   main-local  : <main-checkout>/.claude/settings.local.json — since Claude Code
-#                 v2.1.211 "don't ask again" approvals save here (resolved through
-#                 worktrees to the main checkout) and apply in every worktree of
-#                 the repository, so this file is read in every mode — but only
+#   main-local  : <main-checkout>/.claude/settings.local.json: shared by every
+#                 worktree of the repository (reference/permission-preflight.md
+#                 "settings.local.json scope" holds the pointer record), so this
+#                 file is read in every mode, but only
 #                 when the main checkout is VERIFIED. When it cannot be
 #                 determined the layer goes unread and the run reports
 #                 PREFLIGHT: INCOMPLETE rather than an unqualified OK; no path is
@@ -140,10 +141,9 @@ proj_src="${project_root:-$CHECK_DIR}"
 proj_toplevel="$(git -C "$proj_src" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 proj_base="${proj_toplevel:-$proj_src}"
 user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-# Since Claude Code v2.1.211, "Yes, don't ask again" saves the rule to
-# .claude/settings.local.json at the repository root, resolved through worktrees
-# to the MAIN checkout, and the rule applies to sessions anywhere in the
-# repository — every linked worktree included (docs/en/permissions#permission-system).
+# The MAIN checkout's .claude/settings.local.json is shared by every linked
+# worktree (reference/permission-preflight.md "settings.local.json scope" holds
+# the pointer record).
 # Resolving that checkout has three outcomes, and the report distinguishes them:
 #   verified  — main_root names a directory PROVEN to be this repository's main
 #               working tree (main_state=verified).
@@ -343,9 +343,9 @@ read_array() {
 collect() {
   # collect <jq-path> <local-mode> — union the path across user-global + tracked
   # project settings + the MAIN checkout's settings.local.json (always: its rules
-  # apply in every worktree since v2.1.211, a fresh worker included), plus the
+  # apply in every worktree, a fresh worker included), plus the
   # project checkout's OWN settings.local.json only when <local-mode> is
-  # "with-local". A rule saved inside a linked worktree by a pre-2.1.211 harness
+  # "with-local". A rule saved inside a linked worktree by an older harness
   # (or hand-placed there) applies only to sessions started in that worktree, so
   # in the pre-dispatch autonomous (--worktree-root) path a worktree cwd's local
   # grants would mask a worker-side gap; the coverage reads drop that file there.
