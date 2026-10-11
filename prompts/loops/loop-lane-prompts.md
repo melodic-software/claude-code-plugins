@@ -416,7 +416,7 @@ advisor pairing is a settings value fixed at launch.
 
 - **Claim:** decline `/advisor` in unattended lane prompts, including the
   headless text form.
-- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-advisor-command>.
+- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-/advisor-command>.
   The text form sets or clears the advisor where there is no picker, and Fable
   as advisor can require one-time usage-credit consent the lane cannot give.
 - **As of:** 2026-09-28.

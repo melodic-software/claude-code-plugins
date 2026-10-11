@@ -71,7 +71,7 @@ The enforcement sentence names its enforcer by public invocation instead of by a
 into another plugin's tree, and this file's own preamble stops naming a skill that does not exist.
 
 - **The enforcement citation was a path an installed reader cannot resolve.** The opening section
-  read "Enforced by the [`audit-permission-grants`](../../../plugins/claude-config/skills/audit-permission-grants)
+  read "Enforced by the [`audit-permission-grants`](../../../plugins/harness-config/skills/audit-permission-grants)
   skill in the `claude-config` plugin". That link resolves only inside the marketplace checkout, and
   three plugin surfaces fetch this README over `raw.githubusercontent.com` at run time, so the
   enforcement route was unreachable exactly where the convention binds.
