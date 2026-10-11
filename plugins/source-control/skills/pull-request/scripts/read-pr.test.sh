@@ -46,6 +46,7 @@ out=$(run view 7)
 assert_eq "view merges the repository visibility into the facts" "PUBLIC" "$(jq -r .visibility <<<"$out")"
 assert_eq "view keeps the pull request's own fields" "main" "$(jq -r .baseRefName <<<"$out")"
 assert_contains "view asks gh for the head and base oids" "$(cat "$TEST_TMPDIR/calls")" "headRefOid"
+assert_contains "view asks gh for the merge commit" "$(cat "$TEST_TMPDIR/calls")" "mergeCommit"
 
 out=$(GH_STUB_API_FAIL=1 run view 7)
 assert_eq "a failed visibility lookup reads UNKNOWN, never a guess" "UNKNOWN" "$(jq -r .visibility <<<"$out")"
@@ -79,6 +80,14 @@ run list --head feat/x --state all >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "list passes --head through" "$calls" "--head feat/x"
 assert_contains "list passes --state through" "$calls" "--state all"
+
+run list --head feat/x --search '#42' >/dev/null
+calls=$(cat "$TEST_TMPDIR/calls")
+assert_contains "list passes --search through" "$calls" "--head feat/x --search #42"
+run list --search '#42' >/dev/null
+assert_contains "list --search works without --head" "$(cat "$TEST_TMPDIR/calls")" "--search #42"
+run view 7 --search x >/dev/null 2>&1
+assert_exit "--search on view exits 1" 1 "$?"
 
 GH_STUB_LIST_FAIL=1 run list >/dev/null 2>&1
 assert_exit "a failed list exits 2, never an empty array" 2 "$?"
