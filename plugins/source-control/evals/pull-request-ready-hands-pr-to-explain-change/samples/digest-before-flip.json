@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [
+      {"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}},
+      {"tool": "Bash", "input": {"command": "gh pr ready 512"}}
+    ]}
+  ],
+  "fail": [
+    {"answer": [
+      {"tool": "Bash", "input": {"command": "gh pr ready 512"}},
+      {"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}}
+    ], "why": "digest after the flip"},
+    {"answer": [{"tool": "Bash", "input": {"command": "gh pr ready 512"}}], "why": "no digest call"}
+  ]
+}

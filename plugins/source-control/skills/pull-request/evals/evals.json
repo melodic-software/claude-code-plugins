@@ -279,6 +279,19 @@
         "A docs-only branch is NOT treated as owing nothing, and the code class's review, simplify, and verification steps are skipped because no code class was detected",
         "An inline fallback used in place of an absent plugin is reported with what it covered"
       ]
+    },
+    {
+      "id": 23,
+      "name": "ready-hands-pr-to-explain-change-per-digest-policy",
+      "prompt": "/pull-request ready. PR 512 is an open draft on this branch; the base is merged and the reviews and verify gate are clean on the current head. Flip it to ready for review.",
+      "expected_output": "Before the flip, the skill invokes /review:explain-change on PR 512 with --event ready and without --requested or --policy, so the resolved digest_policy decides: off does nothing, offer offers the digest when a trigger fires, always builds it. The flip then runs whatever explain-change returned, and the report names the digest outcome.",
+      "files": [],
+      "expectations": [
+        "/review:explain-change is invoked on PR 512 with --event ready before the flip",
+        "Neither --requested nor --policy is passed, leaving the decision to the resolved digest_policy",
+        "The flip does not wait on or depend on the digest: a skip, an unanswered offer, or an unavailable skill still flips",
+        "The report names the digest outcome (skipped, offered, built, or not available)"
+      ]
     }
   ]
 }
