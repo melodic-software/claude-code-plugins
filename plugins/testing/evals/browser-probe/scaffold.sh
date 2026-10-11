@@ -6,7 +6,9 @@ shopt -s nullglob
 
 case_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ws="$PWD"
-port=48217
+# A free port per run, so each run's server is its own and concurrent or
+# later runs never depend on another run's server lifetime.
+port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
 
 # A scaffold gets no EVAL_* variable, and a Bash allow rule does not match past
 # a PLAYWRIGHT_BROWSERS_PATH= prefix, so the Chromium that
@@ -48,10 +50,10 @@ done
 printf '%s\n' \
   "playwright-cli --version" \
   "${steps[@]}" \
-  "playwright-cli close-all" \
+  "playwright-cli -s=pinned close" \
+  "playwright-cli -s=default close" \
   "READ $case_dir/peek/canary.txt" >probe/commands.txt
 
-# Outside the sandbox, detached and time-boxed. When another run's server
-# already holds the port, this one exits and that one serves the same page.
+# Outside the sandbox, detached and time-boxed.
 setsid nohup timeout 1800 python3 -m http.server "$port" --bind 127.0.0.1 \
   --directory "$case_dir/site" >/dev/null 2>&1 </dev/null &
