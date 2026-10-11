@@ -14,7 +14,7 @@
 - [`pluginConfigs` and `enabledPlugins` have OPPOSITE scope rules](#pluginconfigs-and-enabledplugins-have-opposite-scope-rules)
 - [`userConfig` has no `enum` type; `options` is a picker](#userconfig-has-no-enum-type-options-is-a-picker)
 - [`userConfig`: an unset key renders the literal placeholder](#userconfig-an-unset-key-renders-the-literal-placeholder)
-- [Renames are CC-native (≥ v2.1.193)](#renames-are-cc-native--v21193)
+- [Renames are CC-native](#renames-are-cc-native)
 - [An unchanged version number keeps the old cache directory while `gitCommitSha` moves](#an-unchanged-version-number-keeps-the-old-cache-directory-while-gitcommitsha-moves)
 - [`marketplace remove` leaves the cache tree, marked for the orphan sweep](#marketplace-remove-leaves-the-cache-tree-marked-for-the-orphan-sweep)
 - [`autoUpdate` is a background complement, not a substitute](#autoupdate-is-a-background-complement-not-a-substitute)
@@ -54,14 +54,14 @@ harder.
 
 ## Scope-by-cwd loading
 
-A plugin loads for a given working directory using scope precedence **local > project > user**:
+A plugin loads for a given working directory from the most specific scope present. This skill
+writes `user`, `project` and `local` through `claude plugin install|update -s <scope>`, and only
+reports `managed`, never mutating it.
 
-| Scope | Settings file | Written by |
-|---|---|---|
-| `user` | `~/.claude/settings.json` | `claude plugin install\|update -s user` (default scope) |
-| `project` | `<project-root>/.claude/settings.json` | `claude plugin install\|update -s project`, committed and team-shared |
-| `local` | `<project-root>/.claude/settings.local.json` | `claude plugin install\|update -s local`, gitignored and personal |
-| `managed` | Managed settings (enterprise) | Administrators only. This skill reports, never mutates |
+- **Pointer**: when stating the scope order or which settings file each scope writes, fetch
+  [settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes the precedence or the file
+  a scope writes.
 
 `installed_plugins.json` (`~/.claude/plugins/installed_plugins.json`) can hold multiple install
 records for the same `<plugin>@<marketplace>` id, one per scope, each with its own `version`. This
@@ -225,11 +225,11 @@ record is a pin, not a download. Recheck when the loading page's not-installed s
 release note changes what session start records for an already-installed plugin.
 
 **Precedence explains why a user-scope duplicate does not prevent the project record.** We resolve
-`enabledPlugins` managed > `--settings` > local > project > user, so a user-scope `false` never
-overrides a project-scope `true`, and the opt-out we advise on one machine is a `false` in
-`.claude/settings.local.json`. Pointer: for the precedence and the local opt-out, see
+`enabledPlugins` by precedence, under which a user-scope `false` never overrides a project-scope
+`true`, so the opt-out we advise on one machine is a `false` in `.claude/settings.local.json`.
+Pointer: for the precedence and the local opt-out, see
 [`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins). As of:
-2026-09-05. Precedence settles which `enabledPlugins` value is effective, and the probe above
+2026-10-11. Recheck trigger: that entry changes the precedence. Precedence settles which `enabledPlugins` value is effective, and the probe above
 establishes that an effective project-scope `true` writes its own record regardless of the user
 scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
 project record per plugin per checkout.
@@ -306,12 +306,11 @@ a session restart only when an updated plugin ships a monitor. Pointer:
 [Monitors](https://code.claude.com/docs/en/plugins/components#monitors). As of: 2026-10-07. Recheck trigger: the reload summary stops listing
 monitors as needing a restart.
 
-**An install can now activate itself, but not the installs this skill issues.** From Claude Code
-2.1.221, an install started from the in-session `/plugin` interface reports its activation state,
-and this skill reads two lines of that summary: `Plugin is now active.` means the plugin is live
-with no reload, and `Run /reload-plugins to activate.` means it is not (the prompt-cache case or a
-failed activation). Before 2.1.221, no install took effect in the session without a reload or
-restart.
+**An install can now activate itself, but not the installs this skill issues.** An install started
+from the in-session `/plugin` interface reports its activation state, and this skill reads two
+lines of that summary: `Plugin is now active.` means the plugin is live with no reload, and
+`Run /reload-plugins to activate.` means it is not (the prompt-cache case or a failed activation).
+The version that introduced the summary is read from the pointer below.
 
 This does **not** relax the reload guidance below, because `sync` installs through the shell
 command, not the interface, and we treat a shell install as loading only at the next start or the
@@ -360,8 +359,8 @@ else.
 **`pluginConfigs`: three sources only.** This skill reads `pluginConfigs` from user settings
 (`~/.claude/settings.json`), `--settings`, and managed settings, with precedence
 managed → `--settings` → user, and ignores entries in a project's `.claude/settings.json` or
-`.claude/settings.local.json` (Claude Code ignores them from v2.1.207, since a cloned repository
-could otherwise supply values). In every one of those sources the value nests under `options`:
+`.claude/settings.local.json`, matching Claude Code's own refusal of values a cloned repository
+could supply. In every one of those sources the value nests under `options`:
 `{"pluginConfigs":{"<id>@<marketplace>":{"options":{"<key>":"<value>"}}}}`. A key placed directly
 under the plugin id is silently ignored and the render shows the literal placeholder (our probe,
 2026-09-06 on **Claude Code 2.1.263**). The restriction is specific to `pluginConfigs`.
@@ -437,18 +436,18 @@ itself is written only in `SKILL.md`, never in a spoke, because substitution hap
 Code renders and a spoke read returns plain bytes; see [gotchas.md](gotchas.md) "A spoke file never
 receives `userConfig` substitution".
 
-## Renames are CC-native (≥ v2.1.193)
+## Renames are CC-native
 
-We rely on Claude Code to apply a marketplace's `renames` map to installed and enabled state at
-session start (old id → new id; `null` means removal), from v2.1.193. This skill hard-codes no
-rename knowledge. Its only rename-adjacent behavior is that anything present in the current catalog
-but absent from `installed_plugins.json` shows up as `missing_from_install`, which naturally covers
-a renamed plugin's new id. Pointer:
+We rely on Claude Code to apply a marketplace's `renames` map to installed and enabled state. This
+skill hard-codes no rename knowledge. Its only rename-adjacent behavior is that anything present in
+the current catalog but absent from `installed_plugins.json` shows up as `missing_from_install`,
+which naturally covers a renamed plugin's new id. Pointer: for when the map applies, its version
+floor and its removal form, see
 [Migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map).
-As of: 2026-09-05. Recheck trigger: the version floor or the map's semantics change. The
-`claude plugin prune` ≥ v2.1.121 gate is **not re-verified on 2.1.261**:
-the current docs describe `prune` without naming an introducing version, so the gate stands on its
-original source and nothing this pass found contradicts it.
+As of: 2026-10-11. Recheck trigger: the version floor or the map's semantics change. This skill
+keeps a version gate on `claude plugin prune` from its original source; the current docs name no
+introducing version for `prune`, so the gate has no docs pointer and nothing this pass found
+contradicts it.
 
 ## An unchanged version number keeps the old cache directory while `gitCommitSha` moves
 

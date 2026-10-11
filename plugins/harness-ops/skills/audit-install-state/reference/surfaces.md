@@ -157,7 +157,7 @@ in the pointer below.
 - **Recheck trigger**: the cli-reference stops listing `claude purge`, or the claude-directory
   section changes what it says about the old name.
 - **Docs lag**: whether the old name still works, between the
-  [changelog](https://code.claude.com/docs/en/changelog) (2.1.288) and
+  [changelog 2.1.288](https://code.claude.com/docs/en/changelog#2-1-288) and
   [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
 
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants. The leading number *looks*
@@ -165,13 +165,16 @@ like a PID; that has not been verified, so the engine attempts no liveness looku
 
 ## Stale sandbox mask files
 
-**Claim:** a killed session can leave sandbox mask files, and `/doctor` warns about them from
-Claude Code 2.1.257. The location is not documented, so this inventory does not add a path
-pattern for them. The class is nominated to the `doctor` / `audit-install-state` overlap
-candidate. No store row is written here. **Basis:**
-[changelog](https://code.claude.com/docs/en/changelog) 2.1.257 ("Added a `/doctor` warning for
-stale sandbox mask files left by a killed session"). **As of:** 2026-09-28. **Recheck trigger:**
-a doc page names the mask-file directory, or `/doctor` stops warning about them.
+A killed session can leave sandbox mask files, and `/doctor` is the surface that warns about
+them. The location is not documented, so this inventory does not add a path pattern for them. The
+class is nominated to the `doctor` / `audit-install-state` overlap candidate. No store row is
+written here.
+
+- **Pointer**: when relaying what `/doctor` checks for here, fetch
+  [changelog 2.1.257](https://code.claude.com/docs/en/changelog#2-1-257) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a doc page names the mask-file directory, or `/doctor` stops warning about
+  them.
 
 ## Unclassified: everything the tables do not name
 
