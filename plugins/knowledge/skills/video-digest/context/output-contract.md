@@ -152,6 +152,11 @@ labels nested more than one level, or link reference definitions inside containe
 quotes). References in those constructs may be left unrewritten or read as ordinary text, and the
 link check is the backstop: it refuses a dangling slice-internal path it can see.
 
+It also does not decode named character references beyond `&amp; &lt; &gt; &quot; &apos;`
+(numeric references are decoded). A destination holding another one (`a&commat;b.pdf` for the file
+`a@b.pdf`) is not mapped to its file, and the link check refuses it, naming the path, so nothing
+passes silently.
+
 ## Agent-written artifacts share the same root
 
 **Do not split the slice.** Every `.work/<watch-epic>/…` path in this skill and its `context/`

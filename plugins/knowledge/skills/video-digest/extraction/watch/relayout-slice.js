@@ -480,17 +480,18 @@ function literalText(value) {
 /**
  * Split a reference into its path and the suffix to carry over unchanged
  * (`#anchor`, `?query`, `:line`). With `fragments: false`, a raw `#` or `?`
- * stays part of the path (a file named `notes#1.md`).
+ * stays part of the path (a file named `notes#1.md`); with `lines: false`, so
+ * does a `:12` or `:12:5` ending (a file named `slide.pdf:12`).
  *
  * @param {string} ref
- * @param {{ fragments?: boolean }} [options]
+ * @param {{ fragments?: boolean, lines?: boolean }} [options]
  * @returns {{ refPath: string, suffix: string, encoded: boolean }}
  */
-function splitReference(ref, { fragments = true } = {}) {
+function splitReference(ref, { fragments = true, lines = true } = {}) {
   const hash = fragments ? ref.search(/[#?]/) : -1;
   let refPath = hash === -1 ? ref : ref.slice(0, hash);
   let suffix = hash === -1 ? "" : ref.slice(hash);
-  const line = LINE_SUFFIX.exec(refPath);
+  const line = lines ? LINE_SUFFIX.exec(refPath) : null;
   if (line) {
     suffix = line[0] + suffix;
     refPath = refPath.slice(0, line.index);
@@ -836,11 +837,11 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   const spacedRefs = [];
   const rewrite = (
     /** @type {string} */ ref,
-    fragments = true,
+    /** @type {{ fragments?: boolean, lines?: boolean }} */ split = {},
     escapedChars = "",
     references = false,
   ) => {
-    const { refPath, suffix, encoded } = splitReference(ref, { fragments });
+    const { refPath, suffix, encoded } = splitReference(ref, split);
     const found = lookUpReference(refPath, sourceFile, map);
     if (!found || "retired" in found) return ref;
     let relative;
@@ -889,7 +890,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       });
       continue;
     }
-    const next = rewrite(link.dest, true, link.escapedChars, link.references);
+    const next = rewrite(link.dest, {}, link.escapedChars, link.references);
     if (next === link.dest) continue;
     const written = next;
     edits.push({
@@ -904,7 +905,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
     const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
     const { dest, escapedChars, references } = unescapeDestination(raw);
-    const rewritten = rewrite(dest, true, escapedChars, references);
+    const rewritten = rewrite(dest, {}, escapedChars, references);
     if (rewritten === dest) continue;
     edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
   }
@@ -929,15 +930,17 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const { ticks, content } = span;
     const { pad, quote, core, spaced } = spanPath(content);
     if (core === null) continue;
-    // The whole span, a raw `#` or `?` included (`notes#1.md`), is tried
-    // first; only when it names nothing is the suffix read as a fragment.
-    const wholeFound = lookUpReference(
-      splitReference(core, { fragments: false }).refPath,
-      sourceFile,
-      map,
-    );
-    const fragments = wholeFound === null;
-    const found = wholeFound ?? lookUpReference(splitReference(core).refPath, sourceFile, map);
+    // The whole span, a raw `#` or `?` and a `:12` ending included
+    // (`notes#1.md`, `slide.pdf:12`), is tried first, then without its line
+    // suffix; only when neither names anything is the rest read as a fragment.
+    /** @type {{ fragments?: boolean, lines?: boolean }} */
+    let split = {};
+    let found = null;
+    for (const option of [{ fragments: false, lines: false }, { fragments: false }, {}]) {
+      split = option;
+      found = lookUpReference(splitReference(core, option).refPath, sourceFile, map);
+      if (found) break;
+    }
     // A span with spaces is a path only when it resolves as one whole path.
     if (spaced && !found) continue;
     let next;
@@ -945,7 +948,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       rewrites += 1;
       next = `${found.retired} (${found.note})`;
     } else {
-      const rewritten = rewrite(core, fragments);
+      const rewritten = rewrite(core, split);
       next = `${ticks}${pad}${quote}${rewritten}${quote}${pad}${ticks}`;
       // The link check skips spans with spaces (they may be commands), so a
       // spaced path this rewrite placed is handed to it explicitly.
@@ -1085,11 +1088,14 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       /** @type {boolean} */ isLink,
       /** @type {boolean} */ knownPath = isLink,
     ) => {
-      // A backticked path may hold a raw `#` or `?` in its name: if the whole
-      // span resolves, it is fine; otherwise the suffix is a fragment.
+      // A backticked path may hold a raw `#` or `?`, or a `:12` ending, in its
+      // name: if the whole span resolves, it is fine; then without its line
+      // suffix; otherwise the rest is a fragment.
       if (!isLink) {
-        const whole = splitReference(ref, { fragments: false }).refPath;
-        if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
+        for (const option of [{ fragments: false, lines: false }, { fragments: false }]) {
+          const whole = splitReference(ref, option).refPath;
+          if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
+        }
       }
       const { refPath } = splitReference(ref);
       if (!refPath || URL_SCHEME.test(refPath)) return;
@@ -1365,6 +1371,19 @@ function isRegularFile(file) {
 }
 
 /**
+ * True when `p` itself is a symlink (not followed); false when it is absent.
+ *
+ * @param {string} p
+ */
+function isSymlink(p) {
+  try {
+    return fs.lstatSync(p).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Size of `file` in bytes; 0 when it cannot be read, so an unreadable
  * artifact is refused like an empty one.
  *
@@ -1567,6 +1586,13 @@ export async function relayoutSlice({
   // `--no-media` included and whether or not the dir still exists, nothing
   // this run writes may sit in, hold, or be one of them.
   const recorded = resolveTempSession(state.tempSession ?? {});
+  // A recorded temp dir that is itself a symlink points somewhere the watch
+  // never made: checked before any containment or readability check follows it.
+  for (const dir of [recorded.workDir, recorded.framesDir, recorded.contactSheetsDir]) {
+    if (dir && isSymlink(dir)) {
+      return refuse(`temp session dir ${dir} is a symlink`);
+    }
+  }
   for (const dir of [recorded.workDir, recorded.framesDir, recorded.contactSheetsDir]) {
     if (!dir) continue;
     const realDir = realPathOf(dir);

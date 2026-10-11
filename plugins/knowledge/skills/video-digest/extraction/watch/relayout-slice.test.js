@@ -1277,6 +1277,67 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  // Only `&amp; &lt; &gt; &quot; &apos;` and numeric references are decoded
+  // (a documented limit): any other named reference stays as written, so the
+  // destination names no file and the run fails closed instead of passing.
+  it("refuses, naming it, a destination holding a named reference it does not decode", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/a@b.pdf": "pdf",
+        "key-frames/visual-frames.md": "[deck](../source/decks/a&commat;b.pdf)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "frames/visual-frames.md", ref: "../metadata/decks/a&commat;b.pdf" },
+    ]);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  // `:` is not allowed in a Windows file name.
+  it.skipIf(process.platform === "win32")(
+    "maps a code-span path whose real name ends in :12 before reading it as a line suffix",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "source/decks/slide.pdf:12": "pdf",
+          "key-frames/vision-plan.md": "Deck: `source/decks/slide.pdf:12`.\n",
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "metadata/decks/slide.pdf:12")).toBe("pdf");
+      expect(read(targetDir, "frames/vision-plan.md")).toBe(
+        "Deck: `../metadata/decks/slide.pdf:12`.\n",
+      );
+    },
+  );
+
+  // Creating a symlink on Windows needs a privilege a test run may lack.
+  it.skipIf(process.platform === "win32")(
+    "refuses, naming it, a recorded temp dir that is itself a symlink",
+    async () => {
+      const { sliceDir, workDir, targetDir } = makeFixture();
+      const link = path.join(makeDir("relayout-link-"), "work");
+      fs.symlinkSync(workDir, link);
+      editState(sliceDir, (s) => ({ ...s, tempSession: { ...s.tempSession, workDir: link } }));
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+      const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+      stderr.mockRestore();
+
+      expect(result.exitCode).toBe(1);
+      expect(message).toContain(`${link} is a symlink`);
+      expect(fs.existsSync(targetDir)).toBe(false);
+    },
+  );
+
   it("flags a missing destination with parentheses rather than a truncated one", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, { "metadata/deck-inventory.md": "[deck](decks/slides_(v2).pdf)\n" });
