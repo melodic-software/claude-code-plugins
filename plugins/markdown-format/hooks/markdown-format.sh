@@ -2,7 +2,7 @@
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
 # hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc). We write the
-# rule as Edit(path) so it covers Write too, never as Write(path). The
+# rule as Edit(path), never as Write(path) (pointer below). The
 # in-script extension check stays because we treat the if filter as
 # best-effort: it guards a filter miss and a direct invocation.
 # Pointer: for the path-rule form, fetch

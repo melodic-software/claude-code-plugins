@@ -15,8 +15,8 @@ config has chosen no Markdown style, so the hook does not run there at all
 
 - **Markdown paths only at launch.** `hooks.json` registers the handler on
   `Write|Edit` but each copy carries `if: Edit(*.md)` or `if: Edit(*.mdc)`.
-  We write the rule as `Edit(path)` so it covers Write as well, and never as
-  `Write(path)`. A `.txt` Write therefore never starts the process.
+  We write the rule as `Edit(path)`, never as `Write(path)`. A `.txt` Write
+  never starts the process.
   It does not reach the script's in-script extension skip, and it cannot
   produce a `hook_non_blocking_error` for work this hook does not do (#2867).
   The script still checks the extension itself: we treat the `if` filter as
