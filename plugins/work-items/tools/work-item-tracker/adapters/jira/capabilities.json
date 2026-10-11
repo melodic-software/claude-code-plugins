@@ -12,7 +12,8 @@
     "add-sub-item": false,
     "list-items": true,
     "list-sub-items": false,
-    "capabilities": true
+    "capabilities": true,
+    "change-link": true
   },
   "features": {
     "cross_repo_edges": false,
@@ -25,5 +26,8 @@
     "sub_item_depth": 0,
     "dependencies_per_type": 0,
     "list_items_max": 1000
+  },
+  "change_link": {
+    "branch_pattern": "^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)"
   }
 }

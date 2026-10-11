@@ -23,3 +23,52 @@ wit_parse_id() {
 wit_make_id() {
   printf '%s:%s/%s#%s\n' "$1" "$2" "$3" "$4"
 }
+
+readonly WIT_REPO_REGEX='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+
+# wit_change_link_args <args…> — parse the change-link input (CONTRACT.md "Change
+# links"): exactly one of <id> or --branch-ref <ref>, plus optional --repo <o>/<r>.
+# Sets WIT_CL_ID, WIT_CL_REF, WIT_CL_REPO. Calls the sourcing adapter's
+# wit_usage_error (exit 2) on bad input.
+wit_change_link_args() {
+  WIT_CL_ID="" WIT_CL_REF="" WIT_CL_REPO=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --branch-ref)
+      [[ $# -ge 2 && -n "$2" && -z "$WIT_CL_REF" ]] || wit_usage_error "--branch-ref needs one value"
+      WIT_CL_REF="$2"
+      shift 2
+      ;;
+    --repo)
+      [[ $# -ge 2 && "$2" =~ $WIT_REPO_REGEX ]] || wit_usage_error "--repo needs <owner>/<repo>"
+      WIT_CL_REPO="$2"
+      shift 2
+      ;;
+    -*) wit_usage_error "unknown flag: $1" ;;
+    *)
+      [[ -z "$WIT_CL_ID" ]] || wit_usage_error "change-link takes one id"
+      WIT_CL_ID="$1"
+      shift
+      ;;
+    esac
+  done
+  [[ -n "$WIT_CL_ID" || -n "$WIT_CL_REF" ]] || wit_usage_error "change-link needs <id> or --branch-ref <ref>"
+  [[ -z "$WIT_CL_ID" || -z "$WIT_CL_REF" ]] || wit_usage_error "pass <id> or --branch-ref, not both"
+}
+
+# wit_hash_ref <change-repo> — after wit_parse_id: `#N` when <change-repo> is the
+# item's own repository, else the cross-repository `owner/repo#N` form.
+wit_hash_ref() {
+  if [[ "${1:-}" == "$WIT_ID_OWNER/$WIT_ID_REPO" ]]; then
+    printf '#%s\n' "$WIT_ID_NUMBER"
+  else
+    printf '%s/%s#%s\n' "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER"
+  fi
+}
+
+# wit_emit_change_link <id> <closes> <refs> <branch_ref> — the change-link object.
+# An empty <closes> is emitted as null: merging closes nothing on this provider.
+wit_emit_change_link() {
+  jq -cn --arg v "${WIT_SCHEMA_VERSION:-1.0}" --arg id "$1" --arg c "$2" --arg r "$3" --arg b "$4" \
+    '{schema_version: $v, item_id: $id, closes: (if $c == "" then null else $c end), refs: $r, branch_ref: $b}'
+}
