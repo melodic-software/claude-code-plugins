@@ -1,7 +1,7 @@
 # session-flow
 
-A Claude Code plugin bundling eighteen skills for one cohesive capability: managing the lifecycle
-of a working session. The skills answer where you are in the work, how to pause and resume it, how
+A Claude Code plugin with eighteen skills for managing the lifecycle of a working session. The
+skills answer where you are in the work, how to pause and resume it, how
 to recover it after an interruption, how to leave it durable before the machine goes away, how to
 retire finished work and reconcile the task ledger, where things stand and why, whether the
 session's assumptions are still current, what to learn from it while it runs and after, where your
@@ -59,7 +59,7 @@ it for delegation-heavy tasks.
 
 ## Output styles
 
-- **`Brain fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
+- **`Brain Fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
   short answers, two options max). Select it in `/config` → **Output style**. Coexists with
   `/education:explain` for one-shot deep explanations (#1223).
 
@@ -426,10 +426,11 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-`userConfig`. Two surfaces are configurable: the **detached observer** (eight keys, all defaulting
-to zero-config behavior; see `reference/observer.md` for full semantics), and **audit-sessions**
+`userConfig`. Three surfaces are configurable: the **detached observer** (eight keys, all defaulting
+to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
 (five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds; see the options reference below):
+two drift-check bounds), and `cloud_route`, whether the workflow's continuation advice offers a
+cloud session (see the options reference below):
 
 | Key | Default | Effect |
 |---|---|---|
@@ -465,7 +466,8 @@ checkpoint are network-free. Every skill not named above is network-free
 Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only with no
 parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
-session network access, but the skill itself performs no egress.
+session network access, or with `--cloud` a `claude --cloud` process that starts a cloud session
+from the pushed branch, but the skill itself performs no egress.
 
 ### Option details
 
@@ -501,6 +503,7 @@ reads it from.
 | `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_WORDS` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
+| `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 
 ### How to set these
 

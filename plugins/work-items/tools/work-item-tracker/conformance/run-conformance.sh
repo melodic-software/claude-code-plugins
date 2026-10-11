@@ -105,6 +105,13 @@ assert_schema_version() {
   assert_eq "$1 (schema_version)" "1.0" "$(jq -r '.schema_version' <<<"$WIT_OUT")"
 }
 
+# A list envelope must say whether it is complete: a reader cannot tell an absent
+# flag from an adapter that never checked. Boolean, not `false`: a live instance
+# past its ceiling legitimately reports true.
+assert_truncated_flag() {
+  assert_eq "$1 (truncated is a boolean)" "boolean" "$(jq -r '.truncated | type' <<<"$WIT_OUT")"
+}
+
 RUN_TAG="conf-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 
 # --- capabilities ---
@@ -287,6 +294,7 @@ fi
 if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-sub-items A" 0 list-sub-items "$ITEM_A_ID"
   assert_schema_version "list-sub-items A"
+  assert_truncated_flag "list-sub-items A"
   assert_contains "A's children hold B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
   assert_eq "enumerated child B is re-parented to A" "$ITEM_A_ID" \
     "$(jq -r '.items[0].parent_id' <<<"$WIT_OUT")"
@@ -294,6 +302,7 @@ if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_
 
   wit_case "list-frontier --parent A" 0 list-frontier --parent "$ITEM_A_ID"
   assert_schema_version "list-frontier --parent A"
+  assert_truncated_flag "list-frontier --parent A"
   assert_not_contains "scoped frontier drops blocked child B" \
     "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
 fi
@@ -303,9 +312,23 @@ fi
 if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "list-frontier" 0 list-frontier "${repo_args[@]+"${repo_args[@]}"}"
   assert_schema_version "list-frontier"
+  assert_truncated_flag "list-frontier"
   frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
+
+  wit_case "list-items" 0 list-items "${repo_args[@]+"${repo_args[@]}"}"
+  assert_schema_version "list-items"
+  assert_truncated_flag "list-items"
+  assert_contains "list-items holds open A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+  assert_eq "list-items rows carry created_at as a UTC timestamp or null" "true" \
+    "$(jq '[.items[] | has("created_at") and (.created_at == null
+      or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all' <<<"$WIT_OUT")"
+  wit_case "list-items --label nobody carries" 0 list-items --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
+  assert_truncated_flag "list-items --label"
+  assert_eq "list-items --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
+  wit_case "list-frontier --label nobody carries" 0 list-frontier --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
+  assert_eq "list-frontier --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
 fi
 
 # --- lease lifecycle + claim race ---
