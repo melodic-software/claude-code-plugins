@@ -8,7 +8,8 @@ Phase-flow diagram: `workflow.md`.
 **Phase numbers.** They are the numbers in `templates/watch-checklist.md` (0, 0b, 1 to 9, with
 3b and 4b), which `quality-gates.md` and `workflow.md` also use. Phase 1 is the CLI bootstrap.
 The `watch.json` phase names map to them: `acquire`, `transcript`, `watching` and `harvest` run in
-Phase 1; `vision` closes Phase 6; `research` is Phase 7; `synthesis` is Phase 8.
+Phase 1; `vision` closes Phase 6; `research` is Phase 7; `synthesis` is Phase 8's work, recorded by
+`close` in Phase 9.
 
 - [Phase 0b: companion deep-dive](#phase-0b-companion-deep-dive)
 - [CLI bootstrap](#cli-bootstrap)

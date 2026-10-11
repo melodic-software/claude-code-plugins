@@ -73,8 +73,8 @@ order-independent, so they combine with `--work-root` in any order.
 
 One more throttle flag has no `userConfig` option: `--acquire-phase-gap <sec>`, a leading
 `run.mjs` flag. A `watch` acquires in two passes, the video and then the captions, and the flag sets
-the pause between them (default 3 seconds; a missing, non-numeric or negative value keeps the
-default). Raise it after an HTTP 429 on the caption pass, for example `--acquire-phase-gap 10`; the
+the pause between them (default 3 seconds; the flag needs a value, and a non-numeric or negative
+one keeps the default). Raise it after an HTTP 429 on the caption pass, for example `--acquire-phase-gap 10`; the
 launcher forwards it as `VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC`. Pass it only when you want a gap other
 than the default.
 
