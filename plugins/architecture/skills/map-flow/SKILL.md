@@ -51,9 +51,8 @@ apply` owns both.
   --generated-on "<YYYY-MM-DD>" --out "<architecture_dir>/flow.json"
 ```
 
-`--depth` defaults to 5 when the invocation omits it. The `${CLAUDE_SKILL_DIR}` anchor matters. A
-bare relative path resolves against the session's working directory, which is not where the script
-lives.
+`--depth` defaults to 5 when the invocation omits it. Keep the `${CLAUDE_SKILL_DIR}` anchor;
+`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths says why.
 
 Exit 3 is a refusal. The message states the reason. Nothing was written. Report that reason and
 stop. Do not draw a sequence from the files you can see.

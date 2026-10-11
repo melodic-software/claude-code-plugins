@@ -74,8 +74,8 @@ One call assembles both collectors into the committed record:
   --edges-from <subject-repo> <repo-path>...
 ```
 
-The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves against the session's working
-directory, which is not where the script lives.
+Keep the `${CLAUDE_SKILL_DIR}` anchor; `${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths
+says why.
 
 `--source` and `--remote` are recorded verbatim, so a later reader can tell an explicit list from a
 fleet plan, and a local-only run from one that fetched. `--edges-from` is the repository whose

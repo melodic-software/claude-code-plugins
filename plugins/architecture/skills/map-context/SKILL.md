@@ -95,8 +95,8 @@ skip on stderr. Reword the line without the credential and pass it again.
 ```
 
 Add `--focal "<system>"` when the invocation named one. Add `--actors "<file>"` only for
-operator-stated rows. The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves
-against the session's working directory, which is not where the script lives.
+operator-stated rows. Keep the `${CLAUDE_SKILL_DIR}` anchor; `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
+§ Script paths says why.
 
 The collector creates the parent directory of `--out`. Exit 1 means the record could not be written
 and nothing was: report the message and stop before rendering.

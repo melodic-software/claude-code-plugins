@@ -93,8 +93,8 @@ omit `--graph`. The collector reads `ProjectReference` Include attributes itself
   --focal "<system-or-omit>" --graph "<dependency-graph.json-or-omit>"
 ```
 
-The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves against the session's working
-directory, which is not where the script lives.
+Keep the `${CLAUDE_SKILL_DIR}` anchor; `${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths
+says why.
 
 The record is schema_version 1 in the one-object-per-line layout the script writes. Container lines
 start with `{"id":`. Module lines start with `{"container":`. Edge lines start with `{"from":`.
