@@ -199,7 +199,7 @@ Scale the plan to the task:
 
 Per-scale calibration examples live in [context/plan-template.md](context/plan-template.md) "Choosing the Right Scale".
 
-**Tracker-write phases:** when any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST follow the shape in [context/plan-template.md](context/plan-template.md) "Phase-entry checks for tracker writes". Search-before-create as the first work item, explicit pivot path for the match case, search outcome captured in the phase Sanity Check.
+**Tracker-write phases:** when any phase ends in creating a work item (e.g. `/work-items:track add`), the plan body MUST follow the shape in [context/plan-template.md](context/plan-template.md) "Phase-entry checks for tracker writes". Search-before-create as the first work item, explicit pivot path for the match case, search outcome captured in the phase Sanity Check.
 
 **Pre-flight consumer check**. When a phase migrates a contract (frontmatter schema, JSON schema, public API surface, env-var shape, file format, exported function signature), list "Identify consumers" as the FIRST work item: `Grep` + `Glob` for scripts/hooks/workflows/sibling components parsing the contract surface; document parse paths. Migration work items follow. Without pre-flight, migrations break consumers silently. Full pattern in [context/plan-template.md](context/plan-template.md) "Pre-flight consumer check".
 

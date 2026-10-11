@@ -3,6 +3,28 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** `model_notices` replaces `rate_limit_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool and snapshot work as before. Set `model_notices` to `true` for the approach, threshold, reset and options lines; a stored `rate_limit_lines_enabled: true` no longer applies (#7135).
+
+### Removed
+
+- The reader contract's orchestration fallback, which told sessions to start agent fan-out narrow when rate-limit headroom could not be observed. Unobservable headroom is now reactive-only with no sizing rule (#7135).
+
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- Each approach or threshold line Claude reads is now followed by one options line: continue at the same model, effort and review depth; the user can switch accounts (claude-code-account-rotation); or schedule work for after the reset. The line also says usage never calls for lowering model, effort or review depth, and that stopping or pausing is the user's call or an opted-in loop lane's (#7118).
+- The default threshold now reads as the "95% line threshold" in toasts and transcript lines, not the "95% pause edge".
+- **Breaking:** the reader contract's operable floor makes pausing opt-in. Only a lane whose session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses at 95%. Without it, a lane keeps working and reports the window and the options.
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.17.2] - 2026-10-07
 
 ### Changed

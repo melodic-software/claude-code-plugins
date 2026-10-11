@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.4] - 2026-10-11
+
+### Fixed
+
+- migrate: the headless canary checks in `cutover-check.sh` and `remove-shims.sh`, and the command in `reference/verification.md`, now run with `--model sonnet` instead of `haiku`.
+
 ## [0.22.3] - 2026-10-10
 
 ### Fixed
