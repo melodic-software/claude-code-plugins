@@ -53,9 +53,11 @@ claude plugin install smoketest@<marketplace> --scope local \
 
 ## Test B: does a skill-invoked Bash script inherit `CLAUDE_PLUGIN_OPTION_*`?
 
-**Question.** The plugins reference states "All values are exported to plugin subprocesses as
-`CLAUDE_PLUGIN_OPTION_<KEY>` environment variables." Does that reach a Bash command a skill tells
-Claude to run, or does only text-substitution reach a skill?
+**Question.** When this ran, the plugins reference said every option value was exported to "plugin
+subprocesses" as `CLAUDE_PLUGIN_OPTION_<KEY>`. Does that reach a Bash command a skill tells
+Claude to run, or does only text-substitution reach a skill? (The page now names the receiving
+processes itself: [manifest reference § Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value),
+as of 2026-10-11; recheck when that section adds or drops a receiving process.)
 
 **Commands.**
 
@@ -80,14 +82,19 @@ the subprocess environment is identical).
   installed plugin's data directory, not the invoking plugin's. `${CLAUDE_PLUGIN_DATA}` resolves
   per-plugin only inside a plugin's own declared commands; in a general Bash-tool subprocess it carries
   one session default, so it is not a dependable per-plugin signal for a skill-spawned script either.
-- **"Plugin subprocesses" means the plugin's own declared command subprocesses**: hooks, MCP servers,
-  monitors, and `command`-type components, where a current plugin is defined and `${user_config.KEY}`
-  also substitutes. It does not mean arbitrary Bash tool calls the model makes while a skill runs.
+- **"Plugin subprocesses" never meant arbitrary Bash tool calls** the model makes while a skill
+  runs. Which of the plugin's own declared components receive option values, through the
+  environment or through `${user_config.KEY}` substitution, is the manifest reference's to state:
+  [§ Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  and [§ Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell)
+  (as of 2026-10-11; recheck when either section changes which components receive a value). This
+  run's reading on 2.1.207 counted monitors among them; the page now says monitors receive none.
 - **Authoring constraint.** A skill reads a **non-sensitive** userConfig value only through
   `${user_config.KEY}` text-substitution into its own Markdown, never from the environment of a script
   it spawns. A **sensitive** value is unreachable from a skill entirely: it is not substitutable into
-  skill / agent content (spec) and is not in the subprocess environment, so only a hook / MCP / monitor
-  command can consume it. Design a sensitive-value consumer as a hook or MCP server, not a skill.
+  skill / agent content (spec) and is not in the subprocess environment, so only a component the
+  sections above name as receiving it can consume it. Design a sensitive-value consumer as a hook or
+  MCP server, not a skill or a monitor.
 
 ## Test C: does `claude plugin install` prompt for userConfig non-interactively?
 
@@ -110,10 +117,12 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   `already installed`, the observation recorded here on 2.1.207, but it **still writes the value**:
   the short-circuit is about the install, not the config write. The current verified-version record,
   including `project`/`local` scope, lives in the
-  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record). `claude plugin` has no
-  `configure` subcommand (verified against `claude plugin --help` on 2.1.207; `/plugin configure` is an
-  interactive slash command only), so headless reconfiguration is another `--config` install, not
-  uninstall then reinstall.
+  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md#verified-version-record). On 2.1.207
+  `claude plugin` had no `configure` subcommand (verified against `claude plugin --help`;
+  `/plugin configure` was an interactive slash command only), so headless reconfiguration was
+  another `--config` install, not uninstall then reinstall. Claude Code now documents a
+  non-interactive `claude plugin configure`; the plugin-reconfiguration convention owns which route
+  setups print.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
 
@@ -178,9 +187,13 @@ claude -p "/smokemulti:echo" --plugin-dir <rig>/smokemulti \
   bare name alone.
 - **The CLI's own advisory prints the suffixed form.** Test C observed:
   `run /plugin configure smoketest@<marketplace> in Claude Code`, not `smoketest` alone.
-- **`claude plugin` has no `configure` subcommand** (verified against `claude plugin --help` on
-  2.1.207); `/plugin configure` is an interactive slash command only. There is no headless probe of
-  bare-vs-qualified resolution, and upstream docs do not document either spelling.
+- **On 2.1.207 `claude plugin` had no `configure` subcommand** (verified against
+  `claude plugin --help`); `/plugin configure` was an interactive slash command only, there was no
+  headless probe of bare-vs-qualified resolution, and the docs named neither spelling. The CLI
+  reference now documents `claude plugin configure` and which id form it accepts:
+  [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+  (as of 2026-10-11; recheck when that section changes the id forms it accepts). It agrees with the
+  fleet decision below.
 
 **Fleet decision.** Actionable guidance, anywhere a reader is told to *run* the command with a
 specific plugin target, uses the marketplace-qualified form `/plugin configure

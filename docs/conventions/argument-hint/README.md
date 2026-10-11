@@ -48,15 +48,13 @@ is this repository's. The notation is where the house style matches the official
   before the set's closing `]` or `>` (`[scan|caches|aliases…]`), and the full set is in the body.
   It never marks a slot repeatable.
 
-**Record.** Claim: the commands page states "`<arg>` indicates a required argument and `[arg]`
-indicates an optional one", and every built-in command whose hint offers alternatives writes them
-inside brackets with an unspaced pipe, none with a spaced or bare pipe: `/fast [on|off]`,
-`/review [low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]`,
-`/mcp [reconnect <server>|enable|disable [<server>|all]]`,
-`/claude-api [migrate|upgrade|managed-agents-onboard|prompt-audit|cost-optimize|build-eval|hillclimb|preserved-thinking-migration]`.
-Basis: <https://code.claude.com/docs/en/commands> (`commands.md`, the command table). As of:
-2026-10-01. Recheck: the legend changes, or a built-in row writes alternatives with a spaced pipe
-or outside brackets.
+**Record.** Claim: the command table's legend marks required and optional slots with `<arg>` and
+`[arg]`, and every built-in row whose hint offers alternatives writes them inside brackets with an
+unspaced pipe, none with a spaced or bare pipe. Basis:
+[commands § All commands](https://code.claude.com/docs/en/commands#all-commands). As of:
+2026-10-11. Recheck: the legend changes, or a built-in row writes alternatives with a spaced pipe
+or outside brackets. One built-in row groups a nested set in parentheses inside its brackets; a
+plugin hint still takes no parenthetical (House rules).
 
 **Record.** Claim: "Ellipses ("...") are used to denote that one or more occurrences of an operand
 are allowed". Basis: POSIX.1-2024 (Issue 8) XBD 12.1,
