@@ -24,6 +24,30 @@
       "title": "Account-bound tools",
       "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) is tested; the rest stay deferred.",
       "default": true
+    },
+    "css_browser_target": {
+      "type": "string",
+      "title": "CSS browser target",
+      "description": "Browserslist query for the browsers CSS must support when the project has no browserslist config, such as \"baseline widely available\". Empty uses the plugin default. A team or personal convention file overrides it."
+    },
+    "css_important": {
+      "type": "string",
+      "title": "CSS !important",
+      "description": "When !important is acceptable: avoid (default), utilities-only, or allow. A team or personal convention file overrides it.",
+      "default": "avoid",
+      "options": ["avoid", "utilities-only", "allow"]
+    },
+    "css_layer": {
+      "type": "string",
+      "title": "CSS cascade layer",
+      "description": "The cascade layer new CSS goes in. Empty follows the project's own layer order. A team or personal convention file overrides it."
+    },
+    "css_token_fallback": {
+      "type": "string",
+      "title": "CSS token fallback",
+      "description": "When no design token matches a value: ask (default), propose-token, or literal. A team or personal convention file overrides it.",
+      "default": "ask",
+      "options": ["ask", "propose-token", "literal"]
     }
   }
 }
