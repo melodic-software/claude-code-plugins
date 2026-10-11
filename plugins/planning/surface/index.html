@@ -135,6 +135,8 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .needs{font:11.5px var(--mono);color:var(--faint);display:flex;gap:4px;align-items:center}
 .needs::before{content:"";width:9px;height:8px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;margin-top:-5px}
 .needs.unmet{color:var(--chg)}
+.needsrow{display:flex;flex-wrap:wrap;gap:2px 10px;min-width:0}
+.needs .metmark{font-weight:600;margin-left:-2px}
 .newdot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--chg)}
 .tree{list-style:none;margin:0;padding:0;display:grid;gap:5px}
 .tree .tree{margin:5px 0 0 12px;padding-left:10px;border-left:1.5px solid var(--line-strong)}
@@ -682,9 +684,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const arrivalKeys = () => new Set(acts().map(actKey).concat(noteThread().filter(n => n.by === "claude").map(n => "n" + n.at + "|" + n.text)));
   function latestClaude(q){ const h = historyOf(q)[0]; return h && talks(h) && String(h.text).trim() !== "Asked." ? h : null; } // hold, supersede and confirm lines are bookkeeping, never the rail preview
   const upOf = q => (q.dependsOn || []).filter(p => Q[p]);
+  const waitOn = q => { const s = (q.upstreamStale || []).filter(p => Q[p]); return s.length ? s : upOf(q); }; // the stale ancestors behind upstream-pending, nearest first
 
   // ---------- rail ----------
-  const waitOn = q => { const s = (q.upstreamStale || []).filter(p => Q[p]); return s.length ? s : upOf(q); }; // the stale ancestors behind upstream-pending, nearest first
   function sections(){
     const carry = carryOver(), qs = S.doc.questions.slice().sort(byIdCmp), secs = [];
     if (S.view === "groups") {
@@ -749,7 +751,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (sent && !answered(q, sent)) chips.push('<span class="chip plain">' + (unheard() && !delivered(events().find(e => e.seq === sent)) ? NOT_LISTENING : "Sent to Claude") + "</span>");
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const gone = p => Q[p].supersededBy ? " (superseded by " + Q[p].supersededBy + ")" : stateOf(Q[p]) === "arch" ? " (archived)" : "";
-    const needs = upOf(q).map(p => '<span class="needs' + (parentMet(p) ? "" : " unmet") + '">needs ' + esc(p + gone(p)) + "</span>").join("");
+    const met = p => '<span class="metmark" role="img" aria-label="' + (gone(p) ? "left the path" : "answered") + '" title="' + (gone(p) ? "Left the path" : "Answered") + '">\u2713</span>';
+    const needs = upOf(q).length ? '<span class="needsrow">' + upOf(q).map(p => '<span class="needs' + (parentMet(p) ? " met" : " unmet") + '">needs ' + esc(p + gone(p)) + (parentMet(p) ? met(p) : "") + "</span>").join("") + "</span>" : "";
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
     return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath ? " dim" : up ? " waiting" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
       '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1")) + "</span>" + needs +

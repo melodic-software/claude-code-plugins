@@ -10,6 +10,8 @@ async page => { // the question page itself: choices, chips, banners, header and
     if (await page.$eval('.rail-list .qbtn[data-q="' + id + '"]', el => !el.offsetParent).catch(() => false)) await page.click('.sec:has(.qbtn[data-q="' + id + '"]) .sec-h');
     await page.click('.rail-list .qbtn[data-q="' + id + '"]'); await page.waitForTimeout(250);
   };
+  const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
+  const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
   const recRow = () => page.$eval("#choices .choice.rec .t", el => ({text: el.textContent, clipped: el.scrollHeight > el.clientHeight + 1})).catch(() => ({text: "", clipped: true}));
   try {
   if (PHASE === 1) {
@@ -31,6 +33,20 @@ async page => { // the question page itself: choices, chips, banners, header and
     const listed = await text("#dlgBody li");
     ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
+
+    // #5917: five prerequisites share one wrapped row, and a met one is marked by more than colour
+    await post({id: "Q2", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900); await pick("Q7");
+    for (const w of [1440, 390]) {
+      await page.setViewportSize({width: w, height: w > 400 ? 900 : 844}); await page.waitForTimeout(250);
+      if (w < 400 && await page.$eval("nav.rail", el => !el.offsetParent || el.getBoundingClientRect().width === 0).catch(() => true)) continue;
+      const row = await page.$eval('.rail-list .qbtn[data-q="Q7"]', b => {
+        const ns = [...b.querySelectorAll(".needsrow .needs")], t = b.querySelector(".qtitle").getBoundingClientRect();
+        return {rows: b.querySelectorAll(".needsrow").length, n: ns.length, lines: new Set(ns.map(n => Math.round(n.getBoundingClientRect().top))).size, below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), marks: ns.map(n => n.textContent + (n.querySelector(".metmark") ? " [" + n.querySelector(".metmark").getAttribute("aria-label") + "]" : ""))};
+      }).catch(e => ({error: String(e)}));
+      ok("Q7's five needs chips sit in one wrapped row under its title at " + w + " px", row.rows === 1 && row.n === 5 && row.lines < 5 && row.below, JSON.stringify(row));
+      if (w > 400) ok("the met prerequisite (Q2) carries a check and an answered label; an unmet one carries neither", /^needs Q2✓ \[answered\]$/.test(row.marks[0]) && row.marks.slice(1).every(m => !/✓|answered/.test(m)), JSON.stringify(row.marks));
+    }
+    await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
   }
   if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
     const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
