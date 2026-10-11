@@ -28,6 +28,9 @@ const palette = async ($: EngineInterface, isBlock: boolean): Promise<Palette | 
 }
 // A drawn Text or Markdown refuses these, and a refused tree draws the original text.
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
+// The engine refuses a tree over 20,000 nodes and draws the original text, so a larger drawing goes
+// to the text rewrite instead. Each block costs at most two nodes, each match row five.
+const MAX_NODES = 10_000
 const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
   name: 'display-redaction',
@@ -91,6 +94,7 @@ function drawMasked(
   if (CONTROL.test(text)) return undefined
   const split = splitBlocks(text, patterns)
   if (split.every((s) => s.hidden.length === 0)) return undefined
+  if (split.reduce((n, s) => n + 2 + 5 * s.parts.length, 1) > MAX_NODES) return undefined
   const drawBlock = ({ block, parts, hidden }: (typeof split)[number], b: number) => {
     if (hidden.length === 0) return <Markdown text={block} />
     const rows = parts.flatMap((part, i) => {

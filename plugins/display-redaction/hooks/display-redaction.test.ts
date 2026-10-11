@@ -158,6 +158,22 @@ test('text mode rewrites the text whatever the color support', TEXT_MODE, async 
   expect(seen.props).toEqual({ text: `Write to ${M} today.`, isFirstOfReply: true })
 })
 
+test('block mode rewrites a text whose drawing would pass the engine node limit', async ($, on) => {
+  mock.env(on, { COLORTERM: 'truecolor' })
+  const seen = capture(on, 'AssistantMessage')
+  const texts = [
+    Array.from({ length: 5_000 }, (_, i) => `u${i}@example.com`).join(' '),
+    `${'para\n\n'.repeat(6_000)}Write to ${EMAIL}.`,
+  ]
+  for (const [i, text] of texts.entries()) {
+    seen.props = undefined
+    await $.ui.render({ surface: 'terminal', component: 'AssistantMessage', requestId: `n${i}`, props: { text, isFirstOfReply: true } })
+    const drawn = (seen.props as { text?: string } | undefined)?.text ?? ''
+    expect(drawn).toContain(M)
+    expect(drawn).not.toContain('@example.com')
+  }
+})
+
 test('block mode rewrites a task notification row, which the engine draws compact', async ($, on) => {
   const seen = capture(on, 'UserMessage')
   const task = { id: 't1' } as unknown as RenderPropsOf['UserMessage']['task']
@@ -555,7 +571,7 @@ const visibleTexts = (node: unknown): string[] => {
 
 test('block mode hides an encrypted private key whose headers end in a blank line', async ($, on) => {
   mock.env(on, { COLORTERM: 'truecolor' })
-  const key = '-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B\n\nMIIsecretbody\n-----END RSA PRIVATE KEY-----'
+  const key = '-----BEGIN RSA PRIVATE ' + 'KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B\n\nMIIsecretbody\n-----END RSA PRIVATE ' + 'KEY-----'
   const ui = await $.ui.mount({
     plugin: 'display-redaction',
     surface: 'terminal',

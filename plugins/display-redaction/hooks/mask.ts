@@ -12,10 +12,11 @@ const QUANTIFIER_BRACE = /^\{(\d+)(?:(,)(\d*))?\}/
 // scanned once, not once per start position. Open-ended tails (`*`) mask a token still streaming.
 const BUILTIN_SOURCES = [
   // An address with its TLD anywhere, or one still streaming at the end of the text.
-  '(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}|[A-Za-z0-9-]*(?:\\.[A-Za-z0-9-]*)*(?![\\s\\S]))',
+  '(?<![\\p{L}\\p{M}\\p{N}._%+-])[\\p{L}\\p{M}\\p{N}._%+-]+@(?:[\\p{L}\\p{M}\\p{N}-]+(?:\\.[\\p{L}\\p{M}\\p{N}-]+)*\\.\\p{L}[\\p{L}\\p{M}]+|[\\p{L}\\p{M}\\p{N}-]*(?:\\.[\\p{L}\\p{M}\\p{N}-]*)*(?![\\s\\S]))',
   '(?<![A-Za-z0-9])sk-[\\w-]*',
-  '(?<![A-Za-z0-9_])gh[pousr]_\\w*',
-  '(?<![A-Za-z0-9_])github_pat_\\w*',
+  // Markdown source can escape an underscore that the screen draws plain.
+  '(?<![A-Za-z0-9_])gh[pousr]\\\\?_(?:\\w|\\\\_)*',
+  '(?<![A-Za-z0-9_])github\\\\?_pat\\\\?_(?:\\w|\\\\_)*',
   '(?<![A-Za-z0-9])xox[abprs]-[\\w-]*',
   '(?<![A-Za-z0-9])AKIA[0-9A-Z]*',
   '(?<![A-Za-z0-9_])eyJ[\\w-]*(?:\\.[\\w-]*){0,2}',
@@ -111,7 +112,7 @@ const compileExtra = (source: string): RegExp | undefined => {
 }
 
 export function compilePatterns(extra: readonly string[]): { patterns: RegExp[]; invalid: string[] } {
-  const patterns = BUILTIN_SOURCES.map((s) => new RegExp(s, 'g'))
+  const patterns = BUILTIN_SOURCES.map((s) => new RegExp(s, 'gu'))
   const invalid: string[] = []
   for (const source of extra) {
     const re = compileExtra(source)

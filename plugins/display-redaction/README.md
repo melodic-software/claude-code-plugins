@@ -27,12 +27,13 @@ The marketplace lists the plugin as off by default; enable it after installing.
 
 ## What is masked
 
-- Email addresses, including one still streaming at the end of the text.
-- `sk-` keys, GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` and `github_pat_` tokens, `xox*` Slack
-  tokens, `AKIA` AWS key IDs, and JWTs (`eyJ...`).
+- Email addresses, including ones with letters outside ASCII and one still streaming at the end of
+  the text.
+- `sk-` keys, GitHub `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` and `github_pat_` tokens (also with
+  markdown-escaped `\_`), `xox*` Slack tokens, `AKIA` AWS key IDs, and JWTs (`eyJ...`).
 - PEM private-key blocks and PGP private-key blocks (`-----BEGIN PGP PRIVATE KEY BLOCK-----`),
   including one that has no end line yet.
-- A match right after a terminal color code; the code itself is kept.
+- A match right after a terminal color code, or with one inside it; the codes are kept.
 - Your own patterns from the `extra_patterns` option, one regular expression per entry. A pattern
   is skipped when it is over 200 characters, can match empty text, does not compile, or could
   backtrack too long: a quantified group holding a quantifier or a `|`, a backreference, more than
@@ -56,7 +57,8 @@ output, question prompts and info notices.
   itself. Paragraphs with no match keep Claude Code's formatting; a paragraph with a match draws
   as plain wrapping text with each match a bar, and so does a fenced code block with a match. A
   reply drawn this way has no reply bullet and no summary mark. A task notification or a message
-  from another agent, and text holding terminal control characters, draw as `[hidden]`.
+  from another agent, text holding terminal control characters, and text too large for one drawing
+  (thousands of matches or paragraphs) draw as `[hidden]`.
   The video's exact colors need a terminal that advertises full color; set `COLORTERM=truecolor`
   if yours supports it but does not say so (for example WSL inside Windows Terminal); otherwise
   the bar uses your theme's colors.

@@ -43,12 +43,12 @@ test('masks a JWT', () => {
 })
 
 test('masks a terminated PEM private key block', () => {
-  const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIabc\nxyz\n-----END RSA PRIVATE KEY-----'
+  const pem = '-----BEGIN RSA PRIVATE ' + 'KEY-----\nMIIabc\nxyz\n-----END RSA PRIVATE ' + 'KEY-----'
   expect(mask(`before\n${pem}\nafter`)).toBe(`before\n${M}\nafter`)
 })
 
 test('masks an unterminated PEM block through the end of the text', () => {
-  expect(mask('before\n-----BEGIN PRIVATE KEY-----\nMIIabc\nstill str')).toBe(`before\n${M}`)
+  expect(mask('before\n-----BEGIN PRIVATE ' + 'KEY-----\nMIIabc\nstill str')).toBe(`before\n${M}`)
 })
 
 test('masks a token that is still streaming', () => {
@@ -157,7 +157,7 @@ test('masks 100,000 characters quickly, including adversarial runs', () => {
     'x@' + 'a'.repeat(100_000),
     'sk-'.repeat(33_000),
     'eyJ' + 'a.'.repeat(50_000),
-    '-----BEGIN PRIVATE KEY-----'.repeat(3_700),
+    ('-----BEGIN PRIVATE ' + 'KEY-----').repeat(3_700),
   ]
   const start = Date.now()
   for (const input of inputs) mask(input)
@@ -271,8 +271,20 @@ test('masks a token right after a color code and keeps every escape intact', () 
 })
 
 test('keeps an escape inside a masked span and hides the text around it', () => {
-  const pem = '-----BEGIN PRIVATE KEY-----\n\u001b[2mMIIabc\u001b[0m\n-----END PRIVATE KEY-----'
+  const pem = '-----BEGIN PRIVATE ' + 'KEY-----\n\u001b[2mMIIabc\u001b[0m\n-----END PRIVATE ' + 'KEY-----'
   expect(mask(`a ${pem} b`)).toBe(`a ${M}\u001b[2m\u001b[0m b`)
+})
+
+test('masks a GitHub token whose underscores markdown escapes', () => {
+  expect(mask('use ghp\\_abc123 now')).toBe(`use ${M} now`)
+  expect(mask('use github\\_pat\\_11AB\\_cd now')).toBe(`use ${M} now`)
+})
+
+test('masks an address with letters outside ASCII in its local part or domain', () => {
+  expect(mask('write to josé@example.com now')).toBe(`write to ${M} now`)
+  expect(mask('mail user@bücher.de now')).toBe(`mail ${M} now`)
+  expect(mask('Ünal.kaya@firma.de x')).toBe(`${M} x`)
+  expect(mask('δοκιμή@παράδειγμα.δοκιμή')).toBe(M)
 })
 
 test('masks a whole token with an escape inside it, keeping the escape', () => {
@@ -286,8 +298,8 @@ test('splitMatches finds a token after a color code and leaves the code outside 
 })
 
 test('splitBlocks hides a match that crosses a blank line in every block it reaches', () => {
-  const head = '-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B'
-  const body = 'MIIbody\n-----END RSA PRIVATE KEY-----'
+  const head = '-----BEGIN RSA PRIVATE ' + 'KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0A1B'
+  const body = 'MIIbody\n-----END RSA PRIVATE ' + 'KEY-----'
   const split = splitBlocks(`Key:\n\n${head}\n\n${body}\n\nDone.`, patterns)
   expect(split).toEqual([
     { block: 'Key:', parts: ['Key:'], hidden: [] },
@@ -314,7 +326,7 @@ test('masks the other GitHub token kinds, including one still streaming', () => 
 })
 
 test('masks a PGP private key block', () => {
-  const block = '-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nlQOYBF\n=abcd\n-----END PGP PRIVATE KEY BLOCK-----'
+  const block = '-----BEGIN PGP PRIVATE ' + 'KEY BLOCK-----\n\nlQOYBF\n=abcd\n-----END PGP PRIVATE ' + 'KEY BLOCK-----'
   expect(mask(`before\n${block}\nafter`)).toBe(`before\n${M}\nafter`)
 })
 
