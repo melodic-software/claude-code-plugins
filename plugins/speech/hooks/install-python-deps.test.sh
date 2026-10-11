@@ -55,8 +55,8 @@ digest="$("$py" "$PLUGIN_DIR/scripts/test_speech_pydeps.py" --make-wheel "$(nati
 new_plugin() {
   local root="$WORK/$1"
   mkdir -p "$root/hooks" "$root/scripts"
-  cp "$HOOK_DIR/install-python-deps.sh" "$HOOK_DIR/hook-utils.sh" "$root/hooks/"
-  cp "$PLUGIN_DIR/scripts/pydeps.py" "$root/scripts/"
+  cp "$HOOK_DIR/install-python-deps.sh" "$HOOK_DIR/install-python-deps.conf" "$HOOK_DIR/hook-utils.sh" "$root/hooks/"
+  cp "$PLUGIN_DIR/scripts/pydeps.py" "$PLUGIN_DIR/scripts/pydeps.json" "$root/scripts/"
   printf 'fakedeps==1.0 \\\n    --hash=sha256:%s\n' "$2" >"$root/requirements.txt"
   printf '%s' "$root"
 }

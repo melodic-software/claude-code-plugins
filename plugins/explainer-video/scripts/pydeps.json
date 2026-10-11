@@ -1,0 +1,18 @@
+{
+  "plugin": "explainer-video",
+  "pythons": ["3.12", "3.13"],
+  "probe": ["manim"],
+  "build_from_source": ["srt", "pycairo", "manimpango"],
+  "build_hint": {
+    "match": "pkg-config|cairo|pango|[Cc]ompiler",
+    "text": "pycairo and manimpango build from source here: install a C compiler, pkg-config and the cairo and pango development packages; see the plugin README"
+  },
+  "pip_timeout_s": 540,
+  "check": {
+    "label": "ManimCE",
+    "tools": {
+      "ffmpeg": "install FFmpeg (https://ffmpeg.org/download.html), which ships both",
+      "ffprobe": "install FFmpeg (https://ffmpeg.org/download.html), which ships both"
+    }
+  }
+}

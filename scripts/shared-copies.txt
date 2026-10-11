@@ -19,6 +19,12 @@ lib/index-regen.sh plugins/discovery/scripts/index-regen.sh
 lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
 lib/spawn_noise.py plugins/harness-ops/lib/spawn_noise.py
 lib/spawn_noise.py plugins/performance/lib/spawn_noise.py
+lib/pydeps.py plugins/animation/scripts/pydeps.py
+lib/pydeps.py plugins/explainer-video/scripts/pydeps.py
+lib/pydeps.py plugins/speech/scripts/pydeps.py
+lib/install-python-deps.sh plugins/animation/hooks/install-python-deps.sh
+lib/install-python-deps.sh plugins/explainer-video/hooks/install-python-deps.sh
+lib/install-python-deps.sh plugins/speech/hooks/install-python-deps.sh
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh

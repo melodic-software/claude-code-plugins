@@ -1,0 +1,7 @@
+{
+  "plugin": "animation",
+  "python_min": "3.12",
+  "allow_free_threaded": true,
+  "probe": ["numpy", "cv2"],
+  "pip_timeout_s": 240
+}
