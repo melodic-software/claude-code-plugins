@@ -230,7 +230,8 @@ Caveats that do survive, each verified:
 The audit's size gate treats only the start of `MEMORY.md`, up to the documented load limit, as
 loaded at session start, and everything after it as unread. It applies that limit to `MEMORY.md`
 only, never to a CLAUDE.md. The gate's firing values and its counting rule live in
-[criteria.md](criteria.md), M1. Stripping YAML frontmatter and block-level HTML comments before
+[criteria.md, M1](criteria.md#m1-index-size-fail) (relayed 2026-10-11; recheck when that section
+is renamed or stops holding the gate's values). Stripping YAML frontmatter and block-level HTML comments before
 counting is our gate's rule, not a documented load behavior.
 
 - **Pointer**: [How it works](https://code.claude.com/docs/en/memory#how-it-works) (auto memory).
@@ -328,7 +329,8 @@ are read at the pointer, not here.
   (correlate with [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more)).
 - **As of**: 2026-10-11
 - **Recheck trigger**: any of those sections changes what a mechanism in the table gets back after
-  compaction, or the skill re-attach budget.
+  compaction, or the skill re-attach budget; or the [Auto-memory limits](#auto-memory-limits)
+  section the table relays to is renamed.
 
 `AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
 page changed its `AGENTS.md` guidance between 2026-06-20 and 2026-09-19, so the row below is
