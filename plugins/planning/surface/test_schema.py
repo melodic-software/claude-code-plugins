@@ -1,4 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
+# test-scope: plugins/planning/surface/schema/*.schema.json
 """Tests for schema.py, the stdlib JSON Schema subset round.py validates with."""
 
 from __future__ import annotations

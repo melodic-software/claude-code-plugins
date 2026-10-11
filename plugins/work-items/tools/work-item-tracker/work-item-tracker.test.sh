@@ -2,6 +2,7 @@
 # Tests for the core dispatcher: usage, binding resolution, capability gating, and
 # list-frontier derivation — all against a fake adapter (no network, no gh).
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
+# test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

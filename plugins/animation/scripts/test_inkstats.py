@@ -1,3 +1,4 @@
+# test-scope: plugins/animation/requirements.in
 """inkstats hold timing: a rotoscope work dir's last drawing uses d/index.json t1, not one frame.
 
 Standard library only at module level so collection works without numpy; the tests skip, naming what is

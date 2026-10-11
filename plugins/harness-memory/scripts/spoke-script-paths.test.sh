@@ -3,6 +3,7 @@
 # skills/*/reference are read by the Read tool, which substitutes no variables, so they name
 # bundled scripts as <skill-dir>/scripts/<name>.sh and SKILL.md renders the placeholder.
 # shellcheck disable=SC2016,SC2013  # the dollar-brace tokens are literal text; script names hold no spaces
+# test-scope: plugins/harness-memory/skills/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

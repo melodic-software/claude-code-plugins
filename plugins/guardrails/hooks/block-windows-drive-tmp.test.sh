@@ -5,6 +5,7 @@
 # JSON on stdin, asserts on exit code (2 = blocked, 0 = allowed). The Windows
 # lane is forced via OSTYPE=msys so Linux CI exercises the same matcher the
 # Git Bash host would. Self-contained — no host-repo assertion library.
+# test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail
 

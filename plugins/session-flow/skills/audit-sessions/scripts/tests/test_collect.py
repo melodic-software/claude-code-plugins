@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/multi/*
 """Contract tests for collect.py: the CLI envelope and the store records it writes.
 
 Runs the scripts by subprocess, testing the CLI interface, not internals. The tracer test also

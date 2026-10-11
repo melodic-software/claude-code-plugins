@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [
+      {"tool": "Bash", "input": {"command": "gh pr ready 512"}},
+      {"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}}
+    ]}
+  ],
+  "fail": [
+    {"answer": [
+      {"tool": "Skill", "input": {"skill": "review:explain-change", "args": "512 --event ready"}},
+      {"tool": "Bash", "input": {"command": "gh pr ready 512"}}
+    ], "why": "digest before the push and flip reads a stale head"},
+    {"answer": [{"tool": "Bash", "input": {"command": "gh pr ready 512"}}], "why": "no digest call"}
+  ]
+}

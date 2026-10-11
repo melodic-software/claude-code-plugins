@@ -5,6 +5,8 @@
 - Superseded in part by ADR 0038 (2026-09-24): decision 2 (both OAuth lanes retire) and the
   consequences and revisit triggers that follow from it. Both lanes are restored and run on every
   push; the seat layer in the other decisions stands as a second layer.
+- Amended by [ADR 0062](0062-allow-api-keys-from-the-operator-s-own-linked-console-orgs.md)
+  (2026-10-11): the Context's premise that the operator cannot use API keys no longer holds.
 - Superseded in part by the 2026-09-24 removal addendum below: the evidence system of decisions
   1, 3, 4, 5, 6 and 8 is removed. Decision 7 and the ready step's merge-then-flip shape stand.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR

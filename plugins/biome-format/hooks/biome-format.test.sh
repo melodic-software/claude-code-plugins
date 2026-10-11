@@ -16,6 +16,7 @@
 #
 # Requires a real Biome binary: $BIOME_TEST_BIN if set, else `biome` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
+# test-scope: plugins/biome-format/.claude-plugin/plugin.json plugins/biome-format/hooks/hooks.json plugins/biome-format/prerequisites.json
 
 set -uo pipefail
 

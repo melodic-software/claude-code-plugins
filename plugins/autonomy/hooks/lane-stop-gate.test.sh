@@ -23,6 +23,7 @@
 # so this defines its own assertions and builds throwaway inputs with jq. The OS
 # toast is never exercised here (notification channels are disabled on the paths
 # that would fire one) — lane-notify.test.sh covers the notifier.
+# test-scope: plugins/autonomy/hooks/*.sh
 
 set -uo pipefail
 

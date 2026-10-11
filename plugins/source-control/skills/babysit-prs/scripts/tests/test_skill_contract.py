@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/SKILL.md plugins/source-control/skills/babysit-loop/SKILL.md
 """SKILL.md prose contract assertions.
 
 Guards the merge-opt-in mode table, the zero-blocker check-only default, the

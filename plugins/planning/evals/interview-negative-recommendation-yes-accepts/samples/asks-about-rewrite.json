@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the columns the filtered table shows** - ops already reads them.\nBasis: judgment\n\nQ2: Should the React rewrite stay out of this change, as its own follow-up?\nMy recommendation: **Yes, keep it out** - the export is small and the rewrite is not.\nBasis: judgment",
+      "why": "asks about the rewrite"
+    },
+    {
+      "answer": "Round 1\n**Q2: Is rewriting the page in scope?**",
+      "why": "rewriting in a bold question"
+    },
+    {
+      "answer": "Q4: Should we port the page to React now?",
+      "why": "asks about moving the page to React"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q1: Which columns should the CSV include?\nQ2: Should the export respect the current filters?",
+      "why": "never asks about the rewrite"
+    },
+    {
+      "answer": "The React rewrite is out of scope.\nQ1: Which columns should the CSV include?",
+      "why": "states the rewrite decision instead of asking it"
+    },
+    {
+      "answer": "Q1: Is the page already using React components?",
+      "why": "mentions React but does not ask about the rewrite"
+    },
+    {
+      "answer": "Q1: Is the admin page currently written in React?",
+      "why": "asks about the current stack, not the rewrite"
+    }
+  ]
+}
