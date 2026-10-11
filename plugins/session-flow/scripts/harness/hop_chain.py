@@ -941,6 +941,7 @@ def live_runner(cfg: argparse.Namespace):
             "-p",
             "--output-format",
             "json",
+            # Observed: `dontAsk` plus an allow list denied every mutating tool on CLI 2.1.260.
             # The fixture is a throwaway repo, so bypass prompts and pin tools with `--tools`.
             # `permission_prompts_args` adds the no-prompt flag only where the CLI has it.
             "--permission-mode",

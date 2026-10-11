@@ -75,29 +75,37 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 - **Saying nothing about the active `/loop`s on resume.** Never assume a `/loop` survived the
   clear or resume, and never assume it died: a resume prompt that reads only as a one-shot
   continuation silently drops a loop that did not come back, with no error to signal it, while
-  re-arming a loop that did come back schedules it twice. Which tasks a resume restores is
-  upstream behavior (the Limitations section below names exceptions, such as a self-paced
-  `/loop`), so before the re-arm messages are sent, the resumed session lists its scheduled tasks
+  re-arming a loop that did come back schedules it twice. Which tasks a resume restores, and
+  which it does not, is upstream behavior: read it live at the pointer below. So before the
+  re-arm messages are sent, the resumed session lists its scheduled tasks
   and only the recorded loops missing from that list are re-armed. Each re-arm is a SEPARATE follow-up message carrying the ORIGINAL
   loop prompt, one per missing loop, never the resume
   directive wrapped in `/loop`. The engine's counted entry header labels each re-arm inside the
   save-point's own output so a consumer can find its edges (engine doc, "Emit the copy/paste
   resume prompt"); the header is not part of what gets sent, and the follow-up message itself
-  begins with `/loop`, because we never rely on a command anywhere but at the start of a message.
+  begins with `/loop`, because the Commands page recognizes a command only at the start of a
+  message (pointer below).
   `/loop` re-runs the prompt it was given on every iteration, and a save-point is an immutable
   record of one moment, so wrapping the directive would have every later tick re-read that frozen
   file and replay a remainder already done, instead of doing the loop's actual recurring job.
-  - **Pointer**: [Run prompts on a schedule § Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations)
+  - **Pointer**: [Run prompts on a schedule § Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations),
+    for which tasks a resume restores; [Commands](https://code.claude.com/docs/en/commands),
+    the introduction above § Commands across a typical workflow, for where a command is
+    recognized.
   - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which tasks a resume restores, or a release note
-    names session-scoped scheduled tasks or `/loop` across `/clear`.
-- **A `/goal ...` first line inside the pasted block.** We never rely on a command anywhere but at
-  the start of a message (our rule; no docs section states it), so a `/goal <condition>` line
-  pasted from a rails prompt is treated as setting nothing, while the handoff looks complete. The
+  - **Recheck trigger**: the Limitations section changes which tasks a resume restores, the
+    Commands introduction changes where a command is recognized, or a release note names
+    session-scoped scheduled tasks or `/loop` across `/clear`.
+- **A `/goal ...` first line inside the pasted block.** The Commands page recognizes a command
+  only at the start of a message (pointer below), so a `/goal <condition>` line pasted inside a
+  rails prompt sets nothing, while the handoff looks complete. The
   goal region therefore holds the condition alone, under an instruction that has the user type
   `/goal` and a space by hand, paste the region, and check that the goal shows as active (engine
   doc, "Emit the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails.
   - **Pointer**: [Keep Claude working toward a goal § Set a goal](https://code.claude.com/docs/en/goal#set-a-goal),
-    for the command syntax and the active-goal indicator.
+    for the command syntax and the active-goal indicator;
+    [Commands](https://code.claude.com/docs/en/commands), the introduction above § Commands
+    across a typical workflow, for where a command is recognized.
   - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes the `/goal` syntax or the indicator.
+  - **Recheck trigger**: the Set a goal section changes the `/goal` syntax or the indicator, or
+    the Commands introduction changes where a command is recognized.
