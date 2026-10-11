@@ -57,7 +57,7 @@ Hooks run logic at specific points in the agent lifecycle:
 - **PermissionRequest**: route permission prompts to WhatsApp for mobile approve/deny
 - **Stop**: poke Claude to keep going whenever it stops
 
-Docs: https://code.claude.com/docs/en/hooks
+Docs: https://code.claude.com/docs/en/hooks#hook-events
 
 See also: [Section 6: Hooks](foundations.md)
 

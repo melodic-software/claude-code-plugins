@@ -46,8 +46,9 @@ survives. Check the page's model list before relying on it; on a model it exclud
 the request's `system` parameter. Turn-scoped system messages are a separate beta.
 
 - **Pointer**: for availability and placement, see
-  [Mid-conversation system messages and tool changes](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
-  and
+  [When to use a mid-conversation system message](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#when-to-use-a-mid-conversation-system-message),
+  [Limitations](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#limitations)
+  (anchors checked 2026-10-11), and
   [Combining with prompt caching](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#combining-with-prompt-caching).
 - **As of**: 2026-09-28
 - **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
@@ -56,7 +57,7 @@ the request's `system` parameter. Turn-scoped system messages are a separate bet
 ## Effort and the cache
 
 Treat a top-level effort change as a cache break. Where the model supports per-message effort,
-change effort per message instead; on a model the beta excludes, the per-message form is an error.
+change effort per message instead, after checking the pointed section's model list.
 Batch model or effort changes into moments the cache is already broken, such as compaction, since
 those rewrite most of the conversation anyway.
 
@@ -109,17 +110,16 @@ with long waits when the extra write cost pays for itself.
 
 Monitor the cache hit rate, and when requests miss, use the cache diagnostics API to find the layer
 of the request to stabilize. Read the page for its availability by platform and whether a beta
-header is still needed; our 2026-09-28 read found it generally available on the Claude API with the
-old beta header no longer required.
+header is needed before wiring it in.
 
 A Claude Console request-comparison view for the same data is unconfirmed: no docs page we fetched
 covers it. Treat it as unconfirmed until a Console-side check or a docs page settles it
 (correlate with <https://claude.com/blog/reducing-cost-and-improving-performance-with-claude-platform>).
 
 - **Pointer**: for miss reasons and availability, see
-  [Cache diagnostics](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics) and
+  [How cache diagnostics works](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#how-cache-diagnostics-works) and
   [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types).
-- **As of**: 2026-09-28
+- **As of**: 2026-10-11
 - **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
   an API release note touching this topic.
 
@@ -134,8 +134,8 @@ covers it. Treat it as unconfirmed until a Console-side check or a docs page set
 - **Profile before trimming.** Use the Usage and Cost Admin API to see where an organization's
   tokens go; an application without an Admin key logs each response's `usage` object instead.
   Pointer: for the Admin API, see
-  [Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api). As of:
-  2026-09-28. Recheck trigger: a re-read of that page no longer supporting this row.
+  [Which API do you need](https://platform.claude.com/docs/en/manage-claude/usage-cost-api#which-api-do-you-need).
+  As of: 2026-10-11. Recheck trigger: a re-read of that page no longer supporting this row.
 - **Bound output where the task allows.** Constraining an agent's output length is an
   API-request cost lever. It is scope-disjoint from instruction-surface hygiene: a numeric
   output ceiling written into a skill body is an anti-pattern the prompt-audit discipline
@@ -157,5 +157,5 @@ skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in 
 `docs-hygiene` extract-ssot skill's anti-patterns reference.
 
 What a Claude Code session itself does to the cache, and why its usage climbs as it runs, are on
-[How Claude Code uses prompt caching](https://code.claude.com/docs/en/prompt-caching) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
+[Actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
 (checked 2026-10-01; recheck when either section moves).

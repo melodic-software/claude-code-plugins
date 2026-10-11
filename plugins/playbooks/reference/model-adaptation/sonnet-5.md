@@ -1,13 +1,12 @@
 # Running this playbook on Claude Sonnet 5
 
-This playbook treats Sonnet 5 as fallback-only. A session reaches you when Claude Code's
-content-based fallback moves a flagged request from a current model to Sonnet 5, and the session
-continues on you. Keep this chapter while that fallback names Sonnet 5 as a target; retire it when
-it stops.
+This playbook treats Sonnet 5 as fallback-only: a session reaches you through Claude Code's
+automatic model fallback and continues on you. Keep this chapter while that fallback names Sonnet 5
+as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Sonnet 5, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-11
 - **Recheck trigger**: that section no longer names Sonnet 5 as a fallback target.
 
 > **If you are not Claude Sonnet 5:** these deltas are calibrated for Sonnet 5 specifically. They

@@ -50,13 +50,13 @@ Verification support exists before anyone writes anything custom, and it spans t
 |---|---|---|
 | `/verify` | The change has a running app to drive; offer it to the person rather than invoking it | [Skills: Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) |
 | Toolchain | Always first: a test suite, build, linter, or fixture-diff script whose exit code you read inside the loop, using the commands the project's CLAUDE.md names rather than ones you infer | [Best practices: Give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work), [Memory: Set up a project CLAUDE.md](https://code.claude.com/docs/en/memory#set-up-a-project-claude-md) |
-| Code Review | The project wants hosted pull-request review; it is a separate product, so confirm the repository has it before a plan depends on it | [Code Review](https://code.claude.com/docs/en/code-review) |
+| Code Review | The project wants hosted pull-request review; it is a separate product, so confirm the repository has it before a plan depends on it | [Code Review: Set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review) |
 | GitHub Actions | The same verification skill should also run in CI | [GitHub Actions: Run a skill](https://code.claude.com/docs/en/github-actions#run-a-skill) |
-| Spec validation | Checking each change against a markdown spec in the repository: **a pattern, not a shipped artifact** | **None.** Build it as a repo-local [skill](https://code.claude.com/docs/en/skills) |
+| Spec validation | Checking each change against a markdown spec in the repository: **a pattern, not a shipped artifact** | **None.** Build it as a repo-local [skill](https://code.claude.com/docs/en/skills#create-your-first-skill) |
 | Rubrics in Claude Managed Agents | The work runs on that platform API product, not in this harness | [Managed Agents: define outcomes](https://platform.claude.com/docs/en/managed-agents/define-outcomes) |
 
 - **Pointer**: for each surface, the row's Canonical page.
-- **As of**: 2026-10-01
+- **As of**: 2026-10-01 (Code Review and skill rows re-anchored 2026-10-11)
 - **Recheck trigger**: a row's page moves its section, or the surface it covers is added, removed, or changes product.
 
 The two rows carrying no harness artifact are the ones to read twice:
