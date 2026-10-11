@@ -16,7 +16,7 @@ session it watches. Three legs:
      the primary, crash-safe signal. It cannot distinguish a long single turn
      from end -- keep --idle-seconds above the longest expected single turn.
   3. POST-END ANALYSIS (optional, --analysis). On idle-detect, fire a headless
-     `claude -p --bare --model <cheap>` that reads the observations and follows
+     `claude -p --model <m> --effort <e>` that reads the observations and follows
      running-retro's checkpoint method, then append its RETURNED findings block
      to this session's running-retro ledger. The -p run is the sole semantic
      redaction pass; this script only appends the block it returns and then
@@ -40,11 +40,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from shutil import which
 
-_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+_PLUGIN_DIR = Path(__file__).resolve().parents[3]
+_PLUGIN_SCRIPTS = str(_PLUGIN_DIR / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
+
+
+def user_config_default(key: str) -> str:
+    """The plugin.json userConfig default for `key`, the single source of defaults."""
+    manifest = json.loads(
+        (_PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    return str(manifest["userConfig"][key]["default"])
 
 
 def now_iso() -> str:
@@ -314,7 +323,8 @@ class Observer:
         self.analysis_timeout_secs = args.analysis_timeout_seconds
         self.analysis = args.analysis
         self.bare = args.bare
-        self.model = args.model
+        self.model = args.model or user_config_default("observer_analysis_model")
+        self.effort = args.effort or user_config_default("observer_analysis_effort")
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
         self.prev_running_retro = args.previous_running_retro
@@ -705,6 +715,8 @@ class Observer:
         cmd += [
             "--model",
             self.model,
+            "--effort",
+            self.effort,
             "--permission-mode",
             "dontAsk",
             # Unattended print run: dontAsk already denies anything that would
@@ -724,6 +736,12 @@ class Observer:
             "--allowedTools",
             "Read",
             "--strict-mcp-config",
+            # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, and the child re-applies
+            # it from any settings file's `env`, replacing what it inherits. A
+            # --settings `env` outranks user, project and local settings, so pin
+            # the variable to the chosen effort there. See reference/observer.md.
+            "--settings",
+            json.dumps({"env": {"CLAUDE_CODE_EFFORT_LEVEL": self.effort}}),
             *add_dirs,
         ]
 
@@ -731,7 +749,11 @@ class Observer:
         # re-arming on `sdk-cli` entrypoint, but mark the environment explicitly
         # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
-        self.log(f"firing analysis: {self.model} over {self.obs_path.name}")
+        # An exported variable may outrank the --settings pin; drop it too.
+        env.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
+        self.log(
+            f"firing analysis: {self.model} at {self.effort} over {self.obs_path.name}"
+        )
         run_kwargs: dict = {}
         if os.name == "nt":
             # CREATE_NO_WINDOW -- the observer process itself is already spawned
@@ -773,7 +795,7 @@ class Observer:
             return False
         # `claude -p` reports auth/API failures inside its JSON body (is_error) with
         # exit 0 sometimes and exit 1 others; inspect both.
-        err = _result_error(proc.stdout)
+        err = _result_error(proc.stdout) or _incomplete_reason(proc.stdout)
         if proc.returncode != 0 or err:
             self.log(
                 f"analysis exit {proc.returncode}: "
@@ -891,7 +913,7 @@ def _extract_result(stdout: str) -> str:
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
-        return stdout.strip()
+        return ""
     if isinstance(data, dict):
         if data.get("is_error"):
             return ""
@@ -980,6 +1002,28 @@ def _result_error(stdout: str) -> str:
         return ""
     if isinstance(data, dict) and data.get("is_error"):
         return str(data.get("result") or data.get("terminal_reason") or "api_error")
+    return ""
+
+
+def _incomplete_reason(stdout: str) -> str:
+    """Return why the -p run did not finish cleanly, or "" when it did.
+
+    Non-JSON output, a `terminal_reason` other than completed, a `subtype`
+    other than success, or any permission denial each fail the run.
+    """
+    try:
+        data = json.loads(stdout)
+    except json.JSONDecodeError:
+        return "output is not JSON"
+    if not isinstance(data, dict):
+        return "output is not a JSON object"
+    terminal = data.get("terminal_reason")
+    if terminal is not None and terminal != "completed":
+        return f"terminal_reason {terminal}"
+    if data.get("subtype") != "success":
+        return f"subtype {data.get('subtype')}"
+    if data.get("permission_denials"):
+        return f"{len(data['permission_denials'])} permission denial(s)"
     return ""
 
 
@@ -1123,7 +1167,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="prior session id paired with --previous-running-retro",
     )
-    p.add_argument("--model", default="claude-haiku-4-5")
+    p.add_argument(
+        "--model",
+        default="",
+        help="analysis model; empty = the plugin.json userConfig default",
+    )
+    p.add_argument(
+        "--effort",
+        default="",
+        help="analysis effort; empty = the plugin.json userConfig default",
+    )
     p.add_argument(
         "--analysis",
         action="store_true",
