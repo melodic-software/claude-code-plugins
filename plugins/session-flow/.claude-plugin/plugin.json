@@ -48,13 +48,13 @@
     "observer_analysis_model": {
       "type": "string",
       "title": "Observer analysis model",
-      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-opus-5-5, was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
+      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
       "default": "claude-opus-5-5"
     },
     "observer_analysis_effort": {
       "type": "string",
       "title": "Observer analysis effort",
-      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The default, medium, is passed explicitly; the run drops CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
+      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
       "default": "medium"
     },
     "observer_analysis_bare": {

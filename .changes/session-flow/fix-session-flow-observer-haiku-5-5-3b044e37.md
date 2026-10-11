@@ -5,9 +5,12 @@ bump: minor
 ### Added
 
 - `observer_analysis_effort` sets the effort level of the observer's post-session analysis run,
-  passed as `--effort` (default `medium`). The run drops `CLAUDE_CODE_EFFORT_LEVEL` from its
-  environment, because that variable overrides `--effort`
+  passed as `--effort` (default `medium`). The run also pins `CLAUDE_CODE_EFFORT_LEVEL` to that
+  level through `--settings`, because the variable overrides `--effort` and a settings file's `env`
+  would otherwise re-apply it
   ([env-vars precedence](https://code.claude.com/docs/en/env-vars#precedence)).
+- The observer scripts read the model and effort defaults from `plugin.json` `userConfig` instead
+  of repeating them.
 
 ### Changed
 

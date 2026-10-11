@@ -1264,8 +1264,13 @@ class LedgerAndRetention(unittest.TestCase):
                 observer._find_claude = orig
             self.assertTrue(ob.obs_path.exists())
 
-    def test_effort_reaches_the_analysis_command(self):
-        for overrides, expected in (({}, "medium"), ({"effort": "high"}, "high")):
+    def test_unset_model_and_effort_come_from_the_manifest(self):
+        manifest_path = observer._PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["userConfig"]
+        for overrides, effort in (
+            ({}, manifest["observer_analysis_effort"]["default"]),
+            ({"effort": "high"}, "high"),
+        ):
             with tempfile.TemporaryDirectory() as d:
                 tmp = Path(d)
                 ob = make_observer(tmp, analysis=True, session_id="ef", **overrides)
@@ -1274,28 +1279,20 @@ class LedgerAndRetention(unittest.TestCase):
                 with fake_analysis_run(captured):
                     self.assertTrue(ob._run_analysis())
                 cmd = captured["cmd"]
-                self.assertEqual(cmd[cmd.index("--effort") + 1], expected)
-                self.assertEqual(cmd[cmd.index("--model") + 1], "claude-opus-5-5")
-
-    def test_effort_env_var_is_stripped_from_the_run(self):
-        # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, so the child must not see it.
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            ob = make_observer(tmp, analysis=True, session_id="env")
-            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
-            captured: dict = {}
-            saved = os.environ.get("CLAUDE_CODE_EFFORT_LEVEL")
-            os.environ["CLAUDE_CODE_EFFORT_LEVEL"] = "max"
-            try:
-                with fake_analysis_run(captured):
-                    self.assertTrue(ob._run_analysis())
-            finally:
-                if saved is None:
-                    os.environ.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
-                else:
-                    os.environ["CLAUDE_CODE_EFFORT_LEVEL"] = saved
-            self.assertNotIn("CLAUDE_CODE_EFFORT_LEVEL", captured["env"])
-            self.assertEqual(captured["env"]["SESSION_FLOW_OBSERVER_ANALYSIS"], "1")
+                self.assertEqual(cmd[cmd.index("--effort") + 1], effort)
+                self.assertEqual(
+                    cmd[cmd.index("--model") + 1],
+                    manifest["observer_analysis_model"]["default"],
+                )
+                # A settings-file `env` re-applies CLAUDE_CODE_EFFORT_LEVEL in the
+                # child and it overrides --effort; --settings outranks those files.
+                settings = json.loads(cmd[cmd.index("--settings") + 1])
+                self.assertEqual(
+                    settings, {"env": {"CLAUDE_CODE_EFFORT_LEVEL": effort}}
+                )
+                # --settings must precede the variadic --add-dir block.
+                self.assertLess(cmd.index("--settings"), cmd.index("--add-dir"))
+                self.assertEqual(captured["env"]["SESSION_FLOW_OBSERVER_ANALYSIS"], "1")
 
     def test_incomplete_run_retains_observations(self):
         cases = {
@@ -1636,7 +1633,7 @@ class ArmLauncher(unittest.TestCase):
                 "--plugin-root",
                 str(tmp),
                 "--model",
-                "claude-opus-5-5",
+                "test-model",
                 # Analysis-free (no `claude -p` call) keeps this fast and
                 # hermetic; the spawn call itself -- the site of the bug --
                 # is still real. --idle-seconds is set well above the time

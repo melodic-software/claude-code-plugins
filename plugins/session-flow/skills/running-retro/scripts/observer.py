@@ -40,11 +40,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from shutil import which
 
-_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+_PLUGIN_DIR = Path(__file__).resolve().parents[3]
+_PLUGIN_SCRIPTS = str(_PLUGIN_DIR / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
 from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
+
+
+def user_config_default(key: str) -> str:
+    """The plugin.json userConfig default for `key`, the single source of defaults."""
+    manifest = json.loads(
+        (_PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    return str(manifest["userConfig"][key]["default"])
 
 
 def now_iso() -> str:
@@ -314,8 +323,8 @@ class Observer:
         self.analysis_timeout_secs = args.analysis_timeout_seconds
         self.analysis = args.analysis
         self.bare = args.bare
-        self.model = args.model
-        self.effort = args.effort
+        self.model = args.model or user_config_default("observer_analysis_model")
+        self.effort = args.effort or user_config_default("observer_analysis_effort")
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
         self.prev_running_retro = args.previous_running_retro
@@ -727,15 +736,19 @@ class Observer:
             "--allowedTools",
             "Read",
             "--strict-mcp-config",
+            # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, and the child re-applies
+            # it from any settings file's `env`, replacing what it inherits. A
+            # --settings `env` outranks user, project and local settings, so pin
+            # the variable to the chosen effort there. See reference/observer.md.
+            "--settings",
+            json.dumps({"env": {"CLAUDE_CODE_EFFORT_LEVEL": self.effort}}),
             *add_dirs,
         ]
 
         # The analysis run itself starts sessions; the arming hook guards against
         # re-arming on `sdk-cli` entrypoint, but mark the environment explicitly
         # so nested tooling can also tell this is the observer's own analysis.
-        # CLAUDE_CODE_EFFORT_LEVEL is dropped because it overrides --effort.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
-        env.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
         self.log(
             f"firing analysis: {self.model} at {self.effort} over {self.obs_path.name}"
         )
@@ -1152,11 +1165,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="prior session id paired with --previous-running-retro",
     )
-    p.add_argument("--model", default="claude-opus-5-5")
+    p.add_argument(
+        "--model",
+        default="",
+        help="analysis model; empty = the plugin.json userConfig default",
+    )
     p.add_argument(
         "--effort",
-        default="medium",
-        help="effort level passed to the analysis run",
+        default="",
+        help="analysis effort; empty = the plugin.json userConfig default",
     )
     p.add_argument(
         "--analysis",

@@ -19,8 +19,8 @@
 # Config (consumer settings `env`, via userConfig; all optional):
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED           master opt-in (default false)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED  post-end analysis (default true)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (default claude-opus-5-5)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT   analysis effort level (default medium)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (unset: plugin.json userConfig default)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT   analysis effort (unset: plugin.json userConfig default)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE     pass --bare (default false; see reference/observer.md)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS      mtime-idle end threshold (default 900)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS      poll interval (default 5)
@@ -64,8 +64,9 @@ LEDGER_DIR="$MEMORY_DIR/running-retros"
 # Transient observations are machine-local plugin state, never the consumer repo.
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
-MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-opus-5-5}"
-EFFORT="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-medium}"
+# Empty model or effort = observer.py reads the plugin.json userConfig default.
+MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
+EFFORT="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-}"
 IDLE="${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
 POLL="${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
 MAX="${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}"
