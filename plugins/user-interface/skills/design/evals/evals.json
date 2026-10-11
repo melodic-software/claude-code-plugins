@@ -79,6 +79,28 @@
       "expectations": [
         "The response routes the review to /user-interface:audit-animation or the animation-audit concern"
       ]
+    },
+    {
+      "id": 8,
+      "name": "touch-web-guidance-read",
+      "prompt": "Design the mobile web version of our signup form. Most people fill it in on their phones.",
+      "expected_output": "The skill reads web.md and, because the form is used by touch on phones, touch-web.md; the answer applies touch guidance such as press feedback without hover dependence, target sizes that meet the WCAG target size criterion, the right on-screen keyboard per field, no zoom lock, and safe viewport sizing.",
+      "files": [],
+      "expectations": [
+        "The answer reads or cites touch-web.md or applies at least three of its rules (hover gating, target size, input keyboard, no zoom lock, viewport units)",
+        "The answer does not lock zoom"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "installed-component-library-kept",
+      "prompt": "We need a date picker for the booking form. Our app already uses a headless component library for its dialogs and menus. What should we use?",
+      "expected_output": "With nothing routed for the concern, the skill answers from component-libraries.md: it prefers the library the project already uses (or a picker built on the same primitives) and does not churn the installed dependency, choosing on accessibility, stack fit, maintenance and license.",
+      "files": [],
+      "expectations": [
+        "The answer prefers the component library already in the project, or explains why it cannot cover a date picker",
+        "The answer does not propose replacing the installed library"
+      ]
     }
   ]
 }

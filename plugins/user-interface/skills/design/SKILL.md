@@ -85,7 +85,8 @@ the user its slash command. Say which route you took and why.
 - When two routes conflict on the same decision, the higher rank wins (the project above all), and
   you say which advice you set aside.
 - With nothing installed or reachable for a concern, answer from this plugin's own guidance, and
-  you may name the free tool that would help. Never install anything without the user's yes.
+  you may name the free tool that would help. For the `component-libraries` concern that guidance
+  is `${CLAUDE_PLUGIN_ROOT}/reference/component-libraries.md`. Never install anything without the user's yes.
 
 ## Rules that hold in every answer
 

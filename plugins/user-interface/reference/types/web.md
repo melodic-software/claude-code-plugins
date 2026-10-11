@@ -30,7 +30,10 @@ Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
 - Type: the project's fonts; otherwise the platform's system font stack, a small modular scale, line
   length near 60-75 characters for body text.
 - States: design loading, empty, error and success for every view that fetches data.
-- Responsive: start narrow, add columns as width allows, test at phone and desktop widths.
+- Responsive: start narrow, add columns as width allows, test at phone and desktop widths. When
+  people will use it by touch or on a phone, also read `touch-web.md` in this folder.
+- Components: choose a library for dialogs, menus, toasts and the like with
+  `../component-libraries.md`, keeping one the project already uses.
 - Accessibility: the floor in `principles.md`, with WCAG contrast measured, labels on every input,
   and focus visible.
 

@@ -11,6 +11,8 @@ bump: minor
 - `/user-interface:write-animation`: decides whether an element should animate and why, names the stack from the project's files, looks up its current animation guidance (a vendor skill, then docs lookup, research, official docs, repo patterns), and writes one animation from the project's motion tokens with reduced motion included; CSS is written through `/user-interface:write-css`.
 - `/user-interface:audit-animation [tree|opportunities|performance] [--fix] [<target>]`: a read-only animation review of the diff, the whole tree, the opportunities (and where not to animate) or the frame cost, each finding with severity and "verified from code" or "needs a device recording"; CSS goes through write-css review mode first, and `--fix` applies one finding at a time after a yes.
 - `scripts/detect.mjs --config` warns about a team routing row or `disable` entry that names a concern no bundled row has, so a renamed concern no longer goes quiet.
+- `reference/types/touch-web.md`: capability-based guidance for web interfaces used by touch (hover and press, target sizes, viewport and safe areas, on-screen keyboards, scroll and gestures, hardware verification), read from `web.md` when people use the interface on a phone.
+- `reference/component-libraries.md`: framework-neutral criteria for choosing a component library (headless or styled, accessibility, stack fit, maintenance, license, weight), preferring one the project already uses; `/user-interface:design` answers the `component-libraries` concern from it when no tool is routed.
 
 ### Changed
 
