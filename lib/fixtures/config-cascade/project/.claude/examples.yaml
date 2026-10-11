@@ -1,0 +1,3 @@
+# Another plugin's file whose name shares a prefix: not legacy for "example".
+widget:
+  mode: fast
