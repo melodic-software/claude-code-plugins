@@ -164,12 +164,12 @@ them live when a command's output, or the files you find, do not match the entry
 
 - **Pointer**: [Run hooks in the background](https://code.claude.com/docs/en/hooks#run-hooks-in-the-background),
   for which hooks hold the turn's end. The hook-timing record `stop-hook-timing` reads is on no
-  docs page; its shape, and which hooks it leaves untimed, is the observation in
-  [#6784](https://github.com/melodic-software/claude-code-plugins/issues/6784) and its PR.
+  docs page; its shape, and which hooks it leaves untimed, is the observation (Claude Code 2.1.296)
+  in [#6784](https://github.com/melodic-software/claude-code-plugins/issues/6784) and its PR.
 - **As of**: 2026-10-11
-- **Recheck trigger**: the hooks page documents a per-hook timing record; `stop-hook-timing`
-  prints `records` 0 for a transcript of a session whose Stop hooks ran; or a background hook
-  appears under `hooks` with a duration.
+- **Recheck trigger**: the hooks page documents a per-hook timing record or an async flag in
+  transcript records; `stop-hook-timing` prints `records` 0 for a transcript of a session whose
+  Stop hooks ran; or a background hook appears under `hooks` with a duration.
 
 ## git
 
@@ -221,21 +221,24 @@ them live when a command's output, or the files you find, do not match the entry
   From the fallback instead: one measured finding per entry in `hooks` whose `p50_ms` is not
   null: unit `elapsed-ms`, value `p95_ms`, or `p50_ms` when `p95_ms` is null, title naming the
   hook as printed, its `p50_ms`, its `p95_ms` (or "p95 needs 20 samples"), its `samples`, and
-  "Stop event only", tier E1 (one hook's own duration, recorded by the harness before this sweep),
-  workload `stop hook durations, this session`, `command` the stop-hook-timing line, `fix_owner`
-  `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`. Every hook under
-  `untimed` stays out of that ranking: this area ranks only time that holds the turn's end, and
-  in the observation the hook-timing pointer above records, the background (`async`,
-  `asyncRewake`) hooks are the ones with no duration. Add one `not-checked` finding, `no-data`,
-  reason "no duration recorded for <the untimed hooks, comma-separated>; this ranking applies
-  only to hooks the harness timed".
+  "Stop event only; ranks only hooks with a recorded duration, assumed to block", tier E1 (one
+  hook's own duration, recorded by the harness before this sweep), workload
+  `stop hook durations, this session`, `command` the stop-hook-timing line, `fix_owner`
+  `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`. The fallback reads
+  no hook configuration, so it rests on two assumptions, both from the observation the hook-timing
+  pointer above records and neither confirmed: every hook with a recorded duration holds the
+  turn's end, since the record carries no async flag; and every hook under `untimed` is a
+  background (`async`, `asyncRewake`) hook. Each `untimed` hook stays out of the ranking. Add one
+  `not-checked` finding, `no-data`, reason "no duration recorded for <the untimed hooks,
+  comma-separated>; assumed background (async/asyncRewake), not confirmed against the hooks
+  configuration".
 - **Not checked**: no rows, or it cannot evaluate, and the fallback measured nothing: `no-data`,
   reason "no hook latency rows; /harness-ops:observability says it needs <the telemetry it
   names>, and no Stop hook in this session's transcript was timed twice; set up that telemetry
   and rerun /performance:go-faster". Not in the listing, or the call fails, and the
   fallback measured nothing: `owner-unavailable`, with the owner-call table's reason. With
   fallback findings, these are not added: the fallback titles say the area covers the Stop event
-  only.
+  only and name the blocking assumption.
 - **Guard**: a hook that blocks, denies or asks is a guard. A finding that would disable, skip or
   narrow one is `flag-only`. A slow guard is reported by its time only; making it faster without
   changing what it stops is `/harness-ops:audit-performance`'s to judge.

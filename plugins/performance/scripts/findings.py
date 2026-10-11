@@ -64,7 +64,9 @@ entry with a non-negative `durationMs` is a timed sample; one without is counted
 and never ranked. Per hook it prints `samples`, `max_ms`, and `p50_ms` and `p95_ms` by linear
 interpolation, each null below the sample count the percentile needs (2 and 20). `records`
 counts the summary records read. Hooks are shown as repeated commands are, sorted slowest first
-by p95, then p50, then max.
+by p95, then p50, then max. The record carries no async flag and the config is not read, so which
+hooks block is the caller's assumption: `untimed` is not known to be the background hooks, and a
+timed hook is not known to block.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
