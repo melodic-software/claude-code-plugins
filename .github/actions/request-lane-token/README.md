@@ -79,7 +79,7 @@ The job needs `permissions: id-token: write`, and so does the caller job that gr
 With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`; a
 `pr-number`, effect or grant fails it red, so the read file's check job never carries the write
 path's inputs. It posts once to `broker-url` with its final `/token` replaced by `/check` (a URL
-not ending in `/token` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
+that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
 whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red
 with `lane-check-denied`; no response is `broker-unreachable`. It sets no output.
 

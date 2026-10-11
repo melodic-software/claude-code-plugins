@@ -108,6 +108,18 @@ red, not neutral, for the same reason as the write file's `kill-switch` denial: 
 stopped the common case. Off `pull_request`, a failed broker-check job posts no check, since no
 head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
 
+The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
+(`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+so in the read file, right after its own kill-switch step proceeds, the run job fails red with
+`kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
+a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
+Re-running all jobs asks the broker again.
+
+Residual: `scripts/check-read-caller-keys.sh` checks the job's permissions, its shape and its
+`actions/checkout` steps, not what its `run:` steps do. A `run:` step that fetched
+`refs/pull/<n>/head` with git would put head content in the job; review catches that, the lint
+does not.
+
 ## The run job
 
 Holds `contents: read` and `pull-requests: read`, plus `id-token: write` in the write file for
@@ -393,9 +405,12 @@ such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a ke
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
 `claude_code_oauth_token`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
-`secrets[...]` and bare `secrets` fail. It also fails when the read file names `id-token` anywhere
-outside its `broker-check` job, or when that job has an `actions/checkout` step whose `ref` is not
-`${{ github.event.repository.default_branch }}`.
+`secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
+`permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
+job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
+is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
+other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
+`path` and `persist-credentials`.
 
 The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.
@@ -470,7 +485,7 @@ The read file's `broker-check` job sends `POST` to `LANES_BROKER_URL` with its f
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
 `{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
-the job's workflow, and mints and reserves nothing, so a re-run asks again. It answers 200
+the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
 `decision` is `allow` and `lane` and `activity` are its own. Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the

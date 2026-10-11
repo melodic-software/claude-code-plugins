@@ -22,9 +22,12 @@
 #     with `<name>` on the allowlist `claude_code_oauth_token`, `github_token`
 #     (lower-cased, `-` read as `_`); `toJSON(secrets)`, `secrets[...]` and
 #     bare `secrets` fail.
-# The read workflow itself may name `id-token` only inside its `broker-check`
-# job, which runs no PR head code, and every `actions/checkout` step of that
-# job must check out `${{ github.event.repository.default_branch }}`. A missing
+# No file of such a run sets `permissions: write-all`. The read workflow
+# itself must set top-level `permissions: {}` and a permissions map on every
+# job, may name `id-token` only inside its `broker-check` job, which runs no PR
+# head code, and that job must be `steps` (not a reusable call) whose
+# `actions/checkout` steps take only `ref`, `path` and `persist-credentials`,
+# with `ref: ${{ github.event.repository.default_branch }}`. A missing
 # read workflow, or a workflow that does not parse, is an offender, so neither
 # a rename nor a syntax error turns the check into a silent pass.
 #

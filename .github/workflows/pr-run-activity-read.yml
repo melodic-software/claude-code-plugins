@@ -81,6 +81,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    # "Re-run failed jobs" reuses a successful broker-check and its outputs,
+    # so the run job also checks that the allow came from its own attempt.
+    outputs:
+      allowed: ${{ steps.broker.outcome == 'success' }}
+      attempt: ${{ github.run_attempt }}
     steps:
       - name: Assert the default branch is set
         env:
@@ -114,6 +119,7 @@ jobs:
       # The broker repeats the kill switch, including the repository-variable
       # shadow this job cannot see, and checks the job's OIDC claims.
       - name: Ask the broker whether the lane may run
+        id: broker
         if: steps.kill.outputs.proceed == 'true'
         uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
         with:
@@ -198,6 +204,22 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # A broker-check allow from an earlier attempt, reused by "Re-run failed
+      # jobs", or a broker-check that skipped the broker because its own kill
+      # switch read stopped, is not an allow for this attempt: fail red as a
+      # kill-switch stop. Re-running all jobs asks the broker again.
+      - name: Assert the broker allowed this attempt
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          ALLOWED: ${{ needs.broker-check.outputs.allowed }}
+          ALLOWED_ATTEMPT: ${{ needs.broker-check.outputs.attempt }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [ "$ALLOWED" != true ] || [ "$ALLOWED_ATTEMPT" != "$RUN_ATTEMPT" ]; then
+            echo "::error::kill-switch: the broker did not allow run attempt $RUN_ATTEMPT (allowed=$ALLOWED on attempt $ALLOWED_ATTEMPT); re-run all jobs"
+            exit 1
+          fi
 
       # No actor is denied, so a workflow_run read lane still runs after a
       # lanes App bot push (the job if: above already skips the bot's own

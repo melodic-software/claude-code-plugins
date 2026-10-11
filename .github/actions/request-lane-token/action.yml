@@ -112,8 +112,8 @@ runs:
           # check endpoint answers 400 to any body field but lane and activity.
           [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER ]] ||
             fail "check mode takes no effect, grant or PR number"
-          [[ $BROKER_URL == */token ]] ||
-            fail "lane-token-unconfigured: LANES_BROKER_URL does not end in /token, so it names no check endpoint"
+          [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
+            fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
           BROKER_URL="${BROKER_URL%/token}/check"
           ;;
         *) fail "mode must be token or check" ;;
@@ -153,7 +153,9 @@ runs:
         # Exactly one request, with no retry: the broker spends this job's one
         # mint when it answers, and a 200 lost in transit is revoked by nobody,
         # so a second request could only be denied or issue a second token. A
-        # check that gets no answer fails closed; a re-run asks again.
+        # check that gets no answer fails closed. A check is never reserved, so
+        # re-running all jobs asks again; "Re-run failed jobs" reuses an
+        # earlier allow, which the read file's run job refuses.
         status=$(printf 'Authorization: Bearer %s\n' "$oidc" |
           curl -sS --proto '=https' --max-time 60 -o "$response" -w '%{http_code}' -X POST -H @- \
             -H 'Content-Type: application/json' --data-binary "$body" "$BROKER_URL") || status=000

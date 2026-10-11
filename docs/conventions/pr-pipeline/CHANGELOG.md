@@ -12,11 +12,14 @@ the read file must grant `id-token: write`.
   (`LANES_BROKER_URL` with `/token` replaced by `/check`), which mints nothing, and fails on any
   answer but an allow (`lane-check-denied`) or on none (`broker-unreachable`). The report job
   reads that failure as the run result, so the check is a failure, not neutral. The run job still
-  holds no OIDC token.
+  holds no OIDC token, and fails red with `kill-switch` unless the broker-check job allowed its own
+  run attempt, so "Re-run failed jobs" cannot reuse an earlier allow.
 - `request-lane-token` gains `mode: check`, which takes only the broker variables, lane and
   activity and fails red on any write-path input.
 - `scripts/check-read-caller-keys.sh` allows `id-token` in the read file only inside its
-  `broker-check` job, and fails when that job checks out anything but the default branch tip.
+  `broker-check` job, and fails when that job is a reusable call or checks out anything but this
+  repository's default branch tip, when the read file's top level is not `permissions: {}` or a
+  job has no permissions map, and on `permissions: write-all` in any file of a read run.
 - Callers of either file grant `id-token: write` on the calling job.
 - The broker's check endpoint sees a repository variable named `CLAUDE_LANES_DISABLED` that
   shadows the org value, so a shadow no longer lets a read lane run.

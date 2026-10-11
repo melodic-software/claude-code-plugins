@@ -184,17 +184,56 @@ function checkJobOf(file, doc) {
   return yaml.isMap(node) ? node : null;
 }
 
-function checkTipCheckouts(file, job, lineCounter) {
+const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
+
+// The read workflow's shape: an empty top-level grant, an explicit
+// permissions map on every job, and a broker-check job made of steps whose
+// checkouts can only fetch this repository's default branch tip.
+function checkReadShape(file, doc, lineCounter) {
+  const lineOf = (node) =>
+    node?.range ? lineCounter.linePos(node.range[0]).line : 1;
+  const top = doc.get("permissions", true);
+  if (!yaml.isMap(top) || top.items.length > 0) {
+    offenders.push(
+      `${file}:${lineOf(top)}: the read workflow's top-level permissions is not {}`,
+    );
+  }
+  const jobs = doc.get("jobs", true);
+  for (const pair of yaml.isMap(jobs) ? jobs.items : []) {
+    if (
+      !yaml.isMap(pair.value) ||
+      !yaml.isMap(pair.value.get("permissions", true))
+    ) {
+      offenders.push(
+        `${file}:${lineOf(pair.key)}: job ${pair.key?.value} has no explicit permissions map`,
+      );
+    }
+  }
+  const job = checkJobOf(file, doc);
+  if (!job) {
+    return;
+  }
   const steps = job.get("steps", true);
+  if (job.has("uses") || !yaml.isSeq(steps)) {
+    offenders.push(
+      `${file}:${lineOf(job)}: the ${CHECK_JOB} job must be steps, not a reusable-workflow call`,
+    );
+  }
   for (const step of yaml.isSeq(steps) ? steps.items : []) {
     const value = step?.toJSON?.();
     if (
-      typeof value?.uses === "string" &&
-      /^actions\/checkout@/i.test(value.uses.trim()) &&
-      value.with?.ref !== TIP_REF
+      typeof value?.uses !== "string" ||
+      !/^actions\/checkout@/i.test(value.uses.trim())
+    ) {
+      continue;
+    }
+    const withKeys = Object.keys(value.with ?? {});
+    if (
+      value.with?.ref !== TIP_REF ||
+      withKeys.some((key) => !CHECKOUT_WITH.has(key))
     ) {
       offenders.push(
-        `${file}:${lineCounter.linePos(step.range[0]).line}: the ${CHECK_JOB} job checks out a ref other than the default branch tip`,
+        `${file}:${lineOf(step)}: the ${CHECK_JOB} job checks out something other than this repository's default branch tip`,
       );
     }
   }
@@ -203,8 +242,8 @@ function checkTipCheckouts(file, job, lineCounter) {
 function check(file) {
   const { doc, lineCounter } = files.get(file);
   const checkJob = checkJobOf(file, doc);
-  if (checkJob) {
-    checkTipCheckouts(file, checkJob, lineCounter);
+  if (file === READ_WORKFLOW) {
+    checkReadShape(file, doc, lineCounter);
   }
   const inCheckJob = (offset) =>
     checkJob !== null &&
@@ -241,6 +280,16 @@ function check(file) {
         report(
           lineCounter.linePos(pair.value.range[0]).line,
           "passes secrets: inherit",
+        );
+      }
+      if (
+        key === "permissions" &&
+        yaml.isScalar(pair.value) &&
+        String(pair.value.value).trim().toLowerCase() === "write-all"
+      ) {
+        report(
+          lineCounter.linePos(pair.value.range[0]).line,
+          "grants permissions: write-all",
         );
       }
       if (
