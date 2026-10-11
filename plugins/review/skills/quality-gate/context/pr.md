@@ -34,8 +34,9 @@ bundled command's arguments and what each mutates at
 [code-review: review a diff locally](https://code.claude.com/docs/en/code-review#review-a-diff-locally);
 its status as a bundled skill at
 [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills). As of: 2026-10-11.
-Recheck trigger: the code-review page changes its availability note, the check-run section, or the
-argument list, or the bundled command leaves the bundled-skill list.
+Recheck trigger: the code-review page changes its availability note, its set-up section, its
+manual-trigger section, the check-run section, or the argument list, or the bundled command leaves
+the bundled-skill list.
 
 **Mutation gate.** The gate is by effect, not by flag name. It covers the plugin unconditionally,
 the managed service, and any bundled `/code-review` invocation whose arguments, as read live at the

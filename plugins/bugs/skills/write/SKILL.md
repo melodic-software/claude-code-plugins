@@ -154,7 +154,10 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 
 - **`/bug` (built-in command)**: reports a problem with Claude Code itself. It is reserved for the
   person to run; the model does not invoke it. What it includes and where the report goes are read
-  live from its row (see the records file below).
+  live from its row. Pointer: the second row of
+  [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)
+  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
+  pointer and trigger.
 - **This skill (marketplace plugin).** A five-field report for a defect in the person's code,
   grounded in their repository, filed nowhere unless they ask.
 
