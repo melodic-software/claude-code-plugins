@@ -344,7 +344,7 @@ wit_jira_require_ok() {
 # contract"). issuelinks carries each blocker's nested status inline (verified
 # against the official OpenAPI spec: LinkedIssue.fields uses the Fields schema, which
 # includes status.statusCategory), so blocked_by_count needs no second round-trip.
-readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,summary"
+readonly WIT_JIRA_FIELDS="status,assignee,labels,issuetype,parent,issuelinks,summary,created"
 # WIT_JIRA_FIELDS and WIT_JIRA_NORMALIZE_PROGRAM (below) are consumed by the sourcing
 # verb scripts, not within this file; export so a standalone lint of this sourced-only
 # file sees them as intentionally external.
@@ -422,7 +422,7 @@ wit_jira_blocker_resolutions() {
 # lib. It is a jq program string, so it is not exported (an exported quoted program
 # trips SC2089/2090); the disable marks it intentionally external instead.
 # shellcheck disable=SC2016,SC2034  # jq program — $sv/$site/$dk/$blk/$res are jq args, not bash; used by verb scripts
-readonly WIT_JIRA_NORMALIZE_PROGRAM='
+readonly WIT_JIRA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
   def keyparts: (capture("^(?<p>[A-Za-z][A-Za-z0-9_]*)-(?<n>[0-9]+)$")
     // error("jira: unparsable issue key: " + (. | tostring)));
   def qualify: (keyparts | "jira:" + $site + "/" + .p + "#" + .n);
@@ -442,5 +442,6 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM='
     blocked_by_count: ([blockers[] | select((done | not) or class != "resolved")] | length),
     blocked_by_wont_do_count: ([blockers[] | select(done and class == "wont_do")] | length),
     parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
-    url: ("https://" + $site + "/browse/" + .key)
+    url: ("https://" + $site + "/browse/" + .key),
+    created_at: (.fields.created | wit_utc_ts)
   }'

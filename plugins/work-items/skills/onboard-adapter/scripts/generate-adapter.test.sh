@@ -542,7 +542,7 @@ assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DI
 
 ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
 # The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier
-# (core-derived) and list-items (adapter-only).
+# (core-derived) and list-items (each in an arm of its own).
 DISPATCH_VERB_LIST="$({
   awk '/case "\$verb" in/ { getline; print; exit }' "$SEAM/work-item-tracker.sh" | sed 's/).*//' | tr -d ' ' | tr '|' '\n'
   echo list-items
