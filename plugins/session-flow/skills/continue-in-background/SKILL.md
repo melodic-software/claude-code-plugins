@@ -188,8 +188,8 @@ change, because the cloud VM clones the GitHub remote at the current branch, nev
    follow-ups fail after the CLI switches accounts, and the repo's plugins load only when that
    account's cloud environment runs the repo's setup script.
 
-- **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#from-terminal-to-cloud>,
-  <https://code.claude.com/docs/en/claude-code-on-the-web#from-cloud-to-terminal>,
+- **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
   <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
   session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
 - **As of**: 2026-10-11
