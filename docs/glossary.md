@@ -87,6 +87,38 @@ rule), Missing concept (a domain idea the prompt never named). The output contra
 `discovery:blindspot`; the taxonomy's rationale in
 [`finding-your-unknowns.md`](finding-your-unknowns.md).
 
+**work item** (short: **item**)
+
+A node in the tracker's dependency graph, the same node through planning, implementation and
+review. *Ticket* and *issue* are accepted synonyms for the same concept, not separate ones.
+
+**container**
+
+An ordinary work item marked as a navigable graph root (a wayfind map or a decompose breakdown),
+grouping the items beneath it. It is never claimable, so it is never on its own frontier.
+
+**spec container**
+
+The container `/work-items:decompose` publishes over one plan or spec, standing for one macro
+journey (discovery through review) whose items share one execution shape.
+
+**frontier**
+
+The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
+to one container, it is that container's frontier.
+
+**slice**
+
+A work item cut as a vertical slice: a narrow but complete path through every layer, verifiable on
+its own and small enough to finish in one fresh context window.
+
+Avoid: slice for the topic folder; write **memory slice** in full
+
+**memory slice**
+
+The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) that holds a topic's
+plans and research. Checkout-local and never committed.
+
 ## Rejected terms
 
 Names considered for a concept this project already owns, recorded so they are not reintroduced.
@@ -101,6 +133,7 @@ Each maps to the term or doctrine that owns the concept.
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
+| slice *(the topic-folder sense)* | **memory slice** above; bare "slice" means a work item |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
 
 ## Provenance
@@ -115,3 +148,9 @@ Materialization of this file was tracked as
 adopted at the finding-your-unknowns integration sign-off (2026-09-01); the decision record is
 [ADR 0025](adr/0025-adopt-the-unknowns-corpus-as-judgment-preserving-contract-deltas.md) and the
 shipping PR carries the full decision sheet.
+
+"work item" through "memory slice" and the slice rejected-terms row record vocabulary the
+`work-items` plugin already uses; definitions follow
+[`execution-shape.md`](../plugins/work-items/reference/execution-shape.md) "Vocabulary" and the
+tracker contract's "Containers and state". Tracked as
+[#6940](https://github.com/melodic-software/claude-code-plugins/issues/6940).
