@@ -1,6 +1,6 @@
 ---
-description: "Audit your own Claude Code sessions for wasted time, tokens and corrections: collect every transcript on this machine into a durable local store, then sweep it for sessions over this machine's own thresholds, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'why am I correcting Claude so often', 'session efficiency', 'sweep my transcripts', 'am I getting faster', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options."
-argument-hint: "[sweep|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]"
+description: "Audit your own Claude Code sessions for wasted time, tokens and corrections: collect every transcript on this machine into a durable local store, then sweep it for sessions over this machine's own thresholds, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'why am I correcting Claude so often', 'session efficiency', 'sweep my transcripts', 'am I getting faster', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
+argument-hint: "[sweep|sweep-only|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions style --scope machine
+**Arguments.** `[sweep|sweep-only|style] [--scope machine|project] [--since <date>] [--until <date>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine
 
 ## Purpose
 
@@ -23,10 +23,25 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 
 ## Arguments
 
-Read `$ARGUMENTS` whole. Two actions: `sweep`, which is also what a bare invocation does, and
-`style` ("Style pass" below). `--scope`, `--since`, `--until` and `--write-report` pass through to
-`sweep.py` unchanged (dates are `YYYY-MM-DD`, UTC); `style` takes `--scope` and `--since` only.
-Stop and name this accepted set on any other token; never guess.
+Read `$ARGUMENTS` whole. Three actions: `sweep`, which is also what a bare invocation does,
+`sweep-only`, the consumer mode below, and `style` ("Style pass" below). `--scope`, `--since`,
+`--until` and `--write-report` pass through to `sweep.py` unchanged (dates are `YYYY-MM-DD`, UTC);
+`sweep-only` refuses `--write-report`, and `style` takes `--scope` and `--since` only. Stop and
+name this accepted set on any other token; never guess.
+
+## Consumer mode: `sweep-only`
+
+For a skill that invokes this one through the Skill tool and parses the result, such as
+`/performance:go-faster`. It reads the store as it is and writes nothing: skip Step 1 (no collect,
+so the first-collect disclosure under "Paths" never applies), run Step 2 with `--format json` in
+place of `--format md` and without `--write-report`, skip Step 3's presenting, and return
+sweep.py's stdout verbatim with its exit code, exit 3 included. The envelope holds no excerpt,
+title, path or branch; its session IDs and version strings come from transcripts, so they reach
+the caller as data under Step 3's framing. The `schema` field carries the report's version,
+`audit-sessions.sweep/v1` today; what may change within a version is under "Sweep report" in
+[reference/store-layout.md](reference/store-layout.md). Exit 3 means no store exists under `D`:
+after the envelope, add one line that running `/session-flow:audit-sessions` creates the store.
+Exits 0, 1 and 2 mean what Step 2 says.
 
 ## Paths
 
@@ -108,7 +123,8 @@ a shape it does not know.
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` run from the project's root. Run it only for this
   scope; the store itself is machine-wide.
 - Exit 1 means a metric is degraded because the transcript format drifted; the report says which.
-  Exit 2 is a bad argument or an unreadable store record: report it and stop.
+  Exit 2 is a bad argument or an unreadable store record: report it and stop. Exit 3 means no
+  store exists, which only consumer mode meets, because collect creates the store.
 
 The thresholds are this machine's own baseline, set in `reference/sweep-rules.json`; the drift
 canaries are in `reference/canaries.json`. Neither is restated here.

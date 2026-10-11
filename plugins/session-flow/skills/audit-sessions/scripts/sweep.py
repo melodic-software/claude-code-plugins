@@ -15,7 +15,8 @@ Metrics and findings cover interactive sessions: a session whose stored entrypoi
 headless or Agent SDK ones (`census.session_class`) is set aside and counted, one with no known
 entrypoint is kept and counted, and the drift check reads every record. A
 metric fed by a lost drift canary (census.py) is withheld. Prints one JSON envelope (or markdown)
-on stdout; exit 0 pass, 1 warning (a metric degraded), 2 error. Stdlib only; Python 3.10+.
+on stdout; exit 0 pass, 1 warning (a metric degraded), 2 error, 3 no store under --data-dir.
+Without --write-report it writes nothing. Stdlib only; Python 3.10+.
 
 `--excerpts` prints, instead of the report, one JSON line per stored typed-turn excerpt inside the
 window and scope (`project`, `session`, `started`, `excerpt`); `--format` and `--write-report` do
@@ -370,6 +371,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.scope == "project" and not (args.state_key and STATE_KEY_RE.fullmatch(args.state_key)):
         return emit("json", "error", "--scope project needs --state-key <identity>/<worktree>", {}, 2)
     data_dir = Path(args.data_dir)
+    if not census.store_dir(data_dir).is_dir():
+        # Its own code, so a consumer can tell "never collected here" from a broken store.
+        return emit("json", "error", f"no audit-sessions store under {data_dir}; run collect first", {}, 3)
     try:
         records, skipped = census.load_records(data_dir)
         canaries = census.load_canaries(Path(args.canaries))["canaries"]
