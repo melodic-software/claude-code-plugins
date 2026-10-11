@@ -42,6 +42,7 @@ echo "check-affected: FAIL markdown (stub)" >&2
 exit "\${STUB_RC:-1}"
 EOF
 chmod +x "$fixture/scripts/check-affected.sh"
+cp "$fixture/scripts/check-affected.sh" "$tmp/stub"
 # origin/main holds the stub, so a branch that leaves the tooling alone runs it.
 git_test_config "$fixture" add -A
 git_test_config "$fixture" commit -q -m stub
@@ -139,7 +140,11 @@ run_hook "$fixture" 'git push origin docs-only'
 expect "a branch that leaves the tooling alone still runs" 2 1
 
 git_test_config "$fixture" checkout -q -b edits-check origin/main
-printf 'touch "%s"\n' "$tmp/payload" >>"$fixture/scripts/check-affected.sh"
+{
+  head -n 1 "$tmp/stub"
+  printf 'touch "%s"\n' "$tmp/payload"
+  tail -n +2 "$tmp/stub"
+} >"$fixture/scripts/check-affected.sh"
 git_test_config "$fixture" commit -q -am payload
 run_hook "$fixture" 'git push origin edits-check'
 expect "a branch that edits scripts/check-affected.sh runs the merge-base copy" 2 1
@@ -153,6 +158,31 @@ if [[ "$RC" == 0 && "$ERR" == *"changes check tooling (scripts/check-affected.sh
   ok "the notice names the changed tooling path"
 else
   bad "the notice names the changed tooling path" "exit $RC; stderr: $ERR"
+fi
+
+# A committed tooling edit the working tree reverts is still the branch's code:
+# the HEAD checkout the dirty run uses would carry it.
+git_test_config "$fixture" show refs/remotes/origin/main:scripts/check-affected.sh >"$fixture/scripts/check-affected.sh"
+run_hook "$fixture" 'git push origin edits-check'
+expect "a committed tooling edit the working tree reverts runs the merge-base copy" 2 1
+if [[ ! -e "$tmp/payload" ]]; then
+  ok "the reverted branch script does not run from the HEAD checkout"
+else
+  bad "the reverted branch script does not run from the HEAD checkout" "$ERR"
+fi
+git_test_config "$fixture" checkout -q -- scripts/check-affected.sh
+
+git_test_config "$fixture" checkout -q -b nested-md origin/main
+mkdir -p "$fixture/docs"
+echo 'module.exports = {};' >"$fixture/docs/.markdownlint-cli2.cjs"
+echo x >"$fixture/docs/b.md"
+git_test_config "$fixture" add docs
+git_test_config "$fixture" commit -q -m nested
+run_hook "$fixture" 'git push origin nested-md' 0
+if [[ "$RC" == 0 && "$ERR" == *"changes check tooling (docs/.markdownlint-cli2.cjs)"* ]]; then
+  ok "a nested markdownlint config is check tooling"
+else
+  bad "a nested markdownlint config is check tooling" "exit $RC; stderr: $ERR"
 fi
 
 git_test_config "$fixture" checkout -q docs-only

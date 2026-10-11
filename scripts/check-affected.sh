@@ -78,6 +78,8 @@ foreign=0
 if [[ "$(pwd -P)" != "$tools" ]]; then
   foreign=1
   export CHECK_DATA_ROOT="$PWD"
+  # uvx would otherwise read a uv.toml or [tool.uv] index from the checked tree.
+  export UV_NO_CONFIG=1
 fi
 
 declare -a passed=() skipped=() failed=()

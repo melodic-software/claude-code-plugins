@@ -207,7 +207,8 @@ segment_push_dir() {
 # to the merge-base copy.
 TOOLING=(
   'scripts/*' 'lib/*' '.claude/*' 'package.json' 'package-lock.json'
-  '.markdownlint*' 'ruff.toml' 'pyproject.toml' '.github/requirements-ci.txt'
+  '.markdownlint*' '*/.markdownlint*' 'ruff.toml' 'pyproject.toml' 'uv.toml'
+  '.github/requirements-ci.txt'
   'plugins/*/hooks/*' 'plugins/autonomy/skills/setup/scripts/*'
   'plugins/harness-ops/skills/audit-native-overlap/scripts/*'
 )
@@ -218,13 +219,14 @@ TOOLS_EXTRACT=(
   scripts .shellcheckrc ruff.toml pyproject.toml .github/requirements-ci.txt
 )
 
-# tooling_change_to <out-var> <top> <mb>: assigns the first TOOLING path the
-# tree changes against <mb> and returns 0; returns 1 when the tooling is
+# tooling_change_to <out-var> <top> <mb>: assigns the first TOOLING path HEAD,
+# the working tree or an untracked file changes against <mb> and returns 0; returns 1 when the tooling is
 # unchanged, and 2 when the diff cannot be read.
 tooling_change_to() {
   local -n __tc_out="$1"
   local top="$2" mb="$3" changed f p
   changed="$(git -C "$top" diff --no-renames --name-only "$mb" -- &&
+    git -C "$top" diff --no-renames --name-only "$mb" HEAD -- &&
     git -C "$top" ls-files --others --exclude-standard)" || return 2
   while IFS= read -r f; do
     for p in "${TOOLING[@]}"; do
@@ -259,33 +261,29 @@ extract_tools() {
   mkdir -p "$3" && git -C "$1" archive "$2" -- "${paths[@]}" | tar -x -C "$3"
 }
 
-# run_checks <out-var> <top> <mb> <tooling-changed> <dirty>: runs
-# scripts/check-affected.sh against the tree the push sends, a detached HEAD
-# checkout when <dirty> is 1, and takes the script from <mb> when
-# <tooling-changed> is 1; returns its exit.
-run_checks() {
-  local -n __rc_out="$1"
-  local top="$2" mb="$3" tmp data script rc=0
-  tmp="$(mktemp -d)" || return 2
-  data="$top"
-  if [[ "$5" == 1 ]]; then
+# run_checks <top> <mb> <tooling-changed> <dirty>: prints the output of
+# scripts/check-affected.sh run against the tree the push sends, a detached HEAD
+# checkout when <dirty> is 1, with the script taken from <mb> when
+# <tooling-changed> is 1; exits with its exit. A subshell, so the trap removes
+# the checkout and temporary files however the run ends.
+run_checks() (
+  top="$1" mb="$2" data="$1" rc=0
+  tmp="$(mktemp -d)" || exit 2
+  trap '[[ "$data" == "$top" ]] || git -C "$top" worktree remove --force "$data" >/dev/null 2>&1; rm -rf "$tmp"' EXIT
+  trap 'exit 143' INT TERM HUP
+  if [[ "$4" == 1 ]]; then
     data="$tmp/head"
-    git -C "$top" -c core.hooksPath=/dev/null worktree add -q --detach "$data" HEAD >/dev/null 2>&1 || rc=2
+    git -C "$top" -c core.hooksPath=/dev/null worktree add -q --detach "$data" HEAD >/dev/null 2>&1 || exit 2
   fi
   script="$data/scripts/check-affected.sh"
-  if [[ "$4" == 1 ]]; then
+  if [[ "$3" == 1 ]]; then
     script="$tmp/tools/scripts/check-affected.sh"
-    extract_tools "$top" "$mb" "$tmp/tools" || rc=2
+    extract_tools "$top" "$mb" "$tmp/tools" || exit 2
   fi
-  if ((rc == 0)) && [[ -x "$script" ]]; then
-    __rc_out="$(cd "$data" && bash "$script" 2>&1)" || rc=$?
-  else
-    rc=2
-  fi
-  [[ "$data" == "$top" ]] || git -C "$top" worktree remove --force "$data" >/dev/null 2>&1
-  rm -rf "$tmp"
-  return "$rc"
-}
+  [[ -x "$script" ]] || exit 2
+  (cd "$data" && bash "$script" 2>&1) || rc=$?
+  exit "$rc"
+)
 
 main() {
   local input cmd cwd dir top out rc mb changed_tool tooling=0 dirty=0
@@ -311,7 +309,7 @@ main() {
   ((rc == 0)) && tooling=1
   head_is_dirty "$top" "$mb" && dirty=1
   rc=0
-  run_checks out "$top" "$mb" "$tooling" "$dirty" || rc=$?
+  out="$(run_checks "$top" "$mb" "$tooling" "$dirty")" || rc=$?
   if ((rc != 1 && tooling)); then
     printf 'check-affected pre-push: the branch changes check tooling (%s), so the checks ran from the merge-base copy of it.\n' \
       "$changed_tool" >&2
