@@ -1345,6 +1345,18 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "metadata/decks/€.pdf")).toBe("pdf");
   });
 
+  // The HTML parser decodes references before the URL parser drops tab, LF and CR,
+  // so an encoded line break in an attribute is removed too.
+  it("drops a line break written as a reference in an HTML URL", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "transcript/transcript.txt": "[0:01] hi\n",
+      "metadata/notes.md": '<a href="../transcript/&#10;transcript.txt">t</a>\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
   // HTML attributes accept a numeric reference without its semicolon; Markdown
   // destinations do not, so only the attribute is decoded.
   it("decodes semicolonless numeric references in HTML attributes only", () => {
