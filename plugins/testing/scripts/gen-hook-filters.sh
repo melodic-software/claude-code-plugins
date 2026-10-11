@@ -10,8 +10,9 @@
 # Write call (the `if` probe, below). A glob with no slash matches the basename at any
 # depth (gitignore syntax). The task-end judge's background job (async) takes
 # the same PostToolUse rows; its Stop and SessionStart entries have no `if`.
-# The Stop entry runs with asyncRewake, so the turn ends without waiting for
-# it; it judges a finished subagent's writes with the parent's.
+# The Stop entry runs with asyncRewake so the turn need not wait for it (the
+# background-hooks pointer below); it judges a finished subagent's writes with
+# the parent's.
 #
 # PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
 # the command string, not the files the call changed (the `if` probe), so
