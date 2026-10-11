@@ -159,7 +159,9 @@ need_node() {
     err "node is not on PATH; install Node.js (https://nodejs.org/en/download) and rerun. Reinstalling the packages would not help."
 }
 
-probe() { [[ -d "$1" ]] && node "$MJS" probe --deps "$1" >/dev/null 2>&1; }
+# Every option reaches the .mjs as --name=value: its strict parseArgs refuses a
+# separate value that starts with '-', such as --reason "-3px shift".
+probe() { [[ -d "$1" ]] && node "$MJS" probe --deps="$1" >/dev/null 2>&1; }
 
 # ensure_installed <target>: install the locked packages into <target> unless
 # they already load there.
@@ -438,7 +440,7 @@ cmd_manifest() {
   need_node
   head="$(git rev-parse HEAD 2>/dev/null)" || head=""
   [[ "$head" =~ ^[0-9a-f]{40}$ ]] || head=""
-  node "$MJS" manifest --dir "$dir" --browser "$browser" --viewport "$viewport" --scale "$scale" --head "$head"
+  node "$MJS" manifest --dir="$dir" --browser="$browser" --viewport="$viewport" --scale="$scale" --head="$head"
 }
 
 # --- compare ------------------------------------------------------------------
@@ -478,8 +480,8 @@ cmd_compare() {
   fi
   ensure_installed "$TARGET"
   rc=0
-  node "$MJS" compare --deps "$TARGET" --baseline "$baseline" --after "$after" \
-    --tolerance "$tolerance" --reason "$reason" --diff-dir "$diff" || rc=$?
+  node "$MJS" compare --deps="$TARGET" --baseline="$baseline" --after="$after" \
+    --tolerance="$tolerance" --reason="$reason" --diff-dir="$diff" || rc=$?
   ((rc <= 2)) || rc=2
   return "$rc"
 }

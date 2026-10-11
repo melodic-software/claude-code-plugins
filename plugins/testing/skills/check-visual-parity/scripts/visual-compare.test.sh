@@ -128,6 +128,13 @@ before="$(cksum "$T/m/manifest.json")"
 run manifest --dir "$T/m" --browser "chromium 141" --viewport 800x600 --scale 1
 assert_eq "a second manifest over an existing one exits 2" 2 "$rc"
 assert_eq "and leaves the manifest byte-identical" "$before" "$(cksum "$T/m/manifest.json")"
+# A value that starts with '-' reaches the .mjs whole: its strict parseArgs
+# refuses one passed as a separate argument.
+mkdir -p "$T/dash"
+printf 'not really a png' >"$T/dash/home.png"
+run manifest --dir "$T/dash" --browser "-headless chromium 140" --viewport 1280x720 --scale 1
+assert_eq "manifest with a browser value starting with '-' exits 0" 0 "$rc"
+assert_contains "and records it whole" "$(cat "$T/dash/manifest.json" 2>/dev/null)" '"browser": "-headless chromium 140"'
 mkdir -p "$T/empty"
 run manifest --dir "$T/empty" --browser "chromium 140" --viewport 1280x720 --scale 1
 assert_eq "manifest over a directory with no PNG exits 2" 2 "$rc"
@@ -351,6 +358,9 @@ if ((pixel)); then
   assert_eq "tolerance 1 with a reason passes one changed pixel" 0 "$rc"
   assert_contains "the reason is printed" "$out" "reason=cursor blink"
   assert_contains "and the image passes" "$out" "differing=1 tolerance=1 verdict=pass name=cart.png"
+  cmp_run --tolerance 1 --reason "-1px cursor shift"
+  assert_eq "a reason starting with '-' passes through" 0 "$rc"
+  assert_contains "and is printed whole" "$out" "reason=-1px cursor shift"
 
   capture "$T/after" "chromium 140" "cart.png" "5 4" "a b=c.png" "4 4"
   cmp_run --tolerance 0
