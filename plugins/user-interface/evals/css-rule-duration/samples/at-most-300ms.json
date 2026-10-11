@@ -45,6 +45,14 @@
     {
       "answer": ".dropdown { transition: opacity 200ms ease-out, translate 450ms ease-out; }",
       "why": "450ms on the second item"
+    },
+    {
+      "answer": ".dropdown { animation: fade-in-2 500ms ease-out; }",
+      "why": "a digit in the animation name"
+    },
+    {
+      "answer": ".tooltip { animation: slide1 0.6s ease-out; }",
+      "why": "a digit at the end of the animation name"
     }
   ]
 }
