@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"0.1.22\\n\"}]}]}}",
       "why": "text block with a trailing escaped newline"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"0.1.22\\nwarning: example stderr line\",\"is_error\":false}]},\"parent_tool_use_id\":null,\"session_id\":\"s1\",\"tool_use_result\":{\"stdout\":\"0.1.22\",\"stderr\":\"warning: example stderr line\",\"interrupted\":false}}",
+      "why": "stream-json shape: Bash joins trimmed stdout and stderr with a newline in the tool_result content"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"playwright-cli 0.1.22 should be installed\"}]}}",
       "why": "a version mentioned in prose, not a tool result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"0.1.22\"}]}}",
+      "why": "a bare version in Claude's own text, not a tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"Exit code 127\\n0.1.22\",\"is_error\":true}]}}",
+      "why": "a failed call whose output happens to hold a version"
     }
   ]
 }
