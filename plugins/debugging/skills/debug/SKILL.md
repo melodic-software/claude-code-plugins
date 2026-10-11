@@ -325,13 +325,9 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 ## Next
 
-- Fixed with a regression test: /verification:confirm fix.
-- Stopped at a diagnosis on request: /implementation:implement fix.
-- Artifact with no reproduction: /debugging:analyze-profile.
-
-## Next
-
-- The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
+- The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`.
+- Stopped at a diagnosis on request: `/implementation:implement fix`.
+- An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
