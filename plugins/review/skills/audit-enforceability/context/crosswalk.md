@@ -1,7 +1,7 @@
 # Enforcement-rung crosswalk
 
 Class to rung to owner. The rung list, its order and this skill's selection rule are owned by the
-enforcement ladder, `${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`. A class lands on the
+enforcement ladder, `<plugin-root>/context/enforcement-ladder.md`. A class lands on the
 cheapest rung whose check can actually assert it, never on a rung that merely could be built. The
 one exception is `invalid-state`: its first offer is `make-impossible`, a redesign this skill only
 proposes.

@@ -222,7 +222,7 @@ else
   W2="$S/C-${base}-wt-two"
   WT="${T//\//\\}"
   mkdir -p "$W1" "$W2"
-  transcript "$W1SUB" a.jsonl "c:${WT}\\repo.main\\sub\\"
+  transcript "$W1SUB" a.jsonl "c:${WT}\\repo.main\\sub\\" # portability-ok: Windows path text, not a regex
   PATH="$STUB:$PATH" run_in "$R1" --scope worktree
   assert_true 'with cygpath and CRLF git output the Windows-form names print' sorted_out_is "$W1" "$W1SUB"
   PATH="$STUB:$PATH" run_in "$R1" --scope repo

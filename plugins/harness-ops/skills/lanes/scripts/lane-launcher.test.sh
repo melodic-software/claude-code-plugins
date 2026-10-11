@@ -1849,13 +1849,13 @@ cat >"$WIN_BIN/cygpath" <<'STUB'
 #!/usr/bin/env bash
 p="$2"
 case "$p" in
-*/bash) printf '%s\n' 'C:\Program Files\Git\usr\bin\bash.exe' ;;
+*/bash) printf '%s\n' 'C:\Program Files\Git\usr\bin\bash.exe' ;; # portability-ok: Windows path text, not a regex
 *) printf 'C:%s\n' "${p//\//\\}" ;;
 esac
 STUB
 chmod +x "$WIN_BIN/cygpath"
 tr_payload() { # the /TR value of the first schtasks /Create line, unescaped
-  printf '%s\n' "$1" | grep -m1 '^schtasks /Create' | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
+  grep -m1 '^schtasks /Create' <<<"$1" | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
 }
 long_path() { # <base> <length of the Windows form> -> a path whose C:-prefixed form has that length
   local base="$1" pad
@@ -1872,8 +1872,8 @@ out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --dat
 rc=$?
 assert_eq "print-schedule with a 120-character data directory exits 0" 0 "$rc"
 payload="$(tr_payload "$out")"
-assert_contains "the /TR payload calls bash" "$payload" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LD//\//\\}\\lanes\\"
-assert_contains "the /TR payload names the lane's script under the data directory" "$payload" "\\scheduled\\work.sh\""
+assert_contains "the /TR payload calls bash" "$payload" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LD//\//\\}\\lanes\\" # portability-ok: Windows path text, not a regex
+assert_contains "the /TR payload names the lane's script under the data directory" "$payload" "\\scheduled\\work.sh\"" # portability-ok: Windows path text, not a regex
 assert_not_contains "the /TR payload does not point into the checkout" "$payload" "${LR//\//\\}"
 within_limit=no
 ((${#payload} <= 262)) && within_limit=yes

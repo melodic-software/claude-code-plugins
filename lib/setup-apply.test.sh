@@ -48,6 +48,7 @@ cat >"$FIX/fixture.schema.json" <<'JSON'
   }
 }
 JSON
+# shellcheck disable=SC2016 # a JavaScript program; its ${} are template literals
 node -e '
   const fs = require("node:fs");
   const { pathToFileURL } = require("node:url");

@@ -103,7 +103,7 @@ assert_contains "the warning names the key" "$(cat "$TMP/err")" "suppressions.co
 assert_eq "a missing explicit path exits 2" 2 "$?"
 (cd "$REPO" && bash "$SCRIPT" --bogus >/dev/null 2>&1)
 assert_eq "an unknown flag exits 2" 2 "$?"
-bash "$SCRIPT" --help 2>&1 | grep -q 'audit-suppressions.sh \[--json | --findings'
+grep -q 'audit-suppressions.sh \[--json | --findings' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 assert_contains "--help states both exit codes and their meaning" "$(bash "$SCRIPT" --help 2>&1)" \
   'Exit 0 report produced, 2 usage error or a scan that failed.'
@@ -166,7 +166,7 @@ assert_contains "--findings still prints the markdown report" "$out" "# Suppress
 assert_eq "the memory root gets a .gitignore holding *" '*' "$(cat "$F/.work/.gitignore" 2>/dev/null)"
 assert_eq "the frontmatter names the type and the exact branch" \
   'type: review-findings|branch: feat/Audit' "$(sed -n '2p;4p' "$FILE" | paste -sd'|' -)"
-if sed -n 3p "$FILE" | grep -Eq '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+if grep -Eq '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' < <(sed -n 3p "$FILE"); then
   pass "date is an ISO-8601 UTC instant"
 else fail "date is an ISO-8601 UTC instant" "$(sed -n 3p "$FILE")"; fi
 assert_contains "the table header is the findings-file shape" "$(cat "$FILE")" \

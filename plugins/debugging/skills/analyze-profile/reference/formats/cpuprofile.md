@@ -23,7 +23,7 @@ Run each with the read-only query script, binding values such as `:profile` and 
 `--param`:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/analyze-profile/scripts/query_profile.py" \
+python3 "<skill-dir>/scripts/query_profile.py" \
   "$work/profile.db" "<query>" --param profile=main --param id=5
 ```
 
