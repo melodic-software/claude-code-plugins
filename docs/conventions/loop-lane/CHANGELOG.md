@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [11.0.1] - 2026-10-11
+
+Patch. Wording only; no value, topology or invariant changed.
+
+- **§4 lane-instance identity no longer names `first_drain_complete`.** The work-loop's first-drain
+  period now ends on a person-applied label rather than a durable-state flag, so the examples of
+  what a clobbered or reset block loses name the adaptive cap and streaks instead. Evidence: #7161.
+
 ## [11.0.0] - 2026-10-11
 
 Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.

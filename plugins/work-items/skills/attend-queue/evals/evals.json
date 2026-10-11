@@ -102,6 +102,21 @@
         "Runs the seam release verb with the claim's lease_comment_id after the assignee clear",
         "Never hand-writes or PATCHes lease-comment JSON directly"
       ]
+    },
+    {
+      "id": 8,
+      "name": "attend-queue-ratifies-first-drain-on-the-telemetry-issue",
+      "prompt": "/work-items:attend-queue\n\n#900 'Lane telemetry: work-loop' carries needs-human and a comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=ratify-first-drain -->, proposing that instance melo-lap-001's first drain completed at cycle 41 over a 37-item snapshot. #900 has no work-class: label. The repository has no loop-lane: first-drain-ratified label yet. The operator says: ratify it.",
+      "expected_output": "#900 lists as a [ratify] row. Before asking, the lane restates the item, the decision, and the consequence: ratifying lets that work-loop dispatch unratified C3 bug-fix items without a [ratify] row for each. On the operator's ratification it creates the loop-lane: first-drain-ratified label, then in one edit applies it to #900 and removes needs-human, and records the ratification as a reply comment. It does not apply the autonomous-eligible role label and does not ask for a work class, because #900 is a lane's telemetry issue, not a work item.",
+      "files": [],
+      "expectations": [
+        "Lists #900 as a [ratify] row from its kind=ratify-first-drain marker",
+        "Restates the item, the decision, and what ratifying changes before asking",
+        "Creates the loop-lane: first-drain-ratified label because the repository lacks it",
+        "Applies loop-lane: first-drain-ratified and removes the human-gated role label in one edit",
+        "Does not apply the autonomous-eligible role label or stamp a work class on #900",
+        "Records the ratification as a reply comment"
+      ]
     }
   ]
 }

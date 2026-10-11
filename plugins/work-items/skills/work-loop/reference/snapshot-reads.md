@@ -1,8 +1,8 @@
 # Cycle-start snapshot reads
 
 `SKILL.md` step 1 takes the cycle-start snapshot this file governs; both stop modes test their exit
-condition against it, and `first_drain_complete` (which lifts the first-drain C3 ratification gate)
-is set from it. An empty id set passes the drain exit test vacuously, so the snapshot is trusted only
+condition against it, and the first-drain completion proposal
+([first-drain-ratification.md](first-drain-ratification.md)) is raised from it. An empty id set passes the drain exit test vacuously, so the snapshot is trusted only
 when the reads behind it were complete.
 
 ## The reads
@@ -24,7 +24,7 @@ truncation, the cycle aborts with **no state change**:
 
 - no intake sweep, admission, execution, escalation (except the truncation escalation below), or
   exit evaluation;
-- every durable counter, `first_drain_complete` included, is written back as it was read. Only
+- every durable counter, `first_drain_proposed` included, is written back as it was read. Only
   `heartbeat_at` moves, so the lane is not mistaken for a dead one;
 - the cycle report leads with `snapshot unusable: <read>: <reason>`, and the next cycle is scheduled
   as usual.
@@ -53,6 +53,6 @@ backlog; an empty one from a failed or skipped read is not.
 
 A frontier or open-items envelope with no `truncated` field comes from a consumer adapter written
 before the contract added it. Its completeness is **unknown**, not complete: the cycle runs, but its snapshot
-never satisfies the drain exit test or sets `first_drain_complete`, and the report says
+never satisfies the drain exit test or proposes first-drain completion, and the report says
 `snapshot completeness unknown`. The drain-terminal stop still applies, because stopping lifts no
 gate. Regenerating the adapter with `/work-items:onboard-adapter` restores the flag.
