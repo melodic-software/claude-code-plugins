@@ -61,10 +61,11 @@ amended by ADR 0038 and its own addendum.
 ## Consequences
 
 - Lanes that run the Claude Code GitHub Action have no credit-funded fallback, because those runs
-  never draw credits. A lane that must not stall needs its own `claude -p` step instead (#6967).
-- Whether a self-written workflow step that installs the CLI and runs `claude -p` with a linked
-  org's key draws that org's credits is unconfirmed; the article names neither case. Probe #6962
-  answers it. Until then, no CI lane relies on credits.
+  never draw credits. The proposed remedy for a lane that must not stall is its own `claude -p`
+  step (#6967), but whether a self-written workflow step that installs the CLI and runs `claude -p`
+  with a linked org's key draws that org's credits is unconfirmed: the article does not say.
+  Probe #6962 answers it, and whether any CI lane can fall back to credits waits on #6962 and
+  #6967.
 - A linked org's key is a new long-lived credential. Where it is stored and which jobs may read it
   is decided with the mechanisms (decision 5), under the CI lane hardening of
   [ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
