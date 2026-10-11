@@ -11,8 +11,10 @@
 # (gh api graphql), and keeps:
 #
 #   source: human         a comment or non-empty review body by a human
-#                         account that is neither a reply (in_reply_to_id set)
-#                         nor by the PR's author
+#                         account whose author_association is OWNER, MEMBER or
+#                         COLLABORATOR, that is neither a reply (in_reply_to_id
+#                         set) nor by the PR's author; anyone else's comment on
+#                         a public repository is dropped
 #   source: accepted-bot  an inline bot comment, not a reply, whose thread is
 #                         outdated: the line it commented on changed in a later
 #                         commit of the PR. A resolved thread does not count
@@ -95,16 +97,17 @@ threads_query='query($owner: String!, $name: String!, $number: Int!, $endCursor:
 # shellcheck disable=SC2016 # a jq program, not a shell expansion
 select_rows='
   def is_bot: (.user.type? == "Bot") or ((.user.login? // "") | endswith("[bot]"));
+  def trusted: .author_association? | IN("OWNER", "MEMBER", "COLLABORATOR");
   def login: .user.login? // null;
   ([$threads[] | .data.repository.pullRequest.reviewThreads.nodes[]?
     | select(.isOutdated == true) | .comments.nodes[0].databaseId]) as $outdated
   | ([$reviews[] | .[]?
-      | select((.body // "") != "" and (is_bot | not) and login != $author)
+      | select((.body // "") != "" and (is_bot | not) and trusted and login != $author)
       | {pr: $pr, source: "human", author: login, kind: "review", path: null, line: null, body}]
     + [$comments[] | .[]?
       | select(.in_reply_to_id == null and login != $author)
       | (if is_bot then (if (.id as $id | $outdated | index($id)) != null then "accepted-bot" else empty end)
-        else "human" end) as $source
+        elif trusted then "human" else empty end) as $source
       | {pr: $pr, source: $source, author: login, kind: "inline", path,
         line: (.line // .original_line), body}])
   | .[]'
