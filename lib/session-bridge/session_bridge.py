@@ -818,12 +818,16 @@ def release_lease(s, name):
 
 # The channels adapter: Claude Code's native channels. Basis, as of 2026-10-11:
 # https://code.claude.com/docs/en/channels#research-preview (the flags),
-# https://code.claude.com/docs/en/channels-reference#server-options and #notification-format (the
-# capability and the notification), https://code.claude.com/docs/en/channels#enterprise-controls
-# (the policy keys and the plans that block channels until enabled), and
+# https://code.claude.com/docs/en/channels-reference#server-options (the capability),
+# https://code.claude.com/docs/en/channels-reference#notification-format (the notification),
+# https://code.claude.com/docs/en/channels#enterprise-controls (the policy keys and the plans that
+# block channels until enabled), and
 # https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy (where
-# managed settings are read from). Recheck when any of those sections changes the flags, the
-# capability, the policy keys or a plan default.
+# managed settings are read from). Recheck when the research-preview section changes a flag, the
+# server-options section changes the channel capability, the notification-format section changes
+# the notification method or its params, the enterprise-controls section changes a policy key or
+# a plan default, or the where-each-mechanism section moves the managed-settings file or its
+# drop-in directory.
 
 CHANNELS_FLAG = "--channels"
 DEV_FLAG = "--dangerously-load-development-channels"

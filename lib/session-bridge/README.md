@@ -196,8 +196,9 @@ The checks and their order are ours. Where the upstream facts they test live, as
   [enable channels for your organization](https://code.claude.com/docs/en/channels#enable-channels-for-your-organization)
   and [restrict which channel plugins can run](https://code.claude.com/docs/en/channels#restrict-which-channel-plugins-can-run).
 
-Recheck when the opening note changes the auth or provider list, or either section changes a plan
-default, a policy key or the startup notice.
+Recheck when the opening note changes the auth or provider list, the enterprise controls section
+changes a plan default or a policy key, the enable channels section changes its startup warning,
+or the restrict channel plugins section changes the allowlist key or its startup notice.
 
 ## Prerequisites
 

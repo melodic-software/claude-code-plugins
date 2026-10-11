@@ -35,9 +35,11 @@
 #     https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior
 #   * where a failed fetch is reported:
 #     https://code.claude.com/docs/en/server-managed-settings#verify-settings-delivery
-# Recheck when the server-managed-settings page names a cache path other than
-# the one mscope::remote_cache_file returns, or when the verify section stops
-# naming /status or claude doctor as where a failed fetch shows.
+# Recheck when the invalid-entries section names a cache path other than the
+# one mscope::remote_cache_file returns, the fetch-and-caching section changes
+# when cached settings apply or which cached keys wait for the server, or the
+# verify section stops naming /status or claude doctor as where a failed fetch
+# shows.
 #
 # Cross-source combination is not "arrays concatenated, objects deep-merged":
 # a reader that computes an effective merge follows the per-key rules at

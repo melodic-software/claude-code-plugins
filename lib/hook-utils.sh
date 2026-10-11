@@ -423,9 +423,10 @@ hook::raw_file_path() {
 # https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event. Where
 # exit-0 stderr goes: https://code.claude.com/docs/en/hooks#exit-code-0. As of
 # 2026-10-11; recheck when the exit-code-2 section stops saying Claude receives
-# a blocked PreToolUse hook's stderr, or the exit-code-0 section starts showing
-# exit-0 stderr to Claude. The --no-path and stderr-deny notes below rest on
-# this record.
+# a blocked PreToolUse hook's stderr, the exit-code-2-behavior-per-event table
+# changes which events show exit-2 stderr to Claude, or the exit-code-0 section
+# starts showing exit-0 stderr to Claude. The --no-path and stderr-deny notes
+# below rest on this record.
 hook::require() {
   command -v "$1" >/dev/null 2>&1 && return 0
   local model user
