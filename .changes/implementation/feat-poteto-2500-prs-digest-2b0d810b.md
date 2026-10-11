@@ -156,5 +156,5 @@ bump: minor
 - **Reworded passages adapted from upstream skills in our own words.** In `/implementation:implement`, the
   default delivery order, design signals, the major-divergence redesign step, the completion reply
   and the bugfix, feature and refactor steps; in `/implementation:implement-dispatch`, the operator
-  hold, the run-boundary entry and the gate-fault gotcha. Every rule, threshold and setting stays
-  the same.
+  hold, the run-boundary entry, the four criteria of the deviation-trail review, the worker model
+  line and the gate-fault gotcha. Every rule, threshold and setting stays the same.

@@ -85,7 +85,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] The test needs no export, flag or injection hook that no production caller uses; if it does, test through the real boundary instead
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
-- [ ] The test goes red against a hollowed-out version of the code under test, one where every function it pulls in from that code gives back `undefined`, `None` or `null`. A test that stays green there is asserting on its own fixture or mock, so it never observes the code
+- [ ] Hollow-out run, worked through: `const cart = { items: [a, b, c] }; totalCart(cart); expect(cart.items).toHaveLength(3);` asserts only on the `cart` literal, so it is green whatever `totalCart` does. Swap each function the test pulls from the module under test for one that gives back `undefined` (`None` in Python, `null` in C# or Java), run the test once, and expect red. When every assertion can be satisfied by the test's own fixtures or mocks without the subject running, point them at what the subject returns or changes (here, the total `totalCart` returns)
 
 ## Four Pillars Assessment (Khorikov)
 

@@ -291,17 +291,17 @@ more time, to check the run's own record. Withhold your rationale; hand it the `
 path, the run's diff (the base ref the run started from and the current head), and these binary
 criteria:
 
-1. The evidence pointer of each log entry resolves to a real commit, `file:line`, test or artifact.
-2. Each entry states its outcome, or marks it `unverified`.
-3. Each deviation entry fills all four fields: plan said, found, chose, revisit.
-4. Nothing in the diff departs from the plan without a log entry covering it.
+1. Every change in the diff that differs from what the plan called for is accounted for by an entry.
+2. Every deviation entry answers plan said, found, chose and revisit.
+3. Every entry names its outcome or carries `unverified`.
+4. Every entry's evidence pointer (a commit, `file:line`, test or artifact) exists.
 
-When the run wrote no `DEVIATIONS.md`, criterion 4 is the only one. **Model:** when
+When the run wrote no `DEVIATIONS.md`, criterion 1 is the only one. **Model:** when
 `/multi-agent:route` is among the available skills, invoke
 `/multi-agent:route verifier session=<alias>` and take its `single` variant, where `inherit` means the session model; otherwise
 start from the session model. Raise that to the strongest model any worker of this run ran on,
-ranking `haiku` below `sonnet` below `opus` below `fable`, and pass the result as the Agent `model`
-parameter. Effort is the agent's frontmatter, since the Agent tool takes none. Append one
+ranking `haiku` below `sonnet` below `opus` below `fable`, and set the Agent `model`
+parameter to it. Effort is the agent's frontmatter, since the Agent tool takes none. Append one
 `discovery` entry giving the verdict and the model the review ran on, and list each failed
 criterion in Step 5's report. Gates covers an `INCONCLUSIVE` verdict here too. An interactive
 run never dispatches it, even when it opted into the log, and states in Step 5's report that no
@@ -366,7 +366,7 @@ We treat the phases of one approved plan as one task, so the orchestrator's wind
 ## Gotchas
 
 - **Do not treat a worker's build report as the signal.** See Gates. Workers report synthesis; the main window invokes `/toolchain:check` via the Skill tool (or runs the project's own build when the `toolchain` plugin is absent) itself after every accepted return, except under commit authority `orchestrator` in a shared worktree, where the gate runs after the wave settles (see Concurrency)
-- **Decide whether the worker or the gate is at fault.** When the check is mistaken (a criterion that contradicts the plan, a check that fails correct code), fix it as a separate change with its own review; the phase that ran into it neither loosens it nor lets a worker's diff route around it. When the check is sound but a return satisfied it without the work it stands for (special-casing the tested inputs, weakening an assertion, meeting only the letter of a criterion), reject that return and re-brief with the criterion restated so the same shortcut no longer passes
+- **Work out which side failed: the worker or the check.** Wrong check: it fails correct code, or a criterion contradicts the plan. Its repair ships separately and is reviewed on its own; the phase that hit it may not relax it, and no worker diff may route around it. Sound check, hollow pass: the return met it without the work behind it, by hard-coding answers for the inputs the check uses, loosening an assertion, or satisfying only a criterion's wording. Reject that return and send a new brief that states the criterion again so the same shortcut cannot pass
 - **A worker STOP is a divergence signal, not a failure.** Route it through `/implementation:implement`'s Step 3 severity ladder; revising the brief is the cheap fix, a plan review the escalation
 - **Surface subagent results before ending the turn.** Results left unsurfaced at turn end are lost to the user
 - **A worker's worktree cwd does not persist across tool calls.** Brief every dedicated-worktree worker to anchor every command, edits AND git status/add/commit/diff/log, on the worktree's literal absolute path: `git -C <literal path>` for git, absolute paths for every other command, one plain command per call. No `VAR=` prefixes, loops, `$( )` or `cd`: a one-time `cd` does not persist, and those shapes leave the permission fast path, where a headless worker is blocked. The ban covers a `cd` into the worktree itself: we grant it no exception (Basis: <https://code.claude.com/docs/en/permissions#read-only-commands>. As of: 2026-10-09. Recheck: that section changes which `cd` targets run without a prompt). A command that reads its configuration from the working directory runs through its own directory flag (`make -C <literal path>`, `npm --prefix <literal path>`) or by the wrapper's absolute path when the wrapper finds the repository from its own location, since absolute file paths alone would run it against the wrong checkout; a command with neither is left to the orchestrator's main-side gate (see Gates)

@@ -12,7 +12,7 @@ bump: minor
 
 ### Changed
 
-- **Reworded the large-reshape equivalence bullet in our own words.** `/verification:confirm`'s `context/refactor.md` and its `refactor-equivalence-01` eval prose say the same thing in a new structure; what the case tests is unchanged.
+- **Reworded the large-reshape equivalence bullet in our own words.** `/verification:confirm`'s `context/refactor.md` and its `refactor-equivalence-01` eval prose say the same thing in a new structure, and the eval's expected output now names the payroll change it judges; what the case tests is unchanged.
 
 ### Fixed
 

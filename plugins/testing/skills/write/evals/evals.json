@@ -82,13 +82,13 @@
       "id": 8,
       "name": "test-passes-when-imports-return-nothing",
       "prompt": "I just went green on this cycle for buildReceipt. Run the per-cycle checklist on the test before I refactor:\n\nimport { buildReceipt } from './receipt';\n\ntest('a receipt lists every order line', () => {\n  const order = { id: 'A17', lines: [{ sku: 'TEA', qty: 2 }, { sku: 'MUG', qty: 1 }] };\n  buildReceipt(order);\n  expect(order.lines).toHaveLength(2);\n});",
-      "expected_output": "Goes through the per-cycle checklist and fails the test on its last item: with buildReceipt hollowed out to return nothing, the test would still be green, because its assertion reads the order fixture the test built and never looks at a receipt. The fix it proposes asserts on the lines of the receipt that buildReceipt returns, with expected values drawn from what the order states.",
+      "expected_output": "Runs the per-cycle checklist and the test fails its last item. Stub buildReceipt to return undefined and the test still passes: `expect(order.lines)` checks the order object the test itself created, and no receipt is ever inspected. As the fix it suggests capturing what buildReceipt returns and asserting on that receipt's lines, with the expected SKUs and quantities taken from the order.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Says the test would stay green if buildReceipt returned nothing",
-        "Points out that the assertion reads the order fixture, not the receipt",
-        "Proposes an assertion on the receipt that buildReceipt returns"
+        "Says the test keeps passing when buildReceipt returns nothing",
+        "Notes that the assertion checks the order the test built rather than any receipt",
+        "Suggests asserting on the receipt buildReceipt returns"
       ]
     }
   ]

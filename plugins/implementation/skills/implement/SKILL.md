@@ -150,9 +150,9 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
 
-**Design signals.** Some friction says the design itself, not only the plan, may need to go. Look for repetition first: plan deviations that trace back to one shared cause (two or more), or a workaround you are now writing at its second site. Then look at the boundaries. A module whose callers only use it correctly by knowing how it works inside, or code that compiles only after its types are weakened (a cast, `any`, an optional field that every path sets), points at a boundary drawn in the wrong place. Last, a race or ordering bug settled with a lock or a retry, where the real fix is changing which component owns the state, is the same signal.
+**Design signals.** Before you treat friction as a plan problem, run four checks on it; any yes means the design, not just the plan, may have to go. (1) Did a lock or a retry settle a race or an ordering bug that would vanish if a different component owned the state? (2) Did a type have to get looser before the code compiled: a cast, `any`, or an optional field no path ever leaves empty? (3) Does some module work for its callers only when they rely on its internals? A yes to (2) or (3) means a boundary sits in the wrong place. (4) Does the friction repeat: two or more plan deviations sharing one cause, or a second site for a workaround already written once?
 
-Length alone proves nothing here. Code that handles irregular input can run long and still be well shaped, so judge its structure.
+Line count is not one of the checks. A function that copes with messy input may need many lines and still be well built; look at how it is divided, not at how long it is.
 
 **When divergence is detected:**
 
@@ -162,7 +162,7 @@ Length alone proves nothing here. Code that handles irregular input can run long
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
    - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
-4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear. Work from the goal and the facts the failed attempt established; the broken code is not the starting point. Write down what the revision removes from the failed attempt before anything it introduces, and keep its first sketch smaller than the attempt it replaces
+4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear and its first draft answers yes to each check: Is it smaller than the failed attempt? Does it list what it drops before what it adds? Does it start from the goal and what the failed attempt proved, never from the broken code?
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
 
