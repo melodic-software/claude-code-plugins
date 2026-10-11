@@ -37,7 +37,7 @@
           "min": "2.1.287"
         }
       },
-      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, runs the blocking gate, draws the band row, serves the status tool and writes the snapshot does not load there.",
+      "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends zone lines, draws the band row, serves the status tool and writes the snapshot does not load there.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
       },

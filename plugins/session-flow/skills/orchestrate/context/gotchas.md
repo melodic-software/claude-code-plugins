@@ -42,20 +42,3 @@ the only field that makes a wrong-target answer detectable from above.
 The default action loads the imperatives into context and stops. Re-emitting them as paste text is
 the most common misfire: it spends the window on output the session already has, and it reads as
 having done the work. Only `handoff` / `worker` emit, and only for a target that LEAVES the session.
-
-## Unobservable rate-limit headroom is thin headroom, not free headroom
-
-A session can have no live rate-limit reading: mods are off, `rate-limit-guard` is not installed,
-a policy refused the `mcp__rate-limit-guard__status` tool's registration, or the tool answers with
-no windows (`verdict: "unknown"`, as under API-key or enterprise auth), and there is no fresh
-`~/.claude/rate-limit-guard/rate-limits.json` with `rate_limits`. Under `rate-limit-guard`'s reader contract that is
-**unknown → reactive-only**, expected, not a setup bug. The failure mode is treating the missing
-snapshot as "no pressure" and launching a wide fan-out that drains the same account-scoped windows
-local sessions are pacing against, while sibling automation is already failing with
-`429 rate-limit` and the orchestrator has no proactive signal to shrink further or to grow once
-other sessions pause.
-
-**Do this instead:** when no live reading is obtainable, imperative 7's rate-limit clause fires
-the thin-by-default fallback (small concurrent cap, short waves, scale only on this session's own
-rate-limit errors or live sibling-automation 429s). Do not invent window percentages. A later
-reading with plausible windows restores proactive mode; until then the fallback applies.

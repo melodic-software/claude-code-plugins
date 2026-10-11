@@ -107,7 +107,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
   return {
     bad,
     writes: options.rate_limit_guard_enabled !== false,
-    lines: options.rate_limit_lines_enabled !== false,
+    lines: options.model_notices === true,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
     approach: number('rate_limit_approach_pct', 90),
