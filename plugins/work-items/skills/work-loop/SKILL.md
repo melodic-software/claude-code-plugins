@@ -386,7 +386,8 @@ labels, and the run continues with the other candidates. The cycle report lists 
 to name, `labeler check failed: #<item> (<reason>)`. A refusal is not progress and does not reset
 the no-progress streak. The contract for the operation is in
 [`tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
-"Verbs (core public surface)".
+"Verbs (core public surface)". Unlike the other refusals, one refused only for a body edited after
+admission is escalated once (`kind=escalated`, to human attention), not refused again each cycle.
 
 Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
 maps to `write`, triage to `read`), see
