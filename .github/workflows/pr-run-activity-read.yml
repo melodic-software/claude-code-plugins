@@ -169,6 +169,7 @@ jobs:
           config-path: ${{ inputs.config-path }}
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          head-sha: ${{ steps.gate.outputs.head-sha }}
 
       # Any other effect belongs in pr-run-activity-write.yml; the caller chose
       # the wrong file. Fails before anything reads the PR head.

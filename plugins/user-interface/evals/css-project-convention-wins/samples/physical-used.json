@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".breadcrumb { padding-left: 16px; }\n.breadcrumb__item { margin-right: 8px; }",
+      "why": "physical properties"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".breadcrumb { padding-inline-start: 16px; }",
+      "why": "logical only"
+    }
+  ]
+}

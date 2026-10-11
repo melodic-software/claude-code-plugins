@@ -3,6 +3,71 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** a headless `work-loop` launch must carry `--drain` or the new `--standing` token; without one it stops with a message naming the relaunch tokens instead of running the standing default. Run config (`stop_mode`, `ordering`, `shard`, `scope`) now comes from the invocation line only and is recorded in the telemetry state block for the operator, never read back from it. The loop-lane convention's headless-config floor now states this rule, and the worker-lane launch lines in `prompts/loops/` carry `--standing` (#7142).
+- The tracker seam's `list-items`, `list-sub-items` and `list-frontier` envelopes carry `truncated`, true when items past `limits.list_items_max` exist and were not returned. Every bundled adapter emits it, `list-frontier` passes it through, and the conformance suite checks it is a boolean (#7142).
+- The Linear adapter reads its list ceiling from `limits.list_items_max` in `capabilities.json` instead of a second hard-coded copy (#7142).
+
+### Fixed
+
+- Tracker contract: "Degradation without `gh`" no longer names cloud sessions as a no-`gh` environment. It points at the upstream installed-tools and GitHub-proxy sections, and notes that GraphQL-backed `gh` calls fail there even with `gh` present.
+
+- `work-loop` aborts a cycle with no state change when a snapshot read (the seam's `list-frontier --autonomous` and `list-items --state open`, which every bundled adapter serves) errors, is truncated, or returns nothing parseable, so an empty or partial read can no longer complete a drain or set `first_drain_complete`. A truncated read, which recurs every cycle on a backlog past `limits.list_items_max`, also raises the stall escalation in that cycle without waiting for the no-progress threshold, and a headless lane then stops with a message naming the adapter and its ceiling (#7142).
+- `lane-telemetry-upsert.sh` compares the stored comment body with the body file after the write and exits 14 on a mismatch, so a write that left an earlier cycle's well-formed body in place no longer verifies (#7142).
+- The Jira adapter's `list-items` no longer prints a partial envelope after a mid-walk failure (#7142).
+- The Linear adapter's `list-items` asks each page for at most one issue past `limits.list_items_max` and stops at the first one past it, so a ceiling below, or not a multiple of, the page size can no longer return more than the ceiling with `truncated: false` (#7142).
+
+- end the first-drain period only on a person-applied label
+
+  work-loop's first-drain C3 gate lifted on first_drain_complete, a flag in
+  the lane's own telemetry comment, so the lane could widen its own autonomy.
+  The gate now lifts only when first-drain-ratified.sh finds the
+  `loop-lane: first-drain-ratified` label on the lane's telemetry issue,
+  where its last labeled or unlabeled event is an application by a User
+  actor not acting through a GitHub App. A completed drain proposes instead:
+  a kind=ratify-first-drain escalation on the telemetry issue, which
+  attend-queue lists as a [ratify] row despite its lane-infrastructure
+  exclusion. The reference names which durable-state fields may stay
+  lane-writable and why.
+
+- adopt only the write identity's telemetry comments
+
+  lane-telemetry-upsert.sh now adopts only sentinel comments its write
+  identity authored (the gh api user login, or <slug>[bot] via --app-slug,
+  matching babysit-loop), checks a create's author, rejects dot-segment
+  --repo values, and exits 15 when the identity is unresolved.
+
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+
+## [0.51.1] - 2026-10-11
+
+### Changed
+
+- `reference/standing-item-preconditions.md`: the `frontier-release-since-last-checked` precondition now defers the release class to the schedule row's `prompt`, and says the id keeps "frontier" only for history.
+
+## [0.51.0] - 2026-10-11
+
+### Added
+
+- **The tracker adapter owns the text that links a change to its item and the branch item-ID grammar.** A new offline `change-link` verb, implemented by every bundled adapter (github, gitea, jira, linear, local-markdown), returns the closing line (`Closes #42`, `Closes ENG-123`, or `null` where a merge closes nothing, as on Jira), the non-closing line, and the token a branch name carries; each manifest declares its branch grammar as `change_link.branch_pattern`. `/work-items:track link` exposes it to other plugins, and `track start`, `track done` and `work` now read it instead of writing GitHub's `Closes #N` and numeric branch names.
+
+- `/work-items:ship run #N` runs one container's ready items under its recorded execution shape, attended only: it claims them after the user approves the item list, hands them to `/implementation:implement-dispatch`'s item-list mode, and lands them one at a time, onto the integration branch as checkpoints or as per-item PRs. `ship` now routes and runs one container.
+
+- `/work-items:track` gains read actions `view` (an item's title, state, labels and body), `changes` (the change requests the tracker links as closing an item) and `labels` (the live label set, or which named labels are missing), and a write action `edit` (title, body, labels, a blocked-by edge, or a comment). `list --parent` lists a container's children, and `add` takes `--label`, `--body-file`, `--parent` and `--blocked-by`. Other plugins call these instead of a tracker's commands (ADR 0060). The GitHub adapter reference gains "Edit title / body", "List labels" and "Linked changes".
+
+### Changed
+
+- The execution-shape reference replaces "one item in flight" with "many in flight, the runner lands one at a time": sessions working a shared branch directly still keep one item in flight, and a runner that is the only writer may keep many.
+
+- Write "vertical slice" (or "item") for the work-item sense of slice in decompose, triage, ship, work and the seam and agent-brief references; "memory slice" and "topic slice" still name the per-topic folder.
+
 ## [0.50.1] - 2026-10-10
 
 ### Changed

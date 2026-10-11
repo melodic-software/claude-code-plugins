@@ -40,6 +40,7 @@ rc="$(gitea_run "$S")"
 assert_eq "no --repo with one declared scope → exit 0" "0" "$rc"
 assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(gitea_out)")"
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
+assert_eq "a complete listing carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_eq "item id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 # The page size must be EXPLICIT. Gitea defaults an omitted limit to 30 and truncates
 # silently — the same trap the contract calls out for `gh`.
@@ -297,6 +298,7 @@ else
   fail "more than the ceiling's worth of rows was collected before truncating" ">$CEILING" "$COLLECTED_N"
 fi
 assert_contains "and the truncation is announced" "$(gitea_err)" "truncated"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_contains "naming the manifest's ceiling, not a built-in one" "$(gitea_err)" "ceiling of $CEILING items"
 # The lowered ceiling is what ended the walk: under the shipped 1000 this mock would have
 # been asked for a third page, and eighteen more after it.
@@ -305,6 +307,20 @@ if [[ "$(gitea_requests)" == *"page=3"* ]]; then
 else
   pass "the fixture ceiling governed the walk"
 fi
+
+# --- --label goes to gitea, so the ceiling counts labeled issues only (#7173) ---
+# The same repository, past the ceiling unfiltered, holds one issue with the label. The
+# mock answers the labeled query with that issue, as gitea's `labels` filter would.
+gitea_reset_routes
+gitea_seed "/dependencies" 200 '[]'
+gitea_seed_total "labels=area%3A%20ci" 200 "[$(gitea_issue_json 7 open 'labeled')]" 1
+gitea_seed_total "/issues?state=open&type=issues" 200 "$CLAMPED_PAGE" 9999
+rc="$(WIT_SEAM_LIB_DIR="$GITEA_SEAM_LIB" gitea_run "$GITEA_FIX_ADAPTER/list-items.sh" --label "area: ci")"
+assert_eq "--label past an unlabeled ceiling → exit 0" "0" "$rc"
+assert_contains "the label travels URL-encoded in the query" "$(gitea_requests)" "type=issues&labels=area%3A%20ci&page=1"
+assert_eq "the labeled issue is listed" "gitea:acme/webapp#7" "$(jq -r '[.items[].id] | join(",")' <<<"$(gitea_out)")"
+assert_eq "and the labeled listing is complete" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
+assert_usage_error "$S" --label
 gitea_write_binding
 
 [[ $FAILED -eq 0 ]] || exit 1
