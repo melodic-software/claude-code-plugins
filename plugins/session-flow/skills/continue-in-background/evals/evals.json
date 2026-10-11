@@ -197,14 +197,14 @@
     },
     {
       "id": 16,
-      "name": "cloud-unattended-launch-advises-effort",
+      "name": "cloud-unattended-launch-passes-effort",
       "prompt": "/continue-in-background --cloud prompt fix-flaky-test — run the flaky-test fix unattended in a cloud session. The tree is clean and the branch matches origin.",
-      "expected_output": "The skill fetches, confirms HEAD matches the upstream, and launches claude --cloud with the prompt file and no --effort or --model flag, since upstream documents neither with --cloud. The report gives the session id, the teleport and follow-up commands and the signed-in account, and names the effort level the model-config table fits, telling the user to send /effort <level> in the session.",
+      "expected_output": "The skill fetches, confirms HEAD matches the upstream, and launches claude --cloud with the prompt file and an --effort level taken from the model-config table, placed before the prompt argument and not below medium. If the CLI rejects --effort with --cloud, it relaunches without it and the report tells the user to send /effort <level> in the session. The report gives the session id, the teleport and follow-up commands and the signed-in account.",
       "files": [],
       "expectations": [
         "git fetch runs before HEAD is compared with the upstream",
-        "claude --cloud is run without --effort or --model",
-        "The report names an effort level and tells the user to send /effort with it in the cloud session",
+        "claude --cloud carries --effort with a single level name, not below medium, before the prompt argument",
+        "Only if the CLI rejects --effort with --cloud does the skill relaunch without it and advise /effort in the report",
         "The report names the session id, the teleport and follow-up commands, and the signed-in account"
       ]
     }

@@ -179,19 +179,19 @@ matches its remote:
    succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
    tracking ref from passing the check. No upstream, a failed command, or any other result → no
    launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
-   also bundle a repo that has no remote or lacks the Claude GitHub App, uploading tracked
-   uncommitted changes (Pointer below). This skill does not take that path, so the cloud session
-   starts from pushed state; a user who wants a bundle starts `claude --cloud` themselves. A
+   also bundle a repo in some cases (Pointer below). This skill does not take that path, so the
+   cloud session starts from pushed state; a user who wants a bundle starts `claude --cloud`
+   themselves. A
    handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a
    local path, so launch only on the prompt-only path. When the save-point takes the full path,
    forced or by default, do not launch: tell the user to commit and push the handoff or plan,
    then rerun as `--cloud prompt <topic> <purpose naming its repo-relative path>`. This skill
    commits nothing.
 2. **Launch** from the project root with the prompt file:
-   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`. Pass no `--effort` or
-   `--model`: upstream documents neither with `--cloud`, and the session takes them from the
-   cloud environment. When "What the launched session inherits" calls for an effort level, the
-   report names it and tells the user to send `/effort <level>` in the session.
+   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`, with `--effort "<level>"`
+   before the prompt argument when "What the launched session inherits" calls for one. If the CLI
+   rejects `--effort` with `--cloud`, relaunch without it and have the report name the level and
+   tell the user to send `/effort <level>` in the session.
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
    or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
    same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
@@ -228,8 +228,7 @@ The launched agent is a NEW session, not a fork of this one
   model-config's
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   table, pick the level whose described use fits the resumed task, and pass that level as
-  `--effort "<level>"` in step 2's command, before the prompt argument (the `--cloud` variant
-  names the level in its report instead). A task that changes code
+  `--effort "<level>"` in step 2's command, before the prompt argument. A task that changes code
   or verifies it is never given a level below medium; skip any row the table says is not an
   effort level. The value is one level name of lowercase letters only, never free text, for the
   same reason the topic slug is sanitized. The launch report names the level and quotes the
@@ -275,9 +274,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
-- [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload, no
-  `--effort`; the report names the session id, the teleport and follow-up commands, the
-  signed-in account, and any advised `/effort` level
+- [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
+  `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
+  report names the session id, the teleport and follow-up commands, and the signed-in account
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces
