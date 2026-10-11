@@ -1,0 +1,23 @@
+// expect: rule-zero-assertion
+// A Reqnroll [Then] step that only prints the results: nothing checks them,
+// so the scenario passes whatever the search returned.
+using System;
+using Reqnroll;
+
+[Binding]
+public class SearchStepDefinitions
+{
+    private string[] _hits;
+
+    [When(@"the user searches for (.*)")]
+    public void WhenTheUserSearchesFor(string term)
+    {
+        _hits = Search.Run(term);
+    }
+
+    [Then(@"the matching products are listed")]
+    public void ThenTheMatchingProductsAreListed()
+    {
+        Console.WriteLine(string.Join(", ", _hits));
+    }
+}

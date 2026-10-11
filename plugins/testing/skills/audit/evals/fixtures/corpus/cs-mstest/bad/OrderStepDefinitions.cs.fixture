@@ -1,0 +1,26 @@
+// expect: rule-zero-assertion
+// A Reqnroll step file that asserts with MSTest is claimed by cs-mstest, whose
+// test starts still include [Then]. This [Then] step only prints the order,
+// so the scenario passes whatever Place did.
+using System;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Reqnroll;
+
+[Binding]
+public class OrderStepDefinitions
+{
+    private Order _order;
+
+    [When(@"the order is placed")]
+    public void WhenTheOrderIsPlaced()
+    {
+        _order = Order.Sample();
+        _order.Place();
+    }
+
+    [Then(@"the order is confirmed")]
+    public void ThenTheOrderIsConfirmed()
+    {
+        Console.WriteLine(_order);
+    }
+}

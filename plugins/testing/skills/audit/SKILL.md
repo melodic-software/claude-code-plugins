@@ -90,7 +90,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --file <path
 Scan root: the current repo's git toplevel (or `$CANT_FAIL_SCAN_ROOT` to narrow/point explicitly,
 a supported operator lever). Ecosystems: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test,
 Playwright), Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`,
-Reqnroll `*StepDefinitions.cs`, `UnitTest*.cs`: xUnit, NUnit, MSTest), Bash (`*.test.sh`
+Reqnroll `*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`: xUnit,
+NUnit, MSTest), Bash (`*.test.sh`
 harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go (`*_test.go`), each defined by an
 adapter file in `adapters/`.
 
