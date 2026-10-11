@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
-  summary: Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate
+  summary: Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate, or delete only skeptic-cleared cannot-fail tests without one
 ---
 
 ## Repository context. Gather first
@@ -50,7 +50,8 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
 - The current branch is the default branch, or the working tree is dirty. Cleanup stages a batch
   that must be reviewable as one diff. A resumed batch is the exception: when `<work>/decisions.md`
   exists and every changed path's `git hash-object "<path>"` equals the hash it recorded for that
-  path after its last edit, continue at the step it records. A path with a different hash carries
+  path after its last edit, continue at the step it records, in cannot-fail-only mode when
+  `decisions.md` holds the `mode: cannot-fail-only` line. A path with a different hash carries
   an edit the batch did not make: refuse.
 - The `mutation-testing` plugin is not enabled. The mutation gate needs it: report that.
 - `mutation-testing` has no config for the repository, or its `test-command` is missing or lacks a
@@ -62,8 +63,8 @@ Stop, naming the remedy, when any of these holds; check them all before step 1:
   baseline would be red. Name a subfolder per language and ask for one.
 
 The two `mutation-testing` checks and the language check guard the mutation runs only; they do not
-apply under `--cannot-fail-only`. When either `mutation-testing` check is the only reason to stop
-and `--cannot-fail-only` was not given, name the remedy, then offer
+apply under `--cannot-fail-only`. When every check that holds is one of those three, at least one
+being a `mutation-testing` check, and `--cannot-fail-only` was not given, name each remedy, then offer
 [Cannot-fail-only mode](#cannot-fail-only-mode) and continue in it only on the user's yes.
 Unattended, or on a no, stop.
 
@@ -209,7 +210,9 @@ It runs no test and no mutation tool, which keeps it safe on suites whose tests 
 It proposes no quarantine, rewrite or merge. Step 0's branch, tree and folder checks still apply;
 these steps replace steps 1 to 6, and step 7 follows unchanged.
 
-1. **Candidates.** Run the step 1 scanner command. An in-scope row is one whose rule is
+1. **Candidates.** Write `mode: cannot-fail-only` to `decisions.md`, and record each step reached
+   as `cannot-fail-only <n>`. Run the step 1 scanner command and the step 1 quarantine sweep, and
+   record the scanner's `test blocks parsed` count in `decisions.md`. An in-scope row is one whose rule is
    `rule-zero-assertion`, `rule-recomputed-expectation` or `rule-inert-assertion` (section 5 of
    `${CLAUDE_PLUGIN_ROOT}/skills/test-value/SKILL.md` says what each means). The last two flag one
    statement, so a test is a candidate only when it has no assertion at all or every assertion in
@@ -218,8 +221,8 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    branch is taken), as are judge verdicts and tests the user names as flaky or
    duplicate: list each in `decisions.md` as `not in this mode` and leave it. So is a test in a
    `block_model: file` adapter's file, and a test holding a `catch ... when (...)` guard, such as a
-   trial-license check: neither is deleted or edited. List expired quarantines found by the step 1
-   sweep, and change none. No candidate: report `nothing to clean in <folder>` and stop.
+   trial-license check: neither is deleted or edited. List expired quarantines found by the sweep,
+   and change none. No candidate: report `nothing to clean in <folder>` and stop.
 2. **Skeptic.** Per test file holding a candidate, write `<work>/skeptic-brief-<n>.md` from
    [`context/skeptic-brief.md`](context/skeptic-brief.md), with `<plugin-root>` rendered as
    `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with
@@ -234,10 +237,10 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    Remove the whole test (its attributes, decorators and doc comment) and nothing else: a helper
    or field the test alone used stays, for `/code-tidying:audit-dead-code`. Keep the file's line
    endings: a file whose every line ended in CRLF before the edit
-   (`grep -c $'\r$' "<path>"` equals `wc -l < "<path>"`) still does after it. The
+   (`grep -c $'\r$' -- "<path>"` equals `wc -l < "<path>"`) still does after it. The
    `test-change: cleanup row 4: <reason>` comment rule of step 5 applies.
-5. **Check.** Re-run the scanner over the folder. Its `test blocks parsed` count must be the step 1
-   count minus the approved deletions, and `git status --porcelain` must list only files under the
+5. **Check.** Re-run the scanner over the folder. Its `test blocks parsed` count must be the count
+   `decisions.md` recorded in step 1 minus the approved deletions, and `git status --porcelain` must list only files under the
    folder. Any other result stops the batch and names the difference.
 
 Step 7's report states that the batch ran in this mode, which step 0 check led to it, if any, and that no
