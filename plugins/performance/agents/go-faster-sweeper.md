@@ -31,7 +31,7 @@ If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say 
   (put it under the system temp directory) and the shared user-scope docs cache, its own store.
 - **One plain command per Bash call.** `$PY`, `$ROOT`, `$RUN`, `$DATA` and `$SESSION` in this file
   and in `areas.md` stand for the values in your dispatch prompt: type each value literally into
-  the command, because no shell variable survives from one Bash call to the next. Never chain a
+  every command, never as a shell variable. Never chain a
   findings.py or git command with `;`, `&&` or `|`, and never wrap one in `bash -c`: a git command
   runs as its own call. Put the `--json` text in single quotes and write any apostrophe inside it as
   `\u0027`, a JSON escape, so the shell needs no escaping. Keep one command under 8,000
