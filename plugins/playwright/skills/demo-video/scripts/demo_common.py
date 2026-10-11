@@ -1,6 +1,6 @@
 """Shared pieces of the demo-video pipeline: the one config home (defaults.json plus an optional
 override file), content-ink analysis of a capture, the gutter test for a camera rect, the eased-move
-timing rule and the caption pill geometry. build_edl.py, produce.py and qc.py import it."""
+timing rule, the page-change measure and the caption pill geometry. build_edl.py, produce.py and qc.py import it."""
 import json
 import math
 import subprocess
@@ -139,6 +139,19 @@ class Ink:
         if not len(xs):
             return self.W / 2, self.H / 2
         return float(xs.mean()), float(ys.mean())
+
+
+@lru_cache(maxsize=64)
+def _change_view(path):
+    return np.asarray(Image.open(path).convert('L').resize((480, 270), Image.BOX), np.float32)
+
+
+def page_change(a, b):
+    """Share of pixels that differ between two captures (480x270 gray, step > 24). qc.py treats a
+    change at or above qc.nav_change_min as a page cut the camera must be still across."""
+    if str(a) == str(b):
+        return 0.0
+    return float((np.abs(_change_view(str(a)) - _change_view(str(b))) > 24).mean())
 
 
 def edge_ink(ink, rect, band, W, H, tol=0.5):

@@ -27,8 +27,10 @@ Rows with `effective = yes` or `approval-unknown` are scored. `approval-unknown`
 `.mcp.json` server whose approval lives in a settings file the script does not read, so it may
 load; mark its findings "if approved". A user row reading `shadowed-by:project-if-approved` is
 also scored, marked "if the project entry is not approved". Rows reading `shadowed-by:<scope>`,
-`suppressed-by-managed`, `disabled`, or `rejected-by-client` stay in the inventory table and get
-no findings, because Claude Code does not launch them from that entry. `rejected-by-client` is a
+`suppressed-by-managed`, `disabled`, `rejected-by-client`, or `skipped-by-client` stay in the
+inventory table and get no findings, because Claude Code does not launch them from that entry.
+`skipped-by-client` is a `"type": "sdk"` entry in a config file; see the SDK entries record.
+`rejected-by-client` is a
 `managedMcpServers` entry that fails the entry checks the script applies (`type` of `http`, `sse`,
 or `streamable-http`, an `https://` URL, no `command`, `args`, `env`, or `headersHelper`, no
 `${VAR}`, a name of letters, numbers, hyphens, and underscores, and no control or invisible
@@ -216,3 +218,21 @@ case handling.
 - **As of**: 2026-09-26
 - **Recheck trigger**: the managed-mcp page changes precedence or the entry checks, or a Claude
   Code release note names `managedMcpServers` precedence or its entry checks.
+
+### SDK entries
+
+The inventory marks every `"type": "sdk"` row it reads as `skipped-by-client`, whatever its
+source, and the audit treats that row as dead config, not a running server, so it gets no
+findings. Shadowing is unchanged: an sdk row shadows a same-name row in a lower scope exactly as any
+other row does. A `managedMcpServers` sdk entry still reads `rejected-by-client`, because it fails
+the entry checks first.
+
+- **Pointer**: when an sdk row appears, fetch
+  <https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server> (the note on `sdk`
+  entries) and <https://code.claude.com/docs/en/changelog> (version 2.1.274) live.
+- **Source conflict**: the mcp page
+  (<https://code.claude.com/docs/en/mcp#option-1-add-a-remote-http-server>) and changelog 2.1.274
+  (<https://code.claude.com/docs/en/changelog>) disagree on which config sources skip an sdk entry.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the mcp page's `sdk` note changes the sources it names, or a Claude Code
+  release note names `"type": "sdk"` entries.

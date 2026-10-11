@@ -18,9 +18,11 @@
 #                     covering **/*.cs; AGENTS.md carries everything else.
 #
 #   Both arms get an identical task that EDITS AN EXISTING .cs FILE, so the
-#   read that triggers a path-scoped rule actually happens. (A create-only task
-#   would test the documented write-trigger gap instead, which is a different
-#   question and one the rubric already answers by refusing that destination.)
+#   file is read before it changes and the rule is in context for the edit on
+#   any Claude Code version (triggers by version: context/verified-mechanics.md).
+#   (A create-only task would test the write-trigger gap instead, whether a
+#   rule that fires on the write arrives in time, which is a different question
+#   and one the rubric already answers by refusing that destination.)
 #
 #   Compliance is defined BEFORE any run: the produced file declares the class
 #   `sealed`, and names the private field with a leading underscore. Both are
@@ -64,7 +66,7 @@ Usage:
 
 Arm A puts the convention in a ~250-line always-loaded AGENTS.md.
 Arm B puts the identical text in a path-scoped rule for **/*.cs.
-Both arms edit an existing .cs file, so the read-trigger fires.
+Both arms edit an existing .cs file, so the rule loads before the edit.
 
 Reports raw compliance counts per arm. Small N: directional only.
 
