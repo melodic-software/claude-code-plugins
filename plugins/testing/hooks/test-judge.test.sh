@@ -350,7 +350,7 @@ wait
 cat >"$TMP/term-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 trap '' TERM
-printf x >"$STUB_DIR/call-term-$$.args"
+printf x >"$STUB_DIR/term-$$.args"
 end=$((SECONDS + 8))
 while ((SECONDS < end)); do sleep 0.2; done
 echo '{"type":"result","subtype":"success","is_error":false,"result":"{\"verdicts\":[]}"}'
@@ -369,7 +369,9 @@ p="$(find "$DATA/pending/$PKEY/s8c" -type f | head -1)"
 check "its key gets a pending/ marker and a live background job" '[[ -n "$p" ]] && kill -0 "$(head -1 "$p" | cut -d" " -f1)" 2>/dev/null'
 assert_contains "the message counts the key not judged in time" "$(field .systemMessage)" "1 more test is judged in the background"
 stop_jobs s8c
-tmp_kill TERM "$TMP/term-stub.sh"
+# KILL: the stub ignores TERM. Its marker is not a call-*.args file, so a
+# background run that starts late is never counted as a later case's call.
+tmp_kill KILL "$TMP/term-stub.sh"
 wait
 
 # Two failed attempts: "judge not run", and no third attempt.
