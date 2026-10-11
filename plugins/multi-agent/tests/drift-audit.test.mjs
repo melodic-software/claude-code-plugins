@@ -376,6 +376,41 @@ test('defaults mode proposes a diff from confirmed rows only, with the passed as
   assert.equal(result.current.length, 2)
 })
 
+const MC = 'https://code.claude.com/docs/en/model-config#choose-an-effort-level'
+const BASIS_POINTERS = [
+  { owner: 'worker', key: 'basis_model', value: 'judgment' },
+  { owner: 'worker', key: 'reason_model', value: 'no statement sets it' },
+  { owner: 'worker', key: 'basis_effort', value: 'upstream' },
+  { owner: 'worker', key: 'pointer_effort', value: MC },
+  { owner: 'worker', key: 'claim_effort', value: 'the clear-scope row' },
+  { owner: 'worker', key: 'as_of', value: '2026-10-11' },
+  { owner: 'worker', key: 'roles.worker.model', value: 'inherit' },
+  { owner: 'worker', key: 'roles.worker.effort', value: 'medium' },
+]
+
+test('a judgment value reaches no finder and comes back with its reason', async () => {
+  const { result, calls } = await run({ pointers: BASIS_POINTERS })
+  const finder = by(calls, 'find:worker')
+  assert.equal(finder.length, 1)
+  assert.deepEqual(data(finder[0].prompt, 'values').map(v => v.key), ['roles.worker.effort'])
+  assert.ok(data(finder[0].prompt, 'pointers').some(p => p.key === 'claim_effort'), 'the finder sees the claim it checks')
+  assert.ok(finder[0].prompt.includes('unsupported (the cited section exists but states neither the value'))
+  assert.deepEqual(result.judgment, [{ owner: 'worker', key: 'roles.worker.model', value: 'inherit', reason: 'no statement sets it' }])
+  assert.ok(!result.unverified.some(u => u.key === 'roles.worker.model'), 'a judgment value is not reported unread')
+})
+
+test('a pointer that does not state its value is reported unsupported and the diff marks it judgment', async () => {
+  const { result, calls } = await run({ pointers: BASIS_POINTERS, asOf: '2026-11-01' }, {
+    reply: (p, o, d) => (o.label === 'find:worker'
+      ? { rows: [{ key: 'roles.worker.effort', verdict: 'unsupported', evidenceUrl: MC, evidence: 'q', reason: 'the section names no level for this' }] }
+      : d(p, o)),
+  })
+  assert.equal(by(calls, 'skeptic:').length, 3, 'an unsupported finding goes to the skeptic panel')
+  assert.deepEqual(result.confirmed.map(f => [f.key, f.verdict, f.proposed]), [['roles.worker.effort', 'unsupported', 'medium']])
+  assert.doesNotMatch(result.diff, /\+roles\.worker\.effort:/, 'the value itself is unchanged')
+  assert.match(result.diff, /-roles\.worker\.basis_effort: upstream\n\+roles\.worker\.basis_effort: judgment\n\+roles\.worker\.reason_effort: /)
+})
+
 test('a proposed value outside its key grammar never reaches a skeptic or the diff', async () => {
   const pointers = POINTERS.concat([{ owner: 'fanout', key: 'fanout.frontier_guard', value: 'true' }])
   const { result, calls } = await run({ pointers }, {

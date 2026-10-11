@@ -191,8 +191,51 @@ out="$(run plain all --session-model opus)"
 assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
 
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-10'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-11'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
+assert_contains "pointers lists a role's per-value basis" "$out" $'verifier\tbasis_effort\tupstream'
+
+# Every shipped role records a basis per value: upstream with the pointer and
+# claim that state it, or judgment with a reason.
+pointers="$out"
+for r in orchestrator worker verifier retrieval; do
+  for f in model effort; do
+    basis="$(awk -F '\t' -v r="$r" -v k="basis_$f" '$1 == r && $2 == k { print $3 }' <<<"$pointers")"
+    case "$basis" in
+    upstream)
+      ptr="$(awk -F '\t' -v r="$r" -v k="pointer_$f" '$1 == r && $2 == k { print $3 }' <<<"$pointers")"
+      claim="$(awk -F '\t' -v r="$r" -v k="claim_$f" '$1 == r && $2 == k { print $3 }' <<<"$pointers")"
+      if [[ "$ptr" == https://*#* && -n "$claim" ]]; then
+        pass "$r.$f: upstream basis names an anchored pointer and a claim"
+      else
+        fail "$r.$f: upstream basis names an anchored pointer and a claim" "pointer_$f URL#anchor and claim_$f" "pointer='$ptr' claim='$claim'"
+      fi
+      ;;
+    judgment)
+      reason="$(awk -F '\t' -v r="$r" -v k="reason_$f" '$1 == r && $2 == k { print $3 }' <<<"$pointers")"
+      if [[ -n "$reason" ]]; then pass "$r.$f: judgment basis gives a reason"; else fail "$r.$f: judgment basis gives a reason" "reason_$f" "(none)"; fi
+      ;;
+    *) fail "$r.$f: basis recorded" "upstream or judgment" "'$basis'" ;;
+    esac
+  done
+done
+
+# The resolved map carries each value's basis.
+out="$(run plain all --session-model opus)"
+assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","effort":"upstream"}}'
+
+# A consumer value has basis config; a consumer layer cannot set a basis.
+fixture basisconfig
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n    basis_effort: upstream\n    basis_model: upstream\n' >"$T/basisconfig/repo/.claude/multi-agent.yaml"
+out="$(run basisconfig worker --session-model opus)"
+assert_contains "consumer effort: basis config" "$out" '"source":{"model":"bundled","effort":"team"},"basis":{"model":"judgment","effort":"config"}'
+assert_contains "consumer basis key ignored" "$out" 'roles.worker.basis_model ignored: provenance keys are read from the bundled layer only'
+
+# A bundled entry with no basis resolves as unrecorded.
+fixture nobasis
+printf 'schema: 1\nfrontier: fable,best\nfanout:\n  model: opus\nroles:\n  worker:\n    model: inherit\n    effort: medium\n' >"$T/nobasis/defaults.yaml"
+out="$(run nobasis worker --session-model opus --defaults "$T/nobasis/defaults.yaml")"
+assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","effort":"unrecorded"}'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

@@ -46,12 +46,15 @@ The JSON exactly as printed, in one fenced `json` block. Below it, one line per
 role in this form:
 
 ```text
-<role>: single <model|inherit: omit the model option> @ <effort>; fanout <model|inherit: omit the model option> @ <effort>
+<role>: single <model|inherit: omit the model option> @ <effort>; fanout <model|inherit: omit the model option> @ <effort> (basis: model <basis>, effort <basis>)
 ```
 
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
 true, so a caller copying the line passes no model and the agent runs on the
-session model. Then list every entry of `notes` (a skipped layer, a rejected
+session model. Each `<basis>` is the role's `basis` entry as printed:
+`upstream` (an upstream statement sets it), `judgment` (no upstream statement
+does; the reason is in `defaults.yaml`), `config` (a consumer layer set it) or
+`unrecorded`. Then list every entry of `notes` (a skipped layer, a rejected
 value, an ignored key, a role that resolves to haiku) as written. A haiku note
 means the role runs on a model no role here has passed the routing eval on;
 the rule is in
