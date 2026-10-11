@@ -118,9 +118,8 @@ nothing is written and readers read `unknown`, as with no file.
   first response), `context_window_size`, `used_percentage`, `remaining_percentage` and
   `current_usage`. A field the status line adds later does not appear here until the module maps
   it. A null `used_percentage`, `remaining_percentage`, or `current_usage` is a normal
-  state, not a defect; the capability table below says what each one does to the zone, and a null
-  `current_usage` after `/compact` is why that row resolves `unknown`. A body with null figures
-  never replaces a file that has them. Pointer: for the field meanings and when each field is
+  state, not a defect; the capability table below says what each one does to the zone. A body
+  with null figures never replaces a file that has them. Pointer: for the field meanings and when each field is
   null, see <https://code.claude.com/docs/en/statusline#available-data>.
   As of: 2026-10-03. Recheck trigger: a release note or that section changes the `context_window`
   fields or the states in which they are null.
@@ -199,11 +198,11 @@ neither is, the zone is unknown. Rationale: the two shapes disagree exactly when
 information the other lacks (a deep-but-cache-heavy window, a small window near compaction), and
 a routing hint must degrade toward caution, never toward optimism.
 
-**Version floor:** `total_input_tokens` / `total_output_tokens` mean *current context occupancy*
-only since Claude Code **2.1.132**. Before that they were cumulative session totals, which would
-misfire the token bands badly. Cumulative semantics are **not observable from the numbers**: a
-cumulative 170k in a 200k window is a perfectly plausible current occupancy, sits inside the
-window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
+**Version floor:** we read `total_input_tokens` / `total_output_tokens` as *current context
+occupancy* only from Claude Code **2.1.132** on (the source note below points at why); earlier
+figures would misfire the token bands badly. What a figure means is **not observable from the
+number**: a 170k reading in a 200k window is a perfectly plausible current occupancy, sits inside
+the window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
 reports to the module (Pointer: `$.session.version()` in
 <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
@@ -212,12 +211,14 @@ Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). *
 leaves the percentage shape to stand alone.
 
 > **Source of the 2.1.132 floor.** We do not trust `total_input_tokens` /
-> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release whose
-> changelog entry names the statusline token-count fix.
+> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release we take the
+> floor from.
 >
-> - **Pointer**: [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132); for the
->   fields' present meaning, <https://code.claude.com/docs/en/statusline#context-window-fields>.
-> - **As of**: 2026-10-01
+> - **Pointer**: when deciding where the floor sits, fetch
+>   [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132) live; for the fields'
+>   present meaning,
+>   [status line: context window fields](https://code.claude.com/docs/en/statusline#context-window-fields).
+> - **As of**: 2026-10-11
 > - **Recheck trigger**: any change that relaxes the floor, or the changelog entry moves or is reworded.
 
 **Plausibility guard (independent, retained):** **occupancy greater than `context_window_size`
@@ -226,17 +227,14 @@ a version field cannot (there is no writer authentication, so `cli_version` is u
 every other snapshot value). The bundled resolver implements both gates.
 
 **Band provenance:** the shipped token bands are **declared judgment**, not benchmark-derived
-constants. Anthropic publishes no per-length long-context scores for Claude Opus 5.5, Sonnet 5.5
-or Fable 5.1: their system cards report one aggregate ProgramBench score each, an agentic task
-whose episodes run up to the full 1M window. The published per-length data is retrieval and graph
-traversal, not agentic work, and no study we found links those scores to agentic task quality. On
-GraphWalks BFS, run by Google at max reasoning and published with Gemini 4 Argon, Opus 5.5 scores
-90.6% up to 128K and 66.8% from 256K to 1M, and Fable 5.1 91.4% and 65.0%. On Context Arena's
-8-needle MRCR (max effort), Claude Opus 5 scores 0.913 at 128K, 0.656 at 256K and 0.425 at 512K,
-and Claude Sonnet 5 0.529, 0.522 and 0.320. The 1M row's `smart` edge, 128000, is the last length
-at which those current-model scores are still near their best. Its `acceptable` edge, 500000,
-sits below 512K, the first MRCR length at which both Claude rows score under one half. Between
-the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
+constants. Anthropic's system cards for the current Claude models give no per-length
+long-context scores (the pointer below names the sections). The published per-length data is
+retrieval and graph traversal, not agentic work, and no study we found links those scores to
+agentic task quality. We read two such sources, Google's GraphWalks BFS table and Context Arena's
+8-needle MRCR, both at the pointer below. The 1M row's `smart` edge, 128000, is the last length at
+which those current-model scores were still near their best when we set it. Its `acceptable` edge,
+500000, sits below 512K, the first MRCR length at which both Claude rows scored under one half.
+Between the two, scores sag without a measured cliff, so a reading there is `acceptable`, not `dumb`: an
 `acceptable` edge of 250000 read `dumb` at 26% of a 1M window on no evidence for current models
 or agentic work (#6644). The 200k row's `acceptable` edge, 150000, sits at
 the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
@@ -260,7 +258,8 @@ defaults is coincidence, not validation.
 
 ## The module (first shipped consumer)
 
-The plugin's module (`hooks/register.tsx`, a Claude Code mod; Claude Code 2.1.287 or later) is the
+The plugin's module (`hooks/register.tsx`, a Claude Code mod; it needs the mods floor the plugin
+README's "Requirements" records) is the
 first shipped consumer. It decides from the live session's figures, the same ones it writes to the
 snapshot, through a TypeScript copy of the resolver's band function; the shared fixture
 `scripts/context-zone.fixtures.mjs` (generated from the repo's `lib/context-zone.fixtures.mjs`)
@@ -345,9 +344,14 @@ skill's module check), none of the following runs except the PostCompact marker.
 
 Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
-semantics. For the mods API it uses, see <https://code.claude.com/docs/en/plugins/mods/overview>.
-As of: 2026-10-03, Claude Code 2.1.288. Recheck trigger: that page or its events reference changes
-`tool.call`, `prompt.submit` or `session.compact`.
+semantics.
+
+- **Pointer**: for how a mod works and the mods API methods the module calls, see
+  [mods overview: how a mod works](https://code.claude.com/docs/en/plugins/mods/overview#how-a-mod-works)
+  and [mods reference: mods API methods](https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods).
+- **As of**: 2026-10-11.
+- **Recheck trigger**: that table renames or drops a method the module calls, or the events
+  reference changes `tool.call`, `prompt.submit` or `session.compact`.
 
 ## Evidence-degraded marker
 
@@ -392,7 +396,7 @@ at run time: the docs' default-thresholds table,
 **As of:** 2026-10-10. **Recheck trigger:** that table changes, or its section is renamed or
 removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 implies a percentage default that no page publishes as a number; for that variable, see
-[Claude Code environment variables](https://code.claude.com/docs/en/env-vars). The empirical
+[Claude Code environment variables: variables](https://code.claude.com/docs/en/env-vars#variables). The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
@@ -633,10 +637,9 @@ session permanently. The module runs in interactive, `-p`, SDK and `--bg` sessio
 not run:
 
 - **In a WSL session of the Desktop app**, where plugins are not available.
-- **Where mods are off**: Claude Code older than 2.1.287, `disableAllHooks`, `--bare`,
-  `--safe-mode`, an organization's `allowManagedModsOnly`, mods switched off remotely, or after the
-  hooks worker crashed. The PostCompact marker, a settings hook, still runs there wherever
-  settings hooks do.
+- **Where mods are off**: below the mods floor the plugin README's "Requirements" records, or
+  wherever a setting, flag, policy or Claude Code itself turned mods off (the pointer below). The
+  PostCompact marker, a settings hook, still runs there wherever settings hooks do.
 - **Where the plugin is not enabled** for the session, for example a project that disables it in
   `enabledPlugins`, or a cloud session the plugin does not reach. A cloud session that does load
   the plugin runs its hooks, per the table at the pointer below; no run of this plugin in a cloud
