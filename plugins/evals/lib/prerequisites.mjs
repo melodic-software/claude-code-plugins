@@ -25,6 +25,7 @@
 // below its version floor. Exit 2: a usage error or a manifest that fails the schema.
 // Standard library only. It never installs anything and never prints an env value.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   accessSync,
   constants,
@@ -317,8 +318,13 @@ function findLocalBin(rels, cwd, platform, fs) {
   return null;
 }
 
-function run(file, args) {
-  const r = spawnSync(file, args, { encoding: "utf8", timeout: PROBE_TIMEOUT_MS, stdio: ["ignore", "pipe", "pipe"] });
+function run(file, args, env) {
+  const r = spawnSync(file, args, {
+    encoding: "utf8",
+    timeout: PROBE_TIMEOUT_MS,
+    stdio: ["ignore", "pipe", "pipe"],
+    ...(env && { env }),
+  });
   return { ok: !r.error && r.status === 0, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };
 }
 
@@ -340,6 +346,23 @@ function expandPluginPath(p, ctx) {
     return path.join(data, p.slice("${CLAUDE_PLUGIN_DATA}".length));
   }
   return path.join(ctx.root, p.replace(/^\$\{CLAUDE_PLUGIN_ROOT\}/, ""));
+}
+
+// A plugin that commits requirements.txt installs its Python packages into the
+// plugin data directory, at <data>/python/<first 12 hex of the lock's sha256>-<the
+// interpreter's sys.implementation.cache_tag>/ (docs/conventions/on-demand-dependencies,
+// Rule P3). pluginPythonSet -> null when the plugin has no lock, { dir: null } when
+// the data directory is unknown here, else { dir } for the found interpreter.
+function pluginPythonSet(python, ctx) {
+  const lock = path.join(ctx.root, "requirements.txt");
+  if (!existsSync(lock)) return null;
+  const data = expandPluginPath("${CLAUDE_PLUGIN_DATA}", ctx);
+  if (!data) return { dir: null };
+  const tag = run(python, ["-c", "import sys; print(sys.implementation.cache_tag)"]);
+  const cacheTag = tag.ok ? tag.out.trim() : "";
+  if (!/^[A-Za-z0-9._-]+$/.test(cacheTag)) return null;
+  const key = createHash("sha256").update(readFileSync(lock)).digest("hex").slice(0, 12);
+  return { dir: path.join(data, "python", `${key}-${cacheTag}`) };
 }
 
 // detectEntry(entry, ctx) -> { status, detail }. status is present, missing,
@@ -377,7 +400,21 @@ export function detectEntry(entry, ctx) {
       if (!found) return { status: "missing", detail: `no Python interpreter (${d.any.join(", ")}) on PATH` };
       if (run(found, ["-c", `import ${d.import}`]).ok)
         return { status: "present", detail: `${found} imports ${d.import}` };
-      return { status: "missing", detail: `${found} cannot import ${d.import}` };
+      // Not importable on its own: try the plugin's installed set, the way its
+      // launcher runs it (PYTHONPATH set to the set, -S so no ambient site-packages).
+      const set = pluginPythonSet(found, ctx);
+      if (set?.dir === null) {
+        return {
+          status: "unverified",
+          detail: `${found} cannot import ${d.import} on its own, and the plugin data directory is unknown here; pass --data-dir`,
+        };
+      }
+      if (set && existsSync(set.dir)) {
+        if (run(found, ["-S", "-c", `import ${d.import}`], { ...process.env, PYTHONPATH: set.dir }).ok)
+          return { status: "present", detail: `${found} imports ${d.import} from ${set.dir}` };
+      }
+      const where = set ? ` on its own or from ${set.dir}` : "";
+      return { status: "missing", detail: `${found} cannot import ${d.import}${where}` };
     }
     case "node-pkg": {
       let unresolved = false;

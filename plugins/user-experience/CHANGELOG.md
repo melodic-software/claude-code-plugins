@@ -3,6 +3,16 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.3] - 2026-10-11
+
+### Fixed
+
+- The shared prerequisites checker (`lib/prerequisites.mjs`) now finds a `python-pkg` in the
+  plugin's own installed Python set: a module the interpreter cannot import on its own is looked
+  up in the set a plugin with a committed `requirements.txt` installs into its data directory,
+  instead of being reported missing. When the data directory is unknown, the entry reports
+  `unverified`. This plugin declares no `python-pkg` entry, so its own checks are unchanged.
+
 ## [0.1.2] - 2026-10-11
 
 ### Changed
