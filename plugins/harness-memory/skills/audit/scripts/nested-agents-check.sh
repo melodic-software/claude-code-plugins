@@ -94,11 +94,10 @@ nested_agents() {
 # file, since each of those loads and carries its imports in.
 #
 # All three names count at EVERY level, the root's `.claude/CLAUDE.md` included
-# but not alone: the memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or
-# CLAUDE.local.md in your working directory or any directory above it", and
-# fires the nested attach only where a subdirectory "has none of the three
-# CLAUDE.md files of its own" (code.claude.com/docs/en/memory, "When Claude
-# Code reads AGENTS.md"; fetched 2026-09-19; recheck when that list changes).
+# but not alone, both in the directories above and in the subdirectory itself.
+#   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes which file names count, or at which levels.
 is_wired() {
   local agents="$1" dir want entry
   dir="$(dirname "$agents")"

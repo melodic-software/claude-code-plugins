@@ -92,15 +92,14 @@ those commands to be discovered per session rather than read. Backs C9.
 ## @import syntax
 
 The audit treats `@path/to/import` content as loaded at launch with the file that imports it, so an
-import never saves context. Details the audit relies on:
-
-- Relative and absolute paths both work; a relative path resolves from the importing file.
-- Imports recurse, up to a maximum of 4 hops.
-- An external import asks for approval the first time; a declined import stays disabled.
-- Typical uses: README, package.json, personal preferences
-  (`@~/.claude/my-project-instructions.md`).
+import never saves context. It resolves and follows imports the way the page describes (path
+resolution, recursion depth, approval of an external import); the scripts' import walker
+(`scripts/lib/imports.sh`) carries the depth it stops at and cites this pointer.
 
 - **Pointer**: [Import additional files](https://code.claude.com/docs/en/memory#import-additional-files).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes how a path resolves, the recursion depth, or what an
+  external import asks for.
 
 ## claudeMdExcludes setting
 
@@ -116,12 +115,13 @@ do not apply:
 }
 ```
 
-- Patterns are globs matched against absolute file paths.
-- Any settings layer may set it (user, project, local, managed policy); the audit combines every
-  layer's patterns into one list.
-- A managed policy CLAUDE.md cannot be excluded.
+The audit reads the patterns from every settings layer as one combined list. What a pattern
+matches, which layers may set it and which files it cannot exclude are read at the pointer.
 
 - **Pointer**: [Exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes what a pattern matches against, which settings layers
+  merge, or which files cannot be excluded.
 
 ## Skills vs CLAUDE.md
 
@@ -166,15 +166,19 @@ CLAUDE.md files and `.claude/rules/`, since the model may pick either.
 ## Rules files
 
 The audit treats `.claude/rules/` as the place for modular instructions, and a path-scoped rule as
-loading once Claude reads or writes a file its globs match. Features it relies on:
+loading once Claude reads or writes a file its globs match. It accepts a symlinked rule shared
+across projects and a user-level rule as rules files, and reads a path-scoped rule's globs from its
+`paths:` frontmatter. Where user-level rules sit and their load order relative to project rules are
+read at the pointer.
 
-- Symlinks in `.claude/rules/` share rules across projects.
-- User-level rules in `~/.claude/rules/` apply to every project and load before project rules.
-- A path-specific rule uses `paths:` YAML frontmatter with glob patterns.
-
-- **Pointer**: [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules),
+- **Pointer**: [Organize rules with `.claude/rules/`](https://code.claude.com/docs/en/memory#organize-rules-with-claude/rules/),
+  [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules),
   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules),
+  [Share rules across projects with symlinks](https://code.claude.com/docs/en/memory#share-rules-across-projects-with-symlinks),
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes where rules live, their load order, or the
+  frontmatter key that scopes them.
 
 **Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
 documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
@@ -182,6 +186,8 @@ reads or writes a matching file, and prices a move into one on that basis; which
 commands count is read live, not restated here. A first-party repro on 2.1.219 with
 `paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching
 `.tsx` file, and absent again after reading a non-matching one: deferral works in both directions.
+Probe: the repro recorded in the description of pull request #1393
+(`gh pr view 1393 --repo melodic-software/claude-code-plugins`).
 No changelog entry or maintainer comment pins the version where this began working, so do not claim
 a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule
 loading, or any session in which a path-scoped rule is present at session start.
@@ -214,31 +220,30 @@ Caveats that do survive, each verified:
   Claude Code minor version moves past 2.1.268, a release note names subagent context inheritance,
   memory loading, or path-scoped rule triggering, or a read of a covered path inside a subagent
   injects nothing.
-- Excluding `project` from `--setting-sources` also drops the on-demand rules of both kinds:
-  path-scoped ones, and those kept in a nested `.claude/rules/` (pointer:
-  [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules)).
+- A session whose `--setting-sources` leaves out `project` is a session where the audit does not
+  count on on-demand rules loading; which rules that drops is read at
+  [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules) (as of 2026-10-11; recheck
+  when that section changes what `--setting-sources` controls).
 
 ## Auto-memory limits
 
-The audit's size gate treats only the start of `MEMORY.md` as loaded at session start: 200 lines,
-cut shorter when those lines pass 25KB. Everything after that is unread. The limit applies to
-`MEMORY.md` only; a CLAUDE.md loads in full. The gate measures only the content that loads: YAML
-frontmatter and block-level HTML comments are stripped first and do not count.
+The audit's size gate treats only the start of `MEMORY.md`, up to the documented load limit, as
+loaded at session start, and everything after it as unread. It applies that limit to `MEMORY.md`
+only, never to a CLAUDE.md. The gate's firing values and its counting rule live in
+[criteria.md](criteria.md), M1. Stripping YAML frontmatter and block-level HTML comments before
+counting is our gate's rule, not a documented load behavior.
 
 - **Pointer**: [How it works](https://code.claude.com/docs/en/memory#how-it-works) (auto memory).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes the `MEMORY.md` load limit, or what it says about loading
+  a CLAUDE.md.
 
 ## Auto-memory storage
 
-The audit resolves the auto-memory directory as `~/.claude/projects/<project>/memory/`, with
-`<project>` derived from the repository, so every worktree and subdirectory of one repository shares
-one directory.
-
-**`autoMemoryDirectory` setting:** overrides the default location; read from any settings scope:
-user, project, local, policy, or `--settings`. From a project's `.claude/settings.json` or
-`.claude/settings.local.json`, the value is honored only after the workspace trust dialog for that
-folder is accepted (the same gate that governs hooks).
-
-- **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location).
+The audit resolves the auto-memory directory the same way the sibling `stateless` skill does,
+default location and `autoMemoryDirectory` override included. That skill's
+[reference](../../stateless/reference/official-guidance.md), "Storage location", holds the model
+and its pointer.
 
 ## Subagent persistent memory
 
@@ -253,11 +258,13 @@ version control.
 
 ## HTML comments
 
-The audit treats block-level HTML comments in a CLAUDE.md as stripped before injection, so they are
-the place for maintainer notes that spend no context; comments inside code blocks are kept. A
-direct Read of the file still shows them.
+The audit recommends block-level HTML comments in a CLAUDE.md as the place for maintainer notes
+that should spend no context, and does not count them toward the file's loaded size. Which
+comments are stripped, and where they stay visible, are read at the pointer.
 
 - **Pointer**: [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes which HTML comments are stripped before injection.
 
 ## Boris Cherny (CC creator)
 
@@ -272,7 +279,15 @@ Practices we take from Boris Cherny's published workflow, in our words:
 - **Progressive disclosure for skills:** a skill is a folder, with SKILL.md as the hub and spoke
   files doing the work.
 
-- **Pointer**: [howborisusesclaudecode.com](https://howborisusesclaudecode.com).
+- **Pointer**: for the `@claude` mention that a PR-review update rides on, see
+  [Respond to @claude mentions](https://code.claude.com/docs/en/github-actions#respond-to-@claude-mentions);
+  for a skill as a folder with SKILL.md as its hub, see
+  [Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files). No docs
+  section covers Auto-Dream; correlate with
+  [howborisusesclaudecode.com](https://howborisusesclaudecode.com) for the practices themselves.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either docs section is renamed or moved, or a docs page starts covering
+  memory consolidation.
 
 ## Style enforcement
 
@@ -317,24 +332,29 @@ memory page's `AGENTS.md` section changes again.
 The audit models an `AGENTS.md` as loading either directly, where no `CLAUDE.md`,
 `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it displaces it and
 `AGENTS.md` support is available, or through a `CLAUDE.md` that imports or symlinks it, on that
-`CLAUDE.md`'s row. Read directly, it fires no `InstructionsLoaded` hook, and `/memory` lists it
-from v2.1.280 (before that, `/memory` and `/context` did not); imported, it behaves as part of its
-`CLAUDE.md`. No hooks setting makes direct support unavailable: the loader is a built-in mod, and
-the audit never counts `disableAllHooks` or `allowManagedHooksOnly` against it.
+`CLAUDE.md`'s row. Read directly, it differs from a `CLAUDE.md` in the ways the pointer lists
+(which hooks fire for it, where it is listed); imported, it behaves as part of its `CLAUDE.md`. No hooks setting makes direct
+support unavailable: the loader is a built-in mod, and the audit never counts `disableAllHooks` or
+`allowManagedHooksOnly` against it. The model assumes the default value of the setting that chooses
+which instruction files load; a repository on another value is outside it, and the audit says so
+rather than pricing it, the same stated assumption `scripts/lib/agents-md.sh` carries.
 
-- **Pointer**: for when an `AGENTS.md` is read, when support is unavailable, and how it differs
-  from `CLAUDE.md`, see [AGENTS.md](https://code.claude.com/docs/en/memory#agents-md),
+- **Pointer**: for when an `AGENTS.md` is read, the setting that changes it, when support is
+  unavailable, and how it differs from `CLAUDE.md`, see
+  [AGENTS.md](https://code.claude.com/docs/en/memory#agents-md),
   [When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md),
+  [Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load),
   [When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable),
   [Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md)
   and the "My AGENTS.md isn't loading" entry under
   [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues);
   for which settings stop built-in mods, the "Mods built into Claude Code" section of
   <https://code.claude.com/docs/en/plugins/mods/overview>.
-- **As of**: 2026-09-29 for the memory page; 2026-10-01 for the mods overview
-- **Recheck trigger**: those sections change which file names displace an `AGENTS.md` or which
-  sessions lack support, the `/memory` listing or the difference table changes, the mods overview
-  changes which settings stop a built-in mod, or a release note names `AGENTS.md`.
+- **As of**: 2026-10-11 for the memory page; 2026-10-01 for the mods overview
+- **Recheck trigger**: those sections change which file names displace an `AGENTS.md`, the setting's
+  values or default, or which sessions lack support, the `/memory` listing or the difference table
+  changes, the mods overview changes which settings stop a built-in mod, or a release note names
+  `AGENTS.md`.
 
 ## No official scoring rubric
 

@@ -5,14 +5,15 @@ page that covers the topic. Read the page there for its wording; this file store
 
 Last researched: 2026-07-22; the claude-directory, settings and cli-reference pointers verified
 2026-08-10 (the other sources below were not re-checked on that date)
-Sources: [memory](https://code.claude.com/docs/en/memory),
-[settings](https://code.claude.com/docs/en/settings),
-[env-vars](https://code.claude.com/docs/en/env-vars),
-[claude-directory](https://code.claude.com/docs/en/claude-directory),
-[cli-reference](https://code.claude.com/docs/en/cli-reference)
+Sources: [Auto memory](https://code.claude.com/docs/en/memory#auto-memory),
+[Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
+[env-vars](https://code.claude.com/docs/en/env-vars) (its rows carry no section anchors),
+[Explore the directory](https://code.claude.com/docs/en/claude-directory#explore-the-directory),
+[CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands). Each section below
+names the exact section it rests on.
 
-Refresh this file from current official docs before relying on it (re-fetch every source listed
-above).
+Refresh this file from current official docs before relying on it (re-fetch the section each
+pointer below names).
 
 **Recheck trigger:** re-derive every decision below when any of these becomes observable: the
 `/memory` command gains, loses or renames its auto-memory toggle; the `autoMemoryEnabled` setting
@@ -34,14 +35,18 @@ CLAUDE.md / CLAUDE.local.md / `.claude/rules/`, which **you** write (the sibling
 
 ## Enable / disable
 
-This skill treats auto memory as on by default, toggled by `/memory` (which writes
-`autoMemoryEnabled` to user settings), settable per project through `autoMemoryEnabled` in that
-project's settings, and disabled by `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, either as an OS environment
-variable or in a settings file's `env` block. With `autoMemoryEnabled: false`, it treats the
-auto-memory directory as neither read nor written.
+This skill treats auto memory as on unless a setting or the environment variable turns it off,
+and reads at the pointer which sessions start with it off, where the `/memory` toggle saves, and
+where the toggle cannot turn it back on. It reads `autoMemoryEnabled` at every settings scope and
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY` both as an OS environment variable and in a settings file's `env`
+block. With `autoMemoryEnabled: false`, it treats the auto-memory directory as neither read nor
+written.
 
 - **Pointer**: [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
   and [`autoMemoryEnabled`](https://code.claude.com/docs/en/settings-reference#automemoryenabled).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes the default, which sessions default off, or where the
+  toggle saves.
 
 ### Precedence: the env var overrides the setting (VERIFIED)
 
@@ -59,15 +64,19 @@ being unset.
 
 ## Storage location
 
-This skill resolves the default store as `~/.claude/projects/<project>/memory/`, with `<project>`
-derived from the repository (every worktree and subdirectory of one repository shares one
-directory) and from the project root outside a repository. It reads `autoMemoryDirectory` at every
-settings scope (user, project, local, policy, `--settings`), accepts only an absolute or `~/`
-path, and honors a project or local value only once the folder's workspace trust dialog is
-accepted.
+This skill, and the sibling `audit` skill through the shared `resolve-memory-dir.sh`, resolve the
+default store as the per-project `memory/` directory under the config root's `projects/` tree,
+one directory per repository. They read `autoMemoryDirectory` at every settings scope the page
+names, and apply the page's rules for which values are valid and when a project or local value is
+honored. How `<project>` is derived, the path forms accepted and the trust and read-blocking
+conditions are read at the pointer.
 
 - **Pointer**: [Storage location](https://code.claude.com/docs/en/memory#storage-location) and
   [`autoMemoryDirectory`](https://code.claude.com/docs/en/settings-reference#automemorydirectory).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes how the project directory is derived or named, the
+  scopes `autoMemoryDirectory` is read from, the accepted path forms, or when a repository-supplied
+  value is honored.
 
 **What `purge` depends on:** because `autoMemoryDirectory` is read from *any* scope, the
 real memory dir may not be the slug-derived default. Purge must read that key at every scope
@@ -98,18 +107,20 @@ scope" below).
 
 ## Settings scopes and precedence
 
-This skill resolves settings highest first: managed settings, command-line arguments, local project
-settings (`.claude/settings.local.json`), shared project settings (`.claude/settings.json`), user
-settings (`~/.claude/settings.json`). It treats a managed value as overriding every lower scope.
+This skill resolves settings in the precedence order the page lists, highest first, reading the
+order there rather than from this file. It treats a managed value as overriding every lower scope.
 The managed-precedence exceptions are many and are read on the page; none of them names
 `autoMemoryEnabled`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY`, or auto memory at all (checked
-2026-08-10), so no lower settings scope overrides a managed `autoMemoryEnabled` value. That
+2026-10-11), so no lower settings scope overrides a managed `autoMemoryEnabled` value. That
 negative governs settings scopes only: the `CLAUDE_CODE_DISABLE_AUTO_MEMORY` environment variable
 sits outside settings precedence and, when set, still overrides the effective value, managed or not
 (see "Precedence: the env var overrides the setting" above).
 
-Managed settings live outside the repo (macOS `/Library/Application Support/ClaudeCode/`,
-Linux/WSL `/etc/claude-code/`, Windows registry `HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`).
+Managed settings live outside the repository, in system locations and, on some platforms, in OS
+policy stores such as the Windows registry that this skill's scripts do not read; each location is
+read at
+[Where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy)
+(as of 2026-10-11; recheck when that section adds, moves or drops a location).
 
 So `CLAUDE_CODE_DISABLE_AUTO_MEMORY` can be set as a real OS environment variable **or** inside a
 settings file's `env` block, which applies to every session and the subprocesses it spawns.
@@ -117,14 +128,15 @@ settings file's `env` block, which applies to every session and the subprocesses
 - **Pointer**: [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence),
   [Exceptions to managed settings precedence](https://code.claude.com/docs/en/settings#exceptions-to-managed-settings-precedence),
   and [`env`](https://code.claude.com/docs/en/settings-reference#env).
-- **As of**: 2026-08-10
-- **Recheck trigger**: the settings page adds a scope to the precedence list or documents a
-  managed-settings exception for `env`.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the settings page adds, removes or reorders a level in the precedence list,
+  or documents a managed-settings exception for `env` or for auto memory.
 
 ## Out of scope for this skill (verified, deliberate)
 
 - **Transcripts / history / shell snapshots / sessions.** This skill treats transcripts and shell
-  snapshots as cleaned at startup by `cleanupPeriodDays` (default 30, minimum 1), and the other two
+  snapshots as cleaned at startup by `cleanupPeriodDays` (its default and minimum are read at the
+  pointer), and the other two
   as not: `history.jsonl` persists until deleted, and `sessions/` is cleared per session rather
   than by age. Purging any of them is a different concern. The official per-project wipe is
   `claude purge`; read its deletion plan and flags on the page.
@@ -137,18 +149,15 @@ settings file's `env` block, which applies to every session and the subprocesses
   - **Pointer**: [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays),
     [Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically),
     [Kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them).
-  - **As of**: 2026-08-10
+  - **As of**: 2026-10-11
   - **Recheck trigger**: either claude-directory section moves a path between the cleaned and kept
     lists, or the `cleanupPeriodDays` default or minimum changes.
 
-  This skill names the command `claude purge` and treats it as deleting, for one project, the
-  transcripts and auto memory under `projects/`, its per-session `tasks/`, `debug/` and
-  `file-history/` entries, its prompt lines in `history.jsonl`, and its entry in `~/.claude.json`;
-  as leaving `shell-snapshots/` and `backups/` alone, with a warning, since they are not
-  project-scoped; and as printing its full deletion plan and asking for confirmation before
-  removing anything. `sessions/` appears nowhere in the deletion list. That is this plugin's reading
-  of that list, not a separate upstream statement. The command was renamed; when a user's Claude
-  Code rejects `claude purge`, give the former name the page records, never one from memory.
+  This skill names `claude purge` as the official per-project wipe, and treats it as confirming
+  before it deletes and as covering auto memory along with other per-project data. When a user
+  needs its scope (what it deletes, what it leaves alone and why), this skill reads it from the
+  pointer at the time, never from this file or from memory. The command was renamed; when a user's
+  Claude Code rejects `claude purge`, give the former name the page records, never one from memory.
 
   - **Pointer**: when stating the command's name, arguments or flags, fetch
     [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) live; for what it

@@ -38,8 +38,13 @@ you cannot inspect it, don't assume it is empty.
 - **Enabled state.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (docs):
   if the env var is set anywhere (OS env or any `env` block), it is authoritative: `=1` →
   **off**, `=0` → **on** even against `autoMemoryEnabled: false`. If the env var is unset,
-  apply settings precedence (managed > local > project > user) to `autoMemoryEnabled`
-  (default `true`). When the env var and the setting disagree, report the effective state as
+  apply settings precedence to `autoMemoryEnabled`, in the order
+  [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) lists; a
+  `--settings` value the snapshot cannot see ranks among those levels, so say so when the session
+  was started with one. With no scope setting it, report auto memory on, and name any session kind
+  [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
+  says starts with it off. Both pointers: as of 2026-10-11; recheck when the precedence list
+  changes or that section changes which sessions start with auto memory off. When the env var and the setting disagree, report the effective state as
   the env var dictates and call out the disagreement so the user can align them.
 - **Store location.** If any scope sets `autoMemoryDirectory`, the effective directory is that
   override (highest-precedence scope wins), not the slug-derived default the snapshot printed.
