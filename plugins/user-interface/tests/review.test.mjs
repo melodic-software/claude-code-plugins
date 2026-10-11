@@ -1,8 +1,9 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, test } from "node:test";
+import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const TESTS = dirname(fileURLToPath(import.meta.url));
@@ -131,7 +132,30 @@ describe("usage and crash exit 2", () => {
   });
 });
 
-test("review.mjs never spawns a process or calls the detector", () => {
-  const source = readFileSync(REVIEW, "utf8");
-  assert.doesNotMatch(source, /detect\.mjs|spawn|child_process/);
+describe("paths", () => {
+  const scratch = mkdtempSync(join(tmpdir(), "ui-review-"));
+  after(() => rmSync(scratch, { recursive: true, force: true }));
+  writeFileSync(join(scratch, "a.css"), ".a {\n  color: #fff;\n}\n");
+  mkdirSync(join(scratch, "sub.css"));
+  writeFileSync(join(scratch, "weird[1].css"), ".w {\n  color: #000;\n}\n");
+
+  test("a glob skips the directories it matches", () => {
+    const r = review(["--config", "{}", join(scratch, "[as]*.css")]);
+    assert.equal(r.status, 1, r.stderr);
+    assert.deepEqual(hits(r.sections.Findings, join(scratch, "a.css")), ["2 color"]);
+  });
+
+  test("a file whose name holds glob characters is read as that file", () => {
+    const file = join(scratch, "weird[1].css");
+    const r = review(["--config", "{}", file]);
+    assert.equal(r.status, 1, r.stderr);
+    assert.deepEqual(hits(r.sections.Findings, file), ["2 color"]);
+  });
+});
+
+test("review.mjs runs where starting a child process is denied", () => {
+  const r = spawnSync(process.execPath, ["--permission", "--allow-fs-read=*", REVIEW, "--config", "{}", at("all-rules.css")], {
+    encoding: "utf8",
+  });
+  assert.equal(r.status, 1, r.stderr);
 });

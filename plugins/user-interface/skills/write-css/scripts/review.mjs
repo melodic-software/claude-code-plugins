@@ -9,7 +9,7 @@
    or the whole resolver output ({"values":{…}}), as a JSON string or a file.
    Exit: 0 no findings (suppressed ones do not count), 1 findings, 2 usage
    error or crash. */
-import { existsSync, globSync, readFileSync } from "node:fs";
+import { existsSync, globSync, readFileSync, statSync } from "node:fs";
 import { check, checkFile } from "../vendor/check-css.mjs";
 
 const USAGE = "Usage: node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]";
@@ -50,11 +50,11 @@ function disabledRules(arg) {
 
 function expand(patterns) {
   return patterns.flatMap((pattern) => {
-    if (!/[*?[{]/.test(pattern)) {
-      if (!existsSync(pattern)) throw new UsageError(`No such file: ${pattern}`);
-      return [pattern];
-    }
-    const matches = globSync(pattern).sort();
+    if (existsSync(pattern)) return [pattern];
+    if (!/[*?[{]/.test(pattern)) throw new UsageError(`No such file: ${pattern}`);
+    const matches = globSync(pattern)
+      .filter((match) => statSync(match).isFile())
+      .sort();
     if (!matches.length) throw new UsageError(`No file matches: ${pattern}`);
     return matches;
   });
