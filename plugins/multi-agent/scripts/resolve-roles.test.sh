@@ -56,7 +56,7 @@ fixture plain
 out="$(run plain all --session-model fable)"
 assert_contains "frontier session: worker fan-out names opus" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"opus","omit_model":false,"effort":"medium","guarded":true}'
 assert_contains "frontier session: verifier fan-out names opus at high" "$out" '"fanout":{"model":"opus","omit_model":false,"effort":"high","guarded":true}'
-assert_contains "frontier session: retrieval keeps sonnet low in both variants" "$out" '"retrieval":{"role":"retrieval","single":{"model":"sonnet","omit_model":false,"effort":"low","guarded":false},"fanout":{"model":"sonnet","omit_model":false,"effort":"low","guarded":false}'
+assert_contains "frontier session: retrieval keeps sonnet medium in both variants" "$out" '"retrieval":{"role":"retrieval","single":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false},"fanout":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false}'
 assert_contains "frontier session: the single judge may inherit" "$out" '"verifier":{"role":"verifier","single":{"model":"inherit","omit_model":true'
 assert_contains "frontier session flagged" "$out" '"session_frontier":true'
 
@@ -69,7 +69,7 @@ assert_contains "unknown session: worker fan-out names opus" "$out" '"worker":{"
 assert_contains "unknown session is treated as frontier" "$out" '"session_model":null,"session_frontier":true'
 
 out="$(run plain worker --session-model sonnet --workload research)"
-assert_contains "research workload lowers worker effort" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"low"'
+assert_contains "research workload keeps the worker's own effort" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
 assert_lacks "one role asked, one role returned" "$out" '"verifier"'
 
 run plain nosuch >/dev/null
@@ -170,8 +170,23 @@ out="$("$SUT" --root "$T/homeroot" --home "$T/homeroot" worker 2>/dev/null)"
 assert_contains "home root: overlay not applicable" "$out" 'not-applicable (home root)'
 assert_contains "home root: overlay value not applied" "$out" '"effort":"medium"'
 
+# A role resolving to haiku is not blocked, but gains a note pointing at the rubric.
+fixture haikurole
+printf 'schema: 1\nroles:\n  retrieval:\n    model: haiku\n' >"$T/haikurole/home/.claude/multi-agent.yaml"
+out="$(run haikurole all --session-model opus)"
+assert_contains "user layer haiku retrieval: still resolves" "$out" '"retrieval":{"role":"retrieval","single":{"model":"haiku"'
+assert_contains "user layer haiku retrieval: noted" "$out" 'retrieval: resolves to haiku'
+assert_lacks "user layer haiku retrieval: other roles not noted" "$out" 'worker: resolves to haiku'
+
+out="$(run plain all --session-model haiku)"
+assert_contains "haiku session: inheriting role noted" "$out" 'worker: resolves to haiku'
+assert_lacks "haiku session: sonnet retrieval not noted" "$out" 'retrieval: resolves to haiku'
+
+out="$(run plain all --session-model opus)"
+assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
+
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-02'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-10'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
