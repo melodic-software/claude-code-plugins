@@ -1568,6 +1568,30 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("reads an outer link whose label holds a link as literal text", () => {
+    expect(inlineLinks("[outer [real](ok.md)](missing.md)").map(({ dest }) => dest)).toEqual([
+      "ok.md",
+    ]);
+  });
+
+  it("leaves the literal outer text of a link holding a link untouched", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md":
+          "[outer [t](../source/transcript.txt)](missing.md)\n" +
+          "[outer [t](../source/transcript.txt)](../run-state/watch.json)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "[outer [t](../transcript/transcript.txt)](missing.md)\n" +
+        "[outer [t](../transcript/transcript.txt)](../run-state/watch.json)\n",
+    );
+  });
+
   it("rewrites single-quoted and unquoted HTML src and href", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {

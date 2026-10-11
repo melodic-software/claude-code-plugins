@@ -864,7 +864,19 @@ export function inlineLinks(text) {
   let from = 0;
   for (;;) {
     const open = text.indexOf("](", from);
-    if (open === -1) return links;
+    // Links cannot contain links: one whose label holds another (non-image)
+    // link is literal text. An image in the label leaves it a link.
+    if (open === -1) {
+      const isLink = (/** @type {InlineLink} */ link) => text[link.linkStart] !== "!";
+      return links.filter(
+        (outer) =>
+          !isLink(outer) ||
+          !links.some(
+            (inner) =>
+              isLink(inner) && inner.linkStart > outer.linkStart && inner.linkEnd <= outer.labelEnd,
+          ),
+      );
+    }
     from = open + 2;
     let at = open + 2;
     at = skipLinkSpace(text, at);
