@@ -83,7 +83,8 @@ Each verb fills `<agent-args>` in a matrix row. All but the first start an agent
 turn costs real usage: about 22 to 31 US cents for a one-line turn, measured 2026-09-29 on
 Claude Code 2.1.284, mostly SessionStart hooks and context loading (the Cost row of
 [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) says how to
-re-measure it). When a script can do the job, run the script.
+re-measure it; as of 2026-10-11; recheck when a Claude Code release or a SessionStart hook change
+lands, or that Cost row is re-measured). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | Status |
 |---|---|---|

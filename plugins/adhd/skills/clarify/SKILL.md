@@ -208,9 +208,16 @@ Whichever medium, the decision table has numbered rows and these columns:
 When you publish an artifact, honor the Artifact tool contract. **Load the
 `artifact-design` skill for the design fundamentals when it is available**. It
 ships with the artifact surface, so it is normally present on the publish rung;
-if it is not, meet the Artifact tool's own stated requirements directly, read
-from its definition, rather than skipping them, and keep the page
-self-contained (the baseline above). Either way, the decision table is the page's spine. Keep
+if it is not, meet the Artifact tool's own stated requirements directly rather
+than skipping them, and keep the page self-contained (the baseline above).
+
+- **Pointer**: when `artifact-design` is absent, read the Artifact tool's
+  definition and fetch
+  [Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section adds or drops
+  a page requirement or limit.
+
+Either way, the decision table is the page's spine. Keep
 the treatment utilitarian, and this static table needs no runtime capabilities.
 Leave out a hero banner, italic accent words in
 headings, numbered "01 / 02 / 03" section labels (the `#` column is the only

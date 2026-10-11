@@ -41,7 +41,9 @@ Official contracts:
 
 - <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>
 - <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
-- <https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed>
+- <https://code.claude.com/docs/en/mcp#how-claude-learns-that-a-server-failed> (as of
+  2026-10-11; recheck when that section changes which configurations report a failed server to
+  Claude)
 
 ## Task
 
@@ -71,8 +73,9 @@ Official contracts:
    report **failed or unverified**:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
    - Otherwise do not assert why. Whether a failed connection reaches this turn depends on
-     configuration this skill cannot inspect (see the mechanism note's pointer). Direct the user to
-     run `/mcp` themselves rather than claim knowledge it does not have.
+     configuration this skill cannot inspect (see the mechanism note's pointer in
+     [Purpose](#purpose); as of 2026-10-11; recheck when that pointer's recheck trigger fires).
+     Direct the user to run `/mcp` themselves rather than claim knowledge it does not have.
    - The fix depends on the setup in play, and this skill cannot tell from tool absence alone
      which one the user is on. For `dometrain-mcp`, the user reconfigures the key with
      `/plugin configure dometrain-mcp@<marketplace>`, then needs `/reload-plugins` or a new

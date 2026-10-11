@@ -3,7 +3,8 @@
 Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
 > Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
-> [Context7's docs](https://context7.com/docs). Re-check them before acting on a row.
+> [Context7's docs](https://context7.com/docs). Recheck when the installed `ctx7` is newer than
+> 0.5.5 (the `update` action reports it) or Context7's docs change the MCP URL or header name.
 
 - **Pointer**: when deciding where the entry goes and how a `${VAR}` in it expands, fetch
   [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes),
@@ -29,7 +30,9 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the unset-variable pointer above has the detail):
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the Unset variables without a default pointer at the top of this file, which sits under no
+section heading, has the detail; as of 2026-10-11; recheck when that pointer's recheck trigger
+fires):
 
 ```json
 {
