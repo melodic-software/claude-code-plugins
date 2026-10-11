@@ -185,11 +185,19 @@ An input it cannot read counts as failed, so an unknown never selects channels.
 MDM policies (a macOS plist, the Windows registry) are not read, so a policy delivered only by
 MDM reads as none.
 
-The checks and their order are ours. The facts they test (which providers and auth carry
-channels, which plans block them until enabled, the two policy keys, and what a blocked session
-sees) are at [channels enterprise controls](https://code.claude.com/docs/en/channels#enterprise-controls),
-as of 2026-10-11; recheck when that section changes a provider, plan default or policy key. The
-provider variable list is not re-derived from that section.
+The checks and their order are ours. Where the upstream facts they test live, as of 2026-10-11:
+
+- Which auth channels need and which providers lack them: the opening note of the
+  [channels page](https://code.claude.com/docs/en/channels), which has no section anchor. The
+  provider variable names in the table are ours, not taken from that note.
+- Which plans block channels until enabled, and the two policy keys:
+  [enterprise controls](https://code.claude.com/docs/en/channels#enterprise-controls).
+- What a session sees when a policy blocks a channel:
+  [enable channels for your organization](https://code.claude.com/docs/en/channels#enable-channels-for-your-organization)
+  and [restrict which channel plugins can run](https://code.claude.com/docs/en/channels#restrict-which-channel-plugins-can-run).
+
+Recheck when the opening note changes the auth or provider list, or either section changes a plan
+default, a policy key or the startup notice.
 
 ## Prerequisites
 

@@ -24,16 +24,20 @@
 # in force.
 #
 # The server-managed cache (`mscope::remote_cache_file`) is not an admin-written
-# policy file. A reader may report the cache's presence. It must not fold the
-# cache into the effective managed policy, and it must not treat a missing
-# cache as "no organization policy"; whether a fetch failed is read from
-# Claude Code's own status report instead. The cache path, what it holds and
-# when it applies are at
-# https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior,
-# and the failed-fetch report at
-# https://code.claude.com/docs/en/server-managed-settings#verify-settings-delivery
-# (as of 2026-10-11; recheck when either section moves the cache path or
-# changes where a failed fetch is reported).
+# policy file: it is user-writable and it can be stale. A reader may report the
+# cache's presence. It must not fold the cache into the effective managed
+# policy, and it must not treat a missing cache as "no organization policy";
+# whether a fetch failed is read from Claude Code's own status report instead.
+# Upstream records, as of 2026-10-11:
+#   * the cache path:
+#     https://code.claude.com/docs/en/server-managed-settings#invalid-entries-in-delivered-settings
+#   * when the cache applies and which cached keys wait for the server:
+#     https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior
+#   * where a failed fetch is reported:
+#     https://code.claude.com/docs/en/server-managed-settings#verify-settings-delivery
+# Recheck when the server-managed-settings page names a cache path other than
+# the one mscope::remote_cache_file returns, or when the verify section stops
+# naming /status or claude doctor as where a failed fetch shows.
 #
 # Cross-source combination is not "arrays concatenated, objects deep-merged":
 # a reader that computes an effective merge follows the per-key rules at

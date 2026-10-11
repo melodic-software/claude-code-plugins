@@ -417,12 +417,15 @@ hook::raw_file_path() {
 # <plugin> names the notice and its latch key; it never installs.
 #
 # No PATH line: a guard chain under one dispatcher (guardrails run-guards.sh)
-# can still exit 2 after this notice, and where exit-2 stderr goes is
-# https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event (as of
-# 2026-10-11; recheck when that table stops showing exit-2 stderr to Claude on
-# PreToolUse or PostToolUse). The --no-path and stderr-deny notes below rest on
-# this record and on https://code.claude.com/docs/en/hooks#exit-code-0 for where
-# exit-0 stderr goes.
+# can still exit 2 after this notice. Where exit-2 stderr goes: on PreToolUse,
+# https://code.claude.com/docs/en/hooks#exit-code-2 (Claude receives it as the
+# tool's error); on other events,
+# https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event. Where
+# exit-0 stderr goes: https://code.claude.com/docs/en/hooks#exit-code-0. As of
+# 2026-10-11; recheck when the exit-code-2 section stops saying Claude receives
+# a blocked PreToolUse hook's stderr, or the exit-code-0 section starts showing
+# exit-0 stderr to Claude. The --no-path and stderr-deny notes below rest on
+# this record.
 hook::require() {
   command -v "$1" >/dev/null 2>&1 && return 0
   local model user
