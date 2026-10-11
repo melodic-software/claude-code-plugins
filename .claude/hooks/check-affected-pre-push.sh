@@ -17,18 +17,24 @@
 # only pushes tags, or is a dry run; a push after a `cd`/`pushd` in the same
 # command, whose directory this parser does not track; a push from any working
 # tree other than the session's project directory, including another worktree
-# of the same clone; a tree with no scripts/check-affected.sh; a payload it
+# of the same clone; a branch that changes check tooling (trust model below),
+# with a notice; a tree with no scripts/check-affected.sh; a payload it
 # cannot read; and a check-affected run that could not start (exit 2), since an
 # unreadable state is not a finding.
 #
 # Trust model: it runs scripts/check-affected.sh only from the working tree that
-# holds the .claude/settings.json registering this hook and this hook script
-# itself. Claude Code runs a project settings file's hooks once the folder is
-# trusted, and always in a -p or SDK session
-# (https://code.claude.com/docs/en/hooks#workspace-trust), so whatever branch is
-# checked out there already decides what this hook does; pinning the script to a
-# ref would not narrow that. Running only from that tree adds no code from a
-# tree the session did not load its hooks from.
+# holds the .claude/settings.json registering this hook, and only when the code
+# the checks run there matches origin/main. Claude Code reads that settings file
+# once the folder is trusted
+# (https://code.claude.com/docs/en/hooks#workspace-trust), but the scripts run
+# at push time from whatever branch is checked out then, so a contributor
+# branch checked out later in the same tree (to review or fix it) would run its
+# own check code. So before running anything this script diffs the working tree
+# and untracked files against the merge-base with origin/main; a change to any
+# TOOLING path skips the run with one notice, and CI checks that branch. No
+# origin/main to compare against skips it too. This script and lib/hook-utils.sh
+# run before that diff, so the settings command first requires both to match
+# the merge-base.
 #
 # It checks the checked-out HEAD, not a ref the push names: `git push origin
 # other-branch` from another branch, or a tag pushed by bare name, is judged by
@@ -189,8 +195,43 @@ segment_push_dir() {
   return 1
 }
 
+# Paths the checks execute or load code from, per what scripts/check-affected.sh
+# runs without --tests: its scripts and their shell, Node and Python libraries,
+# the plugin scripts and mods scripts/validate-plugins.sh runs, and the configs a
+# linter loads code from or installs from.
+TOOLING=(
+  'scripts/*' 'lib/*' '.claude/*' 'package.json' 'package-lock.json'
+  '.markdownlint*' 'ruff.toml' 'pyproject.toml' '.github/requirements-ci.txt'
+  'plugins/*/hooks/*' 'plugins/autonomy/skills/setup/scripts/*'
+  'plugins/harness-ops/skills/audit-native-overlap/scripts/*'
+)
+
+# tooling_change_to <out-var> <top>: assigns why the run must skip and returns 0
+# when the tree changes a TOOLING path against its merge-base with origin/main,
+# or no merge-base can be read; returns 1 when the tooling is unchanged.
+tooling_change_to() {
+  local -n __tc_out="$1"
+  local top="$2" mb changed f p
+  if ! mb="$(git -C "$top" merge-base HEAD refs/remotes/origin/main 2>/dev/null)" ||
+    ! changed="$(git -C "$top" diff --no-renames --name-only "$mb" -- &&
+      git -C "$top" ls-files --others --exclude-standard)"; then
+    __tc_out="no origin/main merge-base to compare check tooling against"
+    return 0
+  fi
+  while IFS= read -r f; do
+    for p in "${TOOLING[@]}"; do
+      # shellcheck disable=SC2053 # $p is a glob on purpose.
+      if [[ "$f" == $p ]]; then
+        __tc_out="branch changes check tooling ($f)"
+        return 0
+      fi
+    done
+  done <<<"$changed"
+  return 1
+}
+
 main() {
-  local input cmd cwd dir top out rc
+  local input cmd cwd dir top out rc why
   hook::buffer_stdin_to input '.tool_input.command' '.cwd' || exit 0
   cmd="${HOOK_JQ_FIELDS[0]-}"
   cwd="${HOOK_JQ_FIELDS[1]-}"
@@ -203,6 +244,10 @@ main() {
   [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
   [[ "$top" == "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" ]] || exit 0
   [[ -x "$top/scripts/check-affected.sh" ]] || exit 0
+  if tooling_change_to why "$top"; then
+    printf 'check-affected pre-push: skipped, %s; CI checks it.\n' "$why" >&2
+    exit 0
+  fi
   rc=0
   out="$(cd "$top" && bash scripts/check-affected.sh 2>&1)" || rc=$?
   ((rc == 1)) || exit 0

@@ -8,7 +8,8 @@
 # MUST-stay-quiet: the `if: "Bash(git push *)"` filter also fires on any command
 # holding $(), backticks or $VAR, so a commit whose message mentions "git push"
 # reaches this hook; it must not spend a check run on it. Delete-only, tag-only
-# and dry-run pushes, and a repository with no check-affected.sh, stay quiet too.
+# and dry-run pushes, a repository with no check-affected.sh, and a branch that
+# changes check tooling against origin/main stay quiet too.
 #
 # The fixture repository's scripts/check-affected.sh is a stub that records that
 # it ran and exits with $STUB_RC, so these cases test the hook, not the checks.
@@ -40,6 +41,10 @@ echo "check-affected: FAIL markdown (stub)" >&2
 exit "\${STUB_RC:-1}"
 EOF
 chmod +x "$fixture/scripts/check-affected.sh"
+# origin/main holds the stub, so a branch that leaves the tooling alone runs it.
+git_test_config "$fixture" add -A
+git_test_config "$fixture" commit -q -m stub
+git_test_config "$fixture" update-ref refs/remotes/origin/main HEAD
 other="$tmp/other"
 mkdir -p "$other/scripts"
 git_init_test_repo "$other" || exit 2
@@ -117,10 +122,40 @@ run_hook "$tmp" "git -C '$other' push origin feat/x"
 expect "another repository's check-affected.sh never runs" 0 0
 run_hook "$other" 'git push origin feat/x'
 expect "a session cwd in another repository stays quiet" 0 0
-git_test_config "$fixture" add -A
-git_test_config "$fixture" commit -q -m stub
 git_test_config "$fixture" worktree add -q -b wt "$tmp/wt"
 run_hook "$tmp/wt" 'git push origin wt'
 expect "another worktree of the project's clone stays quiet" 0 0
+
+# A branch checked out in the project tree that changes check tooling must not
+# get its own check code run; one that leaves the tooling alone still runs.
+git_test_config "$fixture" checkout -q -b docs-only
+mkdir -p "$fixture/docs"
+echo x >"$fixture/docs/a.md"
+git_test_config "$fixture" add docs/a.md
+git_test_config "$fixture" commit -q -m docs
+run_hook "$fixture" 'git push origin docs-only'
+expect "a branch that leaves the tooling alone still runs" 2 1
+
+git_test_config "$fixture" checkout -q -b edits-check origin/main
+printf 'touch "%s"\n' "$tmp/payload" >>"$fixture/scripts/check-affected.sh"
+git_test_config "$fixture" commit -q -am payload
+run_hook "$fixture" 'git push origin edits-check'
+expect "a branch that edits scripts/check-affected.sh is not run" 0 0
+if [[ "$ERR" == *"changes check tooling (scripts/check-affected.sh)"* && ! -e "$tmp/payload" ]]; then
+  ok "the skip names the changed tooling path"
+else
+  bad "the skip names the changed tooling path" "$ERR"
+fi
+
+git_test_config "$fixture" checkout -q docs-only
+mkdir -p "$fixture/scripts/lib"
+echo 'touch /dev/null' >"$fixture/scripts/lib/helper.sh"
+run_hook "$fixture" 'git push origin docs-only'
+expect "an untracked script the checks could call is not run" 0 0
+rm -rf "$fixture/scripts/lib"
+
+git_test_config "$fixture" update-ref -d refs/remotes/origin/main
+run_hook "$fixture" 'git push origin docs-only'
+expect "no origin/main to compare against is not run" 0 0
 
 test_harness::report

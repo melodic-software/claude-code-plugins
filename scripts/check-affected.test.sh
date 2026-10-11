@@ -89,7 +89,10 @@ check "uncommitted edits to a changed file skip every check, not just the file l
   '[[ $RC == 0 && $ERR == *"SKIP every check (uncommitted edits"* && $ERR != *"ran"* ]]'
 git_test_config "$repo" checkout -q -- notes.txt
 
-# validate-plugins runs only when a claude CLI resolves; a stub stands in.
+# validate-plugins runs only when a claude CLI resolves; a stub stands in. This
+# case diffs against its own plugin-base branch and resets HEAD afterwards, so
+# the cases below still see the base..HEAD diff of notes.txt and tool alone.
+pre_plugin="$(git_test_config "$repo" rev-parse HEAD)"
 mkdir -p "$tmp/bin" "$repo/plugins/demo"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/claude"
 printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit "${STUB_VALIDATE_PLUGINS:-0}"\n' \
@@ -99,18 +102,19 @@ printf 'x\n' >"$repo/plugins/demo/keep.md"
 printf 'x\n' >"$repo/plugins/demo/required.json"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m plugin
-git_test_config "$repo" branch -qf base
+git_test_config "$repo" branch -q plugin-base
 git_test_config "$repo" rm -q plugins/demo/required.json
 git_test_config "$repo" commit -q -m delete
-run PATH="$tmp/bin:$PATH" STUB_VALIDATE_PLUGINS=1 -- --base base
+run PATH="$tmp/bin:$PATH" STUB_VALIDATE_PLUGINS=1 -- --base plugin-base
 check "a branch that only deletes a plugin file still validates that plugin" \
   '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
+git_test_config "$repo" reset -q --hard "$pre_plugin"
 
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
 git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
-run --
+run PATH="$tmp/bin:$PATH" --
 check "a failed fetch skips the stale-base check only" \
-  '[[ $RC == 0 && $ERR == *"SKIP stale-base-overlap (git fetch of origin/main failed)"* ]]'
+  '[[ $RC == 0 && $ERR == *"SKIP stale-base-overlap (git fetch of origin/main failed)"* && $OUT$ERR == *"validate-plugins (no plugin changed)"* ]]'
 
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
