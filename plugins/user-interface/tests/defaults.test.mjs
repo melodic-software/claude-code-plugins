@@ -28,6 +28,13 @@ test("the shipped defaults hold the contract's layer-1 values", () => {
   assert.deepEqual(defaults, CONTRACT);
 });
 
+test("every css_* userConfig default equals the shipped default it mirrors", () => {
+  const userConfig = JSON.parse(read(".claude-plugin/plugin.json")).userConfig;
+  const mirrored = Object.entries(userConfig).filter(([key, option]) => key.startsWith("css_") && "default" in option);
+  assert.ok(mirrored.length > 0);
+  for (const [key, option] of mirrored) assert.equal(option.default, defaults.css[key.slice("css_".length)], key);
+});
+
 test("the shipped defaults validate against team.schema.json with no error", () => {
   const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
   assert.deepEqual(layers[0], { name: "defaults", path: null, state: "loaded", errors: [] });

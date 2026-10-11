@@ -180,7 +180,7 @@ describe("--config", () => {
 
   test("a userConfig value with shell metacharacters stays data", () => {
     assert.equal(config.values.css.layer, META);
-    for (const dir of [run, PROJECT, TESTS]) {
+    for (const dir of [run, PROJECT, TESTS, PLUGIN]) {
       for (const name of ["pwned", "pwned2", "pwned3"]) assert.ok(!existsSync(join(dir, name)), `${name} created in ${dir}`);
     }
   });
@@ -204,13 +204,36 @@ describe("--config", () => {
     assert.ok(!("home_error" in plain));
   });
 
-  test("a broken pointer line is reported beside the default home", () => {
+  test("a broken pointer line reads neither the team nor the local layer", () => {
     const dir = join(scratch, "broken-pointer");
-    mkdirSync(dir, { recursive: true });
+    mkdirSync(join(dir, "docs/conventions"), { recursive: true });
     writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
+    writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\nrouting:\n  version: 1\n  deny:\n    - figma\n");
+    writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
     const { config: broken } = detect(["--project", dir, ...seams, "--config"]);
-    assert.equal(broken.home, "docs/conventions");
+    assert.equal(broken.home, null);
     assert.match(broken.home_error, /missing-dir/);
+    assert.equal(broken.values.css.important, "avoid");
+    assert.equal(broken.values.css.token_fallback, "ask");
+    assert.equal(broken.values.routing, undefined);
+    for (const name of ["team", "local"]) assert.equal(broken.layers.find((l) => l.name === name).state, "absent", name);
+  });
+
+  test("--team refuses a local layer whose convention home leaves the project", () => {
+    const outside = join(scratch, "outside-home");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+    const dir = join(scratch, "linked-home");
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    symlinkSync(outside, join(dir, "docs/conventions"), "junction");
+    const team = join(scratch, "team-linked.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const { config: c } = detect(["--project", dir, ...seams, "--config", "--team", team]);
+    const local = c.layers.find((l) => l.name === "local");
+    assert.equal(local.state, "invalid");
+    assert.match(local.errors.join("\n"), /outside the project/);
+    assert.equal(c.values.css.token_fallback, "ask");
+    assert.equal(c.values.css.important, "allow", "the --team file itself is still read");
   });
 
   test("an unreadable --user-config file invalidates only the userConfig layer", () => {

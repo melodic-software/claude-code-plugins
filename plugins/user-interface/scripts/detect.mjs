@@ -6,7 +6,8 @@
 // project also carries browserslist {query, source}, lint {stylelint, eslint_css, config_paths} and
 // style_files [kinds]. With --config, a top-level "config" holds the resolved settings
 // (lib/config-cascade.mjs output: values, provenance, prose, layers, legacy) plus "home", the
-// convention home, and "home_error" when the project's pointer line could not be used.
+// convention home. When the project's pointer line is unusable, "home" is null, "home_error" says
+// why, and the team and local layers are not read.
 // Detection rules live in lib/installed.mjs.
 // Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE]
 //                   [--config [--team FILE] [--user-config FILE]]
@@ -14,9 +15,9 @@
 // --team replaces the team file the convention home resolves to (a test seam); --user-config is a
 // JSON file of the plugin's css_* userConfig values, read as data and never passed to a shell.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, extname, join, resolve as resolvePath } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve as resolvePath } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolve } from "./lib/config-cascade.mjs";
@@ -165,14 +166,25 @@ function projectSignals() {
   };
 }
 
-/** {home, error?}: the convention home the project's pointer line names, else the default. The
- * resolver gets --root, so CLAUDE_PROJECT_DIR never chooses the project. */
+/** {home, error?}: the convention home the project's pointer line names, the default when there is
+ * none, or null with the error when the line is unusable. The resolver gets --root, so
+ * CLAUDE_PROJECT_DIR never chooses the project. */
 function conventionHome() {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
   if (r.status === 1) return { home: DEFAULT_HOME };
   const cause = r.error?.code || r.stderr?.trim().split("\n").at(-1) || `exit ${r.status}`;
-  return { home: DEFAULT_HOME, error: `convention home unresolved (${cause}); read ${DEFAULT_HOME}` };
+  return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
+}
+
+/** True when `dir` exists and its real path lies outside the project's, as the resolver judges a home. */
+function escapesProject(dir) {
+  try {
+    const rel = relative(realpathSync(opts.project), realpathSync(dir));
+    return rel.startsWith("..") || isAbsolute(rel);
+  } catch {
+    return false;
+  }
 }
 
 /** {value} parsed from the --user-config file, {error} when it cannot be read, {} without one. */
@@ -191,17 +203,24 @@ function readUserConfig(file) {
   }
 }
 
-/** A scratch convention home holding --team as the team file beside copies of the real home's
- * team prose and local files, and the map from each scratch path back to the path it stands for. */
-function teamSeam(home) {
-  const dir = mkdtempSync(join(tmpdir(), "ui-team-"));
-  const real = resolvePath(opts.project, home);
-  const names = new Map([[join(dir, `${PLUGIN}.yaml`), resolvePath(opts.team)]]);
-  try {
-    copyFileSync(opts.team, join(dir, `${PLUGIN}.yaml`));
-  } catch {
-    // a missing team file leaves the team layer absent
+/** A scratch convention home standing in for the real one: empty when the home is unresolved, else
+ * --team as the team file beside copies of the real home's team prose and local files. Returns the
+ * map from each scratch path back to the path it stands for, and `refused` when the real home
+ * resolves outside the project, so its files are not copied. */
+function scratchHome(home) {
+  const dir = mkdtempSync(join(tmpdir(), "ui-home-"));
+  const names = new Map();
+  if (opts.team) {
+    names.set(join(dir, `${PLUGIN}.yaml`), resolvePath(opts.team));
+    try {
+      copyFileSync(opts.team, join(dir, `${PLUGIN}.yaml`));
+    } catch {
+      // a missing team file leaves the team layer absent
+    }
   }
+  if (home === null) return { dir, names };
+  const real = resolvePath(opts.project, home);
+  if (escapesProject(real)) return { dir, names, refused: real };
   for (const name of [`${PLUGIN}.md`, `${PLUGIN}.local.yaml`, `${PLUGIN}.local.md`]) {
     const from = join(real, name);
     const to = join(dir, name);
@@ -228,7 +247,7 @@ const relabel = (v, names) => {
 function config() {
   const { home, error } = conventionHome();
   const user = readUserConfig(opts["user-config"]);
-  const seam = opts.team ? teamSeam(home) : null;
+  const seam = opts.team || home === null ? scratchHome(home) : null;
   try {
     const out = resolve({
       plugin: PLUGIN,
@@ -241,7 +260,15 @@ function config() {
       userHome: opts.home,
     });
     if (user.error) Object.assign(out.layers.find((l) => l.name === "userConfig"), { state: "invalid", errors: [user.error] });
-    if (seam) for (const key of ["prose", "layers", "legacy"]) out[key] = relabel(out[key], seam.names);
+    if (seam) {
+      for (const key of ["prose", "layers", "legacy"]) out[key] = relabel(out[key], seam.names);
+      const local = out.layers.find((l) => l.name === "local");
+      if (home === null) for (const l of out.layers) if (l.name === "team" ? !opts.team : l === local) l.path = null;
+      if (seam.refused) {
+        const why = "the convention home resolves outside the project; a repository layer stays inside it";
+        Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`] });
+      }
+    }
     return { ...out, home, ...(error && { home_error: error }) };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
