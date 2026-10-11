@@ -16,15 +16,16 @@ pointer.
 One directory holds one map. A repository with several apps keeps one app's map in the default
 directory and each other app's in `.claude/skills/feature-map-<app slug>/` (the app's name through
 the slug rule under File names). `/testing:run-e2e` and `/testing:refresh-feature-map` reach such a
-map when the session prompt or their `--dir` names it, or when `feature_map_dir` in the overlay
-`.claude/testing.local.yaml` points at it.
+map when the session prompt names it, when `/testing:refresh-feature-map`'s `--dir` names it, or
+when `feature_map_dir` in the overlay `.claude/testing.local.yaml` points at it.
 
 It never shares a directory with a launch recipe. `/run-skill-generator` owns
 `.claude/skills/run-<name>/` and may regenerate it whenever the build or launch changes, and a
 skill named `verify` at `.claude/skills/verify/SKILL.md` replaces the bundled `/verify` and can run
 before every commit. So a location that is absolute, contains `..`, is the repository root (`.` or
-`./`), holds a character outside `A-Z a-z 0-9 . _ - /`, or has a segment that starts with `run-` or
-ends in `verify` is refused. So is `.claude/skills` itself (with or without a leading `./` or a
+`./`), holds a character outside `A-Z a-z 0-9 . _ - /`, has an empty or `.` segment anywhere but one
+leading `./` and one trailing `/` (`.claude//skills/web`, `.claude/skills/web/.`), or has a segment
+that starts with `run-` or ends in `verify` is refused. So is `.claude/skills` itself (with or without a leading `./` or a
 trailing `/`, in any letter case): the map is a project skill and needs its own directory under
 `.claude/skills/`, not the skills root.
 

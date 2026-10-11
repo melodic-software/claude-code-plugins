@@ -99,7 +99,9 @@ it.
 The map must be its own directory, so these values are refused: an absolute path (`/`, `\`, `~` or
 a drive letter first), any value containing `..`, the repository root (`.` or `./`), the skills root
 `.claude/skills` itself (with or without a leading `./` or a trailing `/`, in any letter case; the
-map must be its own directory under it), a character outside `A-Z a-z 0-9 . _ - /`, and any path
+map must be its own directory under it), a character outside `A-Z a-z 0-9 . _ - /`, an empty or `.`
+path segment anywhere but one leading `./` and one trailing `/` (`.claude//skills/web`,
+`.claude/skills/web/.`), and any path
 segment that starts with `run-` (a launch recipe's directory) or ends in `verify` (a recorded
 `verify` skill). A refused value is handled like an unknown one: the
 warning names the file, the key and the value, that layer is dropped, and with no valid higher

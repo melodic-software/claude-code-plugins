@@ -504,7 +504,7 @@ for bad in '.claude/skills/verify' 'tools/smoke-verify/' '.claude/skills/run-sho
   printf "feature_map_dir: '%s'\n" "$bad" >"$TY"
   erun
   assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
-  assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '${bad%/}'"
+  assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '$bad'"
 done
 assert_eq "and the other keys still resolve" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
 printf 'feature_map_dir: .claude/skills\n' >"$TY"
@@ -513,12 +513,33 @@ assert_contains "the skills root is refused as the skills root, not a map's own 
   "refused value '.claude/skills' (the skills root, not a directory of its own under .claude/skills/)"
 printf 'feature_map_dir: ./\n' >"$TY"
 erun
-assert_contains "./ is refused as the repository root" "$err" "$TY: feature_map_dir: refused value '.' (the repository root)"
+assert_contains "./ is refused as the repository root" "$err" "$TY: feature_map_dir: refused value './' (the repository root)"
 for good in .claude/skills/feature-map .claude/skills/my-map; do
   printf 'feature_map_dir: %s\n' "$good" >"$TY"
   erun
   assert_eq "a directory under the skills root, '$good', still resolves" "0:feature_map_dir	$good	$TY" "$rc:$(fmd)"
   assert_eq "with no warning for '$good'" "" "$err"
+done
+# An empty or '.' segment is refused anywhere but one leading ./ and one
+# trailing /, the same rule as the schema pattern.
+for bad in '././.claude/skills/x' '.claude//skills/x' '.claude/skills/x/.' '.claude/./skills/x'; do
+  printf 'feature_map_dir: %s\n' "$bad" >"$TY"
+  erun
+  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+  assert_contains "naming the value as written and the segment for '$bad'" "$err" \
+    "$TY: feature_map_dir: refused value '$bad' (an empty or '.' path segment)"
+done
+printf 'feature_map_dir: .claude/skills/x//\n' >"$TY"
+erun
+assert_eq "a doubled trailing slash is an empty segment" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+assert_contains "and is refused for it" "$err" "(an empty or '.' path segment)"
+for pair in '.claude/skills/feature-map=.claude/skills/feature-map' \
+  './.claude/skills/feature-map-web=.claude/skills/feature-map-web' \
+  '.claude/skills/feature-map/=.claude/skills/feature-map'; do
+  printf 'feature_map_dir: %s\n' "${pair%%=*}" >"$TY"
+  erun
+  assert_eq "one leading ./ or one trailing / is allowed: '${pair%%=*}'" "0:feature_map_dir	${pair#*=}	$TY" "$rc:$(fmd)"
+  assert_eq "with no warning for '${pair%%=*}'" "" "$err"
 done
 printf 'feature_map_dir: .claude/skills/run-shop\n' >"$TY"
 printf 'feature_map_dir: docs/map\n' >"$REPO/.claude/testing.local.yaml"

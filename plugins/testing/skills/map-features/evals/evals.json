@@ -121,10 +121,10 @@
       "id": 11,
       "name": "skills-root-refused",
       "prompt": "/testing:map-features. docs/conventions/testing.yaml sets `feature_map_dir: ./.claude/skills/`, and no overlay exists.",
-      "expected_output": "The value is the skills root itself, so it is refused: the report names docs/conventions/testing.yaml, feature_map_dir and the value, and says the map must be its own directory under .claude/skills/, not the skills root. The run does not stop; the map goes to the default .claude/skills/feature-map/. No SKILL.md or feature file is written directly in .claude/skills/.",
+      "expected_output": "The value is the skills root itself, so it is refused: the report names docs/conventions/testing.yaml, feature_map_dir and the refused value './.claude/skills/' with the reason 'the skills root, not a directory of its own under .claude/skills/'. The run does not stop; the map goes to the default .claude/skills/feature-map/. No SKILL.md or feature file is written directly in .claude/skills/.",
       "files": [],
       "expectations": [
-        "Names docs/conventions/testing.yaml, feature_map_dir and ./.claude/skills/ as refused",
+        "Names docs/conventions/testing.yaml, feature_map_dir and ./.claude/skills/ as refused, as the skills root, not a directory of its own under .claude/skills/",
         "Writes the map under .claude/skills/feature-map/",
         "Writes no file directly in .claude/skills/"
       ]

@@ -110,6 +110,30 @@
         "Names src/timesheet/Toolbar.tsx as the changed path",
         "Edits no map file and opens no pull request"
       ]
+    },
+    {
+      "id": 10,
+      "name": "untracked-map-committed-with-corrections",
+      "prompt": "/testing:refresh-feature-map unattended. /testing:map-features wrote the map at .claude/skills/feature-map and nobody committed it: `git ls-files -- .claude/skills/feature-map` prints nothing, and `git status --porcelain --untracked-files=all` prints only `??` lines for SKILL.md, start-a-timer.md and weekly-timesheet-export.md under .claude/skills/feature-map/. The live pass shows the `Start` button in start-a-timer.md is now labelled `Begin` (src/components/TimerRow.tsx:41). The branch feature-map-upkeep/claude-skills-feature-map does not exist.",
+      "expected_output": "The untracked map does not block the pass. The skill creates feature-map-upkeep/claude-skills-feature-map from the default branch, and the untracked map files move with the switch. It writes the `Begin` correction and the index's written-at commit, then stages SKILL.md, start-a-timer.md and weekly-timesheet-export.md by path and commits them in one commit with the correction, so `git status --porcelain -- .claude/skills/feature-map` prints nothing. No file outside the map directory is staged, and a pull request is opened from the branch.",
+      "files": [],
+      "expectations": [
+        "Does not stop as blocked over the untracked map files",
+        "Commits every map file, the untracked weekly-timesheet-export.md included, on feature-map-upkeep/claude-skills-feature-map in the same commit as the `Begin` correction",
+        "Stages the map files by path and stages no file outside the map directory"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "untracked-map-with-outside-change-blocked",
+      "prompt": "/testing:refresh-feature-map unattended. The map at .claude/skills/feature-map was never committed: `git ls-files -- .claude/skills/feature-map` prints nothing. `git status --porcelain --untracked-files=all` prints `??` lines for the map files under .claude/skills/feature-map/ and also ` M src/timesheet/Toolbar.tsx`. The live pass found that the `Export` button in weekly-timesheet-export.md is now labelled `Download`.",
+      "expected_output": "The outcome is blocked before any branch switch. The report names src/timesheet/Toolbar.tsx as the uncommitted change outside the map directory that blocks the pass, and says the untracked map files alone would not have blocked it. No branch is created or switched to, nothing is staged or committed, the Export-to-Download correction goes in the report unwritten, and no pull request is opened.",
+      "files": [],
+      "expectations": [
+        "Names src/timesheet/Toolbar.tsx as the change outside the map directory that blocks the pass",
+        "Says the untracked map files are not what blocks the pass",
+        "Creates no branch, commits nothing and opens no pull request"
+      ]
     }
   ]
 }
