@@ -59,7 +59,7 @@ research-gated:
   live issue), safely-assembled PR body, `gh pr create`.
 - **monitor**. Async event loop over CI checks + review comments. Event
   delivery prefers a push channel when your environment ships one, falls back
-  to a session-persistent Monitor watch (30s `gh` poll), or plain `gh`
+  to a Monitor watch re-armed at each deadline (30s `gh` poll), or plain `gh`
   polling in cloud sessions. CI failures are read from complete logs via the
   bundled annotation/ZIP fetch scripts (`gh run view --log-failed`
   truncates); every reviewer comment gets explore → research → classify →
