@@ -98,6 +98,10 @@ const script = byId("act-script").run ?? "";
 say(/"\$RUNNER_TEMP\/base-script\/\$\(basename "\$SCRIPT"\)"/.test(script), "a script activity runs from its base copy");
 const skill = byId("act-skill");
 const args = String(skill.with?.claude_args ?? "");
+// The action admits only github-actions, and only on a dispatcher-sent run the
+// trigger gate verified.
+say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}",
+  `the skill admits github-actions only with a dispatcher-run-id (got ${JSON.stringify(skill.with?.allowed_bots)})`);
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
@@ -146,7 +150,15 @@ say(/'\/usr\/bin\/git'/.test(cs) && /'\/usr\/bin\/bash'/.test(cs) && !/execFileS
   "the commit step calls /usr/bin/git and /usr/bin/bash");
 
 // Holds placed mid-run stop the commit.
-const labels = cs.search(/listLabelsOnIssue|issues\/\{issue_number\}\/labels/);
+const labels = cs.search(/fetch\(\s*`\$\{process\.env\.GITHUB_API_URL\}\/repos\/[^`]*\/issues\/\$\{Number\(PR_NUMBER\)\}\/labels/);
+say(/Authorization: `Bearer \$\{READ_TOKEN\}`/.test(cs) && /if \(!labelsResponse\.ok\) \{\n[^\n]*setFailed/.test(cs),
+  "the label re-read uses the read-only token and fails the step when the read fails");
+// Only page 1 is read, so a PR with more labels fails rather than missing a hold.
+const nextPage = cs.search(/if \(\/rel="next"\/\.test\(labelsResponse\.headers\.get\('link'\)[^\n]*\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/);
+say(nextPage >= 0 && nextPage < cs.indexOf("createCommit"), "the label re-read fails the step when the labels span a second page");
+// actions/github-script v8.0.0 passes no getOctokit to the script.
+const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "")).map((s) => s.name);
+say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octokitCallers.join(", ") || "none"})`);
 say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
   "the commit step re-reads the PR's hold labels before creating the commit");
 say(/\.base\/\.work-item-tracker\.json/.test(copy) && /hold-label=/.test(copy),
