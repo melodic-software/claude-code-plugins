@@ -1,16 +1,23 @@
 ---
-description: "Route one spec container's multi-session effort: say where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, and route the next step to the skill that owns it. Use when the user says 'ship' about a spec or container, asks where a container stands or what is next in it, wants to drive or resume the effort, or wants to close it out. Routes only: the next item is /work-items:work, re-slicing is /work-items:decompose."
-argument-hint: "[#<container-id>|<topic-slug>]"
+description: "Route and run one spec container's multi-session effort: where it stands, which execution shape is in effect (per-item PRs or one integration branch) and its discipline, the next step; `run` works its ready items in parallel, landing one at a time. Use when the user says 'ship' about a spec or container, asks where it stands or what is next, wants to run, drive or resume it, or close it out. One item: /work-items:work; re-slicing: /work-items:decompose."
+argument-hint: "[status|run] [#<container-id>|<topic-slug>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Route a spec container's macro journey. Status, execution shape, next step
+  summary: Route and run a spec container's macro journey. Status, execution shape, next step
 ---
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `[#<container-id>|<topic-slug>]`. Empty = discover the container from the current topic, then from the tracker.
+Arguments: `$ARGUMENTS`. `[status|run] [#<container-id>|<topic-slug>]`. The action defaults to `status`. Empty container = discover it from the current topic, then from the tracker.
+
+## Actions
+
+| Action | Does | Steps |
+|---|---|---|
+| `status` (default) | Reads, states the shape's discipline, routes the next step; mutates nothing | Process below |
+| `run` | Runs the container's ready items under its shape, attended only: claims them, hands them to `/implementation:implement-dispatch`, lands them one at a time, closes them | [actions/run.md](actions/run.md), after Process Steps 1 to 3 |
 
 ## Shared tracker context
 
@@ -30,8 +37,9 @@ body changes what this skill does.
 The marketplace has the phases (discovery → planning → implementation → testing → review) but the
 **macro** workflow, those phases spanning a whole spec container, with **micro** cycles of the same
 phases inside each work item, needs a place to stand at the moment of need: *where is this spec's
-journey, and what's next?* This skill is that place. It owns the macro map and ROUTES; every
-mechanic belongs to the skill that owns it. Execution shapes, their disciplines, and the journey
+journey, and what's next?* This skill is that place. It owns the macro map, ROUTES, and with `run`
+runs one container; every mechanic (building an item, PR lifecycle, re-slicing) belongs to the
+skill that owns it. Execution shapes, their disciplines, and the journey
 vocabulary (item / checkpoint / phase boundary) are defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md`](${CLAUDE_PLUGIN_ROOT}/reference/execution-shape.md)
 this skill applies that reference, it does not restate it.
@@ -112,9 +120,10 @@ the same rules:
   working it even though work is sequential (a second machine can join the branch), renew the
   lease mid-flight on long items, pull before starting and push before closing each item;
   **one item in flight at a time**, an active claim on any sibling sub-item defers new claims on
-  this container, because per-item leases alone do not serialize a shared branch; no per-item
-  PRs, one PR at the end carries the journey. This shape is worked on the shared branch
-  directly, not through `/work-items:work`'s default-branch worktree path.
+  this container, because per-item leases alone do not serialize a shared branch (a `run`
+  session, as the single writer, may keep many in flight); no per-item PRs, one PR at the end
+  carries the journey. This shape is worked on the shared branch directly or by `run`, not
+  through `/work-items:work`'s default-branch worktree path.
 - **Line absent**. Apply the `per-item PRs` default loudly and offer to record the line (an
   ordinary body edit through the bound adapter, mutation-gated like any tracker write). An
   unrecognized value is reported, not obeyed.
@@ -127,14 +136,15 @@ when a named plugin is absent, state the manual fallback instead.
 | Journey state | Route |
 |---|---|
 | Frontier has items (per-item shape) | `/work-items:work`. Auto-select, claim, execute one item. Say the caveat out loud: it selects over the **global** frontier by priority tier, not this container's scoped frontier, so it may legitimately pick a higher-tier item elsewhere. To drive *this* journey's named item specifically, claim it directly instead (`/work-items:track start <id>`) and execute it under the project's workflow |
-| Frontier has items (shared-branch shape) | Work the next checkpoint on the integration branch, but first check the Step 2 rollup for an active sibling claim: one item in flight at a time, so an active claim anywhere in the container means report who holds it and defer, never claim a second item onto the shared branch. Clear → claim via the seam, execute under the project's workflow, close the item, push, this skill states the discipline; the work itself runs in-session or in the operator's worker |
+| Frontier has items (shared-branch shape) | Work the next checkpoint on the integration branch, but first check the Step 2 rollup for an active sibling claim: one item in flight at a time, so an active claim anywhere in the container means report who holds it and defer, never claim a second item onto the shared branch. Clear → claim via the seam, execute under the project's workflow, close the item, push, this skill states the discipline; the work itself runs in-session, or `run` works the ready items with this session as the single writer |
 | Frontier empty, open items all blocked or claimed | Report who holds what (claims, blockers); stale leases route to `/work-items:track audit` |
 | Slices no longer fit the spec (scope drift, unresolved unknowns) | `/work-items:decompose`, re-slicing and container publish belong to it |
 | All sub-items closed (shared-branch shape) | The journey's terminal step comes first: open the single integration PR from the shared branch (`/source-control:pull-request` when installed, else the operator's PR flow) and run the full verification gates, closed checkpoints record durable progress, not shipment. Then the close-out below runs at PR time; the container closes only when the PR ships |
 | All sub-items closed (per-item shape, or the integration PR is up) | Close-out: the container close ritual belongs to `/work-items:decompose` ("Container lifecycle, ship ritual"), a close-out review of the shipped whole against the container body (`/planning:plan close-out`, plus `/review:quality-gate close-out --container <container-id>` when the `review` plugin is installed; else a manual pass against the Brief's acceptance criteria), then close with a comment linking the shipping PRs. That mode derives its own cumulative basis from this container's execution shape, the integration PR's range for the shared-branch shape, the set of per-item squash commits for `per-item PRs`, so state the shape when routing to it. Never close without the review; never leave a shipped container open as documentation |
 | Session ending mid-journey (phase boundary) | `/session-flow:handoff` or `/session-flow:clean-stop` when installed (else: push durable state and record a resume pointer on the claimed item). In shared-branch shape, prefer stopping **at a checkpoint**, an item closed and pushed, over a bare phase boundary |
 
-This skill mutates nothing on the happy path. It reads, states, and routes. Its only offered
+`status` mutates nothing on the happy path. It reads, states, and routes. `run`'s claims, merges
+and closes are listed in [actions/run.md](actions/run.md). The only other offered
 writes (recording an absent shape line; the close-out's closing comment via decompose's ritual) are
 explicit, user-confirmed tracker edits through the bound adapter.
 
@@ -150,12 +160,15 @@ One compact macro map, then the recommendation:
 
 ## Next
 
-`/work-items:work` for the next item.
+- One item to work next: `/work-items:work`.
+- Several ready items in one container: `/work-items:ship run #<container-id>`.
 
 ## What this skill does NOT do
 
-- Execute items (`/work-items:work` / the operator's shared-branch flow), create or re-slice items
-  (`/work-items:decompose`), backlog CRUD (`/work-items:track`).
+- Build items itself (`run` hands them to `/implementation:implement-dispatch`; one item is
+  `/work-items:work`), create or re-slice items (`/work-items:decompose`), backlog CRUD
+  (`/work-items:track`).
+- Run unattended. `run` needs a human present; it has no loop or lane entry point.
 - Own PR mechanics or merge style (`/source-control:pull-request`) or session continuation
   (`session-flow`).
 - Publish containers, choose the shape at publish time, or run the close-out review itself. It

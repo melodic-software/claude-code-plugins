@@ -6,8 +6,8 @@ default branch is the container's **execution shape**, a per-container choice, n
 config (a repo runs both shapes at once: one effort ships per-item PRs while another ships a single
 integration PR, and a repo-wide setting would force one topology on all efforts). This document is
 the SSOT for the shape line's grammar, the two shapes' disciplines, and the journey vocabulary;
-`/work-items:decompose` records the line, `/work-items:ship` reads it and states the active
-discipline, and `/work-items:work` executes items under it.
+`/work-items:decompose` records the line, `/work-items:ship` reads it, states the active
+discipline and runs the container under it, and `/work-items:work` executes single items under it.
 
 ## The shape line
 
@@ -83,11 +83,12 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
   claim, not the branch, is the collision signal; renew the lease mid-flight on long items; pull
   before starting an item and push before closing it, so every checkpoint is durable and the next
   session (or machine) starts from it.
-- **One item in flight at a time.** Sequentiality is enforced by the claim check, not assumed: a
-  shared branch cannot host two concurrent checkpoints, so an active claim on **any** sibling
-  sub-item defers new claims on this container, even of an independent frontier item, until the
-  active item closes or its lease is reclaimed. Per-item leases alone do not serialize a shared
-  branch; this container-scoped check is what does.
+- **One writer to the branch at a time.** A shared branch cannot host two concurrent
+  checkpoints. Sessions working the branch directly keep one item in flight: an active claim on
+  **any** sibling sub-item defers new claims on this container, even of an independent frontier
+  item, until the active item closes or its lease is reclaimed. Per-item leases alone do not
+  serialize a shared branch; this container-scoped check is what does. A runner may keep many
+  items in flight on their own branches because it alone lands on the shared branch (below).
 - **Closing a checkpoint records durable progress, not shipment.** The item closes when its work
   lands on the integration branch. That is the checkpoint contract (safe to clear context, next
   session resumes from it), while shipment is the **container's** close: single PR merged plus
@@ -101,9 +102,24 @@ Sequential checkpoints on one shared branch; the journey ships as one PR at the 
   installed) and running the full gates; the container's close-out runs at PR time and the
   container closes only when the PR ships.
 - The standard `/work-items:work` path provisions worktrees from the default branch and opens
-  per-item PRs, so items in this shape are worked on the shared branch directly (operator-driven),
-  not through that path, the same caveat `/work-items:decompose` records for its
-  integration-branch fallback items.
+  per-item PRs, so items in this shape are worked on the shared branch directly or through
+  `/work-items:ship run`, not through that path, the same caveat `/work-items:decompose` records
+  for its integration-branch fallback items.
+
+### Many in flight, the runner lands one at a time
+
+`/work-items:ship run` is the runner: one attended session that claims a container's ready items,
+has each built on its own branch in parallel, and lands them itself, one landing finished before
+the next starts.
+
+- **`integration branch → single PR`.** Item branches are cut from the integration branch. The
+  runner is the only writer to it: it merges one item branch, runs the build and test gate,
+  pushes, and closes that item as a checkpoint before merging the next. A claim in the container
+  held by another session means a second writer, so the runner does not start.
+- **`per-item PRs`.** Item branches are cut from the default branch and each gets its own PR. The
+  runner merges one PR at a time and brings the next current with the default branch first,
+  because two PRs green against an old base can still conflict once both land.
+- Landing order follows the dependency edges: a blocker lands before the item it blocks.
 
 ## Vocabulary
 
