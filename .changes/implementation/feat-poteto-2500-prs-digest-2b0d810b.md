@@ -121,3 +121,14 @@ bump: minor
   `context/refactor.md` runs its `baseline` for the listed screens and states before the first
   structural edit and its `compare` at each green checkpoint, and treats a failing compare as a
   behavior change to investigate. One eval case covers it.
+- **`/implementation:implement-dispatch` refuses unscoped briefs and keys verdicts to the head
+  SHA.** It holds back any brief with a gap the plan, Brief and design leave open, names the
+  missing items, and routes the row back as a divergence. Every brief carries a
+  `Structure:` line naming the data structure the new logic is built on. A resumed run opens its
+  `DEVIATIONS.md` additions with a run-boundary entry naming the session and the entries it did not
+  write. Each phase verdict is recorded against the head SHA it judged, and a rebase or new commit
+  before `[DONE]` voids it. An operator hold stops every running dispatched agent with `TaskStop`
+  and dispatches nothing more. A gamed gate gets a tighter contract and a wrong gate a separate fix.
+  Workers run where the session runs; cloud placement is the execution-target contract's. Five eval
+  cases cover the refusal, the run-boundary entry, the head-SHA verdict, the structure line and the
+  hold.
