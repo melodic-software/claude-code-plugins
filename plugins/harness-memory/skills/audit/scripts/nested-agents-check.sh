@@ -8,9 +8,10 @@
 #     files instead. This check tests only that blocking
 #     condition, so it holds whatever the trigger list is. Open: whether a Bash
 #     single-file read attaches AGENTS.md (unprobed).
-#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
-#     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
-#   As of: 2026-10-10.
+#   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+#   Probe: the canary runs on Claude Code 2.1.278 cited in the description of
+#     pull request #4291 (melodic-software/claude-code-plugins).
+#   As of: 2026-10-11.
 #   Recheck trigger: that section changes which file names count for the check,
 #     or a release note names AGENTS.md or instruction-file loading.
 #

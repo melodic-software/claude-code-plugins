@@ -156,6 +156,8 @@ memory is a precondition of the move, rather than proposing it unconditionally.
 `@some/file.md` has its *imported* content inlined at session start while the rule's own body
 correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
 nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
+The same caveat, with its pointer, is in [official-guidance.md](official-guidance.md), "Rules
+files".
 **Provenance**: empirical extension, not doc-derived, so the `update` action must not overwrite it
 with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 
