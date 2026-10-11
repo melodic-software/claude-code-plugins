@@ -186,9 +186,8 @@ and the 4.0 to 4.6 Opus, Sonnet and Haiku ids); every other model, current ones
 included, gets 3. So for a current model at 1M the live band row is the `/3`
 one.
 
-Stamp: verified 2026-10-11 against Claude Code 2.1.296. The per-model
-bytes-per-token rule holds at that build: the 4-byte set still ends at the 4.x
-ids, and `claude-haiku-5-5` is outside it, so Haiku 5.5 gets 3. The formula, the
+Stamp: verified 2026-10-11 against Claude Code 2.1.296 by rerunning the
+4-byte-set grep above; the per-model bytes-per-token rule held. The formula, the
 descending-sort first-fit truncation, the two truncator sites and the fit check
 above were last verified 2026-10-04 at 2.1.289, where the entry and floor
 arithmetic reproduced a captured 289-entry listing (149,934 characters) to the
