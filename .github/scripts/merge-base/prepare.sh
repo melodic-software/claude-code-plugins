@@ -154,9 +154,9 @@ while IFS= read -r -d '' record; do
     printf '%s\0' "$path" >>"$out/unmerged-paths"
     if [[ $path =~ $PROTECTED_RE ]]; then protected=1; fi
   fi
-  # A gitlink or symlink conflict has no markers either: count it as a
-  # missing side.
-  if [[ $mode == 160000 || $mode == 120000 ]]; then stage=x; fi
+  # A gitlink or symlink side has no markers either: count it as a missing
+  # side. The ancestor's (stage 1) mode does not decide whether the sides merge.
+  if [[ $stage != 1 && ($mode == 160000 || $mode == 120000) ]]; then stage=x; fi
   stages[$path]+=$stage
 done < <(g ls-files -u -z)
 

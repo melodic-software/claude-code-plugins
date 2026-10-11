@@ -166,6 +166,33 @@ commit 'main deletes d.md'
 run_prepare
 check 'modify-delete: a kept side holding marker text still escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 
+echo '# symlink-conflict'
+# symlink_base <pr-op> <main-op>: a fresh repo whose base holds l.txt as a
+# symlink; each op is `link:<target>` or `file:<content>`, applied on its side.
+symlink_base() {
+  new_repo
+  ln -s keep.txt "$R/l.txt"
+  commit 'add l.txt as a symlink'
+  on_pr
+  local branch op
+  for branch in pr main; do
+    if [[ $branch == pr ]]; then op=$1; else op=$2; fi
+    tg checkout -q "$branch"
+    rm -f "$R/l.txt"
+    if [[ $op == link:* ]]; then ln -s "${op#link:}" "$R/l.txt"; else put l.txt "${op#file:}"; fi
+    commit "$branch edits l.txt"
+  done
+}
+# Both sides turned the link into a regular file: an ordinary text conflict.
+symlink_base 'file:pr\n' 'file:main\n'
+run_prepare
+check 'symlink-conflict: a symlink ancestor under two text sides is a text conflict' conflicted/ "$(val merge-state)/$(val escalation-reason)"
+check 'symlink-conflict: snapshot holds stages 1 2 3' 123 "$(stages l.txt)"
+# A side that is still a symlink has no markers to resolve.
+symlink_base 'link:a' 'file:main\n'
+run_prepare
+check 'symlink-conflict: a symlink side escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
+
 echo '# workflow-conflict'
 conflict .github/workflows/ci.yml 'on: push\n' 'on: pull_request\n' 'on: workflow_dispatch\n'
 run_prepare
