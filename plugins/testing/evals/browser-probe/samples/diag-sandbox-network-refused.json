@@ -13,6 +13,10 @@
     {
       "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:48217/\",\"is_error\":true}",
       "why": "loopback unreachable"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_TIMED_OUT at https://example.com/\",\"is_error\":true}",
+      "why": "public host timed out"
     }
   ]
 }
