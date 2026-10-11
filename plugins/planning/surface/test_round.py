@@ -426,12 +426,16 @@ class TestAffects(DirCase):
         self.assertIn("--affects", out)
 
     def test_reply_rec_stores_affects_on_the_history_line(self):
-        rc, out, err = self.rp("reply", "Q1", "--rec", "New.", "--affects", "Q2,Q3")
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "New.", "--affects", "Q2,Q3", "--keep-alternatives"
+        )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], ["Q2", "Q3"])
 
     def test_revise_rec_affects_none_is_an_empty_list(self):
-        rc, out, err = self.rp("revise", "Q1", "--rec", "New.", "--affects", "none")
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
 
@@ -473,11 +477,28 @@ class TestAffects(DirCase):
         )
         for cmd in ("reply", "revise"):
             out = self.assert_refused(
-                cmd, "Q1", "--rec", "New.", "--affects", "none", "--seq", "1"
+                cmd,
+                "Q1",
+                "--rec",
+                "New.",
+                "--affects",
+                "none",
+                "--seq",
+                "1",
+                "--keep-alternatives",
             )
             self.assertIn("refused", out)
             rc, out, err = self.rp(
-                cmd, "Q1", "--rec", "New.", "--affects", "none", "--seq", "1", "--force"
+                cmd,
+                "Q1",
+                "--rec",
+                "New.",
+                "--affects",
+                "none",
+                "--seq",
+                "1",
+                "--force",
+                "--keep-alternatives",
             )
             self.assertEqual(rc, 0, out + err)
 
@@ -491,12 +512,28 @@ class TestAffects(DirCase):
         ]
         self.write_events(events)
         rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "none", "--seq", "1"
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "none",
+            "--seq",
+            "1",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         self.write_events([*events, {**accept, "seq": 3, "at": at}])
         out = self.assert_refused(
-            "revise", "Q1", "--rec", "Newer.", "--affects", "none", "--seq", "1"
+            "revise",
+            "Q1",
+            "--rec",
+            "Newer.",
+            "--affects",
+            "none",
+            "--seq",
+            "1",
+            "--keep-alternatives",
         )
         self.assertIn("#3", out)
 
@@ -523,13 +560,17 @@ class TestRevise(DirCase):
 class TestRecAlternativeCollision(DirCase):
     def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
         for rec in ("  no.", "Pick no, then ship it"):
-            out = self.assert_refused("reply", "Q1", "--rec", rec, "--affects", "none")
+            out = self.assert_refused(
+                "reply", "Q1", "--rec", rec, "--affects", "none", "--keep-alternatives"
+            )
             self.assertIn("Q1", out)
             self.assertIn("(a)", out)
-            self.assertIn("revise", out)
+            self.assertIn("--alt", out)
 
     def test_revise_rec_colliding_with_an_alternative_is_refused(self):
-        out = self.assert_refused("revise", "Q1", "--rec", "No", "--affects", "none")
+        out = self.assert_refused(
+            "revise", "Q1", "--rec", "No", "--affects", "none", "--keep-alternatives"
+        )
         self.assertIn("revise --alt", out)
 
     def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
@@ -555,16 +596,101 @@ class TestRecAlternativeCollision(DirCase):
 
     def test_reply_rec_without_a_collision_saves(self):
         rc, out, err = self.rp(
-            "reply", "Q1", "--rec", "Ship it now.", "--affects", "none"
+            "reply",
+            "Q1",
+            "--rec",
+            "Ship it now.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["recommendation"], "Ship it now.")
 
 
+class TestRecReviewsAlternatives(DirCase):
+    """R-I: a recommendation change carries revised alternatives or states the current ones were
+    checked against it (keepAlternatives); the history line records which."""
+
+    REC = ["--rec", "Ship it now.", "--affects", "none"]
+    ALTS = ["--alt", "a:Wait a week", "--alt", "b:Never"]
+
+    def apply(self, *ops):
+        return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+
+    def test_rec_without_alternatives_or_keep_is_refused_naming_the_question(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                out = self.assert_refused(cmd, "Q1", *self.REC)
+                self.assertIn("Q1", out)
+                self.assertIn("--keep-alternatives", out)
+        op = {"op": "revise", "id": "Q1", "rec": "Ship it now.", "affects": "none"}
+        out = self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": [op]})
+        )
+        self.assertIn("keepAlternatives", out)
+
+    def test_revise_with_alternatives_records_both_changes(self):
+        rc, out, err = self.rp("revise", "Q1", *self.REC, *self.ALTS)
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["alternatives"][0], {"key": "a", "text": "Wait a week"})
+        line = q["history"][-1]
+        self.assertEqual(line["alternatives"], "rewritten")
+        self.assertIn("recommendation, alternatives", line["text"])
+
+    def test_keep_alternatives_applies_and_records_that_they_were_kept(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                rc, out, err = self.rp(cmd, "Q1", *self.REC, "--keep-alternatives")
+                self.assertEqual(rc, 0, out + err)
+                q = self.q("Q1")
+                self.assertEqual(
+                    [a["text"] for a in q["alternatives"]], ["No", "Later"]
+                )
+                self.assertEqual(q["history"][-1]["alternatives"], "kept")
+                self.assertIn("alternatives kept", q["history"][-1]["text"])
+
+    def test_reply_with_rec_and_alternatives_lands_in_one_op(self):
+        alts = [{"key": "a", "text": "Wait a week"}, "b:Never"]
+        op = {"op": "reply", "id": "Q1", "text": "Yes.", "rec": "Ship it now.", "affects": "none", "alternatives": alts}  # fmt: skip
+        rc, out, err = self.apply(op)
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["recommendation"], "Ship it now.")
+        self.assertEqual([a["key"] for a in q["alternatives"]], ["a", "b"])
+        self.assertEqual(q["history"][-1]["alternatives"], "rewritten")
+
+    def test_a_new_alternative_repeating_the_new_recommendation_is_refused(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                out = self.assert_refused(cmd, "Q1", *self.REC, "--alt", "a:Ship it now", "--alt", "b:Never")  # fmt: skip
+                self.assertIn("(a)", out)
+
+    def test_both_or_keep_without_rec_is_refused(self):
+        out = self.assert_refused(
+            "revise", "Q1", *self.REC, *self.ALTS, "--keep-alternatives"
+        )
+        self.assertIn("not both", out)
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                self.assert_refused(cmd, "Q1", "--text", "Hi.", "--keep-alternatives")
+        self.assert_refused("reply", "Q1", "--text", "Hi.", *self.ALTS)
+
+
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
         args = [a for c in commits for a in ("--commit", c)]
-        return self.rp("revise", "Q1", "--rec", "New.", "--affects", "none", *args)
+        return self.rp(
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+            *args,
+        )
 
     def test_cli_writes_the_commitments_in_order(self):
         rc, out, err = self.revise_commits("A", "B")
@@ -698,11 +824,25 @@ class TestRecChangeStampsPageSeq(DirCase):
 
     def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
         rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "Q3", "--force"
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "Q3",
+            "--force",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         rc, out, err = self.rp(
-            "reply", "Q1", "--rec", "Newer.", "--affects", "none", "--force"
+            "reply",
+            "Q1",
+            "--rec",
+            "Newer.",
+            "--affects",
+            "none",
+            "--force",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         rc, out, err = self.rp(
@@ -1851,7 +1991,7 @@ class TestReplyResolution(DirCase):
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
-    REC = ["--rec", "Use the lock.", "--affects", "none"]
+    REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
     CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
     OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
 
@@ -1936,7 +2076,13 @@ class TestReviseSetsAsideOwn(DirCase):
             {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "x"}
         )
         self.apply_ops(
-            {"op": "revise", "id": "Q1", "rec": "Use the lock.", "affects": "none"}
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": "Use the lock.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         q = self.q("Q1")
         self.assertGreater(q["setAsideRev"], q["terminal"]["rev"])
@@ -1961,6 +2107,7 @@ class TestReviseSetsAsideOwn(DirCase):
                 "id": "Q1",
                 "rec": "Use the lock.",
                 "affects": "none",
+                "keepAlternatives": True,
                 "seq": 1,
             },
             {

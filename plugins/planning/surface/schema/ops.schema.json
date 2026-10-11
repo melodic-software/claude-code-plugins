@@ -53,6 +53,10 @@
         ]
       }
     },
+    "keepAlternatives": {
+      "description": "With `rec` and no `alternatives`: states that the current alternatives were checked against the new recommendation. A `rec` needs `alternatives` or this.",
+      "type": "boolean"
+    },
     "reply": {
       "type": "object",
       "required": ["op", "id"],
@@ -71,6 +75,8 @@
           "maxLength": 500
         },
         "affects": {"$ref": "#/$defs/affects"},
+        "alternatives": {"$ref": "#/$defs/alternatives"},
+        "keepAlternatives": {"$ref": "#/$defs/keepAlternatives"},
         "handled": {"type": "integer"},
         "force": {"type": "boolean"}
       }
@@ -102,6 +108,7 @@
         },
         "seq": {"type": "integer"},
         "affects": {"$ref": "#/$defs/affects"},
+        "keepAlternatives": {"$ref": "#/$defs/keepAlternatives"},
         "force": {"type": "boolean"}
       }
     },

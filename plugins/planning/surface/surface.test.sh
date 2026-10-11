@@ -116,7 +116,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
   pw open >/dev/null 2>&1
   pw run-code --filename "$(script_path "$tmp/ui_a.js")" >"$tmp/ui_a.out" 2>&1
-  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --keep-alternatives --force >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_b.js")" >"$tmp/ui_b.out" 2>&1
 
   # ui_c runs against a third server seeded with settings in every layer: the repo file through
@@ -141,12 +141,12 @@ if command -v playwright-cli >/dev/null 2>&1; then
     sed "s/__PORT__/$cport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
   done
   pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
-  bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --keep-alternatives --force >/dev/null
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
   bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
   # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
-  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --keep-alternatives --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
@@ -262,7 +262,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   japply e2 '{"ops": [{"op": "note-reply", "text": "One more thing: what should the cache key include?"}]}'
   jrun 4
   jhandle
-  bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --keep-alternatives --force >/dev/null
   japply f '{"ops": [{"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
     "constraints": "Builds stop at ten minutes."}}]}'
   jrun 5
@@ -343,7 +343,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   done
   lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
   lrun 1
-  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none"}]}' >"$l/ops/a.json"
+  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none", "keepAlternatives": true}]}' >"$l/ops/a.json"
   bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
   lrun 2
   bash "$here/round.sh" --dir "$l" revise Q1 --rec "Yes, every push on main and every tag." --alt "a:Only on tags" --alt "b:Only by hand" --affects none --force >/dev/null || bad "live: revise refused"

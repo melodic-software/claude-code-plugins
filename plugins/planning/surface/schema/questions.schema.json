@@ -207,6 +207,10 @@
           "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
         },
         "alt": {"type": ["string", "null"]},
+        "alternatives": {
+          "enum": ["rewritten", "kept"],
+          "description": "On a line that changed the recommendation: whether the same op rewrote the alternatives or stated that the current ones were checked against it."
+        },
         "summary": {"type": "string"}
       }
     },

@@ -303,6 +303,7 @@ class TestApi(ServerCase):
             "New rec",
             "--affects",
             "none",
+            "--keep-alternatives",
             "--seq",
             str(self.accept["seq"]),
         )
@@ -317,6 +318,7 @@ class TestApi(ServerCase):
             "New rec",
             "--affects",
             "none",
+            "--keep-alternatives",
             "--seq",
             str(self.accept["seq"]),
             "--force",
@@ -2052,7 +2054,15 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
         for qid in ("B", "C", "D"):
             self.decide(qid)
-        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "C")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Different.",
+            "--affects",
+            "C",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(
             self.marks(),
@@ -2073,7 +2083,15 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_3_none_still_marks_the_direct_dependents(self):
         self.decide("E")
         self.assertEqual(self.states()["E"], "open")
-        rc, out = self.rp("revise", "A", "--rec", "Once more.", "--affects", "none")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Once more.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         marks = self.marks()
         self.assertEqual(marks["E"], ("stale", ["A"]))
@@ -2110,7 +2128,15 @@ class TestTerminalAnswerRightAfterARecChange(OpsCase):
         )
 
     def test_1_the_later_write_wins_the_tie(self):
-        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "none")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Different.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "stale")
         rc, out = self.rp("record-terminal", "B", "--decision", "accept")
