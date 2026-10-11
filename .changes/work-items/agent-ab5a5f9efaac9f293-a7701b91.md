@@ -17,10 +17,9 @@ bump: patch
     five bundled ones) filter in the provider query; core keeps exact
     matches afterward either way.
   - Every normalized item carries created_at (UTC, or null). work-loop and
-    work's oldest-first pick sort on it, with a defined fallback for null.
+    work's oldest-first pick sort on it; a null timestamp sorts last, with
+    item number as a fixed tie-break.
   - work-loop passes --scope to both snapshot reads as --label.
-
-### Fixed
 
 - report a labeled GitHub listing at the search cap as truncated
 
