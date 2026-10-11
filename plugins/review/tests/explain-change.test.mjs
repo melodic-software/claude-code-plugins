@@ -404,13 +404,13 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(result.medium, "artifact");
     assert.equal(result.destination, "a private Artifact on claude.ai");
   });
-  test("the CLI reads the diff on stdin", () => {
+  test("the CLI takes no visibility from its arguments, only from --facts", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
-    assert.equal(JSON.parse(gate(["public"], clean).stdout).medium, "artifact");
-    assert.equal(JSON.parse(gate(["PRIVATE"], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["PRIVATE", "--explicit"], clean).stdout).medium, "artifact");
-    assert.equal(gate([], clean).status, 2);
-    assert.equal(gate(["PUBLIC", "--force"], clean).status, 2);
+    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["PUBLIC", "--facts"], ["--explicit"], []]) {
+      const run = gate(args, clean);
+      assert.equal(run.status, 2, `${JSON.stringify(args)} is refused`);
+      assert.equal(run.stdout, "");
+    }
   });
   test("--facts takes the visibility from the saved facts, and anything else gates private", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
@@ -423,8 +423,11 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(JSON.parse(gate(["--facts", facts("none.json", '{"title":"visibility PUBLIC"}')], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", facts("bad.json", "not json")], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", join(scratch, "missing.json")], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["--facts", facts("lower.json", '{"visibility":"public"}')], clean).stdout).medium, "artifact");
+    assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}')], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}'), "--explicit"], clean).stdout).medium, "artifact");
     assert.equal(gate(["--facts"], clean).status, 2);
+    assert.equal(gate(["--facts", facts("public.json", '{"visibility":"PUBLIC"}'), "--force"], clean).status, 2);
   });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
