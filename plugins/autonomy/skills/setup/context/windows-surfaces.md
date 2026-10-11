@@ -16,10 +16,8 @@ whole-process runtime's setup for Linux, WSL2, and macOS only, while its row for
 host points to a container, a VM, or the Bash sandbox inside WSL2. With nothing else, the surface
 is `L0`. An org-supplied Windows boundary is judged by its own probe, not by this record.
 *Basis:* [Get started](https://code.claude.com/docs/en/sandboxing#get-started) and
-the [sandboxing page's opening paragraph](https://code.claude.com/docs/en/sandboxing), a
-deliberate page-level pointer: upstream removed the former "Platform and tool compatibility"
-section, and the platform statement now sits under no heading, so no section anchor exists
-(pointer re-checked 2026-10-11);
+[OS-level enforcement](https://code.claude.com/docs/en/sandboxing#os-level-enforcement), which
+list macOS, Linux, and WSL2 as the only sandbox platforms (pointer re-checked 2026-10-11);
 [Choose an approach](https://code.claude.com/docs/en/sandbox-environments#choose-an-approach) and
 [Sandbox runtime](https://code.claude.com/docs/en/sandbox-environments#sandbox-runtime); all read
 as raw markdown. The [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md)
