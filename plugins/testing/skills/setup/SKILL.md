@@ -70,7 +70,7 @@ hook only through the settings entry `check` prints.
 Three plugin options, not keys of this file, turn on and tune the judge: `test_judge_enabled`
 (default `false`; it needs `test_guards_enabled`, whose scan records the tests it judges),
 `test_judge_model` and `test_judge_fallback_model` (model classes `fable`, `opus`, `sonnet` or
-`haiku`, a last resort because it is uncalibrated and may favor Claude-labeled output; defaults
+`haiku`, a last resort because the judge is uncalibrated on it; defaults
 `sonnet` and `opus`), plus `test_judge_effort` (default `medium`) and `test_judge_session_runs`
 (unset: no limit). At the end of each task a separate model asks where the expected value of each
 test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted
