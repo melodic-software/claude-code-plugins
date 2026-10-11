@@ -39,7 +39,8 @@
 #   4  gh not found — nothing written
 #   5  a gh call failed before anything verifiable landed: the write identity or
 #      the lookup (nothing written), the POST, or the PATCH (the comment holds an
-#      earlier body); under --read, the identity, lookup, or read failed
+#      earlier body), or the POST landed under another login (a wrong
+#      --app-slug); under --read, the identity, lookup, or read failed
 #   6  the write was sent but is unconfirmed: the created comment was not re-found,
 #      the read-back failed, or what was stored differs from what was sent
 # A failed duplicate tombstone after a verified write is reported on stderr only;
@@ -107,7 +108,7 @@ resolve_identity() {
   else
     return 1
   fi
-  [[ "$ME" =~ ^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$ ]]
+  [[ "$ME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]
 }
 
 lookup() {
@@ -152,8 +153,11 @@ need_identity
 
 LIST="$(lookup)" || die 5 "comment lookup failed; nothing written this cycle (fail closed)"
 if [[ -z "$LIST" ]]; then
-  gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" >/dev/null ||
+  POSTED_AS="$(gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" --jq '.user.login')" ||
     die 5 "creating the telemetry comment failed; nothing written"
+  # A wrong --app-slug would otherwise post a fresh, never-found comment every cycle.
+  [[ "$POSTED_AS" == "$ME" ]] ||
+    die 5 "the comment was posted as '$POSTED_AS', not the resolved write identity '$ME'; fix --app-slug before the next cycle"
   LIST="$(lookup)" || LIST=""
 fi
 CANON="$(canonical "$LIST")"

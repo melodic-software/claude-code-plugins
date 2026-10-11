@@ -45,7 +45,8 @@ case "$method $url" in
 "POST repos/"*"/comments")
   [[ "${STUB_FAIL:-}" == post ]] && exit 1
   jq --arg b "$body" --arg a "${STUB_AUTHOR:-lane-op}" \
-    '. + [{id: ((map(.id) | max // 100) + 1), body: $b, user: {login: $a}}]' "$db" >"$db.new" && mv "$db.new" "$db" ;;
+    '. + [{id: ((map(.id) | max // 100) + 1), body: $b, user: {login: $a}}]' "$db" >"$db.new" && mv "$db.new" "$db"
+  jq -r ".[-1] | $jqexpr" "$db" ;;
 "PATCH repos/"*"/issues/comments/"*)
   [[ "${STUB_FAIL:-}" == patch ]] && exit 1
   id="${url##*/}"
@@ -219,6 +220,13 @@ STUB_USER=fail run
 check "no identity: exit 5" 5 "$?"
 check "no identity: no write" 0 "$(writes)"
 
+# 20b. A wrong --app-slug: the POST lands under another login, exit 5, and only
+#      one comment is created (no PATCH, no tombstone).
+setup '[]'
+STUB_USER=fail STUB_AUTHOR='real-app[bot]' run --app-slug wrong-app
+check "wrong slug: exit 5" 5 "$?"
+check "wrong slug: one write, the POST" 1 "$(writes)"
+
 # 21. GET user reports a bot: its [bot] login is the identity.
 setup "[$(c 3 "$FOREIGN"), $(c 41 "$OLD" 'lane-app[bot]')]"
 STUB_USER='{"login":"lane-app","type":"Bot"}' run
@@ -239,6 +247,27 @@ setup "[$(c 3 "$FOREIGN" outsider)]"
 read_state
 check "read unclaimed: exit 0" 0 "$?"
 check "read unclaimed: empty output" "" "$(cat "$STUB_DIR/out")"
+
+# 24. --read fails closed: a failed lookup, read, or identity is exit 5 with no
+#     output, never the empty "unclaimed" answer.
+for knob in list get user; do
+  setup "[$(c 41 "$OLD")]"
+  if [[ "$knob" == user ]]; then STUB_USER=fail read_state; else STUB_FAIL="$knob" read_state; fi
+  check "read, $knob fails: exit 5" 5 "$?"
+  check "read, $knob fails: no output" "" "$(cat "$STUB_DIR/out")"
+done
+
+# 25. An invalid --app-slug: exit 3 before any gh call.
+setup '[]'
+run --app-slug 'bad"slug'
+check "invalid slug: exit 3" 3 "$?"
+check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 26. An Enterprise Managed User login (underscore shortcode) is a valid identity.
+setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
+STUB_USER='{"login":"jane_acme","type":"User"}' run
+check "EMU login: exit 0" 0 "$?"
+check "EMU login: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 
 # 16. gh not on PATH: exit 4.
 setup '[]'
