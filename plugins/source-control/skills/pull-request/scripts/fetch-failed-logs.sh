@@ -39,6 +39,7 @@
 #   4  ZIP extraction failed
 #   5  prerequisite missing (gh, unzip)
 
+# portability-scope: fetches GitHub Actions logs through the GitHub REST API with gh; the script is the GitHub provider's log fetch.
 set -uo pipefail
 
 # --- Argument parsing --------------------------------------------------------

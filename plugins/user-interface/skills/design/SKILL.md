@@ -69,6 +69,9 @@ its rows in rank order and use the first one for which all of these hold:
   the concern. When an account-bound row's `reachable` is `null`, route to it and tell the user
   they may need to sign in.
 
+Writing or reviewing CSS is the `css-authoring` concern; its first route is this plugin's own
+`/user-interface:write-css`, so CSS work goes there once the design decisions are made.
+
 Invoke a skill route by its id without the leading slash (the Skill tool takes `plugin:skill`);
 for a plugin route, use the skill it provides for the concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
 the user its slash command. Say which route you took and why.
@@ -113,7 +116,8 @@ the user agrees.
 
 ## Next
 
-`/prototype:explore-directions`, to build throwaway variants of a layout once the direction is set.
+- Direction set, throwaway layout variants wanted: /prototype:explore-directions.
+- Direction set, CSS to write: /user-interface:write-css.
 
 ## Gotchas
 
