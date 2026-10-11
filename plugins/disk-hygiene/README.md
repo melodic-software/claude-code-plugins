@@ -168,11 +168,9 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 **Windows `python3` gotcha, and what the guard does when no Python resolves.** Every hook resolves
 Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
-skill-scoped belt included. A PreToolUse hook blocks a tool call only with exit code 2 or a `deny`
-decision, and one that exits 0 with nothing to say reads as approval
-([Hooks](https://code.claude.com/docs/en/hooks)), so a guard that could not run would read as one
-that ran and allowed. The launcher therefore answers for the guard when the ladder is exhausted, on
-the call itself, the same way the guard's watchdog answers "could not decide":
+skill-scoped belt included. A guard that could not run must not pass as one that ran and found
+nothing to stop, so the launcher answers for the guard when the ladder is exhausted, on the call
+itself, the same way the guard's watchdog answers "could not decide":
 
 | Surface | When the guard cannot run |
 |---|---|
@@ -181,6 +179,16 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
 | `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+
+No registration in this plugin sets a hook failure option, so the last row's outcome is the
+platform's default for a hook that cannot start.
+
+- **Pointer**: when deciding what a hook's exit code, empty output or failed launch does to the
+  tool call, fetch [Exit code output](https://code.claude.com/docs/en/hooks#exit-code-output) and
+  [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes the outcome of a
+  `PreToolUse` hook that exits 0 with no decision or fails to start, or a registration in
+  `hooks/hooks.json` or the `clean` skill's frontmatter starts setting a failure option.
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
