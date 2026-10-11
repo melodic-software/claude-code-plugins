@@ -141,17 +141,20 @@ Zero verified findings is a clean, successful outcome. Do **not** invent a findi
 
 Cost follows what is scanned, and precision never pays for it. Three rules, applied in this order:
 
-**Model by stage.** Each stage's model and effort come from the multi-agent role map, passed
-through the Agent tool's per-spawn `model` and `effort` parameters. This skill names roles, never aliases: the map's
+**Model by stage.** Each stage's model comes from the multi-agent role map, passed through the
+Agent tool's per-spawn `model` parameter, and the gates' effort through its `effort` parameter.
+This skill names roles, never aliases: the map's
 defaults and their upstream basis belong to the multi-agent plugin. When `/multi-agent:route`
 resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per
 run. Pass the role's `fanout` variant model when the stage dispatches more than one agent and its
 `single` variant when it dispatches one (a one-lens run, a one-candidate wave), omitting the model
-when `omit_model` is true. Pass that variant's `effort` as the spawn's `effort`: hunters and gates
-are non-fork spawns of generic subagents with no pin of their own. A gate never runs on a weaker
-model than the hunters it checks: when the gate's resolved model (the session's, if omitted) is
-weaker than the hunters', pass the hunters' model to the gate instead. Likewise a gate never runs
-at a lower effort than the hunters: when its resolved effort is lower, pass the hunters' effort.
+when `omit_model` is true. Hunters pass no `effort`, so they run at the session level. Gates are
+non-fork spawns of a generic subagent with no pin of their own, so each gate passes its variant's
+`effort` as the spawn's `effort`. A gate never runs on a weaker model than the hunters it checks:
+when the gate's resolved model (the session's, if omitted) is weaker than the hunters', pass the
+hunters' model to the gate instead. Likewise a gate never runs at a lower effort than the hunters:
+when its resolved effort is below the session level, pass no `effort` so it runs at the session
+level too.
 
 | Stage | Role | Why |
 |---|---|---|
@@ -162,7 +165,7 @@ at a lower effort than the hunters: when its resolved effort is lower, pass the 
 When `/multi-agent:route` does not resolve, omit the model for both stages so they inherit the
 session's, except when the session model is frontier or unknown, where pass `opus`; say once in the
 report that enabling the multi-agent plugin makes this routing configurable. With no role map,
-pass no `effort` either, so both stages run at the session level. Pointer: for the per-spawn
+gates pass no `effort` either, so both stages run at the session level. Pointer: for the per-spawn
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
 As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
 
