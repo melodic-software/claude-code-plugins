@@ -165,7 +165,7 @@ NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
 # A tracker's link line, which `/work-items:track link` prints from the bound
 # adapter (work-items CONTRACT.md "Change links"): a linking keyword, then an
 # issue key (`Closes ENG-123`, `Refs SW2-12`) or a qualified item id
-# (`Refs: local-markdown:local/markdown#7`), alone on its line. Matched against
+# (`Refs: local-markdown:<namespace>#<n>`), alone on its line. Matched against
 # the original-case line, so a key stays upper-case and `fixes utf-8` is not
 # one; the keyword is checked lower-cased against TRACKER_KEYWORD_ERE. The
 # second keyword word is spelled `to` rather than any word: POSIX
