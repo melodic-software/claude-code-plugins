@@ -75,6 +75,8 @@
 # The top-level run-e2e keys e2e_driver, reuse_running_instance and
 # feature_map_dir are skipped unread, whatever their value; a nested value skips
 # with its indented lines and draws one stderr warning naming the file and line.
+# pixel_tolerance (check-visual-parity's map) skips with its indented lines and
+# no warning, since a map is its expected shape.
 
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
@@ -302,9 +304,9 @@ FNR == 1 {
   key = substr(body, 1, RLENGTH - 1)
   # run-e2e's keys share the config file; scripts/resolve-config.sh e2e reads
   # them, so the scan neither parses nor checks their values.
-  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir)$/) {
+  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance|feature_map_dir|pixel_tolerance)$/) {
     sp = 0
-    E2E_KEY = key; E2E_WARNED = 0
+    E2E_KEY = key; E2E_WARNED = (key == "pixel_tolerance")
     next
   }
   rest = substr(body, RLENGTH + 1)

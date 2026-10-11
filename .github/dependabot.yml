@@ -129,6 +129,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The testing check-visual-parity skill's pixelmatch and pngjs. Nothing is
+  # vendored: the committed lockfile is what `npm ci` installs on first use
+  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  - package-ecosystem: npm
+    directory: /plugins/testing/skills/check-visual-parity/scripts
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The animation plugin's hash-locked Python packages (numpy, opencv). Nothing is vendored:
   # the SessionStart hook installs requirements.txt on demand
   # (docs/conventions/on-demand-dependencies/), so a bump here is the release.

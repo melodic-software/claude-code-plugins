@@ -12,6 +12,30 @@ bump: minor
 
 ### Added
 
+- **`/testing:check-visual-parity` holds a UI steady through a change by counting pixels.** A new
+  model-invocable skill: `baseline` captures PNG screenshots of the listed states before the first
+  edit and records each image's sha256 with the OS, browser, viewport, scale and commit in a
+  manifest; `compare` captures them again at each green checkpoint and prints per image
+  `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>`, exiting 0, 1 on a failing image,
+  or 2 when a baseline image changed after its manifest or the host settings differ. It captures
+  only through a driver that writes PNG files (else a gap report), launches through
+  `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, writes diff
+  images only under its diff directory, and never edits or re-captures a baseline.
+  `scripts/visual-compare.sh` installs pixelmatch and pngjs on first use from the committed
+  lockfile with `npm ci --ignore-scripts --no-audit --no-fund` into the plugin data directory, and
+  prints one repair line (POSIX, or Windows PowerShell 5.1) when `npm` is missing or the install
+  fails; `prerequisites.json` now declares `npm` for the skill. A plugin-level `evals/` case checks
+  that a failing compare keeps the baseline.
+- **`pixel_tolerance` setting, per repository and per user.** A map in
+  `docs/conventions/testing.yaml`: `pixels` (a whole number, default 0) and `reason` (required when
+  `pixels` is above 0; quote one that holds a colon followed by a space), added to
+  `schemas/testing.schema.json`. The team value is read from origin's default branch. The
+  user-global `~/.claude/testing.yaml`, `.claude/testing.local.yaml` and the new
+  `pixel_tolerance` user config option can only lower it: the lowest valid value wins, a raise is
+  reported as ignored, and an invalid layer is named with its file or option, key and value and
+  dropped. The test scan skips the map without a warning, and `/testing:setup apply` keeps it when
+  it rewrites `testing.yaml`. A testing release without this key stops its test scan on
+  `pixel_tolerance` in `testing.yaml`: upgrade every member before setting it.
 - **`/testing:audit` catches two more weak matchers and fixture-against-fixture tests.** In Jest and Vitest, a test whose only oracle is `not.toThrow()`, `toBeGreaterThan(0)` or a `> 0` comparison asserted true now reports under `rule-weak-oracle`, and a value the test bound to a literal compared to another such value, with no call to the code under test, reports under `rule-constant-restatement`; both rules stay report-only under `--strict`. `*.test-d.ts` type tests are named as never scanned, and a relation across rows of a declared table is named as a valid `cant-fail-ok:` reason. `/testing:write`'s per-cycle checklist ends by asking whether the test fails once each function it imports returns nothing, and `/testing:run-e2e` captures error, empty and feedback states, not only the path where everything succeeds.
 - **`/testing:run-e2e` starts its own instance beside an answering app when a Workspace environment entry exists.** Under `reuse_running_instance: false` in either mode, and `auto` on an unattended run, the run starts its own instance through the entry's `up`, drives the URL `info` reports, and never drives an app it did not start; `true`, and `auto` when attended, still reuse the answering app, and with no entry the earlier rules stay (labelled reuse for unattended `auto`, a stop for `false`). Session names gain a workspace part from `WORKSPACE_ID`, slugged and cut to 24 characters, so the run id always survives the 64-character cut. A testing release without this change keeps the labelled reuse.
 - **`/testing:refresh-feature-map` keeps a feature map current.** A new model-invocable skill checks an existing map against the app: a subagent for each feature reads the source without editing, then one `/testing:run-e2e` pass drives every entry point, doctor first. It edits only files in the map directory, sends a behavior the app lost to `/bugs:write` (when the bugs plugin is enabled) or the report instead of the map, and ends clean, changed or blocked. A changed pass commits to the fixed branch `feature-map-upkeep/<map slug>` and opens one pull request through `/source-control:pull-request`, or updates the one already open, only when unattended or after the person confirms. `scripts/upkeep-skip.sh` records a clean pass's commit under the plugin data directory and skips the next pass until HEAD moves, or when this host has no record and no commit landed in the window. An unattended pass refuses a `chrome` map. A pass whose driver cannot run on this host ends blocked (driver unavailable) and writes no source-pass candidate into the map, listing each with its `file:line`; the source subagents are told to use Read, Grep and Glob only, and a pass whose `git status --porcelain` changed during the source pass ends blocked, naming the changed paths. A plugin-level `evals/` case covers the edit scope.

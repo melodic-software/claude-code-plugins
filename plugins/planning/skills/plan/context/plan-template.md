@@ -12,6 +12,7 @@
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
 - [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
+- [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
 - [Phase-entry checks for tracker writes](#phase-entry-checks-for-tracker-writes)
 - [Checkbox inventory pattern](#checkbox-inventory-pattern)
 - [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
@@ -361,6 +362,21 @@ When a phase knowingly leaves the build, the tests or the lint red until a later
 - Step 4.7's `planned-breakage` criterion fails a line with another kind, no `until Phase`, no `for` clause, or a target phase that is missing or not later.
 
 Omit the line when every phase ends green.
+
+## Visual parity (optional per phase)
+
+When a phase must leave the UI looking exactly as it did (a refactor, a component-library swap, a
+styling migration), list the screens and states it holds:
+
+```markdown
+### Phase N: <name> [TODO]
+**Parity contract:** <screen (state)>, <screen (state)>, ...
+```
+
+Implementation's refactor mode captures those states before the phase's first edit and compares
+them at each green checkpoint through `/testing:check-visual-parity`, when it is among the
+available skills. Name states a capture can reach, such as `order list (empty)` or
+`checkout (card declined)`. Omit the line when the phase may change how the UI looks.
 
 ## Phase-entry checks for tracker writes
 

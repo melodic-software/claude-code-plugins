@@ -52,7 +52,7 @@ playwright-cli -s=smoke close
 | Structured log inspection | The orchestrator's log/trace surface |
 | **UI flow through Swagger/Scalar or the app itself** | Playwright CLI |
 | **Interactive component behavior (Blazor, SPA hydration)** | Playwright CLI |
-| **Visual regression** | Playwright CLI screenshot + image diff |
+| **Visual regression** | Playwright CLI screenshot + image diff; when `/testing:check-visual-parity` is among the available skills, it holds the baseline and counts the differing pixels |
 | Performance (Core Web Vitals, Lighthouse) | Chrome DevTools tooling |
 
 Playwright CLI complements the orchestrator's own observability and `curl`. It does NOT replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.

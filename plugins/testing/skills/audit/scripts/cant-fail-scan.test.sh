@@ -2227,6 +2227,12 @@ printf 'feature_map_dir: "docs/features\npaths:\n  exclude: [src/sum_test.go]\n'
 cfg_scan
 assert_exit "the scan neither parses nor checks the feature_map_dir value" 0 "$rc"
 assert_finding_count "and its scan keys still apply" 2
+# pixel_tolerance is a map by design: skipped unread, with no nested-value warning.
+printf 'pixel_tolerance:\n  pixels: 2\n  reason: "fonts: hinting differs"\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_exit "a testing.yaml holding the pixel_tolerance map scans" 0 "$rc"
+assert_finding_count "and its scan keys apply" 2
+assert_not_contains "and the map draws no warning" "$out" "adapter-load"
 rm -rf "$CFG/docs"
 
 # --- the whole suite again under mawk -----------------------------------------

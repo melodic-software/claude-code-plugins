@@ -137,6 +137,13 @@ plan -- plugins/speech/sp.sh
 is "$(key bash_needs)" '{"0":"animation"}'
 check "a speech suite gets the animation wheels, where its numpy comes from" $?
 
+mk plugins/testing/skills/check-visual-parity/scripts/vc.sh
+mk plugins/testing/skills/check-visual-parity/scripts/vc.test.sh
+plan -- plugins/testing/skills/check-visual-parity/scripts/vc.sh
+is "$(key bash_needs)" '{"0":"visualcheck"}'
+check "a check-visual-parity suite gets the visual-compare packages" $?
+rm -rf "$repo/plugins/testing"
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?

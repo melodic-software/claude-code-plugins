@@ -12,6 +12,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:map-features` | User-invoked. Writes a feature map for one app: a project skill (default `.claude/skills/feature-map/`) whose index names the launch recipe, the recorded driver and a doctor command, with a file for each feature listing its parts, entry points, drive steps and traps. Refuses a location inside a `run-<name>` or `verify` skill. Reports done only after one mapped feature passes through `/testing:run-e2e`. Format: `reference/feature-map.md`. |
 | `/testing:refresh-feature-map` | Model-invocable. Keeps an existing feature map accurate: read-only source checks per feature, then one live pass through `/testing:run-e2e`. Edits stay in the map directory; a behavior the app lost goes to `/bugs:write` or the report, never into the map. A clean pass records its commit under the plugin data directory and the next pass skips until HEAD moves. Map corrections go to one fixed branch per map, `feature-map-upkeep/<map slug>`, and one pull request, updated rather than duplicated, opened only when unattended or after you confirm. An unattended pass refuses a `chrome` map. |
+| `/testing:check-visual-parity` | Model-invocable; implement's refactor mode calls it for a plan phase with a `**Parity contract:**` line. `baseline` captures PNG screenshots of the listed states before the first edit and records their sha256, OS, browser, viewport and scale in a manifest; `compare` captures them again at each green checkpoint and counts differing pixels per image with pixelmatch against `pixel_tolerance`. It captures only through a driver that writes PNG files, launches through `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, and never edits or re-captures a baseline. pixelmatch and pngjs install on first use from the committed lockfile (`npm` required). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`. |
@@ -197,6 +198,15 @@ writes the feature map and where run-e2e reads it; it is a repository path, set 
 `docs/conventions/testing.yaml` or `.claude/testing.local.yaml`, with no `userConfig` option. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
+`pixel_tolerance` is a map in `docs/conventions/testing.yaml`: `pixels`, the differing pixels per
+image `/testing:check-visual-parity` accepts (a whole number, default 0), and `reason`, required when
+`pixels` is above 0. Quote a reason that holds a colon followed by a space. The team value is read
+from origin's default branch (the working tree only when there is no `origin`). The user-global
+`~/.claude/testing.yaml`, `.claude/testing.local.yaml` and the `pixel_tolerance` option can only
+lower it: the lowest valid value wins, a raise is reported as ignored, and an invalid layer is
+named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
+`testing.yaml`, so add the map once every member runs this release.
+
 **Upgrade note.** A testing release older than these keys never reads
 `docs/conventions/testing.yaml`, and refuses an unknown key in the files it does read, which stops
 its test scan. Keep the team's scan config where it is (the `docs/conventions/testing.md` block or
@@ -287,6 +297,7 @@ reads it from.
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
 | `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labelled evidence and false stops. docs/conventions/testing.yaml wins. |
+| `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these

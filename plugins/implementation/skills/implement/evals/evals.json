@@ -458,6 +458,18 @@
         "It records the half-even rounding difference as an intentional-differences ledger entry with the user's sign-off",
         "It plans to report mismatch counts (inputs run, mismatches, ledger-covered, unexplained) instead of only 'tests pass'"
       ]
+    },
+    {
+      "id": 35,
+      "name": "refactor-parity-contract-baseline-first",
+      "prompt": "/implementation:implement refactor: phase 2 of the approved plan moves our order screens from hand-written table markup to the shared DataGrid component. The phase carries `**Parity contract:** order list (empty), order list (25 rows), order detail (refund pending)`. /testing:check-visual-parity is among the available skills. Start the phase.",
+      "expected_output": "Refactor mode. Before the first structural edit it runs /testing:check-visual-parity baseline for the three listed states, then makes one structural change per commit and runs /testing:check-visual-parity compare at each green checkpoint. A failing compare is treated like a broken test: it stops and investigates rather than re-capturing the baseline or raising the tolerance.",
+      "files": [],
+      "expectations": [
+        "It runs /testing:check-visual-parity baseline with the three listed states before the first structural edit",
+        "It runs /testing:check-visual-parity compare at each green checkpoint",
+        "It treats a failing compare as a behavior change to investigate, not a baseline to re-capture"
+      ]
     }
   ]
 }

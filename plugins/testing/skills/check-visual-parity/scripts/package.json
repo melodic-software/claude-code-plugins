@@ -1,0 +1,10 @@
+{
+  "name": "@melodic/visual-compare",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pixel comparison for the testing plugin's check-visual-parity skill. Installed on first use with npm ci from the lockfile; never vendored.",
+  "dependencies": {
+    "pixelmatch": "8.0.0",
+    "pngjs": "7.0.0"
+  }
+}

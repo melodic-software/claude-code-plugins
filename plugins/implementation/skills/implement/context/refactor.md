@@ -14,10 +14,11 @@ These go in separate commits. Squash merge collapses them on main, but separate 
 ## Sequence
 
 1. **Verify current tests pass**: run the test suite before touching anything. If tests are already failing, fix them first (separate commit) or flag to the user
-2. **Plan structural moves**: identify what's moving where. For renames and file moves, consider blast radius (what references this? what imports change?)
-3. **One structural change per commit**: extract a method. Commit. Rename a class. Commit. Move a file. Commit. Each commit should leave tests green
-4. **Run tests after each change**: refactoring should never break tests. If a test breaks, your "refactor" changed behavior. Investigate
-5. **Update references**: after moves/renames, verify all callers compile. The ecosystem's build catches most; grep for string-based references (config, reflection) the compiler misses
+2. **Record the UI when the phase has a `**Parity contract:**` line** (when `/testing:check-visual-parity` is among the available skills): run `/testing:check-visual-parity baseline` with the listed screens and states before the first structural edit, then `/testing:check-visual-parity compare` at each green checkpoint of step 5. A failing compare means the refactor changed what users see: stop and investigate it as you would a broken test
+3. **Plan structural moves**: identify what's moving where. For renames and file moves, consider blast radius (what references this? what imports change?)
+4. **One structural change per commit**: extract a method. Commit. Rename a class. Commit. Move a file. Commit. Each commit should leave tests green
+5. **Run tests after each change**: refactoring should never break tests. If a test breaks, your "refactor" changed behavior. Investigate
+6. **Update references**: after moves/renames, verify all callers compile. The ecosystem's build catches most; grep for string-based references (config, reflection) the compiler misses
 
 ## The old shape (`refactor_compat`)
 

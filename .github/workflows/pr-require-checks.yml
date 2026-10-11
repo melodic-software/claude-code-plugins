@@ -2239,7 +2239,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -2320,6 +2320,11 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+          # check-visual-parity's pixelmatch and pngjs, installed the way its
+          # first compare installs them, into .work/visual-compare/<lock hash>/.
+          if [[ "$leg_needs" == *visualcheck* ]]; then
+            bash plugins/testing/skills/check-visual-parity/scripts/visual-compare.sh install --deps-dir .work
+          fi
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2371,6 +2376,9 @@ jobs:
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
+          # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
+          VISUAL_COMPARE_REQUIRE: '1'
+          VISUAL_COMPARE_DEPS_DIR: .work
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
           if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then

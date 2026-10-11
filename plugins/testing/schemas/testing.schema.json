@@ -52,6 +52,17 @@
       "default": ".claude/skills/feature-map",
       "pattern": "^(?!/)(?!.*\\.\\.)(?!\\./?$)(?!(\\./)?\\.[Cc][Ll][Aa][Uu][Dd][Ee]/[Ss][Kk][Ii][Ll][Ll][Ss]/?$)(?!(.*/)?[Rr][Uu][Nn]-)(?!(.*/)?[^/]*[Vv][Ee][Rr][Ii][Ff][Yy](/|$))[A-Za-z0-9._/-]+$",
       "description": "The directory of one feature map: where /testing:map-features writes it and /testing:run-e2e and /testing:refresh-feature-map read it, relative to the repository root. A repository with several apps keeps one map per directory; point this key (or --dir, or the session prompt) at the map a run should use. Refused: an absolute path, a value containing .., the root itself (. or ./), .claude/skills itself (the map must be its own directory under .claude/skills/, not the skills root), or a segment starting with run- or ending in verify. Set here or in .claude/testing.local.yaml only; it has no userConfig option."
+    },
+    "pixel_tolerance": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How many pixels per image /testing:check-visual-parity accepts as differing from the baseline. Read from origin's default branch; ~/.claude/testing.yaml, .claude/testing.local.yaml and the pixel_tolerance userConfig option can only lower it. Quote a reason that holds a colon followed by a space.",
+      "properties": {
+        "pixels": { "type": "integer", "minimum": 0, "default": 0, "description": "Differing pixels accepted per image; 0 fails on any differing pixel." },
+        "reason": { "type": "string", "minLength": 1, "description": "Why the team accepts that many differing pixels; required when pixels is above 0." }
+      },
+      "if": { "properties": { "pixels": { "exclusiveMinimum": 0 } }, "required": ["pixels"] },
+      "then": { "required": ["reason"] }
     }
   }
 }

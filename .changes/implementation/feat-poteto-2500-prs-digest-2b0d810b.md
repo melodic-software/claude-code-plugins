@@ -116,3 +116,8 @@ bump: minor
   an invalid value is named and that layer dropped. An older release has no option for either key
   and ignores the repository keys. Thirteen eval cases cover the modes, the layers, the model floor,
   the frontier limit, no push, the all-fail route, the fast-forward landing and the cleanup.
+- **Refactor mode holds a phase's parity contract.** When the plan phase carries a
+  `**Parity contract:**` line and `/testing:check-visual-parity` is among the available skills,
+  `context/refactor.md` runs its `baseline` for the listed screens and states before the first
+  structural edit and its `compare` at each green checkpoint, and treats a failing compare as a
+  behavior change to investigate. One eval case covers it.

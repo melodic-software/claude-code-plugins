@@ -70,6 +70,13 @@
       "default": "auto",
       "options": ["auto", "true", "false"]
     },
+    "pixel_tolerance": {
+      "type": "number",
+      "title": "Visual parity pixel tolerance",
+      "description": "Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default.",
+      "default": 0,
+      "min": 0
+    },
     "stdin_read_timeout": {
       "type": "number",
       "title": "Hook stdin read timeout (seconds)",

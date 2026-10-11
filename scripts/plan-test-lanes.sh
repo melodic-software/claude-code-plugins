@@ -14,7 +14,7 @@
 #   bash_plan, python_plan    a JSON object from leg number to the suites that leg runs
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
-#                             speech suites), inventory, duckdb
+#                             speech suites), inventory, duckdb, visualcheck
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
@@ -305,6 +305,7 @@ pack() {
         if (p ~ /^plugins\/(animation|speech)\//) s = s " animation"
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
+        if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
         return s
       }
       {
@@ -336,6 +337,7 @@ pack() {
           if ((l, "animation") in has) s = s " animation"
           if ((l, "inventory") in has) s = s " inventory"
           if ((l, "duckdb") in has) s = s " duckdb"
+          if ((l, "visualcheck") in has) s = s " visualcheck"
           sub(/^ /, "", s)
           legsj = legsj (l ? "," : "") l
           planj = planj (l ? "," : "") "\"" l "\":[" items[l] "]"

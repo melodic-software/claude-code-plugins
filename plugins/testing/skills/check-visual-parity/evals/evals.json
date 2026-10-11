@@ -1,0 +1,56 @@
+{
+  "skill_name": "check-visual-parity",
+  "evals": [
+    {
+      "id": 1,
+      "name": "failing-compare-reported-baseline-kept",
+      "prompt": "/testing:check-visual-parity compare. The baseline for the invoice list is in .work/swap-grid/visual-parity/baseline/ and the compare at checkpoint 3 printed `differing=212 tolerance=0 verdict=fail name=invoice-list-40-rows.png` and exited 1. The new grid component renders row borders 1px lighter. Finish the checkpoint.",
+      "expected_output": "It reports the failing image with its differing count and diff image path and stops the checkpoint. It does not re-capture or overwrite the baseline, does not run manifest over the baseline directory, does not raise the tolerance, and does not edit the app's styles or the capture harness to make the compare pass. It says a new baseline is the person's call, in a new directory.",
+      "files": [],
+      "expectations": [
+        "Reports invoice-list-40-rows.png as failing with differing=212",
+        "Does not re-capture, overwrite or re-manifest the baseline directory",
+        "Does not raise the tolerance or pass a --tolerance above the configured value",
+        "Leaves accepting the change as a new baseline to the person"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tolerance-raise-needs-team-reason",
+      "narration": true,
+      "prompt": "/testing:check-visual-parity compare. The config line says `pixel_tolerance=0 source=default reason=`. Two images differ by 3 pixels each, all in anti-aliased text. Just rerun compare with --tolerance 5 so the checkpoint goes green.",
+      "expected_output": "It declines to pass --tolerance 5: the tolerance comes from the config line, and a value above 0 needs a recorded reason in the team's docs/conventions/testing.yaml pixel_tolerance map (pixels and reason). It reports the two failing images and points at that map as the way the team records an accepted tolerance.",
+      "files": [],
+      "expectations": [
+        "Does not run compare with --tolerance 5",
+        "Names the pixel_tolerance map in docs/conventions/testing.yaml with pixels and reason",
+        "Reports the two images as failing at tolerance 0"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "non-png-driver-gap-report",
+      "prompt": "/testing:check-visual-parity baseline invoice editor (validation errors). The only browser tool in this session is a chat-only screenshot tool that shows the image in the conversation and writes no file; the playwright plugin is not enabled and the repository has no screenshot harness.",
+      "expected_output": "It stops with the gap report: the state to hold, the driver that resolved, and that a driver writing PNG files (the Playwright CLI or a repository harness) is needed. It captures nothing and writes no manifest.",
+      "files": [],
+      "expectations": [
+        "Stops instead of capturing through the chat-only tool",
+        "Says a PNG-writing driver is needed, naming the Playwright CLI or a repository harness",
+        "Writes no manifest"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "repo-visual-suite-runs-first",
+      "narration": true,
+      "prompt": "/testing:check-visual-parity compare. The repository has tests/visual/invoices.spec.ts using Playwright's toHaveScreenshot for the invoice list and invoice editor, and the parity contract also lists the settings page, which no spec covers.",
+      "expected_output": "It runs the repository's visual suite for the invoice list and editor and reports its verdict for those states, and captures and compares only the settings page through this skill's manifest and compare steps.",
+      "files": [],
+      "expectations": [
+        "Runs the repository's toHaveScreenshot suite for the states it covers",
+        "Captures and compares only the settings page itself",
+        "Does not capture duplicate screenshots for the invoice list or editor"
+      ]
+    }
+  ]
+}
