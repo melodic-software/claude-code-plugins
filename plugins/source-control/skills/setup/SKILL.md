@@ -244,13 +244,13 @@ the step UNKNOWN with remediation, never green.
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
      the lane's own scripts reach the classifier; this one proves the forge will answer them.
-     Sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of
-     GraphQL operations and refuse the rest with `HTTP 403`, and the forge CLI's PR reads run over
-     GraphQL. Probe it read-only against the repository itself with the viewer-login query in the
-     [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed sessions".
+     A cloud session behind the GitHub proxy can refuse GraphQL, and the forge CLI's PR reads run
+     over GraphQL. Probe it read-only against the repository itself with the viewer-login query in
+     the [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed
+     sessions", which holds the upstream pointer.
 
-     A login means GraphQL is served and the lane runs at full fidelity. A `403`, or a message
-     saying the operation is not enabled for this session, is INFO rather than FAILED: the engine
+     A login means GraphQL is served and the lane runs at full fidelity. A `403` is INFO rather
+     than FAILED: the engine
      re-sources its pull-request reads over REST by itself and keeps running. Report the one thing
      the operator loses, because it is the thing that stops merges: review-thread **resolution** has
      no REST equivalent, so the merge gate reports `threadResolutionProven: false` and holds every

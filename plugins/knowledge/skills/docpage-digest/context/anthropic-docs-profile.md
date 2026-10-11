@@ -63,8 +63,15 @@ extraction waits for the third (Rule of Three).
   beside `source.md`, a second immutable original, and recover that text from it; a row quoting
   such text cites `source.html`. Of the three, only (c) also binds
   `claude.dev/blog`, the other correlate-only host.
-- **Blog posts (`claude.dev/blog/...`, correlate-only):** fetch the rendered page as
-  `source.html`, then write `source.md` with
+- **Blog posts (`claude.dev/blog/...`, correlate-only):** fetch the raw-markdown channel first:
+  drop the trailing slash and append `.md` (`https://claude.dev/blog/<slug>.md`). Save that
+  fetch as `source.md` and name the channel in the checklist. Reproduce whatever artifacts it
+  carries and never repair them, as with every `source.*`. Read the title, author and date from
+  its header when it carries them, otherwise from `source.html`. Always also fetch the rendered
+  page as `source.html`, the second immutable original: (c) still binds, so figure text is read
+  from `source.html`, never from the `.md` channel's figure summaries.
+  **Fallback** when the `.md` fetch fails, returns a non-markdown content type, or its body lacks
+  the article's H1 title: write `source.md` from `source.html` with
   `python3 <skill-dir>/scripts/extract_blog_body.py <work-root>/source.html <work-root>/source.md`
   and name the extractor in the checklist's channel line. The extractor's known artifacts are
   recorded here and never repaired in `source.md`: it keeps only the article body (the element
@@ -76,6 +83,13 @@ extraction waits for the third (Rule of Three).
   `[CAPTION]` lines and media as `[IMG]`, `[VIDEO]`, `[SOURCE]` and `[SVG]` lines. Its markers are
   this host's markup, so it does not read the other correlate-only host, `claude.com/blog`,
   whose pages keep the rendered channel above.
+  - **Pointer**: when the `.md` channel's shape or figure handling matters, read the probe in the
+    Verification section of
+    [#7214](https://github.com/melodic-software/claude-code-plugins/pull/7214); no docs page
+    covers this channel as of 2026-10-11.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: a `.md` fetch returns a non-markdown content type, or its body lacks the
+    article's H1 title.
 - **Figure data decoded from a framework payload is a derived file (both blog hosts).** When a
   figure's values sit in a script payload inside `source.html` (for example a `self.__next_f`
   script) rather than in its text, decode the payload into a file beside the originals, never

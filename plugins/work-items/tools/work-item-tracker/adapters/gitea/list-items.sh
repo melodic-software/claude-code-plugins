@@ -11,16 +11,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-USAGE='usage: list-items.sh [--state open|closed|all] [--repo <o>/<r>]'
+USAGE='usage: list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--label <name>]'
 wit_help_if_requested "$USAGE" "$@"
 
 STATE="open"
 REPO=""
+LABEL_QUERY=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --state)
     [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
     STATE="$2"
+    shift 2
+    ;;
+  # Gitea's `labels` parameter filters server-side, so the ceiling counts labeled issues.
+  # It splits on commas and drops a name the repository has no label for, so it can
+  # match more than asked; the core's exact-match filter after this read covers both.
+  --label)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
+    LABEL_QUERY="&labels=$(jq -rn --arg l "$2" '$l | @uri')"
     shift 2
     ;;
   --repo)
@@ -77,12 +86,13 @@ PAGE=1
 # the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
 # stays as the fallback for anything that does not send one; it costs no extra request.
 SEEN=0
+TRUNCATED=false
 while :; do
   # `type=issues` is a real query parameter on this endpoint (enum: issues|pulls). Without it
   # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
   # budget and, worse, the declared ceiling counted rows rather than items, making a PR-heavy
   # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
-  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
+  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues$LABEL_QUERY&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
   GOT="$(printf '%s' "$WIT_GITEA_BODY" | jq 'length' 2>/dev/null)" || {
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2
@@ -108,12 +118,14 @@ while :; do
   fi
   PAGE=$((PAGE + 1))
   # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
-  # an error (CONTRACT.md "Adapter contract") — but it is never silent. Measured against rows
+  # an error (CONTRACT.md "Adapter contract") — but it is never silent: stderr says so and the
+  # envelope carries `truncated: true`. Measured against rows
   # ACTUALLY RETURNED, not `PAGE * page_size`: under the server clamp those diverge and the
   # walk would announce a ceiling it never reached.
   if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2
+    TRUNCATED=true
     break
   fi
 done
@@ -148,14 +160,15 @@ done < <(jq -r '.number' "$ROWS")
 # row with no count, which `error` turns into one) emits nothing rather than a truncated
 # or partial envelope with a success status.
 jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
-  --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" '
+  --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" --argjson truncated "$TRUNCATED" '
   ($counts | map({key: (.number | tostring), value: .blocked_by_count}) | from_entries) as $bbc_by_number
   | {schema_version: $sv,
      items: [ .[]
        | (.repository.full_name //= $full)
        | ($bbc_by_number[.number | tostring]) as $bbc
        | if $bbc == null then error("no blocker count for issue " + (.number | tostring)) else . end
-       | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ]}' "$ROWS" || {
+       | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ],
+     truncated: $truncated}' "$ROWS" || {
   printf 'list-items.sh: could not normalize the gitea issues in %s; refusing to report a partial list as complete\n' "$REPO" >&2
   exit "$EX_INTERNAL"
 }
