@@ -199,10 +199,12 @@ const routed = (o, w, v, r) => ({
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: v },
   retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: r },
 })
+// Two explicit tiers. `inherit` is the session model, which these runs pass no args.session
+// for, so an inherit fan-out variant names no known tier and cannot stand for one here.
 const TWO_TIERS = routed(
-  { model: 'inherit', effort: 'high' },
-  { model: 'inherit', effort: 'xhigh' },
-  { model: 'inherit', effort: 'medium' },
+  { model: 'opus', effort: 'high' },
+  { model: 'opus', effort: 'xhigh' },
+  { model: 'opus', effort: 'medium' },
   { model: 'sonnet', effort: 'low' },
 )
 
@@ -220,20 +222,65 @@ test('diversity absent, null and "lens" dispatch the same lens roster and report
 test('model sends the one review prompt to each distinct fan-out tier and runs no lens leaf', async () => {
   const { result, calls } = await run({ diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS, diversity: 'model' })
   const leaves = review(calls)
-  assert.deepEqual(leaves.map(c => c.opts.label), ['model:inherit', 'model:sonnet'])
+  assert.deepEqual(leaves.map(c => c.opts.label), ['model:opus', 'model:sonnet'])
   for (const c of leaves) {
     assert.equal(c.opts.agentType, 'review:lane-verifier')
     assert.equal(c.opts.effort, 'medium', 'effort comes from the verifier fan-out variant')
     assert.ok(c.prompt.includes('git diff abc'))
     assert.ok(c.prompt.includes('it is better to surface a finding that later gets filtered out'), 'coverage clause kept')
   }
-  assert.ok(!('model' in leaves[0].opts), 'the inherit tier omits model')
+  assert.equal(leaves[0].opts.model, 'opus')
   assert.equal(leaves[1].opts.model, 'sonnet')
   assert.equal(slices(calls).length, 0)
   assert.equal(result.diversity, 'model')
-  assert.deepEqual(result.tiers, ['inherit', 'sonnet'])
-  assert.deepEqual(result.ran, ['model:inherit', 'model:sonnet'])
+  assert.deepEqual(result.tiers, ['opus', 'sonnet'])
+  assert.deepEqual(result.ran, ['model:opus', 'model:sonnet'])
   assert.ok(extract(calls), 'the extractor still runs')
+})
+
+test('inherit is the session model: it dedupes with the same explicit alias', async () => {
+  const roles = routed(
+    { model: 'inherit', effort: 'high' },
+    { model: 'opus', effort: 'high' },
+    { model: 'inherit', effort: 'medium' },
+    { model: 'opus', effort: 'low' },
+  )
+  const { result, calls } = await run({ diffBase: 'abc', slices: ['a.md'], roles, session: 'opus', diversity: 'model' })
+  assert.equal(result.diversity, 'lens', 'inherit under an opus session and opus are one tier, fewer than two')
+  assert.deepEqual(result.ran, LENS_RAN)
+  assert.ok(!calls.some(c => (c.opts.label || '').startsWith('model:')))
+})
+
+test('inherit resolves to the session alias and its leaf omits model', async () => {
+  const roles = routed(
+    { model: 'inherit', effort: 'high' },
+    { model: 'opus', effort: 'high' },
+    { model: 'sonnet', effort: 'medium' },
+    undefined,
+  )
+  const { result, calls } = await run({ diffBase: 'abc', roles, session: 'sonnet', diversity: 'model' })
+  assert.deepEqual(result.tiers, ['sonnet', 'opus'])
+  const leaves = review(calls)
+  assert.deepEqual(leaves.map(c => c.opts.label), ['model:sonnet', 'model:opus'])
+  assert.ok(!('model' in leaves[0].opts), 'the session tier runs on the session model')
+  assert.equal(leaves[1].opts.model, 'opus')
+})
+
+test('inherit under an unknown or frontier session is left out of model diversity with a log', async () => {
+  const roles = routed(
+    { model: 'inherit', effort: 'high' },
+    { model: 'opus', effort: 'high' },
+    { model: 'sonnet', effort: 'medium' },
+    undefined,
+  )
+  for (const session of [undefined, 'fable', 'best', 'gpt', 'inherit']) {
+    const { result, logs } = await run({ diffBase: 'abc', roles, session, diversity: 'model' })
+    assert.deepEqual(result.tiers, ['opus', 'sonnet'], `session ${session}: inherit is no non-frontier tier`)
+    assert.ok(logs.some(l => l.includes('roles.orchestrator.fanout')), `session ${session}: the dropped inherit is logged`)
+  }
+  const one = routed({ model: 'inherit', effort: 'high' }, { model: 'sonnet', effort: 'high' }, undefined, undefined)
+  const { result } = await run({ diffBase: 'abc', roles: one, diversity: 'model' })
+  assert.equal(result.diversity, 'lens', 'inherit plus one explicit tier, session unknown, is fewer than two')
 })
 
 test('model tiers keep first-seen order over orchestrator, worker, verifier, retrieval', async () => {

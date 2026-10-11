@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fanout-sweep',
   description: 'Fan out review leaf surfaces (plugin reviewer agents and project criteria slices) over one diff base, then extract their findings to records',
-  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
+  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
   phases: [
     { title: 'Review', detail: 'named reviewer agents by tier, then one agent per project criteria slice' },
     { title: 'Extract', detail: 'one extraction agent turns raw findings into records' },
@@ -64,17 +64,24 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply')
 
-// Model tiers: the distinct fan-out models in the role map, first seen first. The frontier
+// Model tiers: the distinct fan-out models in the role map, first seen first, deduped by the
+// model each resolves to. `inherit` is the session model, args.session's alias; with no known
+// alias it counts as frontier, as /multi-agent:route counts an unknown session. The frontier
 // aliases stay out, as every fan-out stage does.
+const SESSION = typeof input.session === 'string' && MODELS.includes(input.session.trim()) &&
+  input.session.trim() !== 'inherit' ? input.session.trim() : ''
 const TIERS = []
 if (DIVERSITY === 'model') {
   for (const role of ['orchestrator', 'worker', 'verifier', 'retrieval']) {
     const f = passed[role] && passed[role].fanout
     if (!f || !MODELS.includes(f.model) || !EFFORTS.includes(f.effort)) continue
-    if (f.model === 'fable' || f.model === 'best') {
-      log('roles.' + role + '.fanout is ' + f.model + ': a frontier tier is left out of model diversity')
-    } else if (!TIERS.includes(f.model)) {
-      TIERS.push(f.model)
+    const m = f.model === 'inherit' ? SESSION : f.model
+    if (!m) {
+      log('roles.' + role + '.fanout is inherit and args.session names no model: an unknown session model is left out of model diversity')
+    } else if (m === 'fable' || m === 'best') {
+      log('roles.' + role + '.fanout is ' + m + ': a frontier tier is left out of model diversity')
+    } else if (!TIERS.includes(m)) {
+      TIERS.push(m)
     }
   }
   if (TIERS.length < 2) {
@@ -163,7 +170,7 @@ if (DIVERSITY === 'model') {
   roster = TIERS.map(t => ({ label: 'model:' + t, tier: t }))
   outputs = await inWaves(roster.map(leaf => () => agentRetry(TIER_PROMPT, {
     agentType: TIER_AGENT, label: leaf.label, phase: 'Review',
-    ...opts({ model: leaf.tier, effort: TIER_EFFORT }),
+    ...opts({ model: leaf.tier === SESSION ? 'inherit' : leaf.tier, effort: TIER_EFFORT }),
   })), MAX_CONCURRENT)
 } else {
   const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType, label: leaf.label, phase: 'Review' })

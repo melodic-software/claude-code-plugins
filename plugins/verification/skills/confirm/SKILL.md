@@ -100,7 +100,8 @@ before Stage 2, by the steps in
   `setup-apply.mjs --check --ref origin/<default>`, so a branch that edits its own copy is still
   verified at the default branch's level; when the two copies differ, the report names both.
 - An invalid value is named with its file or option, the key and the value, and that layer is
-  dropped. An invalid repository value resolves `path`. The run never stops on it.
+  dropped: it counts as absent, so the other layer still applies, and with neither valid the key
+  resolves `path`. The run never stops on it.
 - Resolution never asks the user. A layer that cannot be read (no `origin`, an unsafe branch name,
   node missing, the root rule) is skipped with its reason, so a pipeline lane running this skill
   unattended always gets a level.

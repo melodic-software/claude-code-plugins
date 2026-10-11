@@ -62,10 +62,9 @@ result as a person.
 
 **Which value wins.** The stricter of the user option and the repository value wins, so either
 layer can raise the level and neither can lower the other. A skipped or unset layer takes no part.
-An invalid repository value is named and dropped, and the key resolves its default, `path`, not the
-user's value (ADR 0064 Decision 7: no valid higher layer remains, and a lower layer's value is
-never used). An invalid user option is dropped and the repository value, when valid, still applies.
-An invalid value never stops the run.
+An invalid layer is named with its file or option, the key and the value, dropped, and counts as
+absent; the other layer still applies, and with neither valid the key resolves `path`. So an invalid
+repository value never lowers a valid stricter user value. An invalid value never stops the run.
 
 **A branch cannot lower the level.** A change that adds or edits
 `docs/conventions/verification.yaml` on its own branch does not change the level it is verified

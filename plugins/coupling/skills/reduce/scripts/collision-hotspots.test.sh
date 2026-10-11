@@ -119,7 +119,7 @@ case "$1 $2" in
   if [[ -n "${STUB_GH_FAIL:-}" ]]; then exit 1; fi
   cat "$STUB_GH_JSON"
   ;;
-"repo view") printf '%s\n' "$STUB_GH_URL" ;;
+"repo view") printf '{"nameWithOwner":"%s","url":"%s"}\n' "${STUB_GH_NWO:-octo/demo}" "$STUB_GH_URL" ;;
 *) exit 1 ;;
 esac
 EOF
@@ -209,6 +209,21 @@ run "$W" "$LISTING" --prs 50 --repo octo/demo
 assert_exit "--repo exits 0" 0 "$RC"
 assert_eq "--repo ranks the same file" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 assert_contains "--repo is passed to gh" "$(cat "$STUB_GH_LOG")" "--repo octo/demo"
+
+# A fork clone without --repo: origin lacks the pull heads, gh's default
+# repository holds them. The listing and the fetch both use that repository.
+FORK="$TEST_TMPDIR/fork.git"
+g init -q --bare "$FORK"
+g -C "$BUILD" push -q "$FORK" main
+W="$(fresh_clone)"
+git -C "$W" remote set-url origin "$FORK"
+: >"$STUB_GH_LOG"
+OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
+RC=$?
+assert_exit "a fork clone exits 0" 0 "$RC"
+assert_not_contains "a fork clone fetches every head from gh's repository" "$OUT" "could not be fetched"
+assert_eq "a fork clone ranks from gh's repository" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
+assert_contains "a fork clone lists from the resolved repository" "$(cat "$STUB_GH_LOG")" "--repo up/stream"
 
 # A failure after the fetch still removes the run's refs.
 W="$(fresh_clone)"

@@ -26,7 +26,7 @@ bump: minor
   `scripts/visual-compare.sh` installs pixelmatch and pngjs on first use from the committed
   lockfile with `npm ci --ignore-scripts --no-audit --no-fund` into the plugin data directory, and
   prints one repair line (POSIX, or Windows PowerShell 5.1) when `npm` is missing or the install
-  fails; `prerequisites.json` now declares `npm` for the skill. A plugin-level `evals/` case checks
+  fails; `prerequisites.json` now declares `npm` for the skill. Every option reaches the Node half as `--name=value`, so a `--reason` or `--browser` value that starts with `-` passes whole. A plugin-level `evals/` case checks
   that a failing compare keeps the baseline.
 - **`pixel_tolerance` setting, per repository and per user.** A map in
   `docs/conventions/testing.yaml`: `pixels` (a whole number, default 0) and `reason` (required when

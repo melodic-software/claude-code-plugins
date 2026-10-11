@@ -1046,6 +1046,11 @@ read_classes() {
         "$lineno" "$n" "$unit" >&2
       exit 2
     fi
+    # An empty key is a bad subscript, so it is refused before the lookup.
+    if [[ -z "${f[0]}" ]]; then
+      printf 'refusing: --classes line %d has an empty rank. Nothing was written.\n' "$lineno" >&2
+      exit 2
+    fi
     if [[ -z "${table_rank[${f[0]}]:-}" ]]; then
       printf 'refusing: --classes line %d names a rank the "## Findings" table does not carry. Nothing was written. Rank: %s\n' \
         "$lineno" "${f[0]}" >&2

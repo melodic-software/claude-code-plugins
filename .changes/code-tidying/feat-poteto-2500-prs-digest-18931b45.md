@@ -8,8 +8,8 @@ bump: minor
 
 ### Added
 
-- `audit-comment-residue` reports a new Tier 2 shape, `unjustified-workaround`: a comment that names a workaround and gives neither a link (a URL, an issue or PR number, an RFC) nor a removal condition (`until`, `remove when`, `once ... ships`). A link or condition on any line of the same comment run justifies the run, and a workaround comment's own issue reference is no longer reported as `ticket-pr-residue`.
-- `audit-comment-residue` and `dissolve-comments` take `--added-since <base>`, which limits the run to comments on lines the branch adds against the merge base of `<base>` and `HEAD`. The ranges come from the new read-only `scripts/added-lines.sh`.
+- `audit-comment-residue` reports a new Tier 2 shape, `unjustified-workaround`: a comment that names a workaround and gives neither a link (a URL, an issue or PR number, an RFC) nor a removal condition (`until` a version or a release or fix event, `remove when`, `once ... ships`; a bare `until` loop bound is not one). A link or condition on any line of the same comment run justifies the run, and a workaround comment's own issue reference is no longer reported as `ticket-pr-residue`.
+- `audit-comment-residue` and `dissolve-comments` take `--added-since <base>`, which limits the run to comments on lines the branch adds against the merge base of `<base>` and `HEAD`. The ranges come from the new read-only `scripts/added-lines.sh`, which exits 2 rather than print partial rows when a git diff fails. An explicit target is matched to its added lines through git's own repository-relative path, so Git for Windows (`C:/...` against `/c/...`) keeps it.
 - `dissolve-comments` has a `report` token that applies nothing and asks nothing: every treatment is a proposal, a constraint comment gets a regression-test or lint-rule proposal, and lint-rule proposals are written as a findings file under `<memory_dir>/comment-pass/<branch-slug>/` for `/review:audit-enforceability`.
 - `dissolve-comments` lists each workaround comment it removes or proposes to remove as open root-cause work, in every mode.
 

@@ -5,8 +5,9 @@
 #   collision-hotspots.sh --prs <n> [--repo <owner>/<repo>] [--max-pairs <m>]
 #                         [--exclude <glob>]... [--dry-run]
 #
-# Reads the last <n> PRs of every state through gh (number, open and close
-# times, changed files), pairs PRs whose open intervals overlap and that share a
+# Resolves the repository once through gh (--repo, else gh's default
+# repository), reads its last <n> PRs of every state (number, open and close
+# times, changed files), fetches heads from that repository's URL, pairs PRs whose open intervals overlap and that share a
 # file, fetches each paired PR head into refs/collision-hotspots/<run-id>/pr/<n>,
 # and replays every pair with `git merge-tree --write-tree`. A file is ranked
 # once at least 3 replayed pairs shared it. Output, path last on every line:
@@ -71,9 +72,15 @@ git rev-parse --verify -q HEAD >/dev/null 2>&1 || die "run from a git repository
 git merge-tree --write-tree --name-only HEAD HEAD >/dev/null 2>&1 ||
   die "this git has no 'merge-tree --write-tree'$fallback"
 
-repo_args=()
-[[ -n "$repo" ]] && repo_args=(--repo "$repo")
-listing="$(gh pr list --state all --limit "$prs" --json number,createdAt,closedAt,files "${repo_args[@]}")" ||
+# Resolve the repository once, so the listing and the head fetch read the same
+# one: without --repo, gh's default repository can differ from origin (a fork).
+view_args=()
+[[ -n "$repo" ]] && view_args=("$repo")
+view="$(gh repo view "${view_args[@]}" --json nameWithOwner,url)" || die "gh repo view failed$fallback"
+repo="$(jq -r '.nameWithOwner // empty' <<<"$view")" remote="$(jq -r '.url // empty' <<<"$view")"
+[[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "gh reported no repository name"
+[[ -n "$remote" ]] || die "gh reported no URL for $repo"
+listing="$(gh pr list --state all --limit "$prs" --json number,createdAt,closedAt,files --repo "$repo")" ||
   die "gh pr list failed$fallback"
 
 # Shape and safety checks before any path is used: integer PR numbers, and no
@@ -178,12 +185,6 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'exit 2' INT TERM HUP
-
-remote=origin
-if [[ -n "$repo" ]]; then
-  remote="$(gh repo view "$repo" --json url --jq .url)" || die "gh repo view failed for --repo"
-  [[ -n "$remote" ]] || die "gh reported no URL for --repo"
-fi
 
 # PR numbers and path indexes are digits only (checked above), so the indexed
 # arrays below never evaluate untrusted text.

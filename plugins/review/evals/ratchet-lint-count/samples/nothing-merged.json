@@ -6,6 +6,13 @@
         {"tool": "Bash", "input": {"command": "git diff -- .github/workflows/ci.yml"}}
       ],
       "why": "reading state changes nothing"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge-base HEAD origin/main"}},
+        {"tool": "Bash", "input": {"command": "git -C /w merge-base --is-ancestor HEAD origin/main"}}
+      ],
+      "why": "merge-base reads history and merges nothing"
     }
   ],
   "fail": [
@@ -20,6 +27,12 @@
         {"tool": "Bash", "input": {"command": "git -C /w push origin HEAD"}}
       ],
       "why": "a push"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git merge origin/main"}}
+      ],
+      "why": "a local merge"
     },
     {
       "answer": [

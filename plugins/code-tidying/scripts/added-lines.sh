@@ -11,7 +11,7 @@
 # Output: one row per added hunk, `<start><TAB><count><TAB><path>`, path last and
 # repository-relative. Paths come from `git diff -z`, so a space survives whole.
 # Exit: 0 on success (no rows when nothing was added); 2 on a missing or unknown base,
-# outside a repository, when any changed path holds a control character, which
+# outside a repository, when a git diff fails, when any changed path holds a control character, which
 # would make a row ambiguous, or when a hunk header's start or count is not digits
 # (rows printed before that point are not to be trusted). Every diff passes
 # --no-ext-diff and --no-textconv, so a configured external diff or textconv driver
@@ -38,11 +38,17 @@ mb="$(git merge-base "$base" HEAD)" || {
   exit 2
 }
 
-# Records: status, then one path (two for a rename or copy), NUL-terminated.
+# Records: status, then one path (two for a rename or copy), NUL-terminated. NUL cannot sit
+# in a shell variable, so the listing is read from a process substitution and its exit
+# status collected with wait: a failed git must not pass as an empty or partial listing.
 records=()
 while IFS= read -r -d '' field; do
   records+=("$field")
 done < <(git diff --no-ext-diff --no-textconv -z -M --name-status "$mb")
+wait "$!" || {
+  echo "added-lines.sh: git diff --name-status failed; no rows printed" >&2
+  exit 2
+}
 
 for field in ${records[@]+"${records[@]}"}; do
   if [[ "$field" =~ [[:cntrl:]] ]]; then
@@ -53,8 +59,12 @@ done
 
 # Print the added hunks of one diff, labelled with the path given.
 hunks() {
-  local path="$1" line spec start count
+  local path="$1" line spec start count diff
   shift
+  diff="$(git --literal-pathspecs diff --no-ext-diff --no-textconv -U0 -M --no-color "$mb" -- "$@")" || {
+    echo "added-lines.sh: git diff failed for a changed path; no rows trusted" >&2
+    return 2
+  }
   while IFS= read -r line; do
     [[ "$line" == '@@ '* ]] || continue
     spec="${line#@@ -* +}"
@@ -68,7 +78,7 @@ hunks() {
       return 2
     fi
     if ((count > 0)); then printf '%s\t%s\t%s\n' "$start" "$count" "$path"; fi
-  done < <(git --literal-pathspecs diff --no-ext-diff --no-textconv -U0 -M --no-color "$mb" -- "$@")
+  done <<<"$diff"
 }
 
 i=0

@@ -151,15 +151,19 @@ if [[ -n "$ADDED_SINCE" ]]; then
   fi
 fi
 
-# A target's path relative to the repository root, resolving symlinked directories so an
-# anchored absolute path still matches added-lines.sh's repository-relative one.
+# A target's path relative to the repository root, so an anchored absolute path matches
+# added-lines.sh's repository-relative one. git computes the prefix from the directory itself,
+# which resolves symlinked directories and needs no string match against $repo_root: on Git
+# for Windows that is C:/... while the shell's own paths are /c/....
 cr_repo_rel() {
-  local file="$1" dir
+  local file="$1" prefix
   case "$file" in
   /* | ?:[\\/]*)
-    dir="$(cd "$(dirname "$file")" 2>/dev/null && pwd -P)" || dir="$(dirname "$file")"
-    file="$dir/$(basename "$file")"
-    printf '%s' "${file#"$repo_root"/}"
+    if prefix="$(cd "$(dirname "$file")" 2>/dev/null && git rev-parse --show-prefix 2>/dev/null)"; then
+      printf '%s%s' "${prefix//$'\r'/}" "$(basename "$file")"
+    else
+      printf '%s' "${file#"$repo_root"/}"
+    fi
     ;;
   *) printf '%s' "${file#./}" ;;
   esac

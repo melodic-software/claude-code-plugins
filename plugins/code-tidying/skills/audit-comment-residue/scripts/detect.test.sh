@@ -900,6 +900,14 @@ workaround_count=0
 echo "workaround in use"
 # Workaround: the IDE holds a lock on the output folder;
 # remove when the IDE releases it after a build.
+x=1
+# Workaround: retry until it succeeds.
+x=1
+# Workaround: pin the v4 client until v5.
+x=1
+# Workaround: keep the shim until upstream fixes the parser.
+x=1
+# Workaround: poll until fixed.
 EOF
 work_out="$(bash "$DETECT" "$WORK")"
 wk_at() { printf 'Finding shape: unjustified-workaround\nFinding line: %s\n' "$1"; }
@@ -916,7 +924,11 @@ assert_not_contains "the word in an identifier is not flagged" "$work_out" "$(wk
 assert_not_contains "the word in a string literal is not flagged" "$work_out" "$(wk_at 10)"
 assert_not_contains "a removal condition on the next comment line justifies the run" "$work_out" "$(wk_at 11)"
 assert_not_contains "a workaround's justifying issue reference is not ticket residue" "$work_out" $'Finding shape: ticket-pr-residue\nFinding line: 7'
-assert_contains "the file counts exactly the two unjustified workarounds" "$work_out" "Summary file: $WORK | T1=0 T2=2 T3=0"
+assert_contains "a bare 'until' loop bound does not justify the workaround" "$work_out" "$(wk_at 14)"
+assert_not_contains "'until' a version justifies the workaround" "$work_out" "$(wk_at 16)"
+assert_not_contains "'until upstream fixes' justifies the workaround" "$work_out" "$(wk_at 18)"
+assert_not_contains "'until fixed' justifies the workaround" "$work_out" "$(wk_at 20)"
+assert_contains "the file counts exactly the three unjustified workarounds" "$work_out" "Summary file: $WORK | T1=0 T2=3 T3=0"
 
 # tidy's #14 example: the old form is flagged, the reconciled form carries its removal condition.
 TIDY_OLD="$TEST_TMPDIR/tidy-old.cs"
@@ -945,6 +957,19 @@ assert_contains "--added-since counts only the changed file" "$add_out" "Summary
 
 add_out="$(cd "$REPOADD" && bash "$DETECT" --added-since HEAD old.py untouched.py)"
 assert_contains "--added-since with targets still filters to added lines" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
+
+# git names the root in one spelling and the shell resolves targets in another (Git for
+# Windows: C:/... against /c/...). A git wrapper reports the root through a symlink, so the
+# spellings differ on any host; an explicit target must still match its added lines.
+ln -s "$REPOADD" "$TEST_TMPDIR/repoadd-alias"
+ALTGIT="$TEST_TMPDIR/altgit"
+mkdir -p "$ALTGIT"
+# shellcheck disable=SC2016 # the wrapper's source; $1, $2 and $@ expand when it runs
+printf '#!/usr/bin/env bash\nif [[ "$1 $2" == "rev-parse --show-toplevel" ]]; then printf "%%s\\n" %q; exit 0; fi\nexec %q "$@"\n' \
+  "$TEST_TMPDIR/repoadd-alias" "$(command -v git)" >"$ALTGIT/git"
+chmod +x "$ALTGIT/git"
+add_out="$(cd "$REPOADD" && PATH="$ALTGIT:$PATH" bash "$DETECT" --added-since HEAD old.py)"
+assert_contains "--added-since keeps a target when git spells the root differently" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
 
 add_rc=0
 (cd "$REPOADD" && bash "$DETECT" --added-since no-such-ref >/dev/null 2>&1) || add_rc=$?

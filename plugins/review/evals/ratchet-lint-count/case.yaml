@@ -32,7 +32,7 @@ graders:
   - name: nothing-merged
     type: tool_used
     tool: Bash
-    input_match: 'git\s+(?:-C\s+\S+\s+)?(?:commit|push|merge)\b|gh\s+pr\s+(?:create|merge)\b'
+    input_match: 'git\s+(?:-C\s+\S+\s+)?(?:commit|push|merge)(?![\w-])|gh\s+pr\s+(?:create|merge)\b'
     min: 0
     max: 0
     arm: both
