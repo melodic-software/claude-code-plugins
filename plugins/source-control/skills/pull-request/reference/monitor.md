@@ -27,9 +27,9 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 ## 3.0.0 Cloud session baseline poll
 
-**Platform-conditional:** cloud/headless sessions (`CLAUDE_CODE_REMOTE=true`) poll, and polling is their only PR-activity source here. The cloud's documented PR-event route is auto-fix, which acts on the events itself instead of handing them to this evaluate-and-recommend monitor, so this skill does not arm it, and it depends on no undocumented session tool for PR events.
+**Platform-conditional:** cloud/headless sessions (`CLAUDE_CODE_REMOTE=true`) poll, and polling is their only PR-activity source here. This skill arms no cloud PR-event route and depends on no undocumented session tool for PR events.
 
-- **Pointer**: when deciding whether a cloud session can receive PR events, fetch [Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests) live.
+- **Pointer**: when deciding whether a cloud session can receive PR events, or whether a documented route would hand them to this monitor, fetch [Auto-fix pull requests](https://code.claude.com/docs/en/claude-code-on-the-web#auto-fix-pull-requests) live.
 - **As of**: 2026-10-11
 - **Recheck trigger**: upstream documents a PR-activity subscription a cloud session can arm without auto-fix, or that section changes what auto-fix does with an event.
 
