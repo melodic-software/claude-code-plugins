@@ -196,8 +196,8 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   block. The floor's values, paths and thresholds never moved in any of these passes; what moved
   was punctuation nobody was watching, three times, which is what the check now prevents.
 
-  Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
-  that all six agree under this check's comparison, byte for byte for the four prose copies and
+  Two of the six consumers are the blockquoted launch-prompt templates, so
+  all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
 
 ## [9.0.2] - 2026-08-28
@@ -379,7 +379,7 @@ body implements, and adds two more (instance identity, collision detection).
   ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
   tombstoned by a lane: its marker names no writer, so no instance can prove it owns it, and a lane
   that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
-  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
+  an operator action; until then it reads as stale, and it is stale, because nothing is writing it.
 
 ## [6.0.1] - 2026-07-29
 
