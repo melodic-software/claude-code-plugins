@@ -132,6 +132,15 @@
 #   --gate-arm-script override); an env-derived location would hand the same
 #   repo env block the redirect this design closes.
 #
+# Mods state (#6157):
+#   start, restart and status print a `mods:` line under each lane: `off
+#   (<cause>)`, `unknown (<why>)`, or `can load`. The causes the launcher sees are
+#   the CLI below the mods version floor, disableAllHooks in the lane's
+#   --settings, and what `claude plugin test` reports from the repo against an
+#   empty temp dir (settings scopes, policy, the rollout switch). One probe per
+#   run; it adds no claude call when the CLI is absent, which reads as unknown.
+#   The line is information only and never changes the exit code.
+#
 # Exit codes:
 #   0  ok
 #   1  a refresh step (pull / marketplace update) failed, or a lane could not be
@@ -187,6 +196,84 @@ cli_version() {
     grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
   return 0
+}
+
+# --- Mods state (#6157) -------------------------------------------------------
+# context-guard and rate-limit-guard run as mods; with mods off a lane gets only
+# their reactive settings hooks. start/restart/status print one `mods:` line per
+# lane: `off (<cause>)` for a cause the launcher can see, `unknown (<why>)` when
+# it cannot tell, and `can load` only when nothing it can see stops them. Causes
+# only the session sees (see the lanes skill, "Mods state") never read as on.
+# Floor: https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off
+# Machine check and its messages:
+# https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load
+# As of 2026-10-11 (Claude Code 2.1.296). Recheck when either section changes its
+# version or the messages `claude plugin test` prints.
+MODS_MIN_VERSION="2.1.287"
+MODS_STATE=""
+MODS_CAUSE=""
+
+# Memoized like cli_version: the probe runs at most once per launcher run, and
+# callers read MODS_STATE / MODS_CAUSE directly (never from a subshell).
+# `claude plugin test <dir>` reads settings from its working directory and looks
+# for a mod in <dir>, so it runs from the lanes' launch directory against an
+# empty temp dir: the lane's own project settings count and no test runs.
+probe_machine_mods() {
+  [[ -n "$MODS_STATE" ]] && return 0
+  if ! command -v claude >/dev/null 2>&1; then
+    MODS_STATE="unknown" MODS_CAUSE="no claude CLI to probe"
+    return 0
+  fi
+  cli_version
+  if [[ "$CLI_VERSION_CACHE" == "unknown" ]]; then
+    MODS_STATE="unknown" MODS_CAUSE="claude --version gave no version"
+    return 0
+  fi
+  if ! version_at_least "$CLI_VERSION_CACHE" "$MODS_MIN_VERSION"; then
+    MODS_STATE="off" MODS_CAUSE="Claude Code $CLI_VERSION_CACHE is older than $MODS_MIN_VERSION, the mods floor"
+    return 0
+  fi
+  local empty out
+  if ! empty="$(mktemp -d 2>/dev/null)"; then
+    MODS_STATE="unknown" MODS_CAUSE="no temp dir for claude plugin test"
+    return 0
+  fi
+  out="$(cd "${REPO:-.}" 2>/dev/null && claude plugin test "$empty" 2>&1 | tr -d '\r')"
+  rmdir "$empty" 2>/dev/null
+  case "$out" in
+  *"no hooks module to load"*)
+    MODS_STATE="can load" MODS_CAUSE="" ;;
+  *"turned off here"*)
+    MODS_STATE="off" MODS_CAUSE="a setting or policy turns them off; claude plugin test names disableAllHooks, allowManagedHooksOnly or a policy" ;;
+  *"rollout switch served off"*)
+    MODS_STATE="off" MODS_CAUSE="Anthropic's rollout switch served off, per claude plugin test" ;;
+  *"saved off by an earlier session"*)
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test read a rollout switch an earlier session saved off; start claude once to refresh it" ;;
+  *)
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test gave no message the launcher knows" ;;
+  esac
+  return 0
+}
+
+# Prints the lane's `mods:` line. The lane's --settings overlay is read first: it
+# can turn hooks off for that lane alone, and an explicit false in it may undo a
+# lower scope's true, which the machine check cannot see.
+print_lane_mods() { # <settings JSON or "">
+  local settings="${1:-}" overlay=""
+  [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
+  if [[ "$overlay" == "true" ]]; then
+    info "    mods: off (disableAllHooks in the lane's --settings)"
+    return 0
+  fi
+  probe_machine_mods
+  if [[ -n "$overlay" && "$MODS_STATE" == "off" && "$MODS_CAUSE" == "a setting or policy"* ]]; then
+    info "    mods: unknown (the lane's --settings sets disableAllHooks to $overlay, and a settings file or policy turns mods off)"
+    return 0
+  fi
+  case "$MODS_STATE" in
+  "can load") info "    mods: can load (nothing the launcher sees stops them; causes only the session sees are unchecked)" ;;
+  *) info "    mods: $MODS_STATE ($MODS_CAUSE)" ;;
+  esac
 }
 
 ACTION="start"
@@ -308,8 +395,9 @@ require_jq() {
 # fixture-fed (--agents-json) reads must work with no CLI installed.
 require_claude() {
   ((DRY_RUN)) && return 0
-  # A fixture-fed status read (--agents-json) makes no claude call, so it works
-  # fully offline as documented; only the paths that actually shell out to
+  # A fixture-fed status read (--agents-json) needs no claude CLI, so it works
+  # fully offline as documented (its mods probe reads unknown when the CLI is
+  # absent, and runs `claude plugin test` when it is); only the paths that actually shell out to
   # claude (launch / stop / marketplace update, or a live agents list) need it.
   [[ "$ACTION" == "status" && -n "$AGENTS_JSON_FILE" ]] && return 0
   command -v claude >/dev/null 2>&1 || {
@@ -989,10 +1077,12 @@ _start_one() {
   sid="$(running_session_id "$name")"
   if [[ -n "$sid" ]]; then
     info "  skip $name — already running ($sid)"
+    print_lane_mods "$settings"
     return 0
   fi
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
-  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings"
+  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings" || return 1
+  print_lane_mods "$settings"
 }
 
 _restart_one() {
@@ -1010,7 +1100,8 @@ _restart_one() {
     return 1
   fi
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
-  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings"
+  launch_lane "$name" "$model" "$effort" "$prompt_path" "$settings" || return 1
+  print_lane_mods "$settings"
 }
 
 _stop_one() {
@@ -1027,13 +1118,14 @@ _stop_one() {
 }
 
 _status_one() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4" sid state="stopped"
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" sid state="stopped"
   sid="$(running_session_id "$name")"
   [[ -n "$sid" ]] && state="running"
   local pflag=""
   [[ -f "$prompt_path" ]] || pflag=" [prompt MISSING]"
   printf '  %-12s %-8s %-8s %-8s %s%s\n' \
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
+  print_lane_mods "$settings"
 }
 
 # We treat a set variable as able to override every lane's --effort and every agent

@@ -105,6 +105,13 @@ fi
 # A test can force a failed \`claude stop\` via STUB_CLAUDE_STOP_RC to exercise
 # the stop-failure paths (no relaunch, non-zero exit).
 if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
+# \`claude plugin test <dir>\` prints STUB_CLAUDE_PLUGIN_TEST_OUT (default: the
+# can-load message) and logs the directory it ran from and whether <dir> is empty.
+if [[ "\$1" == "plugin" && "\$2" == "test" ]]; then
+  printf 'plugin-test cwd=%s dir-empty=%s\n' "\$PWD" "\$([[ -d "\$3" && -z "\$(ls -A "\$3")" ]] && echo yes || echo no)" >>"$CLAUDE_LOG"
+  printf 'claude plugin test: %s\n' "\${STUB_CLAUDE_PLUGIN_TEST_OUT:-\$3: no hooks module to load; there is no hooks/hooks.json naming one in \"modules\"}"
+  exit 1
+fi
 # A test can force a failed \`claude plugin marketplace update\` via
 # STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
@@ -1150,6 +1157,62 @@ assert_contains "the env override is used verbatim" "$out" "lane config not foun
 out="$(run_launcher start --repo "$OLD_REPO" --config "$OLD_REPO/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-explicit" --dry-run 2>&1)"
 assert_not_contains "an explicit pre-move --config does not warn" "$out" "reading the pre-move lane config"
 assert_contains "an explicit pre-move --config keeps the pre-move prompt_dir" "$out" "$OLD_REPO/.work/work.md"
+
+# ============================================================================
+# Mods state (#6157): one `mods:` line per lane at start, restart and status
+# ============================================================================
+MODS_CONFIG="$TMP/mods.json"
+cat >"$MODS_CONFIG" <<'JSON'
+{ "prompt_dir": ".work/lanes",
+  "lanes": [ { "name": "plain",    "prompt": "work.md", "effort": "high" },
+             { "name": "hooksoff", "prompt": "work.md", "effort": "high", "settings": { "disableAllHooks": true } },
+             { "name": "hookson",  "prompt": "work.md", "effort": "high", "settings": { "disableAllHooks": false } } ] }
+JSON
+CAN_LOAD="mods: can load (nothing the launcher sees stops them; causes only the session sees are unchecked)"
+mods_run() { run_launcher "$1" --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1; }
+
+# Cause: a CLI below the mods floor. No `plugin test` call is made for it.
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.286 mods_run start)"
+assert_contains "below 2.1.287 start reports mods off with the version" "$out" "mods: off (Claude Code 2.1.286 is older than 2.1.287, the mods floor)"
+assert_not_contains "below the floor no plugin test runs" "$(cat "$CLAUDE_LOG")" "plugin-test"
+
+# Cause: disableAllHooks in the lane's own --settings, whatever the machine says.
+out="$(STUB_CLAUDE_VERSION=2.1.287 mods_run start)"
+assert_contains "lane overlay disableAllHooks reports off for that lane" "$out" "mods: off (disableAllHooks in the lane's --settings)"
+assert_eq "at the floor with a can-load machine, the two other lanes can load" 2 "$(grep -cF -- "$CAN_LOAD" <<<"$out")"
+
+# The probe runs once per run, from the repo, against an empty directory.
+: >"$CLAUDE_LOG"
+STUB_CLAUDE_VERSION=2.1.296 mods_run status >/dev/null
+assert_eq "the machine probe runs once across three lanes" 1 "$(grep -c 'plugin-test' "$CLAUDE_LOG")"
+assert_contains "the probe runs from the lanes' launch directory against an empty dir" "$(cat "$CLAUDE_LOG")" "plugin-test cwd=$REPO dir-empty=yes"
+
+# Cause: a settings scope or policy, as claude plugin test reports it.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off here (disableAllHooks, allowManagedHooksOnly or a policy)' mods_run restart)"
+assert_contains "restart reports a settings or policy cause" "$out" "mods: off (a setting or policy turns them off"
+assert_contains "an overlay false under a settings cause reads unknown, never on" "$out" "mods: unknown (the lane's --settings sets disableAllHooks to false"
+
+# Cause: the rollout switch served off.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch served off' mods_run status)"
+assert_contains "status reports the rollout switch" "$out" "mods: off (Anthropic's rollout switch served off"
+assert_not_contains "a rollout-off machine reports no lane as can load" "$out" "mods: can load"
+
+# Unknown: a rollout value an earlier session saved, an unrecognized message, an
+# unreadable version, and no CLI at all. None of them reads as can load.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch was saved off by an earlier session' mods_run status)"
+assert_contains "a saved-off rollout value reads unknown" "$out" "mods: unknown (claude plugin test read a rollout switch an earlier session saved off"
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='something new' mods_run status)"
+assert_contains "an unrecognized plugin test message reads unknown" "$out" "mods: unknown (claude plugin test gave no message the launcher knows)"
+assert_not_contains "an unrecognized message reports no lane as can load" "$out" "mods: can load"
+out="$(STUB_CLAUDE_VERSION=garbage mods_run status)"
+assert_contains "an unreadable version reads unknown" "$out" "mods: unknown (claude --version gave no version)"
+out="$(PATH="$NOCLAUDE_PATH" mods_run status)"
+assert_contains "no CLI reads unknown" "$out" "mods: unknown (no claude CLI to probe)"
+
+# A launch the launcher refuses prints no mods line for that lane.
+out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1 | grep -c 'mods:' || true)"
+assert_eq "a refused ultracode lane below its floor prints no mods line" 0 "$out"
 
 # ============================================================================
 echo

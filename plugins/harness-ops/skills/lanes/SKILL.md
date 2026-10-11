@@ -123,9 +123,9 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 
 | Action | Mutates | Description |
 |---|---|---|
-| `start` (default) | Yes | Pull + marketplace update, then launch every configured lane **not already running** |
-| `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) |
-| `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId |
+| `start` (default) | Yes | Pull + marketplace update, then launch every configured lane **not already running**; a `mods:` line per lane ([Mods state](#mods-state)) |
+| `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named); a `mods:` line per lane |
+| `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId; a `mods:` line per lane |
 | `stop [lane...]` | Yes | Stop each running target lane (all, or named) via `claude stop <sessionId>` |
 | `consume-restarts [check\|run\|print-schedule]` | `run` only | Read each lane's telemetry `restart_request`; relaunch stopped lanes that asked |
 
@@ -133,6 +133,37 @@ Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI, offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
 launch-commit marker; default an inherited `$CLAUDE_PLUGIN_DATA` only when it names harness-ops). Exit codes: `0` ok · `3`
 bad argument/config · `4` prerequisite missing or repo/config unresolved.
+
+## Mods state
+
+context-guard and rate-limit-guard run as mods. When mods cannot load, a lane gets only
+their reactive settings hooks, with no zone lines and no blocking gate, and nothing inside
+the lane says so. So `start`, `restart` and `status` print a `mods:` line under each lane:
+
+- `off (<cause>)`: a cause the launcher can see. It sees the CLI version against the mods
+  floor, `disableAllHooks` in the lane's own `settings`, and what `claude plugin test`
+  reports when run from the repo against an empty directory: the settings scopes the lane
+  reads, an organization's policy, and the rollout switch.
+- `unknown (<why>)`: the launcher cannot tell, for example with no CLI, an unrecognized
+  message, or a rollout value an earlier session saved.
+- `can load`: nothing the launcher sees stops mods. Causes that only the lane's session
+  sees stay unchecked, so this never means the lane's mods are on.
+
+The line reports and never changes the exit code. In `status` it describes what a launch
+would get now, not what a running lane got when it launched. Check a running lane from
+inside it with `/context-guard:check` or `/rate-limit-guard:setup`.
+
+The causes, and which of them `claude plugin test` reports, belong to upstream; this skill
+keeps no list of them:
+
+- **Pointer**: [Turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  (version floor and settings),
+  [Check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+  (the `claude plugin test` messages, and the policy it does not report), and
+  [Stop user-installed mods from loading](https://code.claude.com/docs/en/plugins/mods/admin#stop-user-installed-mods-from-loading).
+- **As of**: 2026-10-11, Claude Code 2.1.296.
+- **Recheck trigger**: either page changes the version floor or the messages `claude plugin
+  test` prints, or a release note names a new way for mods to be turned off.
 
 ## Consume restart-requests
 
