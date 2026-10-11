@@ -153,6 +153,72 @@ function table(columns) {
   ];
 }
 
+// One mermaid label, always written inside double quotes. Collapsing line breaks means no label
+// text starts a statement line (click, style, classDef), and with backticks gone none can close
+// the fence. Mermaid entity codes stand in for every character that could end the quotes, open a
+// %%{...}%% directive, or render as HTML, and `#` is coded too so a label's own entity reads
+// literally. Mermaid refuses an empty quoted label, so one with nothing left is a single space.
+const MERMAID_ENTITIES = { "#": "#35;", '"': "#quot;", "%": "#37;", "&": "#amp;", "<": "#lt;", ">": "#gt;" };
+const mermaidLabel = (value) =>
+  capLabel(
+    asText(value)
+      .replace(/\s+/g, " ")
+      .replace(/[`\p{C}]/gu, "")
+      .replace(/ {2,}/g, " ")
+      .trim(),
+  ).replace(/[#"%&<>]/g, (char) => MERMAID_ENTITIES[char]) || " ";
+
+/**
+ * The diagram as mermaid source, built only from builder-made ids and quoted labels, or null when
+ * it has nothing to draw. Every kind is a flowchart so one label rule covers them all.
+ * @param {ReturnType<typeof normalize>["diagrams"][number]} diagram
+ */
+function mermaid(diagram) {
+  let count = 0;
+  const lines = [];
+  const node = (label, indent = "    ") => {
+    count += 1;
+    lines.push(`${indent}n${count}["${mermaidLabel(label)}"]`);
+    return `n${count}`;
+  };
+  const chain = (labels, link) => {
+    const ids = labels.map((label) => node(label));
+    if (ids.length > 1) lines.push(`    ${ids.join(` ${link} `)}`);
+  };
+  const group = (id, title, items) => {
+    lines.push(`    subgraph ${id}["${mermaidLabel(title)}"]`);
+    for (const item of items) node(item, "        ");
+    lines.push("    end");
+  };
+  let direction = "LR";
+  if (diagram.flow.length) chain(diagram.flow, "-->");
+  if (diagram.flowcol.length) {
+    direction = "TB";
+    chain(diagram.flowcol, "-->");
+  }
+  if (diagram.stack.length) {
+    direction = "TB";
+    chain(diagram.stack, "---");
+  }
+  if (diagram.center || diagram.branches.length) {
+    const center = diagram.center ? node(diagram.center) : null;
+    const branches = diagram.branches.map((branch) => node(branch));
+    if (center) for (const branch of branches) lines.push(`    ${center} --> ${branch}`);
+  }
+  if (diagram.points.length) {
+    direction = "TB";
+    chain(
+      diagram.points.map((point) => [point.when, point.label].filter(Boolean).join(": ")),
+      "-->",
+    );
+  }
+  diagram.columns.forEach((column, c) => group(`s${c + 1}`, column.heading, column.items));
+  if (diagram.before.length) group("s1", "Before", diagram.before);
+  if (diagram.after.length) group("s2", "After", diagram.after);
+  if (diagram.before.length && diagram.after.length) lines.push("    s1 --> s2");
+  return lines.length ? ["```mermaid", `flowchart ${direction}`, ...lines, "```"] : null;
+}
+
 /**
  * @param {Record<string, unknown>} model
  * @returns {string} the markdown record
@@ -174,6 +240,8 @@ export function buildExplainerRecord(model) {
     if (diagram.columns.length) out.push(...table(diagram.columns), "");
     if (diagram.before.length) out.push("Before:", "", ...diagram.before.map((item) => `- ${md(item)}`), "");
     if (diagram.after.length) out.push("After:", "", ...diagram.after.map((item) => `- ${md(item)}`), "");
+    const drawing = mermaid(diagram);
+    if (drawing) out.push(...drawing, "");
     if (diagram.caption) out.push(`**${md(diagram.caption)}**`, "");
     for (const line of diagram.text) out.push(md(line), "");
   }

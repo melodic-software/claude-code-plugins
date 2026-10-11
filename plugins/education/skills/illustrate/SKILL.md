@@ -108,6 +108,10 @@ source. Do not hand-write the HTML, do not pre-escape values, and do not add scr
 user dislikes the look, say the look is fixed rather than hand-writing a replacement page.
 `--check <page.html>` flags a page that bypassed the builder or was edited after it.
 
+In the record, each diagram's text form is followed by a `mermaid` block the builder draws from the
+same model, with every label quoted and neutralized. Do not write or edit mermaid by hand; change
+the model and rebuild.
+
 The page shows the diagrams, a searchable word list, and the sources. The reader ticks each
 diagram that is still unclear, adds a question, and copies a short reply such as
 `picked: diagrams-2`. When that reply comes back, `diagrams-2` is the second diagram: explain it
@@ -144,9 +148,10 @@ format delivers the record by the same rules, with no page.
 ## Step 5. Offer the video view
 
 When `/explainer-video:produce` is in this session's skill listing, offer a narrated video of the
-record. On a yes, invoke it via the Skill tool with the record's path. When it is not listed, say
-in one line that the video view is unavailable because the explainer-video plugin is not
-installed. Never install it.
+record. On a yes, invoke it via the Skill tool with the record's path, and say that each
+`mermaid` block repeats the diagram above it: draw from it, never narrate it. When it is not
+listed, say in one line that the video view is unavailable because the explainer-video plugin is
+not installed. Never install it.
 
 ## Examples
 
