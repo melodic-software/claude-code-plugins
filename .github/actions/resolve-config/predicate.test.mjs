@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { applies, factsFor, MissingFact, pipelineEvent } from "./predicate.mjs";
+import {
+  applies,
+  appliesAll,
+  factsFor,
+  MissingFact,
+  pipelineEvent,
+} from "./predicate.mjs";
 
 const facts = {
   event: "synchronize",
@@ -125,4 +131,130 @@ test("pipelineEvent maps GitHub events onto the predicate's event names", () => 
   assert.equal(pipelineEvent("workflow_dispatch", {}), "dispatch");
   assert.equal(pipelineEvent("workflow_run", {}), "workflow-run");
   assert.equal(pipelineEvent("issues", {}), null);
+});
+
+// mergeable, labels-absent and draft
+
+const pullFacts = { ...facts, mergeable: "conflicting", draft: false };
+
+test("a mergeable predicate matches the PR's mergeability", () => {
+  assert.deepEqual(applies({ mergeable: ["conflicting"] }, pullFacts), {
+    applies: true,
+    skipReason: null,
+  });
+  assert.deepEqual(
+    applies(
+      { mergeable: ["conflicting"] },
+      { ...pullFacts, mergeable: "clean" },
+    ),
+    { applies: false, skipReason: "not-applicable" },
+  );
+  assert.equal(
+    applies({ mergeable: ["clean"] }, { ...pullFacts, mergeable: "clean" })
+      .applies,
+    true,
+  );
+});
+
+test("unknown mergeability never matches and skips with prerequisite-missing", () => {
+  for (const listed of [["conflicting"], ["clean"], ["conflicting", "clean"]]) {
+    assert.deepEqual(
+      applies({ mergeable: listed }, { ...pullFacts, mergeable: null }),
+      { applies: false, skipReason: "prerequisite-missing" },
+    );
+  }
+});
+
+test("a labels-absent label on the PR skips with awaiting-human, not not-applicable", () => {
+  assert.deepEqual(
+    applies(
+      { "labels-absent": ["do-not-merge", "needs-human"] },
+      { ...pullFacts, labels: ["C2", "needs-human"] },
+    ),
+    { applies: false, skipReason: "awaiting-human" },
+  );
+});
+
+test("labels-absent matches when none of its labels is on the PR", () => {
+  assert.deepEqual(
+    applies({ "labels-absent": ["do-not-merge", "needs-human"] }, pullFacts),
+    { applies: true, skipReason: null },
+  );
+});
+
+test("draft: [false] does not match a draft PR and skips with not-applicable", () => {
+  assert.deepEqual(applies({ draft: [false] }, { ...pullFacts, draft: true }), {
+    applies: false,
+    skipReason: "not-applicable",
+  });
+  assert.equal(applies({ draft: [false] }, pullFacts).applies, true);
+});
+
+test("awaiting-human wins over a not-applicable or unknown-mergeability miss", () => {
+  assert.equal(
+    applies(
+      {
+        mergeable: ["conflicting"],
+        "labels-absent": ["do-not-merge"],
+        draft: [false],
+      },
+      { ...pullFacts, labels: ["do-not-merge"], draft: true, mergeable: null },
+    ).skipReason,
+    "awaiting-human",
+  );
+});
+
+test("a decided miss wins over unknown mergeability", () => {
+  assert.equal(
+    applies(
+      { mergeable: ["conflicting"], draft: [false] },
+      { ...pullFacts, mergeable: null, draft: true },
+    ).skipReason,
+    "not-applicable",
+  );
+});
+
+test("a mergeable, labels-absent or draft predicate with no fact throws", () => {
+  assert.throws(
+    () => applies({ mergeable: ["conflicting"] }, facts),
+    MissingFact,
+  );
+  assert.throws(
+    () => applies({ "labels-absent": ["needs-human"] }, { event: "push" }),
+    MissingFact,
+  );
+  assert.throws(() => applies({ draft: [false] }, facts), MissingFact);
+});
+
+test("factsFor names mergeable, draft and the labels labels-absent reads, once each", () => {
+  assert.deepEqual(
+    factsFor({
+      mergeable: ["conflicting"],
+      labels: ["a"],
+      "labels-absent": ["needs-human"],
+      draft: [false],
+    }).sort(),
+    ["draft", "freshLabels", "labels", "mergeable"],
+  );
+});
+
+test("appliesAll needs every predicate to match, with one predicate's precedence", () => {
+  assert.deepEqual(appliesAll([], facts), { applies: true, skipReason: null });
+  assert.deepEqual(
+    appliesAll([{ events: ["synchronize"] }, { labels: ["C2"] }], facts),
+    { applies: true, skipReason: null },
+  );
+  const held = { ...pullFacts, labels: ["needs-human"] };
+  assert.equal(
+    appliesAll(
+      [{ events: ["push"] }, { "labels-absent": ["needs-human"] }],
+      held,
+    ).skipReason,
+    "awaiting-human",
+  );
+  assert.equal(
+    appliesAll([{ labels: ["security"] }, { paths: ["infra/**"] }], facts)
+      .skipReason,
+    "not-applicable-paths",
+  );
 });

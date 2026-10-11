@@ -44,14 +44,16 @@ When the medium calls for a page, run the script once into a file, print that fi
 so the page is built from the same bytes the reader sees and the queries run once:
 
 ```bash
-bash "<plugin-root>/skills/morning-brief/scripts/morning-brief.sh" $ARGUMENTS > "<dir>/morning-brief.txt"
+"<skill-dir>/scripts/morning-brief.sh" --data-dir "<plugin-data>" $ARGUMENTS > "<dir>/morning-brief.txt"
 ```
 
-When that exits non-zero (4 or 5 included), print the script's message, build nothing, and stop. Otherwise
-print the file, then run:
+When that exits 6, the brief rendered with unreadable sections that its header names: treat it as
+exit 0 below, and report the lost sections as `SKILL.md` says. When it exits with any other non-zero
+code (4 or 5 included), print the script's message, build nothing, and stop. Otherwise print the
+file, then run:
 
 ```bash
-node "<plugin-root>/skills/morning-brief/scripts/build-brief-view.mjs" --out "<dir>/morning-brief.html" < "<dir>/morning-brief.txt"
+"<skill-dir>/scripts/build-brief-view.mjs" --out "<dir>/morning-brief.html" < "<dir>/morning-brief.txt"
 ```
 
 `<dir>` is a temp directory. The page follows the printed brief. Each `== Section ==`
@@ -59,4 +61,5 @@ becomes a collapsible block, all open, and one filter box matches any word on an
 issue number, a lane, a flag, a word of a title.
 
 A non-zero exit from the builder means the page failed its profile: report the message and keep the
-brief. Do not hand-write the page as a fallback. Exit 2 with node missing: say the page was not built.
+brief. Do not hand-write the page as a fallback. When node is missing the builder cannot start: say
+the page was not built.

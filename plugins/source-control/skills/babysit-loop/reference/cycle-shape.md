@@ -26,10 +26,29 @@ is.
    promotable cell effective-unpromoted, because step 3 then skips the invocation, and step 3
    reports the result each cycle.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
-   context is compaction-lossy, the comment is the source of truth for the counters); classify
-   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot: open PRs with head SHAs,
-   last-activity timestamps, and the provenance fields the rung partition consumes
-   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and, in drain mode, open issues with the same author-association / login / bot-type fields the issue-author test consumes.
+   context is compaction-lossy, the comment is the source of truth for the counters) through the
+   upsert script's `--read` mode, which considers only comments the lane's own write identity wrote
+   ([reference/telemetry-upsert.md](telemetry-upsert.md), "Reading the state block"); classify
+   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
+   `node <plugin-root>/skills/babysit-loop/scripts/lane-snapshot.mjs --repo <owner/repo>`. It reads
+   every page of open PRs and open issues through GraphQL cursor pagination and prints them only
+   when every page read and each list is whole: no number repeats and the count read equals the
+   `totalCount` every page reported (an incomplete read is re-read once): open PRs with head SHAs (`headRefOid`), last-activity timestamps,
+   draft state, labels, and the provenance fields the rung partition consumes
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot
+   type the trust test's listed-bot arm reads), and open issues with the same author-association /
+   login / bot-type fields the issue-author test consumes. A `null` provenance field is a field
+   GitHub did not return, and the tests below fail closed on it.
+   **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
+   failure and 4 a list incomplete on two reads (the queue kept moving), and both print
+   nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, hold
+   `cycle` and `backoff_level`, and invoke no mechanic. Count the cycle as one with no progress
+   and work in view (fail closed: the queue is unknown, not empty), so `no_progress_streak`
+   increments and a failure that never clears raises the step 6 stall escalation at the threshold,
+   naming the snapshot failure as the cause. Still upsert the telemetry with a cycle report naming
+   the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
+   wakeup at the current backoff. The drain exit and
+   the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -37,7 +56,8 @@ is.
 3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
    compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
-   provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
+   provider's own computed close-linkage,
+   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labeling takes triage or write
@@ -50,9 +70,10 @@ is.
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here**, not eligible at any rung, exactly as an item with no record at all.
-   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable where only a pinned
-   set of GraphQL operations is served (Claude Code on the web and remote execution;
-   `skills/babysit-prs/SKILL.md` "Engine and degrade"). That is the no-close-linkage case already
+   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
+   that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
+   degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
+   sessions"). That is the no-close-linkage case already
    ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
    merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
    because review-thread resolution has no REST equivalent. Report the restriction once for the
@@ -166,7 +187,9 @@ is.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
-   covers the preceding interval and never this cycle's work); evaluate the stop condition; if not
+   covers the preceding interval and never this cycle's work) with the script
+   [reference/telemetry-upsert.md](telemetry-upsert.md) names, and on any non-zero exit record the
+   cycle as UNREPORTED per that file; evaluate the stop condition; if not
    stopping, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
    tool result from this cycle, and say which work is unverified rather than omitting the
    distinction.** Nobody watched this cycle, so the report is the only record of it and a fabricated
