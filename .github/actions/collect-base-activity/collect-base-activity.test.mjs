@@ -69,19 +69,22 @@ function stage(overrides) {
   const result = spawnSync("bash", ["-e", "-c", skillScript()], { env, encoding: "utf8" });
   const text = readFileSync(output, "utf8");
   const args = /^claude-args=(.*)$/m.exec(text)?.[1] ?? "";
-  return { status: result.status, stdout: result.stdout, args };
+  // The --allowedTools list itself, split at the top-level commas.
+  const allowed = (/--allowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(/,(?![^(]*\))/);
+  return { status: result.status, stdout: result.stdout, args, allowed };
 }
 
 test("a writing skill that can commit gets the commit tool and the instruction to commit", () => {
-  const { status, args } = stage({});
+  const { status, args, allowed } = stage({});
   assert.equal(status, 0);
-  assert.ok(args.includes(COMMIT_TOOL), args);
+  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   assert.ok(args.includes(COMMIT_SENTENCE), args);
 });
 
 test("prepare: merge-base leaves out the commit tool and the instruction to commit", () => {
-  const { status, args } = stage({ PREPARE: "merge-base" });
+  const { status, args, allowed } = stage({ PREPARE: "merge-base" });
   assert.equal(status, 0);
+  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   assert.ok(!args.includes(COMMIT_TOOL), args);
   assert.ok(!args.includes(COMMIT_SENTENCE), args);
   // Still a writing skill: it edits and stages its resolution.

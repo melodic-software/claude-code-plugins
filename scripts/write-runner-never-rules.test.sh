@@ -87,7 +87,8 @@ for (const [id, scripts] of [["prepare", ["prepare", "resolve-version-bump-confl
   }
 }
 const cs = commit.with?.script ?? "";
-say(cs.indexOf("TREE_ENTRIES_SHA256") >= 0 && cs.indexOf("createHash") < cs.indexOf("execFileSync('bash'"),
+const treeCheck = cs.search(/createHash\('sha256'\)\.update\(readFileSync\(script\)\)\.digest\('hex'\) !== TREE_ENTRIES_SHA256\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/);
+say(treeCheck >= 0 && treeCheck < cs.indexOf("execFileSync('/usr/bin/bash'"),
   "the commit step checks tree-entries.sh's SHA-256 before running it");
 // No step after the head checkout runs a program the head supplies.
 const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |node \.|bash \.|sh \.)/m;
@@ -111,8 +112,51 @@ say(tracker >= 0 && tracker < checkout && /\.base\/\.work-item-tracker\.json/.te
 say(/sha256/.test(byId("tracker-config").run ?? ""), "the tracker config copy records its SHA-256");
 const scriptEnv = byId("act-script").env ?? {};
 say(/base-script/.test(String(scriptEnv.TRACKER_CONFIG ?? "")), "the script step gets TRACKER_CONFIG from the base copy");
-say(/TRACKER_SHA256/.test(script) && script.indexOf("TRACKER_SHA256") < script.indexOf('"$RUNNER_TEMP/base-script/$(basename'),
-  "the script step checks the tracker config's SHA-256 before running the script");
+const trackerCheck = script.search(/sum=\$\(sha256sum <"\$TRACKER_CONFIG"\)\n\s*if \[ "\$\{sum%% \*\}" != "\$TRACKER_SHA256" \]; then\n[^\n]*\n\s*exit 1/);
+say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-script/$(basename'),
+  "the script step fails on a tracker config whose SHA-256 differs, before running the script");
+
+// Hash checks compare and fail, not merely run.
+const prepRun = byId("prepare").run ?? "";
+say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*if \[ "\$\{sum%% \*\}" != "\$2" \]; then[^}]*exit 1/s.test(prepRun),
+  "the prepare step's hash check fails on a differing SHA-256");
+say(/if \[ "\$\{sum%% \*\}" != "\$POST_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(post.run ?? ""),
+  "the post step fails on a post.sh whose SHA-256 differs");
+
+// Head file names reach git's output: workflow commands are stopped while a
+// merge script runs, and resumed before the step's own ::error:: lines.
+for (const [id, name] of [["prepare", "prepare"], ["post", "post"]]) {
+  const run = byId(id).run ?? "";
+  const stop = run.indexOf('echo "::stop-commands::$token"');
+  const call = run.indexOf(`bash "$BIN/${name}.sh"`);
+  const resume = run.indexOf('echo "::$token::"');
+  const firstError = run.indexOf("::error::", call);
+  say(stop >= 0 && stop < call && resume > call && (firstError < 0 || resume < firstError),
+    `step ${id} stops workflow commands around ${name}.sh`);
+  say(/^\s*echo "skip-reason=\$skip"( >>"\$GITHUB_OUTPUT")?$/m.test(run) && !/skip-reason=awaiting-human/.test(run),
+    `step ${id} writes skip-reason unconditionally`);
+  say(String(byId(id).env?.GIT_NO_REPLACE_OBJECTS) === "1", `step ${id} sets GIT_NO_REPLACE_OBJECTS=1`);
+}
+say(/stop-commands/.test(cs), "the commit step stops workflow commands while tree-entries.sh and git run");
+
+// The commit step's git runs with an allowlisted environment.
+say(!/\.\.\.process\.env/.test(cs) && /PATH: '\/usr\/bin:\/bin'/.test(cs) && /GIT_NO_REPLACE_OBJECTS: '1'/.test(cs),
+  "the commit step's git environment is an allowlist");
+say(/'\/usr\/bin\/git'/.test(cs) && /'\/usr\/bin\/bash'/.test(cs) && !/execFileSync\('(git|bash)'/.test(cs),
+  "the commit step calls /usr/bin/git and /usr/bin/bash");
+
+// Holds placed mid-run stop the commit.
+const labels = cs.search(/listLabelsOnIssue|issues\/\{issue_number\}\/labels/);
+say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
+  "the commit step re-reads the PR's hold labels before creating the commit");
+say(/\.base\/\.work-item-tracker\.json/.test(copy) && /hold-label=/.test(copy),
+  "the human-gated role label is resolved from the base before the head checkout");
+
+// Promote moves the PR branch only to the commit the commit step made.
+const promote = byId("promote");
+const ps = promote.with?.script ?? "";
+say(/COMMIT_SHA/.test(JSON.stringify(promote.env ?? {})) && /lane !== COMMIT_SHA/.test(ps) && /COMMIT_OUTCOME !== 'success'/.test(ps),
+  "in merge-base mode promote requires the commit step's success and its commit at the lane ref");
 EOF
 )
 if [[ -z "$results" ]]; then
