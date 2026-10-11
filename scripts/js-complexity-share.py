@@ -18,7 +18,9 @@ The scope:
 - copies counted once, walking paths outside plugins/ first, then in order:
   byte-identical files, and files the cross-plugin source registry sanctions
   (a plain line is plugins/<plugin>/<line>, a cluster line
-  `<canonical> -> <member glob>...` is one copy set);
+  `<canonical> -> <member glob>...` is one copy set, each member matched by
+  the code-metrics plugin's gitignore-style pathglob, as its duplication
+  audit's registry filter does, so `*` never crosses a `/`);
 - test files dropped: a directory named test, tests, __tests__, fixtures,
   evals or testdata, or a name containing .test. or .spec.
 
@@ -30,7 +32,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import fnmatch
 import hashlib
 import io
 import os
@@ -38,6 +39,12 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
+
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1] / "plugins" / "code-metrics" / "scripts")
+)
+from pathglob import matches as glob_matches  # noqa: E402
 
 MIN_PYTHON = (3, 9)
 EXTENSIONS = (".js", ".jsx", ".mjs", ".cjs")
@@ -71,7 +78,7 @@ def read_registry(path: str) -> tuple[set[str], list[tuple[str, list[str]]]]:
 
 def registry_key(rel: str, plain: set[str], clusters) -> str | None:
     for canonical, members in clusters:
-        if rel == canonical or any(fnmatch.fnmatchcase(rel, m) for m in members):
+        if rel == canonical or any(glob_matches(m, rel) for m in members):
             return "cluster:" + canonical
     parts = rel.split("/")
     if len(parts) > 2 and parts[0] == "plugins" and "/".join(parts[2:]) in plain:
