@@ -1,5 +1,44 @@
 # Changelog: session-flow plugin
 
+## [0.54.0] - 2026-10-11
+
+### Added
+
+- `observer_analysis_effort` sets the effort level of the observer's post-session analysis run,
+  passed as `--effort` (default `medium`). The run also pins `CLAUDE_CODE_EFFORT_LEVEL` to that
+  level through `--settings`, because the variable overrides `--effort` and a settings file's `env`
+  would otherwise re-apply it
+  ([env-vars precedence](https://code.claude.com/docs/en/env-vars#precedence)).
+- The observer scripts read the model and effort defaults from `plugin.json` `userConfig` instead
+  of repeating them.
+
+### Changed
+
+- orchestrate: the priming addendum now treats the session effort as what a spawn runs at only when it passes no `effort` and its agent pins none, and says to pass the level on a non-fork spawn of an unpinned agent and to omit it on a pinned one.
+
+- `/session-flow:audit-friction` fact-checks the selected claims with `/discipline:do-your-research tiered`, the fan-out tier that replaced the retired `/discipline:do-your-research-deep`.
+
+- The observer analysis model (`observer_analysis_model`) now defaults to `claude-opus-5-5`
+  instead of `claude-haiku-4-5`, which Anthropic may retire as early as 2026-10-15
+  ([model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations)).
+  It was chosen for faithful findings: in a four-session local pilot against Haiku 5.5 and
+  Sonnet 5.5, Opus 5.5 at medium effort missed the fewest important findings and invented the
+  fewest events.
+
+- **`/session-flow:retro` routes check-worthy findings to the skills that own checks.** The catalog gains an Owner skills table: mechanical mistakes go to `/review:audit-enforceability`, missing automation to `/harness-config:audit-automation-gaps`, instruction findings to `/harness-config:audit-instructions` and `/harness-config:unhobble`, token-heavy CLI output to `/developer-experience:build-cli`, and agent-doc findings to `/docs-hygiene:write-for-agents`, each named only when installed. Retro proposes a check, never adopts one: on the first occurrence of a policy-class mistake (irreversible, public, security) and on a repeat for a behavior correction, and no check is a valid outcome. Codify mode now points at the same table, and the placement tree no longer sends enforcement gaps to prose.
+
+- `/session-flow:clean-stop` no longer names `gh`: a branch with no issue in its name gets its PR from the forge's own tooling, and `/source-control:pull-request create` is used when it can run unattended with the linkage decision passed in.
+
+### Fixed
+
+- **`/session-flow:handoff` no longer requires task tools the session may not have.** The handoff mandated a live `TaskList` call and `TaskCreate`/`TaskUpdate` recreate lines, but current models do not get the task-tracking tools by default, so the save-point failed or improvised on them. It now branches on whether the tools are present in the session: with them it captures the live list as before; with `TodoWrite` in their place (`CLAUDE_CODE_ENABLE_TASKS=0`) it captures the latest `TodoWrite` list; with neither it writes a line saying so and points at the workflow checklist or plan it already keeps. A resuming session without the tools reads the recorded list instead of running the recreate calls. The position panel's task-list rung falls through the same way.
+- **`/session-flow:workflow` tracks stages without the task tools.** Stage tracking used `TaskCreate` unconditionally; it now does so only when the tools are present, keeps the stage list in `TodoWrite` when that replaces them, and otherwise uses the `workflow-checklist.md` file (or the plan that replaces it) as the tracker.
+
+- The analysis run now counts as failed, keeping the observations and writing nothing to the
+  ledger, when its output is not JSON, its `terminal_reason` is present and not `completed`, its
+  `subtype` is not `success`, or it reports any `permission_denials`. Non-JSON output was
+  previously written to the ledger as findings.
+
 ## [0.53.0] - 2026-10-10
 
 ### Changed

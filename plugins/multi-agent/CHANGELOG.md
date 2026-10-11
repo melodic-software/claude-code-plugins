@@ -3,6 +3,19 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-11
+
+### Added
+
+- `reference/routing-rubric.md` sets the rule for Haiku: no role routes to it until it passes the repository's routing eval ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901)), and a role that does runs at effort `high`, never `xhigh` or `max`. `/multi-agent:route` adds a note for any role that resolves to haiku, named or inherited from a Haiku session, and still resolves it.
+
+### Changed
+
+- config reference: the `effort` values row now points at the model-config section listing which levels each model supports.
+- defaults: the worker, verifier and retrieval roles now record the Agent tool's per-spawn effort docs as `pointer_spawn`, and their recheck triggers include a change to that parameter. Role values are unchanged.
+
+- The `retrieval` role's bundled effort is now `medium`, and the `research` workload no longer lowers the worker's effort, so research workers run at the worker's own `medium`.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added

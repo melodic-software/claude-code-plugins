@@ -96,7 +96,11 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 5. For `--user`, after the file is written, offer one pointer line in the user-level instructions
    file so other sessions load `user-interface.md` prose from the user-global folder. Write it only
    after a yes, after the managed check below. A line already present is left as it is.
-6. Re-run the read and `check`, and report the stored value and its provenance from the new table,
+6. When `/user-interface:write-css` answered its stack checklist earlier in this session, offer to
+   save those answers, each with the file that supports it, under a `## CSS stack` heading in the
+   team prose file (`<home>/user-interface.md`, or the personal `.local.md` with `--local`). Write
+   only after a yes, replacing an existing `## CSS stack` section instead of adding a second one.
+7. Re-run the read and `check`, and report the stored value and its provenance from the new table,
    never from the write. A key that now shows an error is reverted to its previous text.
 
 **Managed check (`--user`).** Run `chezmoi source-path <file>` for each file under `~` before

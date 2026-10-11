@@ -7,6 +7,7 @@ project's existing look, reuses the design tools already installed, and fills on
 | Skill | What it does |
 |---|---|
 | `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it |
+| `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
 ## How it routes
@@ -61,8 +62,9 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `css.token_fallback` | `ask` | `ask`, `propose-token`, `literal` |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
-The `css` keys are read by a CSS authoring skill that is not released yet; until it is, they change
-nothing. `routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
+The `css` keys are read by `/user-interface:write-css`; its
+[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes.
+`routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
 does not apply it yet: it routes from the bundled rows only.
 
 **Provenance.** `scripts/detect.mjs --config` prints every resolved value with the layer that
@@ -89,6 +91,18 @@ Test D).
   turned off.
 - Block-style YAML only: the bundled parser rejects flow mappings (`{`), so a file using them is
   reported invalid.
+
+`/user-interface:write-css` also holds these fixed, as its
+[`configuration.md`](skills/write-css/reference/configuration.md) records:
+
+- The topic split of its reference files: techniques are filed by topic, never by source, so a
+  later CSS source merges into the same files.
+- The review output sections (`## Findings`, `## Suppressed`, `## Judgment`) and the review
+  script's exit code (0 clean, 1 findings, 2 usage error or crash): callers rely on them.
+- The four-step process order (detect, identify and research the stack, answer the stack
+  checklist, verify the compiled output): the checklist needs what the first two steps found.
+- Project-first precedence: the project's design system, conventions, lint config and layer
+  system outrank every configured value and every default.
 
 ## Options
 

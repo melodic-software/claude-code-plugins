@@ -21,7 +21,7 @@ Branch and working tree: gather with two separate Bash calls, `git branch --show
 
 ## Purpose
 
-Keep pull requests moving without taking unsafe GitHub actions. Guarantees are enforced in
+Keep pull requests moving without taking unsafe forge actions. Guarantees are enforced in
 deterministic gate scripts; judgment stays with the agent. The safe default discovers your own
 open PRs, author is one of your self logins, under the current repo's owner (or the configured
 watched owners), works each to readiness, and reports. **The safe tier never resolves threads
@@ -32,6 +32,11 @@ The per-PR review discipline (finding extraction, per-finding D1–D7 verificati
 self-reply filtering) is the plugin-scope seam shared with `/source-control:pull-request`:
 [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md).
 Read it before processing findings; dispatched workers cite it directly.
+
+This body names forge operations; the commands that perform them on GitHub, the one forge
+supported today, are in
+[the GitHub provider reference](../../reference/providers/github/README.md). The bundled scripts
+and the `reference/` spokes already carry them.
 
 ## Modes and arguments
 
@@ -72,14 +77,14 @@ Explicit order (any tier): "merge owner/repo#87 now" | "resolve bot threads on #
 
 ## Scope resolution
 
-Scope resolves deterministically, most specific first. Read the current git context with `gh`/`git` (all read-only) before falling back:
+Scope resolves deterministically, most specific first. Read the current git context with the forge CLI and `git` (all read-only) before falling back:
 
 1. **Explicit full ref** in the invocation (`owner/repo#N` or `owner/repo`), use it exactly.
-2. **Bare PR number** (`#87`, `pr 87`) inside a git repo, resolve the current repo with
-   `gh repo view --json nameWithOwner -q .nameWithOwner` and target that `owner/repo#87`.
+2. **Bare PR number** (`#87`, `pr 87`) inside a git repo, resolve the current repository's
+   `owner/repo` and target that `owner/repo#87`.
 3. **Bare invocation inside a repo whose current branch has an open PR you authored**. Target
-   just that one PR (detect with `gh pr view --json number,url,author,headRefName`; use it only
-   when the PR exists and its author is a self login).
+   just that one PR (detect by resolving the current branch's PR with its number, URL, author
+   and head branch; use it only when the PR exists and its author is a self login).
 4. **Bare invocation inside a repo under a watched owner**, that repository's own open PRs.
    When `watched_owners` is unset, the current repo's owner is the inferred watch scope.
 5. **Otherwise** (a neutral working directory, or an unattended loop), your own open PRs
@@ -129,7 +134,7 @@ license to act.
 **Cross-tier invariants**, hold in every tier including autopilot: never a force-push (freshness is
 merge-only, refspec-pushed fast-forward, [reference/loop.md](reference/loop.md)); never `--admin`;
 never delete a branch or worktree
-that is dirty or unmerged; never change GitHub settings, secrets, branch protection, or
+that is dirty or unmerged; never change forge settings, secrets, branch protection, or
 billing; never act on a repository outside the watched owners; never resolve a thread whose
 finding is not actually addressed. A merge always requires the deterministic gate. Autopilot
 works harder to reach that state but never forces past it. A blocked action escalates; it is
@@ -149,7 +154,7 @@ hyphenated label name in a body is not a hold.
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
-`/source-control:pull-request ready` rather than a bare `gh pr ready`: that step merges the base
+`/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
 not.
 
@@ -254,9 +259,7 @@ snapshot and assessment, never an unattended unpinned override.
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
 completed draft is marked ready with `/source-control:pull-request ready` and continues through
 the normal guarded path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
-GitHub's
-[draft-stage contract](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)
-confirms a draft cannot merge until it is marked ready. Completeness of the diff is not the
+A draft cannot merge until it is marked ready (provider reference "Draft stage"). Completeness of the diff is not the
 only hold reason: an explicit unchecked human-only item named in the PR's own body holds the
 draft too, even when the content is finished and green. See the worker contract in
 [reference/orchestration.md](reference/orchestration.md).
@@ -278,7 +281,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your current forge login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | `auto`: repo convention, then squash |
@@ -329,22 +332,18 @@ The snapshot engine and gates are Python (stdlib-only) under
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
-[reference/loop.md](reference/loop.md). Discovery via `gh pr list`, finding classification via the
+[reference/loop.md](reference/loop.md). Discovery via the forge's PR list, finding classification via the
 plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that
 path cannot assess merge-readiness at all: report it unchecked, never inferred from the
 classification gate. Let a safe iteration proceed when the engine is absent, reporting
 merge-readiness as unchecked.
 
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
-`gh pr view --json` is implemented entirely over GraphQL, so it fails with `HTTP 403` wherever only
-a pinned set of GraphQL operations is served (Claude Code on the web and remote execution), the same
-restriction [`pull-request/reference/create.md`](../pull-request/reference/create.md) §2.4.0 and the
-[work-item-tracker GitHub adapter](../../../work-items/tools/work-item-tracker/adapters/github/README.md)
-work around. That 403 reads like an expired token or a missing scope and is neither, so take it as a
-signal to switch APIs rather than to re-authenticate. The engine re-sources the whole `gh pr view`
-bundle over REST by itself (`GET …/pulls/{n}` for the pull request, plus the commit check-runs and
-combined-status endpoints for the check rollup), so discovery, classification, and the branch-rule
-and freshness checks keep working unchanged.
+Claude Code on the web and remote execution serve only part of the forge's GraphQL API, and the
+refusal reads like an expired token or a missing scope while being neither: take it as a signal to
+switch APIs rather than to re-authenticate (the signal and the REST routes: provider reference
+"Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
+discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
 Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.
 The merge gate reports `threadResolutionProven: false` and `unresolvedThreadCount: null`, never `0`,
@@ -352,9 +351,8 @@ and holds the PR with a blocker naming the restriction: an empty thread list wou
 unresolved threads", the false-clean signal [reference/safety.md](reference/safety.md) exists to
 prevent. Readiness there is UNPROVEN, never clean. Report it that way, quoting the blocker, and run
 the lane from a session that is served GraphQL when a PR actually needs to merge. `reviewDecision`
-degrades the same way: REST can prove `CHANGES_REQUESTED` but cannot prove an approval (GitHub folds
-CODEOWNERS and the required-reviewer count into that field), so a protected base holds rather than
-merging on evidence that does not reach it.
+degrades the same way: REST can prove `CHANGES_REQUESTED` but cannot prove an approval, so a
+protected base holds rather than merging on evidence that does not reach it.
 
 ## Per-PR checklist (safe core, each PR, every iteration)
 
@@ -364,9 +362,9 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake
 - [ ] **Step 0.1, Evidence-based fresh rescan:** fetch ALL comments via the bundled
   `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first, also unblocks the readiness gate's exit 4), filter own prior replies, classify
-  addressed/unaddressed from GitHub evidence (§5.0.3). GitHub is the source of truth, not model
+  addressed/unaddressed from forge evidence (§5.0.3). The forge is the source of truth, not model
   memory
-- [ ] **Step 0.2, Branch checkout:** put this worktree's HEAD at the true PR head (`gh pr view --json headRefOid`). `gh pr checkout <N>`, or `--detach` when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
+- [ ] **Step 0.2, Branch checkout:** put this worktree's HEAD at the true PR head (the head commit read from the forge). Check out with the forge's PR checkout, detached when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
   assert HEAD == that head before any mutate, read-only on mismatch or dirty tree (§5.1.2)
 - [ ] **Step 0.3, Branch freshness:** fetch + `git merge-base --is-ancestor`; integrate
   merge-only (never rebase, rebasing a PR branch needs a forbidden force-push), graduated conflict handling (§5.1.2)
@@ -385,7 +383,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
 
 **Execution discipline:** the primary failure mode is claiming to process findings without
 running per-finding D1–D7. Every iteration MUST output the completed evidence checklist
-(§5.5). "Done" means GitHub shows evidence. Model memory of "I replied" or "I pushed" is not
+(§5.5). "Done" means the forge shows evidence. Model memory of "I replied" or "I pushed" is not
 evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instruction.
 
 ## Operational runbook (engine-backed cycle)
@@ -409,7 +407,7 @@ repo#number (@author) | checks | action | open items
 
 Material findings: fixes committed or pushed; new failing or pending required checks; new
 blocking bot feedback; new ordinary human comments (one notification per stable comment ID,
-never an automatic reply); PRs merged, enqueued in a merge queue (`action: enqueue`, `enqueued: true`, with its `mergeQueue.position`, not merged until a later cycle reads it merged), dequeued (`dequeued: true`, left the queue unmerged), a merge still pending on GitHub (`action: merge-pending`, may still land), or armed for auto-merge (`action: auto-merge`, still open, stays queued); checks held for approval (escalate them); a PR the host runtime's permission layer left "ready,
+never an automatic reply); PRs merged, enqueued in a merge queue (`action: enqueue`, `enqueued: true`, with its `mergeQueue.position`, not merged until a later cycle reads it merged), dequeued (`dequeued: true`, left the queue unmerged), a merge still pending on the forge (`action: merge-pending`, may still land), or armed for auto-merge (`action: auto-merge`, still open, stays queued); checks held for approval (escalate them); a PR the host runtime's permission layer left "ready,
 awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge
@@ -437,7 +435,7 @@ unattended run records the offer in its output instead of asking.
 works, fetch before each fix commit and skip a finding the cloud session already fixed. This skill
 never runs `/autofix-pr` on the person's behalf.
 
-**Availability is never assumed.** The command registers hidden and gated, and needs `gh` and
+**Availability is never assumed.** The command registers hidden and gated, and needs forge CLI and
 cloud-session access; this section states what to do when the person can run it, never that it is
 present. The four-part records live in
 [reference/native-autofix-pr.md](reference/native-autofix-pr.md).
@@ -463,7 +461,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   markers is N work items; three or more findings require the extractor-subagent dispatch
   ([review-discipline](../../reference/review-discipline.md) §2)
 - **Model memory across compaction is not state.** "I already replied/pushed" without an API
-  re-query is a false completion claim. GitHub is the state store
+  re-query is a false completion claim. The forge is the state store
 - **Exploring the wrong branch produces wrong classifications.** Findings validated off the PR
   branch are confidently wrong. Checkout is mandatory before D2
 - **Own prior replies re-processed as findings.** Classification-table replies from your own

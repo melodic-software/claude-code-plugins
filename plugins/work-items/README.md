@@ -179,7 +179,7 @@ gracefully when any of these are absent.
 ### Option details
 
 **`decompose_container_publish`.** The pre-selected offer publishes the Brief as a container item
-carrying the binding-resolved container label (default `work-map`), with slices as native
+carrying the binding-resolved container label (default `work-map`), with items as native
 sub-items. This key changes the offered default answer and never bypasses approval. It declares no
 default so an unset value stays distinguishable from a configured one.
 
