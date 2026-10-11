@@ -41,6 +41,55 @@ describe("buildTranscriptText", () => {
     expect(result.transcript).toBe("[0:04] [music] >> Hi everybody.");
   });
 
+  it("drops auto-caption words a paragraph repeats from the previous paragraph's tail", () => {
+    // The rolling caption carries "benchmarks, too." into the next cue, which
+    // opens a new paragraph after the sentence end (#6992).
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+Benchmarks too and then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] and then we moved on.",
+    );
+  });
+
+  it("keeps a single repeated word at a paragraph boundary", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers again.
+
+00:00:05.000 --> 00:00:07.000
+Again we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] we ran the numbers again.\n\n[0:05] Again we moved on.");
+  });
+
+  it("leaves a manual-caption paragraph boundary repeat in place", () => {
+    const manualVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+We ran the numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+Benchmarks too, and then we moved on.
+`;
+    const result = buildTranscriptText(manualVtt, false);
+    expect(result.transcript).toContain("Benchmarks too, and then we moved on.");
+  });
+
   it("parses manual captions without auto-clean pass", () => {
     const manualVtt = `WEBVTT
 

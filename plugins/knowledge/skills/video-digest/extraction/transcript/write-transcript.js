@@ -34,6 +34,54 @@ function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
 
+const BOUNDARY_REPEAT_MIN_WORDS = 2;
+const BOUNDARY_REPEAT_MAX_WORDS = 12;
+const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
+
+/** @param {string} word */
+function comparableWord(word) {
+  return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+}
+
+/** @param {string[]} words */
+function comparableRun(words) {
+  return words.map(comparableWord).join(" ");
+}
+
+/**
+ * Drop the words a paragraph opens with when they repeat the previous
+ * paragraph's closing words: the longest run of 2 to 12 words, compared
+ * case- and punctuation-insensitively. A rolling auto caption carries its
+ * tail into the next cue, and the vendor formatter's case-only overlap check
+ * misses a repeat that differs in punctuation. A paragraph always keeps at
+ * least one word.
+ *
+ * @param {string} transcript - paragraphs joined by a blank line, each `[M:SS] text`
+ * @returns {string}
+ */
+export function dropParagraphBoundaryRepeats(transcript) {
+  const paragraphs = transcript.split("\n\n");
+  for (let index = 1; index < paragraphs.length; index++) {
+    const current = PARAGRAPH_STAMP.exec(paragraphs[index]);
+    const previous = PARAGRAPH_STAMP.exec(paragraphs[index - 1]);
+    if (!current || !previous) continue;
+    const previousWords = previous[2].split(/\s+/).filter(Boolean);
+    const currentWords = current[2].split(/\s+/).filter(Boolean);
+    const longest = Math.min(
+      BOUNDARY_REPEAT_MAX_WORDS,
+      previousWords.length,
+      currentWords.length - 1,
+    );
+    for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
+      if (comparableRun(previousWords.slice(-length)) === comparableRun(currentWords.slice(0, length))) {
+        paragraphs[index] = current[1] + currentWords.slice(length).join(" ");
+        break;
+      }
+    }
+  }
+  return paragraphs.join("\n\n");
+}
+
 /**
  * Build transcript text from a caption file.
  *
@@ -66,7 +114,8 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
     repairedTermCount = repaired.replacementCount;
   }
 
-  const transcript = formatTranscript(cues);
+  const formatted = formatTranscript(cues);
+  const transcript = isAutoCaption ? dropParagraphBoundaryRepeats(formatted) : formatted;
 
   return {
     transcript,
