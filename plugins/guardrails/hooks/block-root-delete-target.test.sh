@@ -648,7 +648,13 @@ expect_both "quoted heredoc body with backticked rm allowed" 0 --command $'cat <
 expect_both 'double-quoted heredoc delimiter allowed' 0 --command $'cat <<"EOF"\nnote: `rm -rf /`\nEOF'
 expect_both 'backslashed heredoc delimiter allowed' 0 --command $'cat <<\\EOF\nnote: $(rm -rf /)\nEOF'
 expect_both "tab-stripped quoted heredoc allowed" 0 --command $'cat <<-\'EOF\'\n\tnote: `rm -rf /`\n\tEOF'
-expect_both "quoted heredoc inside a substitution allowed" 0 --command $'body=$(cat <<\'EOF\'\nnote: `rm -rf /`\nEOF\n)'
+expect_both "quoted heredoc fed to gh pr create allowed" 0 --command $'gh pr create --title "fix: x" --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
+# A quoted body is still stdin: a shell reading it, a pipe into one, or a
+# substitution whose output a shell runs executes the text, so those still block.
+expect_both "quoted heredoc fed to bash blocks" 2 --command $'bash <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc piped into sh blocks" 2 --command $'cat <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc run through bash -c blocks" 2 --command $'bash -c "$(cat <<\'EOF\'\necho `rm -rf /`\nEOF\n)"'
+expect_both "quoted heredoc fed to git blocks" 2 --command $'git x <<\'EOF\'\necho `rm -rf /`\nEOF'
 # An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
 expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'

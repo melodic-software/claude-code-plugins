@@ -95,8 +95,13 @@
 #     one quoted word, so it costs close to the same text without the
 #     spelling and far below the unquoted cost. Nor does one in the body of a
 #     heredoc whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
-#     `<<-'EOF'`): bash expands nothing there, and the library and
-#     block-root-delete-target's substitution scan both skip it. Everything
+#     `<<-'EOF'`): bash expands nothing there and the library skips it.
+#     block-root-delete-target's substitution scan still reads such a body as
+#     commands unless it plainly feeds `cat`, `tee` or `gh` (#6625). A body
+#     that gives it no work to judge (`$(: rm)`) never starts
+#     its RDT_DEADLINE, so --max-command-len is what bounds the cost: about
+#     1.1 ms per spelling, 2.6 to 3.7 s measured at 16,384 characters. A
+#     change to that length or to the guard set changes this bound. Everything
 #     else counts as before, including double-quoted text, ANSI-C `$'...'` and
 #     unquoted heredoc bodies. The discount is taken only where it is proved.
 #     The scan runs only on a command already past the cap, and from the

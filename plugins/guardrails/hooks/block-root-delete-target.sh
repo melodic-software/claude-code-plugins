@@ -2883,12 +2883,16 @@ rdt_brace_rec() {
 # ordinary ones, so its `))` balances them instead of closing a substitution.
 #
 # A HEREDOC BODY whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
-# `<<-'EOF'`) is inert text: bash expands nothing in it, so a backticked
-# `rm -rf /` quoted there as an example runs nothing and is skipped (#6625). An
-# unquoted delimiter's body is still expanded, so it is scanned on its own, with
-# bodies taken in the order their openers appear, as bash reads them. An opener
-# is recognized only outside quotes and outside any ordinary paren or backtick
-# body, so `$((1<<2))` stays arithmetic.
+# `<<-'EOF'`) gets no expansion from the shell that reads the command, but it
+# is still the stdin of the command it feeds, and `bash <<'EOF'`, `cat <<'EOF' |
+# sh` or `bash -c "$(cat <<'EOF' …)"` run it. So it is skipped (#6625) only
+# where it is plainly data: the opener sits at top level on a line that is one
+# `cat`, `tee` or `gh pr|issue|api|release` command with no pipe, list
+# operator, redirection, substitution or grouping (rdt_hd_plain,
+# rdt_hd_reader). Every other body is scanned on its own, with bodies taken in
+# the order their openers appear, as bash reads them. An opener is recognized
+# only outside quotes and outside any ordinary paren or backtick body, so
+# `$((1<<2))` stays arithmetic.
 #
 # The stack depth is capped, and past the cap the guard REFUSES; see
 # MAX_SUBST_DEPTH. An unterminated substitution is parsed to end of text rather
@@ -2928,6 +2932,35 @@ rdt_scan_body() {
   hook::bash_parse_segments "$b" rdt_check_segment
 }
 
+# rdt_hd_plain <text>: true when the text around a heredoc opener holds no
+# character that could start another command, a pipe, a redirection, a
+# substitution or a grouping, so the opener's command is the line's only one.
+rdt_hd_plain() {
+  case "$1" in
+  *[\;\&\|\(\)\`\$\<\>]*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
+# rdt_hd_reader <prefix>: true when the command ahead of a heredoc opener only
+# reads its stdin as data: `cat`, `tee`, or a `gh` command that takes a body.
+# A shell, an interpreter, `git` (an alias can be `!sh`) and every launcher
+# stay out.
+rdt_hd_reader() {
+  local -a hr_words
+  read -r -a hr_words <<<"$1"
+  case "${hr_words[0]:-}" in
+  cat | tee) return 0 ;;
+  gh)
+    case "${hr_words[1]:-}" in
+    pr | issue | api | release) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 rdt_scan_substitutions() {
   local s="$1" q="" c nx
@@ -2935,14 +2968,17 @@ rdt_scan_substitutions() {
   # only balances, 1 a `$( )` substitution, 2 a backtick one. Only 1 and 2
   # carry a body to parse, and only they count toward the depth cap.
   local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0 hok hs hq
-  local -a st_start=() st_q=() st_kind=() hd_delim=() hd_strip=() hd_quoted=()
-  local hd line lc body
+  local -a st_start=() st_q=() st_kind=() hd_delim=() hd_strip=() hd_quoted=() hd_sfx=()
+  local hd line lc body pre
   while ((i < len)); do
     c="${s:i:1}"
     # The unquoted newline that ends a line with heredoc openers on it starts
     # their bodies. Each runs to a line that is exactly its delimiter (after
     # leading tabs, for `<<-`), or to the end of the text.
     if [[ -z "$q" && "$c" == $'\n' ]] && ((${#hd_delim[@]})); then
+      for ((k = 0; k < ${#hd_delim[@]}; k++)); do
+        rdt_hd_plain "${s:hd_sfx[k]:i - hd_sfx[k]}" || hd_quoted[k]=0
+      done
       i=$((i + 1))
       for ((k = 0; k < ${#hd_delim[@]}; k++)); do
         body=""
@@ -2962,6 +2998,7 @@ rdt_scan_substitutions() {
       hd_delim=()
       hd_strip=()
       hd_quoted=()
+      hd_sfx=()
       continue
     fi
     # A heredoc opener `<<` or `<<-`, never the here-string `<<<`. The delimiter
@@ -2976,6 +3013,8 @@ rdt_scan_substitutions() {
         }
       done
       if ((hok)); then
+        pre="${s:0:i}"
+        pre="${pre##*$'\n'}"
         i=$((i + 2))
         hs=0
         hq=0
@@ -3009,9 +3048,15 @@ rdt_scan_substitutions() {
             ;;
           esac
         done
+        # Only a plain line that hands the body to a reader of data, at top
+        # level, makes it inert; see rdt_hd_plain.
+        if ! { ((pd == 0)) && rdt_hd_plain "$pre" && rdt_hd_reader "$pre"; }; then
+          hq=0
+        fi
         hd_delim+=("$hd")
         hd_strip+=("$hs")
         hd_quoted+=("$hq")
+        hd_sfx+=("$i")
         continue
       fi
     fi
