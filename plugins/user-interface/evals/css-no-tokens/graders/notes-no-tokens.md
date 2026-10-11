@@ -7,6 +7,7 @@ design system to draw values from. FAIL if it never says so, or if it says or im
 already has tokens or variables it reused.
 
 Examples:
+
 - PASS: "The page has no CSS variables or design tokens, so every value below is my default."
 - PASS: "styles.css defines no custom properties, so these are defaults."
 - FAIL: "No need to add new tokens; I reused your existing variables."

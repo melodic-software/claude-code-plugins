@@ -9,6 +9,7 @@ target browser or browserslist. FAIL if every such feature is used unconditional
 skip, or a skip names neither the feature nor the target.
 
 Examples:
+
 - PASS: `@supports (anchor-name: --tip) { #tip { position-anchor: --tip; } }`
 - PASS: "Safari 15.4 lacks support for anchor positioning, so I positioned the tooltip absolutely."
 - PASS: "Your browserslist target includes Safari 15, which does not support anchor positioning."

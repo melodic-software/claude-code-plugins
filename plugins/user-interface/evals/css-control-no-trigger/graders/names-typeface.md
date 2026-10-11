@@ -9,6 +9,7 @@ with their roles answer it. FAIL if it names no typeface or type class, or if th
 next to each other are colors or moods.
 
 Examples:
+
 - PASS: "Pair a soft serif such as Lora for headings with Inter for body text."
 - PASS: "Type: Lora / Inter."
 - PASS: "Serif headings, sans body."

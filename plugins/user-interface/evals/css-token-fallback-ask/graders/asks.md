@@ -9,6 +9,7 @@ FAIL if the answer writes or reports setting any color literal before asking, in
 whether the question follows on the same line or a later one, or if it asks nothing about the color.
 
 Examples:
+
 - PASS: "There is no warning token. Should I add --color-warning with a proposed amber value?"
 - PASS: "tokens.css has no warning color. Should I add --color-warning: oklch(85% 0.12 80) as a new token?"
 - FAIL: "I set it to #fef3c7. Want me to adjust the color?"

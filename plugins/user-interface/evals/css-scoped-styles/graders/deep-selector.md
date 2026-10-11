@@ -10,6 +10,7 @@ PriceTag.vue. FAIL if the only icon rule is a plain descendant selector such as
 `.price-tag:hover .info-link__icon` in PriceTag.vue's scoped block, or if there is no icon rule.
 
 Examples:
+
 - PASS: `.price-tag:hover :deep(.info-link__icon) { color: var(--accent); }`
 - PASS: "Move the icon rule into InfoLink.vue and drive it with a hover prop from PriceTag." with
   the rule shown in InfoLink.vue's `<style scoped>`.
