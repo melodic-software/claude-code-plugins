@@ -10,9 +10,12 @@
 - [List item comments](#list-item-comments)
 - [Close item](#close-item)
 - [Edit labels / assignees](#edit-labels--assignees)
+- [Edit title / body](#edit-title--body)
+- [List labels](#list-labels)
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
+- [Linked changes](#linked-changes)
 - [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
 - [Gotchas](#gotchas)
 
@@ -30,7 +33,9 @@ provides one and fall back to bare `gh` otherwise (seam identity routing: `../..
 "Identity routing (GitHub adapter)"). The examples show bare `gh`; substitute your repo's bot
 wrapper for write ops if it uses one. Claim assignment always stays on bare `gh` (`@me` must be the
 session identity). Every pipeline parsing `gh` JSON on Windows/Git Bash ends with `| tr -d '\r'`
-(see "Gotchas").
+(see "Gotchas"). `<owner>/<repo>` in an issue recipe is the item's own repository, taken from its
+qualified ID (the current repository for a bare number), so a cross-repository item is never confused with the current checkout's item of
+the same number.
 
 ## Available `--json` fields
 
@@ -121,6 +126,8 @@ View an item (bare `gh`):
 
 ```bash
 gh issue view <N> --json number,title,body,labels,assignees,comments | tr -d '\r'
+# Another repository's item (a qualified ID always supplies <owner>/<repo>):
+gh issue view <N> --repo <owner>/<repo> --json number,title,body,labels,state,url | tr -d '\r'
 ```
 
 Assignee/label projection for claim pre-checks:
@@ -190,7 +197,7 @@ separately: `sort_by` there emits one separately-sorted array per page, never on
 Close an item (WRITE, see the identity note above):
 
 ```bash
-gh issue close <N> --comment "<closing note>" --reason completed
+gh issue close <N> --repo <owner>/<repo> --comment "<closing note>" --reason completed
 ```
 
 The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`), the
@@ -201,7 +208,7 @@ reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, s
 grepping a body header. `<M>` may be an issue number or URL:
 
 ```bash
-gh issue close <N> --duplicate-of <M> --comment "Duplicate of #<M>"
+gh issue close <N> --repo <owner>/<repo> --duplicate-of <M> --comment "Duplicate of #<M>"
 ```
 
 **Fallback: not-planned + body-append.** For a **cross-repo** duplicate target the native
@@ -215,10 +222,10 @@ closing-keyword mechanics" below):
 ```bash
 # <M>: a bare #<M> for a same-repo duplicate; the full <owner>/<repo>#<M> reference (or
 # the issue URL) for a cross-repo target, where a bare number would be ambiguous.
-gh issue view <N> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
+gh issue view <N> --repo <owner>/<repo> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
 printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of <M>" \
-  | gh issue edit <N> --body-file -
-gh issue close <N> --comment "Duplicate of <M>" --reason "not planned"
+  | gh issue edit <N> --repo <owner>/<repo> --body-file -
+gh issue close <N> --repo <owner>/<repo> --comment "Duplicate of <M>" --reason "not planned"
 ```
 
 ## Edit labels / assignees
@@ -228,7 +235,7 @@ Edit labels / assignees (WRITE, see the identity note above). Edits use
 is `gh issue create` only):
 
 ```bash
-gh issue edit <N> --add-label "<name>" --remove-label "<name>"
+gh issue edit <N> --repo <owner>/<repo> --add-label "<name>" --remove-label "<name>"
 ```
 
 **Carve-out: claim assignment stays on the session identity.** The assignee MUST be the session
@@ -254,13 +261,34 @@ Verbs beyond the lease protocol (`get-item`, `list-items`, `list-sub-items`, `li
 `add-sub-item`, `link-blocks`) still resolve GraphQL-only fields (`issueType`, `blockedBy`,
 `parent`, `subIssues`) or use `gh issue list`, so they remain unavailable under that restriction.
 
+## Edit title / body
+
+For `/work-items:track edit` (WRITE, see the identity note above). `--body-file` REPLACES the
+body, so an edit that keeps part of it reads the body first ("View item") and writes the whole
+result back:
+
+```bash
+gh issue edit <N> --repo <owner>/<repo> --title "$(cat <title-file>)"   # the title travels in a file, never typed
+gh issue edit <N> --repo <owner>/<repo> --body-file <path>
+```
+
+## List labels
+
+For `/work-items:track labels` and the label checks in `add` (bare read). `gh label list`
+returns 30 labels unless `--limit` says otherwise:
+
+```bash
+gh label list --repo <owner>/<repo> --limit 1000 --json name --jq '.[].name' | tr -d '\r'
+```
+
 ## Comment on item / edit a comment
 
 Comment on an item, or edit a comment via PATCH (preserves the audit trail). Both are WRITE
 operations (see the identity note above):
 
 ```bash
-gh issue comment <N> --body "<text>"
+gh issue comment <N> --repo <owner>/<repo> --body "<text>"
+gh issue comment <N> --repo <owner>/<repo> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```
 
@@ -276,6 +304,8 @@ gh pr view <PR> --json body,mergedAt --jq '.body' | tr -d '\r' > /tmp/pr-body.md
 printf '%s\n\n%s\n' "Closes #<N>" "$(cat /tmp/pr-body.md)" \
   | gh pr edit <PR> --body-file -
 ```
+
+The prepended line is `change-link <id> --repo <PR's owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
 
 Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes`/`fixed`/
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
@@ -389,6 +419,37 @@ linkage instead of a body regex over `gh pr list --search`:
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
   the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
+
+## Linked changes
+
+For `/work-items:track changes`: the PRs GitHub links as closing item `<N>`, in any state, from the
+same `closedByPullRequestsReferences` connection as "Open linked PRs" above, so the same rules
+apply: `--paginate`, `-F` for the typed `Int`, the output captured and its exit status checked
+before any reduction, and `tr -d '\r'`. A failed query is not an empty result. Unlike the in-flight
+check it keeps PRs from any head repository and asks for closed ones (`includeClosedPrs:true`),
+because a caller deriving what shipped wants every `MERGED` node; the caller filters by `state`.
+`<owner>`/`<repo>` are the item's own repository (bare read):
+
+```bash
+linked=$(gh api graphql --paginate \
+  -f query='query($owner:String!, $repo:String!, $n:Int!, $endCursor:String) {
+    repository(owner:$owner, name:$repo) {
+      issue(number:$n) {
+        closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:true) {
+          nodes { number url state isDraft }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }' \
+  -f owner="<owner>" -f repo="<repo>" -F n=<N> \
+  --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | {number, url, state, isDraft}') \
+  || { echo "linked-changes read failed for #<N>" >&2; exit 1; }
+printf '%s\n' "$linked" | tr -d '\r' | jq -s '.'
+```
+
+`state` is `OPEN`, `MERGED` or `CLOSED`. A PR that only mentions the item (`Refs #<N>`) is not in
+this linkage, by design (see "Open linked PRs").
 
 ## Aggregate / count (dashboard + hygiene)
 

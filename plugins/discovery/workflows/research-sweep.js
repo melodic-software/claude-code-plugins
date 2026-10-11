@@ -1,7 +1,7 @@
 export const meta = {
   name: 'research-sweep',
   description: 'Research one question: sweep sources by angle, deep-read the best, have independent skeptics try to refute each load-bearing claim, critique completeness, and synthesize cited findings',
-  whenToUse: 'Run by /discovery:research-deep Tier 1, which resolves args: question (required), angles, sources, roles, maxConcurrent, artifactPath, and writes RESEARCH.md from the result. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /discovery:research-deep <question>.',
+  whenToUse: 'Run by the /discovery:research deep tier, which resolves args: question (required), angles, sources, roles, maxConcurrent, artifactPath, and writes RESEARCH.md from the result. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /discovery:research deep <question>.',
   phases: [
     { title: 'Sweep', detail: 'one searcher per angle, official docs first' },
     { title: 'Fetch', detail: 'one docs-fetcher per selected source reads it fresh and raw' },
@@ -24,7 +24,7 @@ if (!QUESTION) {
   log('no question in args: nothing was dispatched')
   return {
     error: 'missing-question',
-    next: 'Resolve the research question (/discovery:research-deep "Topic") and launch again with args.question.',
+    next: 'Resolve the research question (/discovery:research deep "Topic") and launch again with args.question.',
   }
 }
 

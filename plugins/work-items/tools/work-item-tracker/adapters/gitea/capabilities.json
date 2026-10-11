@@ -1,4 +1,7 @@
 {
+  "change_link": {
+    "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-"
+  },
   "features": {
     "cross_repo_edges": true,
     "labels": true,
@@ -16,6 +19,7 @@
   "verbs": {
     "add-sub-item": false,
     "capabilities": true,
+    "change-link": true,
     "claim": false,
     "create-item": true,
     "get-item": true,

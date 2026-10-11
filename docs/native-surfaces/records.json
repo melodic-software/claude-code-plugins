@@ -1263,12 +1263,12 @@
       },
       "component": {
         "plugin": "discovery",
-        "skill": "research-deep",
+        "skill": "research",
         "kind": "skill"
       },
       "verdict": "complementary",
       "integration": "suggest",
-      "reason": "The bundled workflow is a fan-out web research harness (scope, search, fetch, verify, synthesize) producing a cited report; ours dispatches multi-topic research to the heaviest isolated tier with source tiers and a coverage ledger. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "The bundled workflow is a fan-out web research harness (scope, search, fetch, verify, synthesize) producing a cited report; ours researches with source tiers and a coverage ledger and, in its deep tier, splits a multi-topic ask across researchers or runs its own research-sweep workflow. Its registration disables model invocation, so ours suggests it. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "evidence": [
         "`deep-research` present in the extraction as bundled-workflow",
         "markers: model-invocation-disabled",
@@ -4166,7 +4166,7 @@
         "skill": "do-your-research",
         "kind": "skill"
       },
-      "reason": "The workflow researches a new question on the web; ours verifies the session's own claims against primary sources, in its fan-out tier. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "The workflow researches a new question on the web; ours verifies the session's own claims against primary sources, in its fan-out tier. The research pair is recorded against discovery:research. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {
@@ -4184,7 +4184,7 @@
         "skill": "research-verifier",
         "kind": "agent"
       },
-      "reason": "An agent that grades one research artifact's outcome rows for the discovery skills that dispatch it. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "An agent that grades one research artifact's outcome rows for the discovery skills that dispatch it. The research pair is recorded against discovery:research. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {

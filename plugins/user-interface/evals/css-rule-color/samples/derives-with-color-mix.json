@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ":root { --brand-hover: color-mix(in oklch, var(--brand), black 15%); }",
+      "why": "color-mix in oklch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ":root { --brand-hover: color-mix(in srgb, var(--brand), black 15%); }",
+      "why": "srgb mixing"
+    },
+    {
+      "answer": ":root { --brand-hover: #1d4ed8; }",
+      "why": "hand-picked hex"
+    }
+  ]
+}

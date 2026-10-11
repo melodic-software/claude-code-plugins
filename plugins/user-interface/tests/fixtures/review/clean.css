@@ -1,0 +1,4 @@
+.card {
+  margin-inline-start: 1rem;
+  color: oklch(50% 0.1 200);
+}

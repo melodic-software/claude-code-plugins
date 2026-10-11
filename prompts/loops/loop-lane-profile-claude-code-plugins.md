@@ -204,7 +204,7 @@ machines; neither on the attended box.
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
-> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> dispatch, on the four grounds "Alias binding" lists. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
 > leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
 > bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
@@ -352,7 +352,7 @@ the partition and the evidence predicate is met.
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
 > loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
-> `haiku` dispatch. Never leave it to inherit. One explicit exception to
+> `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias. Blocker resolution under that path never runs at the review-work
