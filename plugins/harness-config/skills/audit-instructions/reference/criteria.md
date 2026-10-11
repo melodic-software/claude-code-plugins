@@ -1998,8 +1998,9 @@ states.
   As of: 2026-10-01 for the set and the Sonnet 5 pages, 2026-10-11 for the migration guide
   section; the determinism note under Remediate
   rests on our 2026-08-08 reading of a page no current page replaces. Recheck trigger: the
-  rejecting model set moving, sampling parameters being reinstated on any model in it, or a docs
-  page starting to cover the determinism note.
+  rejecting model set moving, sampling parameters being reinstated on any model in it, the
+  migration guide's Opus 5 section dropping the carry-over statement, or a docs page starting to
+  cover the determinism note.
 
 ### I26: Generic negative steering on open-ended design briefs
 
