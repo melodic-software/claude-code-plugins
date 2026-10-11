@@ -58,10 +58,11 @@ The call's arguments and the account's type list are the Artifact tool's to defi
 names no parameter beyond the two above and reads the rest from the quickstart result.
 
 - **Pointer**: when the quickstart call is refused or its result reads differently from this step,
-  fetch <https://code.claude.com/docs/en/artifacts> live and follow the tool's own result.
-- **As of**: 2026-10-03
+  fetch [Artifacts: Start from a Slides, Design, or Docs template](https://code.claude.com/docs/en/artifacts#start-from-a-slides-design-or-docs-template)
+  live and follow the tool's own result.
+- **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release changes the Artifact tool's `quickstart` action or its
-  `intent` values.
+  `intent` values, or that section changes how a deck starts from the Slides template.
 
 ## 4. Write the deck locally, then gate it
 
@@ -83,7 +84,10 @@ own argument to this invocation names that medium. The output names the `medium`
 - `artifact`: say "publishing as a private Artifact on claude.ai", then create the deck from the
   quickstart's `type_url` with its title set to the `title` the gate printed, which it read from the
   gated `deck.json`; never type it separately. Send the gated files, unchanged, as the type
-  instructs. Give the user the link. The deck is private until they share it.
+  instructs. Give the user the link, and say sharing is their choice; who can see it and how to
+  share it are read live from
+  [Artifacts: Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact)
+  (as of 2026-10-11; recheck when that section changes who can see an unshared artifact).
 - `terminal` or `file`: publish nothing. Give the outline and the `reason`, and the `opt_in` when
   there is one (`medium: artifact` in `~/.claude/rendered-views.md`).
 - Exit 1 (a deck refused) or 2: publish nothing; fix the named title or rewrite the named slide as

@@ -87,7 +87,9 @@ translate the API advice into a display-settings change on a Claude Code machine
 - **Pointer**: for the resolution guidance, see
   [Size screenshots to fit image limits](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#handle-coordinate-scaling-for-higher-resolutions)
   and
-  [Diagnose click issues](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#diagnose-click-issues)
+  [Diagnose click issues](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#diagnose-click-issues);
+  for the wider implementation advice, see
+  [Follow implementation best practices](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#follow-implementation-best-practices)
   (correlate with [best practices](https://claude.com/blog/best-practices-for-computer-and-browser-use-with-claude)).
 - **As of**: 2026-08-10
 - **Recheck trigger**: either section changes its recommended resolutions, or the Claude Code

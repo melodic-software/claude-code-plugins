@@ -98,10 +98,8 @@ tier, so the offer is also gated on Step 3's medium selection: when an explicit
 `terminal`/`file` argument or the configured preference pins delivery on-machine
 ("never published"), do not offer it. Where the medium permits publishing, offer
 it as an explicit alternative, never a silent default: the canvas is a published,
-persistent Artifact (default-private, shareable with teammates at the person's
-choice; edited in a desktop browser with edits saved automatically, each artboard
-exportable as PNG or PDF), where this skill's page paths are throwaway or
-plain-static. The Boundary section below carries the sentence to offer and its gate
+persistent Artifact the person edits and shares (how, per the catalog's design
+canvas pointer), where this skill's page paths are throwaway or plain-static. The Boundary section below carries the sentence to offer and its gate
 basis; the canvas surface facts and their verified-on/recheck record live in the
 catalog spoke.
 
@@ -140,8 +138,8 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    (rendered diagrams, real charts, dashboards).
 
 **Surface gate: the rich page is a capability that can be absent.** A published
-Artifact is heavily gated (plan, sign-in, provider, and version constraints; off
-in SDK / CI / MCP contexts). See the catalog. So when a page is warranted:
+Artifact is gated; the catalog's availability entry points at the live conditions.
+So when a page is warranted:
 publish an Artifact only if that surface is available; otherwise write a
 self-contained local HTML file and open it; if neither page surface is available,
 degrade **visibly** to the best terminal form with a one-line notice. Never assume
@@ -320,16 +318,17 @@ canvas, and not to be run for it.
 **Mutation gate:** the canvas publishes a persistent Artifact under the person's account, so it is
 never a silent default and nothing tracked in a repository references it. This skill never runs it.
 
-**Verification record, `design`.** Claim: the bundled `design` skill registers as
-model-invocation-disabled, user-invocable, and gated, and settings can remove it
-(`disableBundledSkills`, or a `skillOverrides` entry naming `design`). Basis: a binary extraction
-of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
-`user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
-<https://code.claude.com/docs/en/settings-reference>, fetched that day. As of 2026-09-29.
-Recheck when a release makes the `design` registration model-invocable, changes its description
-(the identity string the offer quotes), changes its gating, or splits or merges its
-registrations. The remaining surface facts live in the catalog spoke's
-design canvas section ([context/decision-matrix.md](context/decision-matrix.md)).
+**Verification record, `design`.** Our binary extraction of Claude Code 2.1.285 reads the
+bundled `design` registration as model-invocation-disabled, user-invocable and gated, which is
+why this skill only ever offers it. Settings can remove it; which settings, and how, are read from
+the pointers in the catalog spoke's design canvas section
+([context/decision-matrix.md](context/decision-matrix.md)), which owns the remaining surface facts.
+
+- **Pointer**: probe: the `design` records in `docs/native-surfaces/records.json`.
+- **As of**: 2026-09-29
+- **Recheck trigger**: a release makes the `design` registration model-invocable, changes its
+  description (the identity string the offer quotes), changes its gating, or splits or merges its
+  registrations.
 
 A request to draw a layout or a deck can name a Claude Design project the person already has, and
 then it means that project, not a new render:
@@ -346,10 +345,9 @@ project's files. Otherwise this skill renders its own output as today. The tool 
 editor; this skill is the form and medium router.
 
 **Mutation gate:** a `ClaudeDesign` write changes a project the person's team shares. Write only
-to the project the person named, and only after they asked for the change. A first write asks the
-person for a one-time project approval, or goes through the tool's plan step; the tool refuses
-writes in a subagent, in a non-interactive session, and in plan mode without that plan step, so
-report the refusal and never retry around it. The four-part records live in
+to the project the person named, and only after they asked for the change. When the tool asks for
+an approval or refuses a write, report it and never retry around it. The approval and refusal
+cases are probed behavior recorded in
 [context/claude-design-tool.md](context/claude-design-tool.md).
 
 ## What this skill does NOT do
