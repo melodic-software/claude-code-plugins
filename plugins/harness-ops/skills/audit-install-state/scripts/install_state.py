@@ -1393,7 +1393,7 @@ def home_root_state(root: Path) -> list[dict]:
                 "note": (
                     "Home-root state. Not covered by the ~/.claude retention sweep. Values inside "
                     "are never read by this engine (MCP server configs can carry tokens). The "
-                    "supported way to shed project state from it is `claude project purge`."
+                    "supported way to shed project state from it is `claude purge`."
                 ),
             }
         )

@@ -2,7 +2,7 @@
  * Shallow-clone GitHub URLs from source/harvested-links.json and write structure analysis.
  */
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -22,20 +22,100 @@ import { LANES, lanePath } from "../lib/slice-lanes.js";
  * @property {ReturnType<typeof detectFrameworks>} frameworks
  */
 
+const CLONE_TIMEOUT_MS = 120_000;
+
 /**
+ * Shallow-clone an untrusted harvested URL so that a private, renamed or
+ * LFS-heavy repository fails fast instead of prompting or downloading:
+ * `credential.helper=` empties the helper list, an empty `GIT_ASKPASS` stops
+ * git falling back to `core.askPass` or `SSH_ASKPASS` (which git consults
+ * before `GIT_TERMINAL_PROMPT`), `GIT_TERMINAL_PROMPT=0` stops the terminal
+ * prompt, an empty throwaway home hides `~/.netrc` (which git's HTTP transport
+ * reads regardless of the settings above) and the user's global git config,
+ * `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
+ * and a clone that outlives the timeout is killed with its remote helpers and
+ * counted as failed.
+ *
  * @param {string} url
  * @param {string} destDir
  * @param {typeof spawn} [spawnFn]
+ * @param {{ timeoutMs?: number }} [options]
  * @returns {Promise<boolean>}
  */
-export async function shallowCloneGitHubRepo(url, destDir, spawnFn = spawn) {
+export async function shallowCloneGitHubRepo(
+  url,
+  destDir,
+  spawnFn = spawn,
+  { timeoutMs = CLONE_TIMEOUT_MS } = {},
+) {
+  // Never throws: a home that cannot be made fails this clone (never one without
+  // isolation), and one that cannot be removed leaves the clone's result standing.
+  const isolatedHome = await fs
+    .mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"))
+    .catch(() => null);
+  if (!isolatedHome) return false;
+  try {
+    return await cloneWithHome(url, destDir, spawnFn, timeoutMs, isolatedHome);
+  } finally {
+    await fs.rm(isolatedHome, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+/**
+ * @param {string} url
+ * @param {string} destDir
+ * @param {typeof spawn} spawnFn
+ * @param {number} timeoutMs
+ * @param {string} home
+ * @returns {Promise<boolean>}
+ */
+function cloneWithHome(url, destDir, spawnFn, timeoutMs, home) {
   return new Promise((resolve) => {
-    const child = spawnFn("git", ["clone", "--depth", "1", "--single-branch", "--", url, destDir], {
+    const args = ["-c", "credential.helper=", "clone", "--depth", "1", "--single-branch"];
+    const child = spawnFn("git", [...args, "--", url, destDir], {
       stdio: "ignore",
+      // Its own process group on POSIX, so a timeout can signal the remote helpers too.
+      detached: process.platform !== "win32",
+      env: {
+        ...process.env,
+        HOME: home,
+        USERPROFILE: home,
+        XDG_CONFIG_HOME: home,
+        GIT_ASKPASS: "",
+        SSH_ASKPASS: "",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_LFS_SKIP_SMUDGE: "1",
+      },
     });
-    child.on("close", (code) => resolve(code === 0));
-    child.on("error", () => resolve(false));
+    const timer = setTimeout(() => killProcessTree(child), timeoutMs);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve(code === 0);
+    });
+    child.on("error", () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
   });
+}
+
+/**
+ * Kill a child and its descendants (git's `git-remote-https` helpers): the
+ * process group on POSIX, `taskkill /T` on Windows.
+ *
+ * @param {import("node:child_process").ChildProcess} child
+ */
+function killProcessTree(child) {
+  if (child.pid === undefined) return;
+  try {
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      process.kill(-child.pid, "SIGKILL");
+    }
+  } catch {
+    child.kill("SIGKILL");
+  }
 }
 
 /**
