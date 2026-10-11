@@ -155,6 +155,10 @@ baselines). Recheck trigger: a benchmark measures current vision models on UI de
 injected-defect eval in this repository reports catch rates per check, or either cited Playwright
 page changes what it says about automated accessibility coverage or same-environment baselines.
 
+No per-check catch rate is measured yet; measured browser evals are tracked in
+[#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted
+here names the harness path it measured, CLI or MCP.
+
 Capture more than the path where everything succeeds. For each changed screen, also drive and capture its error state (a rejected input, a failed request), its empty state (no rows, no search results) and the feedback it gives after an action (a spinner, a toast, an inline message). A state the run could not reach is listed as not driven, with the reason.
 
 ### Recording tier (optional)
