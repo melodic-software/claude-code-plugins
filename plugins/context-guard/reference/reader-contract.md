@@ -258,13 +258,18 @@ defaults is coincidence, not validation.
 
 ## The module (first shipped consumer)
 
-The plugin's module (`hooks/register.tsx`, a Claude Code mod; it needs the mods floor the plugin
-README's "Requirements" records) is the
+The plugin's module (`hooks/register.tsx`, a Claude Code mod, so it needs a Claude Code build that
+can run mods) is the
 first shipped consumer. It decides from the live session's figures, the same ones it writes to the
 snapshot, through a TypeScript copy of the resolver's band function; the shared fixture
 `scripts/context-zone.fixtures.mjs` (generated from the repo's `lib/context-zone.fixtures.mjs`)
 holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
 skill's module check), none of the following runs except the PostCompact marker.
+
+- **Pointer**: when deciding which Claude Code builds can run mods, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
+  mods changes.
 
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
@@ -395,8 +400,11 @@ at run time: the docs' default-thresholds table,
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
 **As of:** 2026-10-10. **Recheck trigger:** that table changes, or its section is renamed or
 removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
-implies a percentage default that no page publishes as a number; for that variable, see
-[Claude Code environment variables: variables](https://code.claude.com/docs/en/env-vars#variables). The empirical
+implies a percentage default that no page publishes as a number. **Pointer:** when deciding what
+that variable does, fetch
+[Claude Code environment variables: variables](https://code.claude.com/docs/en/env-vars#variables)
+live. **As of:** 2026-10-11. **Recheck trigger:** the `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` row
+changes, or a page starts publishing its default as a number. The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
@@ -637,8 +645,7 @@ session permanently. The module runs in interactive, `-p`, SDK and `--bg` sessio
 not run:
 
 - **In a WSL session of the Desktop app**, where plugins are not available.
-- **Where mods are off**: below the mods floor the plugin README's "Requirements" records, or
-  wherever a setting, flag, policy or Claude Code itself turned mods off (the pointer below). The
+- **Where mods are off**: on a build too old for mods, or wherever a setting, flag, policy or Claude Code itself turned mods off (the pointer below). The
   PostCompact marker, a settings hook, still runs there wherever settings hooks do.
 - **Where the plugin is not enabled** for the session, for example a project that disables it in
   `enabledPlugins`, or a cloud session the plugin does not reach. A cloud session that does load

@@ -2,10 +2,11 @@
 # StopFailure hook (matcher: rate_limit): append a machine-readable detection
 # record when a turn ends on a rate-limit API error.
 #
-# SIDE-EFFECT-ONLY: StopFailure has no decision control, and this hook prints
-# nothing for Claude Code to act on, so its one job is the record it appends
-# (pointer, as-of date and recheck trigger for what Claude Code does with
-# StopFailure output: ../reference/reader-contract.md, "Detection records").
+# SIDE-EFFECT-ONLY by design: this hook's one job is the record it appends,
+# and it returns no decision. Pointer: when deciding whether StopFailure
+# output can do anything, fetch https://code.claude.com/docs/en/hooks#stopfailure
+# live. As of: 2026-10-11. Recheck trigger: the StopFailure section gives the
+# event decision control.
 # The record is the reactive-fallback signal consumers read when the
 # module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota

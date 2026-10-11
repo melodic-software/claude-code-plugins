@@ -10,14 +10,18 @@ after the reset. Three parts:
   you a toast when that happens, can draw the figures in a band row (off by default), answers a
   status tool, and writes the windows to the fixed machine-scope file
   `~/.claude/rate-limit-guard/rate-limits.json` in interactive and headless sessions alike. It needs
-  a Claude Code build at or above the mods floor; older builds are unsupported (see
-  [Requirements](#requirements)).
+  a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when deciding
+  which build that is, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
+  mods changes.
 - **StopFailure hook** (`hooks/record-rate-limit-stop.sh`), the reactive fallback. When a turn
   ends on a rate-limit API error, it appends a detection record to
   `~/.claude/rate-limit-guard/stop-events.jsonl`. The hook is side-effect-only by design: the
-  record is its one output (the
-  [reader contract](reference/reader-contract.md#detection-records-reactive-fallback) points at
-  what Claude Code does with StopFailure output).
+  record is its one output, and it returns no decision. **Pointer**: when deciding whether a
+  StopFailure hook's output can do anything, fetch
+  [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) live. **As of**:
+  2026-10-11. **Recheck trigger**: the StopFailure section gives the event decision control.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
   fixed file path, the 95%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
@@ -140,8 +144,7 @@ nothing and logs that once to the debug log.
 
 ### Where mods are off
 
-Wherever mods are off for a session, whether the build is below the floor in
-[Requirements](#requirements) or a setting, flag, policy or Claude Code itself turned them off, the
+Wherever mods are off for a session, whether the build is too old for mods or a setting, flag, policy or Claude Code itself turned them off, the
 module does not run: no lines, no band, no status tool, no module writes. The StopFailure hook
 still records, and readers fall back to reactive-only as the reader contract says.
 `/rate-limit-guard:check` and `/rate-limit-guard:setup check` report "mods off" in that case. A
@@ -162,8 +165,8 @@ hook that throws passes its event through unchanged.
   windowless body from replacing windows. Last-writer-wins still applies between sessions: a
   session whose last API response is minutes old can write its older reading over a newer one,
   until the next write from a session with a fresher response.
-- **Fail-open capability detection.** Sessions whose auth exposes no subscription windows (the
-  reader contract points at which auth that is) write an honest snapshot without `rate_limits`; consumers treat that as unknown and
+- **Fail-open capability detection.** Sessions whose auth exposes no subscription windows write an
+  honest snapshot without `rate_limits`; consumers treat that as unknown and
   run reactive-only rather than throttling on fabricated data. Cloud / remote sessions typically
   have no file a consumer can read. That is the same unknown → reactive-only classification,
   documented as the expected degraded mode in
@@ -231,16 +234,19 @@ The module and the StopFailure hook are active once the plugin loads (the next s
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows), which
   `hooks/exec-bash.mjs` finds.
 - Auth that exposes subscription windows, for proactive window data. On other auth the guard is
-  reactive-only (the reader contract's "Capability detection" points at which auth that is).
+  reactive-only.
 
 - **Pointer**: when deciding which Claude Code version mods need, fetch
   [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
   live; when deciding whether a Claude Code install brings a Node.js the plugin could use, fetch
   [advanced setup: install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
+  live; when deciding which auth exposes subscription windows, fetch
+  [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)
   live.
 - **As of**: 2026-10-11.
-- **Recheck trigger**: the terminal version that section names for mods changes, or the setup
-  page says the installed binary runs on Node.js.
+- **Recheck trigger**: the terminal version that section names for mods changes, the setup
+  page says the installed binary runs on Node.js, or the rate limit usage section changes which
+  accounts or gateways the `rate_limits` object appears for.
 
 `/rate-limit-guard:check` reports whether `node` resolves and whether the module can load,
 read-only. It installs nothing.
@@ -261,17 +267,16 @@ The `userConfig` options:
 | `rate_limit_guard_toast` | The toast when a window nears or reaches the threshold or resets (default `true`); the transcript line stays either way. |
 
 A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
-option's default with one transcript line naming it. The thresholds declare no range, so a value
-outside one never reaches Claude Code's own validation, which can keep the whole module from
-loading; a value of the wrong type (text for a number, a number for a switch) still does.
+option's default with one transcript line naming it. The thresholds declare no range, so the module, not Claude
+Code, judges a value outside 1 to 100. A value of the wrong type (text for a number, a number for
+a switch) is Claude Code's to handle before the module sees it.
 
 - **Pointer**: when deciding what Claude Code does with an option value that does not fit
   `userConfig`, fetch
   [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
   live.
 - **As of**: 2026-10-11.
-- **Recheck trigger**: that section changes whether a refused option value stops the module
-  loading.
+- **Recheck trigger**: that section changes what Claude Code does with a refused option value.
 
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a switch turned off takes effect from the next event, with no restart. The StopFailure hook

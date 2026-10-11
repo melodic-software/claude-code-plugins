@@ -3,9 +3,12 @@
 The consumer-facing contract for the machine-scope rate-limit artifacts this plugin produces.
 Writers are the plugin's hooks module, `hooks/register.tsx`, which writes the proactive window data
 through `lib/write-snapshot.mjs` in interactive and headless (`-p`, `--bg`, `/loop`) sessions
-alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The module needs the
-Claude Code mods floor the plugin README's "Requirements" records and runs only where mods are on.
-Readers are loop-lane session
+alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The module needs a
+Claude Code build that can run mods and runs only where mods are on (**Pointer**: when deciding
+which build that is, fetch
+[mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for mods
+changes.) Readers are loop-lane session
 bodies; an installed plugin cannot read a sibling plugin's files at runtime, so **consumers inline
 the operable floor below verbatim** and cite this file for provenance only. The inline-floor rule,
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
@@ -160,8 +163,8 @@ throttles proactively on data it cannot trust, and never fabricates a pause.
 `~/.claude/rate-limit-guard/stop-events.jsonl` (below) and to the rate-limit error text its own
 session sees; resume timing comes from that error text where available, otherwise
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the mode back to
-proactive. A machine where no active session runs the module (mods off, Claude Code below the
-mods floor, or the plugin disabled in every active project) gets no fresh snapshot, which classifies
+proactive. A machine where no active session runs the module (mods off for any reason, or the
+plugin disabled in every active project) gets no fresh snapshot, which classifies
 the same way.
 
 ## Cloud / remote sessions (expected degraded mode)
@@ -225,8 +228,8 @@ appended by the hook:
 }
 ```
 
-The hook is side-effect-only: it prints nothing for Claude Code to act on and its exit code
-decides nothing, and the payload carries no reset or quota data. A record means "a rate limit
+The hook is side-effect-only by design: it prints nothing for Claude Code to act on, and the
+payload carries no reset or quota data. A record means "a rate limit
 stopped a turn at this time", nothing more. The file is bounded (rotated to the newest 100 records
 past 200).
 
