@@ -947,6 +947,36 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it.each([
+    [
+      "a frame name that is a directory",
+      (/** @type {Record<string, string>} */ d) =>
+        fs.mkdirSync(path.join(d.framesDir, "anchor_00030000_0002.png")),
+    ],
+    [
+      "a frame-times.json that is a directory",
+      (/** @type {Record<string, string>} */ d) => {
+        fs.rmSync(path.join(d.framesDir, "frame-times.json"));
+        fs.mkdirSync(path.join(d.framesDir, "frame-times.json"));
+      },
+    ],
+  ])("refuses %s, naming it", async (label, damage) => {
+    const { sliceDir, targetDir, workDir, framesDir } = makeFixture();
+    damage({ workDir, framesDir });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+    const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+    stderr.mockRestore();
+
+    expect(result.exitCode).toBe(1);
+    expect(message).toContain("regular files for the frames entries");
+    expect(message).toContain(
+      label.includes("frame-times") ? "frame-times.json" : "anchor_00030000_0002.png",
+    );
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
   it("refuses an empty video file", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.mp4`), "");
@@ -1227,6 +1257,28 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "frames/visual-frames.md")).toBe(
       "[a](../analysis/research/findings/notes%231.md) [b](../analysis/research/findings/what%3F.md#top)\n",
     );
+  });
+
+  it("decodes HTML character references in src and href, re-encoding & as the original did", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/s1/a&b.pdf": "pdf",
+        "key-frames/visual-frames.md":
+          '<a href="../source/decks/s1/a&amp;b.pdf">deck</a> <img src="frames/title&#45;slide.png">\n',
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      '<a href="../metadata/decks/s1/a&amp;b.pdf">deck</a> <img src="key/title-slide.png">\n',
+    );
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "frames/visual-frames.md": '<img src="key/x&amp;y.png">\n' });
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "key/x&y.png" },
+    ]);
   });
 
   it("rewrites and checks upper-case HTML attribute names", async () => {

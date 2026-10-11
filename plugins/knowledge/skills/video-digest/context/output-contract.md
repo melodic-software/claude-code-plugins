@@ -79,7 +79,8 @@ tracks or info JSON) even when it still exists; after a normal close that is the
 It refuses a `watch.json` that is not an object, whose `videoId` is not a plain id (it names
 `media/<id>.<ext>`), that lacks a `title` or `sourceUrl`, or whose temp session dirs are not
 strings. Without `--no-media` it also refuses a partly removed temp session, naming the missing
-piece: the video, an empty video, caption track or frame image, the info JSON or
+piece: the video, an empty video, caption track or frame image, any of those (or the
+sidecar) that is not a regular file, the info JSON or
 `frame-times.json` (or either one not holding a JSON object, or a `frame-times.json` record
 without a finite number or null `timestampSec`), any frame image, a frame
 `frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
@@ -107,7 +108,8 @@ the companion sources brief, and the fetched `decks/` and `attachments/`), `fram
 paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
 the copied markdown names is rewritten through a path map relative to the file's new location:
 inline links (balanced or escaped parentheses in the destination, quoted or parenthesized titles),
-reference-style links, HTML `src`/`href` in any quoting or case, and backticked paths, with each
+reference-style links, HTML `src`/`href` in any quoting or case (character references decoded),
+and backticked paths, with each
 segment percent-decoded (and re-encoded on rewrite) and `\` separators read as `/`.
 A relative link that leaves the slice keeps pointing at the same file. Fenced code blocks are
 left untouched, and link syntax inside an inline code span is not read as a link.

@@ -121,6 +121,31 @@ const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|(
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
 
+const HTML_NAMED_REFERENCES = /** @type {Record<string, string>} */ ({
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+});
+
+/**
+ * An HTML attribute value with its character references decoded: the named
+ * ones a path can hold (`&amp;` `&lt;` `&gt;` `&quot;` `&apos;`) and numeric
+ * ones (`&#39;`, `&#x27;`). Anything else stays as written.
+ *
+ * @param {string} value
+ */
+function decodeHtmlReferences(value) {
+  return value.replace(/&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g, (match, dec, hex, name) => {
+    if (dec !== undefined || hex !== undefined) {
+      const code = dec !== undefined ? Number(dec) : Number.parseInt(hex, 16);
+      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    return HTML_NAMED_REFERENCES[name] ?? match;
+  });
+}
+
 /**
  * A code span's content split for path handling: CommonMark strips one space
  * on each side when both are there (`` ` x ` ``), and a path may sit in
@@ -696,9 +721,13 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
     const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
     const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
+    // An attribute value may hold character references (`&amp;`): map the
+    // decoded path, and write `&` back as `&amp;` when the original did.
     const value = text.slice(from, to);
-    const next = rewrite(value);
-    if (next !== value) edits.push({ from, to, text: next });
+    const decoded = decodeHtmlReferences(value);
+    const next = rewrite(decoded);
+    if (next === decoded) continue;
+    edits.push({ from, to, text: value.includes("&amp;") ? next.replaceAll("&", "&amp;") : next });
   }
   for (const span of codeSpans(fenceMasked)) {
     const from = span.start;
@@ -870,7 +899,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
     for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
-      check(match[2] ?? match[3] ?? match[4], true);
+      check(decodeHtmlReferences(match[2] ?? match[3] ?? match[4]), true);
     }
     for (const span of codeSpans(fenceMasked)) {
       // A span with spaces may be a command (`node run.mjs x.js --flag`): only
@@ -1017,6 +1046,15 @@ function missingFrames(framesDir) {
   }
   const names = new Set(fs.readdirSync(framesDir));
   const missing = [];
+  // A frame image or the sidecar must be a regular file, not just a name.
+  const notFiles = [...names].filter(
+    (name) =>
+      (FRAME_IMAGE.test(name) || name === "frame-times.json") &&
+      !isRegularFile(path.join(framesDir, name)),
+  );
+  if (notFiles.length > 0) {
+    missing.push(`regular files for the frames entries ${notFiles.sort().join(", ")}`);
+  }
   /** @type {unknown} */
   let times = null;
   let readable = true;
@@ -1088,12 +1126,26 @@ function readableDirectory(dir) {
 }
 
 /**
+ * True when `file` is a regular file (not a directory, symlink or device).
+ *
+ * @param {string} file
+ */
+function isRegularFile(file) {
+  try {
+    return fs.lstatSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Size of `file` in bytes; 0 when it cannot be read, so an unreadable
  * artifact is refused like an empty one.
  *
  * @param {string} file
  */
 function sizeOf(file) {
+  if (!isRegularFile(file)) return 0;
   try {
     return fs.statSync(file).size;
   } catch {
@@ -1373,6 +1425,9 @@ export async function relayoutSlice({
       ...media.captionPaths
         .filter((caption) => sizeOf(caption) === 0)
         .map((caption) => `a non-empty caption track (${path.basename(caption)} is empty)`),
+      ...[media.videoPath, media.metadataPath, ...media.captionPaths]
+        .filter((file) => file && fs.existsSync(file) && !isRegularFile(file))
+        .map((file) => `a regular file at ${path.basename(file)}`),
     ];
     if (missing.length > 0) {
       return refuse(
