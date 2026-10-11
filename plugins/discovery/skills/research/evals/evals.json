@@ -514,7 +514,8 @@
         "Each dispatch carries a resolved envelope — the topic, the reason it is being researched, the assigned memory-slice path, the memory root as its own field, the authorized budget, the nested-spawning capability flag, and Source breadth from this session's caller effort",
         "The main session dispatches the sibling verifier and applies project fit per topic, writing both results back into that topic's index before synthesizing",
         "The main session synthesizes a combined slice-root RESEARCH.md from the per-topic indexes",
-        "The synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14 before it is surfaced, with an accepted: count for the root's own accepted claims"
+        "The synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14 before it is surfaced, with an accepted: count for the root's own accepted claims",
+        "The native AOT findings state that ASP.NET Core MVC controllers are not supported under native AOT while minimal APIs are supported, citing Microsoft Learn's ASP.NET Core native AOT page"
       ]
     },
     {
@@ -551,9 +552,11 @@
       "expected_output": "Recognizes a clearly-small single-fact task: one topic, no adversarial verification needed, and no leading deep token, so it does not take the deep tier (no workflow engine, no parallel agents) and takes the standard dispatch, while still applying the full /research discipline. Task size never reduces depth. The verifier-owned rows still go to a fresh context.",
       "files": [],
       "expectations": [
-        "Output routes a clearly-small single-fact task to the standard path (one researcher dispatch, or an inline run where an escape hatch applies) rather than the workflow engine or parallel agents",
+        "Output does not take the deep tier for this small task: it launches no research-sweep workflow and spawns no parallel per-topic researchers",
+        "Output takes the standard dispatch, exactly one discovery:researcher spawn for the research; if it runs the research inline instead, it names the 'Running inline' escape-hatch condition that applies rather than a 'clearly small task runs inline' tier rule",
         "Output still applies the full /research discipline (phases, source tiers) despite the small task size",
-        "Output does NOT self-grade the verifier-owned outcome-gate rows — they go to a fresh context"
+        "Output does NOT self-grade the verifier-owned outcome-gate rows — they go to a fresh context",
+        "The answer names the newest LTS release listed in https://nodejs.org/dist/index.json on the run date (the newest entry whose lts field is a codename, not false), citing that file or a nodejs.org release page as the primary"
       ]
     },
     {
@@ -563,9 +566,10 @@
       "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or isolated subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
       "files": [],
       "expectations": [
-        "Output dispatches the heavy pass to an isolated tier rather than running it in the main context",
+        "Output dispatches the heavy pass to an isolated tier (the research-sweep workflow, or one discovery:researcher when the Workflow tool is not observed) rather than running it in the main context or loading /discovery:research inline",
         "The main-session output stays a dispatch/summary, not a full inline deep-research transcript",
-        "The main session still closes the post-dispatch boundary itself rather than treating dispatch as the end of its work"
+        "The main session still closes the post-dispatch boundary itself rather than treating dispatch as the end of its work",
+        "The findings state that browsers do not honor a wildcard Access-Control-Allow-Origin: * on a credentialed request, citing the Fetch Standard or MDN's CORS documentation"
       ]
     },
     {
@@ -575,7 +579,7 @@
       "expected_output": "Dispatches the research but does not make the decision or write code — the planning step or user decides, and execution is a separate stage.",
       "files": [],
       "expectations": [
-        "Output performs/dispatches research about the decision rather than making it",
+        "Output dispatches the research to an isolated tier (the research-sweep workflow, or one discovery:researcher when the Workflow tool is not observed) rather than running it inline in its own context, and the research is about the decision rather than making it",
         "Output does NOT write or modify code to implement the switch",
         "Output leaves the decision and any implementation to a downstream step"
       ]
@@ -616,7 +620,8 @@
         "Output does not treat the settings file as evidence that the Workflow tool is available",
         "Output dispatches one discovery:researcher rather than launching the research-sweep workflow",
         "The Topic line in the dispatch does not carry the deep token",
-        "Output closes the post-dispatch boundary (verifier and project fit written back) before surfacing the result"
+        "Output closes the post-dispatch boundary (verifier and project fit written back) before surfacing the result",
+        "The findings state that SQLite WAL mode does not work over a network filesystem because all processes using the database must be on the same host computer, citing https://sqlite.org/wal.html"
       ]
     }
   ]
