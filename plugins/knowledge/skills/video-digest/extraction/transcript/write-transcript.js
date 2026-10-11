@@ -34,8 +34,7 @@ function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
 
-const BOUNDARY_REPEAT_MIN_WORDS = 3;
-const BOUNDARY_CARRY_OVER_WORDS = 2;
+const BOUNDARY_REPEAT_MIN_WORDS = 2;
 const BOUNDARY_REPEAT_MAX_WORDS = 12;
 const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
 
@@ -94,13 +93,14 @@ function carriesOverFromPreviousCue(stamp, run, cues) {
 
 /**
  * Drop the words a paragraph opens with when they repeat the previous
- * paragraph's closing words, the longest run first: 3 to 12 words compared
- * case- and punctuation-insensitively, or 2 words when the opening cue carries
+ * paragraph's closing words, the longest run first: 2 to 12 words compared
+ * case- and punctuation-insensitively, and only when the opening cue carries
  * them over from the cue before it ({@link carriesOverFromPreviousCue}). A
  * rolling auto caption carries its tail into the next cue, and the vendor
  * formatter only drops overlaps of 3 or more words it matches ignoring case
- * alone. A two-word repeat the speaker actually said ("very good." / "Very
- * good question") stays. A paragraph always keeps at least one word.
+ * alone. A repeat the speaker actually said ("very good." / "Very good
+ * question", "I don't know." / "I don't know why.") stays. A paragraph always
+ * keeps at least one word.
  *
  * @param {string} transcript - paragraphs joined by a blank line, each `[M:SS] text`
  * @param {readonly { startSec: number, endSec: number, text: string }[]} cues - the
@@ -122,15 +122,13 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
       previousWords.length,
       currentWords.length - 1,
     );
-    for (let length = longest; length >= BOUNDARY_CARRY_OVER_WORDS; length--) {
+    for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
       const run = currentWords.slice(0, length);
       if (comparableRun(previousWords.slice(-length)) !== comparableRun(run)) continue;
-      if (
-        length < BOUNDARY_REPEAT_MIN_WORDS &&
-        !carriesOverFromPreviousCue(current[1].trim(), run, cues)
-      ) {
-        continue;
-      }
+      // Every match, whatever its length, needs cue-level carry-over evidence:
+      // a speaker may genuinely repeat several words ("I don't know." / "I
+      // don't know why.").
+      if (!carriesOverFromPreviousCue(current[1].trim(), run, cues)) continue;
       // Keep punctuation-only tokens before the dropped words (a `>>` speaker
       // marker); drop any between them.
       const kept = [

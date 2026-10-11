@@ -79,13 +79,13 @@ Benchmarks too and then we moved on.
     );
   });
 
-  it("drops a repeat of three or more words compared case- and punctuation-insensitively", () => {
+  it("drops a repeat of three or more words compared case- and punctuation-insensitively when the cues overlap", () => {
     const autoVtt = `WEBVTT
 
 00:00:01.000 --> 00:00:03.000
 we ran the
 
-00:00:03.000 --> 00:00:05.000
+00:00:03.000 --> 00:00:05.500
 numbers on benchmarks, too.
 
 00:00:05.000 --> 00:00:07.000
@@ -122,13 +122,13 @@ Very good indeed, thanks.
     ["a curly apostrophe", "don’t"],
     ["a modifier-letter apostrophe", "donʼt"],
     ["no apostrophe", "dont"],
-  ])("matches don't against %s when dropping a 3-word repeat", (_label, variant) => {
+  ])("matches don't against %s when dropping a 3-word repeat across overlapping cues", (_label, variant) => {
     const autoVtt = `WEBVTT
 
 00:00:01.000 --> 00:00:03.000
 so we
 
-00:00:03.000 --> 00:00:05.000
+00:00:03.000 --> 00:00:05.500
 really don't care.
 
 00:00:05.000 --> 00:00:07.000
@@ -136,6 +136,22 @@ Really ${variant} care about it.
 `;
     const result = buildTranscriptText(autoVtt, true);
     expect(result.transcript).toBe("[0:01] so we really don't care.\n\n[0:05] about it.");
+  });
+
+  it("keeps a three-word repeat the speaker said when no cue carries it over", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+honestly
+
+00:00:03.000 --> 00:00:05.000
+I don't know.
+
+00:00:05.000 --> 00:00:07.000
+I don't know why.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] honestly I don't know.\n\n[0:05] I don't know why.");
   });
 
   it("does not count a punctuation-only token like >> as a repeated word", () => {

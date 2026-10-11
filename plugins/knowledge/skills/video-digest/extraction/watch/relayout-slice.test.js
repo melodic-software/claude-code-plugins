@@ -1363,6 +1363,75 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     },
   );
 
+  it("maps a real path holding $ and skips only complete placeholder syntax", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/budget$2026.pdf": "pdf",
+        "key-frames/visual-frames.md": "[b](../source/decks/budget$2026.pdf)\n",
+        "recommendations/questions.md": [
+          "Missing: `research/budget$2025.md`.",
+          "Placeholders: `<slice-dir>/research/x.md` `${ROOT}/research/x.md` `{tmp}/x.png` `research/*.md`.",
+          "",
+        ].join("\n"),
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/recommendations/questions.md", ref: "../research/budget$2025.md" },
+    ]);
+    fs.writeFileSync(
+      path.join(sliceDir, "recommendations", "questions.md"),
+      "Placeholders: `<slice-dir>/research/x.md` `${ROOT}/research/x.md` `research/*.md`.\n",
+    );
+    const fixed = await relayoutSlice({ sliceDir, targetDir });
+    expect(fixed.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "[b](../metadata/decks/budget$2026.pdf)\n",
+    );
+  });
+
+  it("link-checks a spaced code span its rewrite placed through the unknown-child fallback", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "recommendations/questions.md": "Notes: `research/findings/My Missing Notes.md`.\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      {
+        file: "analysis/recommendations/questions.md",
+        ref: "../research/findings/My Missing Notes.md",
+      },
+    ]);
+  });
+
+  it("reads src and href only inside HTML tags, never in prose", async () => {
+    const body = [
+      "Set href=../research/gone.md or src='../source/transcript.txt' in the config.",
+      '<a href="../source/transcript.txt">t</a>',
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      body.replace(
+        '<a href="../source/transcript.txt">',
+        '<a href="../transcript/transcript.txt">',
+      ),
+    );
+  });
+
   it("rewrites and checks upper-case HTML attribute names", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "key-frames/visual-frames.md": '<IMG SRC="frames/title-slide.png">\n' },

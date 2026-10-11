@@ -111,7 +111,8 @@ const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 /** The slice lane directories, plus the `SLICE/` root alias. */
 const SLICE_LANE_NAMES = new Set([...Object.values(LANES), "SLICE"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-const PLACEHOLDER = /[<>{}*$]/;
+/** Placeholder syntax, not a real path: `<name>`, `${NAME}`, `{name}`, or a glob segment with `*`. */
+const PLACEHOLDER = /<[^<>]*>|\$\{[^}]*\}|\{[^{}]*\}|(?:^|\/)[^/]*\*/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
 /**
@@ -138,6 +139,31 @@ function definitionLabelOk(match) {
 const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
+
+/** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
+const HTML_START_TAG = /<[A-Za-z][A-Za-z0-9-]*(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
+
+/**
+ * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
+ * with the regex group that matched (2 double-quoted, 3 single-quoted,
+ * 4 unquoted). Prose such as `set href=../x` outside a tag is not read.
+ *
+ * @param {string} text
+ * @returns {{ from: number, to: number, group: number }[]}
+ */
+function htmlAttributeValues(text) {
+  /** @type {{ from: number, to: number, group: number }[]} */
+  const values = [];
+  for (const tag of text.matchAll(HTML_START_TAG)) {
+    const base = /** @type {number} */ (tag.index);
+    for (const match of tag[0].matchAll(HTML_PATH_ATTRIBUTE)) {
+      const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
+      const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
+      values.push({ from: base + from, to: base + to, group });
+    }
+  }
+  return values;
+}
 
 const HTML_NAMED_REFERENCES = /** @type {Record<string, string>} */ ({
   amp: "&",
@@ -705,10 +731,13 @@ export function inlineLinks(text) {
  * @param {string} sourceFile - slice-relative path of the file
  * @param {string} targetFile - target-relative path the file is copied to
  * @param {PathMap} map
- * @returns {{ text: string, rewrites: number }}
+ * @returns {{ text: string, rewrites: number, spacedRefs: string[] }} - `spacedRefs`, the
+ *   rewritten code spans holding spaces, for the link check to verify
  */
 export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
+  /** @type {string[]} */
+  const spacedRefs = [];
   const unwrap = (/** @type {string} */ target) =>
     target.startsWith("<") ? target.slice(1, -1) : target;
   const rewrite = (/** @type {string} */ ref, fragments = true, escapedChars = "") => {
@@ -777,9 +806,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     if (rewritten === dest) continue;
     edits.push({ from, to, text: target.startsWith("<") ? `<${rewritten}>` : rewritten });
   }
-  for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
-    const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
-    const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
+  for (const { from, to, group } of htmlAttributeValues(linkMasked)) {
     // An attribute value may hold character references (`&amp;`): map the
     // decoded path, then escape the new value for its quoting: `&` always,
     // the enclosing quote character, and an unquoted value that now needs
@@ -816,7 +843,11 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       rewrites += 1;
       next = `${found.retired} (${found.note})`;
     } else {
-      next = `${ticks}${pad}${quote}${rewrite(core, fragments)}${quote}${pad}${ticks}`;
+      const rewritten = rewrite(core, fragments);
+      next = `${ticks}${pad}${quote}${rewritten}${quote}${pad}${ticks}`;
+      // The link check skips spans with spaces (they may be commands), so a
+      // spaced path this rewrite placed is handed to it explicitly.
+      if (spaced) spacedRefs.push(rewritten);
     }
     if (next !== whole) edits.push({ from, to: from + whole.length, text: next });
   }
@@ -830,7 +861,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const edit of kept.reverse()) {
     rewritten = rewritten.slice(0, edit.from) + edit.text + rewritten.slice(edit.to);
   }
-  return { text: rewritten, rewrites };
+  return { text: rewritten, rewrites, spacedRefs };
 }
 
 /**
@@ -920,11 +951,14 @@ function looksSliceInternal(refPath, fileDir, topLevel, sliceDirs) {
  * slice (another repository) and the allowed-miss prefixes are skipped.
  *
  * @param {string} rootDir
- * @param {{ sliceDirs?: Set<string> }} [options] - `sliceDirs`, the source
- *   slice's directories, narrows which lane-named paths count as the slice's
+ * @param {{ sliceDirs?: Set<string>, spacedRefs?: Map<string, string[]> }} [options]
+ *   `sliceDirs`, the source slice's directories, narrows which lane-named paths
+ *   count as the slice's;
+ *   `spacedRefs` maps a target-relative file to the spaced code-span paths a
+ *   rewrite placed in it, which are checked like links
  * @returns {{ file: string, ref: string }[]} unresolved references
  */
-export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
+export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } = {}) {
   const root = path.resolve(rootDir);
   const topLevel = new Set(fs.existsSync(root) ? fs.readdirSync(root) : []);
   /** @type {{ file: string, ref: string }[]} */
@@ -964,8 +998,8 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       const destination = unescapeDestination(match[2].replace(/^<|>$/g, "")).dest;
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
-    for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
-      check(decodeHtmlReferences(match[2] ?? match[3] ?? match[4]), true);
+    for (const { from, to } of htmlAttributeValues(linkMasked)) {
+      check(decodeHtmlReferences(text.slice(from, to)), true);
     }
     for (const span of codeSpans(fenceMasked)) {
       // A span with spaces may be a command (`node run.mjs x.js --flag`): only
@@ -973,6 +1007,9 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       const { core, spaced } = spanPath(span.content);
       if (core !== null && !spaced) check(core, false);
     }
+    // Spaced spans a rewrite placed (see rewriteSliceReferences) are checked
+    // like links: they are known to be paths.
+    for (const ref of spacedRefs.get(file) ?? []) check(ref, true);
   }
   return unresolved;
 }
@@ -1576,6 +1613,8 @@ export async function relayoutSlice({
   }
   const discard = (/** @type {string} */ dir) => fs.rmSync(dir, { recursive: true, force: true });
   let rewrites = 0;
+  /** @type {Map<string, string[]>} */
+  const spacedRefs = new Map();
   let copied = 0;
   /** @type {{ file: string, ref: string }[]} */
   let unresolved;
@@ -1595,6 +1634,7 @@ export async function relayoutSlice({
           map,
         );
         rewrites += result.rewrites;
+        if (result.spacedRefs.length > 0) spacedRefs.set(entry.to, result.spacedRefs);
         write(entry.to, result.text);
       } else {
         fs.mkdirSync(path.dirname(path.join(staging, entry.to)), { recursive: true });
@@ -1632,6 +1672,7 @@ export async function relayoutSlice({
 
     unresolved = checkLayoutLinks(staging, {
       sliceDirs: new Set([...sliceEntries].filter((entry) => !sliceFiles.includes(entry))),
+      spacedRefs,
     });
   } catch (error) {
     discard(staging);
