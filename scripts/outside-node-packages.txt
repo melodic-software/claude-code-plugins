@@ -7,5 +7,6 @@
 .github/actions/check-trusted-trigger
 .github/actions/report-check-run
 .github/actions/select-trusted-text
+.github/scripts/pr-unblock
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion

@@ -1,0 +1,93 @@
+name: pr-unblock-dispatch
+
+# GitHub runs no pull_request workflow on a PR with a merge conflict, so the
+# pr-unblock lane is started from here instead: each push to main lists the
+# open PRs GitHub reports as conflicting and dispatches pr-unblock.yml for
+# them (.github/scripts/pr-unblock/dispatch.mjs). A queue merge of several
+# PRs raises one push, so the listing reads main as it is now, not the push.
+#
+# No model and no App token: the job's GITHUB_TOKEN can only read and start
+# workflow runs. A run started by hand, or a re-run of a push run, must come
+# from a listed trusted human. The dispatched lane runs its own trigger gate,
+# kill switch and config, so this job adds no label or author filter.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions: {}
+
+# A newer push replaces a waiting listing: the newest listing supersedes it.
+concurrency:
+  group: pr-unblock-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    # A dispatch on another branch would run that branch's copy of this file.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # list open PRs and their mergeable state
+      checks: read # skip a PR whose head already has a pr-unblock check run
+      actions: write # dispatch pr-unblock.yml
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
+
+      # A push run on its first attempt was started by the push itself. A hand
+      # run, or any re-run, is checked against the base list: the sender and
+      # the re-runner must be listed, and the lanes App bot is denied.
+      - name: Check the trigger
+        id: gate
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (github.event_name == 'workflow_dispatch' || github.run_attempt != '1')
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          require-pr: false
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          triggering-actor: ${{ github.triggering_actor }}
+
+      - name: Stop on an untrusted trigger
+        if: steps.gate.outcome != 'skipped' && steps.gate.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.gate.outputs.reason }}
+        run: |
+          echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
+          exit 1
+
+      - name: Dispatch pr-unblock for conflicting PRs
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .base/.github/scripts/pr-unblock/dispatch.mjs
