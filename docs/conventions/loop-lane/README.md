@@ -416,7 +416,7 @@ from the model page whenever it matters, and never restated in this convention.
 - **Pointer:** for what each alias resolves to on each provider, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
   position and capabilities, see
-  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#compare-models).
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
 - **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
