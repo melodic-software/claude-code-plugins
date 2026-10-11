@@ -124,6 +124,8 @@ View an item (bare `gh`):
 
 ```bash
 gh issue view <N> --json number,title,body,labels,assignees,comments | tr -d '\r'
+# Another repository's item (a qualified ID always supplies <owner>/<repo>):
+gh issue view <N> --repo <owner>/<repo> --json number,title,body,labels,state,url | tr -d '\r'
 ```
 
 Assignee/label projection for claim pre-checks:
@@ -264,7 +266,7 @@ body, so an edit that keeps part of it reads the body first ("View item") and wr
 result back:
 
 ```bash
-gh issue edit <N> --title "<title>"
+gh issue edit <N> --title "$(cat <title-file>)"   # the title travels in a file, never typed
 gh issue edit <N> --body-file <path>
 ```
 
@@ -284,6 +286,7 @@ operations (see the identity note above):
 
 ```bash
 gh issue comment <N> --body "<text>"
+gh issue comment <N> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```
 

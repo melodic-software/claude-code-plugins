@@ -7,7 +7,7 @@ question) without naming a tracker's commands.
 ## Usage
 
 ```
-/work-items:track edit <id> [--title <text>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--comment-file <path>]
+/work-items:track edit <id> [--title-file <path>] [--body-file <path>] [--add-label <name>]... [--remove-label <name>]... [--blocked-by <id>] [--comment-file <path>]
 ```
 
 `<id>` follows `view`'s rules ([view.md](view.md)). At least one change flag is required.
@@ -17,7 +17,7 @@ question) without naming a tracker's commands.
 > **Authorization gate.** An edit changes a shared record. Run it on the user's explicit request,
 > or as a step of a skill the user invoked that names this edit. Never on inferred intent.
 
-1. **Validate** the reference as `view` does. Texts travel in files written with the Write tool,
+1. **Validate** the reference as `view` does. Texts (title, body, comment) travel in files written with the Write tool,
    never typed into a command, because a body can hold quotes, backticks or `$()`.
 
 1. **Labels first.** Check each `--add-label` against the live set (`labels <name> ...`,
@@ -26,7 +26,7 @@ question) without naming a tracker's commands.
 
 1. **Apply each change**, in this order, stopping at the first failure and reporting what already
    applied:
-   - `--title`, `--body-file` (adapter: "Edit title / body"). `--body-file` replaces the whole body;
+   - `--title-file`, `--body-file` (adapter: "Edit title / body"). `--body-file` replaces the whole body;
      to change part of it, read it with `view` first and write back the whole result.
    - `--add-label`, `--remove-label` (adapter: "Edit labels / assignees").
    - `--blocked-by` through the seam, both IDs qualified:

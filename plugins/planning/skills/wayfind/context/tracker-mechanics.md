@@ -40,6 +40,11 @@ case "$t" in
           ;;
 esac
 CONTAINER_LABEL=${CONTAINER_LABEL:-work-map}
+# The label is copied into single-quoted action arguments, so refuse a quote or control character.
+case "$CONTAINER_LABEL" in
+  *"'"* | *[[:cntrl:]]*) echo "ERROR: config.container_label holds a quote or control character" >&2
+                         return 1 2>/dev/null || exit 1 ;;
+esac
 ```
 
 `<container-label>` below is that value; prose that says `work-map` means the shipped default.
@@ -100,11 +105,12 @@ precondition for phrasing or answering the dependent decision.
 `frontier = open ∧ zero OPEN blockers ∧ unassigned` (in non-interactive sessions, also
 `∧ NOT needs-human`):
 
-`/work-items:track frontier --parent <map-id>`, adding `--autonomous` in a non-interactive session.
-
-The action counts open blockers only, so an item whose blocker closed rejoins the frontier, and it
-never lists the map itself. For the map hygiene checks, which need closed items too, list every
-child with `/work-items:track list --parent <map-id>`.
+List every child with `/work-items:track list --parent <map-id>` and keep the items that are open,
+have no assignee, and have `blocked_by_count - blocked_by_wont_do_count == 0`; in a non-interactive
+session also drop items labeled `needs-human`. Derive it here rather than with `/work-items:track
+frontier`, whose count keeps a blocker closed as not planned blocking: a wayfind blocker closed as
+moot or out of scope no longer gates its dependent, so the dependent rejoins the frontier. The same
+listing, closed items included, serves the map hygiene checks.
 
 ## Claim a frontier item (the `work-items` claim model, one model across both)
 
@@ -113,8 +119,9 @@ child with `/work-items:track list --parent <map-id>`.
 identity. When it reports that another session won, pick the next frontier item; never retry the
 same one. A decision item carries no branch, so ignore the branch name `start` suggests.
 
-Session-start reclaim: `/work-items:track audit` releases stale claims, your own included, through
-the seam's idempotent `reclaim`.
+Session-start reclaim: `/work-items:track audit` runs the seam's idempotent `reclaim` over every
+assigned item in the repository, not only the map's, so it releases a stale hold of yours on a map
+item along with any other stale lease; it also runs the audit's other read passes.
 
 ## Graduate + close a decision item
 

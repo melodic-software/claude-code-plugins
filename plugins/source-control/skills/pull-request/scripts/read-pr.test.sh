@@ -83,7 +83,7 @@ assert_contains "list passes --state through" "$calls" "--state all"
 
 run list --head feat/x --search '#42' >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")
-assert_contains "list passes --search through as one argument" "$calls" "--head feat/x --search #42"
+assert_contains "list passes --search through" "$calls" "--head feat/x --search #42"
 run list --search '#42' >/dev/null
 assert_contains "list --search works without --head" "$(cat "$TEST_TMPDIR/calls")" "--search #42"
 run view 7 --search x >/dev/null 2>&1

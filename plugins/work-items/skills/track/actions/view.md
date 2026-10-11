@@ -15,8 +15,10 @@ carries its own repository; `--repo` beside one is a usage error.
 
 ## Workflow
 
-1. **Validate the reference.** The number must match `^[0-9]+$` (or the bound provider's key
-   shape) and `--repo` must be an `<owner>/<repo>` shape. Refuse anything else; never repair it.
+1. **Validate the reference.** A qualified ID must match
+   `^[a-z-]+:[A-Za-z0-9._-]+/[A-Za-z0-9._-]+#[0-9]+$` (or the bound provider's key shape), a bare
+   number `^[0-9]+$`, and `--repo` `^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`. Refuse anything else; never
+   repair it.
    Pass each value as its own quoted argument.
 
 1. **Read the item** (adapter: "View item", bare read), scoped to the item's own repository: a bare

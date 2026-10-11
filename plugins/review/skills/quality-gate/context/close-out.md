@@ -198,10 +198,12 @@ branch. Walk this ladder and record which rung resolved the set:
 **Rung 1: the provider's own close-linkage.** Authoritative, because it is linkage the provider
 computed rather than a text match. Read it with `/work-items:track changes <sub-item id> --state
 merged`, invoked via the Skill tool; it returns the PRs the tracker links as closing the item. For
-each, read the merge commit with `/source-control:pull-request view <number>` (its `mergeCommit.oid`),
+each, read the merge commit with `/source-control:pull-request view <number> --repo <owner>/<repo>` (its `mergeCommit.oid`), taking `<owner>/<repo>` from the change's `url` so a cross-repo PR is not read as the current repository's PR with the same number,
 also via the Skill tool. Without those plugins, use the tracker's and the forge's own tooling for the
 same two reads. **A failed read is not an empty set**: drop to rung 2 saying so, never read a
-failure as "this item shipped nothing."
+failure as "this item shipped nothing." A session whose tracker reads are refused (a sandboxed
+cloud session can refuse the close-linkage read) lands on rung 2 the same way; say that this is
+why.
 
 **Merged-only is the right reduction for the basis, and a blind spot for the verdict. Say so.**
 Every rung here reads the default branch: rung 1 keeps `MERGED` nodes, rung 2 scans

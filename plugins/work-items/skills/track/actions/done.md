@@ -16,7 +16,7 @@ Close a work item with a completion comment.
 
 ## Workflow
 
-1. **Resolve the item.** If a number is given, use it directly. If text, search open items (adapter: "Search items").
+1. **Resolve the item.** If a qualified ID (`<provider>:<owner>/<repo>#<n>`) or a number is given, use it directly. If text, search open items (adapter: "Search items").
 
 1. **Check if recurring.** Read `.github/recurring-schedule.json` and check if the item's title matches any recurring item. Items created by the recurring-issues automation have a `[Maintenance]` prefix, so strip it before comparing. Skip gracefully when the repo has no recurring schedule:
 
