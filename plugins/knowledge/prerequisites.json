@@ -12,9 +12,16 @@
       "detect": {
         "any": [
           "node"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v([0-9.]+)",
+          "min": "20.11"
+        }
       },
-      "degrade": "Without node, the digest skills cannot run their extraction scripts and stop.",
+      "degrade": "Without node 20.11 or newer, the digest skills cannot run their extraction scripts and stop; the video-digest runner and the setup-deps.mjs that /knowledge:setup runs read import.meta.dirname, which older node lacks.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
