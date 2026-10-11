@@ -522,7 +522,7 @@
       "id": 36,
       "name": "deep-tier-single-heavy-topic-dispatches-engine",
       "prompt": "Do a deep, thorough research pass comparing Dapper vs EF Core vs raw ADO.NET for our data-access layer, covering performance, maintainability, and migration cost.",
-      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches a deep-research workflow engine when one is available and does NOT re-run the research inline in the main session. The engine's return is not surfaced as-is — the main session closes the post-dispatch boundary first (sibling verifier against the artifact, project fit, both written back into the index), because an engine is a producing context like any other.",
+      "expected_output": "For a single heavy/broad topic, prefers the heaviest available execution tier: dispatches the discovery:research-sweep workflow when the Workflow tool is available and does NOT re-run the research inline in the main session. The engine's return is not surfaced as-is — the main session closes the post-dispatch boundary first (sibling verifier against the artifact, project fit, both written back into the index), because an engine is a producing context like any other.",
       "files": [],
       "expectations": [
         "Output treats this single broad comparison as one heavy topic (not split into parallel agents)",
@@ -566,7 +566,7 @@
       "expected_output": "Acts as a dispatcher: selects an execution tier that provides context isolation (engine or isolated subagent) and does NOT run the heavy deep pass itself in the main context. The main session stays clean of the research transcript — but it still owns the post-dispatch boundary (sibling verifier, project fit, write-back), which is orchestration rather than research and does not belong to the isolated tier.",
       "files": [],
       "expectations": [
-        "Output dispatches the heavy pass to an isolated tier (the research-sweep workflow, or one discovery:researcher when the Workflow tool is not observed) rather than running it in the main context or loading /discovery:research inline",
+        "Output dispatches the heavy pass to an isolated tier (the research-sweep workflow, or one discovery:researcher when the Workflow tool is not observed) rather than running the deep pass inline in the main context",
         "The main-session output stays a dispatch/summary, not a full inline deep-research transcript",
         "The main session still closes the post-dispatch boundary itself rather than treating dispatch as the end of its work",
         "The findings state that browsers do not honor a wildcard Access-Control-Allow-Origin: * on a credentialed request, citing the Fetch Standard or MDN's CORS documentation"
