@@ -387,9 +387,10 @@ export function inlineLinks(text) {
     const destEnd = at;
     // An optional title, then the closing `)`.
     while (text[at] === " " || text[at] === "\t") at += 1;
+    // A title is "...", '...' or (...), set off from the destination by space.
     const quote = text[at];
-    if (quote === '"' || quote === "'") {
-      const closeQuote = text.indexOf(quote, at + 1);
+    if (at > destEnd && (quote === '"' || quote === "'" || quote === "(")) {
+      const closeQuote = text.indexOf(quote === "(" ? ")" : quote, at + 1);
       if (closeQuote === -1) continue;
       at = closeQuote + 1;
       while (text[at] === " " || text[at] === "\t") at += 1;
@@ -666,59 +667,9 @@ function readJsonObject(file) {
     : null;
 }
 
-/** The file a run writes into the target directory it has claimed. */
-export const CLAIM_MARKER = ".relayout-claim";
-/** The file a run writes into its staging dir once the link check passes. */
-export const COMPLETE_MARKER = ".relayout-complete";
-
 /** @param {unknown} error */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * The entries of `dir` when it is a real directory (not a symlink), else null.
- *
- * @param {string} dir
- * @returns {string[]|null}
- */
-function directoryEntries(dir) {
-  try {
-    return fs.lstatSync(dir).isDirectory() ? fs.readdirSync(dir) : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Whether `target` is a claim left by a relayout: `"none"` when it is not a
- * directory holding only the claim marker, `"live"` when the marker names a
- * process still running on this host, `"stale"` otherwise.
- *
- * @param {string} target
- * @returns {"none"|"live"|"stale"}
- */
-function staleClaimProblem(target) {
-  let entries;
-  try {
-    if (!fs.lstatSync(target).isDirectory()) return "none";
-    entries = fs.readdirSync(target);
-  } catch {
-    return "none";
-  }
-  if (entries.length !== 1 || entries[0] !== CLAIM_MARKER) return "none";
-  const claim = readJsonObject(path.join(target, CLAIM_MARKER));
-  const pid = claim?.pid;
-  if (typeof pid === "number" && Number.isInteger(pid) && pid > 0 && pid !== process.pid) {
-    try {
-      process.kill(pid, 0);
-      return "live";
-    } catch (error) {
-      // EPERM: the process exists but belongs to someone else.
-      if (/** @type {NodeJS.ErrnoException} */ (error).code === "EPERM") return "live";
-    }
-  }
-  return "stale";
 }
 
 /** A video id as yt-dlp's `%(id)s` writes it: no separator, no `..`. */
@@ -930,57 +881,23 @@ export async function relayoutSlice({
     writeStderr(`relayout: restored ${target} from the backup an interrupted run left`);
   }
 
-  // A run killed after its link check passed but before its staged layout was
-  // renamed into place leaves the target empty (or holding only its claim
-  // marker) beside a staging dir marked complete. Finish that install. Any
-  // other staging state beside an empty target is ambiguous: refuse.
-  const stale = staleClaimProblem(target);
-  if (stale === "live") {
-    return refuse(`${target} is claimed by a relayout that is still running`);
+  // A killed run leaves its staging dir behind. Name any for deletion by
+  // hand; never install or delete one: it may belong to another slice's run
+  // or to a run still in progress.
+  let siblings = [];
+  try {
+    siblings = fs.readdirSync(path.dirname(target));
+  } catch {
+    // No parent yet: nothing left behind.
   }
-  const targetEntries = directoryEntries(target);
-  const claimOnly = targetEntries?.length === 1 && targetEntries[0] === CLAIM_MARKER;
-  if (targetEntries && (targetEntries.length === 0 || claimOnly)) {
-    const stagings = (directoryEntries(path.dirname(target)) ?? [])
-      .filter((name) => name.startsWith(stagingPrefix))
-      .map((name) => path.join(path.dirname(target), name));
-    if (stagings.length > 0) {
-      const complete = stagings.filter((dir) => fs.existsSync(path.join(dir, COMPLETE_MARKER)));
-      if (stagings.length !== 1 || complete.length !== 1) {
-        return refuse(
-          `${target} is empty beside staging dirs an interrupted run left (${stagings.join(", ")}); ` +
-            "remove the ones you do not want and re-run",
-        );
-      }
-      try {
-        fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
-        fs.rmdirSync(target);
-        fs.renameSync(complete[0], target);
-        fs.rmSync(path.join(target, COMPLETE_MARKER), { force: true });
-      } catch (error) {
-        return refuse(
-          `could not finish the interrupted install of ${target}: ${errorMessage(error)}`,
-        );
-      }
-      writeStderr(
-        `relayout: finished the install an interrupted run left, from ${complete[0]}; ` +
-          "re-run with --replace for a fresh copy",
-      );
-      return { exitCode: 0, copied: 0, rewrites: 0, unresolved: [] };
-    }
-  }
-
-  // A run interrupted while it held the target's claim, before staging
-  // finished, leaves a directory holding only the claim marker. Its run is not
-  // alive (checked above), so the claim is stale: remove it and go on.
-  if (stale === "stale") {
-    try {
-      fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
-      fs.rmdirSync(target);
-    } catch (error) {
-      return refuse(`could not remove the stale claim on ${target}: ${errorMessage(error)}`);
-    }
-    writeStderr(`relayout: removed a stale claim on ${target} an interrupted run left`);
+  const leftovers = siblings.filter((name) => name.startsWith(stagingPrefix));
+  if (leftovers.length > 0) {
+    writeStderr(
+      `relayout: warning: staging dirs from an earlier run sit beside ${target}; ` +
+        `delete them by hand when no run is using them: ${leftovers
+          .map((name) => path.join(path.dirname(target), name))
+          .join(", ")}`,
+    );
   }
 
   let state;
@@ -1155,43 +1072,12 @@ export async function relayoutSlice({
   // Build the whole layout in a sibling staging directory and move it into
   // place only after the link check passes, so a failure never leaves a
   // partial target.
-  // Without --replace on POSIX, claim the target before staging: an exclusive
-  // mkdir (EEXIST when anything is there, an empty directory included), then a
-  // marker naming this run, so an interrupted run's claim is recognizable and
-  // recoverable at the next start. POSIX rename replaces an empty directory,
-  // so the install removes the marker and renames onto the claim; anything
-  // someone else writes into the claim makes that rename fail. Windows rename
-  // never replaces an existing directory, so there the rename is the claim.
-  const claim = !replace && process.platform !== "win32";
-  let claimed = false;
-  const releaseClaim = () => {
-    if (!claimed) return;
-    fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
-    try {
-      fs.rmdirSync(target);
-    } catch {
-      // Not empty: someone else's files now sit in the claim; leave them.
-    }
-  };
   let staging;
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
-    if (claim) {
-      fs.mkdirSync(target);
-      claimed = true;
-      fs.writeFileSync(
-        path.join(target, CLAIM_MARKER),
-        `${JSON.stringify({ pid: process.pid, claimedAt: new Date().toISOString() })}\n`,
-      );
-    }
     staging = fs.mkdtempSync(path.join(path.dirname(target), stagingPrefix));
   } catch (error) {
-    const code = /** @type {NodeJS.ErrnoException} */ (error).code;
-    if (claim && !claimed && code === "EEXIST") {
-      return refuse(`${target} appeared during the run; pass --replace to replace it`);
-    }
-    releaseClaim();
-    return refuse(`cannot stage beside ${target}: ${/** @type {Error} */ (error).message}`);
+    return refuse(`cannot stage beside ${target}: ${errorMessage(error)}`);
   }
   const discard = (/** @type {string} */ dir) => fs.rmSync(dir, { recursive: true, force: true });
   let rewrites = 0;
@@ -1252,38 +1138,30 @@ export async function relayoutSlice({
     unresolved = checkLayoutLinks(staging, {
       sliceDirs: new Set([...sliceEntries].filter((entry) => !sliceFiles.includes(entry))),
     });
-    // Marks the staged layout as ready to install, so a run killed during the
-    // install can be finished by the next one.
-    if (unresolved.length === 0) {
-      fs.writeFileSync(
-        path.join(staging, COMPLETE_MARKER),
-        `${JSON.stringify({ pid: process.pid, completedAt: new Date().toISOString() })}\n`,
-      );
-    }
   } catch (error) {
     discard(staging);
-    releaseClaim();
     return refuse(`copy failed, target left untouched: ${/** @type {Error} */ (error).message}`);
   }
   if (unresolved.length > 0) {
     discard(staging);
-    releaseClaim();
     return { exitCode: 1, copied: 0, rewrites, unresolved };
   }
 
-  // The backup keeps a fixed name so a run killed between the two renames is
-  // recovered at the next start (see the backup check above).
+  // With --replace the old target moves to a fixed-name backup, so a run
+  // killed between the two renames is recovered at the next start (see the
+  // backup check above). Without --replace the install is one rename, which
+  // fails (ENOTEMPTY or EEXIST on POSIX, EPERM on Windows) when a target with
+  // content appeared during the run. POSIX rename replaces an empty directory
+  // created meanwhile; that is accepted, since an empty directory holds no data.
   const hadTarget = replace && fs.existsSync(target);
   try {
     if (hadTarget) fs.renameSync(target, backup);
-    if (claimed) fs.rmSync(path.join(target, CLAIM_MARKER));
     fs.renameSync(staging, target);
   } catch (error) {
     try {
       if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) {
         fs.renameSync(backup, target);
       }
-      releaseClaim();
       discard(staging);
     } catch (cleanupError) {
       return refuse(
@@ -1297,7 +1175,6 @@ export async function relayoutSlice({
     return refuse(`could not move the layout into place: ${errorMessage(error)}`);
   }
   try {
-    fs.rmSync(path.join(target, COMPLETE_MARKER), { force: true });
     if (hadTarget) discard(backup);
   } catch (error) {
     writeStderr(`relayout: installed ${target}, but cleanup failed: ${errorMessage(error)}`);

@@ -100,9 +100,9 @@ the companion sources brief, and the fetched `decks/` and `attachments/`), `fram
 `README.md` when the target has none; the trimmed `info.json` also drops the local download
 paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
 the copied markdown names is rewritten through a path map relative to the file's new location:
-inline links (destinations with balanced or escaped parentheses too), reference-style links,
-HTML `src`/`href` in any quoting or case, and backticked paths, with each segment
-percent-decoded (and re-encoded on rewrite) and `\` separators read as `/`.
+inline links (balanced or escaped parentheses in the destination, quoted or parenthesized titles),
+reference-style links, HTML `src`/`href` in any quoting or case, and backticked paths, with each
+segment percent-decoded (and re-encoded on rewrite) and `\` separators read as `/`.
 A relative link that leaves the slice keeps pointing at the same file.
 One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
 own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
@@ -116,18 +116,13 @@ that leave the target, and backticked paths that are neither under such a lane d
 under a top-level directory of the target or an entry beside the naming file (paths into another
 repository, such as `research/deepening/...` from an upstream repo). Only a passing check moves
 the staging directory into place; on any failure the staging directory is removed and the target
-is left as it was. Without `--replace` the install never replaces anything that appeared during
-the run, even an empty directory. On POSIX it claims the target before staging with an exclusive
-mkdir and a `.relayout-claim` marker holding its pid, then removes the marker and renames the
-staged layout onto the claim, so the installed target never carries it; a failed run releases
-its claim. A run killed while holding the claim leaves a directory holding only that marker: the
-next run removes it with a notice and proceeds, unless the marker's pid is still running, which
-it refuses. A target holding the marker beside anything else stays refused. Once the link check
-passes, the run writes `.relayout-complete` into its staging dir, and removes it after the
-install. A run killed during the install leaves an empty target (or one holding only its claim
-marker) beside that staging dir: the next run finishes the install from it with a notice and
-stops, so re-run with `--replace` for a fresh copy. An empty target beside an incomplete staging
-dir, or beside more than one, is refused, naming them. Fix what it lists in the slice and re-run.
+is left as it was. Without `--replace` the install is a single rename of the staging dir onto the
+target path, which fails, and the run refuses, when a target with content appeared during the
+run. On POSIX that rename replaces an empty directory someone created meanwhile; that is
+accepted, since an empty directory holds no data. A run killed mid-copy or mid-install leaves its
+`.<target-name>.relayout-*` staging dir behind; the next run names any such dir in a warning for
+deletion by hand and never installs or deletes one, since it may belong to another slice's run
+or to a run still going. Fix what it lists in the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

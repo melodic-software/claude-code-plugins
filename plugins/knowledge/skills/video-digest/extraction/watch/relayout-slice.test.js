@@ -4,13 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  CLAIM_MARKER,
-  COMPLETE_MARKER,
-  checkLayoutLinks,
-  inlineLinks,
-  relayoutSlice,
-} from "./relayout-slice.js";
+import { checkLayoutLinks, inlineLinks, relayoutSlice } from "./relayout-slice.js";
 
 /** @type {string[]} */
 const scratch = [];
@@ -159,8 +153,7 @@ describe("relayoutSlice", () => {
     }
     expect(fs.existsSync(path.join(targetDir, "key-frames"))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, "run-state"))).toBe(false);
-    expect(fs.existsSync(path.join(targetDir, COMPLETE_MARKER))).toBe(false);
-    expect(fs.existsSync(path.join(targetDir, CLAIM_MARKER))).toBe(false);
+    expect(fs.readdirSync(targetDir).filter((name) => name.startsWith("."))).toEqual([]);
   });
 
   it("trims info.json to the corpus copy", async () => {
@@ -319,44 +312,10 @@ describe("relayoutSlice", () => {
     expect(result.unresolved).toEqual([{ file: "frames/visual-frames.md", ref: "scene_0099.png" }]);
   });
 
-  it.skipIf(process.platform === "win32")(
-    "holds the target with a claim while staging, so a late mkdir of it fails, and installs without the marker",
-    async () => {
-      const { sliceDir, targetDir } = makeFixture();
-      /** @type {string[]} */
-      let seenDuringCopy = [];
-      let lateMkdir = "";
-
-      const result = await relayoutSlice({
-        sliceDir,
-        targetDir,
-        copyFile: (from, to) => {
-          if (seenDuringCopy.length === 0) {
-            seenDuringCopy = fs.readdirSync(targetDir);
-            try {
-              fs.mkdirSync(targetDir);
-            } catch (error) {
-              lateMkdir = /** @type {NodeJS.ErrnoException} */ (error).code ?? "";
-            }
-          }
-          fs.copyFileSync(from, to);
-        },
-      });
-
-      expect(seenDuringCopy).toEqual([CLAIM_MARKER]);
-      expect(lateMkdir).toBe("EEXIST");
-      expect(result.exitCode).toBe(0);
-      expect(fs.existsSync(path.join(targetDir, CLAIM_MARKER))).toBe(false);
-      expect(fs.existsSync(path.join(targetDir, "README.md"))).toBe(true);
-    },
-  );
-
-  it("removes a stale claim an interrupted run left, says so, and proceeds", async () => {
+  it("warns about leftover staging dirs and leaves them alone", async () => {
     const { sliceDir, targetDir } = makeFixture();
-    // A pid far above any live one on a test host: the claiming run is gone.
-    writeTree(targetDir, {
-      [CLAIM_MARKER]: JSON.stringify({ pid: 2 ** 22 + 12345, claimedAt: "2026-10-10T00:00:00Z" }),
-    });
+    const leftover = path.join(path.dirname(targetDir), ".out.relayout-abc123");
+    writeTree(leftover, { "README.md": "# From a killed run\n" });
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     const result = await relayoutSlice({ sliceDir, targetDir });
@@ -364,109 +323,46 @@ describe("relayoutSlice", () => {
     stderr.mockRestore();
 
     expect(result.exitCode).toBe(0);
-    expect(message).toContain("stale claim");
-    expect(fs.existsSync(path.join(targetDir, CLAIM_MARKER))).toBe(false);
+    expect(message).toContain(leftover);
+    expect(read(leftover, "README.md")).toBe("# From a killed run\n");
+    expect(read(targetDir, "README.md")).not.toBe("# From a killed run\n");
   });
 
-  it("refuses a claim held by a process that is still running", async () => {
-    const { sliceDir, targetDir } = makeFixture();
-    writeTree(targetDir, { [CLAIM_MARKER]: JSON.stringify({ pid: process.ppid }) });
-
-    const result = await relayoutSlice({ sliceDir, targetDir });
-
-    expect(result.exitCode).toBe(1);
-    expect(fs.readdirSync(targetDir)).toEqual([CLAIM_MARKER]);
-  });
-
-  it("refuses a target holding the claim marker beside other files", async () => {
-    const { sliceDir, targetDir } = makeFixture();
-    writeTree(targetDir, { [CLAIM_MARKER]: "{}", "theirs.md": "theirs\n" });
-
-    const result = await relayoutSlice({ sliceDir, targetDir });
-
-    expect(result.exitCode).toBe(1);
-    expect(fs.readdirSync(targetDir).sort()).toEqual([CLAIM_MARKER, "theirs.md"]);
-  });
-
-  /**
-   * The state a run killed during its install leaves: a staging dir beside
-   * the target, marked complete or not, and an empty target (or one holding
-   * only a dead run's claim marker).
-   *
-   * @param {string} targetDir
-   * @param {{ complete: boolean, claim?: boolean, name?: string }} options
-   */
-  function interruptedInstall(targetDir, { complete, claim = false, name = "abc123" }) {
-    const staging = path.join(path.dirname(targetDir), `.out.relayout-${name}`);
-    writeTree(staging, {
-      "README.md": "# Staged\n",
-      ...(complete ? { [COMPLETE_MARKER]: "{}" } : {}),
-    });
-    fs.mkdirSync(targetDir, { recursive: true });
-    if (claim) {
-      fs.writeFileSync(
-        path.join(targetDir, CLAIM_MARKER),
-        JSON.stringify({ pid: 2 ** 22 + 12345 }),
-      );
-    }
-    return staging;
-  }
-
-  it.each([
-    ["an empty target", false],
-    ["a target holding only a dead run's claim marker", true],
-  ])(
-    "finishes an install interrupted with %s beside a completed staging dir",
-    async (_label, claim) => {
+  it.skipIf(process.platform === "win32")(
+    "installs over an empty target directory created during the run (it holds no data)",
+    async () => {
       const { sliceDir, targetDir } = makeFixture();
-      const staging = interruptedInstall(targetDir, { complete: true, claim });
-      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      let calls = 0;
 
-      const result = await relayoutSlice({ sliceDir, targetDir });
-      const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
-      stderr.mockRestore();
+      const result = await relayoutSlice({
+        sliceDir,
+        targetDir,
+        copyFile: (from, to) => {
+          calls += 1;
+          if (calls === 1) fs.mkdirSync(targetDir);
+          fs.copyFileSync(from, to);
+        },
+      });
 
       expect(result.exitCode).toBe(0);
-      expect(message).toContain("finished the install an interrupted run left");
-      expect(fs.readdirSync(targetDir)).toEqual(["README.md"]);
-      expect(read(targetDir, "README.md")).toBe("# Staged\n");
-      expect(fs.existsSync(staging)).toBe(false);
+      expect(fs.existsSync(path.join(targetDir, "analysis/RESEARCH.md"))).toBe(true);
     },
   );
 
-  it.each([
-    ["an incomplete staging dir", [{ complete: false }]],
-    [
-      "two staging dirs",
-      [
-        { complete: true, name: "aaa111" },
-        { complete: false, name: "bbb222" },
-      ],
-    ],
-  ])("refuses an empty target beside %s and changes nothing", async (_label, stagings) => {
-    const { sliceDir, targetDir } = makeFixture();
-    const dirs = stagings.map((options) => interruptedInstall(targetDir, options));
-
-    const result = await relayoutSlice({ sliceDir, targetDir });
-
-    expect(result.exitCode).toBe(1);
-    expect(fs.readdirSync(targetDir)).toEqual([]);
-    for (const dir of dirs) expect(fs.existsSync(dir)).toBe(true);
-  });
-
   it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
-    "refuses, without throwing, when a stale claim cannot be removed",
+    "refuses, without throwing, when the backup restore fails",
     async () => {
       const { sliceDir, targetDir } = makeFixture();
-      writeTree(targetDir, { [CLAIM_MARKER]: JSON.stringify({ pid: 2 ** 22 + 12345 }) });
-      fs.chmodSync(targetDir, 0o555);
+      writeTree(`${targetDir}.relayout-backup`, { "README.md": "# Curated\n" });
+      const parent = path.dirname(targetDir);
+      fs.chmodSync(parent, 0o555);
       try {
-        const result = await relayoutSlice({ sliceDir, targetDir });
+        const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
 
         expect(result.exitCode).toBe(1);
-        expect(fs.readdirSync(targetDir)).toEqual([CLAIM_MARKER]);
+        expect(read(`${targetDir}.relayout-backup`, "README.md")).toBe("# Curated\n");
       } finally {
-        fs.chmodSync(targetDir, 0o755);
+        fs.chmodSync(parent, 0o755);
       }
     },
   );
@@ -984,6 +880,25 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([
       { file: "metadata/deck-inventory.md", ref: "decks/slides_(v2).pdf" },
     ]);
+  });
+
+  it("reads a link with a parenthesized title and rewrites its destination", async () => {
+    expect(inlineLinks("[x](a.md (Title)) and [y](b.md)").map(({ dest }) => dest)).toEqual([
+      "a.md",
+      "b.md",
+    ]);
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md": "[t](../source/transcript.txt (The transcript))\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "[t](../transcript/transcript.txt (The transcript))\n",
+    );
   });
 
   it("reads an image nested in a link as two links with the right labels", () => {
