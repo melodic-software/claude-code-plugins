@@ -629,7 +629,7 @@ assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "la
 # --- Degraded-mode contract: an unreadable source is never an all-clear -------
 # A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
 # host's behavior:
-#   blocked  every call is refused with the pinned-GraphQL 403 shape (body on
+#   blocked  every call is refused with the proxy's GraphQL 403 shape (body on
 #            stdout, message on stderr, exit 1) — the cloud-session shape
 #   fail     every call fails with an unrelated error
 #   rest     GraphQL-backed subcommands are refused as in `blocked`; `gh api
@@ -649,8 +649,8 @@ cat >"$GH_STUB_DIR/gh" <<'STUB'
 #!/usr/bin/env bash
 mode="${MB_GH_MODE:?MB_GH_MODE not set}"
 blocked() {
-  printf '{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. Use REST via `gh api repos/{owner}/{repo}/...` instead.","documentation_url":"https://example.invalid/docs"}\n'
-  printf 'gh: This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. (HTTP 403)\n' >&2
+  printf '{"message":"GitHub GraphQL is not available from Claude Code sessions. Use REST via `gh api repos/{owner}/{repo}/...` instead.","documentation_url":"https://example.invalid/docs"}\n'
+  printf 'gh: GitHub GraphQL is not available from Claude Code sessions. (HTTP 403)\n' >&2
   exit 1
 }
 case "$mode" in
@@ -760,7 +760,7 @@ assert_not_contains "blocked: telemetry never renders as absent" "$OUT_BLOCKED" 
 assert_not_contains "blocked: merge-ready never renders as none clean" "$OUT_BLOCKED" "(none clean right now)"
 assert_not_contains "blocked: decisions never render as none parked" "$OUT_BLOCKED" "(none parked)"
 assert_not_contains "blocked: queues never render a ? count" "$(section "$OUT_BLOCKED" "== Queues")" " ?"
-assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "not enabled for this session"
+assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "GraphQL is not available from Claude Code sessions"
 
 # An unrelated failure degrades the same way; the shape of the error does not
 # decide whether a section is readable.
@@ -786,7 +786,7 @@ assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 cle
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
 # fixture is an unreadable source, exactly like the GraphQL `errors` shape.
 cat >"$TMP/merged-message-error.json" <<'EOF'
-{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served.","documentation_url":"https://example.invalid/docs"}
+{"message":"GitHub GraphQL is not available from Claude Code sessions.","documentation_url":"https://example.invalid/docs"}
 EOF
 OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
@@ -795,7 +795,7 @@ OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-message-error.json" 2>&1)"
 assert_not_contains "message-shaped error: never an all-clear" "$OUT_MSG" "every merged PR in the window is clear"
-assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: This GraphQL query is not enabled"
+assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: GitHub GraphQL is not available"
 
 # --- Repo resolution falls back to the git origin remote ---------------------
 if have git; then

@@ -11,8 +11,8 @@ full step around it. A spoke whose steps need more than a table row has a provid
 name under a directory named for its skill: [`pull-request/`](pull-request/) holds the GitHub
 commands, scripts and `gh` facts behind the pull-request skill's `create.md`, `ready-for-review.md`,
 `monitor.md`, `readiness.md` and `merge.md`, and each spoke links its steps there. The worktree
-skill's spokes need only the rows below. The babysit-prs skill's `loop.md` and `safety.md` still
-carry their full GitHub procedures.
+skill's spokes need only the rows below. The babysit-prs and babysit-loop skills' spokes link
+their commands in [`babysit-prs/`](babysit-prs/) and [`babysit-loop/`](babysit-loop/).
 
 A pull request is GitHub's change request; this file uses its terms.
 
@@ -103,10 +103,13 @@ text, and a quote, `$(…)` or backtick inside it can break out of an inline she
 | Classic protection fallback | `gh api repos/<owner>/<repo>/branches/<branch>/protection` |
 | Whether head branches are deleted on merge | the repository's `delete_branch_on_merge` field: `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` |
 
-## Sandboxed sessions: GraphQL is restricted
+## Sandboxed sessions: GraphQL is unavailable
 
-Claude Code on the web and remote execution serve only a pinned set of GraphQL operations and refuse
-the rest with `HTTP 403`. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready`
+A cloud session behind the GitHub proxy is served no GraphQL operation: every GraphQL request gets
+`HTTP 403`, whatever token is set. Pointer:
+[Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
+As-of: 2026-10-11. Recheck trigger: that section changes its GraphQL entry, or a release note names
+the GitHub proxy. `gh pr view --json`, `gh repo view --json`, `gh pr create`, `gh pr ready`
 and `gh pr merge` all run over GraphQL. The 403 reads like an expired token or a missing scope and
 is neither: switch to the REST route the spoke names rather than re-authenticating. Probe it
 read-only:
