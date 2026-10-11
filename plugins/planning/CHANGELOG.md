@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.1] - 2026-10-10
+
+### Fixed
+
+- **The plan reviewer's effort record is current again.** The `plan-reviewer` agent justified its effort pin by saying the Agent tool takes no per-call effort, which stopped being true in Claude Code 2.1.292. The agent now records our decision instead: its definition pins the reviewer's effort and `/planning:plan` passes no `effort` on the dispatch, with a pointer to the subagents docs section on effort for which level wins. `/planning:plan` step 3 says the same.
+
+## [0.72.0] - 2026-10-10
+
+### Changed
+
+- `/planning:interview` no longer gates a change whose diff is quick to review and cheap to retry; behavior change alone does not force it, and its description triggers before work whose diff fails either test. A new effort starts at the interview however big, and the user can run `/planning:wayfind` in the same session when it outgrows one.
+- `/planning:wayfind` is an escalation from an interview, never the first step: its description says so, and chart mode, after the no-fog bail-out, sends an effort with no interview behind it to `/planning:interview` first. Charting seeds the map from an interview ledger: settled answers go into one seed decision item with one Decisions-so-far pointer, and open questions become decision items. It gains a `## Next` section.
+- `/planning:plan` sends a too-big, foggy effort to `/planning:wayfind` only after an interview outgrew one session, else to `/planning:interview` first.
+
+- `/planning:interview`, `/planning:brainstorm` and `/planning:prd` `## Next` sections lead toward the interview and name `/session-flow:workflow` for a session unsure where it stands, one successor per bullet; brainstorm drops `/user-experience:shape`, and `/planning:prd` gains the section.
+
+## [0.71.1] - 2026-10-10
+
+### Changed
+
+- **The interview page's deferred-work list is now `surface/deferred.md`**, renamed from `DEFERRED.md` so every markdown file in the repository is lower-kebab-case (ADR 0059).
+
 ## [0.71.0] - 2026-10-10
 
 ### Added

@@ -88,14 +88,23 @@ sandbox.
 | --- | --- | --- |
 | `allowUnsandboxedCommands` | A command that fails under the sandbox may be retried with `dangerouslyDisableSandbox`, which runs it outside | set to `false` |
 | `failIfUnavailable` | A missing dependency or an unsupported platform warns and then runs commands unsandboxed | set to `true` |
-| `excludedCommands` | Anything listed runs outside the sandbox, and upstream notes a developer can always append entries | kept narrow, and reviewed |
+| `excludedCommands` | Anything listed runs outside the sandbox. Which scopes' entries still apply when the sandbox is admin-required is in the pointer below the table | kept narrow, and reviewed in every scope that still applies |
 | `filesystem.disabled` | Turning the filesystem layer off lifts the `denyRead` and `credentials.files` read protections entirely | not set |
 | `!` shell mode | Commands typed at the `!` prompt run outside the sandbox by design, even when `allowUnsandboxedCommands` is `false`. Interactive sessions only: a background session, and a Linux session with `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` set, still sandbox shell-mode commands. Before v2.1.260, strict mode sandboxed shell-mode commands in every session | not treated as closed by strict mode in an interactive session |
 
 Report an enabled-but-default sandbox as partial, not as protection. Recommending it without these is
 the same defect as recommending the deny globs without their scope. Strict mode
 (`allowUnsandboxedCommands: false`) closes the unsandboxed retry for commands Claude runs. It does
-not close `!` shell mode in an interactive session.
+not close `!` shell mode in an interactive session. When strict mode may make the sandbox
+admin-required, audit the loosening settings only in the scopes it still reads, and do not report
+the repository's ignored entries as live.
+
+- **Pointer**: when you need what makes the sandbox admin-required, or which loosening settings it
+  then ignores from the repository, fetch
+  [repository settings under an admin-required sandbox](https://code.claude.com/docs/en/sandboxing#repository-settings-under-an-admin-required-sandbox)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes its ignore table or the settings sources it still reads.
 
 **Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
