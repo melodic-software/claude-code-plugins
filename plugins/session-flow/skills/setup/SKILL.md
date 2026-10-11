@@ -82,8 +82,8 @@ and note that re-enabling restores the FAIL semantics.
    integer from 2 to 200; `wip_commit`: `false`, the default, unless the team wants a pause
    handoff to make one local `chore(wip):` commit, an unquoted `true` or `false`;
    `transcript_scope`: leave it unset unless the team wants to narrow every member's
-   `/session-flow:find-handoff` scan to `worktree` or `repo`, since this key can only narrow a
-   user's option, never widen it). Never invent a key the schema does not list.
+   `/session-flow:find-handoff` and `/session-flow:recall` scans to `worktree` or `repo`, since
+   this key can only narrow a user's option, never widen it). Never invent a key the schema does not list.
 3. **Write.** One call with every value:
 
    ```bash
@@ -144,7 +144,7 @@ before and after, the diff when one was shown, the written path, and whether the
 `/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro codify`,
 which reads `encode_policy` and `review_mining_prs`; `/session-flow:retro`, whose session mode
 reads `retro_lenses`; `/session-flow:handoff`, which reads
-`wip_commit`; `/session-flow:find-handoff`, which reads `transcript_scope`.
+`wip_commit`; `/session-flow:find-handoff` and `/session-flow:recall`, which read `transcript_scope`.
 
 ## Gotchas
 
@@ -154,7 +154,8 @@ reads `retro_lenses`; `/session-flow:handoff`, which reads
   read by `/session-flow:orchestrate`, `encode_policy` and `review_mining_prs`, read by
   `/session-flow:retro codify`, `retro_lenses`, read by `/session-flow:retro` session mode,
   `wip_commit`, read by `/session-flow:handoff`, and
-  `transcript_scope`, read by `/session-flow:find-handoff`, where the narrower layer wins.
+  `transcript_scope`, read by `/session-flow:find-handoff` and `/session-flow:recall`, where the
+  narrower layer wins.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login

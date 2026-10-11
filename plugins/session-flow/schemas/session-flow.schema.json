@@ -32,7 +32,7 @@
     "transcript_scope": {
       "enum": ["worktree", "repo", "all"],
       "default": "worktree",
-      "description": "How far /session-flow:find-handoff reads transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
+      "description": "How far /session-flow:find-handoff and /session-flow:recall read transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
     },
     "retro_lenses": {
       "enum": ["1", "3"],

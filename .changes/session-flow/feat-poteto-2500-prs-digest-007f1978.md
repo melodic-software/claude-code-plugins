@@ -4,6 +4,7 @@ bump: minor
 
 ### Fixed
 
+- **The `transcript_scope` setting names `/session-flow:recall` beside find-handoff** in the repository schema and in `/session-flow:setup`, since both skills read it.
 - **`/session-flow:setup check` prints its repository-settings lines with `PASS` and `WARN` prefixes**, as the skill's table reads them; the setup script now uses the shared library's report instead of its own unprefixed copy.
 - **`sweep.py --excerpts` leaves out automated sessions**, as the metrics already did, so a headless or SDK run's turns are never read as a preference you repeat.
 - **`scripts/transcript_dirs.sh` names a non-ASCII project directory as Claude Code does**: one `-` per UTF-16 code unit (`/home/José/r` is `-home-Jos--r`, an emoji is `--`), where it wrote one `-` per UTF-8 byte and so missed those directories.
