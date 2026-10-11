@@ -11,12 +11,20 @@ metadata:
 ## Purpose
 
 The `autoMode` block is a natural-language prompt for a classifier, not a rule list the harness
-matches, so it fails in ways a config file does not. `claude auto-mode critique` describes the
-classifier as "an LLM doing a single pass under a 'default is ALLOW' instruction", so "buried
-conditions in paragraph position 40 will be missed at a materially higher rate than conditions in a
-bullet list."
+matches, so it fails in ways a config file does not. We write each condition as its own short entry
+the classifier can see, never buried in a long paragraph, because a condition deep in prose is the
+one a single classifier pass is likeliest to miss.
 
-This skill applies that finding at authoring time instead of reporting it afterwards.
+This skill applies that at authoring time instead of reporting it afterwards, the job
+`claude auto-mode critique` does after the fact.
+
+- **Pointer**: when deciding how the classifier reads entries, fetch
+  [auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules)
+  and, for the critique command,
+  [auto mode config: inspect the defaults and your effective config](https://code.claude.com/docs/en/auto-mode-config#inspect-the-defaults-and-your-effective-config)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes how entries are read or what the critique reviews.
 
 ## Report-only, permanently
 
@@ -126,8 +134,13 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/draft-auto-mode-rules/scripts/draft-automode-
 It prints a JSON object carrying only the sections that got entries. **An unknown section name
 is a hard failure**, exiting 2 with nothing on stdout rather than warning beside partial output,
 because a caller capturing both streams together would otherwise get unparsable JSON. **Every section opens with
-`"$defaults"`.** Customizing a section replaces the built-in list rather than adding to it, so
-omitting the token silently discards every shipped rule in that section.
+`"$defaults"`.** We keep the token in every section so a customized section never loses the shipped
+rules (Pointer: when deciding what a section without the token keeps, fetch
+[auto mode config: define trusted infrastructure](https://code.claude.com/docs/en/auto-mode-config#define-trusted-infrastructure)
+and
+[auto mode config: override the block and allow rules](https://code.claude.com/docs/en/auto-mode-config#override-the-block-and-allow-rules)
+live. As of: 2026-10-11. Recheck trigger: that section changes what customizing a section does to
+the built-in list, or retires `$defaults`).
 
 ## Phase 4: Hand it over
 

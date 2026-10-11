@@ -104,13 +104,14 @@ it through `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`. Writing either shape into thi
 were harness behavior would be the same defect class this plugin's own catalog flags: an instruction
 surface misstating what the harness does, which then outlives the configuration it described.
 
-> **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** subagents may spawn subagents by default
-> to a bounded depth, and `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is the environment variable that
-> lowers that budget, a value of 1 disabling nesting. **Basis:**
-> [subagents](https://code.claude.com/docs/en/sub-agents) and
-> [settings](https://code.claude.com/docs/en/settings) (environment variables). **Recheck trigger:**
-> the documented default depth changes, the variable is renamed or retired, or nesting stops being
-> on by default.
+- **Pointer**: when deciding whether a lane can nest its verifier, fetch
+  [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+  for the default depth and how `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` changes it, and that
+  variable's row in
+  [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables), live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the documented default depth changes, the variable is renamed or retired, or
+  nesting stops being on by default.
 
 So the run **probes** rather than assumes, and records what it found:
 

@@ -48,15 +48,22 @@ Findings are printed as `<severity> [<check>] <source>: <detail>`.
 Every run ends with a **coverage block**: `allowed-tools` blocks parsed and candidate files walked,
 allow rules read per settings scope (with `absent` and `NOT VALID JSON` reported distinctly, because
 an unparsable rules file is skipped entirely and is the likeliest place for an unexamined grant).
-A user, project, or local file that is not valid JSON is a Settings Error: after continue, `/status`
-names the file, and an unparsable user `settings.json` pauses the retention sweep and warns in
-`/status`. A managed settings file, drop-in, MDM plist, or HKLM value that cannot be parsed refuses
-startup (exit 1) and names the source, from v2.1.259. Do not describe that managed failure as silent
-non-enforcement. Basis: [settings](https://code.claude.com/docs/en/settings) and
-[managed settings](https://code.claude.com/docs/en/managed-settings). Verified 2026-09-28. Recheck
-when either page changes what an unparsable settings document does at startup.
-plugin manifests and plugin `settings.json` files parsed, paths the walk could not open, and files
-an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
+An unparsable user, project, or local file is a reported settings error, and an unparsable managed
+source stops startup; do not describe that managed failure as silent non-enforcement. What each
+reports, and from which version, is read live, never from here (`audit-permission-state` keeps the
+same record).
+
+- **Pointer**: for managed sources that fail to parse, fetch
+  [managed settings: find entries Claude Code dropped](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
+  live; for other settings files, fetch
+  [settings: fix a broken settings file](https://code.claude.com/docs/en/settings#fix-a-broken-settings-file)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes what Claude Code does when a settings source fails to
+  parse.
+
+The coverage block also counts plugin manifests and plugin `settings.json` files parsed, paths the
+walk could not open, and files an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
 denominator with every input readable; a run that parsed nothing prints `NOTHING TO AUDIT`, and a run
 that found nothing but could not open or parse an input prints `INCOMPLETE SCAN, NOT A CLEAN BILL`
 with its audited and blocked counts. Neither may be relayed as clean.
@@ -91,8 +98,8 @@ entering auto mode. The classes:
 - an `Agent` allow rule (bare `Agent` or scoped `Agent(...)`, both dropped categorically, with no narrow
   carry-over form)
 
-`Monitor` allow rules are a **sixth** documented drop class, added upstream in v2.1.236 because Claude
-Code runs Monitor commands through the shell. This detector does not scan for it, and that division of
+`Monitor` allow rules are a further documented drop class, recorded with its version in
+`audit-permission-state`'s auto-mode entry diff. This detector does not scan for it, and that division of
 labor is deliberate: `audit-permission-state` owns the Monitor class. Do not report a clean P1 result
 as evidence that a repo's Monitor grants are sound.
 
@@ -130,16 +137,14 @@ Windows), `/home/<name>/…`, `/Users/<name>/…`, or `C:\Users\<name>\…`.
 genuinely expand per machine and per user. Only concrete usernames match.
 
 **`//…` is flagged.** It is not a portable anchor like the two expanding forms: `//` is the *absolute*
-anchor.
-<https://code.claude.com/docs/en/permissions>, § Read and Edit, fetched 2026-08-12, gives the pattern
-table row `` `//path` | Absolute path from filesystem root | `Read(//Users/<name>/secrets/**)` |
-`/Users/<name>/secrets/**` ``, and the same page states: *"A pattern like `/Users/<name>/file` isn't an
-absolute path. The single leading slash anchors at the settings source, not the filesystem root. **Use
-`//Users/<name>/file` for absolute paths.**"* So `//Users/<name>/…` resolves to a concrete user home and
-carries the username. It is the canonical *spelling* of the defect P2 exists to catch, not an
-exception to it. Contrast `~/…`, whose own doc row (`Read(~/Documents/*.pdf)` → `/Users/<name>/Documents/*.pdf`)
-shows the home segment being supplied per user, which is what makes it portable. Recheck when the
-permissions page's Read and Edit pattern table changes the `//path` or `~/path` row.
+anchor, so `//Users/<name>/…` resolves to a concrete user home and carries the username. It is the
+canonical *spelling* of the defect P2 exists to catch, not an exception to it. Contrast `~/…`, whose
+home segment is supplied per user, which is what makes it portable.
+
+- **Pointer**: when deciding what a path prefix anchors to, fetch the pattern table in
+  [permissions: read and edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that table changes the `//path` or `~/path` row.
 
 **Why**: the rule names a concrete user home, so it breaks on any other machine or username, and it
 breaks after a skill migrates into a plugin, since the install path changes. It also leaks a username into
@@ -201,14 +206,21 @@ classes, because one of them is context-dependent:
 | `%USERPROFILE%`, `$env:USERPROFILE` | everywhere. Bash rules match literally and neither Windows spelling is ever expanded |
 | `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_PLUGIN_DATA}` | everywhere **except a plugin skill's `allowed-tools`**, meaning a personal or project skill, an agent, a command, or any settings file |
 
-A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**. The
-substitution has a version floor of **v2.1.0**, recorded upstream as *"Fixed `${CLAUDE_PLUGIN_ROOT}`
-not being substituted in plugin `allowed-tools` frontmatter, which caused tools to incorrectly require
-approval"*.
+A grant naming the plugin-scoped pair from inside a plugin skill **resolves and is not flagged**.
+The substitution has a version floor recorded in a release note; read it there rather than here.
 
-The settings-scope half is not an inference from the plugin-skill rule: **no page documents
-`${CLAUDE_*}` expansion in a settings `permissions.allow` array**, so a rule there is inert whatever
-the surrounding checkout looks like.
+The settings-scope half is not an inference from the plugin-skill rule: we treat a `${CLAUDE_*}`
+token in a settings `permissions.allow` array as unexpanded, so a rule there is inert whatever the
+surrounding checkout looks like.
+
+- **Pointer**: when deciding where a `${CLAUDE_*}` token expands, fetch
+  [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  and [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live; the floor for the plugin `allowed-tools` substitution is the
+  [changelog](https://code.claude.com/docs/en/changelog#2-1-0) entry for 2.1.0.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section starts documenting expansion in a settings permission rule, or
+  stops documenting it in plugin `allowed-tools`.
 
 **How to check**: run the detector. It resolves plugin-skill context from a `.claude-plugin/plugin.json`
 at the plugin root, falling back to the marketplace-monorepo `plugins/<name>/skills/<name>/SKILL.md`
@@ -250,10 +262,10 @@ the specifier is not.
 remainder that is not another rule.
 
 **Why**: Claude Code reports this shape as invalid settings. A scan that kept only the token would
-call `Bash(ls) x` a narrow `Bash(ls)` grant. Basis:
-[permissions](https://code.claude.com/docs/en/permissions) ("Parentheses inside the specifier are
-literal"). Verified 2026-09-28. Recheck when that page changes how a rule with trailing text is
-reported.
+call `Bash(ls) x` a narrow `Bash(ls)` grant. Pointer: when deciding a rule's shape, fetch
+[permissions: permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax)
+live. As of: 2026-10-11. Recheck trigger: that section changes how parentheses in a specifier or
+trailing text after one are read.
 
 **Recommend**: delete the trailing text, or rewrite the rule as one `Tool(specifier)`.
 
