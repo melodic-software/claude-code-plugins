@@ -246,8 +246,8 @@ jobs:
           fi
           token=$(openssl rand -hex 16)
           echo "::stop-commands::$token"
-          jq -r '.cases[] as $c | $c.arms | to_entries[] | .key as $arm
-            | .value | to_entries[]
+          jq -r '.cases[]? as $c | $c.arms // {} | to_entries[] | .key as $arm
+            | .value // [] | to_entries[]
             | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
             | @tsv' "$RESULTS" |
             while IFS=$'\t' read -r name arm run trace; do
@@ -266,11 +266,11 @@ jobs:
                     | (.tool_use_id // "" | tostring) as $id
                     | select($bash | has($id))
                     | {cmd: $bash[$id],
-                       out: (.content | if type == "array" then map(.text? // "" | tostring) | join("\n") else tostring end)}]
+                       out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
                 | "   \(length) Bash error(s), showing up to 20",
                   (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out[:300] | tojson)")
               ' "$trace" || echo "   could not read the trace"
-            done
+            done || echo "could not read results.json"
           echo "::$token::"
 
       - name: Upload the eval results
