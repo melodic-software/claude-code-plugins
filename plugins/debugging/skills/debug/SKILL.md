@@ -180,13 +180,13 @@ Two symptom shapes come with a known first suspect:
 
 | Symptom shape | Goes at the top of the table | Cheapest test |
 |---|---|---|
-| Started after a restart, with no code change | Stored state, checked in this order: files the last run serialized to disk, caches, startup config the new process loads, lock files | One file per loop run: rename it, relaunch, run the loop |
+| Started after a restart, with no code change | Whatever the old process left on disk for the new one, in this order: data it saved for the next run (a session or queue snapshot), then caches, then the config read at startup, and last any `.lock` or pid file | One file per loop run: rename it, relaunch, run the loop |
 | One worker, host, shard or tenant carries far more of it than the rest | The scheduling, routing or hashing code that keeps picking that actor, once the same actor leads on every pass | A small script that counts the symptom per actor, rerun on each loop pass |
 
 Make that count a script rather than a dashboard reading: a figure read once leaves the next pass
 nothing to compare against. A leader that changes from pass to pass is noise.
 
-**Pick the test that rules out more.** When two tests cost about the same, run the one whose result eliminates more of the remaining hypotheses.
+**Break a cost tie by rows removed.** Two tests that cost about the same are not equal if one of them, whichever way it comes out, deletes more rows from the table; run that one first.
 
 **Post the table, then start row 1 without waiting for an answer.** The user may know what the
 repo cannot show: that staging runs the same proxy cap and accepts the file, that every failing

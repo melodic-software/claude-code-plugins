@@ -16,3 +16,4 @@ bump: minor
   `/debugging:debug`'s restart, uneven-load, refuted-edit, worked-example, red-and-green,
   workaround and second-failed-fix passages in our own words, each in a structure of its own.
   Behavior is unchanged.
+- Reworded `/debugging:analyze-profile`'s pre-answer checks as a table keyed by what the draft does, and its unresolved-frame eval name, in our own words. Behavior is unchanged.

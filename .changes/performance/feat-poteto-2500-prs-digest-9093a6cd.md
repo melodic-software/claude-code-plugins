@@ -38,3 +38,4 @@ bump: minor
   rule 8, goal's `min_attempts` section and snapshot's freeze steps and eval in our own words,
   each in a structure of its own.
   Behavior is unchanged.
+- Reworded the examples in `reference/techniques.md`, the frozen-harness counts rule in `reference/harness-integrity.md` and `/performance:verify`'s matching line in our own words. Behavior is unchanged.

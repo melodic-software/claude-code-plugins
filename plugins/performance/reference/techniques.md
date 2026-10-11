@@ -466,9 +466,9 @@ still needs a measured baseline; the catalog names mechanisms, not wins.
 
 ### Match the evidence to a change
 
-Start from the profile or trace already in hand: find its signature in the first column and try
-the change beside it. If the signature fits no row, you have nothing to try yet; going through
-the rows in turn anyway spends attempts on changes that no measurement pointed at.
+When the profile or trace already in hand matches a row's first column, try that row's change.
+When it matches none, capture more evidence before changing code: working down the table without a
+match spends attempts on changes that no measurement pointed at.
 
 | The profile shows | Change to try | Counter | Catalog rows |
 |---|---|---|---|
@@ -481,16 +481,16 @@ the rows in turn anyway spends attempts on changes that no measurement pointed a
 | Output produced before anyone opens it, like a panel that starts closed | Build it lazily, on first use | Work before first use | none yet |
 | A path that dominates the profile and looks necessary | Remove it, after reading its callers first (below) | Executions of that path | Duplicate persistence on the main thread |
 
-**Removal rests on the callers, not the profile.** A profile ranks a path by its cost and says
-nothing about whether anything uses what the path produces. Before the removal row applies, list
-who reads the result; that list is the only evidence that the path can go. Paths that have turned
-out removable this way: a write that repeats the previous one unchanged (the catalog row in the
-table), a hook registered for an event no plugin emits any more, and a startup cache rebuild that
-no command reads.
+**Before deleting a hot path, list who reads its output.** Cost is all a profile ranks; whether
+anything consumes the result is a question only that list of readers answers, and it is the only
+evidence that the path can go, so the removal row applies once the list is empty. Paths that have
+turned out removable this way: a write that repeats the previous one unchanged (the catalog row in
+the table), a hook registered for an event no plugin emits any more, and a startup cache rebuild
+that no command reads.
 
-**Judge a moved task by main-thread blocking.** Moving work ahead of the interaction, after it or
-to another thread does not make it smaller. Its counter is main-thread blocking during the
-interaction, and a process total that holds steady or grows is not evidence against the change.
+**Score a moved task on main-thread blocking during the interaction.** Shifting work ahead of the
+interaction, after it or onto another thread leaves its size unchanged, so a process total that
+stays flat or rises does not count against the change.
 
 ### Perceived performance
 

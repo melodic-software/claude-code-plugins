@@ -79,8 +79,9 @@ of the three callers changes.
 - **The deletion test.** Ask what each caller would have to write if the module were removed. A
   direct call to whatever the module wrapped means it only forwarded calls. The same logic, copied
   into every caller, means it was doing real work.
-- **Run order is not a reason to split.** When a new field on an invoice line means editing the
-  loader, the tax step and the writer in one change, all three know that line's layout, and the
-  code was divided by when each part runs instead of by what each part knows. Ousterhout's name for
-  this is temporal decomposition. Draw the module around the layout knowledge instead; code that
-  runs early and code that runs late can still live in it together.
+- **Count the edits one change forces.** Suppose invoice lines gain an exemption code. If
+  `TaxCalculator`'s rate step, its rounding step and its receipt step each need an edit, each step
+  reads the line layout for itself: the code was cut along the sequence of the pipeline, not along
+  who is responsible for the layout (Ousterhout calls this temporal decomposition). Give the layout
+  one owning module and have the steps call it. A step's place in the sequence, first or last, is
+  no reason to keep it outside that module.

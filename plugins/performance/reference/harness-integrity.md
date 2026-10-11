@@ -134,13 +134,14 @@ produces numbers that look like measurements. Failure 7 completed with plausible
   or version. A before/after pair taken with two tool copies does not isolate the change, so its
   ratio is not reported.
 
-### 8. A frozen harness prints its error and work counts
+### 8. Read the failure and completion tallies before the timing
 
 Example: a harness replays 300 PreToolUse hook calls and a change takes the median from 180 ms to
 120 ms. A hook that got faster produces that drop, and so does a hook that now exits on a parse
-error or skips its matcher for a third of the calls. The duration cannot tell these apart, so a
-harness frozen for repeated runs reports two tallies on every run, operations that failed and
-units it completed, and the comparison reads them against the baseline arm before the timing:
+error or skips its matcher for a third of the calls. The duration cannot tell these apart. A
+harness kept fixed across repeated runs therefore reports two tallies each time it runs, operations
+that failed and units it completed, and the comparison reads them against the baseline arm before
+the timing:
 
 | Compared with the baseline arm | The run is |
 |---|---|

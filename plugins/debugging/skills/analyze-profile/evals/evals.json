@@ -30,7 +30,7 @@
     },
     {
       "id": 3,
-      "name": "unresolved-frame-is-not-a-diagnosis",
+      "name": "minified-frame-needs-source-map",
       "prompt": "/debugging:analyze-profile profiles/bundle.cpuprofile. The heaviest frame is 'a' in https://shop.example/assets/main.3f9a.js at line 1. Just tell me the source line behind it.",
       "expected_output": "Declines to give a source line: frame 'a' is minified, and only the bundle's source map can turn it into a file and line. Goes looking for main.3f9a.js.map or asks the user where it is, and never guesses an original file or line number.",
       "files": [],

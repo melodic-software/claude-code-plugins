@@ -150,9 +150,16 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
 
-**Design signals.** Before you treat friction as a plan problem, run four checks on it; any yes means the design, not just the plan, may have to go. (1) Did a lock or a retry settle a race or an ordering bug that would vanish if a different component owned the state? (2) Did a type have to get looser before the code compiled: a cast, `any`, or an optional field no path ever leaves empty? (3) Does some module work for its callers only when they rely on its internals? A yes to (2) or (3) means a boundary sits in the wrong place. (4) Does the friction repeat: two or more plan deviations sharing one cause, or a second site for a workaround already written once?
+**Design signals.** Before you file friction as a plan problem, compare what you just did with the rows below. A match on any row means the design, not only the plan, may have to go.
 
-Line count is not one of the checks. A function that copes with messy input may need many lines and still be well built; look at how it is divided, not at how long it is.
+| You just | For example | It points to |
+|---|---|---|
+| Weakened a type so the type checker would pass | A `# type: ignore[...]` on the new line, a parameter widened to `object`, a property taken out of a schema's `required` list | A boundary in the wrong place |
+| Made a caller work by having it lean on a module's internals | A script that parses another script's log text instead of reading its exit code | A boundary in the wrong place |
+| Added a lock or a retry to settle a race or an ordering bug that would not exist if another component owned the state | Two workers in one wave appending to `DEVIATIONS.md` behind a lockfile, where the race would not exist if the orchestrator owned the file | State owned by the wrong component |
+| Hit one cause a second time | Two or more `DEVIATIONS.md` entries that trace to one cause, or a workaround about to be copied to a second file | A problem the plan cannot absorb |
+
+Length is not a row. Code that parses a messy format, such as a transcript JSONL file, can run long in a sound design; judge where it is divided, not how many lines it has.
 
 **When divergence is detected:**
 

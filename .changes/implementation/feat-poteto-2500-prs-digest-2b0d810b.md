@@ -158,3 +158,4 @@ bump: minor
   and the bugfix, feature and refactor steps; in `/implementation:implement-dispatch`, the operator
   hold, the run-boundary entry, the four criteria of the deviation-trail review, the worker model
   line and the gate-fault gotcha. Every rule, threshold and setting stays the same.
+- Reworded `/implementation:implement`'s design signals as a table with examples from this repository, and the bugfix and refactor examples, in our own words. Every rule stays the same.
