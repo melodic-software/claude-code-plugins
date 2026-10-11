@@ -545,7 +545,7 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   # creation just failed, and a bare diagnosis leaves them nothing to do. There
   # is no worktree to create outside a repository, so the actionable answer is
   # the harness-side stand-down, not a flag of this script's.
-  printf '%s: run this from inside a git repository, or pass --repo-dir pointing at one; for a Claude Code session at a non-repository directory, set worktree.bgIsolation to "none" in settings so it edits in place instead of isolating\n' "$PROG" >&2
+  printf '%s: run this from inside a git repository, or pass --repo-dir pointing at one; for a Claude Code background session at a non-repository directory, set worktree.bgIsolation to "none" in settings so it edits in place; --worktree and subagent isolation need a repository\n' "$PROG" >&2
   printf '%s:   --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
 fi

@@ -60,8 +60,13 @@
 #
 # `worktree_create_gate_enabled=false` does NOT hand placement back to Claude
 # Code — per the paragraph above, no such channel exists. It makes this hook
-# refuse, which fails every harness-driven creation path. The harness-side
-# stand-down is `worktree.bgIsolation: "none"`, or disabling the plugin.
+# refuse, which fails every harness-driven creation path. Disabling the plugin
+# is the only stand-down that covers every path. `worktree.bgIsolation: "none"`
+# is narrower: it stops background sessions isolating at all, and leaves
+# `--worktree` and subagent worktrees on this hook.
+#   Pointer: <https://code.claude.com/docs/en/settings-reference#worktree-bgisolation>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section stops scoping the key to background sessions.
 #
 # ── Verification stamp (docs/conventions/upstream-drift) ────────────────────────
 # Claim: the four harness behaviors above — last-non-empty-line path read, hook
@@ -121,7 +126,7 @@ gate::refuse() {
 # and an exit-0 skip is precisely the shape this path must avoid.
 if [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED:-true}" != "true" ]]; then
   gate::refuse \
-    'to let Claude Code place worktrees itself, set worktree.bgIsolation to "none" in settings, or disable this plugin — turning this option off cannot hand placement back' \
+    'to let Claude Code place worktrees itself, disable this plugin; worktree.bgIsolation "none" in settings only stops background sessions isolating, and turning this option off cannot hand placement back' \
     'the gate is disabled by worktree_create_gate_enabled=false, so it declined to place this worktree' \
     'a WorktreeCreate hook has no "not applicable" channel: both refusing and returning no path fail the creation'
 fi
@@ -289,7 +294,7 @@ if ((status != 0)); then
     ;;
   4)
     gate::refuse \
-      "if $repo_dir is not a git repository, set worktree.bgIsolation to \"none\" in settings so Claude Code edits in place instead of isolating" \
+      "if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
       "the helper hit an environment error (exit 4): either $repo_dir is not a git repository, or git worktree add itself failed" \
       'the git error above this line, if any, is the authoritative detail'
     ;;

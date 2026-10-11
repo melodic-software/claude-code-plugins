@@ -109,11 +109,16 @@ def gh_json(args: list[str]) -> Any:
 # 1 for every failure, so this is the only signal separating "the API answered
 # no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
-# Sandboxed sessions (Claude Code on the web and remote execution) serve only a
-# pinned set of GraphQL operations and refuse the rest with HTTP 403. The
-# refusal names the session rather than the credential, so it reads like an
-# expired token or a missing scope and is neither: re-authenticating never
-# clears it, and the only remedy is to source the same fact over REST.
+# Sandboxed sessions (Claude Code on the web and remote execution) route GitHub
+# through a proxy that refuses GraphQL requests with HTTP 403, whatever the
+# credential. The refusal reads like an expired token or a missing scope and is
+# neither: re-authenticating never clears it, and the only remedy is to source
+# the same fact over REST. The marker below is an earlier refusal wording; the
+# parsed 403 in `is_graphql_unavailable` is what catches the current one.
+#   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section stops rejecting GraphQL outright, or changes
+#   the status the refusal carries.
 GRAPHQL_UNAVAILABLE_MARKERS = ("not enabled for this session",)
 
 
@@ -563,8 +568,8 @@ def view_pr_fields(
     """`gh pr view --json <fields>`, re-sourced over REST when GraphQL is refused.
 
     `gh pr view --json` is implemented entirely over GraphQL, so it is the first
-    read in this engine to fail where only a pinned set of GraphQL operations is
-    served. Returns the field bundle plus whether it came from GraphQL; a REST
+    read in this engine to fail where the session's GitHub proxy refuses
+    GraphQL. Returns the field bundle plus whether it came from GraphQL; a REST
     bundle carries only the fields `rest_view_pr` can rebuild, so a caller that
     asked for a GraphQL-only field (`closingIssuesReferences`) gets it absent
     rather than fabricated, and must fail closed on the absence.
