@@ -163,8 +163,13 @@ one reads the file itself.
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level).
 
-  The repository level is read from the repo root as [The three layers](#the-three-layers) resolves
-  it, and is not applicable at the home directory or outside a git working tree. A value other than
+  The repository level is read at the pull request's base branch, never from the working tree or
+  the head branch, with the same `contents?ref=<base-branch>` read the
+  [review-bot triage rubric](#review-bot-triage-rubric-docsconventionssource-controlmd) uses: a
+  branch must not choose to skip the draft for itself. It is not applicable at the home directory
+  or outside a git working tree. An unattended run (a loop lane, a CI lane, a `dontAsk` session, a
+  dispatched worker or orchestrator, any `--pushed` run) opens a draft whatever the value
+  resolves to, and reports that a `ready` was set and not used. A value other than
   `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
   unknown value never opens a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The

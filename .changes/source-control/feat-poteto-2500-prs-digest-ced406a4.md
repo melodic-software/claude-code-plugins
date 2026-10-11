@@ -30,9 +30,13 @@ bump: minor
 - **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
   (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
   option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is
-  validated by the new `schemas/source-control.schema.json`. `create` reports which level supplied
-  the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
-  does not carry the key.
+  validated by the new `schemas/source-control.schema.json`. The repository file is read at the
+  pull request's base branch, never from the working tree or the branch being opened, so a branch
+  cannot open itself ready and skip the `ready` phase's base merge, security review and verify
+  gate. An unattended run (a lane, CI, a `dontAsk` session, a dispatched worker or orchestrator,
+  every `create --pushed`) always opens a draft. `create` reports which level supplied the value,
+  and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md` does not
+  carry the key.
 - **A repository can keep a review-bot triage rubric.** A `## Review-bot triage rubric` table in
   `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
   `high`/`medium`/`low` confidence) is read at the PR's base branch by
