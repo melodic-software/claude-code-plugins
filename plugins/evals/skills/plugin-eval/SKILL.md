@@ -169,7 +169,8 @@ arm costs are not symmetric.
 
 Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
 with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD and 42 short single-arm calibration runs 1.79 USD: 0.04 to 0.07 USD per run.
+cost 1.67 USD and 42 short single-arm calibration runs 1.79 USD: 0.04 to 0.07 USD per run on
+average, judge calls included.
 
 **A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
@@ -181,7 +182,7 @@ from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the 
 skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
 arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
 when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.1 alone. Re-derive these anchors from the last three passes when a Claude Code release note
+at 0.1 alone. Re-derive these anchors from the latest passes when a Claude Code release note
 touches `plugin eval`, the model a run serves changes, or a pass averages more than 0.1 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
