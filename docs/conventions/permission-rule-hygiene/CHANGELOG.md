@@ -4,6 +4,16 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.2] - 2026-10-11
+
+Changelog only; the convention text is unchanged.
+
+- **Declared in-place correction to the released 1.3.1 entry.** Its quote of the old opening
+  sentence carried the sentence's original markdown link to
+  `../../../plugins/claude-config/skills/audit-permission-grants`, a path that no longer exists, so
+  the repository's link check failed on it. The quoted sentence, markdown and historical path
+  included, is now an inline code span instead of a live link; its text is unchanged.
+
 ## [1.6.1] - 2026-10-10
 
 Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.
@@ -71,8 +81,7 @@ The enforcement sentence names its enforcer by public invocation instead of by a
 into another plugin's tree, and this file's own preamble stops naming a skill that does not exist.
 
 - **The enforcement citation was a path an installed reader cannot resolve.** The opening section
-  read "Enforced by the [`audit-permission-grants`](../../../plugins/claude-config/skills/audit-permission-grants)
-  skill in the `claude-config` plugin". That link resolves only inside the marketplace checkout, and
+  read ``Enforced by the [`audit-permission-grants`](../../../plugins/claude-config/skills/audit-permission-grants) skill in the `claude-config` plugin``. That link resolves only inside the marketplace checkout, and
   three plugin surfaces fetch this README over `raw.githubusercontent.com` at run time, so the
   enforcement route was unreachable exactly where the convention binds.
   [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)

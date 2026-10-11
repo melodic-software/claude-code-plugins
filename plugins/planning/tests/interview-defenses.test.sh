@@ -491,11 +491,14 @@ done
 # resolves nothing. The three recommendation-basis links point at the plugin-shipped
 # context file instead of an org URL; a link target changes no rule.
 # The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
+# The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
+# this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
+# question is phrased, not what resolves it: an unanswered question still resolves nothing.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "0c7b0a47cce5231389429ce4c3cca61f6560b7b0d8e999a0ab9d99d933ef0b8c"
+  "e11ec493d4f888c96ee7afa4aa2a4e80eff880ea5b46ce93f758d0a0e3d2104a"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

@@ -38,7 +38,8 @@ that the rules are present; presence is not evidence the file is unreachable. Sa
 category is reported, in either direction. Verified 2026-09-28 against
 [permissions](https://code.claude.com/docs/en/permissions),
 [sandboxing](https://code.claude.com/docs/en/sandboxing), and
-[settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories).
+[settings reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories)
+(that anchor re-checked 2026-10-11).
 Recheck when a release note changes Read/Edit deny coverage, Bash redirect checks, sandbox
 shell-mode, or `permissions.blockReadsOutsideWorkingDirectories`.
 
