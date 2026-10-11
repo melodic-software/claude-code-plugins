@@ -108,12 +108,16 @@ cr_has_workaround_cue() {
 }
 
 # A workaround is justified by a link (a URL, an issue or PR number, an RFC) or by a
-# removal condition (`until`, `remove when`, `drop it once`, `once ... ships`).
+# removal condition (`until` a version or a release or fix event, `remove when`, `drop it
+# once`, `once ... ships`). A bare `until` is a loop bound (`retry until it succeeds`), not
+# a removal condition.
 cr_has_workaround_justification() {
   local lc="${1,,}"
   local sb='(^|[^[:alnum:]])' eb='([^[:alnum:]]|$)'
+  local ev='(ships?|shipped|lands?|landed|releases?|released|merges?|merged|fix(es|ed)?|resolved|available|supports?|upgrades?|upgraded)'
   [[ "$lc" =~ https?:// || "$lc" =~ \#[0-9]+ || "$lc" =~ ${sb}rfc[[:space:]-]?[0-9]+ ]] && return 0
-  [[ "$lc" =~ ${sb}until${eb} ]] && return 0
+  [[ "$lc" =~ ${sb}until[[:space:]]+v?[0-9] ]] && return 0
+  [[ "$lc" =~ ${sb}until[^[:alnum:]](.*[^[:alnum:]])?${ev}${eb} ]] && return 0
   [[ "$lc" =~ ${sb}(remove|drop|delete|revert)([[:space:]]+[[:alnum:]]+)?[[:space:]]+(when|once|after)${eb} ]] && return 0
   [[ "$lc" =~ ${sb}once${eb}.*${sb}(ships|lands|releases|merges|is[[:space:]]+(fixed|released|merged|resolved|available))${eb} ]] && return 0
   return 1
