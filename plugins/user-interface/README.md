@@ -7,6 +7,8 @@ project's existing look, reuses the design tools already installed, and fills on
 | Skill | What it does |
 |---|---|
 | `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it |
+| `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
+| `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
 ## How it routes
 
@@ -35,6 +37,73 @@ installed routes are reachable.
   - [`web.md`](reference/types/web.md) and [`app.md`](reference/types/app.md): project-first rules
     and pointers to platform guidelines.
 
+## Configuration
+
+Settings resolve through five layers. A later layer wins per key:
+
+| Order | Layer | Where | Committed |
+|---|---|---|---|
+| 1 | plugin defaults | [`reference/defaults.yaml`](reference/defaults.yaml) | shipped |
+| 2 | userConfig | the `css_*` options below, scalars only | no |
+| 3 | user-global | `~/docs/conventions/user-interface.{yaml,md}` | no |
+| 4 | team | `<home>/user-interface.{yaml,md}`, where `<home>` is the repository's convention home (default `docs/conventions`) | yes |
+| 5 | personal | `<home>/user-interface.local.{yaml,md}` | no, gitignored |
+
+YAML files hold settings and Markdown files hold prose; prose from layers 3 to 5 is read in that
+order. Keys and allowed values are in [`reference/team.schema.json`](reference/team.schema.json):
+
+| Key | Default | Values |
+|---|---|---|
+| `css.browser_target` | `baseline widely available` | a browserslist query |
+| `css.techniques.disable` | `[]` | technique names to skip |
+| `css.rules.disable` | `[]` | `hover`, `logical`, `outline`, `ease-in`, `color`, `transition-all`, `motion`, `duration` |
+| `css.important` | `avoid` | `avoid`, `utilities-only`, `allow` |
+| `css.layer` | `null` (the project's own layer order) | a cascade layer name |
+| `css.token_fallback` | `ask` | `ask`, `propose-token`, `literal` |
+| `routing` | none | route rows, `disable` and `deny`, team layer only |
+
+The `css` keys are read by `/user-interface:write-css`; its
+[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes.
+`routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
+does not apply it yet: it routes from the bundled rows only.
+
+**Provenance.** `scripts/detect.mjs --config` prints every resolved value with the layer that
+supplied it, and `/user-interface:setup check` shows them as a table. A `css_*` option counts only once you store a
+value for it: the `default` in `plugin.json` is not delivered to skills, so an option you never set
+reads from a lower layer (probe record:
+[`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md),
+Test D).
+
+**Changing a value.** `/user-interface:setup apply <key>=<value>` writes the team file;
+`--user` writes the user-global file and `--local` the personal file, adding `<home>/*.local.*` to
+`.gitignore`. Set a `css_*` option through `/config` or the routes under Options below.
+
+**What does not vary, and why:**
+
+- The layer order and file locations: every skill reads settings through one resolver, so no skill
+  names a path. [ADR 0061](../../docs/adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
+  records the decision.
+- A design system the project already has outranks every configured value: the plugin's job is to
+  keep the project's look.
+- `routing` is accepted only in the team file: a personal layer must not change which tool a whole
+  team's agents use without review.
+- `*.disable` lists add up across layers: a personal file cannot quietly re-enable what the team
+  turned off.
+- Block-style YAML only: the bundled parser rejects flow mappings (`{`), so a file using them is
+  reported invalid.
+
+`/user-interface:write-css` also holds these fixed, as its
+[`configuration.md`](skills/write-css/reference/configuration.md) records:
+
+- The topic split of its reference files: techniques are filed by topic, never by source, so a
+  later CSS source merges into the same files.
+- The review output sections (`## Findings`, `## Suppressed`, `## Judgment`) and the review
+  script's exit code (0 clean, 1 findings, 2 usage error or crash): callers rely on them.
+- The four-step process order (detect, identify and research the stack, answer the stack
+  checklist, verify the compiled output): the checklist needs what the first two steps found.
+- Project-first precedence: the project's design system, conventions, lint config and layer
+  system outrank every configured value and every default.
+
 ## Options
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -48,6 +117,10 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `account_tools_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACCOUNT_TOOLS_ENABLED` | Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) is tested; the rest stay deferred. |
+| `css_browser_target` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CSS_BROWSER_TARGET` | Browserslist query for the browsers CSS must support when the project has no browserslist config, such as "baseline widely available". Empty uses the plugin default. A team or personal convention file overrides it. |
+| `css_important` | string | `"avoid"` | `CLAUDE_PLUGIN_OPTION_CSS_IMPORTANT` | When !important is acceptable: avoid (default), utilities-only, or allow. A team or personal convention file overrides it. |
+| `css_layer` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_CSS_LAYER` | The cascade layer new CSS goes in. Empty follows the project's own layer order. A team or personal convention file overrides it. |
+| `css_token_fallback` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_CSS_TOKEN_FALLBACK` | When no design token matches a value: ask (default), propose-token, or literal. A team or personal convention file overrides it. |
 
 ### How to set these
 

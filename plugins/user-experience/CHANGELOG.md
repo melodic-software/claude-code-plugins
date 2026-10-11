@@ -3,6 +3,19 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-10-11
+
+### Changed
+
+- `scripts/lib/yaml-subset.mjs` is now a generated copy of the shared `lib/yaml-subset.mjs`, and
+  its tests moved to `lib/`. The parser returns the same results, and a line with a long run of
+  quotes inside a plain value no longer takes quadratic time.
+
+### Fixed
+
+- An escaped `\"` or doubled `''` quote inside a flow-sequence item no longer ends the item, so
+  `["a\",b", c]` parses as two items instead of splitting at the escaped quote.
+
 ## [0.1.1] - 2026-10-10
 
 ### Changed

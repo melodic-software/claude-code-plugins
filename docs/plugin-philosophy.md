@@ -166,9 +166,8 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Six further documented exceptions: a single-skill vendor-CLI wrapper
-repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
-isolated-execution tier of a sibling skill (`research`/`research-deep`); a knowledge router named by
+(`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
+repeats its tool name (`firecrawl:firecrawl`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
 vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form`, Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
@@ -185,7 +184,9 @@ and orphans users arriving from the upstream repo). The recorded `bro` decline s
 for a second entry carrying nothing but `wait-what`'s argument, for a capability this marketplace
 already shipped three times over, which is the blanket sanction the closing rule forbids.
 Every exception is an entry on this list, decided per name. A name class is never
-blanket-sanctioned.
+blanket-sanctioned. A heavier execution tier of a skill is not a `-deep` sibling name either: it is
+a `deep` argument or a runtime choice of the base skill, per the skill-family rule in the
+[migration playbook](migration-playbook.md).
 
 A plugin skill declares no frontmatter `name`. We rely on the directory supplying the name, and
 the directory here is already the name the skill is documented and invoked by, so declaring it

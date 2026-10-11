@@ -1,0 +1,9 @@
+{
+  "name": "css-project",
+  "private": true,
+  "browserslist": ["> 0.5%", "last 2 versions"],
+  "devDependencies": {
+    "@eslint/css": "^0.10.0",
+    "stylelint": "^16.0.0"
+  }
+}

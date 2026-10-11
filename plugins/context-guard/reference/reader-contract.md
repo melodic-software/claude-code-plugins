@@ -512,16 +512,22 @@ compaction-timing choice on its own terms.
 - **As of**: 2026-10-01
 - **Recheck trigger**: the session models' context window changes, or §64's figure changes.
 
-## Prompt-cache miss cause
+## Prompt cache
 
-The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
-`plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
-payload and prints the cause names. The snapshot carries `context_window` only, never
-`prompt_cache`; pass the live payload to the script. The script prints whatever cause names
-`last_miss_cause.causes` carries, with no fixed list of its own, and prints `null` when the object
-is null. Pointer: for the object and its cause names, see
-<https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck trigger:
-that section renames the object or its cause names.
+The statusline payload's `prompt_cache` object is the only first-party source of the main
+conversation's cache state (warm or cold, expiry, re-cache size, hit ratio, misses and the last
+miss's cause). A mod's `$.session.usage()` does not carry it, so the module neither reads nor
+snapshots it: the snapshot carries `context_window` only. `plugins/context-guard/scripts/cache-line.mjs`
+reads the object from a statusline JSON payload on stdin and prints one status-line segment, or
+nothing when the object is absent. It prints whatever cause names `last_miss_cause.causes` carries,
+with no fixed list of its own. The segment covers the main conversation only: the object leaves
+out subagent and workflow requests, and a status line does not run in cloud or `-p` sessions
+(see `reference/cloud-headless-capture.md`). Pointer: for the object, its fields and the
+`expires_at` re-run, see <https://code.claude.com/docs/en/statusline#prompt-cache-fields> and
+<https://code.claude.com/docs/en/statusline#last-miss-cause>; for what a mod receives, see
+<https://code.claude.com/docs/en/plugins/mods/reference>. As of: 2026-10-10. Recheck trigger: either statusline
+section renames a field the script reads, or the mods reference adds prompt-cache state to
+`$.session.usage()`, at which point the band row can carry this line instead.
 
 ## Zones (machine-scope tuning, optional)
 

@@ -222,8 +222,8 @@ assert_present 'research Phase 2 names the per-gap fan-out step' \
   'skills/research/SKILL.md' '^\*\*Fan out per gap when nesting is available\.\*\*'
 assert_present 'the researcher body points at the per-gap fan-out' \
   'agents/researcher.md' 'Per-gap fan-out \(Phase 2\)'
-assert_present 'research-deep hands shared-claim gaps to the per-gap fan-out' \
-  'skills/research-deep/SKILL.md' 'Per-gap fan-out \(Phase 2\)'
+assert_present 'the deep tier hands shared-claim gaps to the per-gap fan-out' \
+  'skills/research/context/deep-tier.md' 'Per-gap fan-out \(Phase 2\)'
 for site in agents/researcher.md skills/research/context/discipline.md skills/research/context/phases.md; do
   assert_present "the per-gap fan-out threshold reads two or more numbered gaps in $site" \
     "$site" 'two or more( numbered)?$|two or more numbered gaps'
@@ -231,11 +231,11 @@ done
 assert_absent 'no fan-out threshold reads 3 or more gaps' \
   '(3|three) or more( numbered( gaps)?)?$|(3|three) or more numbered gaps'
 
-# research-deep points at the Budget: vocabulary and the verifier instead of restating either.
-assert_present 'research-deep points Budget: at the parent-contract vocabulary' \
-  'skills/research-deep/SKILL.md' 'parent-contract\.md.*"`Budget:` vocabulary"'
-assert_present 'research-deep names the verifier, its write-back and the cost skip' \
-  'skills/research-deep/SKILL.md' 'discovery:research-verifier`.*`verification:` write-back.*`skipped \(cost\)`'
+# The deep tier points at the Budget: vocabulary and the verifier instead of restating either.
+assert_present 'the deep tier points Budget: at the parent-contract vocabulary' \
+  'skills/research/context/deep-tier.md' 'parent-contract\.md.*"`Budget:` vocabulary"'
+assert_present 'the deep tier names the verifier, its write-back and the cost skip' \
+  'skills/research/context/deep-tier.md' 'discovery:research-verifier`.*`verification:` write-back.*`skipped \(cost\)`'
 
 # ---------------------------------------------------------------------------
 # 6. No inert permission grant (#2267 B-F11) + un-run gate is a halt (#2616)
@@ -270,11 +270,11 @@ assert_absent_in 'setup has no step that writes the gate allow rules to user set
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
   'setup apply` (offers|writes)|setup apply.{0,40}allow rules'
-# Two grants are sanctioned: research-deep's launch of this plugin's own
+# Two grants are sanctioned: research's deep-tier launch of this plugin's own
 # workflow by name (never bare Workflow), and the check skill's read-only
 # check.sh, which takes no arguments. Neither grants a gate script.
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |
-  grep -vE '/skills/research-deep/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$' |
+  grep -vE '/skills/research/SKILL\.md:[0-9]+:allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$' |
   grep -vE '/skills/check/SKILL\.md:[0-9]+:allowed-tools: \["Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/check\.sh:\*\)"\]$')"
 if [[ -z "$frontmatter_grants" ]]; then
   pass 'no skill declares allowed-tools beyond the research-sweep launch and the check script (the un-run case is stated instead)'
@@ -282,8 +282,8 @@ else
   fail 'no skill declares allowed-tools beyond the research-sweep launch and the check script (the un-run case is stated instead)'
   printf '%s\n' "$frontmatter_grants" >&2
 fi
-assert_present 'research-deep grants only the named research-sweep workflow' \
-  'skills/research-deep/SKILL.md' '^allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$'
+assert_present 'research grants only the named research-sweep workflow' \
+  'skills/research/SKILL.md' '^allowed-tools: \["Workflow\(discovery:research-sweep\)"\]$'
 assert_present 'the un-run case is stated' \
   'reference/parent-contract.md' 'could not run'
 assert_present 'pre-flight probes gate invocability before routing' \
@@ -406,16 +406,24 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 9. The research description routes away from research-deep (#2271 D-F9)
+# 9. One research skill carries both depths
 #
-# research-deep's description already points back at research; the reverse
-# boundary was missing, so auto-discovery could route a small lookup into the
-# heavier sibling and never the other way.
+# research-deep folded into research as its deep tier: the description carries
+# the deep triggers, the main context alone selects the tier, and no surface
+# still routes to the retired skill.
 # ---------------------------------------------------------------------------
-assert_present 'the research description carries a boundary against research-deep' \
-  'skills/research/SKILL.md' '^description:.*research-deep'
-assert_present 'the research description orders single-topic (this skill) before multi-topic routing to research-deep' \
-  'skills/research/SKILL.md' '^description:.*right skill for a single topic.*multi-topic.*research-deep'
+assert_present 'the research description carries the deep-research triggers' \
+  'skills/research/SKILL.md' "^description:.*'deep research'.*'research these N topics'"
+assert_present 'the research description names the deep tier' \
+  'skills/research/SKILL.md' '^description:.*deep or multi-topic asks take the deep tier'
+assert_present 'research loads the deep tier from its context file' \
+  'skills/research/SKILL.md' '\[context/deep-tier\.md\]\(context/deep-tier\.md\)'
+assert_present 'a dispatched run never selects the deep tier' \
+  'skills/research/SKILL.md' 'A dispatched or forked run never selects the deep tier'
+assert_present 'the workflow availability gate observes the tool rather than settings' \
+  'skills/research/context/deep-tier.md' 'Observe the tool; never infer it from settings'
+assert_absent 'no surface routes to the retired research-deep skill' \
+  'discovery:research-deep|skills/research-deep/'
 
 # ---------------------------------------------------------------------------
 # 10. The write boundary is stated once and pointed at (#2270 F6)
@@ -576,10 +584,10 @@ assert_present 'researcher lists joint inference as a withheld criterion' \
   'agents/researcher.md' '^- the criterion requiring every accepted claim to follow jointly'
 assert_present 'researcher verification request names joint-inference validity' \
   'agents/researcher.md' '^  criterion: ".*joint-inference validity'
-assert_present 'research-deep lists joint inference among the verifier rows' \
-  'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference, the accepted-claim count\)'
-assert_present 'research-deep sends the synthesis to the verifier on every verifier-owned row' \
-  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for every verifier-owned row, the accepted-claim count included'
+assert_present 'the deep tier lists joint inference among the verifier rows' \
+  'skills/research/context/deep-tier.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference, the accepted-claim count\)'
+assert_present 'the deep tier sends the synthesis to the verifier on every verifier-owned row' \
+  'skills/research/context/deep-tier.md' 'synthesized root index also goes to a fresh verifier for every verifier-owned row, the accepted-claim count included'
 assert_present 'row 12 has one pass bar: the primary measures the variable and population' \
   'skills/research/SKILL.md' "^\| 12 \|.*the claim's primary source measures the claim's variable and population"
 assert_present 'a non-measuring corroborator is recorded, not counted' \
@@ -652,10 +660,10 @@ if [[ "$(line_after reference/parent-contract.md '^Budget: ')" == 'Turn budget: 
 else
   fail 'the parent-contract envelope carries Turn budget: directly under Budget:'
 fi
-if [[ "$(line_after skills/research-deep/SKILL.md '^ +Budget: ')" =~ ^\ +Turn\ budget:\  ]]; then
-  pass 'the research-deep envelope carries Turn budget: directly under Budget:'
+if [[ "$(line_after skills/research/context/deep-tier.md '^ +Budget: ')" =~ ^\ +Turn\ budget:\  ]]; then
+  pass 'the deep-tier envelope carries Turn budget: directly under Budget:'
 else
-  fail 'the research-deep envelope carries Turn budget: directly under Budget:'
+  fail 'the deep-tier envelope carries Turn budget: directly under Budget:'
 fi
 
 assert_present 'discipline.md names the read-only gh search forms' \
@@ -709,7 +717,7 @@ assert_absent 'no markdown puts a space inside a heading-marker code span (MD038
   '`# `'
 assert_absent 'no file says the gate reads the first Run status: line' \
   'first `Run status:` line'
-for file in reference/parent-contract.md skills/research-deep/SKILL.md; do
+for file in reference/parent-contract.md skills/research/context/deep-tier.md; do
   assert_present "$file bounds the Turn budget placeholder by the default stop turn" \
     "$file" "Turn budget: <.*at or below the agent's default stop turn \(30\)"
 done
@@ -766,8 +774,8 @@ assert_absent 'no file says research adds only one envelope line' \
   'Research adds one more labeled line'
 assert_present 'the research parent-obligation table carries an Evidence use row' \
   'skills/research/context/dispatch.md' '^\| Evidence use \|'
-assert_present 'research-deep dispatches with an Evidence use line' \
-  'skills/research-deep/SKILL.md' '^ +Evidence use: '
+assert_present 'the deep tier dispatches with an Evidence use line' \
+  'skills/research/context/deep-tier.md' '^ +Evidence use: '
 assert_present 'the verifier is briefed on applicability' \
   'skills/research/context/dispatch.md' '^ +\*\*Brief it on applicability too\.\*\*'
 assert_present 'the researcher copies evidence use into the index' \
@@ -775,9 +783,21 @@ assert_present 'the researcher copies evidence use into the index' \
 assert_present 'the researcher payload mirrors the applicability verdict' \
   'agents/researcher.md' '^applicability: pass +# pass \| fail'
 for file in skills/research/SKILL.md reference/parent-contract.md \
-  skills/research/context/dispatch.md skills/research-deep/SKILL.md agents/researcher.md; do
+  skills/research/context/dispatch.md skills/research/context/deep-tier.md agents/researcher.md; do
   assert_present "$file names the source-applicability checker" \
     "$file" 'check-source-applicability\.py|source-applicability'
+done
+# The deep tier writes the sidecar header from the sweep result, so its step 5
+# names every field the checker's rules R1-R5 read (the script's docstring),
+# or each workflow-tier artifact fails the gate and falls back to a researcher.
+step5="$(sed -n '/^5\. \*\*Write the artifact/,/^6\. /p' \
+  "$PLUGIN_ROOT/skills/research/context/deep-tier.md" | tr '\n' ' ' | tr -s ' ')"
+for field in "claim's \`applies_to:\`" '`role`' '`published`' '`applies_to`' '`standing:`'; do
+  if [[ "$step5" == *"$field"* ]]; then
+    pass "deep-tier step 5 writes the gated header field $field"
+  else
+    fail "deep-tier step 5 writes the gated header field $field"
+  fi
 done
 assert_present 'the parent passes its envelope mode to the checker' \
   'skills/research/SKILL.md' '--expect-evidence-use'
@@ -1108,8 +1128,8 @@ assert_present 'a research pass keeps the single source flag' \
   'reference/parent-contract.md' '^\| `pass \(research-verifier, <date>\)` \|.*`single source` flag'
 assert_present 'gotchas name the repost trap' \
   'skills/research/context/gotchas.md' '^- \*\*Counting a repost as the second source\.\*\*'
-assert_present 'research-deep keeps the flag through the synthesis' \
-  'skills/research-deep/SKILL.md' 'keeps its `single source` flag'
+assert_present 'the deep tier keeps the flag through the synthesis' \
+  'skills/research/context/deep-tier.md' 'keeps its `single source` flag'
 for name in single-source-content-claim-passes-flagged non-anthropic-first-party-content-claim-passes-flagged behavior-claim-from-one-page-is-a-gap; do
   assert_present "research evals grade $name" 'skills/research/evals/evals.json' "\"name\": \"$name\""
 done
@@ -1175,8 +1195,8 @@ assert_present 'how to invoke runs each gate as one plain command per Bash call'
   'reference/parent-contract.md' 'one plain command, one Bash call per gate'
 assert_present 'how to invoke gives the worktree-isolation reason' \
   'reference/parent-contract.md' 'worktree-isolated session'
-assert_present 'research-deep fan-out says a sub-slice is not named git' \
-  'skills/research-deep/SKILL.md' 'Do not name a sub-slice `git`'
+assert_present 'the deep-tier fan-out says a sub-slice is not named git' \
+  'skills/research/context/deep-tier.md' 'Do not name a sub-slice `git`'
 
 # ---------------------------------------------------------------------------
 # 22. A run with zero accepted claims says so (#5833)
@@ -1239,8 +1259,8 @@ assert_present 'the synthesis verifier counts the root index under row 14' \
   'skills/research/context/dispatch.md' 'Row 14 counts the synthesized index.s own accepted claims'
 assert_present 'the verifier reads the sub-slice indexes a synthesized root names' \
   'agents/research-verifier.md' 'A synthesized slice-root index is the one exception'
-assert_present 'research-deep evals send the synthesized root to rows 4, 7, 12 and 14' \
-  'skills/research-deep/evals/evals.json' 'synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14'
+assert_present 'research evals send the synthesized deep-tier root to rows 4, 7, 12 and 14' \
+  'skills/research/evals/evals.json' 'synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14'
 assert_absent 'no synthesis verifier briefed on criterion 12 alone' \
   'verifier for criterion 12'
 
