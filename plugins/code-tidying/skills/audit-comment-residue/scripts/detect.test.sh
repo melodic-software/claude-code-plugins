@@ -908,6 +908,10 @@ x=1
 # Workaround: keep the shim until upstream fixes the parser.
 x=1
 # Workaround: poll until fixed.
+x=1
+# Workaround: keep the shim until Node 22.
+x=1
+# Workaround: pin until Python 3.12 is the floor.
 EOF
 work_out="$(bash "$DETECT" "$WORK")"
 wk_at() { printf 'Finding shape: unjustified-workaround\nFinding line: %s\n' "$1"; }
@@ -924,6 +928,8 @@ assert_not_contains "the word in an identifier is not flagged" "$work_out" "$(wk
 assert_not_contains "the word in a string literal is not flagged" "$work_out" "$(wk_at 10)"
 assert_not_contains "a removal condition on the next comment line justifies the run" "$work_out" "$(wk_at 11)"
 assert_not_contains "a workaround's justifying issue reference is not ticket residue" "$work_out" $'Finding shape: ticket-pr-residue\nFinding line: 7'
+assert_not_contains "'until Node 22' justifies the workaround" "$work_out" "$(wk_at 22)"
+assert_not_contains "'until Python 3.12' justifies the workaround" "$work_out" "$(wk_at 24)"
 assert_contains "a bare 'until' loop bound does not justify the workaround" "$work_out" "$(wk_at 14)"
 assert_not_contains "'until' a version justifies the workaround" "$work_out" "$(wk_at 16)"
 assert_not_contains "'until upstream fixes' justifies the workaround" "$work_out" "$(wk_at 18)"
