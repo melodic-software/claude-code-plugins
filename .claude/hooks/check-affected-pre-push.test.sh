@@ -40,6 +40,10 @@ echo "check-affected: FAIL markdown (stub)" >&2
 exit "\${STUB_RC:-1}"
 EOF
 chmod +x "$fixture/scripts/check-affected.sh"
+other="$tmp/other"
+mkdir -p "$other/scripts"
+git_init_test_repo "$other" || exit 2
+cp "$fixture/scripts/check-affected.sh" "$other/scripts/"
 
 # run_hook <cwd> <command> [STUB_RC]: sets RC, ERR and RAN (1 when the stub ran).
 run_hook() {
@@ -48,7 +52,7 @@ run_hook() {
   payload="$(jq -cn --arg c "$2" --arg d "$1" \
     '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:$d,tool_input:{command:$c}}')"
   RC=0
-  ERR="$(printf '%s' "$payload" | STUB_RC="${3:-1}" bash "$hook" 2>&1 >/dev/null)" || RC=$?
+  ERR="$(printf '%s' "$payload" | CLAUDE_PROJECT_DIR="$fixture" STUB_RC="${3:-1}" bash "$hook" 2>&1 >/dev/null)" || RC=$?
   RAN=0
   [[ -e "$marker" ]] && RAN=1
 }
@@ -105,5 +109,13 @@ run_hook "$fixture" 'git push --dry-run origin feat/x'
 expect "a dry run stays quiet" 0 0
 run_hook "$bare" 'git push origin feat/x'
 expect "a repository without check-affected.sh stays quiet" 0 0
+run_hook "$fixture" 'git push -nf origin feat/x'
+expect "a dry run in a short-flag cluster stays quiet" 0 0
+run_hook "$fixture" "cd '$other' && git push origin feat/x"
+expect "a push after cd stays quiet" 0 0
+run_hook "$tmp" "git -C '$other' push origin feat/x"
+expect "another repository's check-affected.sh never runs" 0 0
+run_hook "$other" 'git push origin feat/x'
+expect "a session cwd in another repository stays quiet" 0 0
 
 test_harness::report

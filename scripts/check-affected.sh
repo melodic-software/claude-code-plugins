@@ -11,7 +11,9 @@
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
-# only, because that is what a push sends.
+# only, because that is what a push sends. The file linters read the working
+# tree, so when a changed file has uncommitted edits they SKIP rather than
+# judge content the push would not send.
 #
 #   - markdown:            markdownlint-cli2 on changed .md
 #   - shellcheck:          shellcheck --rcfile .shellcheckrc on changed .sh/.bash
@@ -126,7 +128,18 @@ for f in ${changed[@]+"${changed[@]}"}; do
   [[ -f "$f" && "$(head -c 2 "$f")" == '#!' ]] && shebang+=("$f")
 done
 
-if ((${#md[@]} == 0)); then
+# The file linters read disk; uncommitted edits to a changed file would make
+# them judge content other than what a push sends.
+dirty=0
+if ((${#changed[@]})) && ! git diff --quiet HEAD -- "${changed[@]}"; then
+  dirty=1
+  md=() sh=() py=() shebang=()
+  dirty_reason="uncommitted edits to changed files; commit or stash them, then rerun"
+fi
+
+if ((dirty)); then
+  skip markdown "$dirty_reason"
+elif ((${#md[@]} == 0)); then
   skip markdown "no changed .md"
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
@@ -135,7 +148,9 @@ else
     markdownlint-cli2 --config .markdownlint-cli2.jsonc "${md[@]}"
 fi
 
-if ((${#sh[@]} == 0)); then
+if ((dirty)); then
+  skip shellcheck "$dirty_reason"
+elif ((${#sh[@]} == 0)); then
   skip shellcheck "no changed shell"
 elif ! command -v shellcheck >/dev/null 2>&1; then
   skip shellcheck "shellcheck not installed"
@@ -182,7 +197,9 @@ else
     scripts/validate-plugins.sh --only "${plugins[*]}"
 fi
 
-if ((${#py[@]} == 0)); then
+if ((dirty)); then
+  skip ruff "$dirty_reason"
+elif ((${#py[@]} == 0)); then
   skip ruff "no changed .py"
 else
   run_check ruff "scripts/run-ruff.sh check ${py[*]}" scripts/run-ruff.sh check "${py[@]}"

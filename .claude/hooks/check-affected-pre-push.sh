@@ -11,9 +11,16 @@
 # mention of "git push" is data, not a push.
 #
 # Stays quiet (exit 0) on: no real push; a push that only deletes remote refs,
-# only pushes tags, or is a dry run; a repository with no
-# scripts/check-affected.sh; a payload it cannot read; and a check-affected run
-# that could not start (exit 2), since an unreadable state is not a finding.
+# only pushes tags, or is a dry run; a push after a `cd`/`pushd` in the same
+# command, whose directory this parser does not track; a repository that is not
+# this project (another clone's scripts/check-affected.sh never runs here); a
+# repository with no scripts/check-affected.sh; a payload it cannot read; and a
+# check-affected run that could not start (exit 2), since an unreadable state is
+# not a finding.
+#
+# It checks the checked-out HEAD, not a ref the push names: `git push origin
+# other-branch` from another branch, or a tag pushed by bare name, is judged by
+# HEAD's checks. CI still runs on whatever is pushed.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 0
@@ -34,9 +41,11 @@ push_dir_to() {
     word=""
     in_word=0
   }
+  local moved=0
   end_segment() {
     flush_word
-    if ((${#words[@]})) && segment_push_dir __pd_out "${words[@]}"; then
+    [[ "${words[0]-}" == @(cd|pushd|popd) ]] && moved=1
+    if ((!moved && ${#words[@]})) && segment_push_dir __pd_out "${words[@]}"; then
       return 0
     fi
     words=()
@@ -139,7 +148,7 @@ segment_push_dir() {
     w="$1"
     shift
     case "$w" in
-    --delete | -d | --dry-run | -n) return 1 ;;
+    --delete | --dry-run | -[nd]* | -[!-]*[nd]*) return 1 ;;
     --tags) tags=1 ;;
     -o | --push-option | --repo | --receive-pack | --exec) shift ;;
     -*) ;;
@@ -177,6 +186,11 @@ main() {
   push_dir_to dir "$cmd" || exit 0
   [[ "$dir" == /* ]] || dir="${cwd:-.}/$dir"
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
+  # Run only this project's own script (any of its worktrees), never one from a
+  # repository the command points elsewhere.
+  [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
+  [[ "$(git -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" == \
+    "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ]] || exit 0
   [[ -x "$top/scripts/check-affected.sh" ]] || exit 0
   rc=0
   out="$(cd "$top" && bash scripts/check-affected.sh 2>&1)" || rc=$?

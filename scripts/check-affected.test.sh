@@ -83,6 +83,12 @@ check "a changed #! file without the exec bit fails exec-bit" \
 git_test_config "$repo" update-index --chmod=+x tool
 git_test_config "$repo" commit -q -m chmod
 
+printf 'edit\n' >>"$repo/notes.txt"
+run -- --base base
+check "uncommitted edits to a changed file skip the file linters" \
+  '[[ $RC == 0 && $ERR == *"SKIP markdown (uncommitted edits"* && $ERR == *"SKIP shellcheck (uncommitted edits"* ]]'
+git_test_config "$repo" checkout -q -- notes.txt
+
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
 git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"
 run --
