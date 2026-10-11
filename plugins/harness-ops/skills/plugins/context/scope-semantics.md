@@ -285,17 +285,17 @@ an interactive session, which a non-interactive probe pass cannot drive. The `â‰
 `--force` is likewise **not re-verified on 2.1.261**, because the current docs page states the flag
 without naming the version that introduced it.
 
-**Headless sessions can run it.** We treat `/reload-plugins` as available, from Claude Code
-2.1.260, in `-p` runs, Agent SDK sessions and the desktop app, only on input typed
-into the session (a copy relayed over Remote Control or a message is refused), and with plugin MCP
-server changes waiting for the next session. Whether a loop whose skill body is already in context
-can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
+**Headless sessions can run it.** We treat `/reload-plugins` as available in sessions without an
+interactive terminal when it is typed into the session directly, and we never promise that it
+applies plugin MCP server changes in place there. Which session kinds qualify, the version floor,
+and which input sources are refused are read live. Whether a loop whose skill body is already in
+context can reach the command is unprobed; `lanes` `context/refresh.md` owns that limit.
 
 - **Pointer**: for reloads in sessions without an interactive terminal, see
   [Sessions without an interactive terminal](https://code.claude.com/docs/en/plugins/cli-reference#sessions-without-an-interactive-terminal),
   the `/reload-plugins` row of [Commands](https://code.claude.com/docs/en/commands#all-commands),
   and [Enabling or disabling a plugin](https://code.claude.com/docs/en/prompt-caching#enabling-or-disabling-a-plugin).
-- **As of**: 2026-09-28
+- **As of**: 2026-10-11
 - **Recheck trigger**: those sections stop listing headless sessions, or change the typed-input
   and MCP limits.
 

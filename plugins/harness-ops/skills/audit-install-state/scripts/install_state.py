@@ -238,7 +238,10 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         "Cached feature policy settings for your organization",
     ),
     "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
-    "jobs": (KEPT, "Background session state; upstream lists it among state files to keep"),
+    "jobs": (
+        KEPT,
+        "Background session state; upstream lists it among state files to keep",
+    ),
     # Session-scoped, explicitly NOT age-swept
     "sessions": (
         SESSION_SCOPED,
