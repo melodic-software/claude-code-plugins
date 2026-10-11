@@ -1437,6 +1437,14 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ).toEqual(["a.md", "b.md", "c.md", "d.md"]);
   });
 
+  // CommonMark ends a bare destination only at the ASCII space or a control.
+  it("keeps non-ASCII whitespace inside a bare destination", () => {
+    const nbsp = String.fromCodePoint(0xa0);
+    expect(inlineLinks(`[deck](../source/decks/a${nbsp}b.pdf)`).map(({ dest }) => dest)).toEqual([
+      `../source/decks/a${nbsp}b.pdf`,
+    ]);
+  });
+
   // CommonMark: a link title may span lines but not a blank line (one holding
   // only spaces or tabs); with such a title the construct is not a link.
   it("reads no link or definition whose title spans a blank line", () => {

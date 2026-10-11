@@ -768,7 +768,8 @@ export function parseDestination(text, at) {
       end += 2;
       continue;
     }
-    if (/\s/.test(char)) break;
+    // CommonMark ends a bare destination only at the ASCII space or an ASCII control.
+    if (/[\x00-\x20\x7f]/.test(char)) break;
     if (char === "(") depth += 1;
     else if (char === ")") {
       if (depth === 0) break;
