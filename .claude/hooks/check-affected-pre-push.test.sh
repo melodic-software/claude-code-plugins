@@ -190,7 +190,11 @@ if command -v shellcheck >/dev/null 2>&1; then
   git_test_config "$real" checkout -q -b edits-scripts
   printf '%s' "$bad_sh" >"$real/scripts/foo.sh"
   chmod +x "$real/scripts/foo.sh"
-  sed -i "2i touch '$tmp/real-payload'" "$real/scripts/check-affected.sh"
+  {
+    head -n 1 "$repo_root/scripts/check-affected.sh"
+    printf "touch '%s'\n" "$tmp/real-payload"
+    tail -n +2 "$repo_root/scripts/check-affected.sh"
+  } >"$real/scripts/check-affected.sh"
   git_test_config "$real" add -A
   git_test_config "$real" commit -q -m scripts
   run_real
