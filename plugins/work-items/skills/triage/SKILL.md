@@ -158,8 +158,11 @@ each key:
    manifest default when the user set nothing, so the two read the same and resolve the same. Any
    other value is layer `userConfig`.
 3. **Check the value.** The repro count must be a whole number of at least 1, the window a number
-   of at least 0. A value outside that stops the triage before any mutation, with the value and its
-   layer in the report.
+   of at least 0. A value outside that never stops the triage (ADR 0064 Decision 7). Name where it
+   came from (`docs/conventions/work-items.yaml` or the `userConfig` option), the key and the
+   value, and drop that layer. Layers are read highest first, so no valid higher layer is left:
+   the key takes its manifest default from layer `default`. Never use a lower layer's value, so an
+   invalid repository value does not fall back to the per-user one. Then continue.
 
 Resolution is done when both keys have a checked value and a layer. Report both in the triage
 output as `Settings: triage_repro_count=<n> (<layer>), triage_objection_window_hours=<h> (<layer>)`.

@@ -368,6 +368,20 @@
         "Posts a brief and applies needs-human, so the item ends briefed and human-gated",
         "Does not lower the class on the grounds that the fix is small or scoped"
       ]
+    },
+    {
+      "id": 28,
+      "name": "triage-invalid-repository-repro-count-drops-the-layer",
+      "prompt": "/work-items:triage 221\n\nAutonomous lane whose standing directive authorizes triage label and comment mutations. #221 is a raw bug report: 'invoice PDF repeats the footer on every page'. The repository's docs/conventions/work-items.yaml sets triage_repro_count: 0. The per-user placeholder for triage_repro_count substituted to 4.",
+      "expected_output": "Names docs/conventions/work-items.yaml, the key triage_repro_count and the value 0 as invalid and drops the repository layer. It does not stop the triage and does not take the per-user value 4: no higher layer is left, so triage_repro_count resolves to the manifest default from layer default, and the Settings line says so. Triage then continues to gather context and attempt reproductions.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names docs/conventions/work-items.yaml, the key triage_repro_count and the value 0 as invalid",
+        "Does NOT stop the triage over the invalid value; it goes on to the triage workflow",
+        "Resolves triage_repro_count to the manifest default from layer default, not 4 from userConfig",
+        "Reports the resolved value and layer default in the Settings line"
+      ]
     }
   ]
 }
