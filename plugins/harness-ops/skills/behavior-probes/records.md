@@ -231,3 +231,56 @@ on this run except where the table says otherwise.
 run's temp directory came through as a Windows 8.3 short path that git resolves to the long form, so
 it measures the fixture's path rather than `EnterWorktree` itself. Record 9's denials no longer
 carried the `[External System Writes]` label.
+
+## Basis for records 11 to 13
+
+A live run of the `subagent` area, `probe.py run --live --area subagent --retries 1 --max-runs 12`,
+with the launch above. Linux (WSL2), Claude Code **2.1.296**, 2026-10-10: 6 runs, no retry needed.
+Each case reads the level from the `effort.level` field of the hook payload, which the fixture's
+hook appends to `effort.log` and the subagent then `cat`s, so the reading is not the model's own
+report. `env-effort-overrides-spawn` first ran with a stricter check that also wanted the Agent
+call's `effort` in the PreToolUse hook's `tool_input`. It failed because that `tool_input` carried
+no `effort`, even though the saved stream shows the driver passed `"effort":"high"`. That was
+observed only with `CLAUDE_CODE_EFFORT_LEVEL` set. The case went back to its original check and
+was rerun once with `--keep`. That run passed, and its saved stream again shows `"effort":"high"`
+on the Agent call. The streams were not committed. The recheck trigger and expiry above apply.
+
+## 11. A per-spawn effort overrides a subagent's pin, and the environment variable overrides both
+
+**Claim.** A subagent pinned at `effort: low` runs at `low` when the spawn passes no `effort`, even
+with the session at `high`. It runs at `high` when the Agent call passes `effort: "high"`. With
+`CLAUDE_CODE_EFFORT_LEVEL=medium` it runs at `medium` despite both the pin and the spawn value.
+
+**Recheck trigger.** A release note naming the Agent tool's `effort` parameter, a subagent's
+`effort` field, or `CLAUDE_CODE_EFFORT_LEVEL`.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/definition-pin-applies-without-spawn-effort` | ran, `effort=low` | `effort=low` (session `high`) | pass |
+| `subagent/spawn-effort-overrides-pin` | ran, `effort=high` | `effort=high` | pass |
+| `subagent/env-effort-overrides-spawn` | ran, `effort=medium` | `effort=medium`; the stream shows `effort: "high"` passed | pass (rerun) |
+| `subagent/spawn-agent-call-carries-effort` | Agent call with `"effort": "high"` runs | ran | pass |
+
+## 12. An unpinned subagent with no spawn effort runs at the session level
+
+**Claim.** A subagent with no `effort` field, spawned with no `effort`, runs at the session's
+`effortLevel` (`low`). This case checks the instrument the other effort cases depend on.
+
+**Recheck trigger.** As record 11.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/placeholder-tracks-session-effort` | ran, `effort=low` | `effort=low` | pass |
+
+## 13. `${CLAUDE_EFFORT}` in a skill preloaded into a subagent is the session's level
+
+**Claim.** In a skill preloaded into a subagent pinned at `effort: low`, `${CLAUDE_EFFORT}` expands
+to the session's `effortLevel` (`medium`), not to the pin. A `fail` showing `low` would mean the
+placeholder now follows the subagent's level; `/discovery:research`'s parent contract depends on
+this case.
+
+**Recheck trigger.** A release note naming `${CLAUDE_EFFORT}` or skill string substitution.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/preloaded-skill-placeholder-reflects-session-effort` | ran, `effort=medium` | `echo effort=medium` | pass |
