@@ -125,7 +125,7 @@ When `--verify` was not given and the person is present, show that table (tokens
 ranges from one measured run, not quotes), point at Manage costs for what agents use, and
 ask once, defaulting to `consequential`. An unattended run uses `consequential` and says so.
 
-- **Pointer**: [Manage costs § Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)
+- **Pointer**: [Manage costs effectively § Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)
 - **As of**: 2026-10-11
 - **Recheck trigger**: that section moves or stops describing how to see what a session used.
 

@@ -135,6 +135,11 @@ lists, formatter settings). CLAUDE.md documents that enforcement exists; it does
 Automated enforcement for agentic workflow. The hook system evolves, so verify supported events,
 matcher syntax, and environment variables against the current hooks documentation.
 
+- **Pointer**: [Hooks reference § Configuration](https://code.claude.com/docs/en/hooks#configuration)
+  and [§ Hook lifecycle](https://code.claude.com/docs/en/hooks#hook-lifecycle)
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section moves, or a release note adds or renames a hook event.
+
 ### When to recommend
 
 - A recurring mistake could be caught automatically before it happens
@@ -144,7 +149,7 @@ matcher syntax, and environment variables against the current hooks documentatio
 ### Hook events
 
 The hook-event catalog (event names, use cases, matchers) is owned by the official docs: read
-the current list at <https://code.claude.com/docs/en/hooks> (slug `hooks`, through the docs lookup
+the current list at the Hook lifecycle pointer above (slug `hooks`, through the docs lookup
 above) before recommending. It grows and
 changes faster than any copy here could track, so no copy is kept here.
 
@@ -173,6 +178,10 @@ category (progressive-disclosure, script-bundled, action-router), key phases.
 Subagent configurations that improve quality. Verify supported fields (YAML frontmatter, tool
 access, model selection, isolation modes) against the current subagent docs before recommending.
 
+- **Pointer**: [Create custom subagents § Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds, renames or drops a field.
+
 ### When to recommend
 
 - A task was done sequentially that could have been parallelized with subagents
@@ -195,8 +204,12 @@ Model Context Protocol servers that provide tool access to external systems.
 
 ### Recommendation format
 
-Include: server type (stdio/SSE/HTTP), resource provided, read-only vs read-write, expected
-benefit.
+Include: server transport (choose from the transports the docs currently support), resource
+provided, read-only vs read-write, expected benefit.
+
+- **Pointer**: [Connect Claude Code to tools via MCP § Installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers)
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds, deprecates or removes a transport.
 
 ## Settings / Configuration
 

@@ -634,7 +634,7 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
   SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a script run through Bash
   derives the dir itself (`save_point.py` `_plugin_data_root`), never reading the variable from
   its environment or a `${CLAUDE_PLUGIN_DATA:-default}` form.
-- **Pointer**: [Plugins reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+- **Pointer**: [Plugin manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
   and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
   for the data-dir layout and which processes receive the variable.
 - **As of**: 2026-10-11

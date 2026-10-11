@@ -12,7 +12,7 @@ out entirely are upstream behavior; read them live before relying on the listing
 - **Pointer**: [Extend Claude with skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
   and [§ Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
   for the drop behavior and manual-only visibility;
-  [Settings reference § skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
+  [All settings § skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
   and [§ skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
   for the budget keys.
 - **As of**: 2026-10-11

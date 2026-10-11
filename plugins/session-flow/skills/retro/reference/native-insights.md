@@ -1,15 +1,14 @@
 # The built-in `/insights` command: verification record
 
-Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again.
+Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row holds our decision,
+the pointer to read live, the date it was checked, and the event that makes it worth checking
+again.
 
-| Claim | Basis | As of | Recheck when |
+| Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| `insights` is a built-in command described as "Generate a report analyzing your Claude Code sessions", with no argument hint | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.insights`) | 2026-09-29 | A release renames or removes `insights`, or changes its description |
-| It is user-invocable and not model-invocable (model invocation disabled), and it is not gated behind a setting | Same extraction: `user_invocable: true`, `model_invocable: false`, `disable_model_invocation: true`, `gated: false` | 2026-09-29 | A release changes its invocability or adds a gate |
-| It generates an HTML report on recent sessions on this machine (projects, how you use Claude Code, where things go wrong, features to try) and is not available in cloud sessions | The `/insights` row on <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes or disappears |
-| It includes an auto mode recommendation estimating how many permission prompts auto mode could have handled | Claude Code changelog, 2.1.281 | 2026-09-29 | A release note changes what the report covers |
+| Treat `insights` as an ungated, user-invocable built-in with model invocation disabled, so this skill offers it and never runs it | Probe: the `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`builtin_commands.insights`), observed 2026-09-29 | 2026-10-11 | A release renames or removes `insights`, or changes its invocability or adds a gate |
+| Offer `/insights` for cross-session usage analytics; read what the report covers and where it is unavailable live | The `/insights` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | That row changes what the report covers or where it runs, or disappears |
+| Read report additions from the release notes, not from memory | [Changelog § 2.1.281](https://code.claude.com/docs/en/changelog#2-1-281) | 2026-10-11 | A release note changes what the report covers |
 
 ## Why the verdict is complementary
 
