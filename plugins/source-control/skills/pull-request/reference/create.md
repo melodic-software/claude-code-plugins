@@ -345,7 +345,7 @@ A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same c
 
 #### 2.4.2.1 Verify closing-keyword line
 
-Grep `$BODY_FILE` for a valid closing keyword, a non-closing `Refs:` marker, or an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
+Grep `$BODY_FILE` for a valid closing keyword, a non-closing `Refs:` marker, an opt-out marker, or a link line §2.4.0 took from the bound tracker's adapter, whose grammar need not be GitHub's. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
 
 ```bash
 # Case-insensitive — covers ALL 9 valid keywords (close/closes/closed/fix/
@@ -365,6 +365,9 @@ elif grep -qiE "$NON_CLOSING_REGEX" "$BODY_FILE"; then
   :  # non-closing Refs:/Relates to: marker present — gate passes
 elif grep -qE "$OPTOUT_REGEX" "$BODY_FILE"; then
   :  # explicit opt-out present — gate passes
+elif [[ -n "$CLOSES_LINE" ]] && grep -qxF -f <(printf '%s\n' "$CLOSES_LINE") "$BODY_FILE"; then
+  :  # a link line §2.4.0 took from the bound tracker's adapter (`Closes ENG-123`,
+     # `Refs: SW2-12`) is present on its own line — gate passes
 else
   # No closing keyword, non-closing marker, or opt-out. §2.4.0's orphan-PR prompt
   # should have populated one. If we reach here, either the prompt was

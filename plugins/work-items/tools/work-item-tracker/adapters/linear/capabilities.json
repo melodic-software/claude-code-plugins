@@ -1,6 +1,6 @@
 {
   "change_link": {
-    "branch_pattern": "^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)"
+    "branch_pattern": "^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-"
   },
   "features": {
     "cross_repo_edges": true,

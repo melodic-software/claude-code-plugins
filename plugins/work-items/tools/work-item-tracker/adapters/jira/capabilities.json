@@ -28,6 +28,6 @@
     "list_items_max": 1000
   },
   "change_link": {
-    "branch_pattern": "^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)"
+    "branch_pattern": "^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)-"
   }
 }

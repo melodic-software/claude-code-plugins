@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Tests for the core dispatcher: usage, binding resolution, capability gating, and
 # list-frontier derivation — all against a fake adapter (no network, no gh).
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/* plugins/work-items/tools/work-item-tracker/adapters/*/capabilities.json
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
@@ -258,6 +258,24 @@ run_skew linkfake change-link --branch main >/dev/null 2>&1
 assert_eq "a branch with no item reference → exit 5" "5" "$?"
 run_skew linkfake change-link --branch >/dev/null 2>&1
 assert_eq "--branch without a value → exit 2" "2" "$?"
+
+# Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
+# names ENG-12, and its last capture group is the ref.
+for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do
+  p="$(jq -r '.change_link.branch_pattern' "$m")"
+  a="$(basename "$(dirname "$m")")"
+  case "$a" in jira | linear) ref="ENG-12" ;; *) ref="12" ;; esac
+  if [[ "feat/${ref}-slug" =~ $p ]]; then
+    assert_eq "$a grammar captures the ref last" "$ref" "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}"
+  else
+    fail "$a grammar matches feat/${ref}-slug" "match" "no match"
+  fi
+  if [[ "feat/${ref}oops" =~ $p ]]; then
+    fail "$a grammar needs a delimiter after the ref" "no match" "matched"
+  else
+    pass "$a grammar needs a delimiter after the ref"
+  fi
+done
 
 # --- gh version gate is scoped to the native sub-issue/dependency surface ---
 # Provider "github" applies the gate while WIT_ADAPTERS_DIR points at stub verbs:

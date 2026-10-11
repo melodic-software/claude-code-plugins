@@ -630,8 +630,8 @@ exits `6` and the caller keeps its own default.
 |---|---|---|---|---|
 | github | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
 | gitea | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
-| linear | `Closes ENG-N` | `Refs ENG-N` | `ENG-N` | `^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)` |
-| jira | `null` | `Refs: SW2-N` | `SW2-N` | `^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)` |
+| linear | `Closes ENG-N` | `Refs ENG-N` | `ENG-N` | `^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-` |
+| jira | `null` | `Refs: SW2-N` | `SW2-N` | `^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)-` |
 | local-markdown | `null` | `Refs: <id>` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
 
 Sources, read 2026-10-11 (recheck when a provider renames its linking keywords): GitHub's closing
