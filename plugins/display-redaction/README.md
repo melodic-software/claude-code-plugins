@@ -35,10 +35,12 @@ The marketplace lists the plugin as off by default; enable it after installing.
 - A match right after a terminal color code; the code itself is kept.
 - Your own patterns from the `extra_patterns` option, one regular expression per entry. A pattern
   is skipped when it is over 200 characters, can match empty text, does not compile, or could
-  backtrack too long: a quantified group holding a quantifier or a `|`, more than one unbounded
-  quantifier (`*`, `+`, `{n,}`), or bounded ones that multiply to many lengths per start. A log
-  line at session start counts the skipped entries. Each pattern runs over 1,024-character windows
-  that overlap by half, so a match longer than 512 characters can be cut short.
+  backtrack too long: a quantified group holding a quantifier or a `|`, a backreference, more than
+  one unbounded quantifier (`*`, `+`, `{n,}`), or bounded ones that multiply to many lengths per
+  start. A log line at session start counts the skipped entries. Each pattern runs over
+  1,024-character windows that overlap by half, so a match longer than 512 characters can be cut
+  short, and an anchor (`^`, `$`), `\b` or lookaround reads a window's edge as the text's, so it
+  can mask more near one.
 
 Not masked on purpose: an address whose local part is exactly `noreply`, a GitHub
 `<digits>+<name>@users.noreply.github.com` address, and `git@<host>:` remotes.
@@ -125,7 +127,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `mask_style` | string | `"block"` | `CLAUDE_PLUGIN_OPTION_MASK_STYLE` | How a match in a reply, prompt or command output is hidden. block draws it as a solid bar that shows the value while the pointer is over it; text replaces it with \[hidden\]. Tool rows always use \[hidden\]. |
-| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or could backtrack too long (nested or stacked quantifiers, alternation inside a repeated group) is skipped. |
+| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or could backtrack too long (nested or stacked quantifiers, alternation inside a repeated group, a backreference) is skipped. |
 
 ### How to set these
 

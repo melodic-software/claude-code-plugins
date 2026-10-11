@@ -37,7 +37,7 @@ const isAllowed = (match: string, offset: number, text: string): boolean =>
 
 // How many lengths a pattern can try at one start: the product of its quantifiers' ranges, an
 // unbounded one counted as a window. Infinity for a shape that backtracks without bound: a
-// quantified group holding a quantifier or an alternation.
+// quantified group holding a quantifier or an alternation, or a backreference.
 const backtrackCost = (source: string): number => {
   const groups: { quantified: boolean; alternates: boolean }[] = [{ quantified: false, alternates: false }]
   let cost = 1
@@ -63,6 +63,7 @@ const backtrackCost = (source: string): number => {
     const c = source[i]
     const top = groups[groups.length - 1] as { quantified: boolean; alternates: boolean }
     if (c === '\\') {
+      if (!inClass && /[1-9k]/.test(source[i + 1] ?? '')) return Infinity
       i++
     } else if (inClass) {
       if (c === ']') inClass = false
@@ -124,26 +125,40 @@ type Range = [number, number]
 
 // The spans every pattern matches, overlapping or touching ones joined, sorted. Patterns run over
 // the text with each escape sequence replaced by as many NUL characters, so a token right after a
-// color code starts a match and no escape becomes part of one.
+// color code starts a match and no escape becomes part of one; and, when it has escapes, over the
+// text without them, so an escape inside a token does not cut its match short.
 function findRanges(text: string, patterns: readonly RegExp[]): Range[] {
-  const view = text.replace(ANSI, (s) => '\u0000'.repeat(s.length))
   const ranges: Range[] = []
-  const collect = (pattern: RegExp, from: number, to: number) => {
-    for (const m of view.slice(from, to).matchAll(pattern)) {
-      const at = from + m.index
-      if (m[0] !== '' && !isAllowed(m[0], at, view)) ranges.push([at, at + m[0].length])
+  // `origin(i)` is the offset in `text` of the view's character `i`.
+  const scan = (view: string, origin: (i: number) => number) => {
+    const collect = (pattern: RegExp, from: number, to: number) => {
+      for (const m of view.slice(from, to).matchAll(pattern)) {
+        const at = from + m.index
+        if (m[0] !== '' && !isAllowed(m[0], at, view)) {
+          ranges.push([origin(at), origin(at + m[0].length - 1) + 1])
+        }
+      }
+    }
+    for (const pattern of patterns) {
+      if (!EXTRA.has(pattern)) {
+        collect(pattern, 0, view.length)
+        continue
+      }
+      for (let from = 0; ; from += WINDOW / 2) {
+        collect(pattern, from, from + WINDOW)
+        if (from + WINDOW >= view.length) break
+      }
     }
   }
-  for (const pattern of patterns) {
-    if (!EXTRA.has(pattern)) {
-      collect(pattern, 0, view.length)
-      continue
-    }
-    for (let from = 0; ; from += WINDOW / 2) {
-      collect(pattern, from, from + WINDOW)
-      if (from + WINDOW >= view.length) break
-    }
+  scan(text.replace(ANSI, (s) => '\u0000'.repeat(s.length)), (i) => i)
+  const kept: number[] = []
+  let i = 0
+  for (const m of text.matchAll(ANSI)) {
+    for (; i < m.index; i++) kept.push(i)
+    i = m.index + m[0].length
   }
+  for (; i < text.length; i++) kept.push(i)
+  if (kept.length < text.length) scan(kept.map((k) => text[k]).join(''), (k) => kept[k] as number)
   ranges.sort((a, b) => a[0] - b[0])
   const merged: Range[] = []
   for (const [start, end] of ranges) {

@@ -110,6 +110,15 @@ test('returns invalid, over-long, empty-matching and nested-quantifier patterns 
   expect(maskText('ok-12 and aaa and (unclosed', r.patterns, M)).toBe(`${M} and aaa and (unclosed`)
 })
 
+test('skips a pattern with a backreference, which can backtrack without bound', () => {
+  const bad = ['(a*)\\1b', '(?<n>a+)\\k<n>c']
+  const r = compilePatterns([...bad, 'x\\\\1'])
+  expect(r.invalid).toEqual(bad)
+  const start = Date.now()
+  maskText('a'.repeat(100_000), r.patterns, M)
+  expect(Date.now() - start).toBeLessThan(1000)
+})
+
 test('accepts a quantifier in a group that is not itself quantified, and an escaped paren', () => {
   const r = compilePatterns(['(ab+)c', '\\(x+\\)?', '(?:ab|cd)?e+', '[A-Z]{2,10}-\\d{1,6}'])
   expect(r.invalid).toEqual([])
@@ -264,6 +273,12 @@ test('masks a token right after a color code and keeps every escape intact', () 
 test('keeps an escape inside a masked span and hides the text around it', () => {
   const pem = '-----BEGIN PRIVATE KEY-----\n\u001b[2mMIIabc\u001b[0m\n-----END PRIVATE KEY-----'
   expect(mask(`a ${pem} b`)).toBe(`a ${M}\u001b[2m\u001b[0m b`)
+})
+
+test('masks a whole token with an escape inside it, keeping the escape', () => {
+  expect(mask('key sk-abc\u001b[0mdef123 end')).toBe(`key ${M}\u001b[0m end`)
+  expect(mask('to a\u001b[1mb@example.com')).toBe(`to ${M}\u001b[1m`)
+  expect(mask('x\u001b[32msk-abc')).toBe(`x\u001b[32m${M}`)
 })
 
 test('splitMatches finds a token after a color code and leaves the code outside the match', () => {
