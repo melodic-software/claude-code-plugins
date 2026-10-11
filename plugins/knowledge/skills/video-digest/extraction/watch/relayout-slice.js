@@ -194,9 +194,9 @@ const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?
 
 /** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
 const HTML_START_TAG =
-  /<([A-Za-z][A-Za-z0-9-]*)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?>/g;
+  /<([A-Za-z][A-Za-z0-9-]*)(?:[ \t\r\n]+[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t\r\n]*=[ \t\r\n]*(?:[^ \t\r\n"'=<>`]+|'[^']*'|"[^"]*"))?)*[ \t\r\n]*\/?>/g;
 /** An HTML comment. */
-const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+const HTML_COMMENT = /<!-->|<!--->|<!--[\s\S]*?-->/g;
 /** Other raw inline HTML: a closing tag, processing instruction, declaration or CDATA section. */
 const HTML_OTHER =
   /<\/[A-Za-z][A-Za-z0-9-]*\s*>|<\?[\s\S]*?\?>|<![A-Za-z][^>]*>|<!\[CDATA\[[\s\S]*?\]\]>/g;
@@ -313,8 +313,8 @@ function decodeHtmlReferences(value, { attribute = false } = {}) {
   // legacy named one (amp, lt, gt, quot) unless a letter, digit or `=` follows;
   // Markdown accepts neither.
   const pattern = attribute
-    ? /&(?:#(\d+);?|#[xX]([0-9A-Fa-f]+);?|([A-Za-z]+);|(amp|lt|gt|quot)(?![A-Za-z0-9=]))/g
-    : /&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g;
+    ? /&(?:#(\d{1,7});?|#[xX]([0-9A-Fa-f]{1,6});?|([A-Za-z]+);|(amp|lt|gt|quot)(?![A-Za-z0-9=]))/g
+    : /&(?:#(\d{1,7})|#[xX]([0-9A-Fa-f]{1,6})|([A-Za-z]+));/g;
   return value.replace(pattern, (match, dec, hex, named, legacy) => {
     const name = named ?? legacy;
     if (dec !== undefined || hex !== undefined) {

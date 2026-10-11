@@ -1384,6 +1384,25 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
   });
 
+  it("follows CommonMark's raw HTML whitespace, short comments and reference digit limits", () => {
+    const nbsp = String.fromCodePoint(0xa0);
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": [
+        `<a${nbsp}title="[t](gone-1.md)">`,
+        "<!-->[t](gone-2.md)-->",
+        "[t](a&#00000065;.md)",
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "metadata/notes.md", ref: "gone-1.md" },
+      { file: "metadata/notes.md", ref: "gone-2.md" },
+      { file: "metadata/notes.md", ref: "a&#00000065;.md" },
+    ]);
+  });
+
   it("does not read attributes inside CDATA, declarations or processing instructions", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, {
