@@ -154,6 +154,22 @@ use C# today
     expect(result.transcript).toBe("[0:01] these days we use C++.\n\n[0:05] use C# today");
   });
 
+  it("keeps an overlapping cue whose word differs only by trailing dashes, like C-- and C", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+these days we
+
+00:00:03.000 --> 00:00:05.500
+use C--.
+
+00:00:05.000 --> 00:00:07.000
+use C today
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] these days we use C--.\n\n[0:05] use C today");
+  });
+
   it("keeps a three-word repeat the speaker said when no cue carries it over", () => {
     const autoVtt = `WEBVTT
 

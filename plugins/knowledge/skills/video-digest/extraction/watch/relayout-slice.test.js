@@ -2011,6 +2011,24 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("reads an HTML href wrapped across lines without its tab, LF and CR", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": '<a href="../source/\ntranscript.txt">t</a>\n' },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      '<a href="../transcript/transcript.txt">t</a>\n',
+    );
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "frames/visual-frames.md": '<img src="key/\r\n\tgone.png">\n' });
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "key/gone.png" },
+    ]);
+  });
+
   it("flags a single-quoted HTML src that does not resolve", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, { "frames/visual-frames.md": "<img src='key/gone.png'>\n" });

@@ -228,11 +228,23 @@ function htmlAttributeValues(text) {
       if (!/^(?:src|href)$/i.test(match[1])) continue;
       const group = [2, 3, 4].find((at) => match?.[at] !== undefined) ?? 2;
       const span = match.indices?.[group];
-      if (!span || span[0] === span[1] || tag[0].slice(span[0], span[1]).includes("\n")) continue;
+      if (!span || span[0] === span[1]) continue;
       values.push({ from: base + span[0], to: base + span[1], group });
     }
   }
   return values;
+}
+
+/**
+ * The URL an HTML `src`/`href` value names: ASCII tab, LF and CR removed, as
+ * the URL parser removes them, so a value wrapped across lines still names its
+ * path, then character references decoded.
+ * https://url.spec.whatwg.org/#concept-basic-url-parser
+ *
+ * @param {string} value
+ */
+function htmlAttributeUrl(value) {
+  return decodeHtmlReferences(value.replace(/[\t\n\r]/g, ""), { attribute: true });
 }
 
 /**
@@ -1073,7 +1085,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     // the enclosing quote character, and an unquoted value that now needs
     // quotes gets double quotes.
     const value = text.slice(from, to);
-    const decoded = decodeHtmlReferences(value, { attribute: true });
+    const decoded = htmlAttributeUrl(value);
     const { found, split } = findReference(decoded, sourceFile, map);
     if (found && "retired" in found) retiredRefs.push(decoded);
     const next = rewrite(decoded, split);
@@ -1281,7 +1293,7 @@ export function checkLayoutLinks(
       check(unescapeDestination(raw).dest, true);
     }
     for (const { from, to } of htmlAttributeValues(tagText)) {
-      check(decodeHtmlReferences(text.slice(from, to), { attribute: true }), true);
+      check(htmlAttributeUrl(text.slice(from, to)), true);
     }
     for (const span of codeSpans(fenceMasked)) {
       // A span with spaces may be a command (`node run.mjs x.js --flag`): only

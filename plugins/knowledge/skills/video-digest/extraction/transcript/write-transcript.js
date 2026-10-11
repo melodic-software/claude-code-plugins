@@ -50,9 +50,11 @@ function comparableWord(word) {
   return word.toLowerCase().replace(/['\u2019\u02BC]/g, "").replace(EDGE_PUNCTUATION, "");
 }
 
-/** Sentence punctuation (quotes, brackets, ellipses, dashes) at a word's ends. */
-const EDGE_PUNCTUATION =
-  /^[.,;:!?"()[\]{}\u2026\u2010-\u2015-]+|[.,;:!?"()[\]{}\u2026\u2010-\u2015-]+$/g;
+/**
+ * Sentence punctuation (quotes, brackets, ellipses) at a word's ends. Hyphens
+ * and dashes stay, so C-- and C never compare equal.
+ */
+const EDGE_PUNCTUATION = /^[.,;:!?"()[\]{}\u2026]+|[.,;:!?"()[\]{}\u2026]+$/g;
 
 /**
  * The lexical words of `text`: punctuation-only tokens such as `>>` are not
