@@ -1163,6 +1163,11 @@ PG="$WORK/paged.jsonl"
   printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r11","is_error":false}]}}\n' "$(ts 22)"
   use 23 p12 r12 Bash '{"command":"make lint"}' 5
   printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r12","is_error":false}]}}\n' "$(ts 24)"
+  # A relative task-output path, run from the session's task directory's parent.
+  use 25 p13 r13 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 26 r13 false '"step 3"'
+  use 27 p14 r14 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 28 r14 false '"step 3"'
 } >"$PG"
 run transcript-counts "$PG"
 assert_eq "transcript-counts exits 0 on paged and changing reads" "0" "$RUN_RC"

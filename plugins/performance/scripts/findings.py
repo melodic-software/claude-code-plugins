@@ -746,7 +746,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 INVOKED = "<command-name>/performance:go-faster"
 # A background task's output file grows while the task runs, so reading it again is never a repeat.
-TASK_OUTPUT = re.compile(r"(?:^|[/\\])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
+TASK_OUTPUT = re.compile(r"(?:^|[/\\\s'\"=])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
 
 
 def read_key(args: dict) -> str:
@@ -766,7 +766,7 @@ def repeats(
 
     A call whose result differs from an earlier one's read changed input, so it repeats nothing.
     Where any of a key's results is missing, a change cannot be ruled out: those calls go to the
-    second map, all of them, for a reader to treat as a candidate.
+    second map, all of them, for a reader to record as later.
     """
     same: dict[str, int] = {}
     unknown: dict[str, int] = {}
