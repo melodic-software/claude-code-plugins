@@ -33,8 +33,9 @@ mode; the displayed fraction in cli-parse mode).
    additivity check ran, state its verdict per bucket, one line each, and report a null verdict as
    not measurable rather than as not additive. Unmeasured tools (candidates this run
    that were not priced) are listed as unmeasured, not omitted. Silence reads as "measured
-   zero". Some tools exist only in an interactive session; [`interactive-only-tools.json`](interactive-only-tools.json) names
-   them, plus the interactive-only MCP server class. These are listed as
+   zero". Some tools exist only in an interactive session; [`interactive-only-tools.json`](interactive-only-tools.json)
+   names them, plus the interactive-only MCP server class (relayed as of 2026-10-11; recheck this
+   relay when that file moves or its `tools` list or `notes` change). These are listed as
    **known-uncovered**, a distinct category from unmeasured-but-candidate, because they were
    never candidates in this headless sweep. The names come from the attribution record's
    `knownUncovered.tools` (product-level surfaces) plus `knownUncovered.notes` (the

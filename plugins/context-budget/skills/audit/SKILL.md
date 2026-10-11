@@ -212,7 +212,8 @@ memorized inventory. Ask the operator (or take from arguments) which to measure:
 - The **full sweep** is the skill argument `--full-sweep`. The engine flag is `--tools
   from-baseline`. It prices every live tool; warn that it is one run per tool and let the
   operator opt in. Interactive-only tools never appear in that live list;
-  [reference/interactive-only-tools.json](reference/interactive-only-tools.json) names them.
+  [reference/interactive-only-tools.json](reference/interactive-only-tools.json) names them
+  (relayed as of 2026-10-11; recheck this relay when that file moves or its `tools` list changes).
   The attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
   never as absent. That category is distinct from unmeasured-but-candidate.
 
