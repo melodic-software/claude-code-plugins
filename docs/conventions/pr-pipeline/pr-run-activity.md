@@ -341,12 +341,21 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
-   and fails unless it hashes to `post.sh`'s tree, then creates the commit
+   and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
+   human-gated role label is on the PR, then creates the commit
    `Merge <default branch> into <head ref>` with trailer
    `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
    author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
-   The promote step then fast-forwards the PR branch only while `git/ref heads/<head ref>` is
-   still at the gated head, and confirms the move by reading that ref again.
+   The promote step then fast-forwards the PR branch only when the lane branch holds that step's
+   own commit and `git/ref heads/<head ref>` is still at the gated head, and confirms the move by
+   reading that ref again.
+
+The merge scripts, `tree-entries.sh` and the commit step's `git` run with workflow commands
+stopped (`::stop-commands::<random>`), since git's output can name head files, and with
+`GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
+allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
+stops for a hold only at the commit step's label re-read.
 
 The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
 `protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
@@ -359,6 +368,8 @@ its check:
 | Hold label present | skipped | `awaiting-human` | empty | neutral |
 | Pre-model escalation | skipped | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral |
 | Clean merge, no model turn, committed, promoted | success | none | empty | success |
+| Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
+| Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
@@ -367,6 +378,10 @@ its check:
 | Conflicted but no model turn | failure | none | empty | failure |
 | A prepare step fails | skipped | none | empty | failure (run job failed) |
 | A post-skill step fails | success | none | empty | failure (run job failed) |
+
+Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
+staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
+`workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
 pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a

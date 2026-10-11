@@ -373,6 +373,22 @@ jobs:
             exit 1
           fi
           echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+          # The human-gated role label, which the commit step treats as a
+          # hold, resolved from the base the way report-escalation.sh does.
+          hold_label=needs-human
+          if [ -f .base/.work-item-tracker.json ]; then
+            hold_label=$(jq -er '.config.role_labels // {}
+              | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' \
+              .base/.work-item-tracker.json) || {
+              echo "::error::cannot read the human-gated role label from the base .work-item-tracker.json"
+              exit 1
+            }
+          fi
+          if ! [[ $hold_label =~ ^[A-Za-z0-9][A-Za-z0-9\ ._:/-]*$ ]]; then
+            echo "::error::the human-gated role label is malformed"
+            exit 1
+          fi
+          echo "hold-label=$hold_label" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -420,6 +436,8 @@ jobs:
           GIT_COMMITTER_NAME: melodic-automation-lanes[bot]
           GIT_COMMITTER_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
           LOOP_NO_PROGRESS: ${{ steps.merge-bin.outputs.no-progress }}
+          # Replace refs from the head's history never stand in for objects.
+          GIT_NO_REPLACE_OBJECTS: "1"
           BIN: ${{ runner.temp }}/merge-base-bin
           OUT: ${{ runner.temp }}/merge-base-out
           PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
@@ -437,8 +455,13 @@ jobs:
           }
           check "$BIN/prepare.sh" "$PREPARE_SHA256"
           check "$BIN/resolve-version-bump-conflict.sh" "$BUMP_SHA256"
+          # git's merge output names head files, so no line of it may run a
+          # workflow command; commands resume before this step's own lines.
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
           result=$(bash "$BIN/prepare.sh" "$HEAD_SHA" "$BASE_SHA" "$BIN/resolve-version-bump-conflict.sh" "$OUT")
-          state="" reason=""
+          echo "::$token::"
+          state="" reason="" skip=""
           while IFS='=' read -r key value; do
             case $key in
               config-sha256 | snapshot-sha256)
@@ -457,12 +480,15 @@ jobs:
           case $state:$reason in
             clean: | conflicted:) ;;
             escalate:protected-path-conflict | escalate:repeat-cap | escalate:unresolved-conflict)
-              echo "skip-reason=awaiting-human" >>"$GITHUB_OUTPUT"
+              skip=awaiting-human
               ;;
             *) echo "::error::prepare.sh printed no valid merge-state and escalation-reason"; exit 1 ;;
           esac
-          echo "merge-state=$state" >>"$GITHUB_OUTPUT"
-          echo "escalation-reason=$reason" >>"$GITHUB_OUTPUT"
+          {
+            echo "skip-reason=$skip"
+            echo "merge-state=$state"
+            echo "escalation-reason=$reason"
+          } >>"$GITHUB_OUTPUT"
           echo "merge-state=$state escalation-reason=$reason"
 
       # claude-code-action's commit_files builds each commit on the live tip of
@@ -672,14 +698,19 @@ jobs:
           SNAPSHOT_SHA256: ${{ steps.prepare.outputs.snapshot-sha256 }}
           GATED_HEAD: ${{ steps.gate.outputs.head-sha }}
           TRUSTED_BASE: ${{ steps.trusted-base.outputs.commit }}
+          GIT_NO_REPLACE_OBJECTS: "1"
         run: |
           sum=$(sha256sum <"$BIN/post.sh")
           if [ "${sum%% *}" != "$POST_SHA256" ]; then
             echo "::error::post.sh does not match the SHA-256 recorded when it was copied from the base"
             exit 1
           fi
+          # git's output can name head files: no workflow commands meanwhile.
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
           result=$(bash "$BIN/post.sh" "$OUT")
-          reason="" tree=""
+          echo "::$token::"
+          reason="" tree="" skip=""
           while IFS='=' read -r key value; do
             case $key in
               escalation-reason) reason=$value ;;
@@ -692,13 +723,15 @@ jobs:
               [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
               ;;
             unresolved-conflict | workflow-staged)
-              tree=""
-              echo "skip-reason=awaiting-human" >>"$GITHUB_OUTPUT"
+              tree="" skip=awaiting-human
               ;;
             *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
           esac
-          echo "escalation-reason=$reason" >>"$GITHUB_OUTPUT"
-          echo "tree=$tree" >>"$GITHUB_OUTPUT"
+          {
+            echo "skip-reason=$skip"
+            echo "escalation-reason=$reason"
+            echo "tree=$tree"
+          } >>"$GITHUB_OUTPUT"
           echo "escalation-reason=$reason tree=$tree"
 
       # The merge commit, made through the Git Data API so GitHub signs it as
@@ -707,8 +740,10 @@ jobs:
       # changes against the gated head, only blobs neither parent holds are
       # uploaded, and the tree GitHub builds must hash to post.sh's tree. The
       # commit goes to the lane branch, which must still be at the gated head;
-      # the promote step below moves the PR branch. A pinned action, since the
-      # activity could have changed PATH; git itself still runs from PATH.
+      # the promote step below moves the PR branch. A pinned action with
+      # /usr/bin/git under an allowlisted env, since the activity could have
+      # changed PATH. A do-not-merge or human-gated label added during the run
+      # stops it uncommitted (awaiting-human).
       - name: Commit the merge
         id: commit
         if: >-
@@ -724,14 +759,20 @@ jobs:
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HOLD_LABEL: ${{ steps.merge-bin.outputs.hold-label }}
+          READ_TOKEN: ${{ github.token }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { createHash } = require('crypto');
+            const { createHash, randomBytes } = require('crypto');
             const { execFileSync } = require('child_process');
             const { readFileSync } = require('fs');
             const { BIN, TREE_ENTRIES_SHA256, TREE, HEAD_SHA, HEAD_REF, BASE_SHA, DEFAULT_BRANCH, LANE_BRANCH } = process.env;
+            const { PR_NUMBER, HOLD_LABEL, READ_TOKEN } = process.env;
+            core.setOutput('commit', '');
+            core.setOutput('skip-reason', '');
             if (!LANE_BRANCH) {
               core.setFailed('No lane branch to commit the merge to');
               return;
@@ -749,14 +790,36 @@ jobs:
               core.setFailed(`The lane branch moved from ${HEAD_SHA} to ${laneTip}; the merge is not committed`);
               return;
             }
-            const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-            const git = (args, encoding) =>
-              execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=', '-c', 'diff.external=', ...args], {
-                env: gitEnv,
-                encoding,
-                maxBuffer: 1 << 30,
-              });
-            const listing = execFileSync('bash', [script, HEAD_SHA, BASE_SHA, TREE], { env: gitEnv, encoding: 'utf8', maxBuffer: 1 << 28 });
+            // An allowlisted environment and absolute binaries: nothing the
+            // activity left in this job's env or PATH reaches git.
+            const gitEnv = {
+              PATH: '/usr/bin:/bin',
+              HOME: process.env.HOME,
+              GIT_CONFIG_GLOBAL: '/dev/null',
+              GIT_CONFIG_NOSYSTEM: '1',
+              GIT_NO_REPLACE_OBJECTS: '1',
+            };
+            // git's stderr can name head files, so workflow commands stop
+            // while it runs and resume before this step's own messages.
+            const quiet = (run) => {
+              const token = randomBytes(16).toString('hex');
+              console.log(`::stop-commands::${token}`);
+              try {
+                return run();
+              } finally {
+                console.log(`::${token}::`);
+              }
+            };
+            const git = (args) =>
+              quiet(() =>
+                execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=', '-c', 'diff.external=', ...args], {
+                  env: gitEnv,
+                  maxBuffer: 1 << 30,
+                }),
+              );
+            const listing = quiet(() =>
+              execFileSync('/usr/bin/bash', [script, HEAD_SHA, BASE_SHA, TREE], { env: gitEnv, encoding: 'utf8', maxBuffer: 1 << 28 }),
+            );
             const entries = [];
             let created = 0;
             for (const line of listing.split('\n').filter(Boolean)) {
@@ -787,11 +850,27 @@ jobs:
               core.setFailed(`GitHub built tree ${tree}, not the checked tree ${TREE}; the merge is not committed`);
               return;
             }
+            // A hold placed while the run worked stops it here, before any
+            // commit: the kill switch only stops new runs. Labels are read
+            // fresh with the job's read-only token.
+            const reader = getOctokit(READ_TOKEN);
+            const labels = await reader.paginate(reader.rest.issues.listLabelsOnIssue, {
+              ...context.repo,
+              issue_number: Number(PR_NUMBER),
+              per_page: 100,
+            });
+            const held = labels.map((label) => label.name).filter((name) => name === 'do-not-merge' || name === HOLD_LABEL);
+            if (held.length) {
+              core.info(`The PR is held (${held.join(', ')}); the merge is not committed`);
+              core.setOutput('skip-reason', 'awaiting-human');
+              return;
+            }
             // The trailer is what prepare.sh's repeat cap counts.
             const message = `Merge ${DEFAULT_BRANCH} into ${HEAD_REF}\n\nLane-Activity: pr-unblock/resolve-conflicts\n`;
             const commit = await github.rest.git.createCommit({ ...context.repo, message, tree, parents: [HEAD_SHA, BASE_SHA] });
             // force: false refuses anything but a fast-forward from the gated head.
             await github.rest.git.updateRef({ ...context.repo, ref: laneRef, sha: commit.data.sha, force: false });
+            core.setOutput('commit', commit.data.sha);
             core.info(`Committed ${commit.data.sha} (parents ${HEAD_SHA}, ${BASE_SHA}) to ${LANE_BRANCH}`);
 
       # Fast-forwards the PR branch to the lane's commits only while it is
@@ -807,11 +886,17 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
+          # merge-base mode moves the PR branch only to the commit step's own
+          # commit: the model holds a contents-write token and could have
+          # written the lane branch itself.
+          MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
+          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
+          COMMIT_SHA: ${{ steps.commit.outputs.commit }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
                 .data.object.sha;
@@ -819,6 +904,10 @@ jobs:
               const lane = await tip(LANE_BRANCH);
               if (lane === HEAD_SHA) {
                 core.info('The activity made no commits');
+                return;
+              }
+              if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
+                core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
                 return;
               }
               const head = await tip(HEAD_REF);
@@ -905,7 +994,7 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.act-script.outputs.skip-reason }}
+            || steps.commit.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''

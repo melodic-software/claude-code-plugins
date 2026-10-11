@@ -26,6 +26,10 @@ stays 1.
   `publish-artifact`): labels the PR with the human-gated role label and posts one comment with
   the reason and a resume key. The write runner hands a script the base's
   `.work-item-tracker.json` as `TRACKER_CONFIG`, copied before the head checkout and hash-checked.
+- Hardening of the merge-base steps: workflow commands stop while the merge scripts and git run,
+  `GIT_NO_REPLACE_OBJECTS=1`, an allowlisted environment and absolute binaries in the commit
+  step, a fresh label read that stops the commit on `do-not-merge` or the human-gated label, and
+  a promote that moves the PR branch only to the commit step's own commit.
 - `scripts/write-runner-never-rules.test.sh` asserts the write runner's structure against the
   resolve-conflicts `never` row: no forced ref update, no commit unless `post.sh` cleared the
   merge, the mint before the head checkout, and base scripts run only after their hash check.
