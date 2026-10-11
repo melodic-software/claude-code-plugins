@@ -1417,6 +1417,27 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
   });
 
+  it("does not pair code-span backticks across a heading, quote or list item", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": [
+        "dangling `",
+        "# [h](gone-1.md) `",
+        "again `",
+        "> [q](gone-2.md) `",
+        "once more `",
+        "- [l](gone-3.md) `",
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "metadata/notes.md", ref: "gone-1.md" },
+      { file: "metadata/notes.md", ref: "gone-2.md" },
+      { file: "metadata/notes.md", ref: "gone-3.md" },
+    ]);
+  });
+
   it("ignores escaped tags in the attribute pass and tags that span a blank line", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, {

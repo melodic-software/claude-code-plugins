@@ -123,6 +123,12 @@ const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 
 /** Markdown files, by extension, in any case. */
 const MARKDOWN_FILE = /\.(?:md|markdown)$/i;
+/**
+ * A paragraph boundary a code span cannot cross: a blank line, or a line that
+ * interrupts a paragraph (ATX heading, block quote, fence, thematic break, list item).
+ */
+const BLOCK_BREAK =
+  /\n(?:[ \t]*\r?\n| {0,3}(?:#{1,6}(?:[ \t]|\r?$)|>|`{3,}|~{3,}|(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})\r?$|[-*+][ \t]+\S|1[.)][ \t]+\S))/m;
 const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
 const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 /** The slice lane directories, plus the `SLICE/` root alias. */
@@ -213,16 +219,6 @@ const DESTINATION_OPENER =
   /(?<=(?:(?<!(?:^|[^\\])(?:\\\\)*\\)\]\(|(?:^|\n) {0,3}\[(?:[^\\[\]]|\\[\s\S])+\]:)[ \t]*(?:\r?\n[ \t]*)?)</y;
 
 /**
- * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
- * with the group that matched (2 double-quoted, 3 single-quoted,
- * 4 unquoted). The tag's attributes are read left to right, so only a real
- * attribute counts: not prose such as `set href=../x` outside a tag, not
- * `data-src`, and not `src=` text inside another attribute's value.
- *
- * @param {string} text
- * @returns {{ from: number, to: number, group: number }[]}
- */
-/**
  * Whether the character at `at` follows an odd run of backslashes, so it is escaped.
  * @param {string} text
  * @param {number} at
@@ -233,6 +229,16 @@ function isEscapedAt(text, at) {
   return run % 2 === 1;
 }
 
+/**
+ * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
+ * with the group that matched (2 double-quoted, 3 single-quoted,
+ * 4 unquoted). The tag's attributes are read left to right, so only a real
+ * attribute counts: not prose such as `set href=../x` outside a tag, not
+ * `data-src`, and not `src=` text inside another attribute's value.
+ *
+ * @param {string} text
+ * @returns {{ from: number, to: number, group: number }[]}
+ */
 function htmlAttributeValues(text) {
   /** @type {{ from: number, to: number, group: number }[]} */
   const values = [];
@@ -409,7 +415,7 @@ export function codeSpans(text) {
     while (scan < text.length) {
       const next = text.indexOf("`", scan);
       if (next === -1) break;
-      if (/\n[ \t]*\r?\n/.test(text.slice(runEnd, next))) break;
+      if (BLOCK_BREAK.test(text.slice(runEnd, next))) break;
       let nextEnd = next;
       while (text[nextEnd] === "`") nextEnd += 1;
       if (nextEnd - next === ticks.length) {
