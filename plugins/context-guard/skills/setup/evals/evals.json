@@ -43,14 +43,14 @@
     {
       "id": 5,
       "name": "apply-cache-line-copies-and-prints-without-writing-settings",
-      "prompt": "/context-guard:setup apply cache-line\n\nMy user settings.json already has a statusLine whose command is `bash ~/bin/my-status.sh`.",
-      "expected_output": "Copies the shipped cache-line.mjs to ~/.claude/context-guard/cache-line.mjs, then prints a paste-ready statusLine wrapper that runs `bash ~/bin/my-status.sh` unchanged on the same stdin and adds the cache segment as a following line. It does not edit settings.json, says no refreshInterval is needed because the line shows the expiry clock time and Claude Code re-runs the status line at expiry, and names the limits: main conversation only, no status line in cloud or -p sessions.",
+      "prompt": "/context-guard:setup apply cache-line\n\nMy user settings.json already has a statusLine whose command is `bash -c 'echo \"$(git branch --show-current) (dev)\"'` with padding 2.",
+      "expected_output": "Copies the shipped cache-line.mjs to ~/.claude/context-guard/cache-line.mjs, then pipes the user settings.json into `cache-line.mjs --wire` and prints its output: a statusLine whose command is `node ~/.claude/context-guard/cache-line.mjs --after '<the existing command, single-quoted>'`, with padding 2 kept. It does not compose the wrapper by hand, does not edit settings.json, says the segment needs node on PATH and no refreshInterval, and that it covers the main conversation only.",
       "files": [],
       "expectations": [
         "Writes only ~/.claude/context-guard/cache-line.mjs; does not write or offer to write settings.json",
-        "The printed wrapper keeps the existing command `bash ~/bin/my-status.sh` and its output unchanged and feeds both commands the same stdin",
-        "States that refreshInterval is not needed and why",
-        "Names that the segment covers the main conversation only and does not appear in cloud or -p sessions"
+        "Builds the printed statusLine by running cache-line.mjs --wire, not by composing a shell wrapper by hand",
+        "The printed command passes the existing command, quotes, $() and parentheses intact, as one quoted --after argument, and keeps padding 2",
+        "States that the segment needs node on PATH and no refreshInterval, and covers the main conversation only"
       ]
     }
   ]

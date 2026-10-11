@@ -21,8 +21,8 @@ session's snapshot, sends Claude the zone lines, runs the blocking gate, draws t
 serves the `mcp__context-guard__status` tool. Nothing about it needs wiring, so `check` inspects
 and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
 `~/.claude/context-guard/zones.json`, whose schema it defines and whose values the operator may
-edit; that owned writable file is what obliges an `apply`, and `apply` writes nothing else. The
-one other file it can place is the optional status-line segment, and only on `apply cache-line`.
+edit; that owned writable file is what obliges an `apply`, and a bare `apply` writes nothing else.
+`apply cache-line` places the one other file, the optional status-line segment.
 
 Action routing: no argument or `check` runs the check; `apply cache-line` runs only the cache-line
 section below; any other `apply` runs the zones.json section.
@@ -194,33 +194,39 @@ The `defaults` argument changes only how a present file is treated:
 
 ## `apply cache-line` (writes only `~/.claude/context-guard/cache-line.mjs`, on explicit request)
 
-Places the optional prompt-cache status-line segment at a path that survives plugin updates. The
-installed plugin's own path changes with each version, so a status line pointing into the plugin
-cache would break on the next update.
+Places the optional prompt-cache status-line segment at a fixed path this plugin owns, so the
+operator's status line never depends on where the installed plugin's files live. Pointer: for
+where those files live, see
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of:
+2026-10-11. Recheck trigger: that section names a stable install path a status line could use.
 
 1. **Copy** `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs` to
    `~/.claude/context-guard/cache-line.mjs`, creating the directory if needed. When the target is
    already byte-identical, write nothing and say so.
-2. **Print the statusLine edit; never write it.** Read the operator's user `settings.json`
-   `statusLine` (read-only) and print one of:
-   - No `statusLine`: a paste-ready block whose `command` is
-     `node ~/.claude/context-guard/cache-line.mjs`.
-   - A `statusLine` already set: a paste-ready wrapper that saves stdin once, runs the existing
-     command on it unchanged, then runs the segment on the same input as a following line, so the
-     operator's own output is untouched. Show the exact current `command` it wraps.
+2. **Print the statusLine edit; never write it, and never compose it by hand.** Pipe the
+   operator's user `settings.json` (read-only; `{}` when the file is absent) into
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs" --wire` and print its output as the
+   paste-ready `statusLine` object. With an existing `command` it wraps that command as one quoted
+   argument to `--after`, which runs it on the same input before the segment, and it keeps every
+   other `statusLine` key; with none it prints the bare segment. Relay its stderr note when it says
+   the line is already wired. Show the operator the exact current `command` it wrapped.
 
-   Say that no `refreshInterval` is needed: the segment shows the expiry as a clock time, and
-   Claude Code re-runs the status line when a warm cache expires. Name the segment's limits: it
-   covers the main conversation only, and a status line does not run in cloud or `-p` sessions.
+   Tell the operator the segment needs `node` on `PATH`, needs no `refreshInterval` because it
+   shows the expiry as a clock time, and covers the main conversation only. Pointer: for the
+   re-run at expiry, the subagent exclusion and the object's fields, see
+   <https://code.claude.com/docs/en/statusline#prompt-cache-fields>; for where a status line does
+   not run, see `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md`. As of: 2026-10-11.
+   Recheck trigger: that section stops re-running the status line at `expires_at`.
 3. **After a plugin update**, re-running `apply cache-line` refreshes the copy; step 6 of `check`
    reports a stale one.
 
 ## Uninstalling
 
 Uninstalling the plugin removes the cache directory, so the module stops and nothing writes new
-snapshots. The operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots and the
-compaction markers) stays, and removing it is safe at any time; readers then read `unknown` and take
-their conservative path.
+snapshots. The operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots, the
+compaction markers and, after `apply cache-line`, `cache-line.mjs`) stays. Removing it is safe once
+the operator's `statusLine` no longer runs `cache-line.mjs`: restore the command `--after` wrapped,
+or drop the bare segment, first. Readers then read `unknown` and take their conservative path.
 
 ## What this skill does not do
 

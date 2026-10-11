@@ -155,7 +155,8 @@ response, covers the main conversation only (subagents and workflows have their 
 lifetime the object leaves out), and does not appear in cloud or `-p` sessions, where a status line
 does not run. `NO_COLOR` turns its color off. A plugin cannot add a status-line segment, so
 `/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`
-and prints the `statusLine` edit for you to paste; it never writes your settings. Pointer: for the
+and prints the `statusLine` edit for you to paste, built by the script's `--wire` mode: your existing
+command runs first through `--after`, and your other `statusLine` keys stay. It never writes your settings. Pointer: for the
 object's fields, see
 [Prompt cache fields](https://code.claude.com/docs/en/statusline#prompt-cache-fields). As of:
 2026-10-10. Recheck trigger: that section renames a field the script reads.
@@ -257,7 +258,7 @@ what holds their budget now:
 |---|---|---|
 | The statusline tee's suite | The snapshot body, atomic write, rename retry, prune and the processes per render | The `snapshot:` cases and the `budget:` case in `hooks/context-guard.test.ts`; the helper's own suite, [`lib/write-snapshot.test.mjs`](../../lib/write-snapshot.test.mjs), for the atomic write, rename retry, prune and temp files |
 | The statusline shim's suite | The shim finding the installed tee | Nothing: no shim ships |
-| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing: nothing is composed now |
+| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing for the shim, which no longer ships. The optional cache segment composes its own `statusLine` with `cache-line.mjs --wire`, tested in `scripts/cache-line.test.sh` |
 | The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line, gate and `budget:` cases in `hooks/context-guard.test.ts` |
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
@@ -290,7 +291,8 @@ Code's native binary neither ships nor uses Node ([setup](https://code.claude.co
 The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)). The zone resolver,
 which `/context-guard:setup check` runs, and `setup apply`'s merge into an existing `zones.json`
-need [`jq`](https://jqlang.org/download/) on `PATH`; the module and the marker do not.
+need [`jq`](https://jqlang.org/download/) on `PATH`; the module and the marker do not. The optional
+prompt-cache status-line segment runs on Node.js too.
 `/context-guard:setup check` reports these prerequisites; `/context-guard:check` reports whether
 `node` and `jq` resolve. `context_window` fields can be `null` before the first response and right
 after `/compact`; readers own null handling.
