@@ -58,7 +58,9 @@ a regular file). `apply` is the fix.
    at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (`ratchet_offer`:
    `true`, the default, unless the team does not want stubs to offer `/review:ratchet`;
    `downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
-   to state its probe without running it, in which case `report`). Never invent a key the schema
+   to state its probe without running it, in which case `report`; `fanout_diversity`: `lens`, the
+   default, unless the team wants `/review:fanout run-everything` to run each review prompt on
+   several model tiers, in which case `model`). Never invent a key the schema
    does not list. `downstream_probe` is a policy floor read from the default branch, so a value
    written here takes effect once it is merged there.
 2. **Write.** One call with every value:

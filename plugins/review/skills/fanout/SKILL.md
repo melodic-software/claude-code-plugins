@@ -3,7 +3,7 @@ description: "Fan out review across many finding-producing surfaces at once, thi
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow(review:fanout-sweep)"]
+allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -60,6 +60,20 @@ A positional mode token (Step 0) plus one flag:
 | `--yes` / `-y` | Off | Skip the pre-execution confirmation gate for the `fix` action. Required for headless runs. |
 
 `--yes` applies ONLY to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag, without it the fix action emits its classification plan and STOPs ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
+
+**`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
+spreads: `lens` runs one reviewer agent per concern, and `model` sends one review prompt to each
+distinct fan-out model tier ([context/run-everything-mode.md](context/run-everything-mode.md)
+step 5). The default mode does not read it. Resolve it before step 5, lowest layer first: the
+default `lens`; the user option `${user_config.fanout_diversity}` (a literal, unexpanded
+placeholder means unset); the `PASS fanout_diversity:` line of
+`node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check`, run from the project
+root, for the repository's `docs/conventions/review.yaml` (`(unset)` means no value there). When
+the reviewed change set edits `docs/conventions/review.yaml`, skip that layer and say so, so the
+change cannot pick how it is reviewed; without node, skip it and say so. Invalid values, WARN
+lines and when the repository file is read at all: "Resolution" and "Root rule" in
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Report one line,
+`fanout_diversity: <value> (<layer>)`, for example `fanout_diversity: lens (default)`.
 
 ## Step 0: Mode
 

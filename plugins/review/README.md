@@ -180,12 +180,14 @@ Review criteria and findings location route through your own project context: re
 criteria docs and severity vocabulary override the bundled baseline, and a documented
 findings location in your `CLAUDE.md`/rules overrides the default path.
 
-Two settings. `ratchet_offer` decides whether `/review:audit-enforceability` stubs offer a
+Three settings. `ratchet_offer` decides whether `/review:audit-enforceability` stubs offer a
 `/review:ratchet` count ceiling; set it per user through the option below, or per repository in
 `docs/conventions/review.yaml` (written by `/review:setup apply`), which wins.
 `downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
-layer wins, and the repository value is read from the default branch. Keys, values and resolution:
+layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
+whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
+or sends one review prompt to each model tier the role map names (`model`). Keys, values and resolution:
 [`reference/config.md`](reference/config.md).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
@@ -200,6 +202,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option. |
 | `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
+| `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 
 ### How to set these
 

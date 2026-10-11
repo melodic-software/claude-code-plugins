@@ -33,6 +33,16 @@
         "run",
         "report"
       ]
+    },
+    "fanout_diversity": {
+      "type": "string",
+      "title": "Fanout diversity",
+      "description": "lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option.",
+      "default": "lens",
+      "options": [
+        "lens",
+        "model"
+      ]
     }
   }
 }

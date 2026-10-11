@@ -280,6 +280,34 @@ Interactive sessions may opt into this same log rather than leaving Moderate adj
 
 An entry whose evidence does not resolve, or whose result was never verified, is the PR review catching a gap. That is the log working. Major divergence still stops the run; the rule is under Gates, above. Park the run with a handoff note rather than improvising a new design. Interactive sessions keep the `/implementation:implement` "Step 3: Divergence Detection" escalation ladder unchanged.
 
+**Trail review (autonomous runs only).** Once the last phase is `[DONE]` and any post-phase
+verifier (Phase boundaries) has returned, and before `/implementation:implement` Step 5, an
+autonomous run (see Orchestration mode detection) dispatches `implementation:phase-verifier` one
+more time, to check the run's own record. Withhold your rationale; hand it the `DEVIATIONS.md`
+path, the run's diff (the base ref the run started from and the current head), and these binary
+criteria:
+
+1. The evidence pointer of each log entry resolves to a real commit, `file:line`, test or artifact.
+2. Each entry states its outcome, or marks it `unverified`.
+3. Each deviation entry fills all four fields: plan said, found, chose, revisit.
+4. Nothing in the diff departs from the plan without a log entry covering it.
+
+When the run wrote no `DEVIATIONS.md`, criterion 4 is the only one. **Model:** when
+`/multi-agent:route` is among the available skills, invoke
+`/multi-agent:route verifier session=<alias>` and take its `single` variant, where `inherit` means the session model; otherwise
+start from the session model. Raise that to the strongest model any worker of this run ran on,
+ranking `haiku` below `sonnet` below `opus` below `fable`, and pass the result as the Agent `model`
+parameter. Effort is the agent's frontmatter, since the Agent tool takes none. Append one
+`discovery` entry giving the verdict and the model the review ran on, and list each failed
+criterion in Step 5's report. Gates covers an `INCONCLUSIVE` verdict here too. An interactive
+run never dispatches it, even when it opted into the log, and states in Step 5's report that no
+trail review ran; no setting changes either case.
+
+- **Pointer**: for the per-invocation `model` parameter ranking above an agent's `model`
+  frontmatter, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where the per-invocation parameter ranks.
+
 ## Phase boundaries
 
 **The ritual scales with residency.** A boundary where the orchestrator clears, where a model or domain switch is pending, or where the run ends runs `/implementation:implement`'s "Step 4: Task Tracking and Phase-Boundary Handoff" ritual in full: plan marks, status summary, the commit, then the handoff entry with its resume prompt, last. A resident boundary, where the orchestrator stays in the window and dispatches the next phase (see Resident-vs-clear below), runs only the durable part: the acceptance verdict and plan marks (Step 4 item 1), a `DEVIATIONS.md` entry for the boundary when the run keeps that log (every non-interactive run does), and the commit (item 3). The handoff entry, status summary and resume prompt exist for a session that restarts cold. A resident orchestrator is their only reader and already holds their content, and the plan marks plus the deviations log are what a crashed run resumes from.
@@ -319,7 +347,7 @@ We treat the phases of one approved plan as one task, so the orchestrator's wind
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (when the `toolchain` plugin is installed; else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it. See Phase boundaries) |
-| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier (see Phase boundaries) |
+| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier (see Phase boundaries); an autonomous run then gets the trail review (see Divergence in non-interactive runs) |
 
 ## What this skill does NOT do
 

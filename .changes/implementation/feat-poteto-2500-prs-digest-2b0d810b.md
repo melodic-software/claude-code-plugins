@@ -142,3 +142,11 @@ bump: minor
   old-contract tests; and ends by naming where reader load fell or reverting. Under
   `refactor_compat: deprecate` each kept adapter also names a time box and a follow-up item. Four
   eval cases cover them.
+- **An autonomous `/implementation:implement-dispatch` run ends with a trail review.** After the
+  last phase's `[DONE]` and before Step 5, it dispatches `implementation:phase-verifier` once over
+  `DEVIATIONS.md` and the run's diff, checking that each entry's evidence resolves, each states its
+  outcome or `unverified`, each deviation has its four fields, and no departure from the plan goes
+  unlogged. The model is `/multi-agent:route`'s verifier `single` variant when that skill is
+  available (else the session model), raised to the strongest model any worker ran on. One
+  `discovery` entry records the verdict and model. Interactive runs never run it; there is no
+  setting.

@@ -670,6 +670,35 @@
         "Does NOT use SendMessage to tell the workers to stop, and sends no message to a stopped worker during the hold",
         "Reports each stopped worker with its worktree state"
       ]
+    },
+    {
+      "id": 51,
+      "name": "autonomous-run-ends-with-trail-review-raised-to-worker-model",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, autonomous run (a loop harness drives the turns). The plan's three phases are all marked [DONE] with phase-verifier verdicts; Phase 1 and Phase 3 ran on implementation:implementer at opus and Phase 2 on implementation:scoped-implementer at sonnet. The run kept .work/greenhouse-alerts/DEVIATIONS.md with five entries; the branch started at commit 4be19c2. /multi-agent:route is among the available skills and its verifier role prints single sonnet @ high. No post-phase commit was made.",
+      "expected_output": "Before handing off to /implementation:implement Step 5, the orchestrator dispatches implementation:phase-verifier once as the trail review, with the Agent model parameter set to opus: route gave sonnet, and the run's strongest worker ran on opus, so the model is raised. The verifier gets the DEVIATIONS.md path, the run's diff from 4be19c2 to the current head, and binary criteria: each entry's evidence resolves, each entry states its outcome or unverified, each deviation has its four fields, and the diff has no departure from the plan without an entry. The orchestrator appends one discovery entry with the verdict and the model, and Step 5's report lists any failed criterion.",
+      "files": [],
+      "expectations": [
+        "Dispatches implementation:phase-verifier as a trail review after the last phase and before Step 5",
+        "Passes the Agent model parameter opus, not the route's sonnet",
+        "Hands the verifier the DEVIATIONS.md path and the run's diff from 4be19c2 to the head",
+        "The criteria cover resolving evidence, a stated outcome or unverified, the four deviation fields, and unlogged departures from the plan",
+        "Appends one discovery entry naming the verdict and the model the review ran on"
+      ]
+    },
+    {
+      "id": 52,
+      "name": "interactive-run-skips-trail-review-even-with-log",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch, interactive run: the user reviews each turn and opted into the deviations log at the start. Both worker-routed phases are now marked [DONE] with phase-verifier verdicts, and .work/bike-rental/DEVIATIONS.md holds three entries. No post-phase commit was made.",
+      "expected_output": "Because the run is interactive, no trail review runs: the orchestrator does not dispatch a further phase-verifier over the deviations log, even though the log exists. It goes on to /implementation:implement Step 5, whose report states that no trail review ran.",
+      "files": [],
+      "expectations": [
+        "Does NOT dispatch a trail review of DEVIATIONS.md",
+        "Does NOT dispatch any further implementation:phase-verifier after the last phase's verdict",
+        "Proceeds to /implementation:implement Step 5",
+        "The Step 5 report states that no trail review ran"
+      ]
     }
   ]
 }

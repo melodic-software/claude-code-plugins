@@ -602,6 +602,22 @@ out="$(run --root "$R24" --check --ref origin/main)"
 assert_eq "case 24: a committed bad value exits 1" "1" "$?"
 assert_contains "case 24: a committed bad value keeps the valid key" "$out" "PASS downstream_probe: report"
 
+# --- Case 26: fanout_diversity takes lens or model (the schema's enum) ---------
+R26="$(new_root c26)"
+run --root "$R26" fanout_diversity=model >/dev/null
+assert_eq "case 26: fanout_diversity=model exits 0" "0" "$?"
+assert_eq "case 26: the file holds fanout_diversity: model" "1" "$(grep -cx 'fanout_diversity: model' "$(yaml_of "$R26")")"
+out="$(run --root "$R26" --check)"
+assert_contains "case 26: --check reports fanout_diversity" "$out" "PASS fanout_diversity: model"
+R26B="$(new_root c26b)"
+printf 'ratchet_offer: true\n' >"$(yaml_of "$R26B")"
+before="$(cat "$(yaml_of "$R26B")")"
+out="$(run --root "$R26B" --yes fanout_diversity=models)"
+assert_eq "case 26: fanout_diversity=models exits 1" "1" "$?"
+assert_eq "case 26: the refusal is one line" "1" "$(printf '%s\n' "$out" | grep -c .)"
+assert_contains "case 26: the refusal names the key and value" "$out" "fanout_diversity"
+assert_eq "case 26: a refused value leaves the file untouched" "$before" "$(cat "$(yaml_of "$R26B")")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
