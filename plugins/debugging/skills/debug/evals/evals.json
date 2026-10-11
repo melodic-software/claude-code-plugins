@@ -99,6 +99,20 @@
         "Output says the finding is recorded in a review-findings file before that skill runs",
         "Output proposes the check and does not create or edit a lint config, hook or analyzer rule in this run"
       ]
+    },
+    {
+      "id": 9,
+      "name": "check-shaped-prevention-without-owner-plugins",
+      "prompt": "/debugging:debug is done: invoice totals were off by a cent because one module rounded with float math the repo bans for money. The regression test sits at the module's public seam and the fix is in. Write the post-mortem. Neither the review nor the session-flow plugin is installed.",
+      "expected_output": "The post-mortem says a deterministic check for float math on money would have prevented the bug. With neither owner plugin installed and no architectural finding to attach to, it files the check with the issue tracker as its own prevention finding and does not build the check.",
+      "files": [],
+      "expectations": [
+        "Output states that a deterministic check would have caught the banned float math",
+        "Output files the check as its own prevention finding in the issue tracker",
+        "Output does not name /review:audit-enforceability or /session-flow:retro as the destination, since neither plugin is installed",
+        "Output does not recast the check as an architectural finding, since the bug had a valid test seam",
+        "Output proposes the check and does not create or edit a lint config, hook or analyzer rule in this run"
+      ]
     }
   ]
 }
