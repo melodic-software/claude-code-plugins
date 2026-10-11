@@ -1035,6 +1035,58 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("treats an outside path whose directory shares the slice's name as outside", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const slug = path.basename(sliceDir);
+    const outsideRef = `../../repos/${slug}/source/transcript.txt`;
+    fs.writeFileSync(path.join(sliceDir, "research", "claim-inventory.md"), `[x](${outsideRef})\n`);
+    const pointedAt = path.resolve(sliceDir, "research", outsideRef);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    const link = /\]\(([^)]+)\)/.exec(read(targetDir, "analysis/research/claim-inventory.md"))?.[1];
+    expect(path.resolve(targetDir, "analysis/research", String(link))).toBe(pointedAt);
+  });
+
+  it("reads a path that leaves and re-enters the slice as the slice's", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const slug = path.basename(sliceDir);
+    fs.writeFileSync(path.join(sliceDir, "RESEARCH.md"), `[t](../${slug}/source/transcript.txt)\n`);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/RESEARCH.md")).toBe("[t](../transcript/transcript.txt)\n");
+  });
+
+  it("reads the .work/<epic>/<slug> form only with the slice's own work path", async () => {
+    const { sliceDir: original, targetDir } = makeFixture();
+    const slug = path.basename(original);
+    const sliceDir = path.join(makeDir("relayout-root-"), ".work", "youtube-watch", slug);
+    fs.mkdirSync(path.dirname(sliceDir), { recursive: true });
+    fs.renameSync(original, sliceDir);
+    fs.writeFileSync(
+      path.join(sliceDir, "recommendations", "questions.md"),
+      [
+        `Own: \`.work/youtube-watch/${slug}/source/transcript.txt\`.`,
+        `Other epic: \`.work/other-epic/${slug}/source/transcript.txt\`.`,
+        "",
+      ].join("\n"),
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+      [
+        "Own: `../../transcript/transcript.txt`.",
+        `Other epic: \`.work/other-epic/${slug}/source/transcript.txt\`.`,
+        "",
+      ].join("\n"),
+    );
+  });
+
   it("keeps a link that leaves the slice pointing at the same file from its deeper location", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "research/claim-inventory.md": "[other](../../other-slice/RESEARCH.md)\n" },

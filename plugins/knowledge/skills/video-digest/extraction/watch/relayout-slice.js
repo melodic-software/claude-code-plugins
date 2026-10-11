@@ -192,7 +192,7 @@ function deriveDirectoryMap(fileMap) {
  * @property {Map<string, string>} dirs - slice-relative directory → target-relative directory
  * @property {Map<string, string>} tempFrames - temp frame file name → target-relative file
  * @property {boolean} framesDropped - the layout keeps no extracted frames (`--no-media`)
- * @property {string} sliceName - the slice directory's own name
+ * @property {string|null} sliceWorkPath - the slice's `.work/<epic>/<slug>` path under its work root, or null when it sits under none
  * @property {Set<string>} sliceEntries - every slice-relative file and directory
  * @property {string} sliceAbs - absolute slice directory
  * @property {string} targetAbs - absolute final target directory
@@ -265,20 +265,29 @@ function lookUpReference(refPath, sourceFile, map) {
   };
   /** @type {(string|null)[]} */
   let keys;
-  // `SLICE/<path>` and `.work/<epic>/<slice>/<path>` name the slice root explicitly.
-  const marker = `/${map.sliceName}/`;
+  // `SLICE/<path>` names the slice root explicitly, and so does the work-root
+  // form `.work/<epic>/<slug>/<path>`, but only with this slice's own prefix:
+  // a path segment that merely equals the slice's name says nothing.
   if (bare.startsWith("SLICE/")) {
     keys = [path.posix.normalize(bare.slice("SLICE/".length))];
-  } else if (bare.includes(marker)) {
-    keys = [path.posix.normalize(bare.slice(bare.indexOf(marker) + marker.length))];
+  } else if (map.sliceWorkPath && bare.startsWith(`${map.sliceWorkPath}/`)) {
+    keys = [path.posix.normalize(bare.slice(map.sliceWorkPath.length + 1))];
   } else {
     const fromFile = path.posix.normalize(path.posix.join(path.posix.dirname(sourceFile), bare));
-    // A relative path that leaves the slice (a sibling slice, the repo) keeps
-    // pointing at the same place from the file's new, deeper location.
     if (fromFile === ".." || fromFile.startsWith("../")) {
-      return { outside: path.resolve(map.sliceAbs, ...fromFile.split("/")) };
+      // Resolved from the naming file's real location: a path that comes back
+      // into the slice (`../<slug>/x` from the root) is the slice's; any other
+      // (a sibling slice, the repo) keeps pointing at the same place from the
+      // file's new, deeper location.
+      const absolute = path.resolve(map.sliceAbs, ...fromFile.split("/"));
+      const inside = path.relative(map.sliceAbs, absolute);
+      if (inside === "" || inside.startsWith("..") || path.isAbsolute(inside)) {
+        return { outside: absolute };
+      }
+      keys = [inside.split(path.sep).join("/")];
+    } else {
+      keys = [fromFile, bare.startsWith(".") ? null : path.posix.normalize(bare)];
     }
-    keys = [fromFile, bare.startsWith(".") ? null : path.posix.normalize(bare)];
   }
   for (const key of keys) {
     const found = lookup(key);
@@ -704,6 +713,19 @@ function readJsonObject(file) {
     : null;
 }
 
+/**
+ * The slice's path under its work root, from the last `.work` segment of its
+ * absolute path (`.work/<epic>/<slug>`), or null when no `.work` segment holds it.
+ *
+ * @param {string} slice - absolute slice directory
+ * @returns {string|null}
+ */
+function workRootRelative(slice) {
+  const segments = slice.split(path.sep);
+  const at = segments.lastIndexOf(".work");
+  return at === -1 || at === segments.length - 1 ? null : segments.slice(at).join("/");
+}
+
 /** @param {unknown} error */
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
@@ -1100,7 +1122,7 @@ export async function relayoutSlice({
     dirs: deriveDirectoryMap(files),
     tempFrames,
     framesDropped: noMedia,
-    sliceName: path.basename(slice),
+    sliceWorkPath: workRootRelative(slice),
     sliceEntries,
     sliceAbs: slice,
     targetAbs: target,
