@@ -18,7 +18,7 @@ The criteria come from three upstream authorities, cited so the current text alw
   (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp)
 
-19 criteria (C1-C19) across seven categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
+20 criteria (C1-C20) across eight categories, each tagged by authority (SPEC-MUST / SPEC-SHOULD /
 SPEC-OPTIONAL / ANTHROPIC / OPINION) so you can tell a protocol requirement from a style preference.
 OPINION is the skill's own judgment, including the criteria built on Claude-Code-specific client
 behavior, which the Claude Code page documents rather than mandates:
@@ -30,6 +30,7 @@ behavior, which the Claude Code page documents rather than mandates:
 - **Granularity**. Workflow-shaped consolidation, not one tool per raw API call.
 - **Schema**. Callable from the schema alone, with a valid `inputSchema`.
 - **Claude Code `_meta` annotations**. `anthropic/maxResultSizeChars`, `anthropic/requiresUserInteraction`, `anthropic/alwaysLoad`. Missing is at most an info advisory; a declared value Claude Code ignores or caps is the defect.
+- **HTTP header parameters**. Every `x-mcp-header` a parameter declares meets the spec's constraints and marks no sensitive value. An absent one is not a finding.
 
 Language-agnostic: it discovers tools in Python (`mcp`), TypeScript (`@modelcontextprotocol/sdk`), and
 .NET (`ModelContextProtocol`) by the SDKs' own tool markers.
