@@ -42,10 +42,13 @@ merge_main() {
   tg checkout -q pr
   tg merge --no-commit --no-ff main >/dev/null 2>&1 || true
 }
-# run_entries: sets OUT (sorted) and RC.
+# run_entries [<head> <base> <tree>]: sets OUT (sorted), ERR and RC. The tree
+# defaults to the index written as a tree, as post.sh prints it.
 run_entries() {
+  local head=${1:-$(tg rev-parse pr)} base=${2:-$(tg rev-parse main)} tree=${3:-}
+  [[ -n $tree ]] || tree=$(tg write-tree 2>/dev/null) || tree=none
   RC=0
-  OUT=$(cd "$R" && bash "$ENTRIES" "$(tg rev-parse pr)" "$(tg rev-parse main)" 2>"$TMP/err" | LC_ALL=C sort) || RC=$?
+  OUT=$(cd "$R" && bash "$ENTRIES" "$head" "$base" "$tree" 2>"$TMP/err" | LC_ALL=C sort) || RC=$?
   ERR=$(cat "$TMP/err")
 }
 blob() { printf '%b' "$1" | git hash-object --stdin; }
@@ -138,6 +141,12 @@ expected=$(
   line 160000 "$SUB" - sub
 )
 check 'untracked-dir: only staged entries; a mode change and a gitlink upload nothing' "$expected" "$OUT"
+# The entries describe the tree post.sh validated, not whatever the index
+# holds by the time the commit step runs.
+TREE=$(tg write-tree)
+tg add keep.txt .claude-pr
+run_entries "" "" "$TREE"
+check 'untracked-dir: changes staged after the tree was written stay out' "$expected" "$OUT"
 
 echo '# unmerged entries and unsafe paths'
 # conflict_with <main-only path>: c.txt conflicts; main also adds the path.
@@ -155,9 +164,21 @@ conflict_with() {
   merge_main
 }
 conflict_with plain.txt
-run_entries
-check 'unmerged: an index with unmerged entries fails' 1 "$RC"
-check 'unmerged: the error names the cause' 'tree-entries.sh: the index has unmerged entries' "$ERR"
+put c.txt 'resolved\n'
+tg add c.txt
+TREE=$(tg write-tree)
+for bad in main HEAD --output=x "$(tg rev-parse --short main)"; do
+  run_entries "$bad" "" "$TREE"
+  check "unsafe input: a gated head given as '$bad' is refused" 1 "$RC"
+  run_entries "" "$bad" "$TREE"
+  check "unsafe input: a trusted base given as '$bad' is refused" 1 "$RC"
+  run_entries "" "" "$bad"
+  check "unsafe input: a tree given as '$bad' is refused" 1 "$RC"
+done
+run_entries "" "" "$(tg rev-parse main:c.txt)"
+check 'unsafe input: a blob given as the tree is refused' 1 "$RC"
+run_entries "" "" "$(tg rev-parse --short "$TREE")"
+check 'unsafe input: an abbreviated tree id is refused' 1 "$RC"
 conflict_with $'two\nlines.txt'
 put c.txt 'resolved\n'
 tg add c.txt

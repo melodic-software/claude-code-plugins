@@ -3,11 +3,16 @@
 #
 # The post half of the write runner's merge-base mode, run from the root of the
 # PR head checkout after the model turn, on the <out-dir> prepare.sh wrote.
+# These checks guard against model mistakes and hostile head content, not
+# against a hostile model on the same runner: the lane token is model-reachable
+# by design.
 #
 # 1. Check the saved .git/config and .git/info/attributes copies and the index
 #    snapshot against the hashes prepare.sh printed, failing closed on any
 #    mismatch before writing anything; then overwrite the live files from the
-#    copies (claude-code-action rewrites .git/config during the run).
+#    copies (claude-code-action rewrites .git/config during the run). Then fail
+#    unless HEAD is still the gated head and MERGE_HEAD the trusted base, so an
+#    aborted, reset or committed merge is never taken for a resolution.
 # 2. Sensitive-path repair: claude-code-action resets the index entries of the
 #    paths it restores from the base, which during a merge drops the merged
 #    content. Remove every such entry from the index and re-apply the
@@ -20,11 +25,19 @@
 #                         removed, or changed in mode or blob since the
 #                         snapshot.
 #
+# 4. With no reason, write the validated index as a tree; tree-entries.sh
+#    takes that tree, so nothing staged after this check reaches the commit.
+#
+# Every git call reads gitattributes from the trusted base tree
+# (GIT_ATTR_SOURCE, git 2.41 or later).
+#
 # Environment: CONFIG_SHA256, ATTRIBUTES_SHA256 (`absent` when prepare found no
-# attributes file) and SNAPSHOT_SHA256, prepare.sh's step outputs.
+# attributes file) and SNAPSHOT_SHA256, prepare.sh's step outputs; GATED_HEAD
+# and TRUSTED_BASE, the full object ids prepare.sh was given.
 #
 # Stdout: escalation-reason=<reason>, empty when the staged merge may be
-# committed. Exit: 0 with a reason; 1 on a hash mismatch or git failure.
+# committed, and then tree=<oid>. Exit: 0 with a reason; 1 on a hash mismatch,
+# a moved HEAD or MERGE_HEAD, or a git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
 set -euo pipefail
 
@@ -46,12 +59,23 @@ verify() {
 SENSITIVE_RE='^(\.claude|\.mcp\.json|\.claude\.json|\.gitmodules|\.ripgreprc|CLAUDE\.md|CLAUDE\.local\.md|\.husky)(/|$)'
 WORKFLOW_RE='^\.github/workflows/'
 
+OID_RE='^[0-9a-f]{40,64}$'
+
 (($# == 1)) || die 'usage: post.sh <out-dir>'
 out=$1
-for v in CONFIG_SHA256 ATTRIBUTES_SHA256 SNAPSHOT_SHA256; do
+version=$(git version)
+version=${version#git version }
+IFS=. read -r major minor _ <<<"$version"
+if ! [[ $major =~ ^[0-9]+$ && $minor =~ ^[0-9]+$ ]] || ((major < 2 || (major == 2 && minor < 41))); then
+  die "git $version cannot read attributes from a tree (GIT_ATTR_SOURCE); git 2.41 or later is required"
+fi
+for v in CONFIG_SHA256 ATTRIBUTES_SHA256 SNAPSHOT_SHA256 GATED_HEAD TRUSTED_BASE; do
   [[ -n ${!v:-} ]] || die "$v is not set; pass prepare.sh's step output"
 done
 attributes_sha=${ATTRIBUTES_SHA256:-}
+head=${GATED_HEAD:-} base=${TRUSTED_BASE:-}
+[[ $head =~ $OID_RE ]] || die "GATED_HEAD must be a full object id, got '$head'"
+[[ $base =~ $OID_RE ]] || die "TRUSTED_BASE must be a full object id, got '$base'"
 [[ -d .git ]] || die 'run from the root of a checkout whose .git is a directory'
 
 verify "$out/config" "${CONFIG_SHA256:-}"
@@ -64,6 +88,12 @@ if [[ $attributes_sha != absent ]]; then
   mkdir -p .git/info
   cp "$out/attributes" .git/info/attributes
 fi
+
+g cat-file -e "$base^{commit}" 2>/dev/null || die "trusted base $base is not a commit"
+export GIT_ATTR_SOURCE=$base
+[[ $(g rev-parse --verify HEAD) == "$head" ]] || die "HEAD is not the gated head $head"
+merge_head=$(g rev-parse -q --verify MERGE_HEAD) || die 'no merge in progress'
+[[ $merge_head == "$base" ]] || die "MERGE_HEAD $merge_head is not the trusted base $base"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -109,13 +139,14 @@ while IFS= read -r -d '' record; do
   if [[ $stage != 0 ]]; then was_unmerged[${record#*$'\t'}]=1; fi
 done <"$out/index-snapshot"
 
-# Marker lines in order: <<<<<<< then ======= then >>>>>>>, each exactly seven
-# characters long, the outer two followed by a space or the line end.
+# Marker lines in order, any length from seven (conflict-marker-size): a run of
+# <, then a run of =, then a run of >, the outer two followed by a space or the
+# line end. prepare.sh holds the same program.
 # shellcheck disable=SC2016  # an awk program, expanded by awk
 marker_awk='
-  s == 0 && ($0 == "<<<<<<<" || substr($0, 1, 8) == "<<<<<<< ") { s = 1; next }
-  s == 1 && $0 == "=======" { s = 2; next }
-  s == 2 && ($0 == ">>>>>>>" || substr($0, 1, 8) == ">>>>>>> ") { s = 3 }
+  s == 0 && (/^<<<<<<<+$/ || /^<<<<<<<+ /) { s = 1; next }
+  s == 1 && /^=======+$/ { s = 2; next }
+  s == 2 && (/^>>>>>>>+$/ || /^>>>>>>>+ /) { s = 3 }
   END { print (s == 3) }'
 g ls-files -s -z >"$tmp/index"
 while IFS= read -r -d '' record; do
@@ -136,4 +167,5 @@ filter_workflows "$out/index-snapshot" >"$tmp/workflows-before"
 filter_workflows "$tmp/index" >"$tmp/workflows-after"
 cmp -s "$tmp/workflows-before" "$tmp/workflows-after" || reason workflow-staged
 
-reason ''
+tree=$(g write-tree)
+printf 'escalation-reason=\ntree=%s\n' "$tree"

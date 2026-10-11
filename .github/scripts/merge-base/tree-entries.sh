@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
-# tree-entries.sh <gated-head> <trusted-base-sha>
+# tree-entries.sh <gated-head> <trusted-base-sha> <tree>
 #
-# The tree of the merge commit, as entries for the Git Data API, built from the
-# index and never from the working tree: untracked files (claude-code-action's
-# .claude-pr/) and unstaged edits never enter it.
+# The tree of the merge commit, as entries for the Git Data API. <tree> is the
+# tree post.sh wrote from the index it validated, so untracked files
+# (claude-code-action's .claude-pr/), unstaged edits and anything staged after
+# that check never enter it. These checks guard against model mistakes and
+# hostile head content, not against a hostile model on the same runner: the
+# lane token is model-reachable by design.
 #
-# Stdout: one line per path the index changes against <gated-head>:
+# Stdout: one line per path <tree> changes against <gated-head>:
 #   <mode> <blob-sha|null> <create-blob|-><TAB><path>
 # `null` marks a deletion (the mode is then the gated head's). `create-blob`
 # marks a blob neither the gated head nor the trusted base holds at that path,
 # so GitHub may not have it yet: the caller uploads only those, which keeps a
 # merge that brings thousands of base-side paths to a few blob requests.
 #
-# Exit: 0; 1 on unmerged entries, a path holding a newline, or git failure.
+# Every git call reads gitattributes from the trusted base tree
+# (GIT_ATTR_SOURCE, git 2.41 or later).
+#
+# Exit: 0; 1 on an input that is not a full object id of the right type, a
+# path holding a newline, or git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
 set -euo pipefail
 
@@ -22,16 +29,28 @@ die() {
   printf 'tree-entries.sh: %s\n' "$*" >&2
   exit 1
 }
+OID_RE='^[0-9a-f]{40,64}$'
 
-(($# == 2)) || die 'usage: tree-entries.sh <gated-head> <trusted-base-sha>'
-head=$(g rev-parse -q --verify "$1^{commit}") || die "gated head $1 is not a commit"
-base=$(g rev-parse -q --verify "$2^{commit}") || die "trusted base $2 is not a commit"
-[[ -z $(g ls-files -u) ]] || die 'the index has unmerged entries'
+(($# == 3)) || die 'usage: tree-entries.sh <gated-head> <trusted-base-sha> <tree>'
+head=$1 base=$2 tree=$3
+version=$(git version)
+version=${version#git version }
+IFS=. read -r major minor _ <<<"$version"
+if ! [[ $major =~ ^[0-9]+$ && $minor =~ ^[0-9]+$ ]] || ((major < 2 || (major == 2 && minor < 41))); then
+  die "git $version cannot read attributes from a tree (GIT_ATTR_SOURCE); git 2.41 or later is required"
+fi
+[[ $head =~ $OID_RE ]] || die "gated head must be a full object id, got '$head'"
+[[ $base =~ $OID_RE ]] || die "trusted base must be a full object id, got '$base'"
+[[ $tree =~ $OID_RE ]] || die "tree must be a full object id, got '$tree'"
+g cat-file -e "$head^{commit}" 2>/dev/null || die "gated head $head is not a commit"
+g cat-file -e "$base^{commit}" 2>/dev/null || die "trusted base $base is not a commit"
+[[ $(g cat-file -t "$tree" 2>/dev/null) == tree ]] || die "$tree is not a tree"
+export GIT_ATTR_SOURCE=$base
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-g diff --cached --raw --no-renames --no-abbrev --no-ext-diff --no-textconv -z "$head" >"$tmp/raw"
+g diff-tree -r --raw -z --no-renames --no-abbrev --no-ext-diff --no-textconv "$head" "$tree" >"$tmp/raw"
 
 # Raw -z records: ":<src-mode> <dst-mode> <src-sha> <dst-sha> <status>" NUL
 # "<path>" NUL. The base's object at each path comes from one cat-file batch,

@@ -118,9 +118,22 @@ check 'text-conflict: unmerged path recorded' a.txt "$(tr '\0' '\n' <"$DIR/unmer
 echo '# binary-conflict'
 conflict a.bin 'base\0bin\n' 'pr\0bin\n' 'main\0bin\n'
 run_prepare
-check 'binary-conflict: merge-state' conflicted "$(val merge-state)"
+# A conflict git writes no markers for is escalated before any model turn.
+check 'binary-conflict: escalates unresolved-conflict' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 check 'binary-conflict: MERGE_HEAD set' "$(tg rev-parse main)" "$(merge_head)"
 check 'binary-conflict: snapshot holds stages 1 2 3' 123 "$(stages a.bin)"
+# Markers longer than seven characters (conflict-marker-size from the base's
+# attributes) are still markers, so this text conflict goes to the model.
+new_repo
+put .gitattributes '*.txt conflict-marker-size=10\n'
+put a.txt 'one\n'
+commit 'base with long markers'
+on_pr
+side pr a.txt 'pr\n'
+side main a.txt 'main\n'
+run_prepare
+check 'binary-conflict: a text conflict with 10-character markers is not taken for binary' conflicted/ "$(val merge-state)/$(val escalation-reason)"
+if grep -q '^<<<<<<<<<< ' "$R/a.txt"; then ok 'binary-conflict: the base attributes set the marker size'; else not_ok 'binary-conflict: the base attributes set the marker size'; fi
 
 echo '# modify-delete'
 new_repo
@@ -132,8 +145,19 @@ tg checkout -q main
 tg rm -q d.txt
 commit 'main deletes d.txt'
 run_prepare
-check 'modify-delete: merge-state' conflicted "$(val merge-state)"
+check 'modify-delete: escalates unresolved-conflict' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 check 'modify-delete: snapshot holds stages 1 2' 12 "$(stages d.txt)"
+# The kept side quoting conflict markers does not make it a text conflict.
+new_repo
+put d.md 'one\n'
+commit 'add d.md'
+on_pr
+side pr d.md '<<<<<<< ours\na\n=======\nb\n>>>>>>> theirs\n'
+tg checkout -q main
+tg rm -q d.md
+commit 'main deletes d.md'
+run_prepare
+check 'modify-delete: a kept side holding marker text still escalates' escalate/unresolved-conflict "$(val merge-state)/$(val escalation-reason)"
 
 echo '# workflow-conflict'
 conflict .github/workflows/ci.yml 'on: push\n' 'on: pull_request\n' 'on: workflow_dispatch\n'
@@ -159,6 +183,12 @@ for p in docs/CLAUDE.md .claudex/a.txt .husky-like; do
   run_prepare
   check "sensitive-conflict: $p is not a sensitive path" conflicted/ "$(val merge-state)/$(val escalation-reason)"
 done
+# The head's .gitattributes cannot hide a protected conflict with a merge
+# driver: attributes come from the trusted base tree.
+conflict CLAUDE.md 'base\n' 'pr\n' 'main\n'
+side pr .gitattributes 'CLAUDE.md merge=union\n.github/workflows/* merge=union\n'
+run_prepare
+check 'sensitive-conflict: a head merge=union attribute still escalates' escalate/protected-path-conflict "$(val merge-state)/$(val escalation-reason)"
 
 echo '# clean-after-bump'
 conflict plugins/p/CHANGELOG.md '# Changelog\n' '# Changelog\n\n## [1.1.0]\n' '# Changelog\n\n## [1.0.1]\n'
@@ -167,12 +197,14 @@ cat >"$BUMP" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 git rev-parse -q --verify MERGE_HEAD >bump-saw-merge-head
+printf '%s' "${GIT_ATTR_SOURCE:-}" >bump-attr-source
 printf '# Changelog\n\n## [1.1.1]\n' >plugins/p/CHANGELOG.md
 git add plugins/p/CHANGELOG.md
 EOF
 run_prepare
 check 'clean-after-bump: merge-state' clean "$(val merge-state)"
 check 'clean-after-bump: the script ran mid-merge' "$(tg rev-parse main)" "$(cat "$R/bump-saw-merge-head")"
+check 'clean-after-bump: the script reads attributes from the trusted base' "$(tg rev-parse main)" "$(cat "$R/bump-attr-source")"
 check 'clean-after-bump: snapshot taken after the script (stage 0 only)' 0 "$(stages plugins/p/CHANGELOG.md)"
 check 'clean-after-bump: MERGE_HEAD kept for the commit' "$(tg rev-parse main)" "$(merge_head)"
 # Exit 1 means pairs were left for manual resolution: the merge stays conflicted.
@@ -214,6 +246,22 @@ RC=0
   bash "$PREPARE" "$(tg rev-parse main)" "$(tg rev-parse main)" "$NOOP_BUMP" "$DIR" 2>/dev/null) || RC=$?
 check 'preconditions: HEAD other than the gated head fails' 1 "$RC"
 check 'preconditions: no merge started' '' "$(merge_head)"
+for bad in pr HEAD --output=x "$(tg rev-parse --short main)"; do
+  invoke "$(tg rev-parse pr)" "$bad"
+  check "preconditions: a trusted base given as '$bad' is refused" 1 "$RC"
+  invoke "$bad" "$(tg rev-parse main)"
+  check "preconditions: a gated head given as '$bad' is refused" 1 "$RC"
+done
+check 'preconditions: no merge started for a refused input' '' "$(merge_head)"
+# A git without --attr-source (before 2.41) cannot read attributes from the
+# base tree, so prepare refuses to run.
+mkdir -p "$TMP/oldgit"
+# shellcheck disable=SC2016  # the stub's own $1 and $@
+printf '#!/usr/bin/env bash\nif [[ $1 == version ]]; then echo "git version 2.40.1"; exit 0; fi\nexec %q "$@"\n' "$(command -v git)" >"$TMP/oldgit/git"
+chmod +x "$TMP/oldgit/git"
+invoke "$(tg rev-parse pr)" "$(tg rev-parse main)" PATH="$TMP/oldgit:$PATH"
+check 'preconditions: git older than 2.41 fails' 1 "$RC"
+if [[ $ERR == *2.41* ]]; then ok 'preconditions: the error names the version needed'; else not_ok "preconditions: the error names the version needed: $ERR"; fi
 # A command configured in the repository (here core.fsmonitor) never runs.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 tg checkout -q pr

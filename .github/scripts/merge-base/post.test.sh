@@ -73,15 +73,18 @@ prepare() {
   ATTRIBUTES_SHA256=$(sed -n 's/^attributes-sha256=//p' <<<"$out")
   SNAPSHOT_SHA256=$(sed -n 's/^snapshot-sha256=//p' <<<"$out")
   STATE=$(sed -n 's/^merge-state=//p' <<<"$out")
+  GATED_HEAD=$(tg rev-parse pr) TRUSTED_BASE=$(tg rev-parse main)
 }
 # run_post [env assignments...]: sets OUT, ERR and RC.
 run_post() {
   RC=0
   OUT=$(cd "$R" && env CONFIG_SHA256="$CONFIG_SHA256" ATTRIBUTES_SHA256="$ATTRIBUTES_SHA256" \
-    SNAPSHOT_SHA256="$SNAPSHOT_SHA256" "$@" bash "$POST" "$DIR" 2>"$TMP/err") || RC=$?
+    SNAPSHOT_SHA256="$SNAPSHOT_SHA256" GATED_HEAD="$GATED_HEAD" TRUSTED_BASE="$TRUSTED_BASE" \
+    "$@" bash "$POST" "$DIR" 2>"$TMP/err") || RC=$?
   ERR=$(cat "$TMP/err")
 }
 reason() { sed -n 's/^escalation-reason=//p' <<<"$OUT"; }
+tree() { sed -n 's/^tree=//p' <<<"$OUT"; }
 # entry <path>: "<mode> <sha> <stage>" for each index entry at path.
 entry() { tg ls-files -s -- "$1" | cut -f1 | tr '\n' ' ' | sed 's/ $//'; }
 blob() { git -C "$R" hash-object --stdin; }
@@ -92,10 +95,49 @@ prepare
 check 'text-conflict: prepared conflicted' conflicted "$STATE"
 run_post
 check 'text-conflict: left unmerged is unresolved' 0/unresolved-conflict "$RC/$(reason)"
+check 'text-conflict: an escalation prints no tree' '' "$(tree)"
 put a.txt 'pr and main\n'
 tg add a.txt
+put a.txt 'unstaged edit\n'
 run_post
 check 'text-conflict: resolved and staged passes' 0/ "$RC/$(reason)"
+T=$(tree)
+check 'text-conflict: the tree holds the staged resolution' "$(printf 'pr and main\n' | blob)" "$(tg rev-parse -q --verify "${T:-missing}:a.txt" 2>/dev/null || true)"
+check 'text-conflict: the tree keeps the untouched files' "$(tg rev-parse pr:keep.txt)" "$(tg rev-parse -q --verify "${T:-missing}:keep.txt" 2>/dev/null || true)"
+
+echo '# merge-guard'
+# A model that aborts the merge, or commits it, leaves a state post.sh refuses.
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+tg merge --abort
+run_post
+check 'merge-guard: an aborted merge fails' 1 "$RC"
+check 'merge-guard: and prints nothing' '' "$OUT"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg commit -q -m 'model commits'
+run_post
+check 'merge-guard: a moved HEAD fails' 1 "$RC"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg update-ref HEAD pr~1
+run_post
+check 'merge-guard: HEAD moved under a live merge fails' 1 "$RC"
+tg update-ref HEAD "$GATED_HEAD"
+run_post TRUSTED_BASE="$(tg rev-parse main~1)"
+check 'merge-guard: MERGE_HEAD other than the trusted base fails' 1 "$RC"
+for bad in main HEAD "$(tg rev-parse --short main)"; do
+  run_post TRUSTED_BASE="$bad"
+  check "merge-guard: a trusted base given as '$bad' is refused" 1 "$RC"
+  run_post GATED_HEAD="$bad"
+  check "merge-guard: a gated head given as '$bad' is refused" 1 "$RC"
+done
+run_post
+check 'merge-guard: the untouched state still passes' 0/ "$RC/$(reason)"
 
 echo '# binary-conflict'
 conflict a.bin 'base\0\n' 'pr\0\n' 'main\0\n'
@@ -149,10 +191,27 @@ put a.txt '<<<<<<< a\nno separator\n>>>>>>> b\n'
 tg add a.txt
 run_post
 check 'unresolved-marker: no ======= line is not a conflict' 0/ "$RC/$(reason)"
-put a.txt '<<<<<<<< eight\n=======\n>>>>>>> seven\n'
+put a.txt '<<<<<<<< eight\n=========\n>>>>>>>>>> ten\n'
 tg add a.txt
 run_post
-check 'unresolved-marker: an eight-character opener is not a marker' 0/ "$RC/$(reason)"
+check 'unresolved-marker: longer markers of any size are markers' unresolved-conflict "$(reason)"
+put a.txt '<<<<<< six\n======\n>>>>>> six\n'
+tg add a.txt
+run_post
+check 'unresolved-marker: six-character runs are not markers' 0/ "$RC/$(reason)"
+# conflict-marker-size=10 in the base attributes: git writes 10-character
+# markers, and staging them unchanged is still caught.
+new_repo
+put .gitattributes '*.txt conflict-marker-size=10\n'
+put a.txt 'one\n'
+commit 'base with long markers'
+tg checkout -q -b pr
+side pr a.txt 'pr\n'
+side main a.txt 'main\n'
+prepare
+tg add a.txt
+run_post
+check 'unresolved-marker: conflict-marker-size=10 markers are caught' unresolved-conflict "$(reason)"
 # Markers in a path that never conflicted (a doc quoting them) are not checked.
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 side main doc.md '<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> b\n'
@@ -280,7 +339,7 @@ for target in config index-snapshot attributes; do
 done
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
-for v in CONFIG_SHA256 ATTRIBUTES_SHA256 SNAPSHOT_SHA256; do
+for v in CONFIG_SHA256 ATTRIBUTES_SHA256 SNAPSHOT_SHA256 GATED_HEAD TRUSTED_BASE; do
   run_post "$v="
   check "tampered-copy: an empty $v fails" 1 "$RC"
 done
