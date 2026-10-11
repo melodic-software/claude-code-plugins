@@ -8,10 +8,11 @@ with neither option the root is what `git rev-parse --show-toplevel` reports
 from the current directory, or the current directory outside a repository.
 When that file does not exist yet and the older `<repo-root>/.claude/
 code-metrics.yaml` does, every key of the older file is carried into the new
-one in the same write; with no `<key>=<value>` the run is that move alone. The
-older file is left in place for plugin releases that read only it. Each
-`<key>=<value>` is a dotted key from the plugin's config contract and a value
-written in the YAML subset the plugin reads (`500`, `true`, `null`,
+one in the same write, except a key the contract does not declare, which is
+dropped and named on stderr; with no `<key>=<value>` the run is that move
+alone. The older file is left in place for plugin releases that read only it.
+Each `<key>=<value>` is a dotted key from the plugin's config contract and a
+value written in the YAML subset the plugin reads (`500`, `true`, `null`,
 `"quoted"`, `[a, b]`). The existing file is parsed, the keys are merged per
 key (unknown keys the file already carries are preserved), and the result is
 written in block style. A run that changes nothing prints `already configured`
@@ -19,7 +20,14 @@ and leaves the file byte-identical, so the command is safe to repeat.
 
 The keys are validated against the bundled defaults: a key the contract does
 not declare is written (unknown keys are inert to the plugin) but reported
-as a warning, so a typo does not pass silently. Exit 0 on success, 2 on a
+as a warning, so a typo does not pass silently.
+
+Path safety: docs/, docs/conventions/, .claude/, the target and the older file
+are refused when a symlink, the wrong file type, or (for a file) more than one
+hard link, and each must resolve under the repository root. An explicit
+`--file` outside that layout gets the file checks only. The write goes to a
+temp file opened O_CREAT|O_EXCL|O_NOFOLLOW beside the target, then renamed
+over it. Exit 0 on success, 1 on an unsafe path or a failed write, 2 on a
 usage error or a value outside the subset.
 """
 
@@ -28,9 +36,10 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import stat
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable
 
 MIN_PYTHON = (3, 9)
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -49,8 +58,62 @@ HEADER = (
     "# schema: the plugin's schemas/code-metrics.schema.json.\n"
     "# Layers: ~/.claude/code-metrics.yaml, this file, .claude/code-metrics.local.yaml (per-key override).\n"
 )
-TEAM_FILE = os.path.join("docs", "conventions", "code-metrics.yaml")
+TEAM_PARTS = ["docs", "conventions"]
+TEAM_FILE = os.path.join(*TEAM_PARTS, "code-metrics.yaml")
 LEGACY_FILE = os.path.join(".claude", "code-metrics.yaml")
+NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+
+class UnsafePath(Exception):
+    """A path shape that could send a read or write outside the repository."""
+
+
+def _under(path: str, real_root: str | None, what: str) -> None:
+    if real_root is None:
+        return
+    resolved = os.path.realpath(path)
+    if resolved != real_root and not resolved.startswith(real_root + os.sep):
+        raise UnsafePath(f"{what} resolves outside the repository")
+
+
+def check_dir(path: str, what: str, real_root: str | None) -> bool:
+    """True when the directory exists; UnsafePath on any unsafe shape."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        raise UnsafePath(f"{what} is a symlink; refusing to go through it")
+    if not stat.S_ISDIR(st.st_mode):
+        raise UnsafePath(f"{what} exists and is not a directory")
+    _under(path, real_root, what)
+    return True
+
+
+def check_file(path: str, what: str, real_root: str | None) -> bool:
+    """True when the file exists; UnsafePath on any unsafe shape."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        raise UnsafePath(f"{what} is a symlink; refusing to read or write through it")
+    if not stat.S_ISREG(st.st_mode):
+        raise UnsafePath(f"{what} exists and is not a regular file")
+    if st.st_nlink > 1:
+        raise UnsafePath(f"{what} has {st.st_nlink} hard links; refusing to use it")
+    _under(path, real_root, what)
+    return True
+
+
+def check_chain(root: str, real_root: str, parts: list[str], name: str) -> bool:
+    """Check each directory of parts under root, then the file parts/name."""
+    for i in range(1, len(parts) + 1):
+        rel = os.path.join(*parts[:i])
+        if not check_dir(os.path.join(root, rel), rel, real_root):
+            return False
+    rel = os.path.join(*parts, name)
+    return check_file(os.path.join(root, rel), rel, real_root)
 
 
 def _needs_quotes(text: str) -> bool:
@@ -159,9 +222,27 @@ def known_keys() -> set[str]:
     return keys
 
 
+def drop_unknown(doc: dict[str, Any], known: set[str], prefix: str = "") -> list[str]:
+    """Remove every key the contract does not declare; return their dotted names."""
+    collectors = [k for k in known if k.endswith(".collectors")]
+    dropped: list[str] = []
+    for key in list(doc):
+        dotted = f"{prefix}{key}"
+        if any(dotted == k or dotted.startswith(k + ".") for k in collectors):
+            continue
+        if dotted not in known:
+            del doc[key]
+            dropped.append(dotted)
+        elif isinstance(doc[key], dict) and any(
+            k.startswith(dotted + ".") for k in known
+        ):
+            dropped.extend(drop_unknown(doc[key], known, dotted + "."))
+    return dropped
+
+
 def read_mapping(path: str) -> tuple[str, dict[str, Any]]:
     """The file's text and its top-level mapping; ValueError_ when unusable."""
-    with open(path, encoding="utf-8") as handle:
+    with open(os.open(path, os.O_RDONLY | NOFOLLOW), encoding="utf-8") as handle:
         text = handle.read()
     try:
         parsed = yaml_subset.parse(text)
@@ -174,6 +255,26 @@ def read_mapping(path: str) -> tuple[str, dict[str, Any]]:
     if not isinstance(parsed, dict):
         raise ValueError_(f"{path}: the top level must be a mapping")
     return text, parsed
+
+
+def write_file(target: str, text: str, recheck: Callable[[], bool]) -> None:
+    """Write text through an O_EXCL|O_NOFOLLOW temp file renamed over target."""
+    tmp = os.path.join(
+        os.path.dirname(os.path.abspath(target)),
+        f".{os.path.basename(target)}.{os.getpid()}.tmp",
+    )
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | NOFOLLOW, 0o644)
+    try:
+        with open(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+        recheck()
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def main(argv: list[str]) -> int:
@@ -220,15 +321,34 @@ def main(argv: list[str]) -> int:
             top = ""
         root = top or os.getcwd()
         target = os.path.join(root, TEAM_FILE)
+    real_root = os.path.realpath(root) if root is not None else ""
+    # The docs/ chain and the under-root check apply to the team file; an
+    # explicit --file elsewhere is the operator's own path and gets the file
+    # checks only.
+    team = root is not None and os.path.abspath(target) == os.path.abspath(
+        os.path.join(root, TEAM_FILE)
+    )
+
+    def check_target() -> bool:
+        if team:
+            assert root is not None
+            return check_chain(root, real_root, TEAM_PARTS, "code-metrics.yaml")
+        return check_file(target, target, None)
+
     existing_text = ""
     doc: dict[str, Any] = {}
     carried_from = None
     try:
-        if os.path.isfile(target):
+        if check_target():
             existing_text, doc = read_mapping(target)
-        elif root is not None and os.path.isfile(os.path.join(root, LEGACY_FILE)):
+        elif root is not None and check_chain(
+            root, real_root, [".claude"], "code-metrics.yaml"
+        ):
             carried_from = os.path.join(root, LEGACY_FILE)
             _, doc = read_mapping(carried_from)
+    except (UnsafePath, OSError) as exc:
+        print(f"setup-apply.py: {exc}; nothing written", file=sys.stderr)
+        return 1
     except ValueError_ as exc:
         print(f"setup-apply.py: {exc}", file=sys.stderr)
         return 2
@@ -236,6 +356,12 @@ def main(argv: list[str]) -> int:
         print("setup-apply.py: at least one <key>=<value> is required", file=sys.stderr)
         return 2
     known = known_keys()
+    if carried_from is not None:
+        for dotted in drop_unknown(doc, known):
+            print(
+                f"setup-apply.py: dropped {dotted} from {carried_from}: not a key the contract declares",
+                file=sys.stderr,
+            )
     for assignment in assignments:
         key, _, raw = assignment.partition("=")
         key = key.strip()
@@ -260,12 +386,23 @@ def main(argv: list[str]) -> int:
     if existing_text and yaml_subset.parse(existing_text) == doc:
         print(f"already configured: {target}")
         return 0
-    os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
-    with open(target, "w", encoding="utf-8", newline="\n") as handle:
-        handle.write(HEADER + body)
+    try:
+        if team:
+            assert root is not None
+            for depth in range(1, len(TEAM_PARTS) + 1):
+                rel = os.path.join(*TEAM_PARTS[:depth])
+                if not check_dir(os.path.join(root, rel), rel, real_root):
+                    os.mkdir(os.path.join(root, rel))
+        else:
+            os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+        check_target()
+        write_file(target, HEADER + body, check_target)
+    except (UnsafePath, OSError) as exc:
+        print(f"setup-apply.py: {exc}; nothing written", file=sys.stderr)
+        return 1
     if carried_from is not None:
         print(
-            f"carried every key of {carried_from}; that file is no longer read "
+            f"carried every declared key of {carried_from}; that file is no longer read "
             "while this one exists, and can be deleted once no older plugin release reads it"
         )
     print(f"written: {target}")
