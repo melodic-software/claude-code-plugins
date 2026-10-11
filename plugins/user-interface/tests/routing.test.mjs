@@ -145,3 +145,9 @@ test("Mac-only rows are deferred and account-bound rows are never unconfirmed", 
     if (r.account !== "none") assert.notEqual(r.status, "unconfirmed", `${r.concern}/${r.id}`);
   }
 });
+
+test("a team row may set every field a bundled row may, each by reference to the row schema", () => {
+  const team = read("reference/team.schema.json").properties.routing.properties.rows.items.properties;
+  assert.deepEqual(Object.keys(team).sort(), Object.keys(schema.properties.rows.items.properties).sort());
+  for (const [k, v] of Object.entries(team)) assert.equal(v.$ref, `routing.schema.json#/properties/rows/items/properties/${k}`, k);
+});

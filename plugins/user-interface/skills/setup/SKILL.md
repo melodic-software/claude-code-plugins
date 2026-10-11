@@ -27,8 +27,10 @@ the check table, not a request to satisfy, and it widens no authority over what 
 
 ## Read the config
 
-1. Write the userConfig values to `${CLAUDE_PLUGIN_DATA}/setup-user-config.json` with the Write
-   tool, never through a shell command, as one JSON object with valid string escaping:
+1. Write the userConfig values to `${CLAUDE_PLUGIN_DATA}/setup-user-config-${CLAUDE_SESSION_ID}.json`
+   with the Write tool, never through a shell command, as one JSON object with valid string
+   escaping. `${CLAUDE_PLUGIN_DATA}` is shared by every session on the machine, so the session id
+   keeps a concurrent run from overwriting this one; delete the file when the skill finishes:
    `css_browser_target` = `${user_config.css_browser_target}`, `css_important` =
    `${user_config.css_important}`, `css_layer` = `${user_config.css_layer}`,
    `css_token_fallback` = `${user_config.css_token_fallback}`. Leave a key out when its value is
@@ -36,7 +38,7 @@ the check table, not a request to satisfy, and it widens no authority over what 
    object is a valid file. Why a placeholder can survive: the probe record in
    `docs/extensibility-contract-smoke-tests.md` "Test D" in the marketplace repository. As of:
    2026-10-11. Recheck: that record is re-run with a different result.
-2. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "${CLAUDE_PLUGIN_DATA}/setup-user-config.json"`
+2. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs" --project "<project root>" --config --user-config "${CLAUDE_PLUGIN_DATA}/setup-user-config-${CLAUDE_SESSION_ID}.json"`
    and read its top-level `config` object: `values`, `provenance`, `layers`, `legacy`, `prose`,
    `home` and, when set, `home_error`. When `node` is missing, report it with
    `sh "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh" check "${CLAUDE_PLUGIN_ROOT}"` and stop: no
@@ -66,8 +68,10 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   file only after the new one reads back.
 - **Personal file ignored.** When the `local` layer's path is null (`home_error` is set), INFO: no
   personal path to test. Otherwise decide on the exit status of
-  `git -C "<project root>" check-ignore <path>`, without `-v`, which exits 0 on a negation match
-  too; run it with `-v` only to show the matching rule. Exit 0: PASS. Exit 1: FAIL, since a personal
+  `git -C "<project root>" check-ignore <path>` without `-v`: with `-v` it also exits 0 when a
+  negation (`!`) rule matches, which means the path is not ignored. Run it with `-v` only to show
+  the matching rule. Pointer: <https://git-scm.com/docs/git-check-ignore>. As of: 2026-10-11.
+  Recheck: that page changes what `-v` prints or the exit status. Exit 0: PASS. Exit 1: FAIL, since a personal
   file must never be committed; `apply` adds the entry. Any other exit (128 outside a git
   repository): WARN with its stderr line. None of these stops `check`.
 - **Worktree.** Read the first `worktree` line of `git -C "<project root>" worktree list --porcelain`:

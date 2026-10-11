@@ -80,7 +80,8 @@
               "status": {"$ref": "routing.schema.json#/properties/rows/items/properties/status"},
               "platforms": {"$ref": "routing.schema.json#/properties/rows/items/properties/platforms"},
               "as_of": {"$ref": "routing.schema.json#/properties/rows/items/properties/as_of"},
-              "pointer": {"$ref": "routing.schema.json#/properties/rows/items/properties/pointer"}
+              "pointer": {"$ref": "routing.schema.json#/properties/rows/items/properties/pointer"},
+              "style": {"$ref": "routing.schema.json#/properties/rows/items/properties/style"}
             }
           }
         },
