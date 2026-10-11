@@ -80,7 +80,7 @@
     {
       "id": 7,
       "name": "fan-out-enumerates-typed-full-inventory-and-ledger",
-      "prompt": "/discipline:do-your-research tiered — we've made a lot of load-bearing claims about the API's rate limits, auth flow, and pricing tiers this session, and the plan now rests on all of them.",
+      "prompt": "/discipline:do-your-research tiered — we've made a lot of load-bearing claims about the API's rate limits, auth flow, and pricing tiers this session, and the plan now rests on all of them. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "Takes the fan-out tier. Enumerates a typed full inventory of the session's claims (assumptions, asserted facts, concrete specifics, load-bearing premises) as a checklist rather than spot-checking one, dispatches fresh-context (blind) subagents to verify each against a primary source, corrects every falsified or unbacked item this turn, and reports one ledger row per inventory item carrying verdict, source, source tier, consensus count, and recency where relevant.",
       "files": [],
       "expectations": [
@@ -89,20 +89,22 @@
         "Fans out fresh-context (blind) subagents that verify against primary sources, not the same recall that produced the claims",
         "Corrects falsified or unbacked items this turn and surfaces anything unverifiable",
         "Reports one ledger row per inventory item with verdict, source, source tier, and consensus count (and recency for facts that can go stale)",
-        "States the resolved depth as tiered, sourced from the invocation argument"
+        "States the resolved depth as tiered, sourced from the invocation argument",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     },
     {
       "id": 8,
       "name": "fan-out-throttles-in-bounded-waves",
-      "prompt": "/discipline:do-your-research tiered — this has been a very long session; there are dozens of load-bearing claims to verify.",
+      "prompt": "/discipline:do-your-research tiered — this has been a very long session; there are dozens of load-bearing claims to verify. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "Recognizes that a claim-heavy session must not fire one subagent per item simultaneously: throttles the dispatch into bounded waves with a concurrency cap, verifies wave by wave, retries only a failed or timed-out item (marking it unverifiable on a second failure) rather than blind-re-running the whole fan-out.",
       "files": [],
       "expectations": [
         "Takes /discipline:do-your-research's own fan-out tier on the `tiered` argument rather than the inline audit",
         "Throttles the fan-out into bounded waves with a concurrency cap rather than launching one agent per item at once",
         "Notes the burst-overload (529) risk of an unthrottled wide fan-out on a claim-heavy session",
-        "Retries only the failed subset once and marks a second failure unverifiable — never blind-re-runs the entire fan-out"
+        "Retries only the failed subset once and marks a second failure unverifiable — never blind-re-runs the entire fan-out",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     },
     {
@@ -121,7 +123,7 @@
     {
       "id": 10,
       "name": "fan-out-honest-ledger-covers-inventory-no-fabrication",
-      "prompt": "/discipline:do-your-research full — verify everything, but note every claim this session was already fetched from official docs and cited inline.",
+      "prompt": "/discipline:do-your-research full — verify everything, but note every claim this session was already fetched from official docs and cited inline. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "The fan-out verifies each inventory item and returns an honest ledger with 100% coverage — one row per item — of 'verified' entries, treating firing the skill as a re-anchor rather than an accusation. It does not manufacture corrections or falsifications to look diligent when the claims already hold, and it covers an internal assumption with an honest re-derived / needs-confirm verdict rather than a fabricated citation.",
       "files": [],
       "expectations": [
@@ -129,33 +131,36 @@
         "Returns a ledger with one row per inventory item (no silent drops) when the claims already hold",
         "Does not fabricate corrections, falsifications, or citations to appear thorough",
         "Covers an internal premise with an honest re-derived / needs-user-confirm verdict rather than a manufactured source",
-        "Treats firing the skill as a re-anchor, not a presumption that drift occurred"
+        "Treats firing the skill as a re-anchor, not a presumption that drift occurred",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     },
     {
       "id": 11,
       "name": "fact-check-everything-trigger-takes-fan-out-tier",
-      "prompt": "Go make sure those are all right — fact-check everything we've established about the deployment config, the version pins, and the rollout plan.",
+      "prompt": "Go make sure those are all right — fact-check everything we've established about the deployment config, the version pins, and the rollout plan. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "Reads the 'fact-check everything' request over a claim-heavy session as the fan-out tier's trigger, enumerates the typed full inventory of the established claims, and verifies each against a primary source, reporting the per-item ledger rather than a single inline check.",
       "files": [],
       "expectations": [
         "Routes the 'fact-check everything' request to /discipline:do-your-research's own fan-out tier rather than its inline audit, with no hand-off to a separate skill",
         "Enumerates the typed full inventory rather than checking one claim inline",
         "Reports a per-item ledger with sources and verdicts",
-        "With no argument given, states the resolved depth and its source: the configured value, or tiered by default when the configured value is empty or an unexpanded token"
+        "With no argument given, states the resolved depth and its source: the configured value, or tiered by default when the configured value is empty or an unexpanded token",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     },
     {
       "id": 12,
       "name": "resolves-verification-depth-tiered-default-or-full-argument",
-      "prompt": "/discipline:do-your-research full — subagent-verify every item, not just the load-bearing ones.",
+      "prompt": "/discipline:do-your-research full — subagent-verify every item, not just the load-bearing ones. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
       "expected_output": "Resolves the verification depth by precedence: the invocation argument 'full' overrides the configured default and the tiered fallback, so every inventory item — trivial or not — goes through the fresh-context subagent fan-out. Absent an argument it would use the configured research_deep_verification value, falling back to tiered (subagents only over load-bearing items) when that is empty, an unexpanded token, or an unrecognized string. Reports which depth ran and why.",
       "files": [],
       "expectations": [
         "Honors the 'full' invocation argument, verifying every inventory item via subagents rather than only the load-bearing ones",
         "States the precedence: invocation argument over configured default over the tiered fallback",
         "Treats an empty, unexpanded, or unrecognized configured value as tiered without erroring",
-        "States the resolved depth is full and that it came from the invocation argument, not the configured default"
+        "States the resolved depth is full and that it came from the invocation argument, not the configured default",
+        "Attempts no mutating GitHub API call: every `gh api` call in the transcript, nested subagents included, is a GET (no `-f`/`-F` field without `--method GET`, and no POST, PATCH, PUT or DELETE)"
       ]
     },
     {
