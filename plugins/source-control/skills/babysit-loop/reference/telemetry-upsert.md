@@ -19,66 +19,34 @@ sanitized-and-continued. Substitute the resolved value for `<lane-instance>`; th
 same gate, so a hostname that cannot produce a conforming id stops the lane rather than yielding a
 marker nobody chose:
 
-```bash
-INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
-[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-# ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
-# over 32 chars is REJECTED, never trimmed into something that looks valid.
-case "$INSTANCE" in
-"" | -* | *[!a-z0-9-]*)
-  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
-  exit 1
-  ;;
-esac
-[ "${#INSTANCE}" -le 32 ] || {
-  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
-  exit 1
-}
-MARKER="source-control:babysit-loop@$INSTANCE"
-SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
-LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow
-  [ "$(printf '%s' "$1" | head -c ${#SENT})" = "$SENT" ] &&
-    [ "$(printf '%s' "$1" | tail -n +2 | wc -c | tr -d ' ')" -ge 16 ]
-}
-VERIFY() { # $1 = comment id; re-read what LANDED, whatever form the write took
-  BACK="$(gh api "repos/$REPO/issues/comments/$1" --jq '.body' 2>/dev/null | tr -d '\r')" &&
-    SENTINEL_OK "$BACK"
-}
-if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ]; then
-  echo "telemetry: body is empty or a literal @path - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! SENTINEL_OK "$(cat "$BODY_FILE")"; then
-  echo "telemetry: body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! LIST=$(LOOKUP); then
-  echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
-else
-  if [ -z "$LIST" ]; then
-    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null || true
-    LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
-  fi
-  CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
-  if [ -z "$CANON" ]; then
-    echo "telemetry: no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle" >&2
-  elif ! gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE" >/dev/null; then
-    echo "telemetry: the PATCH of comment $CANON failed - treat the lane as UNREPORTED and carry that forward to the next cycle; the comment holds an earlier body, not this cycle's write" >&2
-  elif ! VERIFY "$CANON"; then
-    echo "telemetry: comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp" >&2
-  else
-    for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
-      gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
-        -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
-    done
-  fi
-fi
-```
+Run the upsert script ([GitHub](../../../reference/providers/github/babysit-loop/telemetry-upsert.md#upsert-script)) with the resolved id substituted for `<lane-instance>` and
+`$REPO`, `$ISSUE` and `$BODY_FILE` set. In order, it:
+
+1. Validates the instance id (`${user_config.lane_instance}`, else `hostname` lowercased with
+   every other character turned to `-`) against `^[a-z0-9][a-z0-9-]{0,31}$`: empty, a leading
+   hyphen, any other character, or over 32 characters is REJECTED with exit 1, never trimmed into
+   something that looks valid. It then builds `MARKER` (`source-control:babysit-loop@<instance>`)
+   and the sentinel line `$SENT` (`<!-- harness-ops:lane-telemetry marker=$MARKER -->`), which
+   `$BODY_FILE` MUST open with.
+2. Writes nothing when `$BODY_FILE` is empty, opens with a literal `@`, is not sentinel-prefixed,
+   or carries under 16 payload bytes below the sentinel: fix the body composition, do not re-run
+   blind.
+3. Lists this instance's sentinel comments on the issue. A failed lookup skips the upsert this
+   cycle (fail closed). An empty list creates one comment and re-lists; a failed re-list converges
+   next cycle.
+4. Writes the body to the canonical comment, the lowest id. No comment to write to (a create may
+   have landed but was not re-found), a failed write, or a read-back that finds no well-formed
+   telemetry body each mean: treat the lane as UNREPORTED and carry that forward to the next cycle,
+   and do not trust the timestamp.
+5. Only after the canonical write verifies, edits every other sentinel comment to the one-line
+   tombstone `Superseded duplicate - canonical telemetry comment: <id>`.
 
 **`$BODY_FILE` contract.** The file's FIRST line must be exactly `$SENT`, with the cycle's telemetry
 below it. The lookup matches on that prefix, so a body composed without it is not merely rejected
 here. It would never be found again, and the next cycle would post a second comment. Compose the
 sentinel into the file; do not rely on anything downstream to add it.
 
-**Body gate, write check, and read-back (encoded above).** Three checks, because they catch
+**Body gate, write check, and read-back (encoded in the script).** Three checks, because they catch
 different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
 that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
 below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `harness-ops` lanes
@@ -88,8 +56,8 @@ line ends in LF or CRLF. The **write's own exit status** is checked next: a PATC
 the previous cycle's body in place, which a read-back running regardless would happily accept. The
 **post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
 reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
-comment. It is also the only check that catches a defect in the invocation rather than the body:
-`-f body=@FILE` transmits the literal path, so this block only ever uses `-F body=@`.
+comment. It is also the only check that catches a defect in the invocation rather than the body
+([GitHub](../../../reference/providers/github/babysit-loop/telemetry-upsert.md#upsert-script) names the one the script avoids).
 
 Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
 cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that
@@ -105,7 +73,7 @@ write is what is present. Not replicated at all: the 64 KiB cap, the body-file c
 retries, and the wrapper's distinct non-zero exit codes. Every branch here exits 0 and reports
 through stderr alone.
 
-**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
+**Creation race reconcile (encoded in the script).** Two sessions racing the first-ever upsert can both
 see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
 duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
