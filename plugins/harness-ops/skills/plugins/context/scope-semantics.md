@@ -312,8 +312,9 @@ monitors as needing a restart.
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
 lines of that summary: `Plugin is now active.` means the plugin is live with no reload, and
 `Run /reload-plugins to apply.` means a reload is needed. What the interface does after that line,
-including when it leaves the plugin pending, is read at the pointer below. No docs section or
-changelog entry we found names the version that introduced the summary, so this skill states none.
+including when it leaves the plugin pending, is read at the pointer below. The release that made
+`/plugin` installs activate when safe is the
+[2.1.221 changelog entry](https://code.claude.com/docs/en/changelog#2-1-221).
 
 This does **not** relax the reload guidance below, because `sync` installs through the shell
 command, not the interface, and we treat a shell install as loading only at the next start or the
@@ -328,8 +329,8 @@ for below.
   installs, see
   [Install from your shell](https://code.claude.com/docs/en/plugins/install#install-from-your-shell).
 - **As of**: 2026-10-11
-- **Recheck trigger**: either summary line changes, or a shell install starts activating in an open
-  session.
+- **Recheck trigger**: either summary line changes, a shell install starts activating in an open
+  session, or a later changelog entry changes when a `/plugin` install activates.
 
 `--force` is real (Claude Code ≥ 2.1.163). We treat it as the answer to one warning only: the
 reload declining a change to the session's MCP or LSP tools because of the prompt cache. Which
