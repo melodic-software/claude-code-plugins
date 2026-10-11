@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.4] - 2026-10-10
+
+### Fixed
+
+- **The observability setup produces telemetry again on current Claude Code.** The setup put the keys that turn Claude Code's telemetry on, pick the exporters and endpoint, and capture content in the committed `.claude/settings.json` and in `.claude/settings.local.json`, which Claude Code no longer honors for those keys, so nothing was exported. The setup now puts them in each developer's user settings or shell, keeps only structure-only keys in the committed project settings, uses the ignored-variables report at startup and in `/status` as the health check, and links the settings reference for the current list.
+- **The repository columns in the OTEL store fill.** The setup now sets `OTEL_METRICS_INCLUDE_REPOSITORY=true`, so the `vcs_repository_*`, `vcs_owner_name` and `vcs_provider_name` columns stop coming back empty, and it notes that the `vcs_ref_head_*` commit columns also need `OTEL_LOG_TOOL_DETAILS=1` in user scope.
+- **Purge advice names the current command.** `/harness-ops:audit-install-state`, `/harness-ops:audit-performance`, `/harness-ops:audit-skill-visibility` and the install-state report now route project-state removal to `claude purge` instead of the deprecated `claude project purge`.
+
+- `/harness-ops:behavior-probes`: on Windows the runner starts case scaffolds with Git for Windows bash by full path and a POSIX script path, instead of a bare `bash` that can resolve to WSL and exit 127 before any model call; it reports an error when Git's bash is missing. `records.md` gains a Windows rerun at Claude Code 2.1.296.
+
 ## [3.11.3] - 2026-10-10
 
 ### Fixed
