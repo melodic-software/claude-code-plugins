@@ -43,4 +43,4 @@ Like `course-digest` Phase 3: transcript claims, visual triage, and link harvest
 
 ## Resume
 
-Read slice `watch-checklist.md` + `watch.json` phase map. Re-run `init-watch-checklist.js --force` (ticks and Resume notes kept) only if the sheet count changed. Continue from first unchecked blocking phase.
+Read slice `watch-checklist.md` + `watch.json` phase map. Re-run `init-watch-checklist.js --force` (ticks, evidence lines under ticked rows, and Resume notes kept) only if the sheet count changed or `vision-plan.md` landed. Continue from first unchecked blocking phase.

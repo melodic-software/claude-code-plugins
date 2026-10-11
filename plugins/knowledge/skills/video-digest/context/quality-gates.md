@@ -7,7 +7,7 @@ Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it
 ## Tick discipline
 
 1. Initialize `watch-checklist.md` at skill session start (`init-watch-checklist.js`).
-2. Tick `[ ]` → `[x]` only after **verification evidence**: cite command exit code, artifact path, or verify row in the checklist or adjacent log line.
+2. Tick `[ ]` → `[x]` only after **verification evidence**: cite command exit code, artifact path, or verify row on an indented line under the ticked row or in Resume notes (both survive `--force`), or in an adjacent log line.
 3. **Blocking verify scripts** must exit 0 before ticking the matching phase-complete box. `watch.json` `status: complete` is written only by `watch-state.js close` (see "Complete slice").
 4. Satisficing ("we have 14 frames, close enough") is a FAIL. Re-run the named phase.
 5. **Synthesis contract:** `context/synthesis-contract.md`: transcript-gap bar, vision-gated names, staged deck-first; overrides count-chasing.

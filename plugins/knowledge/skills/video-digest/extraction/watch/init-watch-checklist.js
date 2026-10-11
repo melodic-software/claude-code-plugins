@@ -90,24 +90,37 @@ const ROW_ID = /^- \[([ xX])\] \*\*([^*]+)\*\*/;
 const RESUME_HEADING = "## Resume notes";
 
 /**
- * Carry an existing checklist's ticks (matched by row id) and its Resume notes
- * section into a freshly rendered one, so a regenerate never erases evidence.
+ * Carry an existing checklist's ticks (matched by row id), the indented
+ * evidence lines under each ticked row, and its Resume notes section into a
+ * freshly rendered one, so a regenerate never erases evidence. The row text
+ * itself is regenerated.
  *
  * @param {string} rendered freshly rendered checklist
  * @param {string} previous checklist already on disk
  * @returns {string}
  */
 export function carryOverProgress(rendered, previous) {
-  const tickedIds = new Set();
+  /** @type {Map<string, string[]>} ticked row id -> indented evidence lines under it */
+  const ticked = new Map();
+  /** @type {string[] | null} */
+  let evidence = null;
   for (const line of previous.split("\n")) {
     const match = ROW_ID.exec(line);
-    if (match && match[1] !== " ") tickedIds.add(match[2]);
+    if (match) {
+      evidence = match[1] === " " ? null : [];
+      if (evidence) ticked.set(match[2], evidence);
+    } else if (evidence && /^\s+\S/.test(line)) {
+      evidence.push(line);
+    } else {
+      evidence = null;
+    }
   }
   let merged = rendered
     .split("\n")
-    .map((line) => {
+    .flatMap((line) => {
       const match = ROW_ID.exec(line);
-      return match && tickedIds.has(match[2]) ? line.replace("- [ ]", "- [x]") : line;
+      const kept = match ? ticked.get(match[2]) : undefined;
+      return kept ? [line.replace("- [ ]", "- [x]"), ...kept] : [line];
     })
     .join("\n");
 

@@ -167,6 +167,31 @@ describe("initWatchChecklist", () => {
     expect(body).not.toContain("pending `key-frames/vision-plan.md`");
   });
 
+  it("--force keeps indented evidence lines under a ticked row, and only under it", () => {
+    const sliceDir = makeSliceDir();
+    const outPath = initWatchChecklist(sliceDir, { force: true });
+    const withEvidence = fs
+      .readFileSync(outPath, "utf8")
+      .split("\n")
+      .flatMap((line) => {
+        if (line.startsWith("- [ ] **0.1**")) {
+          return [line.replace("- [ ]", "- [x]"), "  - evidence: setup-deps exit 0"];
+        }
+        if (line.startsWith("- [ ] **0.2**")) return [line, "  - draft note on an unticked row"];
+        return [line];
+      })
+      .join("\n");
+    fs.writeFileSync(outPath, withEvidence);
+
+    const lines = fs.readFileSync(initWatchChecklist(sliceDir, { force: true }), "utf8").split("\n");
+    const row = lines.findIndex((line) => line.startsWith("- [x] **0.1**"));
+
+    expect(row).toBeGreaterThan(-1);
+    expect(lines[row + 1]).toBe("  - evidence: setup-deps exit 0");
+    expect(lines.filter((line) => line === "  - evidence: setup-deps exit 0")).toHaveLength(1);
+    expect(lines).not.toContain("  - draft note on an unticked row");
+  });
+
   it("skips when checklist exists without force", () => {
     const sliceDir = makeSliceDir();
     initWatchChecklist(sliceDir, { force: true });
