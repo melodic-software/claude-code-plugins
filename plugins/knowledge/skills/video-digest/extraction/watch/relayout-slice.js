@@ -618,7 +618,25 @@ export async function relayoutSlice({
   }
 
   // `--no-media` takes nothing from the temp session, even when it still exists.
-  const temp = resolveTempSession(noMedia ? {} : (state.tempSession ?? {}));
+  // `close` deletes every temp dir watch.json records, so in every mode,
+  // `--no-media` included and whether or not the dir still exists, nothing
+  // this run writes may sit in, hold, or be one of them.
+  const recorded = resolveTempSession(state.tempSession ?? {});
+  for (const dir of [recorded.workDir, recorded.framesDir, recorded.contactSheetsDir]) {
+    if (!dir) continue;
+    const realDir = realPathOf(dir);
+    const clashes =
+      [target, backup].some((p) => {
+        const real = realPathOf(p);
+        return isSameOrInside(real, realDir) || isSameOrInside(realDir, real);
+      }) || isSameOrInside(realPathOf(path.dirname(target)), realDir);
+    if (clashes) {
+      return refuse(`target ${target} overlaps the recorded temp session dir ${dir}`);
+    }
+  }
+
+  // `--no-media` reads nothing from the temp session.
+  const temp = noMedia ? {} : recorded;
   // watch.json names the temp dirs, and the watch only ever makes them in the
   // OS temp dir; anything else (a hand-edited path, the slice, the target) is
   // not a temp session to read from.
@@ -628,11 +646,8 @@ export async function relayoutSlice({
     if (!isSameOrInside(realPathOf(dir), realTmp) || realPathOf(dir) === realTmp) {
       return refuse(`temp session dir ${dir} is not inside the OS temp dir`);
     }
-    if (
-      overlapsSlice(dir) ||
-      [target, backup].some((p) => isSameOrInside(realPathOf(p), realPathOf(dir)))
-    ) {
-      return refuse(`temp session dir ${dir} overlaps the slice or the target`);
+    if (overlapsSlice(dir)) {
+      return refuse(`temp session dir ${dir} overlaps the slice`);
     }
   }
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];

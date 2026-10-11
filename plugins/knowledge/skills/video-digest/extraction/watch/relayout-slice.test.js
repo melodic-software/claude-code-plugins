@@ -525,7 +525,7 @@ describe("relayoutSlice", () => {
   });
 
   it.each([
-    ["outside the OS temp dir", () => path.parse(os.tmpdir()).root],
+    ["outside the OS temp dir", () => path.join(path.parse(os.tmpdir()).root, "relayout-not-tmp")],
     ["the slice itself", (/** @type {string} */ slice) => slice],
   ])("refuses a recorded temp dir %s", async (_label, toWorkDir) => {
     const { sliceDir, targetDir } = makeFixture();
@@ -595,6 +595,42 @@ describe("relayoutSlice", () => {
     const result = await relayoutSlice({ sliceDir, targetDir: path.join(blocker, "out") });
 
     expect(result.exitCode).toBe(1);
+  });
+
+  it.each([
+    [
+      "inside the recorded workDir",
+      (/** @type {Record<string, string>} */ dirs) => path.join(dirs.workDir, "out"),
+    ],
+    [
+      "the recorded framesDir itself",
+      (/** @type {Record<string, string>} */ dirs) => dirs.framesDir,
+    ],
+    [
+      "holding a recorded contactSheetsDir",
+      (/** @type {Record<string, string>} */ dirs) => path.dirname(dirs.contactSheetsDir),
+    ],
+    [
+      "inside a recorded contactSheetsDir that no longer exists",
+      (/** @type {Record<string, string>} */ dirs) => path.join(dirs.contactSheetsDir, "out"),
+    ],
+  ])("refuses, even under --no-media, a target %s", async (_label, toTarget) => {
+    const { sliceDir, workDir, framesDir } = makeFixture();
+    // `close` already removed this one; its parent holds nothing else.
+    const contactSheetsDir = path.join(makeDir("relayout-holder-"), "sheets");
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    state.tempSession.contactSheetsDir = contactSheetsDir;
+    fs.writeFileSync(statePath, JSON.stringify(state));
+    const targetDir = toTarget({ workDir, framesDir, contactSheetsDir });
+    const before = fs.readdirSync(framesDir).sort();
+
+    const result = await relayoutSlice({ sliceDir, targetDir, noMedia: true, replace: true });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(framesDir).sort()).toEqual(before);
+    expect(fs.existsSync(path.join(workDir, "out"))).toBe(false);
+    expect(fs.existsSync(contactSheetsDir)).toBe(false);
   });
 
   it("refuses an empty video file", async () => {
