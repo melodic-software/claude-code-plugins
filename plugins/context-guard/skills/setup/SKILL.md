@@ -135,7 +135,7 @@ default zone bands, zones.json shape) are owned by
      default as what runs.
    - A `pluginConfigs` key the plugin no longer declares (`zone_lines_enabled`, which
      `model_notices` replaced; `zone_hook_mode`, `zone_gate_grace_calls`, `zone_block_unattended`),
-     or a `block` action in `zones.json`, does nothing. Report it as INFO, safe to remove.
+     or a `block` action in `zones.json` (which reads as `none`), gates nothing. Report it as INFO, safe to remove.
    - Every option acts only where step 3 found the mod running, except
      that the kill switch also turns off the PostCompact marker hook, a settings hook that can run
      where mods are off.

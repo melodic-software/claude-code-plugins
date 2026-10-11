@@ -31,7 +31,7 @@
     "zone_report_mode": {
       "type": "string",
       "title": "Zone report mode",
-      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
+      "description": "Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
       "default": "automatic",
       "options": [
         "automatic",

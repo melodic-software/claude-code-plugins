@@ -100,9 +100,34 @@ nothing is written and readers read `unknown`, as with no file.
       "cache_creation_input_tokens": 9000,
       "cache_read_input_tokens": 27000
     }
+  },
+  "zone": "smart",
+  "evidence_degraded": false,
+  "bands": {
+    "smart_max_used_percentage": 50,
+    "acceptable_max_used_percentage": 75,
+    "smart_max_tokens": 100000,
+    "acceptable_max_tokens": 150000
   }
 }
 ```
+
+**The published zone (public consumer contract).** `zone`, `evidence_degraded` and `bands` let a
+reader such as a status line show the zone and its edges without re-implementing the band lookup
+or importing plugin code. A reader that predates these fields, or reads a file an older module
+wrote, falls back to its own lookup over `context_window` and `zones.json` as this contract
+describes; the fields are additive, and a reader ignores keys it does not know.
+
+- `zone`: `smart`, `acceptable`, `dumb` or `unknown`, as the module resolved this body: the
+  combination rule over the bands below, and `dumb` once the session was compacted. It is as of
+  `captured_at`, so the staleness rule still applies: a stale file means `unknown`. A
+  `.compacted` marker still means degraded whatever this field says.
+- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session.
+- `bands`: the edges in force after `zones.json`: `smart_max_used_percentage` and
+  `acceptable_max_used_percentage` always; `smart_max_tokens` and `acceptable_max_tokens` for
+  the session's window class, `null` when the token shape is not computable (see "Version
+  floor").
+- They are written whenever the snapshot is, whatever the `model_notices` option says.
 
 - `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
   whose other fields are unchanged since the last one happens at most once per 60 seconds (the
@@ -584,7 +609,7 @@ an absent or invalid one means its default, so a file without them keeps working
   token band edge sits below the percentage edge, that boundary's approach line comes the same
   points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
   known window size there is no token-shape approach line.
-- `actions.<zone>`: `action` is `none`, `save-state` or `handoff`; any other value is ignored. Optional `text`
+- `actions.<zone>`: `action` is `none`, `save-state` or `handoff`; `block` reads as `none` with its text dropped, and any other value is ignored. Optional `text`
   replaces the default wording, which names the action. The
   action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labeled "operator setting for the <zone> zone".

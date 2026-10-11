@@ -44,6 +44,10 @@ type Snapshot = {
     remaining_percentage: number | null
     current_usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number } | null
   }
+  // The published zone: what this body resolves to and the edges in force, for readers such as a status line.
+  zone?: Zone | 'unknown'
+  evidence_degraded?: boolean
+  bands?: { smart_max_used_percentage: number; acceptable_max_used_percentage: number; smart_max_tokens: number | null; acceptable_max_tokens: number | null }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
 // shown: the person's channel has handled it: the batch's last crossing got the transcript line
@@ -133,6 +137,8 @@ const oneLine = (s: string): string => {
 const asRule = (value: unknown): Rule | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
+  // `block` armed the removed gate; it reads as `none`, text dropped, so its threshold keeps its lines.
+  if (v.action === 'block') return { action: 'none' }
   if (!ACTIONS.includes(v.action as Action)) return undefined
   // one line: a newline in the operator's text must not start a line that reads as the guard's own
   const text = typeof v.text === 'string' ? oneLine(v.text) : ''
@@ -376,6 +382,14 @@ async function refresh($: EngineInterface, st: State) {
   }
   const zone = s.compacted ? 'dumb' : word === 'unknown' ? undefined : word
   const token = tokenShape(body.context_window, body.cli_version, settings.bands)
+  body.zone = zone ?? 'unknown'
+  body.evidence_degraded = s.compacted
+  body.bands = {
+    smart_max_used_percentage: settings.bands.smart,
+    acceptable_max_used_percentage: settings.bands.acceptable,
+    smart_max_tokens: token?.smart ?? null,
+    acceptable_max_tokens: token?.acceptable ?? null,
+  }
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
@@ -660,7 +674,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. By default context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
+        "Returns this session's context-window reading as JSON: `zone` (smart, acceptable, dumb or unknown; the worse of the percent and token bands decides it), `used_percentage`, input and output token totals, `context_window_size`, the band edges and approach margin in force, `evidence_degraded` (true after a compaction, which forces the zone to dumb). Figures come from the last API response: before the first response and right after a compaction, `used_percentage` and the token totals are null and the zone is unknown (dumb after a compaction), and they never include text added since that response, so they change only when a response arrives. With the model_notices option on (off by default), context-guard also adds a line to the next prompt or tool result when the zone worsens or nears a boundary. Read-only.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({

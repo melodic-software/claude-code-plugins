@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the PostCompact marker hook cannot launch and the module writes no snapshot, so file readers read unknown; the module's zone lines, gate, band row and status tool still run.",
+      "degrade": "Without node, the PostCompact marker hook cannot launch and the module writes no snapshot, so file readers read unknown; the module's zone lines, band row and status tool still run.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       },

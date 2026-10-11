@@ -1002,7 +1002,7 @@ test('switch: rate_limit_guard_enabled false stops writes while lines continue',
 
 // The manifest's defaults: Claude's context gets nothing from the module, at a prompt or a tool
 // result, while the toast and the snapshot write still happen.
-kitTest('defaults: no approach, threshold or reset line reaches Claude; the toast and writes go on', async ($, on) => {
+kitTest('defaults: no approach, threshold or later line reaches Claude; the toasts and writes go on', async ($, on) => {
   const { w } = world(on)
   await bash($)
   w.limits = limits(91)
@@ -1011,9 +1011,9 @@ kitTest('defaults: no approach, threshold or reset line reaches Claude; the toas
   const edge = (await prompt($, 'sdk')).context
   w.limits = limits(10)
   const reset = (await bash($)).context
-  for (const context of [approach, edge, reset]) expect(ownLines(context)).toEqual([])
-  expect(optionLines([...(approach ?? []), ...(edge ?? []), ...(reset ?? [])])).toEqual([])
-  expect(w.toasts.length).toBeGreaterThan(0)
+  // Everything added to the context, whatever its prefix (the world adds nothing beneath).
+  expect([...(approach ?? []), ...(edge ?? []), ...(reset ?? [])]).toEqual([])
+  expect(w.toasts).toEqual(['5h nearing the 95% line threshold · resets 21:00 UTC', '5h at the 95% line threshold · resets 21:00 UTC'])
   expect(w.runs.length).toBeGreaterThan(0)
 })
 

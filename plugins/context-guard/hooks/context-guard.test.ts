@@ -569,8 +569,8 @@ test('switch: model_notices false sends no line', { options: { model_notices: fa
 kitTest('defaults: nothing reaches Claude at a crossing, an approach, a threshold or a restatement; the person still sees the crossing', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  // Every context-guard line, the options line included.
-  const mine = (context: readonly string[] | undefined) => (context ?? []).filter(c => c.startsWith('context-guard'))
+  // Everything added to the context, whatever its prefix (the world adds nothing beneath).
+  const mine = (context: readonly string[] | undefined) => [...(context ?? [])]
   const seen: string[] = []
   for (const p of [30, 47, 60, 72, 80]) {
     w.percent = p
@@ -710,6 +710,14 @@ test('no gate: a block action in zones.json is ignored, so the dumb line is the 
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'block' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
+})
+
+test('no gate: a block threshold reads as none and keeps its boundary line, with no sentence', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'block', text: 'stop delegating' }] })
+  const lines = (await walk($, w, [30, 61])).flat()
+  expect(lines).toContain(`context-guard: ${VERDICT.acceptable}, past an operator threshold.`)
+  expect(lines.join(' ')).not.toContain('stop delegating')
 })
 
 // ---- Bad option values: the module loads, uses the default and says so once -----------------
@@ -1389,8 +1397,26 @@ test('snapshot: the snapshot body the helper reads on stdin, the per-session tar
         remaining_percentage: 70,
         current_usage: { input_tokens: 5, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
       },
+      zone: 'smart',
+      evidence_degraded: false,
+      bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75, smart_max_tokens: 100_000, acceptable_max_tokens: 150_000 },
     }),
   )
+})
+
+// The published zone contract a status line reads: the zone this body resolves to and the edges
+// after zones.json, written whatever model_notices says.
+kitTest('snapshot: publishes the zone and the bands in force from zones.json, and a compaction as degraded dumb', async ($, on) => {
+  const { w } = world(on, { percent: 65 })
+  zonesFile(w, { smart_max_used_percentage: 40, acceptable_max_used_percentage: 60 })
+  await bash($)
+  const first = bodies(w).at(-1)
+  expect([first.zone, first.evidence_degraded, first.bands.smart_max_used_percentage, first.bands.acceptable_max_used_percentage]).toEqual(['dumb', false, 40, 60])
+  w.percent = 20
+  await compact($, 'manual')
+  await bash($)
+  const after = bodies(w).at(-1)
+  expect([after.zone, after.evidence_degraded]).toEqual(['dumb', true])
 })
 
 test('snapshot: before the first response the body carries the nulls the status line does', async ($, on) => {
