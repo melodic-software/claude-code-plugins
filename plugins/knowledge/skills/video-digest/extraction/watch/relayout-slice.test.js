@@ -78,7 +78,7 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
       sourceUrl: `https://www.youtube.com/watch?v=${VIDEO_ID}`,
       title: "Sample Talk",
       status,
-      phases: { acquire: { metrics: { captionRung: "auto-en" } } },
+      phases: { transcript: { metrics: { transcriptStrategy: "captions" } } },
       tempSession: { workDir, framesDir, acquiredAt: "2026-10-10T12:00:00.000Z" },
     }),
     "README.md": "# Sample Talk journey\n",
@@ -617,6 +617,45 @@ describe("relayoutSlice", () => {
 
     expect(result.exitCode).toBe(1);
     expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  /**
+   * @param {string} sliceDir
+   * @param {Record<string, unknown>} transcriptMetrics
+   * @param {string} workDir
+   */
+  function withTranscriptMetricsAndNoCaptions(sliceDir, transcriptMetrics, workDir) {
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    // What recover-watch-bootstrap.js writes: acquire and transcript carry only `recovered`.
+    state.phases = {
+      acquire: { metrics: { videoDownloaded: true, recovered: true } },
+      transcript: { metrics: transcriptMetrics },
+    };
+    fs.writeFileSync(statePath, JSON.stringify(state));
+    for (const name of fs.readdirSync(workDir).filter((file) => file.endsWith(".vtt"))) {
+      fs.rmSync(path.join(workDir, name));
+    }
+  }
+
+  it("refuses a bootstrap-recovered session whose caption tracks are gone", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    withTranscriptMetricsAndNoCaptions(sliceDir, { recovered: true }, workDir);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("needs no caption tracks when the transcript came from ASR", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    withTranscriptMetricsAndNoCaptions(sliceDir, { transcriptStrategy: "asr" }, workDir);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(targetDir, "transcript/en.vtt"))).toBe(false);
   });
 });
 

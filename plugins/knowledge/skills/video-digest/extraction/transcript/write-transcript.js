@@ -65,26 +65,30 @@ function comparableRun(run) {
 }
 
 /**
- * True when a cue opening the paragraph stamped `stamp` carries `run` over
+ * True when the cue opening the paragraph stamped `stamp` carries `run` over
  * from the cue before it: the two cues overlap in time, or the opening cue
  * starts with the previous cue's closing words verbatim (a rolling caption).
+ * False whenever the opening cue cannot be identified exactly.
  *
  * @param {string} stamp - the paragraph's `[M:SS]`
  * @param {string[]} run - the paragraph's leading words
  * @param {readonly { startSec: number, endSec: number, text: string }[]} cues
  */
 function carriesOverFromPreviousCue(stamp, run, cues) {
+  // The paragraph stamp floors the opening cue's start to the second, so it
+  // identifies the opener only when exactly one cue starts in that second.
+  // With several, the evidence is ambiguous and the words stay.
+  const openers = cues.flatMap((cue, at) =>
+    `[${formatTimestamp(cue.startSec)}]` === stamp ? [at] : [],
+  );
+  if (openers.length !== 1 || openers[0] === 0) return false;
+  const cue = cues[openers[0]];
+  const previous = cues[openers[0] - 1];
   const head = run.join(" ");
-  for (let index = 1; index < cues.length; index++) {
-    const cue = cues[index];
-    if (`[${formatTimestamp(cue.startSec)}]` !== stamp) continue;
-    const previous = cues[index - 1];
-    const cueWords = words(cue.text);
-    if (cueWords.slice(0, run.length).join(" ") !== head) continue;
-    if (previous.endSec > cue.startSec) return true;
-    if (words(previous.text).slice(-run.length).join(" ") === head) return true;
-  }
-  return false;
+  if (words(cue.text).slice(0, run.length).join(" ") !== head) return false;
+  return (
+    previous.endSec > cue.startSec || words(previous.text).slice(-run.length).join(" ") === head
+  );
 }
 
 /**

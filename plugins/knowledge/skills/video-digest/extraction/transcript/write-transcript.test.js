@@ -97,6 +97,27 @@ On benchmarks too and then we moved on.
     );
   });
 
+  it("keeps two repeated words when a later cue in the opener's second carries them", () => {
+    // The opener (5.0s) does not carry "Very good" over; a later cue in the
+    // same second (5.4s) overlaps the opener and starts with those words.
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+very good.
+
+00:00:05.000 --> 00:00:05.600
+Very good question
+
+00:00:05.400 --> 00:00:07.000
+Very good indeed, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript.split("\n\n")[1]).toMatch(/^\[0:05\] Very good question/);
+  });
+
   it("does not count a punctuation-only token like >> as a repeated word", () => {
     const autoVtt = `WEBVTT
 
