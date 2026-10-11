@@ -184,8 +184,9 @@ function htmlAttributeValues(text) {
     const base = /** @type {number} */ (tag.index);
     for (const match of tag[0].matchAll(HTML_PATH_ATTRIBUTE)) {
       const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
-      const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
-      values.push({ from: base + from, to: base + to, group });
+      const span = match.indices?.[group];
+      if (!span) continue;
+      values.push({ from: base + span[0], to: base + span[1], group });
     }
   }
   return values;
