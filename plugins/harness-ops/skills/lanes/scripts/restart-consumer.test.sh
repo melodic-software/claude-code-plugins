@@ -582,6 +582,8 @@ for literal in 'loop-lane telemetry running per-lane status in:title' 'sort_by(.
   assert_contains "the consumer carries the discovery literal [$literal]" "$(cat "$SCRIPT")" "$literal"
   assert_contains "the morning brief carries the SAME literal [$literal]" "$(cat "$BRIEF")" "$literal"
 done
+assert_contains "the consumer's search reads as many issues as the brief's" "$(cat "$SCRIPT")" 'per-lane status in:title" --limit 100'
+assert_contains "the brief's search limit is the consumer's" "$(cat "$BRIEF")" 'TELEMETRY_SEARCH_LIMIT=100'
 
 # --- 21. print-schedule makes the offline form copy-pasteable ----------------
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --data-dir "$DATA" 2>&1)"

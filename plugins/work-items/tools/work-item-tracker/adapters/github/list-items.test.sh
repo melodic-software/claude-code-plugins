@@ -6,4 +6,38 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --state bogus
+
+# --- the envelope reports truncation at the declared ceiling ---
+# Runs a fixture copy of the adapter whose manifest declares a ceiling of 2, so a
+# three-row listing is past it. The stub logs gh's argv: the adapter must ask for
+# one row past the ceiling, or it cannot tell "exactly 2" from "more than 2".
+if command -v jq >/dev/null 2>&1; then
+  FIX="$(mktemp -d)"
+  trap 'rm -rf "$FIX"' EXIT
+  mkdir -p "$FIX/adapters" "$FIX/bin"
+  cp -R "$(dirname "$S")" "$FIX/adapters/github"
+  cp -R "$(dirname "$S")/../../lib" "$FIX/lib"
+  jq '.limits.list_items_max = 2' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
+  cat >"$FIX/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_STUB_ARGV"
+printf '%s\n' "${GH_STUB_LIST:?}"
+EOF
+  chmod +x "$FIX/bin/gh"
+  row() { printf '{"number":%s,"title":"t","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/%s"}' "$1" "$1"; }
+
+  OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="[$(row 1),$(row 2),$(row 3)]" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "a listing past the ceiling → exit 0 (documented truncation)" "0" "$?"
+  assert_eq "past the ceiling: truncated is true" "true" "$(jq -c '.truncated' <<<"$OUT")"
+  assert_eq "past the ceiling: only the ceiling's worth of rows" \
+    "github:o/r#1,github:o/r#2" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+  assert_contains "the request asks for one row past the ceiling" "$(cat "$FIX/argv")" "--limit 3"
+
+  OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="[$(row 1),$(row 2)]" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "exactly the ceiling's worth of rows: truncated is false" "false" "$(jq -c '.truncated' <<<"$OUT")"
+  assert_eq "exactly the ceiling: every row kept" "2" "$(jq '.items | length' <<<"$OUT")"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1
