@@ -67,7 +67,7 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
    that an invocation argument to `do-your-research` (`tiered` or `full`) overrides this default per
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
-   conversation-inheriting fork subagents, so report whether fork mode is on in this kind of
+   fork subagents, so report whether fork mode is on in this kind of
    session. Read the defaults, the version floor and the override variable live from the
    section the Pointer below names, and report what it states.
    - **Pointer**: when reporting whether fork mode is on, fetch

@@ -141,10 +141,12 @@ never/core/unknown promote warning in that report, never silently drop them.
   with `context: fork`.
   - **Pointer**: when choosing which subagent kind carries the audit, fetch
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
-    live.
+    live, and for skills run with `context: fork`, the Note under
+    <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents>.
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section changes which subagent kinds receive the
-    main conversation's history.
+    main conversation's history, or the Note changes whether a skill run with
+    `context: fork` starts without conversation history.
 - **Audit in the forks, correct on the main thread.** Parallel forks that
   wrote would race and re-dilute salience; the value is one ordered
   correction pass.
@@ -165,24 +167,29 @@ never/core/unknown promote warning in that report, never silently drop them.
   than correct on top of it. That is detection after the fact, not prevention,
   and a robust comparison is more than a `git status` diff; this skill does not
   specify one.
-- **Do not pass `isolation: "worktree"` on the audit forks.** A git worktree
-  is created from a commit, so the
-  fork would not see the uncommitted work in flight, which is usually the very
-  thing the audit exists to inspect. It also would not bound a write addressed
-  by an absolute path, and inherited history is full of absolute paths. It
-  trades a real loss of audit fidelity for partial containment.
+- **Do not pass `isolation: "worktree"` on the audit forks.** The audit must
+  read the working tree as it is now, uncommitted work included, so the forks
+  run in this checkout.
+  - **Pointer**: when deciding whether a subagent worktree would show the
+    uncommitted work, fetch
+    <https://code.claude.com/docs/en/worktrees#choose-the-base-branch> live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section starts carrying uncommitted changes into
+    a subagent worktree.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.
-- **Budget each fork as a full-price run.** Plan each in-scope corrector's
-  audit as costing what a run of the main session over the whole transcript
-  costs; the wave cap bounds burst, not per-fork cost.
-  - **Pointer**: when estimating a fork's model and context, fetch
+- **Budget each fork as a main-session run over the whole transcript.** Plan
+  each in-scope corrector's audit that way; the wave cap bounds burst, not
+  per-fork cost. For how usage is measured, see
+  <https://code.claude.com/docs/en/costs#track-your-costs>.
+  - **Pointer**: when estimating a fork's model, context and cache reuse, fetch
     <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
     live.
   - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which model a fork runs on or how
-    much of the main session's context it receives.
+  - **Recheck trigger**: that section changes which model a fork runs on, how
+    much of the main session's context it receives, or whether a fork shares
+    the main session's prompt cache.
 
   Keeping the `never` tier and every member's
   fan-out tier out, and relevance-gating the situational tier, are what hold
