@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
-# hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc) — Edit() is the
-# permission-rule form that covers Write as well; a Write(path) rule is never
-# matched (https://code.claude.com/docs/en/permissions, fetched 2026-09-27).
-# The in-script extension check stays because the hooks reference calls the if
-# filter best-effort. Its one documented fail-open is Bash-specific ("When
-# Claude Code can't determine which commands the Bash input runs, it runs your
-# hook regardless of the pattern", https://code.claude.com/docs/en/hooks,
-# fetched 2026-09-27) and names no file-tool equivalent, so the check guards an
-# undocumented miss and a direct invocation rather than a known one. Recheck
-# when the permissions page documents a matching `Write(path)` rule form, or the
-# hooks reference documents a file-tool fail-open for `if`.
+# hooks.json also gates launch with if: Edit(*.md) / Edit(*.mdc). We write the
+# rule as Edit(path) so it covers Write too, never as Write(path). The
+# in-script extension check stays because we treat the if filter as
+# best-effort: it guards a filter miss and a direct invocation.
+# Pointer: for the path-rule form, fetch
+# https://code.claude.com/docs/en/permissions#read-and-edit live; for when if
+# lets a call through, fetch https://code.claude.com/docs/en/hooks#bash-if-matching
+# live. As of: 2026-10-11. Recheck trigger: either section changes which rule
+# form matches a Write, or documents a file-tool case where if runs the hook
+# regardless of the pattern.
 #
 # ADVISORY: always exits 0 — unfixable markdownlint violations surface via
 # additionalContext but never block the edit. Uses the consuming repo's own
@@ -1245,9 +1244,11 @@ else
   CTX+="$REPORT"
 fi
 
-# Compose ONE stdout document: Claude Code parses a hook's entire stdout as a
-# single JSON document, so the agent-channel report and the user-channel
-# mutation notice are emitted together rather than printed twice.
+# Compose ONE stdout document: we emit exactly one JSON object, so the
+# agent-channel report and the user-channel mutation notice go out together
+# rather than printed twice. Pointer: for how stdout is parsed, fetch
+# https://code.claude.com/docs/en/hooks#exit-code-0 live. As of: 2026-10-11.
+# Recheck trigger: that section changes how a multi-object stdout is parsed.
 #
 # Carriage returns are already gone: FIX_OUTPUT is normalized at the source, so
 # every string derived from it — this report, the user-channel message, and the

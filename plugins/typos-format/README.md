@@ -70,15 +70,19 @@ As of: 2026-10-01. Recheck trigger: typos changes its config file names or searc
 
 ## Known limitation (write mode only)
 
-Claude Code runs every matching `PostToolUse` hook in parallel for one tool
-call, with no hook-level locking/ordering primitive. Under the report-only
-default this hook only reads, so the worst concurrent outcome is a stale
-finding. Opting `typos_format_write_changes` on in a repo where a sibling
+We assume no ordering or locking between the matching `PostToolUse` hooks of
+one tool call. Under the report-only default this hook only reads, so the worst
+concurrent outcome is a stale finding. Opting `typos_format_write_changes` on in a repo where a sibling
 formatter hook also rewrites the same file class (e.g. `markdown-format` on
 `.md`, `ruff-format` on `.py`) re-opens the race: each hook independently
 reads-then-writes with no locking, so ordering is **last-writer-wins** and a
 nondeterministic clobber is possible. That double opt-in is your call to
 make; the residual overlap class is tracked fleet-wide in #875.
+
+- **Pointer**: when deciding whether two matching hooks can race, fetch
+  [hooks: Hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section documents an
+  ordering or locking primitive for matching hooks.
 
 **Timeout tail.** The handler sets `"timeout": 15`, well under the default for a
 command hook, and we treat a hook cancelled at its timeout as having reported
@@ -102,10 +106,11 @@ file-write call it recognizes, and the PowerShell write cmdlets; `sed -i`,
 `perl -i`, `tee`, a standalone `cp`, and other interpreters' one-liners such as
 `node -e` are outside what it detects, and it does not see MCP tools. CI is
 the only gate that sees every path. The matcher does not list `MultiEdit`: we
-treat it as a legacy tool outside the built-in set. Pointer: for the built-in
-tools, see <https://code.claude.com/docs/en/tools-reference>; for `MultiEdit`'s
-status, see <https://code.claude.com/docs/en/permissions#read-and-edit>. As of:
-2026-09-27. Recheck trigger: `MultiEdit` returns to the tools reference.
+treat it as a legacy tool outside the built-in set. Pointer: when deciding
+whether `MultiEdit` needs a matcher entry, fetch
+<https://code.claude.com/docs/en/permissions#read-and-edit> live. As of:
+2026-10-11. Recheck trigger: `MultiEdit` appears in the tools reference's
+built-in tool list, or that section stops calling it legacy.
 
 ## Requirements
 
@@ -118,9 +123,10 @@ status, see <https://code.claude.com/docs/en/permissions#read-and-edit>. As of:
   Recheck trigger: that section changes what a `shell: bash` skill does when Bash is missing.
 - **Node.js** on `PATH`. The hook row runs `node hooks/exec-bash.mjs`, which finds Bash and
   runs the script. We do not assume a Claude Code install brings Node, so without `node`
-  the hook does not launch and spelling is not checked. Pointer:
-  <https://code.claude.com/docs/en/setup#system-requirements>. As of: 2026-09-29. Recheck
-  trigger: that section starts listing Node as a dependency. A missing `node` is a hook launch
+  the hook does not launch and spelling is not checked. Pointer: when deciding whether a
+  Claude Code install brings Node, fetch
+  <https://code.claude.com/docs/en/setup#install-with-npm> live. As of: 2026-10-11. Recheck
+  trigger: that section or System requirements changes which install needs Node at runtime. A missing `node` is a hook launch
   error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).

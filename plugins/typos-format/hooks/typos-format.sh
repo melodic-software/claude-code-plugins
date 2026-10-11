@@ -56,9 +56,9 @@
 # prefix-match as project content. Rules 2/4 (command-structure parsing,
 # canonical-marker gating): N/A — this hook has neither shape.
 #
-# KNOWN RISK (write mode only): Claude Code runs every matching PostToolUse
-# hook in parallel for one tool call, and no hook-level locking/ordering
-# primitive exists today. With the report-only default this hook only READS, so
+# KNOWN RISK (write mode only): we assume no ordering or locking between the
+# matching PostToolUse hooks of one tool call (pointer record in README.md,
+# "Known limitation (write mode only)"). With the report-only default this hook only READS, so
 # the worst concurrent outcome is a stale finding, never corruption. A consumer
 # who opts write mode ON in a repo where a sibling formatter hook also rewrites
 # the same file class (e.g. markdown-format on .md, ruff-format on .py)
@@ -368,8 +368,8 @@ fi
 # Residual identity: the flagged token PAIRED WITH its correction decision,
 # matched by COUNT — never by position.
 # Byte offsets shift as earlier corrections on the same line change its length,
-# and line numbers are no more stable: Claude Code runs every matching
-# PostToolUse hook in parallel, so a sibling formatter can reflow the file
+# and line numbers are no more stable: we assume sibling PostToolUse hooks run
+# concurrently (KNOWN RISK above), so a sibling formatter can reflow the file
 # between these two passes and carry an untouched finding to a different line.
 # A position-keyed lookup then fails to match that finding against its own scan
 # entry and reports a word typos never touched as a rewrite — a false mutation
@@ -588,10 +588,12 @@ fi
 [[ -n "$APPLIED_LINES" ]] && APPLIED_LINES+=$'\n'
 [[ -n "$RESIDUAL_LINES" ]] && RESIDUAL_LINES+=$'\n'
 
-# Compose ONE stdout document. Claude Code parses a hook's entire stdout as a
-# single JSON document, so the agent-channel context and the user-channel
-# message are built here and emitted together — printing twice would make the
-# second document unreadable and silently drop half the disclosure.
+# Compose ONE stdout document. We emit exactly one JSON object, so the
+# agent-channel context and the user-channel message are built here and
+# emitted together; printing twice risks losing half the disclosure.
+# Pointer: for how stdout is parsed, fetch
+# https://code.claude.com/docs/en/hooks#exit-code-0 live. As of: 2026-10-11.
+# Recheck trigger: that section changes how a multi-object stdout is parsed.
 CTX=""
 SYSMSG=""
 BASE="$FILE_BASE"
