@@ -1,7 +1,7 @@
 # Who watches the pull request
 
 Once a PR is out of draft, CI and the review lanes start posting, and something has to answer them.
-Choose who does at the end of `ready` (2.5.5) and again at `monitor` entry when no choice was made.
+Choose who does at the end of `ready` (2.5.6) and again at `monitor` entry when no choice was made.
 The facts each route rests on (who can start it, what it needs, what it cannot see) are recorded in
 [native-surfaces.md](native-surfaces.md); this file holds the decision.
 

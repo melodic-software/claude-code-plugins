@@ -399,6 +399,40 @@ assert_eq "finish succeeds once every area is covered" "0" "$RUN_RC"
 assert_eq "finish prints the report path" "$RUN_DIR/report.md" "$RUN_OUT"
 assert_contains "the report reflects the header" "No session evidence yet: setup scan only." "$(cat "$RUN_DIR/report.md")"
 
+# --- 18b. add --json: findings as one plain argument, no heredoc, for worktree-isolated sweeps ---
+capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$WORK/data/runs-json" --session s1 --mode unattended --session-evidence false
+JSON_RUN="$RUN_OUT"
+# Single-quoted as the sweeper writes it: \u0027 is a JSON escape the shell passes through untouched.
+JSON_FINDING='[{"id":"git-1","key":"git/status-time","area":"git","title":"git status isn\u0027t cached","status":"measured","tier":"E1","unit":"elapsed-ms","value":120,"command":"git --no-optional-locks status --porcelain","fix_owner":"/performance:goal","horizon":"later","route":"next-run","conditions":'"$COND"'}]'
+run add --run "$JSON_RUN" --json "$JSON_FINDING"
+assert_eq "add --json adds the finding" "0" "$RUN_RC"
+assert_eq "add --json prints the count" "added 1" "$RUN_OUT"
+assert_eq "the \\u0027 escape is stored as an apostrophe" "git status isn't cached" "$(jq -r '.findings[0].title' "$JSON_RUN/findings.json")"
+assert_eq "a body naming git is stored as given" "git --no-optional-locks status --porcelain" "$(jq -r '.findings[0].command' "$JSON_RUN/findings.json")"
+run add --run "$JSON_RUN" --json "$JSON_FINDING"
+assert_contains "add --json refuses a duplicate id" "git-1: duplicate id" "$RUN_OUT"
+run add --run "$JSON_RUN" --json '{"id":"hooks-1","key":"hooks/x","area":"hooks","title":"t","status":"not-checked"}'
+assert_eq "add --json refuses an invalid finding" "1" "$RUN_RC"
+assert_contains "the --json refusal names the rule" "hooks-1: reason required" "$RUN_OUT"
+run add --run "$JSON_RUN" --json '{"id":"pr-review-1","key":"pr-review/x","area":"pr-review","title":"t","status":"flag-only","reason":"r","citations":[{"url":"https://a.example","as_of":"2020-01-01","recheck":"r"}]}'
+assert_contains "add --json refuses a citation not dated the run's day" "pr-review-1: citation as_of 2020-01-01 is not this run's date" "$RUN_OUT"
+run add --run "$JSON_RUN" --json 'not json'
+assert_eq "malformed --json is an input error" "2" "$RUN_RC"
+assert_contains "the error names --json as the source" "--json is not JSON" "$RUN_OUT"
+assert_eq "refused --json findings are not written" "1" "$(jq '.findings | length' "$JSON_RUN/findings.json")"
+
+# --- 18c. the sweeper is told to pass findings as --json, never through stdin or a heredoc ---
+SWEEPER="$SCRIPT_DIR/../agents/go-faster-sweeper.md"
+assert_contains "the sweeper's add command passes --json" "add --run \"\$RUN\" --json '<findings>'" "$(cat "$SWEEPER")"
+# The sweeper may name stdin or a heredoc only right after "never".
+assert_eq "no sweeper line tells it to use stdin or a heredoc" "" \
+  "$(sed -E 's/never (on stdin|through a heredoc)//g' "$SWEEPER" | grep -inE 'stdin|heredoc|[<]{2}')"
+assert_contains "the sweeper returns refused-by-guard on a refused write" "return \`refused-by-guard\`" "$(cat "$SWEEPER")"
+assert_contains "the sweeper bounds one command's size" "under 8,000" "$(cat "$SWEEPER")"
+SKILL="$SCRIPT_DIR/../skills/go-faster/SKILL.md"
+assert_contains "the skill keeps the parent in its checkout mid-sweep" "Do not enter or leave a worktree while the" "$(cat "$SKILL")"
+assert_contains "the skill handles a refused-by-guard return" "\`refused-by-guard\`, release the lock" "$(cat "$SKILL")"
+
 # --- 19. status-timing: git status under trace2, the trace kept in the data folder (R6) ---
 REPO="$WORK/repo"
 mkdir -p "$REPO"

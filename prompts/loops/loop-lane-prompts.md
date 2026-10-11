@@ -366,7 +366,10 @@ read them there rather than from this file.
 - **Conflict and security subagents: frontier tier**, which babysit-loop
   requires for conflict workers unconditionally.
 - **No `haiku` dispatch.** The convention admits it nowhere in these lanes,
-  mechanical greps and log pulls included.
+  mechanical greps and log pulls included, on the four grounds listed under
+  [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding):
+  the reviewer floor, early stop and unverified completion, over-refusal, and
+  the provider alias.
 
 **The implementer tier is enforced structurally in the dispatch agents'
 frontmatter (#1649).** `/implementation:implement-dispatch` dispatches workers and
@@ -561,7 +564,7 @@ variable that sets it).
 > unconditionally; the strong tier (`opus`) for a judgment-call dispatch that does not
 > ride the implementer surface. Those aliases follow the loop-lane
 > convention ("Capability tiers" and "Alias binding"); it admits no `haiku`
-> dispatch. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
+> dispatch, on the four grounds "Alias binding" lists. Never set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, and
 > leave `CLAUDE_CODE_SUBAGENT_MODEL` unset too: the lane relies on the
 > bindings and your deliberate overrides deciding each dispatch. For the resolution order, see
 > <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of
@@ -706,7 +709,7 @@ wakeup ceiling for days rather than finishing.
 > the strong tier (`opus`) for CI fixes, review-comment work, and any judgment call; the
 > fast tier (`sonnet`) for mechanical log pulls. Those aliases follow the
 > loop-lane convention ("Capability tiers" and "Alias binding"); it admits no
-> `haiku` dispatch. Never leave it to inherit. One explicit exception to
+> `haiku` dispatch, on the four grounds "Alias binding" lists. Never leave it to inherit. One explicit exception to
 > the review-work binding: the explicit-`autopilot` pre-escalation resolver
 > (babysit-loop, `reference/pre-escalation-dispatch.md`) always dispatches at the frontier tier's current
 > alias. Blocker resolution under that path never runs at the review-work

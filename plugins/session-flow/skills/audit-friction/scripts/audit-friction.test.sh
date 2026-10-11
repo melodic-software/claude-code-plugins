@@ -7,6 +7,8 @@
 # drives the audit-sessions collector, so its scripts are in scope too.
 # test-scope: plugins/session-flow/skills/audit-friction/scripts/tests/fixtures/*
 # test-scope: plugins/session-flow/skills/audit-sessions/scripts/*.py plugins/session-flow/scripts/transcript_reader.py
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/lib/state-key.sh plugins/session-flow/skills/audit-friction/scripts/*
+# test-scope: plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

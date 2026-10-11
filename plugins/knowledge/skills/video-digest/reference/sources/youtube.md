@@ -87,6 +87,13 @@ order-independent, so they combine with `--work-root` in any order.
 | `${user_config.yt_dlp_cookies_from_browser}` | `--cookies-from-browser "<value>"` | non-empty | forces one browser's cookies instead of the automatic platform-ordered fallback; a cookies file wins over it |
 | `${user_config.max_concurrent_acquires}` | `--max-concurrent-acquires "<value>"` | set and not the default `1` | caps concurrent acquisitions (1–3); higher increases HTTP 429 risk |
 
+One more throttle flag has no `userConfig` option: `--acquire-phase-gap <sec>`, a leading
+`run.mjs` flag. A `watch` acquires in two passes, the video and then the captions, and the flag sets
+the pause between them (default 3 seconds; the flag needs a value, and a non-numeric or negative
+one keeps the default). Raise it after an HTTP 429 on the caption pass, for example `--acquire-phase-gap 10`; the
+launcher forwards it as `VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC`. Pass it only when you want a gap other
+than the default.
+
 Example combining a non-default library dir with a forced cookie source (unset options
 contribute no flag):
 

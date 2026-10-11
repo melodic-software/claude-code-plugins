@@ -70,6 +70,9 @@ research-gated:
   merges on approval. Never arms auto-merge.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
+- **view / list**. Read-only PR reads for other skills: one PR's facts
+  (with the repository's visibility) or its diff, and PRs by head branch or
+  head-branch pattern, so they need no forge CLI of their own.
 
 ### `/source-control:babysit-prs`
 
@@ -165,7 +168,8 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it validates that body against
 the same contract the repository's required PR-contract check enforces,
-a closing keyword (or an explicit no-linked-issue marker) plus four non-empty
+a closing keyword, a tracker's link line as `/work-items:track link` prints it
+(`Closes ENG-123`, `Refs: SW2-12`), or an explicit no-linked-issue marker, plus four non-empty
 contract sections (`## Summary`, `## Fix`, `## Verification`, `## Related`),
 and blocks the call with every missing or empty requirement named, so the
 failure surfaces before the PR exists rather than a CI round trip later.

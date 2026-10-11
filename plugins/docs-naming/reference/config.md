@@ -90,7 +90,7 @@ names any declaration it ignored.
 
 | Key | Type | Default | What it decides |
 |---|---|---|---|
-| `roots` | array of strings | `["docs"]` | the trees the audit inventories; git pathspecs, relative to the repository root. A root with no tracked files inventories as `SCANNED 0` and is reported as empty, not clean. The key is additive, so the default `docs` root cannot be removed |
+| `roots` | array of strings or root objects | `["docs"]` | the trees the audit inventories and the gate enforces; git glob pathspecs, relative to the repository root. A string claims every file under it; a [root object](#root-objects) can limit a root to some extensions and exempt paths inside it. A root with no tracked files inventories as `SCANNED 0` and is reported as empty, not clean. The team layer replaces the bundled default whole; a personal layer can only add roots |
 | `rule` | string | `"lower-kebab"` | the transform that proposes a new name. `lower-kebab` lowercases the basename, turns underscores and spaces into single hyphens, and collapses runs |
 | `regex` | string | `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$` | the extended regular expression a basename must match to be legal. It is also inlined into an emitted gate, so it may not carry a single quote |
 | `exempt_basenames` | array of strings | `["README.md", "CHANGELOG.md", "INDEX.md"]` | basenames that are never renamed, anywhere under a root |
@@ -101,6 +101,28 @@ names any declaration it ignored.
 | `sweep_exclude_sites` | array of strings | `[]` | `path:literal` pairs the sweep never edits, for a site whose text matches by accident |
 | `generated` | array of objects | the landscape record | files that are produced by a command rather than edited |
 | `redirect_map` | string or null | `null` | reserved for a site generator's old-to-new map; no version writes one yet |
+
+### Root objects
+
+```json
+{ "path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**", "**/vendor/**"] }
+```
+
+| Field | Default | What it decides |
+|---|---|---|
+| `path` | required | the tree, as a string root would name it; `.` is the whole repository |
+| `extensions` | `[]`, every extension | the extensions the root claims, letters and digits only, matched in any case, so `md` claims `NOTES.MD` |
+| `exempt_paths` | `[]` | git glob pathspecs, relative to the repository root, that this root never judges by basename |
+
+A root's `exempt_paths` differs from the top-level key in one way: it covers a
+path only when no other root claims that path without exempting it. With the
+roots `docs` and the object above, `docs/x/fixtures/NOTES.md` is still judged,
+because `docs` claims it and exempts nothing. Either way, an exempt path stays
+in the case-collision check. Object entries merge like any additive entry: one
+that differs from another in any field is a second root.
+
+`scripts/root-scopes.jq` turns `roots` into the pathspecs each root claims;
+the audit inventory and the gate emitter both read it.
 
 A `sweep_exclude_sites` entry is the reproducible form of a hand decision. The
 sweep would otherwise rewrite a line whose text happens to match an old name

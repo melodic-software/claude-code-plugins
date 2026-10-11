@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .work-item-tracker.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # Offline: the skill-script contract (--help), the pre-I/O usage-error paths, and
 # the subIssues + intersect path against a gh stub that reproduces gh's real

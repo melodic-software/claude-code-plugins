@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the columns the filtered table shows** - ops already reads them.\nBasis: judgment\n\nQ2: Should the React rewrite stay out of this change, as its own follow-up?\nMy recommendation: **Yes, keep it out** - the export is small and the rewrite is not.\nBasis: judgment",
+      "why": "polar question worded so yes keeps the rewrite out, matching the recommendation"
+    },
+    {
+      "answer": "Q2: How should the React rewrite relate to this change?\nMy recommendation: **a separate follow-up** - the export ships on the current page.\nAlternatives: rewrite first, then add the export; do both in one change.",
+      "why": "choice question about the rewrite, recommendation named"
+    },
+    {
+      "answer": "Q2: Do you want the React rewrite deferred to its own change?\nMy recommendation: **Yes, defer it**.",
+      "why": "polar question whose yes is the recommendation"
+    },
+    {
+      "answer": "Q1: Should the export respect the current filters?\nMy recommendation: **No** - export everything.\n\nQ2: Should the React rewrite wait for its own change?\nMy recommendation: **Yes**.",
+      "why": "a No recommendation on an unrelated question is out of this grader's scope"
+    },
+    {
+      "answer": "Q2: Should the React rewrite stay out of this change?\nMy recommendation: **Yes**.\n\nQ3: Should the export respect the current filters?\nMy recommendation: **No** - export everything.",
+      "why": "the next question's No does not count against the rewrite question"
+    },
+    {
+      "answer": "Q1: Is the page already using React components?\nMy recommendation: **No** - it is server-rendered.",
+      "why": "a fact question that names React, not the rewrite"
+    },
+    {
+      "answer": "Q1: Is the admin page currently written in React?\nMy recommendation: **No** - it uses server templates.",
+      "why": "a current-stack question, not the rewrite"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the visible columns**.\n\nQ2: Should we rewrite the whole admin page in React as part of this?\nMy recommendation: **No** - keep this change to the export button.\nBasis: judgment",
+      "why": "yes to Q2 means rewriting, the opposite of the recommendation"
+    },
+    {
+      "answer": "Q3: Should we also rewrite it in React?\nMy recommendation: **Don't** - out of scope.",
+      "why": "Don't recommendation on a should-we-rewrite question"
+    },
+    {
+      "answer": "Q3: Is a React rewrite part of this work?\nMy recommendation: **no, not in this change**.",
+      "why": "lowercase no on a polar rewrite question"
+    }
+  ]
+}

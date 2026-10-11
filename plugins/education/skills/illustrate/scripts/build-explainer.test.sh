@@ -6,6 +6,7 @@
 #   bash plugins/education/skills/illustrate/scripts/build-explainer.test.sh
 #
 # Exit 0 clean, 1 findings, 2 environment (node missing).
+# test-scope: plugins/education/skills/illustrate/SKILL.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

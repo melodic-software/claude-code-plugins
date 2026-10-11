@@ -2,6 +2,7 @@
 # Tests for setup.sh: check's four sections, lint findings, the consumer hook
 # entry, and an apply that writes only the docs convention file or .claude/testing.yaml.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
+# test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR

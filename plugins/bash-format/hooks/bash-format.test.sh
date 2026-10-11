@@ -13,6 +13,7 @@
 # a correct hook needs no cd). shellcheck is required; without it the lint
 # branch -- which drives the findings assertions -- cannot fire, so the suite
 # skips. shfmt-gated cases skip when shfmt is absent.
+# test-scope: plugins/bash-format/.claude-plugin/plugin.json plugins/bash-format/hooks/hooks.json plugins/bash-format/prerequisites.json
 
 set -uo pipefail
 

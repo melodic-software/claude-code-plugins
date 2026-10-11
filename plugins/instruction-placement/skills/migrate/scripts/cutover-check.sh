@@ -534,7 +534,7 @@ canary_leg() {
   printf '%s\n' "$line" >"$dir/AGENTS.md"
   reply="$(cd "$dir" && "$CLAUDE_BIN" -p \
     "Quote back, verbatim, every line of your project instructions that contains $token. If there are none, say NONE." \
-    --model haiku --tools "" </dev/null 2>/dev/null)" || rc=$?
+    --model sonnet --tools "" </dev/null 2>/dev/null)" || rc=$?
   clean_canary_dirs
   if ((rc != 0)); then
     note "$label ($root): the CLI exited $rc"

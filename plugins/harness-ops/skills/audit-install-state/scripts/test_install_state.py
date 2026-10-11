@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/harness-ops/.claude-plugin/plugin.json
 """Contract tests for the install-state engine.
 
 Every test builds its own synthetic tree. Nothing here reads the author's real

@@ -1,4 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
 """Tests for the interview surface server and its lifecycle commands.
 
 Every class starts its own server through `round.py ensure-running --port 0` in a

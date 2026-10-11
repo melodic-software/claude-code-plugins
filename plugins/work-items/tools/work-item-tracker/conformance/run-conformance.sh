@@ -242,6 +242,32 @@ if verb_supported get-item && [[ -n "$ITEM_A_ID" ]]; then
   assert_eq "get-item A unblocked" "0" "$(jq -r '.blocked_by_count' <<<"$WIT_OUT")"
 fi
 
+# --- change-link (offline: no provider call) ---
+
+if verb_supported change-link; then
+  link_id="${ITEM_A_ID:-$FAKE_ID}"
+  wit_case "change-link malformed id → usage" 2 change-link "not-an-id"
+  wit_case "change-link" 0 change-link "$link_id"
+  assert_schema_version "change-link"
+  assert_eq "change-link item_id echoes the id" "$link_id" "$(jq -r '.item_id' <<<"$WIT_OUT")"
+  assert_eq "change-link shape" "ok" "$(jq -r 'if (.refs | type) == "string" and (.refs | length) > 0
+    and ((.closes | type) == "string" or .closes == null)
+    and (.branch_ref | type) == "string" and (.branch_ref | length) > 0 then "ok" else "bad" end' <<<"$WIT_OUT")"
+  branch_ref="$(jq -r '.branch_ref' <<<"$WIT_OUT")"
+  assert_eq "manifest declares a change_link.branch_pattern" "string" \
+    "$(jq -r '.change_link.branch_pattern | type' <<<"$CAPS")"
+  # Round trip: a branch carrying the branch_ref names the same item. Needs a real item,
+  # since --branch-ref qualifies against the binding's declared scope.
+  if [[ -n "$ITEM_A_ID" ]]; then
+    item_repo="$(sed -E 's/^[^:]+:([^#]+)#.*$/\1/' <<<"$ITEM_A_ID")"
+    wit_case "change-link --branch" 0 change-link --branch "feat/${branch_ref}-conformance" --repo "$item_repo"
+    assert_eq "change-link --branch round-trips to the item" "$ITEM_A_ID" "$(jq -r '.item_id' <<<"$WIT_OUT")"
+  fi
+  wit_case "change-link --branch without an item reference → exit 5" 5 change-link --branch "conformance"
+else
+  wit_case "unsupported change-link → exit 6" 6 change-link "$FAKE_ID"
+fi
+
 # --- edges ---
 
 if verb_supported link-blocks && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then

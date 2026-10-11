@@ -38,6 +38,27 @@
         "docs": "https://code.claude.com/docs/en/setup"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:write-css"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, check-good-css-drift.sh cannot read the upstream good-css files and exits 2 (unverifiable); /user-interface:write-css itself does not use it.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

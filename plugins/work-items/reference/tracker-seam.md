@@ -92,8 +92,8 @@ ways:
 blocked_by_wont_do_count, parent_id, url`
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract"), and there is
 **no `body` field** in it; `--body` exists only as a *write* parameter on `create-item`. `get-item`
-is nonetheless authoritative for `parent_id`, which is how a slice reaches its container. Reading
-the text of an item, such as a container's Brief or a slice's acceptance criteria, is therefore a
+is nonetheless authoritative for `parent_id`, which is how an item reaches its container. Reading
+the text of an item, such as a container's Brief or an item's acceptance criteria, is therefore a
 **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub;
 the provider's REST equivalent otherwise), and a surface that shows a body read must label it as
 such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed and returns
@@ -108,10 +108,9 @@ works where no binding resolves; where the provider exposes no body concept at a
 written by whoever can file in that tracker, so a surface that adds a body read inherits the
 item-content-trust boundary along with it.
 [`${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md)
-carries the rule and its failure modes. Stated here because this is the document a *new* surface
-consults when it needs body text, and the reference it would otherwise have to already know about:
-every live reading surface in this plugin cites the boundary, but until now the seam doc that
-teaches the read did not, so the link ran one way only.
+carries the rule and its failure modes. It is linked here because this is the document a *new*
+surface consults when it needs body text, and it would otherwise have to already know the
+reference exists.
 
 Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). The retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
 
@@ -209,10 +208,12 @@ captured with `/session-flow:retro codify`.
 
 ### With `/source-control:pull-request`
 
-Branch name `<type>/<N>-<short-slug>` (proposed by `/work-items:track start` / `/work-items:work`)
-carries the item number forward. `/source-control:pull-request create` parses the branch name and injects the
-closing keyword into the PR body; the pre-create gate verifies the keyword (or an opt-out marker) is
-present before creating the PR. Closing-keyword shape and PR body shape are owned by `/source-control:pull-request`.
+Branch name `<type>/<ref>-<short-slug>` (proposed by `/work-items:track start` / `/work-items:work`)
+carries the item forward; `<ref>` is the bound adapter's `branch_ref` (`42` on GitHub, `ENG-123`
+on Linear). The adapter owns that grammar and the change-to-item link text (`change-link`,
+`tools/work-item-tracker/CONTRACT.md` "Change links"); `/source-control:pull-request create` reads both
+through `/work-items:track link` and writes the adapter's closing line into the PR body. The PR body
+shape and its pre-create linkage gate are owned by `/source-control:pull-request`.
 
 `/work-items:track done --pr <N>` is the belt-and-suspenders path for manual PR flows where
 `/source-control:pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls

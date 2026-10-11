@@ -23,7 +23,8 @@ Keys, layers and the fan-out guard are owned by
 - `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
 - `code|research|mechanical`: optional workload; applies the role's
-  `workloads.<w>` keys (research lowers the worker's effort by default).
+  `workloads.<w>` keys, which only a config layer sets; the bundled defaults
+  set none.
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
@@ -51,7 +52,11 @@ role in this form:
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
 true, so a caller copying the line passes no model and the agent runs on the
 session model. Then list every entry of `notes` (a skipped layer, a rejected
-value, an ignored key) as written. Exit 2 means an unknown role or argument:
+value, an ignored key, a role that resolves to haiku) as written. A haiku note
+means the role runs on a model no role here has passed the routing eval on;
+the rule is in
+[`${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md`](${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md).
+Exit 2 means an unknown role or argument:
 relay the valid roles from the error and stop.
 
 A caller launching a workflow passes the JSON's `roles` object as

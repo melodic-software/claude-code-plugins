@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Behavioral tests for the unattended PowerShell library.
+# test-scope: plugins/wizard/README.md
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

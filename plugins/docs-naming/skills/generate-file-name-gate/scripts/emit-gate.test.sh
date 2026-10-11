@@ -17,6 +17,7 @@
 #
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
 # redirect `git init` / `git config` into the caller's repository.
+# test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -172,6 +173,109 @@ if command -v shellcheck >/dev/null 2>&1; then
 else
   printf 'SKIP: shellcheck not installed\n'
 fi
+
+# --- a root object: an extension filter and its own exempt paths --------------
+#
+# The emitted checker claims only the root's extensions, in any case; the
+# root's exempt_paths skip the basename rule unless another root claims the
+# path; and the case-collision pass still covers an exempt path.
+
+root="$(new_fixture)"
+jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
+  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+out="$(emit "$root" --rule)"
+assert_contains "a root object emits" "$out" "EMITTED	scripts/check-file-names.sh"
+assert_contains "the rule lists the root's extension glob" "$(cat "$root/.claude/rules/file-names.md")" "paths: docs/**, **/*.[mM][dD]"
+
+scoped="$TEST_TMPDIR/scoped-$RANDOM"
+mkdir -p "$scoped/scripts" "$scoped/docs/fixtures" "$scoped/tools/fixtures"
+cp "$root/scripts/check-file-names.sh" "$scoped/scripts/"
+for f in docs/conforming-name.md tools/Other_File.txt tools/fixtures/Kept_Name.md README.md; do
+  printf 'x\n' >"$scoped/$f"
+done
+git init -q "$scoped"
+git -C "$scoped" config user.email fixture@example.invalid
+git -C "$scoped" config user.name Fixture
+git -C "$scoped" config commit.gpgsign false
+git -C "$scoped" add -A >/dev/null
+git -C "$scoped" commit -qm scoped >/dev/null
+out="$(bash "$scoped/scripts/check-file-names.sh" --check 2>&1)"
+assert_eq "an exempt path and an unclaimed extension pass" "0" "$?"
+assert_contains "the clean line labels the extension filter" "$out" "under docs, . (*.md) is"
+
+for f in tools/Notes_Here.md tools/LOUD.MD docs/fixtures/Judged_Name.md tools/fixtures/kept_name.md; do
+  printf 'x\n' >"$scoped/$f"
+done
+git -C "$scoped" add -A >/dev/null
+out="$(bash "$scoped/scripts/check-file-names.sh" --check 2>&1)"
+assert_eq "markdown outside docs is judged" "1" "$?"
+assert_contains "a markdown offender outside docs is named" "$out" "tools/Notes_Here.md: basename"
+assert_contains "the extension filter matches in any case" "$out" "tools/LOUD.MD: basename"
+assert_contains "a path another root claims stays judged" "$out" "docs/fixtures/Judged_Name.md: basename"
+assert_absent "a root's exempt path is not judged by basename" "$out" "tools/fixtures/Kept_Name.md: basename"
+assert_contains "an exempt path still collides by case" "$out" "tools/fixtures/Kept_Name.md: differs only by case"
+assert_absent "an unclaimed extension is out of scope" "$out" "tools/Other_File.txt"
+assert_contains "the summary counts each finding once" "$out" "5 offender(s)"
+
+out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
+assert_eq "the emitted suite passes under a root object" "0" "$?"
+
+# A root limited to an extension outside the built-in probe names still gets
+# probes it claims.
+root="$(new_fixture)"
+jq '.file_names.roots = [{"path": "docs", "extensions": ["rst"]}]' \
+  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+out="$(emit "$root")"
+assert_contains "an rst-only root emits" "$out" "EMITTED	scripts/check-file-names.sh"
+out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
+assert_eq "the emitted suite passes under an rst-only root" "0" "$?"
+
+# Under a root below the repository root, where git would match an exclude
+# glob against the wrong base: an exempt glob matching nothing exempts nothing,
+# and one that matches exempts only its own paths.
+for ex in '**/zzz/**' '**/fixtures/**'; do
+  root="$(new_fixture)"
+  jq --arg ex "$ex" '.file_names.roots += [{"path": "tools", "extensions": ["md"], "exempt_paths": [$ex]}]' \
+    "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  nested="$TEST_TMPDIR/nested-$RANDOM"
+  mkdir -p "$nested/scripts" "$nested/tools/fixtures" "$nested/docs"
+  cp "$root/scripts/check-file-names.sh" "$nested/scripts/"
+  for f in docs/conforming-name.md tools/Notes_Here.md tools/fixtures/Kept_Name.md; do
+    printf 'x\n' >"$nested/$f"
+  done
+  git init -q "$nested"
+  git -C "$nested" add -A >/dev/null
+  out="$(bash "$nested/scripts/check-file-names.sh" --check 2>&1)"
+  assert_contains "a nested root still judges its offender ($ex)" "$out" "tools/Notes_Here.md: basename"
+  if [[ "$ex" == '**/zzz/**' ]]; then
+    assert_contains "an exempt glob matching nothing exempts nothing" "$out" "tools/fixtures/Kept_Name.md: basename"
+  else
+    assert_absent "a nested root's exempt glob exempts its path" "$out" "tools/fixtures/Kept_Name.md"
+  fi
+done
+
+for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}' '{"path": "../x"}' \
+  '{"path": ".", "exempt_paths": ["/abs/**"]}' '{"path": "docs", "exempt_paths": ["docs/../../x"]}'; do
+  root="$(new_fixture)"
+  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  assert_eq "a root the gate cannot carry is refused ($bad)" "2" "$?"
+done
+
+# A newline in the regex or rule would end the comment line it lands on and
+# run the rest as shell in the emitted checker.
+for filter in '.file_names.regex += "\ntouch PWNED #"' '.file_names.rule += "\ntouch PWNED #"'; do
+  root="$(new_fixture)"
+  jq "$filter" "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  assert_eq "a newline in the config is refused ($filter)" "2" "$?"
+done
 
 # --- --rule -------------------------------------------------------------------
 

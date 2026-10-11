@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the audit-performance engine test suite.
+# test-scope: plugins/harness-ops/skills/audit-performance/scripts/test_audit_performance.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

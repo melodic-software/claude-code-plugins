@@ -13,6 +13,7 @@
 # any reliance on the caller's working directory would surface (the tools are
 # file-anchored, so a correct hook needs no cd). git is required; without it the
 # hook is a no-op and these assertions cannot fire, so the suite skips.
+# test-scope: plugins/eol-normalizer/hooks/hooks.json
 
 set -uo pipefail
 

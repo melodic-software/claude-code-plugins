@@ -1,5 +1,5 @@
 ---
-description: "Environment probe for the browser lane, tagged browser-probe only: records whether playwright-cli runs in the Bash sandbox, Chromium launches, a file, localhost and public page load, a screenshot is written, and the eval directory is readable. Each grader records one fact, so the score is not a quality measure"
+description: "Environment probe for the browser lane, tagged browser-probe only: records whether playwright-cli runs in the Bash sandbox, Chromium launches, a file, localhost and public page load, a screenshot is written, and the eval directory stays hidden. Each grader records one fact, so the score is not a quality measure"
 tags: [browser-probe]
 runs: 1
 max_turns: 40

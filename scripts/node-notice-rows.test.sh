@@ -8,6 +8,7 @@
 # A POSIX shell (bash, or dash as /bin/sh on Debian and Ubuntu) runs the first and leaves at
 # `${PPID:+exit}`, since every POSIX shell sets PPID; PowerShell finds no sh, reads
 # that token as a missing drive, and runs the second. Both share one latch per session.
+# test-scope: plugins/*/hooks/hooks.json plugins/*/.claude-plugin/plugin.json
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
