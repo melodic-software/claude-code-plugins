@@ -5,7 +5,7 @@
 # and its exit status is the production one. Only the two siblings whose real work
 # needs a machine — the `claude` CLI and cache-content-check.sh's git compare — are
 # stubbed, through sync-run.sh's own SYNC_RUN_* overrides.
-# test-scope: .claude/settings.json
+# test-scope: .claude/settings.json plugins/harness-ops/.claude-plugin/plugin.json
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

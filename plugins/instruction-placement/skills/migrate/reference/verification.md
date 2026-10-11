@@ -71,7 +71,7 @@ clean tree *before* the canaries can never pass: the tree is dirty by constructi
 ```bash
 claude -p "Read the file <a file in that directory>. Then quote back, verbatim, every line of your
   project instructions that contains the word CANARY. If there are none, say NONE." \
-  --model haiku --allowedTools Read
+  --model sonnet --allowedTools Read
 ```
 
 **Ask for the lines, not the tokens.** "List every canary token in your instructions" reads as an

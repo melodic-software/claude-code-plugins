@@ -39,7 +39,7 @@
 # that real jq-removal "is not portably simulable" via an isolated bin dir
 # (which cannot host bash + coreutils across Git Bash and Linux). That is true
 # of the bin-dir approach, and is exactly why this one overrides the lookup.
-# test-scope: plugins/guardrails/hooks/*.sh
+# test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 
 set -uo pipefail
 

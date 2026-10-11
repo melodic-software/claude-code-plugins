@@ -47,9 +47,11 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
-# Asserts one line of output verbatim, which pins the numbers inside it.
+# Asserts one line of output verbatim, which pins the numbers inside it. A
+# here-string, not a pipe: grep -q exits on its first match, and under pipefail
+# the writer's SIGPIPE would fail the assertion.
 assert_line() {
-  if printf '%s\n' "$2" | grep -Fxq -- "$3"; then
+  if grep -Fxq -- "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "no line exactly equal to: $3"
@@ -600,14 +602,15 @@ assert_eq "a plugin-free repo reports the plugin row absent, not 0 handlers" \
 assert_line "a plugin-free repo reports 0 plugin roots" "$empty_out" "  plugin roots         0"
 assert_contains "a plugin-free repo still emits components" "$empty_out" "Components in this repository"
 
-# --- The real repository this script ships in ---------------------------------
+# --- The default project root ------------------------------------------------
 #
-# A smoke pass over a live checkout, which is the shape the fixtures cannot
-# supply: many plugins, many skills, real settings. The bounds are deliberately
-# one-sided, because the tree grows; the exact numbers are the fixtures' job.
+# A run with no INVENTORY_PROJECT_DIR takes the git toplevel, or the working
+# directory outside a repository, and still emits the whole table. It runs in
+# the golden fixture: a run from this checkout walked every plugin of the live
+# tree, files no change to them would select this suite for.
 
 rc=0
-out="$(bash "$INVENTORY" 2>/dev/null)" || rc=$?
+out="$(cd "$GOLD" && env -u CLAUDE_PROJECT_DIR bash "$INVENTORY" 2>/dev/null)" || rc=$?
 assert_exit "default run exits 0" 0 "$rc"
 assert_contains "table header present" "$out" "LOCATION"
 assert_contains "table header carries PROBED" "$out" "PROBED"
@@ -626,9 +629,9 @@ assert_contains "subagent frontmatter is conditional" "$(row_for subagent-frontm
 
 line_count="$(printf '%s\n' "$out" | wc -l | tr -d ' ')"
 if [[ "$line_count" -ge 30 && "$line_count" -le 45 ]]; then
-  pass "real-repo output stays a count table ($line_count lines)"
+  pass "default-root output stays a count table ($line_count lines)"
 else
-  fail "real-repo output stays a count table" "expected 30 to 45 lines, got $line_count"
+  fail "default-root output stays a count table" "expected 30 to 45 lines, got $line_count"
 fi
 
 if [[ "$FAILED" -eq 0 ]]; then

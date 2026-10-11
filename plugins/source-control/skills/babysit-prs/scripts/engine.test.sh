@@ -6,6 +6,7 @@
 # concern, not a Python one). SKIPs (exit 0) when Python 3.11+ is unavailable, matching the
 # repo test-runner convention for optional toolchains.
 # test-scope: plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py plugins/source-control/skills/babysit-prs/scripts/babysit-python.sh ruff.toml
 set -uo pipefail
 
 # Resolve before the cd: BASH_SOURCE is the path as invoked, so re-deriving it
