@@ -3,6 +3,37 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-11
+
+### Fixed
+
+- filter list reads in the provider and order work by created_at
+
+  The tracker seam's list reads now count only matching items against
+  limits.list_items_max, and work-loop orders admitted items without a
+  GitHub-only flag.
+
+  - Linear sends the state filter (and an optional label) in its GraphQL
+    query, so a team with many closed issues lists its open ones complete.
+  - list-items is a core verb, and list-items and list-frontier take
+    --label. Adapters that declare features.list_items_label_filter (all
+    five bundled ones) filter in the provider query; core keeps exact
+    matches afterward either way.
+  - Every normalized item carries created_at (UTC, or null). work-loop and
+    work's oldest-first pick sort on it; a null timestamp sorts last, with
+    item number as a fixed tie-break.
+  - work-loop passes --scope to both snapshot reads as --label.
+
+- report a labeled GitHub listing at the search cap as truncated
+
+  gh serves a labeled issue list from the search API, which returns at most
+  1000 results, so a labeled read reaching 1000 now reports truncated. Jira
+  answers a whitespace label with an empty, complete listing instead of a
+  usage error, and the adapter generator's list-items guidance names the
+  state-in-query and created_at rules.
+
+- The ship skill, tracker seam and GitHub adapter state that a cloud session behind the GitHub proxy is served no GraphQL, pointing at the upstream section instead of quoting retired wording.
+
 ## [2.0.0] - 2026-10-11
 
 ### Changed

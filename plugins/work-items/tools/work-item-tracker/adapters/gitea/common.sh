@@ -444,7 +444,7 @@ wit_gitea_require_ok() {
 #   • Gitea has NO issue-type registry and NO parent/sub-issue field on Issue, so
 #     `type` and `parent_id` are structurally null here — not "unmapped".
 # shellcheck disable=SC2016,SC2034  # jq program — $sv/$bbc are jq args, not bash; used by verb scripts
-readonly WIT_GITEA_NORMALIZE_PROGRAM='
+readonly WIT_GITEA_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
   def qualify(n): "gitea:" + (.repository.full_name // "") + "#" + (n | tostring);
   {
     schema_version: $sv,
@@ -457,7 +457,8 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM='
     blocked_by_count: $bbc,
     blocked_by_wont_do_count: 0,
     parent_id: null,
-    url: (.html_url // "")
+    url: (.html_url // ""),
+    created_at: (.created_at | wit_utc_ts)
   }'
 
 # wit_gitea_blocked_by_count <owner> <repo> <index> — echo the number of OPEN issues

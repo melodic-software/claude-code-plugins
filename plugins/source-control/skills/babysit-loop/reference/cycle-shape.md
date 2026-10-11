@@ -56,7 +56,8 @@ is.
 3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
    compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
-   provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
+   provider's own computed close-linkage,
+   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labeling takes triage or write
@@ -69,9 +70,10 @@ is.
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here**, not eligible at any rung, exactly as an item with no record at all.
-   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable where only a pinned
-   set of GraphQL operations is served (Claude Code on the web and remote execution;
-   `skills/babysit-prs/SKILL.md` "Engine and degrade"). That is the no-close-linkage case already
+   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
+   that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
+   degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
+   sessions"). That is the no-close-linkage case already
    ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
    merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
    because review-thread resolution has no REST equivalent. Report the restriction once for the

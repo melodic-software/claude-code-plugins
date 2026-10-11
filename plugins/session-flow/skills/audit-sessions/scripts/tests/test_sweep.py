@@ -104,10 +104,25 @@ def test_unusable_store_record_exits_2(data_dir, bad):
     assert envelope(result)["status"] == "error"
 
 
-def test_missing_store_exits_2(data_dir):
-    result = sweep(data_dir)
-    assert result.returncode == 2
+def tree(path: Path) -> dict[str, bytes]:
+    return {str(p.relative_to(path)): p.read_bytes() if p.is_file() else b"" for p in sorted(path.rglob("*"))}
+
+
+def test_missing_store_exits_3_and_writes_nothing(data_dir):
+    result = sweep(data_dir, "--format", "md", "--write-report")
+    assert result.returncode == 3
+    env = envelope(result)
+    assert (env["schema"], env["status"]) == ("audit-sessions.sweep/v1", "error")
+    assert not any(data_dir.iterdir())
+
+
+def test_sweep_without_write_report_leaves_the_data_dir_unchanged(data_dir):
+    write_store(data_dir, record("s1", **{"tools.interrupts": 2}))
+    before = tree(data_dir)
+    result = sweep(data_dir, "--format", "json")
+    assert result.returncode == 0, result.stdout + result.stderr
     assert envelope(result)["schema"] == "audit-sessions.sweep/v1"
+    assert tree(data_dir) == before
 
 
 def test_finding_names_outlier_sessions_worst_first(data_dir):
