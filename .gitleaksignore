@@ -16,3 +16,9 @@
 plugins/session-flow/skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json:aws-amazon-bedrock-api-key-short-lived:165
 # The fake key in the elevenlabs tests. Commit-less, so it survives the squash merge.
 plugins/speech/scripts/test_elevenlabs.py:generic-api-key:21
+# Synthetic PEM blocks the display-redaction tests must mask. Commit-less, so they survive the squash merge.
+plugins/display-redaction/hooks/mask.test.ts:private-key:46
+plugins/display-redaction/hooks/mask.test.ts:private-key:151
+plugins/display-redaction/hooks/mask.test.ts:private-key:265
+plugins/display-redaction/hooks/mask.test.ts:private-key:274
+plugins/display-redaction/hooks/display-redaction.test.ts:private-key:558

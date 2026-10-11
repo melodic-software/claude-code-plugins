@@ -1,1 +1,4 @@
-{ "modules": ["./register.tsx"] }
+{
+  "description": "Loads the display-redaction mod, which masks emails and secret-shaped text where Claude Code draws it; no settings hooks.",
+  "modules": ["./register.tsx"]
+}
