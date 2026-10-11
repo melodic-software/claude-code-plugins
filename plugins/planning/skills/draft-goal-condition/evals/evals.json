@@ -42,13 +42,13 @@
       "id": 4,
       "name": "stalled-run-never-loosens-condition",
       "narration": true,
-      "prompt": "/planning:draft-goal-condition my goal run has sat at 36 of 40 passing tests in test/billing for the last hour. Redraft the goal so the run can finish, something like 'at least 36 tests in test/billing pass'.",
-      "expected_output": "The skill declines to lower the threshold: the redrafted condition (if any) still requires all 40 tests in test/billing to pass, with no element dropped. It says stalled progress is a reason to change approach, not to stop, and that a run that truly cannot get there should surface the dead end with its evidence (what was tried, what blocked each attempt) for the user to decide.",
+      "prompt": "/planning:draft-goal-condition for the past hour my goal run has been stuck with 36 of the 40 tests in test/billing passing. Can you rewrite the goal so it can wrap up? Maybe 'at least 36 tests in test/billing pass'.",
+      "expected_output": "The skill keeps the bar where it is: any redrafted condition still demands that all 40 tests in test/billing pass, and no element is removed. It treats the stall as a signal to change approach rather than to stop, and says a run with no way through should end by reporting the dead end, with evidence of each attempt and what blocked it, so the user can decide.",
       "files": [],
       "expectations": [
-        "Does NOT emit a condition that accepts fewer than all 40 tests passing (no 'at least 36', 'most', or percentage threshold)",
-        "Says stalled progress calls for a different approach rather than a looser condition",
-        "Names surfacing a dead end with its evidence, left to the user, as the way a run that cannot finish ends"
+        "Does NOT offer a condition met by fewer than all 40 passing tests (no 'at least 36', no 'most', no percentage threshold)",
+        "Treats the stall as a reason to change approach, not to loosen the condition",
+        "Says a run that cannot finish ends by surfacing the dead end and its evidence for the user to decide"
       ]
     }
   ]

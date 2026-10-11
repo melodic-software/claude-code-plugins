@@ -34,13 +34,13 @@ for a subagent:
 | Leaking **seam** | Two modules are coupled so tightly that the details of one show up across the other's seam | The invoice export reads the rates client's cache keys |
 | Defects between subsystems | The same kind of defect keeps appearing where several owned subsystems meet, not inside any one of them | Checkout and the refund job disagree on a total by one cent |
 
-The scan adds three signals of its own, recorded the same way:
+Three further signals belong to this scan alone; record them in the same way:
 
 | Signal | What the agent sees | Tax example |
 |---|---|---|
-| Special case in a general module | A module meant for every caller holds a rule only one caller needs, so each new caller inherits that case. The general work belongs inside; the one-caller decision belongs with that caller | `TaxCalculator.quote()` checks whether the caller is the refund job before choosing a date; the refund job could pass the date it wants |
-| Long trace | Following one request means passing through file after file, or layer after layer, where each adds little. Judge the length against the rest of the codebase; no fixed count applies | One line's tax goes from the controller to `TaxService`, `TaxFacade`, `TaxRateLookup`, then the rates client |
-| Wide state scope | State sits at a wider scope than its readers need, or a value is stored and kept in sync where it could be computed on read. From narrowest to widest: function inputs, locals, an object's fields, module state, globals | Checkout sets a module-level `currentRegion` before calling `quote()`; `invoice.taxTotal` is re-saved after every line edit instead of summed when read |
+| State held too broadly | A value lives where far more code can reach it than reads it, or a derived value is saved and refreshed on each change when it could be worked out at the moment it is read. Rank the possible homes from broadest to tightest (globals, module state, an object's fields, locals, function parameters) and flag state kept higher than its readers require | `invoice.taxTotal` is written back after each line edit rather than added up on read; checkout assigns a module-level `currentRegion` and then calls `quote()` |
+| Hops that add little | Answering one question about a request walks the reader through a chain of files or layers, each contributing little beyond passing the call on. How long is too long depends on how deep this codebase's other paths run; there is no threshold number | Tax for one line passes the controller, then `TaxService`, `TaxFacade` and `TaxRateLookup`, before it reaches the rates client |
+| One caller's rule in shared code | Code every caller uses carries a branch that serves a single caller, and each caller added later carries it too. Leave the shared work where it is and hand that one decision back to the caller that wants it | `TaxCalculator.quote()` picks a date only after asking whether the refund job is calling; the refund job could supply its own date |
 
 Run the **deletion test** on anything that looks shallow, and record the result in the schema's
 `deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a pass-through,
@@ -69,12 +69,13 @@ Calibrating at scan time is what lets Phase 1.5 verify against a stated bar rath
   consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter
   abstraction is speculative indirection, and earns `speculative` confidence at best.
 
-The agent also asks two reader questions about the value at the center of the candidate: what
-produces it, and which code is allowed to change it? When answering either one means opening several
-modules, the agent writes that into `shallow-signal`. The answers are evidence for the rating, not a
-third heuristic: the two above still decide it. For the tax case: the rate applied to an order is
-produced by `TaxRateLookup`, but finding what can change it means reading the rates client, its
-cache and a nightly refresh job.
+One more piece of evidence comes from tracing the value a candidate revolves around. In the tax
+case, `TaxRateLookup` supplies the rate an order is charged, yet listing everything able to alter
+that rate takes the rates client, its cache and a nightly refresh job. The agent runs the same two
+traces on its own candidate, writers first and then the source: every piece of code permitted to
+modify the value, and the place the value is first made. A trace that spans several modules goes
+into `shallow-signal`. Neither trace is a third heuristic; both feed the rating, and the two
+heuristics above still settle it.
 
 ## 5. Per-candidate return schema
 

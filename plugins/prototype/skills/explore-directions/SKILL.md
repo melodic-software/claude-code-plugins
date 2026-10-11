@@ -169,12 +169,12 @@ Before any code, record the plan as one line naming the route, the host and the 
 variants** unless the user asks for another number, and never more than 5: past five, new variants
 repeat earlier ones instead of disagreeing with them.
 
-**Optional reference pass.** It applies only while nothing fixes the look: no direction from the
-user and no host page under sub-shape A. Then, before step 2, ask whether the user wants one. If
-yes, collect a handful of comparable screens (other products doing the same job, plus the app's own
-nearest screens) and reduce them to two to four candidate directions, each named by its layout,
-density, color and type. The variants in step 2 follow the directions the user keeps; with the pass
-declined, step 2 starts as usual.
+**Optional reference pass.** Two to four candidate directions, each described by its layout,
+density, color and type, can seed step 2 in place of a blank page. They are distilled from a small
+set of comparable screens: other products that do the same job, and the app's own closest screens.
+Offer the pass before step 2, and only while the look is still open, meaning the user has given no
+direction and there is no host page under sub-shape A. If the user accepts, the step 2 variants
+follow whichever directions the user keeps; if not, step 2 begins as it normally would.
 
 ### 2. Draft the variants
 

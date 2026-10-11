@@ -150,8 +150,8 @@ Question shapes that recur, in priority order:
 | Section | Highest-value surfacing question |
 |---------|----------------------------------|
 | Problem | "Whose problem is this, and what do they currently do instead?" |
-| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Where would the easier build leave users worse off, and which side do we pick?" |
-| Non-goals | "What is explicitly out of scope so we don't drift?" Then: "What is each setting, control or option this adds for?" An option nobody can give a reason for moves here. |
+| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Which shortcut in building this would cost users something, and do we take it or not?" |
+| Non-goals | "What is explicitly out of scope so we don't drift?" Then: "For every new option, control or setting: what is it for?" Any that no one can explain lands in this section. |
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |

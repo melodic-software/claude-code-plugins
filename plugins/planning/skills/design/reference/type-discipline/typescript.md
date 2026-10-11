@@ -49,39 +49,31 @@ TypeScript; read that file first.
 
 ## Casts and narrowing
 
-- **An `as` follows a check that proved it.** Inside a parse function, after the check, a cast to a
-  brand is the one routine use. Anywhere else, change the model or narrow instead.
-- **A type predicate (`value is T`) checks everything it claims.** A predicate that tests one field
-  and claims the whole type is a cast with a reassuring name.
-- **Narrowing, most preferred first:** a check on a literal tag field of a union; an `in` check;
-  `typeof` or `instanceof`; a type predicate function; an `as` after validation.
-- **Use `satisfies` to check a literal against a type** while keeping the literal's narrow inferred
-  type. An annotation widens it to the declared type; `as` drops the assignability and
-  excess-property checks an annotation would run, and rejects only types that do not overlap.
+- **To hold a literal to a type, write `satisfies`.** The literal is checked against `RetryPolicy`
+  and keeps the narrow type TypeScript inferred for it. An annotation would widen the value to the
+  declared type instead, and `as` skips the assignability and excess-property checks an annotation
+  runs, refusing only a type that shares nothing with the value.
 
   ```ts
   const retry = { attempts: 3, backoff: "exponential" } satisfies RetryPolicy;
   ```
 
+- **Ways to narrow, from last resort up to first choice:** an `as` after validation; a type
+  predicate function; `typeof` or `instanceof`; an `in` check; a test of a union's literal tag field.
+- **A type predicate (`value is T`) has to test all of `T`.** One that inspects a single field and
+  then vouches for the whole type is still a cast, only with a name that sounds safe.
+- **Every `as` sits after the check that justifies it.** Its one routine home is a parse function,
+  casting to a brand once the check has passed. Everywhere else, narrow or change the model.
+
 ## Modeling
 
-- **Unions with a literal tag** for variant state: `{ kind: "idle" } | { kind: "failed"; reason:
-  string } | ...`.
-- **Brands** for values that share a primitive but must not mix, such as two kinds of id. Only the
-  parse function creates a branded value.
-
-  ```ts
-  declare const invoiceIdTag: unique symbol;
-  type InvoiceId = string & { readonly [invoiceIdTag]: true };
-  ```
-
-- **Constructive types** where the shape can carry the rule: a tuple with a rest element
-  (`[Line, ...Line[]]`) for "at least one", a union of string literals for a closed set. Move from
-  `Line[]` to the tuple form when code reading the lines has to assert one exists: an index read
-  followed by `!`, a cast, or a throw for the empty case. While every function over `Line[]` has an
-  answer for zero lines, `Line[]` stays.
-- **Exhaustiveness through `never`.** In the default branch of a switch over a tagged union, assign
-  the value to a `never`-typed variable. A new variant then fails to compile at that switch.
+- **A new interface is only for a shape nothing else defines.** Otherwise build the type from the
+  one that owns the shape: indexed access types, `typeof`, or the utility types for picking,
+  omitting, parameters, return types and awaited values.
+- **Variant state is a union with a literal tag**, such as `{ kind: "idle" } | { kind: "failed";
+  reason: string } | ...`, and a switch over it closes with a `never` check. The default branch
+  assigns the value to a `never`-typed variable, so a variant added later stops that switch from
+  compiling.
 
   ```ts
   default: {
@@ -90,9 +82,18 @@ TypeScript; read that file first.
   }
   ```
 
-- **Derive before declaring.** Indexed access types, `typeof`, and the utility types for picking,
-  omitting, parameters, return types and awaited values build a type from the one that owns the
-  shape. Declare a new interface only for a shape nothing else defines.
+- **Let the shape carry the rule where it can.** "At least one" is a tuple with a rest element
+  (`[Line, ...Line[]]`), and a closed set is a union of string literals. `Line[]` stays for as long
+  as every function over it has an answer for zero lines. Switch to the tuple once code reading the
+  lines must assert that one exists, whether through an index read followed by `!`, a cast, or a
+  throw for the empty case.
+- **A brand separates values on one primitive that must never be swapped**, such as an invoice id
+  and a customer id. Nothing but the parse function creates a branded value.
+
+  ```ts
+  declare const invoiceIdTag: unique symbol;
+  type InvoiceId = string & { readonly [invoiceIdTag]: true };
+  ```
 
 ## Upstream record
 

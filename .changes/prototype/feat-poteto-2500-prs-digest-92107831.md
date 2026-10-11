@@ -34,3 +34,5 @@ bump: patch
   are ordered by cost. The rules, labels,
   reply-template fields and steps keep their meaning; `docs/native-surfaces` quotes the new layout
   wording of the description.
+- Reworded the remaining passages of `explore-directions/SKILL.md` adapted from the upstream
+  prototype skill in our own words; every step and rule is unchanged.

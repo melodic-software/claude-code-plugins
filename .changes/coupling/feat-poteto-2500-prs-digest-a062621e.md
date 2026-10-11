@@ -11,3 +11,4 @@ bump: minor
 ### Changed
 
 - **Shared mutable state: split the write target before adding a lock.** The remediation catalog's shared-mutable-state entry gains a first rung: when several writers update one file, row or cache key and the proposed fix is a lock, check whether each writer can own its own target so nothing is shared. The entry's "not when" covers a store holding one value every writer must agree on, which keeps one target and serializes the writes.
+- Reworded the passages of `reduce`'s `reference/remediations.md` adapted from an upstream skill in our own words; every remedy and condition is unchanged.

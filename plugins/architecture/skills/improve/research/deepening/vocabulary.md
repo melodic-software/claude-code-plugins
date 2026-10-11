@@ -79,8 +79,8 @@ of the three callers changes.
 - **The deletion test.** Ask what each caller would have to write if the module were removed. A
   direct call to whatever the module wrapped means it only forwarded calls. The same logic, copied
   into every caller, means it was doing real work.
-- **Run order is not a reason to split.** Modules cut along the order things happen in (one to load
-  the invoice, one to compute tax, one to save the result) tend to share the same knowledge, here the
-  layout of an invoice line, so a change to that layout touches all three. Ousterhout calls this
-  temporal decomposition. Group code by the knowledge it keeps to itself, even when parts of it run
-  at different times.
+- **Run order is not a reason to split.** When a new field on an invoice line means editing the
+  loader, the tax step and the writer in one change, all three know that line's layout, and the
+  code was divided by when each part runs instead of by what each part knows. Ousterhout's name for
+  this is temporal decomposition. Draw the module around the layout knowledge instead; code that
+  runs early and code that runs late can still live in it together.

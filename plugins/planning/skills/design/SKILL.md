@@ -133,7 +133,7 @@ Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-Start from the callers. Write two or three short call sites that use the new contract the way its consumers will; for a library or API, at least one is written from the importing package's side. Then derive the types those call sites need from the capabilities. For each type, list how code will read and change it (lookup by key, ordered walk, append, bulk replace), mark the paths that run most often, and pick the structure that serves those. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
+This phase ends with a `type-inventory.md` in which every type traces back to a call site that needs it, and each type's shape is set by the operations its busiest paths run on it. Two checks prove that outcome. First, call sites exist before types do: from consumer code, sketch two or three brief calls into the new contract, written as its users will write them, before any type has a name; when the contract is a library or API, at least one of those calls sits inside the importing package. A type enters the inventory only if those calls need it, given the capabilities. Second, each entry carries its operations (lookup by key, ordered walk, append, bulk replace) with the ones on the busiest paths flagged, and the structure chosen for that type is the one the flagged operations favour. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
@@ -146,14 +146,16 @@ Start from the callers. Write two or three short call sites that use the new con
 
 Produce: `type-inventory.md`
 
-Before leaving Phase 3, answer these against the inventory. An answer that names a problem reopens that type as a design thread:
+Close Phase 3 by auditing the inventory. A check below that turns up a problem sends that type back to the design threads:
 
-- Which field combinations do these types admit that the domain rejects?
-- Where does each outside input become a domain type, and does any code after that point check the same input again?
-- Which casts, assertions or suppressions remain, and what check proves each one?
-- If a variant is added, which sites fail to compile and which would run on silently?
-- Which types restate a shape that a schema, spec or migration already owns?
-- Which strengthened types guard a value that can really be wrong, and which only add precision?
+| Check | A problem looks like |
+|---|---|
+| Shape ownership | A type redraws a shape that a schema, spec or migration already defines |
+| Outside input | Some input becomes a domain type somewhere other than where it arrives, or code further in validates the same input a second time |
+| Admitted combinations | The types accept a mix of field values the domain never allows |
+| Unproven claims | A cast, assertion or suppression remains with no check behind it |
+| Adding a variant | Some sites would keep running silently instead of failing to compile |
+| Added strength | A strengthened type guards a value that cannot actually go wrong, so it buys precision and nothing else |
 
 Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 
