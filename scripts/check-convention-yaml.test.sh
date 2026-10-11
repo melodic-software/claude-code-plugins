@@ -37,7 +37,8 @@ LOG=""
 # new_repo: a fresh fixture repo with the SUT and the stub validator.
 new_repo() {
   fixture_tree::build repo --sut "$SUT_SRC" --git --label convention-yaml || return 1
-  mkdir -p "$repo/.stub" "$repo/docs/conventions"
+  mkdir -p "$repo/.stub" "$repo/docs/conventions" "$repo/lib"
+  cp "$SCRIPT_DIR/../lib/yaml-subset.awk" "$repo/lib/"
   printf '%s\n' "$STUB_BODY" >"$repo/.stub/check-jsonschema"
   chmod +x "$repo/.stub/check-jsonschema"
   : >"$repo/.stub/log"
@@ -153,7 +154,35 @@ else
   fail "$label: $(state) pwned=$pwned"
 fi
 
-# 10. An unknown argument is a usage error.
+# 10. YAML the schema validator accepts but the runtime parser rejects (an
+#     anchor and alias, a tag, a block scalar: lib/yaml-subset.awk's header
+#     names all three outside its subset) is a finding, the validator is not
+#     run for it, and the summary counts the files checked.
+names=(anchor tag 'block scalar')
+bodies=($'a: &x 1\nb: *x' 'a: !!str 1' $'a: |\n  text')
+for i in "${!names[@]}"; do
+  name="${names[i]}" body="${bodies[i]}"
+  label="runtime parser rejects a $name: exits 1 naming the file"
+  new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put plugins/delta/schemas/delta.schema.json '{}' &&
+    put docs/conventions/alpha.yaml "$body" && put docs/conventions/delta.yaml 'mode: on'
+  run_sut
+  if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/alpha.yaml: the runtime YAML parser (lib/yaml-subset.awk) rejects it"* &&
+    "$LOG" != *alpha.yaml* && "$LOG" == *delta.yaml* &&
+    "$ERR" == *"1 finding(s) across 2 file(s) checked"* ]]; then
+    ok "$label"
+  else
+    fail "$label: $(state)"
+  fi
+done
+
+# 11. A missing runtime parser is an environment failure.
+label="missing lib/yaml-subset.awk exits 2"
+new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'
+rm "$repo/lib/yaml-subset.awk"
+run_sut
+if [[ $RC -eq 2 && "$ERR" == *yaml-subset.awk* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+
+# 12. An unknown argument is a usage error.
 label="unknown argument exits 2"
 new_repo
 OUT="$(bash "$repo/scripts/check-convention-yaml.sh" --fix 2>/dev/null)"
