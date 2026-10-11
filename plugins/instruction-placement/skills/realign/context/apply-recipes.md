@@ -49,8 +49,13 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
    <the relocated content, verbatim>
    ```
 
-   `description:` is optional and Claude Code ignores it, but the index generator prefers it over the
-   H1, worth writing when the H1 alone would not tell a reader when to open the file.
+   `description:` is optional and is written for this plugin's index generator, not for Claude Code.
+   The generator prefers it over the H1, so it is worth writing when the H1 alone would not tell a
+   reader when to open the file.
+
+   - **Pointer**: when deciding which rule frontmatter fields Claude Code reads, fetch
+     [memory § Rules frontmatter reference](https://code.claude.com/docs/en/memory#rules-frontmatter-reference)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section starts listing `description`.
 
 3. **Adjust heading levels only.** If the content was `## X` inside a larger file it becomes `# X`
    here. Relative links must be rewritten to resolve from `.claude/rules/`. Nothing else changes.
@@ -90,9 +95,8 @@ Content keyed to a place rather than a file kind.
    needs the shim, a `NATIVE` row does not, because nothing blocks that file.
 
    The shim is also what covers the sessions where reading `AGENTS.md` directly is unavailable
-   (before v2.1.277, with the built-in `agents-md` plugin disabled, in some cases the first session
-   after an upgrade, and before v2.1.281 on some providers or with telemetry disabled), so a
-   repository that still carries a root `CLAUDE.md` keeps writing it. Removing shims
+   (the memory page lists them; pointer record below), so a repository that still carries a root
+   `CLAUDE.md` keeps writing it. Removing shims
    across a repository is `/instruction-placement:migrate`'s business, not this recipe's.
 
 3. **Merge, do not clobber.** If either file already exists, append under a new heading and preserve
@@ -104,22 +108,23 @@ Content keyed to a place rather than a file kind.
 4. **Excise the source, regenerate the index, verify** as in Recipe A. Verification here also checks
    that the shim exists and that its import resolves.
 
-The content must read as **additive and self-contained**. Other agents resolve `AGENTS.md`
-nearest-wins while Claude concatenates the whole ancestor chain, so a subtree file written as an
-override behaves differently under the two tools. A candidate that only makes sense as an override
-does not belong in this destination. Mark the finding `blocked` and say why.
+The content must read as **additive and self-contained**. Other agents and Claude Code combine
+nested instruction files differently (pointer below), so a subtree file written as an override
+behaves differently under the two tools. A candidate that only makes sense as an override does not
+belong in this destination. Mark the finding `blocked` and say why.
 
-Verified 2026-09-19 against Claude Code 2.1.278 and two sources. The `AGENTS.md` convention states
-that agents read the nearest file in the directory tree, so the closest one takes precedence
-(<https://agents.md/>, the nested-files section). The memory page states that `CLAUDE.md` files in
-the directory hierarchy above the working directory are all loaded at launch, broadest scope first
-(<https://code.claude.com/docs/en/memory>, "Choose where to put CLAUDE.md files"). The same page's
-"AGENTS.md" section states that Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md`
-or `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
-`AGENTS.md` on a Read there under the same condition. Recheck when either source stops carrying its
-statement, when that page changes which file names count for the check or **which sessions lack
-`AGENTS.md` support** (the list quoted in step 2), when a release note names `CLAUDE.md` load order
-or `AGENTS.md`, or when `/instruction-placement:migrate cutover-check` ships (#4281) and reports every condition met.
+- **Pointer**: when deciding how nested files combine, fetch the nested-files section of
+  <https://agents.md/> and
+  [memory § Choose where to put CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files)
+  live; for which files are read instead of `AGENTS.md` and which sessions lack direct support,
+  fetch [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)
+  and [§ When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either source stops carrying its section, the memory page changes which
+  file names count for the check or **which sessions lack `AGENTS.md` support** (step 2 relies on
+  that list), a release note names `CLAUDE.md` load order or `AGENTS.md`, or
+  `/instruction-placement:migrate cutover-check` ships (#4281) and reports every condition met.
 
 ## Recipe C: promote from ordinary documentation
 
