@@ -79,8 +79,16 @@ if [[ ! -e "$JIRA_FIX/.counter" ]]; then
 else
   fail "a quoted --label made no HTTP call" "no curl call" "curl invoked"
 fi
+jira_run "$S" --label 'a\z'
+assert_eq "a label holding a backslash → usage (2)" "2" "$RC"
 jira_run "$S" --label "area: ci"
-assert_eq "a label holding a space (no Jira label can) → usage (2)" "2" "$RC"
+assert_eq "a label holding a space (no Jira label can) → exit 0" "0" "$RC"
+assert_eq "and lists nothing, complete" '[] false' "$(jq -c '.items, .truncated' <<<"$OUT" | paste -sd' ' -)"
+if [[ ! -e "$JIRA_FIX/.counter" ]]; then
+  pass "a whitespace --label made no HTTP call"
+else
+  fail "a whitespace --label made no HTTP call" "no curl call" "curl invoked"
+fi
 
 # --repo narrows to one project; a site mismatch is a usage error (before network).
 jira_run "$S" --repo "wrong.atlassian.net/SW2"

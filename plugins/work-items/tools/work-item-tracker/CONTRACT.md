@@ -276,7 +276,8 @@ adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
   ceiling counts labeled items only; it MAY match more loosely than exact, since core filters
   exactly afterward ("Verbs"), and it MAY refuse with exit `2` a label its provider cannot
   hold. An adapter without the feature never receives `--label`. Every bundled adapter
-  declares it: github (`gh issue list --label`), gitea (the `labels` query parameter), jira
+  declares it: github (`gh issue list --label`, which gh serves from the search API; that API
+  returns at most 1000 results, so a labeled listing that reaches 1000 reports `truncated: true`), gitea (the `labels` query parameter), jira
   (a `labels = "<name>"` JQL clause), linear (a `labels.some.name.eq` issue filter), and
   local-markdown (filtered in its walk before the ceiling check).
 - `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
@@ -835,8 +836,9 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   ```
 
   `list-items`/`list-frontier` build JQL scope from `project_keys`, and `--label` adds a
-  `labels = "<name>"` clause, refusing (exit `2`) a label with whitespace, a quote or a
-  backslash rather than escaping it; `--repo <site>/<PROJECTKEY>`
+  `labels = "<name>"` clause, refusing (exit `2`) a label with a quote or a backslash rather
+  than escaping it, and answering a label with whitespace, which no Jira label can hold, with an
+  empty, complete listing; `--repo <site>/<PROJECTKEY>`
   narrows to one project (site must match the bound site, and the project must be one of the
   declared `project_keys`). `project_keys` is both the read scope and the authorization
   boundary: **every read is confined to the declared projects.** `get-item` refuses an id whose

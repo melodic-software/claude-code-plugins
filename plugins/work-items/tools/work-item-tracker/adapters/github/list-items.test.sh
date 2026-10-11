@@ -21,7 +21,7 @@ if command -v jq >/dev/null 2>&1; then
   cat >"$FIX/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_STUB_ARGV"
-printf '%s\n' "${GH_STUB_LIST:?}"
+if [[ -n "${GH_STUB_LIST_FILE:-}" ]]; then cat "$GH_STUB_LIST_FILE"; else printf '%s\n' "${GH_STUB_LIST:?}"; fi
 EOF
   chmod +x "$FIX/bin/gh"
   row() { printf '{"number":%s,"title":"t","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/%s","createdAt":"2026-03-0%sT10:00:00Z"}' "$1" "$1" "$1"; }
@@ -48,6 +48,18 @@ EOF
     bash "$FIX/adapters/github/list-items.sh" --repo o/r --label "area: ci" >/dev/null
   assert_contains "--label reaches gh issue list" "$(cat "$FIX/argv")" "--label area: ci --limit 3"
   assert_usage_error "$S" --label
+
+  # A labeled read goes through GitHub search, which returns at most 1000 results, so
+  # 1000 labeled rows cannot prove the listing complete; 1000 unlabeled rows can.
+  jq '.limits.list_items_max = 1000' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
+  jq -cn '[range(1; 1001) | {number: ., title: "t", state: "OPEN", assignees: [], labels: [],
+    issueType: null, blockedBy: {nodes: []}, url: "https://github.com/o/r/issues/\(.)"}]' >"$FIX/thousand.json"
+  OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST_FILE="$FIX/thousand.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r --label "area: ci")"
+  assert_eq "1000 labeled rows (the search cap) → truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
+  OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST_FILE="$FIX/thousand.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "1000 unlabeled rows at a 1000 ceiling → truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1

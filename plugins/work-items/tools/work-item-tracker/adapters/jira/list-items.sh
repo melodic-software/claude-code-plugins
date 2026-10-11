@@ -80,12 +80,17 @@ esac
 projects_clause="project in ($(jql_value_list "$projects_json"))"
 # The label narrows the search itself, so the ceiling counts labeled issues only. It is
 # caller text inside a quoted JQL literal, where only `"`, `\` and line breaks are
-# special, so a label holding any of those or other whitespace is refused rather than
-# escaped. A Jira label cannot hold whitespace anyway.
+# special, so a label holding a quote or backslash is refused rather than escaped. A
+# Jira label cannot hold whitespace, so a label with any carries no issue: the exact
+# answer is an empty, complete listing, with no request made.
 label_clause=""
 if [[ -n "$label" ]]; then
-  [[ "$label" =~ ^[^[:space:]\"\\]+$ ]] ||
-    wit_usage_error "--label '$label' holds whitespace, a double quote or a backslash, which a Jira label cannot"
+  [[ "$label" != *[\"\\]* ]] ||
+    wit_usage_error "--label '$label' holds a double quote or a backslash, which this adapter refuses in JQL"
+  if [[ "$label" =~ [[:space:]] ]]; then
+    jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: [], truncated: false}'
+    exit 0
+  fi
   label_clause=" AND labels = \"$label\""
 fi
 jql="$projects_clause$status_clause$label_clause ORDER BY created ASC"

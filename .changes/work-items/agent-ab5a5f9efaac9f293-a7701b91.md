@@ -19,3 +19,13 @@ bump: patch
   - Every normalized item carries created_at (UTC, or null). work-loop and
     work's oldest-first pick sort on it, with a defined fallback for null.
   - work-loop passes --scope to both snapshot reads as --label.
+
+### Fixed
+
+- report a labeled GitHub listing at the search cap as truncated
+
+  gh serves a labeled issue list from the search API, which returns at most
+  1000 results, so a labeled read reaching 1000 now reports truncated. Jira
+  answers a whitespace label with an empty, complete listing instead of a
+  usage error, and the adapter generator's list-items guidance names the
+  state-in-query and created_at rules.
