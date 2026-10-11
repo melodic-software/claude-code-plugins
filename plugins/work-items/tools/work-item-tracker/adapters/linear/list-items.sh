@@ -65,14 +65,25 @@ ITEMS='[]'
 CURSOR=""
 COUNT=0
 TRUNCATED=false
+# The declared ceiling from capabilities.json bounds the walk: COUNT is every node fetched,
+# and each page asks for at most one node past the ceiling, so a node that arrives past it
+# proves more exist. Exceeding it is a DOCUMENTED truncation, not an error, but never a
+# silent one: stderr says so and the envelope carries `truncated: true`.
 while :; do
+  FIRST=$((WIT_LINEAR_LIST_ITEMS_MAX + 1 - COUNT))
+  ((FIRST > WIT_LINEAR_PAGE_SIZE)) && FIRST="$WIT_LINEAR_PAGE_SIZE"
   wit_linear_gql "$QUERY" \
-    "$(jq -cn --argjson t "$TEAMS" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$CURSOR" \
+    "$(jq -cn --argjson t "$TEAMS" --argjson f "$FIRST" --arg a "$CURSOR" \
       '{teams: $t, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
     "listing issues"
   PAGE="$(jq -c '.issues // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
   while IFS= read -r node; do
     [[ -n "$node" ]] || continue
+    COUNT=$((COUNT + 1))
+    if ((COUNT > WIT_LINEAR_LIST_ITEMS_MAX)); then
+      TRUNCATED=true
+      break
+    fi
     ONE="$(wit_linear_normalize "$node")" || {
       printf 'list-items.sh: could not normalize a linear issue\n' >&2
       exit "$EX_INTERNAL"
@@ -87,19 +98,14 @@ while :; do
       exit "$EX_INTERNAL"
     }
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
-  COUNT=$((COUNT + $(jq '.nodes | length' <<<"$PAGE")))
+  if [[ "$TRUNCATED" == true ]]; then
+    printf 'list-items.sh: reached the declared ceiling of %s items; results are truncated\n' \
+      "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
+    break
+  fi
   [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$PAGE")" == "true" ]] || break
   CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$PAGE")"
   [[ -n "$CURSOR" ]] || break
-  # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED
-  # truncation, not an error — but never a silent one: stderr says so and the envelope
-  # carries `truncated: true`.
-  if ((COUNT >= WIT_LINEAR_LIST_ITEMS_MAX)); then
-    printf 'list-items.sh: reached the declared ceiling of %s items; results are truncated\n' \
-      "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
-    TRUNCATED=true
-    break
-  fi
 done
 
 # ITEMS travels on STDIN, not argv: this is where the array is largest, so it is the likeliest

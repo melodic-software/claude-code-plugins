@@ -9,10 +9,13 @@ when the reads behind it were complete.
 
 - **Frontier**: the seam's `list-frontier --autonomous`. Its envelope carries `truncated` (the
   tracker seam's `CONTRACT.md`, "JSON output contract").
-- **Open items**: the adapter "List items" projection with an explicit `--limit` set to one more than
-  the adapter's `limits.list_items_max` (from the seam's `capabilities`). That projection carries no
-  flag, so a read returning more than `list_items_max` rows counts as truncated; a backlog of
-  exactly `list_items_max` items is complete.
+- **Open items**: the seam's `list-items --state open`, which every bundled adapter serves. Its
+  envelope carries `truncated` the same way; each adapter decides it exactly, by reading one item
+  past `limits.list_items_max` where the provider allows, so a backlog of exactly the ceiling is
+  complete. Never pass a provider-specific flag such as `--limit` here.
+
+An envelope with no `truncated` field falls under "Completeness unknown" below, whichever read
+returned it.
 
 ## A read that is not complete aborts the cycle
 
@@ -48,8 +51,8 @@ backlog; an empty one from a failed or skipped read is not.
 
 ## Completeness unknown
 
-A frontier envelope with no `truncated` field comes from a consumer adapter written before the
-contract added it. Its completeness is **unknown**, not complete: the cycle runs, but its snapshot
+A frontier or open-items envelope with no `truncated` field comes from a consumer adapter written
+before the contract added it. Its completeness is **unknown**, not complete: the cycle runs, but its snapshot
 never satisfies the drain exit test or sets `first_drain_complete`, and the report says
 `snapshot completeness unknown`. The drain-terminal stop still applies, because stopping lifts no
 gate. Regenerating the adapter with `/work-items:onboard-adapter` restores the flag.
