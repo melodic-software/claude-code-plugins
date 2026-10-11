@@ -1136,8 +1136,8 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 - **Decision:** this agent departs from three defaults on purpose. Bar: it has one dispatch site,
   `/planning:plan` Step 3, and its description says not to invoke it directly, so the
-  multiple-sites clause is unmet; the pin clause carries it, because a definition is the only way to bound
-  this one review's effort (a generic Agent-tool dispatch has no per-invocation `effort`). For the same
+  multiple-sites clause is unmet; the pin clause carries it, because a definition pin bounds this
+  one review's effort on every dispatch without the caller passing a spawn `effort`. For the same
   reason the Step 3 site names no generic fallback: the plugin ships the agent, so there is
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
@@ -1150,9 +1150,12 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   nested plan review at 31.6 minutes and 277k tokens at session effort; the closing comment on
   [#4849](https://github.com/melodic-software/claude-code-plugins/pull/4849), which kept
   `opus`.
-- **As of:** 2026-09-29.
-- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the Agent
-  tool gains a per-invocation `effort` parameter, or the agent's `model` or `effort` changes.
+  For the per-spawn `effort` that would replace the pin, see
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+- **As of:** 2026-10-10.
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
+  Step 3 site starts passing a spawn `effort`, that subagents section changes precedence or which
+  spawns honor `effort`, or the agent's `model` or `effort` changes.
 
 ### Model tiers
 
@@ -1354,14 +1357,13 @@ same depth on two models):
   cost (the environment variable still wins, per above). The pin is not relative: on a model
   whose own default sits above `high`, it caps the lane below that model's default, and the recheck
   trigger above exists exactly for this. The reach is the mechanism's, not the rule's: a generic
-  Agent-tool dispatch carries no effort control: we read the live Agent tool schema, which has a
-  per-invocation `model` parameter and no effort counterpart, and that probe has no stored
-  artifact (Pointer: for the per-call parameters the docs name, see
-  [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
-  As of: 2026-07-29. Recheck trigger: the Agent tool gains an effort parameter), so it
-  structurally inherits the session level and its floor is the
-  session baseline; promoting such a lane to a named agent is how it gains the pin (a required
-  effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
+  Agent-tool dispatch runs at the session level unless the spawn passes `effort`, and a fork spawn
+  ignores that parameter (Pointer: for the per-spawn parameter and its precedence, see
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+  As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor
+  `effort`). A spawn value holds only at the call sites that pass it, so promoting such a lane to
+  a named agent is how it gains a pin that holds at every site (a required effort pin satisfies
+  the named-agent bar's pin clause). The named agents that pin `medium`
   instead, and why, are listed under [pinned agents](#effort-tiers). An orchestrator skill
   whose consequential work executes in generic dispatches reaches them through its own pin: a
   skill-level pin governs the orchestrating conversation and, by our probe, the subagents it
@@ -1512,18 +1514,23 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 - **Recheck trigger:** a row named in the table changes, the default effort of the model an agent's
   alias resolves to changes, or an agent's `model` or `effort` changes.
 
-**Override levers.** We name two levers for a user who wants a pinned agent at another level.
-`CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin. A Workflow
-script's `agent()` call passes `opts.effort`, and `opts.model`, for that call alone. A
-`maxEffortLevel` setting or an organization effort cap also limits every pin.
+**Override levers.** We name three levers for a user who wants a pinned agent at another level.
+`CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin, spawn values
+included. An Agent-tool spawn's `effort` replaces the pin for that spawn, except on a fork spawn,
+which ignores it. A Workflow script's `agent()` call passes `opts.effort`, and `opts.model`, for
+that call alone. A `maxEffortLevel` setting or an organization effort cap also limits every pin.
 
 - **Pointer:** for the variable, see
   [environment variables](https://code.claude.com/docs/en/env-vars#variables); for how a pin ranks
   against the variable and a cap, see
-  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
-- **As of:** 2026-10-01.
-- **Recheck trigger:** the variable stops replacing a frontmatter pin, or the Agent tool gains a
-  per-invocation `effort` parameter.
+  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
+  for the spawn parameter and its rank, see
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+  Our probe cases under `plugins/harness-ops/skills/behavior-probes/cases/subagent/`, run on Claude
+  Code 2.1.296, observed the variable outranking a spawn value and a spawn value outranking a pin.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** the variable stops replacing a frontmatter pin, or that subagents section
+  changes precedence or which spawns honor `effort`.
 
 Our Workflow probe: an explicit `opts.effort` or `opts.model` on an `agent()` call overrode the
 named agent's frontmatter pin for that call, and omitting them kept the pin. No docs section
@@ -1533,25 +1540,29 @@ covers per-call effort for `agent()`; for the call itself, see
 - **Pointer:** probes `wf_1a471686-8a2` and `wf_5196f26b-e1f`, run on Claude Code 2.1.284 and
   2.1.285; no artifact is stored in this repository.
 - **As of:** 2026-10-01.
-- **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call or
-  for the Agent tool.
+- **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call.
 
 **Where per-task effort is set.** We set a task's effort through Workflow's per-call effort
-option. An Agent-tool dispatch of a named agent runs at that agent's pin, and a generic one at the
-session level. A lane's `--effort` sets the session level, so it covers the orchestrator's own
-turns and its generic dispatches; it does not move a named agent's pin. Workflow scripts this
-repository ships never pass an effort below a named agent's pin, and omit effort on a call to a
-named agent to keep the pin. A call that names no agent passes an explicit level.
+option or the Agent tool's per-spawn `effort`. An Agent-tool spawn that passes no `effort` runs a
+named agent at its pin and an unpinned agent at the session level; a fork spawn ignores the
+parameter. A lane's `--effort` sets the session level, so it covers the orchestrator's own turns
+and the generic dispatches that pass no `effort`; it does not move a named agent's pin. Workflow scripts
+and skills this repository ships never pass an effort below a named agent's pin, and omit effort
+on a call to a named agent with a pin to keep it, because a passed value replaces the pin. A call
+that names no pinned agent, and is not a fork, passes an explicit level where the skill has
+resolved one.
 
 - **Pointer:** for the `--effort` flag, see
   [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags); for a
   subagent's `effort` field and its rank over the session level, see
-  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-  No docs page covers per-call effort for a Workflow `agent()` call as of 2026-10-02; our Workflow
-  probe above is the record.
-- **As of:** 2026-10-02.
-- **Recheck trigger:** a docs page starts covering it, the Agent tool gains an effort parameter, or
-  either section above changes how the flag or the field ranks.
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
+  for the Agent tool's per-spawn `effort`, see
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+  No docs page covers how a Workflow `agent()` call's effort ranks against a named agent's pin;
+  our Workflow probe above is the record.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** a docs page starts covering the Workflow ranking, or any section above
+  changes precedence or which spawns honor `effort`.
 
 **A skill's pin reaches the subagents it dispatches.** We treat a skill's frontmatter `effort` pin
 as applying to the main turns while that skill is active and to the subagents it dispatches.
