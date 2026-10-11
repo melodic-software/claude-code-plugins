@@ -10,7 +10,8 @@
 # nothing of its own. That status is not a block, so the tool call went ahead;
 # bash's one-line error went to the debug log, and the transcript recorded
 # "exit 1, stderr: (none)". How Claude Code treats each exit status is the
-# hooks page's to state. Pointer:
+# hooks page's to state; our hooks.json rows set no failure-handling field, so
+# they take its default. Pointer:
 # https://code.claude.com/docs/en/hooks#exit-code-output. As of: 2026-10-11.
 # Recheck trigger: that section changes what a status other than 0 or 2 does
 # to the tool call, or is renamed. A blocking

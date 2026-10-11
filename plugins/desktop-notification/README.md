@@ -13,8 +13,8 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
   not a gate.
 - **Pointer**: the notification types and what a Notification hook can return are
   in [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
-  2026-10-11. **Recheck trigger**: that section renames either type or lets a
-  Notification hook block, or is renamed.
+  2026-10-11. **Recheck trigger**: that section renames either type, lets a
+  Notification hook block, stops discarding its `systemMessage`, or is renamed.
 - **Three additive channels**, each default on and independently mutable:
 
 | Channel | Option | What it does |
@@ -49,8 +49,8 @@ The hook runs on Bash 3.2+. On native Windows, install
 available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
 a Claude Code install does not guarantee Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
-are disabled and `/desktop-notification:check` reports it (a Notification hook cannot show a notice:
-Claude Code [discards its `systemMessage`](https://code.claude.com/docs/en/hooks#notification)). macOS needs nothing
+are disabled and `/desktop-notification:check` reports it, because a Notification hook has no notice
+channel of its own (the Notification pointer record under Behavior covers what it can return). macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is

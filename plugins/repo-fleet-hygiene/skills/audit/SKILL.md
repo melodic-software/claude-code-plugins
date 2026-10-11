@@ -196,7 +196,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | Claim | Basis | As of | Recheck |
    |---|---|---|---|
    | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
-   | `claude/*` branches come from Claude Code cloud sessions. | Observed on fleet remotes in this skill's remote-branch inventory (`scripts/audit-fleet.sh`, the `claude/*` family case). Pointer: the routine-run branch prefix is in <https://code.claude.com/docs/en/routines#repositories-and-branch-permissions>; <https://code.claude.com/docs/en/claude-code-on-the-web> names none. | 2026-10-11 | That routines section changes the prefix or is renamed, the web page names a prefix, or a `claude/*` branch turns up with another origin. |
+   | `claude/*` branches come from Claude Code cloud sessions. | Observed on fleet remotes (no probe recorded). Pointer: the routine-run branch prefix is in <https://code.claude.com/docs/en/routines#repositories-and-branch-permissions>; <https://code.claude.com/docs/en/claude-code-on-the-web> names none. | 2026-10-11 | That routines section changes the prefix or is renamed, the web page names a prefix, or a `claude/*` branch turns up with another origin. |
 
    **Unmerged remote branch:** a remote-tracking head with no `MERGED` PR row (not the default,
    current, or worktree-attached branch) gets one more read-only GraphQL query for pull requests
