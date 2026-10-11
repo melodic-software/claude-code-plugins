@@ -38,14 +38,14 @@ heredoc whose text mentioned git; direct script paths, one git command per call,
 were accepted. Basis: observed during the melodic-software/.github sweep (PR
 melodic-software/.github#153), recorded in
 [#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). Release notes have
-since changed which Bash forms isolation refuses, and the section below names none of these
-three forms, so all three stay unverified and the conservative procedure stays. Not re-probed in a live isolated
-session. The procedure files point here for these shapes.
+since changed which Bash forms isolation refuses, but neither the section below nor the release
+notes read through Claude Code 2.1.296 name these three forms, so all three stay unverified and
+the conservative procedure stays. Not re-probed in a live isolated session. The procedure files
+point here for these shapes.
 
 - **Pointer**: when deciding which Bash forms an isolated session accepts, fetch
-  <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live, and the
-  [changelog](https://code.claude.com/docs/en/changelog) entries after the last recheck.
-- **As of**: 2026-10-11
+  <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live.
+- **As of**: 2026-10-11 (section and release notes through 2.1.296)
 - **Recheck trigger**: that section or a release note changes which Bash forms an isolated
   session accepts, or a live isolated session runs the three forms.
 
