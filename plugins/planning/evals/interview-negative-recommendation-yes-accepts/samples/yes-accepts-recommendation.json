@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the columns the filtered table shows** - ops already reads them.\nBasis: judgment\n\nQ2: Should the React rewrite stay out of this change, as its own follow-up?\nMy recommendation: **Yes, keep it out** - the export is small and the rewrite is not.\nBasis: judgment",
+      "why": "yes to Q2 accepts keeping the rewrite out"
+    },
+    {
+      "answer": "Q2: How should the React rewrite relate to this change?\nMy recommendation: **a separate follow-up** - the export ships on the current page.\nAlternatives: rewrite first, then add the export; do both in one change.",
+      "why": "choice question; yes can only accept the named recommendation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the visible columns**.\n\nQ2: Should we rewrite the whole admin page in React as part of this?\nMy recommendation: **No** - keep this change to the export button.\nBasis: judgment",
+      "why": "yes means rewriting, against the recommendation"
+    },
+    {
+      "answer": "Q2: Should we rewrite the admin page in React while we're in there?\nMy recommendation: **Keep it out of scope** - a rewrite is a separate project.",
+      "why": "yes means rewriting while the recommendation keeps it out"
+    },
+    {
+      "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the visible columns**.",
+      "why": "no question about the rewrite"
+    }
+  ]
+}
