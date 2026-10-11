@@ -101,35 +101,33 @@ Use the `|| echo "<fallback>"` form (or the `shell:`-appropriate equivalent) on 
 
 ### No brace group or subshell in an injected command
 
-The shell permission check refuses an injected command that holds a brace group (`{ …; }`) or a
-subshell (`( … )`), so the skill never loads outside auto mode. A brace group that holds a quote
-character fails with `Contains brace with quote character (expansion obfuscation)`; a quote-free
-brace group fails with `A group in braces or double parentheses in this command can't be checked
-before it runs`; a subshell fails with `This command can't be checked before it runs`. A narrow
-`allowed-tools` grant does not help, because the check cannot read what the group runs; only a
-blanket `Bash` grant lets the group through, and that grant breaks
-[Grant every injected command](#grant-every-injected-command).
-`${VAR}` parameter expansion is not a brace group, and a quote outside any group is accepted.
-
 Write every injected command as a plain list: probes joined by `&&`, `||`, `;` and `|`, with no
-grouping. A tool probe is the probe, `||`, and a fallback word:
+brace group (`{ …; }`) and no subshell (`( … )`). A tool probe is the probe, `||`, and a fallback
+word:
 
 ```text
 - `jq`: !`command -v jq 2>/dev/null || echo absent`
 ```
 
-An `if … fi` compound is not refused for its shape: the check reads each command inside it, so each
-still needs its grant.
+We hold this rule because of what a headless probe in default permission mode observed. The shell
+permission check refused every grouped row before it ran, so the skill rendered nothing: a brace
+group with or without a quote inside it, and a subshell with or without one. A narrow
+`allowed-tools` grant for the probe did not lift either refusal. A blanket `Bash` grant did let the
+brace group through, but we never use one to rescue a group, because it breaks
+[Grant every injected command](#grant-every-injected-command). The same row written as a plain list
+rendered once its command was granted, with or without a quoted fallback word, and was refused
+without the grant. `${VAR}` parameter expansion is not a group in this sense. The probe did not
+cover an `if … fi` compound, so prefer a plain list there too.
 
-**Record.** Claim: the three refusal messages above, that a brace group is refused with or without
-a quote, that a narrow `allowed-tools` grant does not lift the refusal while a blanket `Bash` grant
-does, that an `if` compound is checked command by command, and that a quote outside a group
-passes. Basis: headless probe, Claude Code 2.1.296, `claude -p` in default permission mode against
-a throwaway plugin, refusals read from the `--debug-file` log; the page's
-[Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
-says any check result other than allow aborts the render and names no syntax-level refusal.
-As of: 2026-10-11. Recheck: a Claude Code release note changes which Bash shapes the permission
-check can analyze, or that section starts naming syntax the check refuses.
+- **Pointer**: when deciding whether a grouped or ungrouped injected command loads, read the probe
+  command and its rows under "Probe evidence" in
+  [pull request #7068](https://github.com/melodic-software/claude-code-plugins/pull/7068) and rerun
+  them on the current release; for how the render treats a permission check result, fetch
+  [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
+  live.
+- **As of**: 2026-10-11 (Claude Code 2.1.296)
+- **Recheck trigger**: a Claude Code release note changes which Bash shapes the permission check
+  can analyze, or that section starts naming syntax the check refuses.
 
 ### Bind the fallback to the probe, not to the pipeline
 
@@ -180,10 +178,9 @@ release note again changes which Bash forms an isolated session accepts.
 ### Write for either `pipefail` setting; the repeated guard is correct under both
 
 The skills docs specify the working directory, stderr merging, timeout, output size, and the
-exit-code semantics of an injected command, but name no shell options. A headless probe on Claude
-Code 2.1.296 (`false | true && echo off || echo on` rendered `off`) found injections running
-without `pipefail`, but the page does not promise that, so write a probe that renders the same
-under both settings.
+exit-code semantics of an injected command, but name no shell options. A headless probe rendered
+a row as it would without `pipefail`, but no page promises that, so write a probe that renders the
+same under both settings.
 
 The repeated-guard form above does:
 
@@ -203,10 +200,12 @@ so a failure after the guard also renders empty: a filter binary off PATH, or a 
 invocation that fails after the guard's copy succeeded. The label carries that weight instead, and
 must never assert a bare `empty = none`.
 
-**Record.** Claim: injections ran without `pipefail` in the probe. Basis: headless probe, Claude
-Code 2.1.296, `claude -p` in default permission mode, `shell: bash`. As of: 2026-10-11. Recheck:
-the [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
-section starts naming the shell options injections run under.
+- **Pointer**: when deciding whether a row may rely on either `pipefail` setting, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live; the probe row is under "Probe evidence" in
+  [pull request #7068](https://github.com/melodic-software/claude-code-plugins/pull/7068).
+- **As of**: 2026-10-11 (Claude Code 2.1.296)
+- **Recheck trigger**: that section starts naming the shell options injections run under.
 
 ### Windows / `shell:` awareness
 
