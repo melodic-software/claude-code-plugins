@@ -134,7 +134,7 @@ stays unconditioned until upstream matching reaches those paths.
 
 ## What makes the numbers trustworthy
 
-- **Nothing is shipped, everything is measured.** The skill contains no token figures, tool
+- **No figures ship; every number is measured locally.** The skill contains no token figures, tool
   inventories, or thresholds. Those drift with every CLI release. Every number in a report was
   produced by a run on the consumer's machine during that audit.
 - **Every report is stamped** with the measured binary path and version, the measurement mode,
@@ -143,7 +143,7 @@ stays unconditioned until upstream matching reaches those paths.
   with identical skill listings (listed skill frontmatter is subtracted from that bucket); the
   engine fingerprints the listing per run and marks violating comparisons incomparable rather
   than reporting their numbers.
-- **Levers are catalogued data, not folklore.** Each row in
+- **Levers are catalogued data.** Each row in
   `skills/audit/reference/levers.json` carries its honesty category (does it remove weight, work
   but save nothing here, block without saving, sit as vendor weight, or cost more than it buys),
   the official citation behind it, how to detect and measure it, the exact config it would emit,
