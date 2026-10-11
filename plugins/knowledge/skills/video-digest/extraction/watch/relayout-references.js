@@ -181,7 +181,10 @@ function lookUp(refPath, sourceFile, map) {
           .map(([, to]) => `${to.split("/")[0]}/`),
       ),
     ].sort();
-    const note = splitInto.length > 0 ? `split across ${splitInto.join(", ")} in this copy` : NOT_RETAINED;
+    const note =
+      splitInto.length === 0
+        ? NOT_RETAINED
+        : `${splitInto.length === 1 ? "now under" : "split across"} ${splitInto.join(", ")} in this copy`;
     return { retired, note };
   }
   if (bare.includes("/") && keys.some((key) => map.entries.has(path.posix.dirname(key)))) {

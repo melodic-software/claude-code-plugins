@@ -3,8 +3,9 @@
  * Copy a finished video-digest slice into a target directory in the
  * knowledge-corpus layout, rewrite the slice-internal paths its markdown names,
  * then link-check the result. A slice is finished when it is closed, or when
- * it is not closed yet and its outcome checks pass (the pre-close run, while
- * the temp session still holds the media).
+ * it is not closed yet and its outcome checks pass. Run it before `close` to
+ * keep the media: `close` removes the temp session, so on a closed slice only
+ * `--no-media` works.
  *
  * Target layout: `transcript/` (transcript text and the served caption tracks),
  * `metadata/` (trimmed info JSON, harvested links and repo analysis, deck
@@ -19,7 +20,8 @@
  *
  * The layout is built in a sibling staging directory and moved into place only
  * when the link check passes; on any failure the target is left untouched. An
- * existing target is replaced only with `--replace`, which keeps its README.
+ * existing target is replaced only with `--replace`, which keeps its README;
+ * a `<target-dir>.relayout-backup` left by an interrupted replace blocks every run.
  * `--no-media` copies nothing from the temp session.
  *
  * Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media] [--replace]
@@ -159,6 +161,13 @@ export async function relayoutSlice({
   if (isSameOrInside(target, slice) || isSameOrInside(slice, target)) {
     return refuse(`${target} overlaps the slice ${slice}; pick a target outside it`);
   }
+  const backup = `${target}.relayout-backup`;
+  if (fs.existsSync(backup)) {
+    return refuse(
+      `${backup} exists: a previous --replace was interrupted and it holds the old target; ` +
+        "restore it to the target path or remove it first",
+    );
+  }
   const state = readJsonObject(watchStatePath(slice));
   if (!state || typeof state.videoId !== "string" || !/^[\w-]+$/.test(state.videoId)) {
     return refuse(`no readable run-state/watch.json with a plain videoId under ${slice}`);
@@ -206,7 +215,8 @@ export async function relayoutSlice({
       return refuse(
         `the temp session needs one video with its info JSON and the extracted frames ` +
           `(found ${videos.length} videos, ${info ? "an" : "no"} info JSON, ${frames.length} frames); ` +
-          "pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
+          "to keep the media, re-lay out before `close`, which removes the temp session; " +
+          "otherwise pass --no-media to re-lay out without media/, frames/all/, the caption tracks and info.json",
       );
     }
     if (id !== state.videoId && info.display_id !== state.videoId) {
@@ -313,7 +323,6 @@ export async function relayoutSlice({
     fs.rmSync(staging, { recursive: true, force: true });
     return { exitCode: 1, copied: 0, rewrites, unresolved };
   }
-  const backup = `${target}.relayout-backup`;
   const hadTarget = fs.existsSync(target);
   try {
     if (hadTarget) fs.renameSync(target, backup);

@@ -64,7 +64,8 @@ markdown names, and refuses to write anything while a slice-internal path does n
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js <slice-dir> <target-dir> [--no-media] [--replace]
 ```
 
-Its header comment documents the target layout and the exit codes. Any other layout is yours
+Run it before `close` to keep the media: `close` removes the temp session, so on a closed slice
+the media is gone and only `--no-media` works. Its header comment documents the target layout and the exit codes. Any other layout is yours
 to fork in your own automation; this skill's contract is root relocation plus that one layout.
 
 ### Known limits of the re-layout

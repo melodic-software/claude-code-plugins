@@ -183,6 +183,30 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it("names the one directory a retired directory's files all went to", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "recommendations/lanes.md": "Verify artifacts stay in `key-frames/`.\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/lanes.md")).toBe(
+      "Verify artifacts stay in key-frames/ (now under frames/ in this copy).\n",
+    );
+  });
+
+  it("refuses while a backup from an interrupted --replace exists, and leaves it alone", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    writeTree(`${targetDir}.relayout-backup`, { "README.md": "# Curated\n" });
+
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out.relayout-backup"]);
+    expect(read(`${targetDir}.relayout-backup`, "README.md")).toBe("# Curated\n");
+  });
+
   it("retires a dropped link whose label holds a code span or an image", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
