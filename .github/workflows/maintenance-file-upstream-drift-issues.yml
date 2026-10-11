@@ -29,6 +29,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: maintenance-file-upstream-drift-issues
+  cancel-in-progress: false
+
 jobs:
   file-upstream-drift-issues:
     runs-on: ubuntu-24.04
@@ -36,9 +40,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-    concurrency:
-      group: maintenance-file-upstream-drift-issues
-      cancel-in-progress: false
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
