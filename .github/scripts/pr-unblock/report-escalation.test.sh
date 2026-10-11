@@ -183,6 +183,20 @@ check "head moved: exit 0" 0 "$RC"
 check "head moved: no write" 0 "$(writes)"
 has "head moved: says superseded" "superseded" "$STUB/out"
 
+# A label left by a failed comment write still gets its comment after the head moves.
+setup '[]' '[]'
+touch "$STUB/fail_comments"
+run unresolved-conflict
+printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
+printf '%s' "$HEAD_B" >"$STUB/live_head"
+rm "$STUB/fail_comments"
+: >"$STUB/requests"
+: >"$STUB/bodies"
+run unresolved-conflict
+check "label on, head moved: exit 0" 0 "$RC"
+check "label on, head moved: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+has "label on, head moved: comment carries the resume key" "resume-key=$HEAD_A" "$STUB/bodies"
+
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
 run unresolved-conflict
 check "marker written by a user does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"

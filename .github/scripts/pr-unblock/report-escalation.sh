@@ -23,8 +23,10 @@
 # resume key, it writes nothing. Without the label (a person removed it to resume), it
 # escalates again. The label is written before the comment, so a retry after a
 # failure between the two finds the label and posts at most one comment.
-# When the PR head is no longer HEAD_SHA, the escalation is superseded: it
-# writes nothing and the run on the new head decides.
+# When the label is not on yet and the PR head is no longer HEAD_SHA, the
+# escalation is superseded: it writes nothing and the run on the new head
+# decides. With the label already on (a person's, or a write whose comment
+# failed), it still posts the comment, so no hold stays unexplained.
 #
 # Exit: 0 when escalated, already escalated or superseded; 1 on bad input or
 # API failure.
@@ -87,13 +89,12 @@ gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER
 \`\`\`
 EOF
 
-live=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" | jq -r '.head.sha')
-if [[ $live != "$HEAD_SHA" ]]; then
-  echo "superseded: the PR head moved from $HEAD_SHA to $live; not escalating"
-  exit 0
-fi
-
 if [[ $labeled != true ]]; then
+  live=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" | jq -r '.head.sha')
+  if [[ $live != "$HEAD_SHA" ]]; then
+    echo "superseded: the PR head moved from $HEAD_SHA to $live; not escalating"
+    exit 0
+  fi
   gh api -X POST "$issue/labels" -f "labels[]=$label" >/dev/null
 fi
 gh api -X POST "$issue/comments" -F "body=@$body" >/dev/null
