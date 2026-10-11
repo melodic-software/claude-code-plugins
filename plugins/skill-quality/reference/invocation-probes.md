@@ -12,7 +12,7 @@ that match. This harness does, in two layers:
 | Method | What it is | When to run |
 |---|---|---|
 | `listing-overlap` | Deterministic floor: quoted-trigger hits plus content-token overlap against the target listing and named competitors | By hand, before and after a rewrite (`score` then `compare`). CI validates the probe schema and runs the harness tests only. The committed baseline uses this method. |
-| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. Cross-plugin competitors are out of scope for this method (pointer below for why). |
+| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. Cross-plugin competitors are out of scope for this method (why: the pointer under [Report fields](#report-fields); as of 2026-10-11; recheck trigger: that pointer moving or that heading being renamed). |
 | Headless `claude -p` | Live cross-plugin selection | On demand, documented, not wrapped here. Replay its fire/quiet bits through `compare`. |
 
 `listing-overlap` is **not** a model-graded auto-invocation rate. A high floor

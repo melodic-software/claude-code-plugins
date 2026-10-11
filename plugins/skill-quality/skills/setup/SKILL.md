@@ -44,16 +44,20 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
 - **Reconfiguring the personal option:** through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md#verified-version-record>,
   which owns the verified-version record): interactive `/plugin configure skill-quality@<marketplace>`
   any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
   (repeatable per key), rerun against the already-installed plugin. Pass the scope
   `claude plugin list` reports, and run from that project's directory for a `project`/`local`
-  scope: the convention measured a rerun at another scope adding a second install record and
-  enabling the plugin there, with the value itself still landing in user settings. Do **not**
-  uninstall to reconfigure. Read the command's output rather than trusting its
-  exit code. The convention records why for each of these rules; this skill does not restate it.
+  scope: the convention's verified-version record (anchored above) measured a rerun at another
+  scope adding a second install record and enabling the plugin there, with the value itself
+  still landing in user settings. Do **not** uninstall to reconfigure. Read the command's output
+  rather than trusting its exit code. The convention's
+  [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+  records why for each of these rules; this skill does not restate it.
   This skill never writes user settings or `pluginConfigs`.
+  - **Record**: both convention sections above. **As of**: 2026-10-11. **Recheck trigger**:
+    either heading being renamed, or a newer Claude Code release being verified in the record.
   - **Pointer**: when the install, uninstall, or configure command's behavior is in doubt, fetch
     <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>,
     <https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall> and

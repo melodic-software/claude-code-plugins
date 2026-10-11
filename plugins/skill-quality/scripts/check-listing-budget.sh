@@ -6,7 +6,9 @@
 # Claude Code loads a listing of every skill's name + description into context
 # each turn. Two independent limits apply to it:
 #   - Per-entry cap (skillListingMaxDescChars): check-skill.sh check 2 already
-#     guards this, and its DESC_CHAR_CAP record owns that constant.
+#     guards this, and the comment above `DESC_CHAR_CAP=` in check-skill.sh
+#     owns that constant (a script, so no section anchor; as of 2026-10-11;
+#     recheck trigger: that constant being renamed or its pointer changing).
 #   - Shared/aggregate cap (skillListingBudgetFraction): NOTHING checks this
 #     before now. An overflowing aggregate degrades some skills'
 #     auto-invocation with no local signal that it happened.

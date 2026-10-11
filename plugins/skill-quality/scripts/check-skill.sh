@@ -2036,7 +2036,9 @@ done
 # The contract is a FIXED POINT: the literal text after `summary:` must be what
 # every reader recovers, whether it reads with a real YAML parser or a regex.
 # This check treats a value a parser rejects as costing the skill its whole
-# frontmatter (record: the unquoted-description check under check 1 above).
+# frontmatter (record: the unquoted-description comment under the
+# `# --- Check 1` header above; as of 2026-10-11; recheck trigger: that
+# comment's pointer or its stated parse-failure behavior changing).
 # Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
 # reader can recover exactly, which is why it is stricter than YAML alone.
 #

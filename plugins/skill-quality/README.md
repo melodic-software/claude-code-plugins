@@ -26,13 +26,16 @@ the reviewer to confirm the description still names that intent, or to restore t
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
   A plain (unquoted, non-block) `description` that contains `": "` or a line ending in `:` on any
   line FAILs: that is a YAML mapping indicator, and a frontmatter block that does not parse costs
-  the skill its fields (record: the description check in `scripts/check-skill.sh`). A quoted or
-  block scalar may contain the indicator. `compatibility`, when present, is held to the Agent
-  Skills spec's length range and FAILs outside it. Absence is success. The effective name (the
-  declared field, else the directory leaf) is held to the spec's `name` length cap (FAIL) and
-  WARNs when it carries `anthropic` or `claude`, a Skills API upload rule rather than a spec rule.
-  Claude Code enforces neither name rule, so both are portability findings. The checker's
-  constants and their records live in `scripts/check-skill.sh`.
+  the skill its fields. A quoted or block scalar may contain the indicator. `compatibility`, when
+  present, is held to the Agent Skills spec's length range and FAILs outside it. Absence is
+  success. The effective name (the declared field, else the directory leaf) is held to the spec's
+  `name` length cap (FAIL) and WARNs when it carries `anthropic` or `claude`, a Skills API upload
+  rule rather than a spec rule. Claude Code enforces neither name rule, so both are portability
+  findings.
+  - **Record**: the parse-failure behavior is recorded in the unquoted-description comment under
+    the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
+    `NAME_MAX_LEN=` there (a script, so no section anchor). **As of**: 2026-10-11. **Recheck
+    trigger**: that header, that comment's pointer, or `NAME_MAX_LEN` being renamed or moved.
   - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
     <https://agentskills.io/specification#compatibility-field>,
     <https://agentskills.io/specification#name-field> and
@@ -62,8 +65,11 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
-- `SKILL.md` at most 500 lines, counted over the whole file: this check's stricter reading of
-  official guidance that sets the number (record: check 4 in `scripts/check-skill.sh`).
+- `SKILL.md` under 500 lines, counted over the whole file: this check's stricter reading of
+  official guidance that sets the number.
+  - **Record**: the comment under the `# --- Check 4` header of `scripts/check-skill.sh` (a
+    script, so no section anchor). **As of**: 2026-10-11. **Recheck trigger**: that header or
+    `LINE_HARD_CAP` being renamed or moved, or that comment's pointer changing.
   - **Pointer**: for the number and what it covers, fetch
     <https://code.claude.com/docs/en/skills#add-supporting-files> live. **As of**: 2026-10-11.
     **Recheck trigger**: that section moving the number or its scope.
