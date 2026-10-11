@@ -125,7 +125,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `mask_style` | string | `"block"` | `CLAUDE_PLUGIN_OPTION_MASK_STYLE` | How a match in a reply, prompt or command output is hidden. block draws it as a solid bar that shows the value while the pointer is over it; text replaces it with \[hidden\]. Tool rows always use \[hidden\]. |
-| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or nests a quantifier inside a quantified group is skipped. |
+| `extra_patterns` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_EXTRA_PATTERNS` | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or could backtrack too long (nested or stacked quantifiers, alternation inside a repeated group) is skipped. |
 
 ### How to set these
 
