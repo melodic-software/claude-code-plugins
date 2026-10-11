@@ -17,6 +17,9 @@ stays 1.
   `check-trusted-base` as `mode`; `default-tip` trusts the default branch tip for config, actions
   and the merge's second parent) and `escalation-reason` (enum-checked, exported to a script as
   `ESCALATION_REASON`). New `workflow_call` output `escalation-reason`.
+- The write runner sends `dispatcher-run-id` to the lanes token broker as `dispatcher_run_id`, a
+  positive JSON integer that the broker reads only for a run sent by `github-actions[bot]`
+  (broker side: azure-iac#20).
 - Every `mutate-branch` activity re-reads its PR branch from `git/ref` before the mint; a moved
   branch skips neutral `superseded-sha` with no token and no model turn. This changes pr-refine:
   such a run used to run the skill and then fail at promote.
