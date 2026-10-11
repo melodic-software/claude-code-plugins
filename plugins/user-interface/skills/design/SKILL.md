@@ -118,6 +118,7 @@ the user agrees.
 
 - Direction set, throwaway layout variants wanted: /prototype:explore-directions.
 - Direction set, CSS to write: /user-interface:write-css.
+- Direction set, an interface animation to build: /user-interface:write-animation.
 
 ## Gotchas
 
