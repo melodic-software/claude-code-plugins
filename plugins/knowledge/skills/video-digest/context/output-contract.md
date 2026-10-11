@@ -108,11 +108,13 @@ the companion sources brief, and the fetched `decks/` and `attachments/`), `fram
 paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
 the copied markdown names is rewritten through a path map relative to the file's new location:
 inline links (balanced or escaped parentheses in the destination, quoted or parenthesized titles),
-reference-style links, HTML `src`/`href` in any quoting or case (character references decoded),
+reference-style definitions whose line holds nothing after the destination but an optional
+title, HTML `src`/`href` attributes in any quoting or case (character references decoded),
 and backticked paths, with each
 segment percent-decoded (and re-encoded on rewrite) and `\` separators read as `/`.
 A relative link that leaves the slice keeps pointing at the same file. Fenced code blocks are
-left untouched, and link syntax inside an inline code span is not read as a link.
+left untouched, and link syntax inside an inline code span is not read as a link. Text inside an
+HTML tag or comment is data: only a tag's own `src`/`href` attributes are read.
 One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
 own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
 saying it is not retained; one naming a directory whose files went to several places (`source/`)

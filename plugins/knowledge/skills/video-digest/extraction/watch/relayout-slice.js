@@ -140,12 +140,16 @@ const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
  */
 const REFERENCE_DEFINITION_LABEL =
   /^ {0,3}\[((?:\\[^\n]|[^[\]\\\n]|\r?\n(?![ \t]*\r?\n)){1,999})\]:[ \t]*(?:\r?\n[ \t]*)?/gm;
+/** What may follow a definition's destination: a line ending, or a title then one. */
+const DEFINITION_TAIL =
+  /^(?:[ \t]+(?:"(?:\\[^]|[^"\\])*"|'(?:\\[^]|[^'\\])*'|\((?:\\[^]|[^()\\])*\)))?[ \t]*(?:\r?\n|$)/;
 
 /**
  * Every reference-style link definition in `text` whose label holds a
  * non-space character (CommonMark rejects an all-whitespace label), its
- * destination read by the same parser as inline links and followed by
- * whitespace or the end of the text.
+ * destination read by the same parser as inline links and followed, on its
+ * line, by nothing but whitespace and an optional title. A line such as
+ * `[note]: source/x.txt is illustrative` is prose, not a definition.
  *
  * @param {string} text
  * @returns {{ from: number, to: number, raw: string, angle: boolean }[]}
@@ -156,23 +160,32 @@ function referenceDefinitions(text) {
     if (!/\S/.test(match[1])) continue;
     const from = /** @type {number} */ (match.index) + match[0].length;
     const parsed = parseDestination(text, from);
-    if (parsed === null || parsed.raw === "" || /\S/.test(text[parsed.end] ?? " ")) continue;
+    if (parsed === null || parsed.raw === "") continue;
+    if (!DEFINITION_TAIL.test(text.slice(parsed.end))) continue;
     found.push({ from, to: parsed.end, raw: parsed.raw, angle: parsed.angle });
   }
   return found;
 }
-/** `src` and `href` in inline HTML, double-, single- or unquoted. */
-const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
+/**
+ * One attribute of an HTML start tag, read from where the previous one ended:
+ * a name, then an optional double-, single- or unquoted value. Sticky, so a
+ * `src=` inside another attribute's quoted value is never read as a name.
+ */
+const HTML_ATTRIBUTE = /[\s/]*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/dy;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
 
 /** An HTML start tag: `<name` then attributes, quoted values may hold `>`. */
-const HTML_START_TAG = /<[A-Za-z][A-Za-z0-9-]*(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
+const HTML_START_TAG = /<([A-Za-z][A-Za-z0-9-]*)(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
+/** An HTML comment. */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 
 /**
  * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
- * with the regex group that matched (2 double-quoted, 3 single-quoted,
- * 4 unquoted). Prose such as `set href=../x` outside a tag is not read.
+ * with the group that matched (2 double-quoted, 3 single-quoted,
+ * 4 unquoted). The tag's attributes are read left to right, so only a real
+ * attribute counts: not prose such as `set href=../x` outside a tag, not
+ * `data-src`, and not `src=` text inside another attribute's value.
  *
  * @param {string} text
  * @returns {{ from: number, to: number, group: number }[]}
@@ -182,14 +195,31 @@ function htmlAttributeValues(text) {
   const values = [];
   for (const tag of text.matchAll(HTML_START_TAG)) {
     const base = /** @type {number} */ (tag.index);
-    for (const match of tag[0].matchAll(HTML_PATH_ATTRIBUTE)) {
-      const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
+    HTML_ATTRIBUTE.lastIndex = 1 + tag[1].length;
+    for (let match; (match = HTML_ATTRIBUTE.exec(tag[0])) !== null; ) {
+      if (!/^(?:src|href)$/i.test(match[1])) continue;
+      const group = [2, 3, 4].find((at) => match?.[at] !== undefined) ?? 2;
       const span = match.indices?.[group];
-      if (!span) continue;
+      if (!span || span[0] === span[1] || tag[0].slice(span[0], span[1]).includes("\n")) continue;
       values.push({ from: base + span[0], to: base + span[1], group });
     }
   }
   return values;
+}
+
+/**
+ * Ranges of `text` holding HTML start tags and comments: attribute and
+ * comment text is data, so the link, definition and backticked-path passes
+ * skip it; only htmlAttributeValues reads a tag.
+ *
+ * @param {string} text
+ * @returns {[number, number][]}
+ */
+function htmlRanges(text) {
+  return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_START_TAG)].map((match) => {
+    const from = /** @type {number} */ (match.index);
+    return /** @type {[number, number]} */ ([from, from + match[0].length]);
+  });
 }
 
 const HTML_NAMED_REFERENCES = /** @type {Record<string, string>} */ ({
@@ -812,11 +842,12 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     if (next !== ref) rewrites += 1;
     return next;
   };
-  const { fenceMasked, linkMasked } = maskCode(text);
+  const { fenceMasked, linkMasked, tagText } = maskCode(text);
   // Every pass records edits by offset into the original text; the scans run
-  // over masked copies, so nothing inside a fenced code block is touched and
-  // no link syntax inside an inline code span is read as a link. Inline code
-  // spans themselves are read for paths (the backticked-path rewrite).
+  // over masked copies, so nothing inside a fenced code block, an HTML tag or
+  // an HTML comment is touched and no link syntax inside an inline code span
+  // is read as a link. Inline code spans themselves are read for paths (the
+  // backticked-path rewrite); tags only for their src/href values.
   /** @type {{ from: number, to: number, text: string }[]} */
   const edits = [];
   // Inline links: a link naming a file the layout drops keeps its label in
@@ -855,7 +886,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     if (rewritten === dest) continue;
     edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
   }
-  for (const { from, to, group } of htmlAttributeValues(linkMasked)) {
+  for (const { from, to, group } of htmlAttributeValues(tagText)) {
     // An attribute value may hold character references (`&amp;`): map the
     // decoded path, then escape the new value for its quoting: `&` always,
     // the enclosing quote character, and an unquoted value that now needs
@@ -914,16 +945,19 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
 }
 
 /**
- * Copies of `text` with code masked by spaces (line endings kept, so every
- * offset still matches the original): `fenceMasked` blanks top-level fenced
+ * Copies of `text` with code and HTML masked by spaces (line endings kept, so
+ * every offset still matches the original). All three blank top-level fenced
  * code blocks (``` or ~~~ opening at column 0; an unclosed fence runs to the
- * end), and `linkMasked` also blanks inline code spans. Fences that are
- * indented or inside a block quote or list item, and indented code blocks,
- * are not masked: telling them apart needs container parsing. What they hold
- * is read as ordinary text, so the link check still sees a dangling path.
+ * end). `fenceMasked` also blanks HTML start tags and comments, whose text is
+ * data; `linkMasked` blanks those and inline code spans; `tagText` blanks
+ * inline code spans and HTML comments, keeping start tags for the src/href
+ * pass. Fences that are indented or inside a block quote or list item, and
+ * indented code blocks, are not masked: telling them apart needs container
+ * parsing. What they hold is read as ordinary text, so the link check still
+ * sees a dangling path.
  *
  * @param {string} text
- * @returns {{ fenceMasked: string, linkMasked: string }}
+ * @returns {{ fenceMasked: string, linkMasked: string, tagText: string }}
  */
 export function maskCode(text) {
   const blank = (/** @type {string} */ source, /** @type {[number, number][]} */ ranges) => {
@@ -957,9 +991,14 @@ export function maskCode(text) {
   if (open !== null) fences.push([open.start, text.length]);
   const fenceMasked = blank(text, fences);
   /** @type {[number, number][]} */
-  /** @type {[number, number][]} */
   const spans = codeSpans(fenceMasked).map((span) => [span.start, span.end]);
-  return { fenceMasked, linkMasked: blank(fenceMasked, spans) };
+  const codeMasked = blank(fenceMasked, spans);
+  const html = htmlRanges(codeMasked);
+  return {
+    fenceMasked: blank(fenceMasked, html),
+    linkMasked: blank(codeMasked, html),
+    tagText: codeMasked.replace(HTML_COMMENT, (comment) => comment.replace(/[^\n]/g, " ")),
+  };
 }
 
 /**
@@ -1043,7 +1082,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       if (PLACEHOLDER.test(refPath)) return;
       unresolved.push({ file, ref: literalText(ref) });
     };
-    const { fenceMasked, linkMasked } = maskCode(text);
+    const { fenceMasked, linkMasked, tagText } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
     for (const { raw } of referenceDefinitions(linkMasked)) {
       // A line such as `[0:33]: implementing ...` parses as a definition but is
@@ -1051,7 +1090,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       const destination = unescapeDestination(raw).dest;
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
-    for (const { from, to } of htmlAttributeValues(linkMasked)) {
+    for (const { from, to } of htmlAttributeValues(tagText)) {
       check(decodeHtmlReferences(text.slice(from, to)), true);
     }
     for (const span of codeSpans(fenceMasked)) {

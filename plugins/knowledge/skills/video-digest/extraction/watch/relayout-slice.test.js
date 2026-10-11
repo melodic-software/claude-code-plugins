@@ -1550,6 +1550,83 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("reads no link, definition or backticked path inside an HTML tag or comment", async () => {
+    const body = [
+      '<span title="[example](../source/transcript.txt)">x</span>',
+      "<abbr title='`source/transcript.txt`'>t</abbr>",
+      "<!-- [old](../source/transcript.txt) -->",
+      "<!--",
+      "[t]: ../source/transcript.txt",
+      "-->",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(body);
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "frames/visual-frames.md": [
+        '<span title="[example](../run-state/watch.json)">x</span>',
+        "<abbr title='`key/gone.png`'>t</abbr>",
+        "<!-- ![gone](key/gone.png) -->",
+        "",
+      ].join("\n"),
+    });
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  it("reads src and href only as attribute names, never inside another attribute's value", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md":
+          '<a title="src=../source/transcript.txt" href="../source/transcript.txt">t</a>\n',
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      '<a title="src=../source/transcript.txt" href="../transcript/transcript.txt">t</a>\n',
+    );
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "frames/visual-frames.md":
+        "<img alt=\"href='key/gone.png'\" data-src='key/gone.png' src=key/missing.png>\n",
+    });
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "key/missing.png" },
+    ]);
+  });
+
+  it("reads a reference definition only when the rest of its line is blank or a title", async () => {
+    const body = "[note]: ../source/transcript.txt is illustrative\n";
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(body);
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "frames/visual-frames.md": [
+        "[note]: source/missing.txt is illustrative",
+        '[t]: key/gone.png "A title"  ',
+        "",
+      ].join("\n"),
+    });
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "key/gone.png" },
+    ]);
+  });
+
   it.each([
     ["null", "null"],
     ["an array", "[]"],
