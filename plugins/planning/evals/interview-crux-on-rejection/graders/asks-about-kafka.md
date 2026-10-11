@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '[^\n]*\bkafka\b[^\n]*\?'
+pattern: '\bkafka\b[^\n?.;]*\?'
 flags: i
 arm: both
 ---

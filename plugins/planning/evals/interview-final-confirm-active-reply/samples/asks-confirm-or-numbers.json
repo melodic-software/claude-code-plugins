@@ -25,6 +25,10 @@
     {
       "answer": "Shall I lock this?",
       "why": "a yes/no question naming no items"
+    },
+    {
+      "answer": "Q5 file name orders-export-<timestamp>.csv (no change since round 2).\nIs that correct?",
+      "why": "a restatement line, then a yes/no close"
     }
   ]
 }

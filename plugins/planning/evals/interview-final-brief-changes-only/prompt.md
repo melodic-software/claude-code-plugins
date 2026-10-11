@@ -1,11 +1,11 @@
 ---
-description: "Eval-first case for the final restatement. Why hard: eight answers are on record and listing all of them looks thorough, but six were already read back and accepted, so the list buries the one changed answer and the two assumptions the user has never seen."
+description: "Eval-first case for the final restatement. Why hard: eight answers are on record and listing all of them looks thorough, but seven were already read back and accepted, so the list buries the one changed answer and the two assumptions the user has never seen."
 tags: [interview, confirmation, restatement]
 runs: 3
 max_turns: 12
 timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The restatement gives the intent, the Q5 file name change, and the sweep's two new assumptions (synchronous export, row-level permissions), and does not re-list the six unchanged accepted answers"
+expected_outcome: "The restatement gives the intent, the Q5 file name change, and the sweep's two new assumptions (synchronous export, row-level permissions), and does not re-list the seven unchanged accepted answers"
 ---
 
 /planning:interview Add CSV export to the admin orders page.

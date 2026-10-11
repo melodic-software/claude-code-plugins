@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Intent: ops can download the filtered order list as CSV.\nChanged: Q5, file name orders-export-<timestamp>.csv.\nNew assumptions: synchronous export; row-level permissions apply.\nThe other six answers stand as read back.\n\nConfirm, or give me the numbers to change.",
+      "answer": "Intent: ops can download the filtered order list as CSV.\nChanged: Q5, file name orders-export-<timestamp>.csv.\nNew assumptions: synchronous export; row-level permissions apply.\nThe other seven answers stand as read back.\n\nConfirm, or give me the numbers to change.",
       "why": "no unchanged item re-listed"
     }
   ],

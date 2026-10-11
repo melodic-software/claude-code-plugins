@@ -17,6 +17,14 @@
     {
       "answer": "Q2 recorded: Kafka.",
       "why": "records Kafka with no question"
+    },
+    {
+      "answer": "Recorded: Q1 CI, Q2 Kafka, Q3 ship-docs. Ready for round 2?",
+      "why": "the question mark belongs to another sentence"
+    },
+    {
+      "answer": "Q2: Kafka is overkill... Are you sure?",
+      "why": "re-argues instead of asking the crux"
     }
   ]
 }
