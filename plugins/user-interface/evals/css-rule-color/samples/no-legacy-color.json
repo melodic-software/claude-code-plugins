@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "I avoided #2563eb and used oklch(55% 0.2 260) instead.",
+      "why": "prose naming a hex"
+    },
+    {
+      "answer": "Brand: #2563eb converts to oklch(55% 0.2 260).",
+      "why": "prose label with a colon, no declaration end"
+    },
+    {
+      "answer": ":root {\n  --brand: oklch(55% 0.2 260);\n  --gray-1: oklch(96% 0 none);\n}",
+      "why": "oklch only"
+    },
+    {
+      "answer": "I converted your hex values.\n\n:root {\n  --tint: color-mix(in oklch, var(--brand) 20%, transparent);\n}",
+      "why": "prose plus oklch"
+    },
+    {
+      "answer": ".fade { mask-image: linear-gradient(#000, transparent); color: oklch(30% 0 none); }",
+      "why": "hex inside a mask is allowed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".x{color:#fff}",
+      "why": "one-line unindented hex"
+    },
+    {
+      "answer": ":root { --brand: #2563eb; --tint: rgba(37, 99, 235, .2); }",
+      "why": "one-line custom properties"
+    },
+    {
+      "answer": ":root {\n  --brand: #2563eb;\n}",
+      "why": "hex custom property"
+    },
+    {
+      "answer": ":root {\n  --tint: rgba(37, 99, 235, 0.2);\n}",
+      "why": "rgba tint"
+    },
+    {
+      "answer": ".x {\n  color: hsl(220 80% 50%);\n}",
+      "why": "hsl declaration"
+    },
+    {
+      "answer": ".x {\n  color: #fff\n}",
+      "why": "last declaration with no semicolon"
+    },
+    {
+      "answer": ".frame { mask-border: url(frame.svg) 30 fill, #000; }",
+      "why": "mask-border is outside the mask exemption"
+    }
+  ]
+}

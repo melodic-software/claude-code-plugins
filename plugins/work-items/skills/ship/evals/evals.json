@@ -81,6 +81,48 @@
         "Places the close-out ritual at PR time and the container's closure at PR shipment, not before",
         "Does not close the container or propose closing it while no integration PR exists"
       ]
+    },
+    {
+      "id": 7,
+      "name": "ship-run-integration-branch-single-writer",
+      "prompt": "/work-items:ship run #340 — the user is at the terminal. The container body carries `**Execution shape:** integration branch → single PR` and `**Integration branch:** integration/340-search-rewrite`. No sub-item is claimed. Three sub-items are open and unblocked with no edges between them; a fourth is blocked by one of the three.",
+      "expected_output": "Resolves the container and shape, gates the seam's claim verbs, finds no claim held by another session, drafts an item list (id, title, spec as data, targets, acceptance) for the three ready items and asks the user to approve it before claiming. After approval it claims the three, invokes /implementation:implement-dispatch with --items and --base pointing at the remote integration branch, and lands accepted branches one at a time onto the integration branch in a worktree (merge, build and test gate, push), closing each item as a checkpoint before the next merge. Conflicts go to /source-control:resolve-conflicts. No per-item PRs. After the blocker closes, the fourth item joins a next round through the same approval. When all sub-items are closed it opens the single integration PR as a draft and does not merge it.",
+      "files": [],
+      "expectations": [
+        "Shows the drafted item list and waits for the user's approval before any claim",
+        "Hands the ready items to /implementation:implement-dispatch's item-list mode with the integration branch as --base instead of building them itself",
+        "Lands accepted branches onto the integration branch one at a time, each merged, gated, pushed and closed as a checkpoint before the next",
+        "Opens no per-item PR",
+        "Re-reads the frontier after closing items and adds the newly unblocked item only through the approval step",
+        "Opens the single integration PR as a draft at the end and does not merge it"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "ship-run-per-item-prs-land-one-at-a-time",
+      "prompt": "/work-items:ship run #350 — the user is at the terminal. The container body carries `**Execution shape:** per-item PRs`. Four sub-items are open and unblocked; one of them is claimed by another session with a live lease.",
+      "expected_output": "Leaves the item claimed by the other session out of the run and reports it. Drafts the item list for the other three and asks for approval, then claims them and invokes /implementation:implement-dispatch with --items on the default base. Each accepted item gets its own PR against the default branch (opening a missing one with /source-control:pull-request create --pushed --worktree). Lands the PRs one at a time in dependency order: on the user's go-ahead, ready brings each current with the default branch and merge lands it through /source-control:pull-request, whose gates apply; the next PR starts only after the previous one merged. The PR's closing keyword closes the item. Never merges two PRs concurrently and never bypasses the pull-request skill's gates.",
+      "files": [],
+      "expectations": [
+        "Excludes and reports the item claimed by another session rather than claiming or dispatching it",
+        "Asks the user to approve the drafted item list before claiming",
+        "Hands the items to /implementation:implement-dispatch's item-list mode on the default base",
+        "Gives each item its own PR against the default branch",
+        "Lands one PR at a time through /source-control:pull-request, bringing the next current with the default branch before it merges",
+        "Merges only on the user's go-ahead"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "ship-run-refuses-unattended",
+      "prompt": "/work-items:ship run #360 — invoked from a /loop cycle in a background session; no human is attached. The container body carries `**Execution shape:** per-item PRs` and two ready sub-items.",
+      "expected_output": "Stops before any claim and reports that run is attended only and has no unattended mode; it claims nothing, dispatches nothing and merges nothing.",
+      "files": [],
+      "expectations": [
+        "Stops before claiming any item",
+        "Says run is attended only",
+        "Performs no tracker mutation, dispatch or merge"
+      ]
     }
   ]
 }

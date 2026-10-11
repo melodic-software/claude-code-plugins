@@ -7,13 +7,14 @@
 # Usage:
 #   read-pr.sh view [<pr>] [--repo <owner/repo>]          # facts as one JSON object
 #   read-pr.sh view [<pr>] [--repo <owner/repo>] --diff   # the unified diff
-#   read-pr.sh list [--head <branch>] [--head-match <ERE>] [--state open|closed|merged|all]
-#                   [--repo <owner/repo>]                 # JSON array, open by default
+#   read-pr.sh list [--head <branch>] [--head-match <ERE>] [--search <text>]
+#                   [--state open|closed|merged|all] [--repo <owner/repo>]   # JSON array, open by default
 #   Either action takes --out <file> to write its output there instead of stdout.
 #
 # With no <pr>, `view` reads the current branch's pull request. `view` adds
 # `visibility` (PUBLIC, PRIVATE, INTERNAL, or UNKNOWN when the lookup fails).
 # `list --head-match` keeps the pull requests whose head branch matches the ERE.
+# `list --search` keeps the pull requests the forge's text search matches.
 #
 # Exit codes:
 #   0  success
@@ -33,7 +34,7 @@ die() {
   exit "$1"
 }
 
-VIEW_FIELDS=number,url,state,isDraft,title,baseRefName,headRefName,baseRefOid,headRefOid,additions,deletions,files,labels
+VIEW_FIELDS=number,url,state,isDraft,title,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,additions,deletions,files,labels
 LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit
 
 ACTION="${1:-}"
@@ -44,16 +45,17 @@ view | list) shift ;;
 *) die 1 "unknown action $(printf '%q' "$ACTION") (use --help)" ;;
 esac
 
-PR="" REPO="" OUT="" DIFF=0 HEAD="" HEAD_MATCH="" STATE=open
+PR="" REPO="" OUT="" DIFF=0 HEAD="" HEAD_MATCH="" SEARCH="" STATE=open
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
-  --repo | --head | --head-match | --state | --out)
+  --repo | --head | --head-match | --search | --state | --out)
     (($# >= 2)) || die 1 "$1 needs a value"
     [[ "$1" == --out ]] && OUT="$2"
     [[ "$1" == --repo ]] && REPO="$2"
     [[ "$1" == --head ]] && HEAD="$2"
     [[ "$1" == --head-match ]] && HEAD_MATCH="$2"
+    [[ "$1" == --search ]] && SEARCH="$2"
     [[ "$1" == --state ]] && STATE="$2"
     shift 2
     ;;
@@ -70,8 +72,8 @@ while (($# > 0)); do
   esac
 done
 
-if [[ "$ACTION" == view && (-n "$HEAD" || -n "$HEAD_MATCH" || "$STATE" != open) ]]; then
-  die 1 "--head, --head-match and --state belong to list"
+if [[ "$ACTION" == view && (-n "$HEAD" || -n "$HEAD_MATCH" || -n "$SEARCH" || "$STATE" != open) ]]; then
+  die 1 "--head, --head-match, --search and --state belong to list"
 fi
 [[ "$ACTION" == list && "$DIFF" == 1 ]] && die 1 "--diff belongs to view"
 case "$STATE" in open | closed | merged | all) ;; *) die 1 "--state must be open, closed, merged or all" ;; esac
@@ -90,6 +92,7 @@ fi
 if [[ "$ACTION" == list ]]; then
   head_args=()
   [[ -n "$HEAD" ]] && head_args=(--head "$HEAD")
+  [[ -n "$SEARCH" ]] && head_args+=(--search "$SEARCH")
   # gh pr list returns 30 pull requests unless --limit says otherwise.
   out=$(gh pr list --state "$STATE" --limit 1000 ${head_args[@]+"${head_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} --json "$LIST_FIELDS") ||
     die 2 "gh pr list failed"

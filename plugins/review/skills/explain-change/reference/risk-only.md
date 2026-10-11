@@ -6,6 +6,9 @@ needs a human.
 
 ## Steps
 
+Every read below names the repository explicitly, as the step 3 checker brief does, so the rater
+and the checker rate the same pull request whatever the working directory.
+
 1. Read the pull request's head commit, with the same read SKILL.md uses for the recording's head.
 2. Read the diff as SKILL.md step 2 does, and write the risk rows: area, level (`LOW`, `MEDIUM`,
    `HIGH`, or `CRITICAL`), and why. Levels are labels, not a computed score.
@@ -14,7 +17,7 @@ needs a human.
    it did not name the area or no check ran).
 4. Read the head commit and the diff again. When either differs from steps 1 and 2, the rating
    covers no single head: start over at step 1. Comparing the diff text, not only the head, catches
-   a push that was reverted between the reads.
+   a decoy pushed after step 1 and reverted before step 4.
 5. Set `demote` (below), print the result, and stop. Never run `digest-policy.mjs` or
    `build-digest.mjs` for this action.
 

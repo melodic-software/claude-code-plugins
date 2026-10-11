@@ -5,6 +5,24 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-11
+
+### Added
+
+- **An optional prompt-cache status-line segment.** `scripts/cache-line.mjs` reads the status line's `prompt_cache` object and prints one line: warm with the expiry clock time and lifetime, or cold with the tokens the next message re-caches, plus the hit ratio and, after a miss, its count and cause. It shows a clock time rather than a countdown because Claude Code re-runs the status line when a warm cache expires, so it needs no `refreshInterval`. It prints nothing before the first response or on a malformed object, and strips control characters from payload strings. `--after <cmd>` runs an existing status-line command on the same input first; `--wire` reads a `settings.json` and prints the `statusLine` object that adds the segment, quoting the existing command as one shell word and keeping the other keys. `/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`, a path that survives plugin updates, and prints the `--wire` output to paste; `check` reports a stale copy. The module is unchanged: a mod's `$.session.usage()` carries no cache expiry, so the band row would have to guess it.
+
+### Changed
+
+- The reader contract now points at the docs' default auto-compact thresholds in place of the "no published default" wording, and states no figure. Its tunable table adds the per-subagent `autoCompactWindow` (Claude Code 2.1.296), which the snapshot cannot see, and a dated record notes where `/autocompact` saved the window and the precedence observed on Claude Code 2.1.296, with the docs kept as the source of record.
+
+### Removed
+
+- **`scripts/prompt-cache-cause.py`.** Nothing called it. The cache segment prints the same `last_miss_cause.causes` names, and the reader contract's "Prompt cache" section now points at it.
+
+### Fixed
+
+- **The reader contract no longer describes the auto-compact window as one global setting.** Since Claude Code v2.1.288, `/autocompact` saves the window per model. The contract's tunable table stopped claiming a fixed count of surfaces, and now states our decision: the reader never resolves the window, so a per-model value it cannot see is treated like an unset one, and `zones.json` stays the correction path. A pointer record names the settings and model-config sections to read live. The README's summary of the tunables now points at that table instead of repeating the list. No behavior changed.
+
 ## [0.16.0] - 2026-10-09
 
 ### Changed

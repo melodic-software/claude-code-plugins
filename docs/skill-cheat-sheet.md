@@ -127,6 +127,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 | [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
+| [`/user-interface:write-css`](../plugins/user-interface/skills/write-css/SKILL.md) | `user-interface` | Write or review CSS after discovering the project's stack, tokens, targets and conventions |
 
 ## 9. Test
 
@@ -324,7 +325,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |
 | [`/work-items:scan-todos`](../plugins/work-items/skills/scan-todos/SKILL.md) | `work-items` | Sweep source comments for TODO and FIXME markers, resolve or file each |
-| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route a spec container's macro journey. Status, execution shape, next step |
+| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route and run a spec container's macro journey. Status, execution shape, next step |
 | [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker. Add, list, close, stats |
 | [`/work-items:triage`](../plugins/work-items/skills/triage/SKILL.md) | `work-items` | Evaluate raw intake through the verified-to-eligible state machine |
 | [`/work-items:work`](../plugins/work-items/skills/work/SKILL.md) | `work-items` | Auto-select one work item and execute it end-to-end |
