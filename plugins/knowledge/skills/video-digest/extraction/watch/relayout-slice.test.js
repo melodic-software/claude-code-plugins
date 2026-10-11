@@ -626,6 +626,27 @@ describe("relayoutSlice", () => {
         fs.writeFileSync(path.join(dir, "frame-times.json"), '["scene_0001.png"]'),
     ],
     [
+      "a frame-times.json record is not an object",
+      (/** @type {string} */ dir) =>
+        fs.writeFileSync(path.join(dir, "frame-times.json"), '{"scene_0001.png": 1}'),
+    ],
+    [
+      "a frame-times.json record has no timestampSec",
+      (/** @type {string} */ dir) =>
+        fs.writeFileSync(
+          path.join(dir, "frame-times.json"),
+          '{"scene_0001.png": {"timestampSource": "scene-detection"}}',
+        ),
+    ],
+    [
+      "a frame-times.json record has a non-numeric timestampSec",
+      (/** @type {string} */ dir) =>
+        fs.writeFileSync(
+          path.join(dir, "frame-times.json"),
+          '{"scene_0001.png": {"timestampSec": "1.5"}}',
+        ),
+    ],
+    [
       "only the sidecar is left",
       (/** @type {string} */ dir) => {
         for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".png"))) {
@@ -1048,6 +1069,42 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     const link = /\]\(([^)]+)\)/.exec(read(targetDir, "analysis/research/claim-inventory.md"))?.[1];
     expect(path.resolve(targetDir, "analysis/research", String(link))).toBe(pointedAt);
   });
+
+  it("accepts an untimed frame-times.json record (timestampSec null, as the writer emits)", async () => {
+    const { sliceDir, targetDir, framesDir } = makeFixture();
+    fs.writeFileSync(
+      path.join(framesDir, "frame-times.json"),
+      JSON.stringify({ "scene_0001.png": { timestampSec: null, timestampSource: null } }),
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  it.each([
+    [
+      "../<slice>/ from the slice root",
+      "RESEARCH.md",
+      (/** @type {string} */ slug) => `../${slug}/`,
+    ],
+    ["../ from a lane file", "research/claim-inventory.md", () => "../"],
+  ])(
+    "rewrites a reference to the slice dir itself (%s) as split text",
+    async (_label, file, ref) => {
+      const { sliceDir, targetDir } = makeFixture();
+      const slug = path.basename(sliceDir);
+      fs.writeFileSync(path.join(sliceDir, file), `Whole slice: [slice](${ref(slug)}).\n`);
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      const target = file === "RESEARCH.md" ? "analysis/RESEARCH.md" : `analysis/${file}`;
+      expect(read(targetDir, target)).toBe(
+        `Whole slice: slice (${slug}, split across analysis/, frames/, metadata/, transcript/ in this copy).\n`,
+      );
+    },
+  );
 
   it("reads a path that leaves and re-enters the slice as the slice's", async () => {
     const { sliceDir, targetDir } = makeFixture();

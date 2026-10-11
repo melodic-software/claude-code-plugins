@@ -241,6 +241,23 @@ function splitReference(ref) {
 }
 
 /**
+ * A reference to the slice directory itself: the slice has no single new
+ * location, so name where its kept files went, as for any split directory.
+ *
+ * @param {PathMap} map
+ * @returns {Lookup}
+ */
+function sliceRootLookup(map) {
+  const splitInto = [
+    ...new Set([...map.files.values()].map((to) => `${to.split("/")[0]}/`)),
+  ].sort();
+  return {
+    retired: path.basename(map.sliceAbs),
+    note: `split across ${splitInto.join(", ")} in this copy`,
+  };
+}
+
+/**
  * What a reference names: a copied path (its target), a slice file or
  * directory the layout does not keep (`retired`), or null when it names
  * neither.
@@ -281,7 +298,8 @@ function lookUpReference(refPath, sourceFile, map) {
       // file's new, deeper location.
       const absolute = path.resolve(map.sliceAbs, ...fromFile.split("/"));
       const inside = path.relative(map.sliceAbs, absolute);
-      if (inside === "" || inside.startsWith("..") || path.isAbsolute(inside)) {
+      if (inside === "") return sliceRootLookup(map);
+      if (inside.startsWith("..") || path.isAbsolute(inside)) {
         return { outside: absolute };
       }
       keys = [inside.split(path.sep).join("/")];
@@ -289,6 +307,7 @@ function lookUpReference(refPath, sourceFile, map) {
       keys = [fromFile, bare.startsWith(".") ? null : path.posix.normalize(bare)];
     }
   }
+  if (keys[0] === ".") return sliceRootLookup(map);
   for (const key of keys) {
     const found = lookup(key);
     if (found) return found;
@@ -805,6 +824,21 @@ function missingFrames(framesDir) {
   if (isTimesObject) {
     const listing = /** @type {Record<string, unknown>} */ (times);
     const listed = Object.keys(listing);
+    // Scene detection's writeFrameTimes writes each record as
+    // { timestampSec, timestampSource, timestampMethod, timestampErrorSec },
+    // with timestampSec a number, or null for an untimed frame.
+    const malformed = listed.filter((name) => {
+      const record = listing[name];
+      if (!record || typeof record !== "object" || Array.isArray(record)) return true;
+      const seconds = /** @type {Record<string, unknown>} */ (record).timestampSec;
+      return !(seconds === null || (typeof seconds === "number" && Number.isFinite(seconds)));
+    });
+    if (malformed.length > 0) {
+      missing.push(
+        `frame-times.json records with an object and a finite or null timestampSec ` +
+          `(malformed: ${malformed.sort().join(", ")})`,
+      );
+    }
     const gone = listed.filter((name) => !names.has(name));
     if (gone.length > 0) missing.push(`the frames frame-times.json lists: ${gone.join(", ")}`);
     // Scene detection records every scene and interval frame it writes; an
