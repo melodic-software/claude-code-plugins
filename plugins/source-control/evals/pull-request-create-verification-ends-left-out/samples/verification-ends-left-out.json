@@ -59,6 +59,42 @@
           "tool": "Write",
           "input": {
             "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out: nothing\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "Left out line ignores the end-to-end suite the user said was skipped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out:\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "empty Left out line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Verification\n\n- Unit tests pass.\n\nLeft out: end-to-end suite\n\n## Related\n\nN/A\n"
+          }
+        }
+      ],
+      "why": "names the skipped suite without its reason"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
             "content": "## Summary\n\nFix.\n\n## Verification\n\nLeft out: end-to-end suite, needs staging.\n- Unit tests pass.\n\n## Related\n\nN/A\n"
           }
         }
