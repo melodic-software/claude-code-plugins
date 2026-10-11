@@ -239,8 +239,7 @@ each only on the surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
 - Model migration guides. The migration-guide URL is an index of per-model guides
   (<https://platform.claude.com/docs/en/about-claude/models/migration-guide>); I25 cites the Fable
-  5.1 guide's section on migrating from Claude Opus 5, which covers Claude Mythos 5.1 as the same
-  capabilities:
+  5.1 guide's section on migrating from Claude Opus 5:
   <https://platform.claude.com/docs/en/models/fable-5-1/migration-guide#migrating-from-claude-opus-5-to-claude-fable-5-1>.
   The model ranges that reject manual extended thinking (I17-c) and non-default sampling
   parameters (I25) are read from Thinking, above.
@@ -1988,15 +1987,16 @@ states.
   of the word**, such as body temperature, disk or thermal temperature, or color temperature, which
   share the token and nothing else. A document *about* the pattern, on the audience test I8-b
   applies.
-- **Source:** thinking, "Sampling parameters" (the set and the gate, under Detect). The Fable 5.1
-  guide's section on migrating from Claude Opus 5 (under Sources), which covers Claude Mythos 5.1
-  as the same capabilities, keeps the Fable/Mythos carry-over. Corroborated at the Claude Sonnet 5 model page and in the Sonnet 5 guide, "Tone and
+- **Source:** thinking, "Sampling parameters" (the set and the gate, under Detect). That set
+  names every Fable and Mythos model in the Detect set; the Fable 5.1 guide's section on migrating
+  from Claude Opus 5 (under Sources) corroborates that the restriction carries over. Corroborated at the Claude Sonnet 5 model page and in the Sonnet 5 guide, "Tone and
   writing style", which supplies the Remediate line. Both are Sources entries.
   Pointer: [Claude Sonnet 5, good to
   know](https://platform.claude.com/docs/en/models/sonnet-5/overview#good-to-know) and
   [Sonnet 5 guide, tone and writing
   style](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5#tone-and-writing-style).
-  As of: 2026-10-01 for the set and the corroborating pages; the determinism note under Remediate
+  As of: 2026-10-01 for the set and the Sonnet 5 pages, 2026-10-11 for the migration guide
+  section; the determinism note under Remediate
   rests on our 2026-08-08 reading of a page no current page replaces. Recheck trigger: the
   rejecting model set moving, sampling parameters being reinstated on any model in it, or a docs
   page starting to cover the determinism note.
