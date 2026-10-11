@@ -20,7 +20,7 @@ question) without naming a tracker's commands.
 1. **Validate** the reference as `view` does. Texts (title, body, comment) travel in files written with the Write tool,
    never typed into a command, because a body can hold quotes, backticks or `$()`.
 
-1. **Labels first.** Check each `--add-label` against the live set (`labels <name> ...`,
+1. **Labels first.** Check each `--add-label` against the item's repository's live set (`labels --repo <owner>/<repo> <name> ...`,
    [labels.md](labels.md)); a missing one stops the edit before anything changes, reporting the
    full missing set.
 

@@ -33,7 +33,9 @@ provides one and fall back to bare `gh` otherwise (seam identity routing: `../..
 "Identity routing (GitHub adapter)"). The examples show bare `gh`; substitute your repo's bot
 wrapper for write ops if it uses one. Claim assignment always stays on bare `gh` (`@me` must be the
 session identity). Every pipeline parsing `gh` JSON on Windows/Git Bash ends with `| tr -d '\r'`
-(see "Gotchas").
+(see "Gotchas"). `<owner>/<repo>` in a recipe is the item's own repository, taken from its
+qualified ID, so a cross-repository item is never confused with the current checkout's item of
+the same number.
 
 ## Available `--json` fields
 
@@ -195,7 +197,7 @@ separately: `sort_by` there emits one separately-sorted array per page, never on
 Close an item (WRITE, see the identity note above):
 
 ```bash
-gh issue close <N> --comment "<closing note>" --reason completed
+gh issue close <N> --repo <owner>/<repo> --comment "<closing note>" --reason completed
 ```
 
 The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`), the
@@ -206,7 +208,7 @@ reason `duplicate` and a structured, API-queryable `duplicateOf` relationship, s
 grepping a body header. `<M>` may be an issue number or URL:
 
 ```bash
-gh issue close <N> --duplicate-of <M> --comment "Duplicate of #<M>"
+gh issue close <N> --repo <owner>/<repo> --duplicate-of <M> --comment "Duplicate of #<M>"
 ```
 
 **Fallback: not-planned + body-append.** For a **cross-repo** duplicate target the native
@@ -220,10 +222,10 @@ closing-keyword mechanics" below):
 ```bash
 # <M>: a bare #<M> for a same-repo duplicate; the full <owner>/<repo>#<M> reference (or
 # the issue URL) for a cross-repo target, where a bare number would be ambiguous.
-gh issue view <N> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
+gh issue view <N> --repo <owner>/<repo> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
 printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of <M>" \
-  | gh issue edit <N> --body-file -
-gh issue close <N> --comment "Duplicate of <M>" --reason "not planned"
+  | gh issue edit <N> --repo <owner>/<repo> --body-file -
+gh issue close <N> --repo <owner>/<repo> --comment "Duplicate of <M>" --reason "not planned"
 ```
 
 ## Edit labels / assignees
@@ -233,7 +235,7 @@ Edit labels / assignees (WRITE, see the identity note above). Edits use
 is `gh issue create` only):
 
 ```bash
-gh issue edit <N> --add-label "<name>" --remove-label "<name>"
+gh issue edit <N> --repo <owner>/<repo> --add-label "<name>" --remove-label "<name>"
 ```
 
 **Carve-out: claim assignment stays on the session identity.** The assignee MUST be the session
@@ -285,7 +287,7 @@ Comment on an item, or edit a comment via PATCH (preserves the audit trail). Bot
 operations (see the identity note above):
 
 ```bash
-gh issue comment <N> --body "<text>"
+gh issue comment <N> --repo <owner>/<repo> --body "<text>"
 gh issue comment <N> --repo <owner>/<repo> --body-file <path>   # the form `/work-items:track edit --comment-file` uses
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```

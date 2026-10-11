@@ -6,12 +6,12 @@ creates a label.
 ## Usage
 
 ```
-/work-items:track labels [<name> ...]
+/work-items:track labels [--repo <owner>/<repo>] [<name> ...]
 ```
 
 ## Workflow
 
-1. **Read the live set** (adapter: "List labels", bare read). A provider with no label listing
+1. **Read the live set** (adapter: "List labels", bare read) of `--repo`, else the current repository. A provider with no label listing
    (`local-markdown`, read-only `jira`) cannot answer: say so and stop.
 
 1. **Without names**, print the set, one label per line. **With names**, print each missing one as
