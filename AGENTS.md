@@ -82,11 +82,15 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers, in subagents
-as well as in the main session. The match is on the requested path, so even a read that finds no
-file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
-returns only when a covered file is read again. When you are working on something an entry covers
-and its content is not already in context, read the file directly.
+Each surface below enters context automatically, in subagents as well as in the main session,
+once a file it covers triggers it. The triggers differ by surface type: see
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules,
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load> for nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
+match is on the requested path, so even a Read tool call that finds no file fires it. A surface
+whose trigger has not fired is simply absent, and after a compaction it returns only when its
+trigger fires again. When you are working on something an entry covers and its content is not
+already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
@@ -99,6 +103,7 @@ and its content is not already in context, read the file directly.
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
 | `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |
+| `plugins/user-experience/tests/fixtures/pointer-home/AGENTS.md` | `plugins/user-experience/tests/fixtures/pointer-home/**` | Fixture project for the user-experience team-surface resolver |
 | `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->
