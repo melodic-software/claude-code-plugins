@@ -1,8 +1,9 @@
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CELL_IDS } from "../lib/watch-vision-validation.js";
 import { listPromotionCandidates } from "./list-promotion-candidates.js";
@@ -220,6 +221,43 @@ describe("visionGatedPromote", () => {
 
     await expect(visionGatedPromote(dir)).rejects.toThrow(/outside the frames directory/);
     expect(fs.existsSync(path.join(dir, "key-frames", "frames", "demo-slide.png"))).toBe(false);
+  });
+
+  it("refuses a checked frame swapped for an outside symlink before the copy", async (ctx) => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-outside-"));
+    tempDirs.push(outsideDir);
+    const target = path.join(outsideDir, "secret.png");
+    fs.writeFileSync(target, "outside");
+    const { dir, framesDir } = makeVisionSliceDir();
+    const frame = path.join(framesDir, "anchor_00000000_0001.png");
+    const probe = path.join(framesDir, "probe-link");
+    try {
+      fs.symlinkSync(target, probe);
+      fs.unlinkSync(probe);
+    } catch {
+      ctx.skip();
+    }
+
+    // promoteKeyFrames creates the lane directory after the containment check and before the
+    // copy, so swapping the frame there lands in exactly that window.
+    const realMkdir = fsp.mkdir.bind(fsp);
+    let swapped = false;
+    const spy = vi.spyOn(fsp, "mkdir").mockImplementation(async (...args) => {
+      if (!swapped) {
+        swapped = true;
+        fs.unlinkSync(frame);
+        fs.symlinkSync(target, frame);
+      }
+      return realMkdir(...args);
+    });
+    try {
+      await expect(visionGatedPromote(dir)).rejects.toThrow(/changed after it was checked/);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(swapped).toBe(true);
+    const dest = path.join(dir, "key-frames", "frames", "demo-slide.png");
+    expect(fs.existsSync(dest) && fs.readFileSync(dest, "utf8")).not.toBe("outside");
   });
 });
 
