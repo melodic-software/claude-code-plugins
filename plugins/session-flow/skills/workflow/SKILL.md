@@ -147,12 +147,24 @@ the gather above are presence-gated pointers to the siblings that own them; the 
 
 ### 5. Track progress (tasks ≥3 stages)
 
-For work expected to span 3+ stages, create a task per applicable stage via TaskCreate, mark
-completed stages `completed` and the current one `in_progress`. For durable cross-`/clear` tracking,
+For work expected to span 3+ stages, when this session has the task tools (`TaskCreate` is in its
+tool list; branch on that, never on the model), create a task per applicable stage via TaskCreate,
+mark completed stages `completed` and the current one `in_progress`. With `TodoWrite` instead,
+keep the same stage list in `TodoWrite`. With neither, the checklist
+file below (or the plan artifact that replaces it) is the only progress tracker. For durable
+cross-`/clear` tracking,
 also copy `templates/checklist.md` into the artifact location (see "Consumer conventions") as
 `workflow-checklist.md` and tick boxes as stages produce their outputs. Skip the file when the
 consuming repo already tracks the same stages in its own plan artifact, never mirror progress in
 two files.
+
+Which sessions get the task tools is an upstream default we do not restate.
+
+- **Pointer**: when deciding whether this session has the task tools, fetch
+  [Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions, models, or opt-ins get the task tools.
 
 ## On-ramps: work that merges into the flow partway
 
