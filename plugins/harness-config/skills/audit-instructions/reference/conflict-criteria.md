@@ -167,9 +167,9 @@ moved without an edit here.
   when that surface loads.
 
 **The `AGENTS.md` row's residency is conditional on availability and the mode, not on displacement
-alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the four
+alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the
 documented reasons, does not load the file, so the row asserts no residency for it and gate 1 does
-not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and two of its four
+not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and some of its
 values rule the file out whatever the displacement answer is. Treating displacement as the whole
 question would report a conflict against a surface nothing loads. Resolve both, and where a
 condition stays unresolved, **do not assert residency for it**: I15 is a finding lane, so an

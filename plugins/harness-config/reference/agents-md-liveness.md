@@ -49,10 +49,11 @@ it. A session that loads no instruction files at all (`--bare` without `--add-di
 - **Recheck trigger**: the overview's built-in-mods section or the README's settings paragraph
   changes.
 
-**Two of the three resolve from what this plugin already reads.** Condition 1 is a version
-comparison, plus the provider and telemetry configuration on a CLI between the two floors.
-Condition 2 is whether the built-in `agents-md` plugin is enabled, which the permission-and-settings
-lanes already inventory. Condition 3 resolves only as "this may be that session", so it is the one
+**Two of the three kinds resolve from what this plugin already reads.** A version condition is a
+comparison against the floor the pointer states, plus the provider and telemetry configuration
+where the floor depends on them. Plugin enablement is whether the built-in plugin that reads
+`AGENTS.md` is enabled, which the permission-and-settings lanes already inventory. The
+first-session-after-upgrade condition resolves only as "this may be that session", so it is the one
 that commonly stays unresolved. Do not treat the whole question as unresolvable because one
 condition is: resolve what is resolvable first, because a condition known TRUE settles it with no
 further work.
