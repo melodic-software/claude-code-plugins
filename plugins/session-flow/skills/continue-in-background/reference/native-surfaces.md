@@ -15,8 +15,8 @@ live, the date it was checked, and the event that makes it worth checking again.
 The [2.1.77 changelog entry](https://code.claude.com/docs/en/changelog#2-1-77) records a
 `/fork` rename that the 2.1.284 binary does not match: the binary registers `fork` and `branch`
 as separate commands, the current commands page agrees with the binary, and the 2.1.212 entry
-records `/fork` taking its present meaning. Treat the 2.1.77 alias as superseded. Recheck when a
-release note or the commands page changes either name.
+records `/fork` taking its present meaning. Treat the 2.1.77 alias as superseded. As of
+2026-10-11. Recheck when a release note or the commands page changes either name.
 
 ## Why the verdict is complementary
 

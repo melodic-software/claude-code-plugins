@@ -58,8 +58,10 @@ Two separate needs, resolved separately. Detail, formats, and failure behavior:
 **Names. Completeness is a correctness property.** The in-context skill listing is *not* an
 acceptable sole source: it leaves manual-only skills out and, over its budget, sheds the
 descriptions of the least-invoked skills, the forgotten ones this skill exists to surface (pointer
-record and live sections: candidate-ladder.md, "Why the in-context listing cannot be the sole
-source"). Ladder:
+record and live sections:
+[candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
+as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
+changes). Ladder:
 
 1. `/harness-ops:inventory`, if that plugin is enabled. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
@@ -147,7 +149,9 @@ time. It reads and writes one small ledger of what it last surfaced. Path and re
 fixed in [`context/buckets.md`](context/buckets.md) so two sessions cannot pick different ones and
 lose the rotation. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`: a fixed filename there
 would be one file per *machine*, and a spotlight shown in one repository would suppress it in
-another (why: the plugin data dir record in `${CLAUDE_PLUGIN_ROOT}/reference/structure.md`).
+another (why: "Verification record: plugin data dir" under
+`${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure`; as of 2026-10-11;
+recheck trigger: that record changes what the data dir is keyed to).
 
 ## Render two tiers
 
@@ -195,7 +199,9 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 ## Gotchas
 
 - The skills most worth surfacing are the ones whose listing descriptions vanish first (record:
-  candidate-ladder.md). Sourcing names from the listing alone quietly inverts this skill's purpose.
+  [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
+  as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
+  changes). Sourcing names from the listing alone quietly inverts this skill's purpose.
 - A skill turned off via `skillOverrides` can still appear in a catalog but cannot run.
   Recommending it hands the operator a dead option. Annotate it if the override is visible.
   - **Pointer**: [Extend Claude with skills § Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
@@ -204,5 +210,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
     applies to.
 - Most built-in commands are not `Skill`-invocable. They can be *named* as options (`/compact`,
   `/clear`) but not invoked on the operator's behalf; say which is which (pointer record:
-  `skills/workflow/context/continuation.md`).
+  [continuation § Autonomy: two tiers, each explicitly licensed](../workflow/context/continuation.md#autonomy-two-tiers-each-explicitly-licensed);
+  as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
+  changes).
 - An empty bucket is a real result and says so, with its reason. Silence reads as an oversight.

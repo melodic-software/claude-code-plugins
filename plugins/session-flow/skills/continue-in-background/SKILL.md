@@ -94,12 +94,13 @@ fallback), then:
 
    - Prints `true` → there is a work tree; inspect it with the gate below.
    - Fails *specifically* because this is not a git repository, AND no `WorktreeCreate` hook is
-     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>) → there is no
-     uncommitted work to protect and no worktree isolation to lose, since we treat background
-     sessions there as editing the working directory in place
+     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>; as of 2026-10-11;
+     recheck trigger: that section changes what the hook replaces or when it fires) → there is
+     no uncommitted work to protect and no worktree isolation to lose, since we treat
+     background sessions there as editing the working directory in place
      (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
-     2026-10-11; recheck trigger: that section changes when a session edits in place) → launch, and state both in the launch
-     report. That hook is the isolation path for non-Git source control, so a configured one,
+     2026-10-11; recheck trigger: that section changes when a session edits in place) →
+     launch, and state both in the launch report. That hook is the isolation path for non-Git source control, so a configured one,
      or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
    - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
@@ -253,7 +254,9 @@ can mean any of them.
   subagent that reports back here, `/fork` copies the conversation into a background session,
   and `/background` moves this session itself off the terminal. None writes a save-point. All
   three are reserved for the person to run; the model does not invoke them. What each launches,
-  its alias and its gate: [reference/native-surfaces.md](reference/native-surfaces.md).
+  its alias and its gate: the records table in
+  [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+  (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
   the continuation carries no conversation history and survives on disk.
@@ -268,9 +271,10 @@ records the offer in its output instead of asking.
 request. It never runs a native command on the person's behalf.
 
 **Availability is never assumed.** All three are gated, and their behavior depends on the
-session's setup; read the gates live from the records in
-[reference/native-surfaces.md](reference/native-surfaces.md). This section states what to do
-when they resolve, never that they are present.
+session's setup; read the gates live from the records table in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+(as of 2026-10-11; recheck trigger: that table's rows or their recheck events change). This
+section states what to do when they resolve, never that they are present.
 
 ## Gotchas
 

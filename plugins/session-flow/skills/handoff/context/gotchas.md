@@ -66,9 +66,12 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   the resuming session inherits the list. Which subagents survive `/clear` and which stops a later
   message can resume are upstream behavior: read them live.
   - **Pointer**: [Create custom subagents § Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)
+  - **Evidence**: the `TaskStop` rule and its empirical probe are our own record,
+    [orchestrate sources § SendMessage worker continuation](../../orchestrate/context/sources.md#sendmessage-worker-continuation)
   - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes which stopped subagents a message resumes, or a
-    release note changes subagent lifetime across `/clear`.
+  - **Recheck trigger**: that section changes which stopped subagents a message resumes, a
+    release note changes subagent lifetime across `/clear`, or the orchestrate record changes its
+    `TaskStop` rule or probe.
 - **Saying nothing about the active `/loop`s on resume.** Treat every `/loop` as gone once the
   user clears or resumes: a resume prompt that reads only as a one-shot continuation runs once and
   silently drops the recurring behavior, with no error to signal it. Each re-arm is a SEPARATE

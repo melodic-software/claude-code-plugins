@@ -96,8 +96,10 @@ Two consequences, both accepted and both stated rather than hidden:
   each advance the rotation independently.
 
 **Not `${CLAUDE_PLUGIN_DATA}`.** We treat that path as keyed to the plugin identifier and nothing
-else (record and pointer: `${CLAUDE_PLUGIN_ROOT}/reference/structure.md`, "Verification record: plugin data dir" at the
-plugin root). So a fixed filename there is one file per *machine*, shared by
+else (record and pointer: "Verification record: plugin data dir" under
+`${CLAUDE_PLUGIN_ROOT}/reference/structure.md#full-path-write-procedure` at the plugin root; as
+of 2026-10-11; recheck trigger: that record changes what the data dir is keyed to). So a fixed
+filename there is one file per *machine*, shared by
 every repository the operator works in. A spotlight surfaced in repo A would then suppress it in
 repo B, which is a worse failure than losing rotation on a fresh clone.
 
