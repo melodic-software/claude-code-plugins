@@ -93,6 +93,19 @@ reader applies.
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
+`pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
+that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
+
+- It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
+  re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
+- It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
+  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`.
+- It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
+  first, passing `pr-number` and `dispatcher-run-id`.
+- A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
+  `require-pr: false` and `require-kind: human`).
+- With the kill switch on, the run ends green with a notice and dispatches nothing.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
