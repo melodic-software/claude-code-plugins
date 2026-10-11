@@ -183,6 +183,36 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it("retires a dropped link whose label holds a code span or an image", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/a.md":
+          "See [`run-state/watch.json`](../run-state/watch.json).\n\n" +
+          "[![s](../key-frames/frames/title-slide.png)](../run-state/watch.json)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/research/a.md")).toBe(
+      "See `run-state/watch.json` (run-state/watch.json, not retained in this copy).\n\n" +
+        "![s](../../frames/key/title-slide.png) (run-state/watch.json, not retained in this copy)\n",
+    );
+  });
+
+  it("skips a symlink in the slice instead of copying what it points at", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const outside = makeDir("relayout-outside-");
+    fs.writeFileSync(path.join(outside, "secret.txt"), "OUTSIDE");
+    fs.symlinkSync(path.join(outside, "secret.txt"), path.join(sliceDir, "research", "secret.txt"));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(targetDir, "analysis/research/secret.txt"))).toBe(false);
+  });
+
   it("fails the link check on a missing slice file, writing nothing", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {

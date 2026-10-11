@@ -37,6 +37,8 @@ const NOT_RETAINED = "not retained in this copy";
  * @property {number} nodeStart - the whole link, image, definition or code span
  * @property {number} nodeEnd
  * @property {string} label - link text, image alt or definition label
+ * @property {number|null} labelStart - a link's text span, null for other nodes
+ * @property {number|null} labelEnd
  * @property {boolean} definition
  *
  * @typedef {Object} PathMap
@@ -51,12 +53,14 @@ const NOT_RETAINED = "not retained in this copy";
 /**
  * @param {string} dir
  * @param {string} [prefix]
- * @returns {string[]} posix paths of every file under dir, relative to it
+ * @returns {string[]} posix paths of every regular file under dir, relative to
+ *   it; symlinks are skipped so a copy never reads outside the slice
  */
 export function listFiles(dir, prefix = "") {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    return entry.isDirectory() ? listFiles(path.join(dir, entry.name), rel) : [rel];
+    if (entry.isDirectory()) return listFiles(path.join(dir, entry.name), rel);
+    return entry.isFile() ? [rel] : [];
   });
 }
 
@@ -78,13 +82,24 @@ export function markdownReferences(text) {
     const raw = text.slice(nodeStart, nodeEnd);
     const push = (/** @type {"link"|"code"} */ kind, /** @type {string} */ value, after = 0) => {
       const at = value ? raw.indexOf(value, Math.max(after, 0)) : -1;
-      const label =
-        node.type === "link" && node.children.length > 0
-          ? text.slice(node.children[0].position.start.offset, node.children.at(-1).position.end.offset)
-          : (node.alt ?? node.label ?? "");
+      const children = node.type === "link" && node.children.length > 0;
+      const labelStart = children ? node.children[0].position.start.offset : null;
+      const labelEnd = children ? node.children.at(-1).position.end.offset : null;
+      const label = children ? text.slice(labelStart, labelEnd) : (node.alt ?? node.label ?? "");
       const from = at === -1 ? null : nodeStart + at;
       const to = at === -1 ? 0 : nodeStart + at + value.length;
-      refs.push({ kind, value, from, to, nodeStart, nodeEnd, label, definition: node.type === "definition" });
+      refs.push({
+        kind,
+        value,
+        from,
+        to,
+        nodeStart,
+        nodeEnd,
+        label,
+        labelStart,
+        labelEnd,
+        definition: node.type === "definition",
+      });
     };
     if (node.type === "link") {
       push("link", node.url, (node.children.at(-1)?.position.end.offset ?? nodeStart) - nodeStart);
@@ -186,8 +201,10 @@ function lookUp(refPath, sourceFile, map) {
  * @returns {{ text: string, rewrites: number, missing: string[] }}
  */
 export function rewriteReferences(text, sourceFile, targetFile, map) {
-  /** @type {{ from: number, to: number, text: string }[]} */
+  /** @type {{ from: number, to: number, text: string, part?: boolean, retire?: boolean }[]} */
   const edits = [];
+  /** @type {[number, number][]} */
+  const retiredLabels = [];
   /** @type {string[]} */
   const missing = [];
   for (const ref of markdownReferences(text)) {
@@ -214,27 +231,39 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
       edits.push({ from: ref.from, to: ref.to, text: rel + reading[1] });
     } else {
       const named = `${found.retired}${reading[0].endsWith("/") ? "/" : ""}`;
+      if (ref.labelStart !== null && ref.labelEnd !== null) {
+        // Keep the link text in place, so edits inside it (a rewritten image) still apply.
+        edits.push({ from: ref.nodeStart, to: ref.labelStart, text: "", part: true });
+        edits.push({ from: ref.labelEnd, to: ref.nodeEnd, text: ` (${named}, ${found.note})` });
+        retiredLabels.push([ref.labelStart, ref.labelEnd]);
+        continue;
+      }
       const plain = ref.definition
         ? `${ref.label}: ${named} (${found.note})`
         : ref.label
           ? `${ref.label} (${named}, ${found.note})`
           : `${named} (${found.note})`;
-      edits.push({ from: ref.nodeStart, to: ref.nodeEnd, text: plain });
+      edits.push({ from: ref.nodeStart, to: ref.nodeEnd, text: plain, retire: true });
     }
   }
-  // Back to front, so earlier offsets stay valid; an edit overlapping one
-  // already applied (a link around a rewritten image) is skipped, and the
-  // link check judges what it left.
-  let out = text;
-  let floor = Infinity;
-  let rewrites = 0;
-  for (const edit of edits.sort((a, b) => b.from - a.from)) {
-    if (edit.to > floor) continue;
-    out = out.slice(0, edit.from) + edit.text + out.slice(edit.to);
-    floor = edit.from;
-    rewrites += 1;
+  // A retired link already names what it pointed at, so a retirement inside its
+  // text (a code span naming the same file) is dropped; an overlapping edit
+  // after one kept is dropped too.
+  const inRetiredLabel = (/** @type {{ from: number, to: number }} */ edit) =>
+    retiredLabels.some(([start, end]) => start <= edit.from && edit.to <= end);
+  /** @type {typeof edits} */
+  const kept = [];
+  const candidates = edits.filter((edit) => !(edit.retire && inRetiredLabel(edit)));
+  for (const edit of candidates.sort((a, b) => a.from - b.from || b.to - a.to)) {
+    const last = kept.at(-1);
+    if (!last || edit.from >= last.to) kept.push(edit);
   }
-  return { text: out, rewrites, missing };
+  // Back to front, so earlier offsets stay valid.
+  let out = text;
+  for (const edit of kept.reverse()) {
+    out = out.slice(0, edit.from) + edit.text + out.slice(edit.to);
+  }
+  return { text: out, rewrites: kept.filter((edit) => !edit.part).length, missing };
 }
 
 /**
