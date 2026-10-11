@@ -7,6 +7,7 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "userConfig": {
     "settings_write_ask_enabled": {
       "type": "boolean",
