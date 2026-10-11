@@ -165,6 +165,9 @@ it, and if it names a missing path the link check refuses the run.
 A `<` right after an unescaped `](` is read as a link destination even when the `]` has no
 opening label; an HTML tag there is not masked, and a missing path inside it makes the run refuse.
 
+Code spans are found before raw HTML, so a backtick inside a quoted HTML attribute can pair with a
+later backtick and hide the text between them from the rewrite and the link check.
+
 ## Agent-written artifacts share the same root
 
 **Do not split the slice.** Every `.work/<watch-epic>/…` path in this skill and its `context/`
