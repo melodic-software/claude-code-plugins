@@ -33,7 +33,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins audit` |
 | Is this a known upstream bug? | `/harness-ops:known-issues` (compose: search the symptoms this report surfaces) |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
-| Shed one project's `~/.claude.json` state | `claude project purge <path>` |
+| Shed one project's `~/.claude.json` state | `claude purge <path>` |
 
 ## Boundary, the bundled `doctor` skill
 

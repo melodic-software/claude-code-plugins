@@ -196,7 +196,8 @@ C6_BARE=$(
 OUT=$(lint "$C6_BARE")
 assert_eq "bare tool-name rules never fire the uncovered-path check" 0 "$(count_matching "$OUT" '\[C6-uncoveredPath\]')"
 
-# `:*` AT the end is the documented working form; only mid-pattern is dead.
+# `:*` AT the end is the documented working form; only mid-pattern use is a
+# literal-colon command wildcard.
 C6_COLON=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Bash(npm:*)\nrule user settings allow Bash(git:* push)\n'
@@ -284,19 +285,21 @@ assert_eq "only the command-prefix rule fires" 1 "$(count_matching "$OUT" '\[C6-
 assert_contains "and it is the Bash one" "$OUT" "Bash(git:* push)"
 assert_not_contains "a documented domain wildcard is not called broken" "$OUT" "WebFetch(domain:*.example.com)"
 
-# --- A dead command prefix fires in EVERY kind, not just allow ---------------
+# --- A literal-colon command wildcard fires in EVERY kind, not just allow -----
 # The gap that let a fail-open defect through: no case here covered a
 # mid-pattern `:*` in a DENY rule, so exempting the parameter form by grammar
-# silenced `deny Bash(git:* push)` -- the dead-rule example the page itself
+# silenced `deny Bash(git:* push)` -- the literal-colon example the page itself
 # gives -- and the suite stayed 58/58.
 #
-# The direction matters. A dead ALLOW fails closed: the operator is denied
-# something they thought they had, and finds out. A dead DENY fails OPEN: they
-# believe they blocked `git push` and did not, and nothing says so.
+# The direction matters. An ALLOW in this form fails closed: the operator is
+# denied something they thought they had, and finds out. A DENY in this form
+# fails OPEN: they believe they blocked `git push` and did not, and nothing
+# says so.
 #
 # The discriminator is the SPACE. "Each rule names one parameter" and its value
 # is one scalar, so a parameter value never carries space-separated trailing
-# words; a dead command prefix is precisely a prefix followed by more words.
+# words; a literal-colon command wildcard is precisely a prefix followed by
+# more words.
 DEAD_PREFIX=$(
   printf '%s\n' "$SURFACES"
   cat <<'EOF'
@@ -308,7 +311,7 @@ rule user settings allow Bash(git:* push)
 EOF
 )
 OUT=$(lint "$DEAD_PREFIX")
-assert_eq "every dead command prefix fires, whatever its kind" 5 "$(count_matching "$OUT" '\[C6-colonStar\]')"
+assert_eq "every literal-colon command wildcard fires, whatever its kind" 5 "$(count_matching "$OUT" '\[C6-colonStar\]')"
 assert_contains "including the deny form of the page's own example" "$OUT" "[C6-colonStar] user Bash(git:* push)"
 assert_contains "and an ask on PowerShell" "$OUT" "PowerShell(Get:* -Force)"
 
@@ -329,9 +332,9 @@ assert_eq "no parameter form fires, in any kind" 0 "$(count_matching "$OUT" '\[C
 
 # --- One rule, one explanation -----------------------------------------------
 # `allow Agent(model:*-haiku)` drew BOTH colonStar and allowParam, with two
-# different mechanics -- and colonStar explains it as a dead Bash COMMAND
-# PREFIX, which Agent does not take. The rule is dead either way; only one of
-# the two findings says why.
+# different mechanics -- and colonStar explains it as a literal-colon Bash
+# COMMAND wildcard, which Agent does not take. The rule does not do what it
+# looks like either way; only one of the two findings says why.
 DOUBLE=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Agent(model:*-haiku)\n'
@@ -341,8 +344,8 @@ assert_eq "the parameter-form allow draws exactly one finding" 1 "$(count_matchi
 assert_contains "and it is the one that explains it correctly" "$OUT" "[C6-allowParam]"
 assert_not_contains "not a command-prefix explanation for a tool with no command prefixes" "$OUT" "[C6-colonStar]"
 
-# Suppression is scoped to the parameter shape: a real dead command prefix in an
-# allow rule still fires colonStar.
+# Suppression is scoped to the parameter shape: a real literal-colon command
+# wildcard in an allow rule still fires colonStar.
 NOT_SUPPRESSED=$(
   printf '%s\n' "$SURFACES"
   printf 'rule user settings allow Bash(git:* push)\n'

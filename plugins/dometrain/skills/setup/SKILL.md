@@ -84,7 +84,18 @@ Official contracts:
 
 For a non-interactive install such as CI, a fleet bootstrap, or a scripted machine setup, install
 the skills and, when the bundled server is wanted, `dometrain-mcp` with the key seeded on its
-initial install. Every step is required:
+initial install. Every step is required. At `user` scope, on a CLI that supports `--marketplace`
+on `install`, add the marketplace and install in one step:
+
+```shell
+claude plugin install dometrain --marketplace <source> -s user
+claude plugin install dometrain-mcp --marketplace <source> -s user --config dometrain_api_key=<your-key>
+claude plugin enable dometrain -s user
+claude plugin enable dometrain-mcp -s user
+```
+
+At `project` or `local` scope, or on an older CLI, keep the two-step form, so the marketplace is
+registered in the same scope as the install:
 
 ```shell
 claude plugin marketplace add <source> --scope <scope>
@@ -93,6 +104,15 @@ claude plugin install dometrain-mcp@<marketplace> -s <scope> --config dometrain_
 claude plugin enable dometrain -s <scope>
 claude plugin enable dometrain-mcp -s <scope>
 ```
+
+- **Pointer**: when choosing between the two forms, fetch
+  [Plugin commands reference: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+  (the `--marketplace` row and its minimum version) and
+  [Add a marketplace and install in one command](https://code.claude.com/docs/en/plugins/install#add-a-marketplace-and-install-in-one-command)
+  (which scope the added marketplace lands in) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the `--marketplace` row of `plugin install` changes, or that install section
+  changes where the one-step form registers the marketplace.
 
 If the bootstrap resolves the credential from an environment variable or a secret store instead,
 skip `dometrain-mcp` entirely and register the user-scope server with
