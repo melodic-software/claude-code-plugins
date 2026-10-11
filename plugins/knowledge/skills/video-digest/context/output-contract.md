@@ -75,7 +75,8 @@ itself and refuses when they fail). It refuses any slice whose temp media is gon
 tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
 Without `--no-media` it also refuses a partly removed temp session, naming the missing piece: the
 video (or an empty one), the info JSON, `frame-times.json`, any frame image, a frame
-`frame-times.json` lists, or the caption tracks. It refuses a temp session holding several videos
+`frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
+(anchor frames carry their time in their name), or the caption tracks. It refuses a temp session holding several videos
 (an X post with more than one), naming them, since the watch does not record which one is
 primary; a recorded temp dir outside the OS temp dir or overlapping the slice or target; and a
 symlink in the slice or the temp session, since a copy would follow it. It refuses when the slice

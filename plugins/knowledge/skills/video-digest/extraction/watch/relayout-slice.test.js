@@ -550,6 +550,14 @@ describe("relayoutSlice", () => {
       (/** @type {string} */ dir) => fs.rmSync(path.join(dir, "scene_0001.png")),
     ],
     [
+      "a scene frame has no frame-times.json entry",
+      (/** @type {string} */ dir) => fs.writeFileSync(path.join(dir, "scene_0002.png"), "png"),
+    ],
+    [
+      "an interval frame has no frame-times.json entry",
+      (/** @type {string} */ dir) => fs.writeFileSync(path.join(dir, "interval_0001.png"), "png"),
+    ],
+    [
       "only the sidecar is left",
       (/** @type {string} */ dir) => {
         for (const name of fs.readdirSync(dir).filter((file) => file.endsWith(".png"))) {
@@ -571,7 +579,7 @@ describe("relayoutSlice", () => {
     const { sliceDir, targetDir, framesDir } = makeFixture();
     const outside = path.join(makeDir("relayout-secret-"), "secret.png");
     fs.writeFileSync(outside, "secret");
-    fs.symlinkSync(outside, path.join(framesDir, "scene_0002.png"));
+    fs.symlinkSync(outside, path.join(framesDir, "anchor_00030000_0002.png"));
 
     const result = await relayoutSlice({ sliceDir, targetDir });
 

@@ -77,6 +77,8 @@ const SOURCE_FOLDERS = new Map([
 ]);
 /** The pipeline's extracted frame names: scene, interval and anchor frames. */
 const FRAME_NAME = /^(?:(?:scene|interval)_\d{4}|anchor_\d+_\d{4})\.png$/;
+/** Frames scene detection writes and records in `frame-times.json`. */
+const TIMED_FRAME = /^(?:scene|interval)_\d{4}\.png$/;
 const KEY_FRAME_LOGS = new Set([
   "key-frames-manifest.md",
   "visual-frames.md",
@@ -458,8 +460,17 @@ function missingFrames(framesDir) {
     missing.push(`any frame image (${framesDir})`);
   }
   if (times && typeof times === "object") {
-    const listed = Object.keys(times).filter((name) => !names.has(name));
-    if (listed.length > 0) missing.push(`the frames frame-times.json lists: ${listed.join(", ")}`);
+    const listed = Object.keys(times);
+    const gone = listed.filter((name) => !names.has(name));
+    if (gone.length > 0) missing.push(`the frames frame-times.json lists: ${gone.join(", ")}`);
+    // Scene detection records every scene and interval frame it writes; an
+    // anchor frame carries its time in its own name and is never listed.
+    const untimed = [...names].filter(
+      (name) => TIMED_FRAME.test(name) && !Object.hasOwn(times, name),
+    );
+    if (untimed.length > 0) {
+      missing.push(`frame-times.json entries for: ${untimed.sort().join(", ")}`);
+    }
   }
   return missing;
 }
