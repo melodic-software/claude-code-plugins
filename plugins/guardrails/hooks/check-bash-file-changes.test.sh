@@ -293,7 +293,47 @@ scratch write "$REPO/config.txt" "root = $LINUX_HOME"
 assert_contains "no snapshot: reported" "$(notes "$(post "$REPO")")" \
   "changed files not examined: no git status snapshot was recorded before the command"
 
+# ================= MUST SAY THE GUARD DID NOT RUN (#6905) ====================
+
+# The notice the shell hooks' abort boundary gives a fail-open hook
+# (abort-boundary.sh), with this hook's name.
+DID_NOT_RUN='guardrails check-bash-file-changes: guard did not run (internal error, rc=1); this call was not checked. Details: claude --debug.'
+
+# D1. The snapshot cannot be written: CLAUDE_PLUGIN_DATA names a file, so
+#     creating the snapshot directory under it throws.
+new_repo
+printf 'x\n' >"$TEST_TMPDIR/not-a-dir"
+RC=0
+OUT=$(payload PreToolUse "$REPO" | CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/not-a-dir" \
+  node "$HOOK" snapshot 2>"$TEST_TMPDIR/err") || RC=$?
+assert_exit "snapshot throws: fail-open exit" 0 "$RC"
+assert_eq "snapshot throws: systemMessage" "$DID_NOT_RUN" "$(jq -r .systemMessage <<<"$OUT")"
+assert_eq "snapshot throws: stdout is one document" "1" "$(jq -s length <<<"$OUT")"
+assert_eq "snapshot throws: notice is stderr's first line" "$DID_NOT_RUN" "$(head -n 1 "$TEST_TMPDIR/err")"
+
+# D2. The check reads a snapshot that is valid JSON but not an object.
+new_repo
+pre "$REPO"
+for f in "$SNAPSHOTS"/*.json; do printf 'null' >"$f"; done
+RC=0
+OUT=$(post "$REPO" 2>"$TEST_TMPDIR/err") || RC=$?
+assert_exit "check throws: fail-open exit" 0 "$RC"
+assert_eq "check throws: systemMessage" "$DID_NOT_RUN" "$(jq -r .systemMessage <<<"$OUT")"
+assert_eq "check throws: notice is stderr's first line" "$DID_NOT_RUN" "$(head -n 1 "$TEST_TMPDIR/err")"
+
 # ========================== MUST STAY QUIET =================================
+
+# 5h. A normal run with a benign change writes nothing to stdout or stderr
+#     and exits 0: the failure notice is for a failure only.
+new_repo
+RC=0
+ERR=$(pre "$REPO" 2>&1 >/dev/null) || RC=$?
+assert_silent "normal snapshot: stderr silent" "$ERR"
+scratch write "$REPO/notes.txt" "nothing to see"
+OUT=$(post "$REPO" 2>"$TEST_TMPDIR/err") || RC=$?
+assert_exit "normal run: exit" 0 "$RC"
+assert_silent "normal check: stdout silent" "$OUT"
+assert_silent "normal check: stderr silent" "$(cat "$TEST_TMPDIR/err")"
 
 # 5f. Exactly 20 benign changed files: at the cap, nothing left unexamined.
 new_repo
