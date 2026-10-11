@@ -51,9 +51,11 @@ back up.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
    name and, when the session is working inside a plugin's source tree, that
-   the version effective in the current project's scope (honoring user / project /
-   local scope precedence, not merely the highest installed version a plugin
-   listing reports) matches that source manifest; a rename or version bump
+   the version effective in the current project's scope (honoring install-scope
+   precedence, not merely the highest installed version a plugin listing
+   reports; pointer: <https://code.claude.com/docs/en/plugins/install#choose-an-install-scope>,
+   as of 2026-10-11, recheck trigger: that section changes the scopes or their
+   precedence) matches that source manifest; a rename or version bump
    silently invalidates cited invocations and assumed behavior. When a cited plugin's source manifest is not
    locatable in the working tree, report the version comparison as unverifiable
    rather than guessing Claude Code's internal cache layout.

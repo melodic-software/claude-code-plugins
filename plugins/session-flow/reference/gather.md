@@ -27,6 +27,11 @@ Keep `$`-expansion out of the pre-compute block
 Bare `$HOME` is the one form observed to survive that guard; anything else, including `${HOME}`, is
 refused. Prefer a probe that needs no expansion at all.
 
+- **Pointer**: the probe recorded in melodic-software/claude-code-plugins#1687.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a release note changes how worktree-isolated agents treat `$`-expansion,
+  or a pre-compute block using bare `$HOME` fails to load.
+
 ## The probes
 
 Each consumer names the subset it takes. Where a probe is parameterised, the consumer states the

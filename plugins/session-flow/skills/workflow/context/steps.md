@@ -104,8 +104,10 @@ Structured plan with rationale, test strategy, and a user approval gate before e
 - Include what will change, why, in what order, and how success is verified
 - Plan depth scales to blast radius. A wide-impact change earns an adversarial stress-test pass
   (assumptions, failure scenarios, operational gotchas) before approval
-- **Not the same as Claude Code's built-in plan mode.** That is a read-only permission mode; this
-  stage is a planning discipline that can run in any mode
+- **Not the same as Claude Code's built-in plan mode.** That is a permission mode (pointer:
+  <https://code.claude.com/docs/en/permission-modes#analyze-before-you-edit-with-plan-mode>; as
+  of 2026-10-11; recheck trigger: that section is renamed or moved); this stage is a planning
+  discipline that can run in any mode
 - For non-trivial work, decompose into phases with per-phase verifiable completion criteria
 - The plan keeps the design section as the design stage wrote it; each phase names the part it
   implements, and a phase that must depart from it goes back to the design stage
