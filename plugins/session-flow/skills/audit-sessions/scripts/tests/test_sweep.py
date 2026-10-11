@@ -414,6 +414,15 @@ def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir):
     assert not Path("PWNED").exists() and not (data_dir / "PWNED").exists()
 
 
+def test_excerpts_leave_out_automated_sessions(data_dir):
+    headless = typed("headless", "2026-09-10T08:00:00Z", "github.com/acme/web", "from a pipeline")
+    headless["entrypoints"] = ["sdk-cli"]
+    write_store(data_dir, headless, typed("typed", "2026-09-10T09:00:00Z", "github.com/acme/web", "from a person"))
+    result = sweep(data_dir, "--excerpts")
+    assert result.returncode == 0, result.stderr
+    assert [line["session"] for line in excerpt_lines(result)] == ["typed"]
+
+
 def test_suppressed_excerpts_print_nothing_and_exit_1(data_dir):
     write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", "should never print", suppressed=True))
     result = sweep(data_dir, "--excerpts")

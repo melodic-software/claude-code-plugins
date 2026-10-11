@@ -160,9 +160,9 @@ confirm is written once at user scope instead of repeated in every session. Run 
    ```
 
    Each output line is one JSON object: `project`, `session`, `started` and `excerpt`, one of the
-   person's short typed turns. Exit 1 means some sessions hold no excerpts because redaction failed
-   closed when they were collected: say how many and continue with the lines printed. Exit 2: report
-   it and stop, as in Step 2.
+   person's short typed turns; automated sessions (headless and SDK runs) are left out. Exit 1
+   means some sessions hold no excerpts because redaction failed closed when they were collected:
+   say how many and continue with the lines printed. Exit 2: report it and stop, as in Step 2.
 5. **Cluster.** Group excerpts that ask for the same thing, for example three turns from different
    days each asking for dates in ISO format. Count distinct `session` values per group and keep a
    group only when two or more sessions show it; a preference from one session is dropped however
