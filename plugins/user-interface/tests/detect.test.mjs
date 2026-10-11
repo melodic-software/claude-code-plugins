@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -18,8 +18,8 @@ const HOME = join(scratch, "home");
 mkdirSync(join(HOME, ".claude/skills/animate"), { recursive: true });
 
 /** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
-function detect(args, env) {
-  const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env });
+function detect(args, env, cwd) {
+  const r = spawnSync(process.execPath, [DETECT, ...args], { encoding: "utf8", env, cwd });
   assert.equal(r.status, 0, r.stderr);
   return JSON.parse(r.stdout);
 }
@@ -52,7 +52,307 @@ describe("project signals", () => {
 
   test("a project without one reports nothing", () => {
     const { project } = detect(["--project", join(FIX, "no-ds"), ...seams]);
-    assert.deepEqual(project, { tokens: [], packages: [], components_json: false, storybook: false, docs: [], mcp_servers: [] });
+    assert.deepEqual(project, {
+      tokens: [],
+      packages: [],
+      components_json: false,
+      storybook: false,
+      docs: [],
+      mcp_servers: [],
+      browserslist: { query: null, source: null },
+      lint: { stylelint: false, eslint_css: false, config_paths: [] },
+      style_files: [],
+    });
+  });
+});
+
+describe("css signals", () => {
+  const scratchProject = (name, files) => {
+    const dir = join(scratch, name);
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      writeFileSync(join(dir, path), text);
+    }
+    return dir;
+  };
+
+  test("browserslist in package.json is the query, its entries joined", () => {
+    const { project } = detect(["--project", join(FIX, "css-project"), ...seams]);
+    assert.deepEqual(project.browserslist, { query: "> 0.5%, last 2 versions", source: "package.json" });
+  });
+
+  test("a .browserslistrc supplies the query without its comments", () => {
+    const { project } = detect(["--project", join(FIX, "browserslistrc-project"), ...seams]);
+    assert.deepEqual(project.browserslist, { query: "defaults, not IE 11", source: ".browserslistrc" });
+  });
+
+  test("a package.json browserslist keyed by environment reads production", () => {
+    const dir = scratchProject("env-browserslist", {
+      "package.json": JSON.stringify({ browserslist: { production: [">0.2%", "not dead"], development: ["last 1 chrome version"] } }),
+    });
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.browserslist, { query: ">0.2%, not dead", source: "package.json" });
+  });
+
+  test("stylelint and @eslint/css are reported with their config files", () => {
+    const { project } = detect(["--project", join(FIX, "css-project"), ...seams]);
+    assert.equal(project.lint.stylelint, true);
+    assert.equal(project.lint.eslint_css, true);
+    assert.deepEqual([...project.lint.config_paths].sort(), [".stylelintrc.json", "eslint.config.mjs"]);
+  });
+
+  test("an uppercase .CSS suffix counts, and a component with no style block does not", () => {
+    const { project } = detect(["--project", join(FIX, "css-project"), ...seams]);
+    assert.deepEqual([...project.style_files].sort(), ["css", "scss", "vue"]);
+  });
+
+  test("a svelte style block in any case counts, and a css-in-js package adds css-in-js", () => {
+    const { project } = detect(["--project", join(FIX, "browserslistrc-project"), ...seams]);
+    assert.deepEqual([...project.style_files].sort(), ["css-in-js", "svelte"]);
+  });
+
+  test("styles under node_modules are not the project's", () => {
+    const dir = scratchProject("vendored-only", { "package.json": "{}", "node_modules/pkg/a.css": "a {}" });
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.style_files, []);
+  });
+
+  test("a .browserslistrc that links outside the project is not read", { skip: process.platform === "win32" && "file symlinks need a privilege on Windows" }, () => {
+    const secret = join(scratch, "outside-secret.txt");
+    writeFileSync(secret, "TOKEN=leaked\n");
+    const dir = scratchProject("linked-browserslistrc", { "package.json": "{}", "shared/browsers": "defaults\n" });
+    symlinkSync(secret, join(dir, ".browserslistrc"));
+    symlinkSync(join(dir, "shared/browsers"), join(dir, "browserslist"));
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.browserslist, { query: "defaults", source: "browserslist" });
+  });
+
+  test("an oversized .browserslistrc is not read", () => {
+    const dir = scratchProject("huge-browserslistrc", { "package.json": "{}", ".browserslistrc": `defaults\n${"#".repeat(70_000)}\n` });
+    assert.deepEqual(detect(["--project", dir, ...seams]).project.browserslist, { query: null, source: null });
+  });
+});
+
+describe("--config", () => {
+  const PROJECT = join(FIX, "config-project");
+  const USER_HOME = join(FIX, "config-user-home");
+  const META = "components\"; touch pwned; $(touch pwned2) `touch pwned3` | cat '";
+  const userConfig = join(scratch, "user-config.json");
+  writeFileSync(userConfig, JSON.stringify({ css_browser_target: "last 2 versions", css_important: "allow", css_layer: META, routing: "deny-all" }));
+  const run = mkdtempSync(join(scratch, "cwd-"));
+  const base = ["--project", PROJECT, "--home", USER_HOME, "--plugin-list-json", PLUGINS, "--mcp-list", MCP, "--config"];
+  const out = detect([...base, "--user-config", userConfig], undefined, run);
+  const { config } = out;
+  const layer = (name) => config.layers.find((l) => l.name === name);
+
+  test("is absent unless asked for", () => {
+    assert.ok(!("config" in detect(["--project", PROJECT, ...seams])));
+  });
+
+  test("each key resolves from the highest layer that sets it validly", () => {
+    assert.deepEqual(config.values, {
+      version: 1,
+      css: {
+        browser_target: "> 1%",
+        techniques: { disable: [] },
+        rules: { disable: ["hover", "motion"] },
+        important: "utilities-only",
+        layer: META,
+        token_fallback: "literal",
+      },
+      routing: { version: 1, deny: ["superdesign"] },
+    });
+  });
+
+  test("provenance names the layer of every key across all five layers", () => {
+    assert.deepEqual(config.provenance, {
+      version: "team",
+      "css.browser_target": "user",
+      "css.techniques.disable": ["defaults"],
+      "css.rules.disable": ["defaults", "team", "local"],
+      "css.important": "team",
+      "css.layer": "userConfig",
+      "css.token_fallback": "local",
+      routing: "team",
+    });
+  });
+
+  test("the convention home comes from the project's pointer line", () => {
+    assert.equal(config.home, "conventions");
+    assert.equal(layer("team").path, join(PROJECT, "conventions/user-interface.yaml"));
+    assert.deepEqual(config.prose, [join(PROJECT, "conventions/user-interface.md")]);
+  });
+
+  test("routing is rejected in every layer but the team layer", () => {
+    for (const name of ["userConfig", "user", "local"]) {
+      assert.ok(layer(name).errors.some((e) => /"routing": accepted only in the team layer/.test(e)), `${name}: ${JSON.stringify(layer(name).errors)}`);
+    }
+    assert.deepEqual(layer("team").errors, []);
+  });
+
+  test("an invalid value is reported and the lower layer keeps the key", () => {
+    assert.ok(layer("local").errors.some((e) => /"css\.important".*"sometimes" is not one of/.test(e)), JSON.stringify(layer("local").errors));
+    assert.equal(config.values.css.important, "utilities-only");
+  });
+
+  test("a userConfig value with shell metacharacters stays data", () => {
+    assert.equal(config.values.css.layer, META);
+    for (const dir of [run, PROJECT, TESTS, PLUGIN]) {
+      for (const name of ["pwned", "pwned2", "pwned3"]) assert.ok(!existsSync(join(dir, name)), `${name} created in ${dir}`);
+    }
+  });
+
+  test("--team replaces the team file and keeps the other layers", () => {
+    const team = join(scratch, "team-seam.yaml");
+    writeFileSync(team, "version: 1\ncss:\n  important: allow\n  rules:\n    disable:\n      - color\n");
+    const { config: seamed } = detect([...base, "--team", team]);
+    assert.equal(seamed.values.css.important, "allow");
+    assert.equal(seamed.provenance["css.important"], "team");
+    assert.deepEqual(seamed.values.css.rules.disable, ["color", "motion"]);
+    assert.equal(seamed.values.routing, undefined);
+    assert.equal(seamed.layers.find((l) => l.name === "team").path, team);
+    assert.equal(seamed.values.css.token_fallback, "literal", "the local layer is still read");
+  });
+
+  test("a team routing row that breaks routing.schema.json is dropped with an error; a valid one is kept", () => {
+    const team = join(scratch, "team-rows.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: /pixel-art:ui\n      rank: 2\n" +
+        "    - concern: Not A Concern\n      id: /pixel-art:ui\n      rank: 0\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, [{ concern: "visual-direction", id: "/pixel-art:ui", rank: 2 }]);
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.rows\[1\]\.concern: must match/);
+    assert.match(errors, /routing\.rows\[1\]\.rank: must be an integer >= 1/);
+    assert.doesNotMatch(errors, /rows\[0\]/);
+  });
+
+  test("an unknown key in a team row drops only that key, and the rest of routing stays", () => {
+    const team = join(scratch, "team-unknown-key.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: /pixel-art:ui\n      rank: 2\n      foo: bar\n" +
+        "  deny:\n    - figma\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing, { version: 1, rows: [{ concern: "visual-direction", id: "/pixel-art:ui", rank: 2 }], deny: ["figma"] });
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.rows\[0\]: unknown key foo, dropped/);
+  });
+
+  test("a bad disable or deny entry drops only that entry", () => {
+    const team = join(scratch, "team-bad-entries.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  disable:\n    - concern: Not A Concern\n    - concern: visual-direction\n      id: /pixel-art:ui\n" +
+        "  deny:\n    - 5\n    - figma\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing, { version: 1, disable: [{ concern: "visual-direction", id: "/pixel-art:ui" }], deny: ["figma"] });
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.disable\[0\]\.concern: must match/);
+    assert.match(errors, /routing\.disable\[0\]: missing id/);
+    assert.match(errors, /routing\.deny\[0\]: must be a string/);
+  });
+
+  test("a team row that matches no bundled row is held to the full row schema", () => {
+    const team = join(scratch, "team-new-row.yaml");
+    writeFileSync(team, "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: brand-new-tool\n");
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, []);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.rows\[0\]: missing rank/);
+  });
+
+  test("an unknown routing version drops routing and names the version", () => {
+    const team = join(scratch, "team-routing-v2.yaml");
+    writeFileSync(team, "routing:\n  version: 2\n  deny:\n    - figma\n");
+    const { config: c } = detect([...base, "--team", team]);
+    assert.equal(c.values.routing, undefined);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.version: must be one of 1/);
+  });
+
+  test("a complete team routing row is held to the full row schema, allOf included", () => {
+    const team = join(scratch, "team-full-row.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: css-authoring\n      rank: 1\n      id: noslash\n      kind: skill\n      detect: user-interface\n" +
+        "      account: none\n      status: confirmed\n      platforms:\n        - linux\n      as_of: 2026-10-10\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, []);
+    assert.match(c.layers.find((l) => l.name === "team").errors.join("\n"), /routing\.rows\[0\]\.id: must match/);
+  });
+
+  test("--team leaves no scratch path in the output, even for an absent local file", () => {
+    const team = join(scratch, "team-plain.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const project = join(FIX, "no-ds");
+    const r = spawnSync(process.execPath, [DETECT, "--project", project, ...seams, "--config", "--team", team], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(r.stdout, /ui-home-/);
+    const local = JSON.parse(r.stdout).config.layers.find((l) => l.name === "local");
+    assert.equal(local.path, join(project, "docs/conventions/user-interface.local.yaml"));
+  });
+
+  test("--team reads a convention home whose name merely starts with two dots", () => {
+    const dir = join(scratch, "dotdot-home");
+    mkdirSync(join(dir, "..conf"), { recursive: true });
+    writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `..conf`.\n<!-- END GENERATED: convention-home -->\n");
+    writeFileSync(join(dir, "..conf/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+    const team = join(scratch, "team-dotdot.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const { config: c } = detect(["--project", dir, ...seams, "--config", "--team", team]);
+    assert.equal(c.home, "..conf");
+    assert.equal(c.layers.find((l) => l.name === "local").state, "loaded");
+    assert.equal(c.values.css.token_fallback, "literal");
+  });
+
+  test("a project with no pointer line uses docs/conventions", () => {
+    const { config: plain } = detect(["--project", join(FIX, "no-ds"), ...seams, "--config"]);
+    assert.equal(plain.home, "docs/conventions");
+    assert.equal(plain.provenance["css.important"], "defaults");
+    assert.ok(!("home_error" in plain));
+  });
+
+  test("a broken pointer line reads neither the team nor the local layer", () => {
+    const dir = join(scratch, "broken-pointer");
+    mkdirSync(join(dir, "docs/conventions"), { recursive: true });
+    writeFileSync(join(dir, "AGENTS.md"), "<!-- BEGIN GENERATED: convention-home -->\nHome is `missing-dir`.\n<!-- END GENERATED: convention-home -->\n");
+    writeFileSync(join(dir, "docs/conventions/user-interface.yaml"), "css:\n  important: allow\nrouting:\n  version: 1\n  deny:\n    - figma\n");
+    writeFileSync(join(dir, "docs/conventions/user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+    const { config: broken } = detect(["--project", dir, ...seams, "--config"]);
+    assert.equal(broken.home, null);
+    assert.match(broken.home_error, /missing-dir/);
+    assert.equal(broken.values.css.important, "avoid");
+    assert.equal(broken.values.css.token_fallback, "ask");
+    assert.equal(broken.values.routing, undefined);
+    for (const name of ["team", "local"]) assert.equal(broken.layers.find((l) => l.name === name).state, "absent", name);
+  });
+
+  test("--team refuses a local layer whose convention home leaves the project", () => {
+    const outside = join(scratch, "outside-home");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(join(outside, "user-interface.local.yaml"), "css:\n  token_fallback: literal\n");
+    const dir = join(scratch, "linked-home");
+    mkdirSync(join(dir, "docs"), { recursive: true });
+    symlinkSync(outside, join(dir, "docs/conventions"), "junction");
+    const team = join(scratch, "team-linked.yaml");
+    writeFileSync(team, "css:\n  important: allow\n");
+    const { config: c } = detect(["--project", dir, ...seams, "--config", "--team", team]);
+    const local = c.layers.find((l) => l.name === "local");
+    assert.equal(local.state, "invalid");
+    assert.match(local.errors.join("\n"), /outside the project/);
+    assert.equal(c.values.css.token_fallback, "ask");
+    assert.equal(c.values.css.important, "allow", "the --team file itself is still read");
+  });
+
+  test("an unreadable --user-config file invalidates only the userConfig layer", () => {
+    const bad = join(scratch, "bad-user-config.json");
+    writeFileSync(bad, "{not json");
+    const { config: c } = detect(["--project", join(FIX, "no-ds"), ...seams, "--config", "--user-config", bad]);
+    const u = c.layers.find((l) => l.name === "userConfig");
+    assert.equal(u.state, "invalid");
+    assert.match(u.errors.join("\n"), /bad-user-config\.json/);
+    assert.equal(c.values.css.important, "avoid");
   });
 });
 
