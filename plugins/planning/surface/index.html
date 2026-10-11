@@ -493,7 +493,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
   const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm the Nth row of Decide, counted from the top"],
-    ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
+    ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row), except an accept whose recommendation changed since"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
     ["Esc", "Leave the note and keep the draft; again to close the panel"], ["n / Shift+N", "Next / previous item needing you"], ["j / k, Alt+Down / Alt+Up", "Next / previous question"],
     ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["Left / Right", "Previous / next image in a gallery, while the visuals panel or full screen has focus"], ["w", "Summary and wrap-up"],
     ["u", "Undo, during the undo window"], ["/", "Filter"], ["?", "This sheet"]];
@@ -1038,6 +1038,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer", "hedged"].includes(k)) return null;
+    if (k === "accept" && (q.history || []).some(h => h.pageSeq != null && (d.seq != null ? h.pageSeq >= d.seq : d.rev != null && h.rev > d.rev))) return null; // the recommendation changed since this accept: pick Rec instead
     const a = (q.alternatives || []).find(x => x.key === d.alt);
     if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
