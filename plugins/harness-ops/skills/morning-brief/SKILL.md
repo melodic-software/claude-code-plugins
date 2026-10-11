@@ -1,7 +1,7 @@
 ---
 description: "Prints the operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness. Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Never mutates issues, PRs, labels, or comments."
 argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]"
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/build-brief-view.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-brief-view.mjs\":*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)"]
 user-invocable: true
 disable-model-invocation: false
 shell: bash

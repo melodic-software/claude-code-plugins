@@ -1095,6 +1095,26 @@ OUT_MARK_TRUNC="$(MB_GH_FIXTURES="$TMP/gql-trunc" MB_DATA_DIR="$TMP/data-trunc" 
 assert_contains "bookmark: a partial thread read says it was not advanced" "$OUT_MARK_TRUNC" "bookmark not advanced: this read is PARTIAL"
 assert_eq "bookmark: a partial thread read leaves it where it was" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-trunc")"
 
+mkdir -p "$TMP/data-garbage/morning-brief/$FIXTURE_REPO"
+printf 'not a date\n' >"$TMP/data-garbage/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_GARBAGE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-garbage" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: an unparsable bookmark is named and ignored" "$(section "$OUT_GARBAGE" "== Findings stranded")" "bookmark unparsable, ignored"
+assert_eq "bookmark: a full read replaces an unparsable bookmark" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-garbage")"
+
+printf 'a file, not a dir\n' >"$TMP/data-is-file"
+OUT_NOSAVE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-is-file" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a data dir it cannot write says so" "$(section "$OUT_NOSAVE" "== Findings stranded")" "bookmark not saved under the data dir"
+
+# A page that claims more results but carries no cursor is not a full read.
+mkdir -p "$TMP/gql-nocursor" "$TMP/data-nocursor/morning-brief/$FIXTURE_REPO"
+jq '.data.repository.pullRequests.pageInfo.endCursor = null' "$STR/api-graphql-first.json" >"$TMP/gql-nocursor/api-graphql-first.json"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-nocursor/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_NOCURSOR="$(MB_GH_FIXTURES="$TMP/gql-nocursor" MB_DATA_DIR="$TMP/data-nocursor" run_stub gql "${FIX_ARGS[@]}")"
+STR_NOCURSOR="$(section "$OUT_NOCURSOR" "== Findings stranded")"
+assert_contains "paging: a next page without a cursor is UNREADABLE" "$STR_NOCURSOR" "UNREADABLE: a merged-PR page reported more results but no cursor to them"
+assert_not_contains "paging: a next page without a cursor never reads as clear" "$STR_NOCURSOR" "every merged PR in the window is clear"
+assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-nocursor")"
+
 # --- Summary ------------------------------------------------------------------
 echo
 if ((FAILED > 0)); then

@@ -1097,11 +1097,17 @@ fetch_merged_gql() {
     cat "$WORK/merged.page" >>"$out"
     cursor="$(jq -r --argjson cutoff "$cutoff" '
       .data.repository.pullRequests
-      | if (.pageInfo.hasNextPage != true) or ((.nodes | last | .updatedAt // null) == null)
+      | if .pageInfo.hasNextPage != true then ""
+        elif (.nodes | length) == 0 or .pageInfo.endCursor == null then "!"
+        elif ((.nodes | last | .updatedAt // null) == null)
           or ((.nodes | last | .updatedAt | fromdateiso8601) < $cutoff)
-        then "" else (.pageInfo.endCursor // "") end
+        then "" else .pageInfo.endCursor end
     ' "$WORK/merged.page" 2>/dev/null)" || {
       LAST_ERR="could not parse a merged-PR page"
+      return 1
+    }
+    [[ "$cursor" != "!" ]] || {
+      LAST_ERR="a merged-PR page reported more results but no cursor to them"
       return 1
     }
     [[ -n "$cursor" ]] || return 0
