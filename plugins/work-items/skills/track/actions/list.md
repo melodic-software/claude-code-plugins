@@ -5,7 +5,7 @@ List work items with optional filtering.
 ## Usage
 
 ```
-/work-items:track list [--category <name>] [--label <name>] [--state <open|closed|all>] [--assignee <login>] [--limit <n>] [--search <query>]
+/work-items:track list [--category <name>] [--label <name>] [--state <open|closed|all>] [--assignee <login>] [--limit <n>] [--search <query>] [--parent <id>]
 ```
 
 ## Flags
@@ -16,10 +16,11 @@ List work items with optional filtering.
 - `--assignee <login>` -- Filter by assignee (`@me` for self)
 - `--limit <n>` -- Max results (default: 30, max per request: 100)
 - `--search <query>` -- Free search using the bound provider's search syntax
+- `--parent <id>` -- List one container's direct children, any state unless `--state` narrows it (seam `list-sub-items`); the other filters do not combine with it
 
 ## Workflow
 
-1. List items filtered by the parsed flags (adapter: "List items", bare read; category/label/state/assignee/limit map to the adapter's filter args; `--search` uses the adapter's "Search items" path). The adapter returns normalized item objects.
+1. List items filtered by the parsed flags (adapter: "List items", bare read; category/label/state/assignee/limit map to the adapter's filter args; `--search` uses the adapter's "Search items" path). The adapter returns normalized item objects. With `--parent`, run `"$TRACKER" list-sub-items '<id>' --state <state>` instead (the dispatcher resolved as in [start.md](start.md); `--state` defaults to `all` here); exit `6` means the provider cannot enumerate children: say so.
 
 1. Parse the result and present as a condensed table:
 

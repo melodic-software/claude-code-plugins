@@ -12,7 +12,7 @@ Create a new work item with labels from the taxonomy.
 ## Usage
 
 ```
-/work-items:track add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] "Item description"
+/work-items:track add [--category <name>] [--type <type>] [--area <area>] [--ecosystem <eco>] [--priority <p>] [--recurring --cadence <cadence>] [--context "summary"] [--label <name>]... [--body-file <path>] [--parent <id>] [--blocked-by <id>[,<id>]] "Item description"
 ```
 
 ## Flags
@@ -27,10 +27,14 @@ Create a new work item with labels from the taxonomy.
 - `--context "summary"` -- Add research context to the item body
 - `--agent-ready` -- Apply the autonomous-eligible role label (default `agent-ready`; resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles") and use agent-brief body template (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for items intended for AFK agent execution
 - `--force` -- Skip duplicate check
+- `--label <name>` -- Apply this label verbatim (repeatable). Each must exist in the live set ([labels.md](labels.md)); a missing one stops the action before anything is created, naming the full missing set
+- `--body-file <path>` -- Use this file, written with the Write tool, as the whole body instead of a template
+- `--parent <id>` -- File the item as a child of this container (seam `create-item --parent`). A child is filed by its container's owner, past intake: the category default, the `needs-triage` floor and the default body template do not apply
+- `--blocked-by <id>[,<id>]` -- Create the item with these blocked-by edges (seam `create-item --blocked-by`); file the blockers first
 
 ## Workflow
 
-> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact. Those need explicit authorization. An explicit user `/work-items:track add ...` invocation IS the authorization; model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local note in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`) instead.
+> **Authorization gate (BEFORE any step below).** Never file a work item on inferred intent. A topic the user raised, "they'd want it tracked", or approval of a related *direction* is NOT authorization to create an outward-facing artifact. Those need explicit authorization. An explicit user `/work-items:track add ...` invocation IS the authorization, as is a step of a skill the user invoked that files this item (a decision map the user asked to chart); model-initiated filing is not. If you only *infer* an item should exist: draft the title + body, ASK first, OR write a local note in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`) instead.
 
 1. Parse the item text and flags from arguments.
 
@@ -40,9 +44,9 @@ Create a new work item with labels from the taxonomy.
 
 1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label, so it is not part of `{labels}`. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead. Append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
 
-1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. With no `--priority` and no `--agent-ready`, include no `priority:` label and include the bare `needs-triage` floor when the live set has it. A supplied `--priority`, or `--agent-ready`, does not leave the floor on: a known tier or a complete brief is already past intake. Also start from `category:general` and replace it with a supplied `--category`. Append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
+1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. With no `--priority` and no `--agent-ready`, include no `priority:` label and include the bare `needs-triage` floor when the live set has it. A supplied `--priority`, or `--agent-ready`, does not leave the floor on: a known tier or a complete brief is already past intake. Also start from `category:general` and replace it with a supplied `--category`. Append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed. With `--parent`, skip the `category:general` default and the `needs-triage` floor. Append each `--label` verbatim, after checking them as the flag says.
 
-1. **Build body.** If `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
+1. **Build body.** With `--body-file`, the file is the body. With `--parent` and no `--body-file`, the description is the body. Otherwise, if `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
 ```markdown
 ## Context
@@ -91,7 +95,7 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 rm -f "$BODY_FILE"
 ```
 
-For non-recurring items, omit the `[Maintenance]` prefix. The emitted item object carries the new `id` (fully-qualified) and `number`.
+For non-recurring items, omit the `[Maintenance]` prefix. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
 1. **If `--recurring`:** Also add the item to the consuming repo's `.github/recurring-schedule.json`. When the file does not exist yet, create it with an `{"items": []}` skeleton before appending (ask first if the repo has no recurring setup at all, since without the schedule `due`/`recheck` will never see the item):
 

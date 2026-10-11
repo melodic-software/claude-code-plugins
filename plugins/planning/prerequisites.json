@@ -1,27 +1,6 @@
 {
   "requires": [
     {
-      "id": "gh",
-      "kind": "cli",
-      "need": "optional",
-      "for": [
-        "skill:wayfind"
-      ],
-      "detect": {
-        "any": [
-          "gh"
-        ]
-      },
-      "degrade": "Without gh, /planning:wayfind shows no current user or open maps and cannot read or write the tracker; the other planning skills still work.",
-      "install": {
-        "docs": "https://cli.github.com/",
-        "brew": "gh",
-        "winget": "GitHub.cli",
-        "apt": "gh"
-      },
-      "check": "/harness-ops:prerequisites"
-    },
-    {
       "id": "jq",
       "kind": "cli",
       "need": "optional",

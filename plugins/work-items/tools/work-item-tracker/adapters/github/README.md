@@ -10,9 +10,12 @@
 - [List item comments](#list-item-comments)
 - [Close item](#close-item)
 - [Edit labels / assignees](#edit-labels--assignees)
+- [Edit title / body](#edit-title--body)
+- [List labels](#list-labels)
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
+- [Linked changes](#linked-changes)
 - [Aggregate / count (dashboard + hygiene)](#aggregate--count-dashboard--hygiene)
 - [Gotchas](#gotchas)
 
@@ -254,6 +257,26 @@ Verbs beyond the lease protocol (`get-item`, `list-items`, `list-sub-items`, `li
 `add-sub-item`, `link-blocks`) still resolve GraphQL-only fields (`issueType`, `blockedBy`,
 `parent`, `subIssues`) or use `gh issue list`, so they remain unavailable under that restriction.
 
+## Edit title / body
+
+For `/work-items:track edit` (WRITE, see the identity note above). `--body-file` REPLACES the
+body, so an edit that keeps part of it reads the body first ("View item") and writes the whole
+result back:
+
+```bash
+gh issue edit <N> --title "<title>"
+gh issue edit <N> --body-file <path>
+```
+
+## List labels
+
+For `/work-items:track labels` and the label checks in `add` (bare read). `gh label list`
+returns 30 labels unless `--limit` says otherwise:
+
+```bash
+gh label list --limit 1000 --json name --jq '.[].name' | tr -d '\r'
+```
+
 ## Comment on item / edit a comment
 
 Comment on an item, or edit a comment via PATCH (preserves the audit trail). Both are WRITE
@@ -391,6 +414,37 @@ linkage instead of a body regex over `gh pr list --search`:
 - **Opt-out is intrinsic.** An intentional `Refs #<num>` (reference without closing) never enters
   the closing linkage, so it correctly does not exclude its issue. That is the same opt-out the
   `pr-issue-linkage` gate honors, now with no keyword allow/deny list to keep in sync.
+
+## Linked changes
+
+For `/work-items:track changes`: the PRs GitHub links as closing item `<N>`, in any state, from the
+same `closedByPullRequestsReferences` connection as "Open linked PRs" above, so the same rules
+apply: `--paginate`, `-F` for the typed `Int`, the output captured and its exit status checked
+before any reduction, and `tr -d '\r'`. A failed query is not an empty result. Unlike the in-flight
+check it keeps PRs from any head repository and asks for closed ones (`includeClosedPrs:true`),
+because a caller deriving what shipped wants every `MERGED` node; the caller filters by `state`.
+`<owner>`/`<repo>` are the item's own repository (bare read):
+
+```bash
+linked=$(gh api graphql --paginate \
+  -f query='query($owner:String!, $repo:String!, $n:Int!, $endCursor:String) {
+    repository(owner:$owner, name:$repo) {
+      issue(number:$n) {
+        closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:true) {
+          nodes { number url state isDraft }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    }
+  }' \
+  -f owner="<owner>" -f repo="<repo>" -F n=<N> \
+  --jq '.data.repository.issue.closedByPullRequestsReferences.nodes[] | {number, url, state, isDraft} | tojson') \
+  || { echo "linked-changes read failed for #<N>" >&2; exit 1; }
+printf '%s\n' "$linked" | tr -d '\r' | jq -s '.'
+```
+
+`state` is `OPEN`, `MERGED` or `CLOSED`. A PR that only mentions the item (`Refs #<N>`) is not in
+this linkage, by design (see "Open linked PRs").
 
 ## Aggregate / count (dashboard + hygiene)
 
