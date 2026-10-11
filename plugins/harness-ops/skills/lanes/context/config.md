@@ -160,7 +160,10 @@ sha256 in the script. Each run checks that sha256 and refuses, exit `1` with not
 snapshot is missing or changed; otherwise it calls `run-once` through this launcher's absolute path
 with the snapshot as `--config`, the data directory and the `PATH` in effect when it was written.
 Edits to `lanes.json` in the checkout therefore reach a scheduled run only after the operator
-reruns `--write-script`, and so does a harness-ops update that moves the launcher. Calling a short
+reruns `--write-script`, and so does a harness-ops update that moves the launcher. The lane's
+prompt file is not snapshotted: each run still reads it from the checkout's prompt directory, so a
+lane can rewrite its next scheduled prompt, but that prompt runs under the same pinned permission
+mode the lane already has, so the rewrite gives it no privilege it lacks. Calling a short
 script keeps the Windows `/TR` payload to `"<bash>" "<script>"`; a lane whose payload would pass
 schtasks' 262-character limit is refused, so pass a shorter `--data-dir`. A scheduled
 lane's name must be letters, digits, `.`, `_` or `-`, because it names the script and the task.
