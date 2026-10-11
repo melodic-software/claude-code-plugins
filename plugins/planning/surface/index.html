@@ -256,6 +256,7 @@ legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase
 .choice .t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
+.choice.rec .t{display:block;-webkit-line-clamp:unset;line-clamp:none}
 .choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .arow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
@@ -1034,7 +1035,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [];
-    c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
+    c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));

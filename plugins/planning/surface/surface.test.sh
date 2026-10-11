@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js,
+# tests/ui_page.js
 # (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
@@ -99,6 +100,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
+    [[ -z "${g:-}" ]] || bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -356,13 +358,30 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
   lrun 4
   bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
+
+  # ui_page runs against a seventh server on its own round: the choices, chips, banners, header
+  # and layout of one question page, with the shell writing as Claude between phases.
+  g="$tmp/page"
+  mkdir -p "$g/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$g/"
+  bash "$here/round.sh" --dir "$g" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
+  bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
+  gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
+  gphases=1
+  for n in $(seq 1 "$gphases"); do
+    sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
+  done
+  grun() { pw run-code --filename "$(script_path "$tmp/up$1.js")" >"$tmp/up$1.out" 2>&1; }
+  grun 1
+  bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
+  for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=457 journey=221
+  browser=461 journey=221
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi
