@@ -1,6 +1,6 @@
 ---
 description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
-argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
+argument-hint: "[<owner/repo>] [--drain|--standing] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
+Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain|--standing] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
 
 ## Shared tracker context
 
@@ -58,16 +58,15 @@ that does not exit, schedule the next one with `ScheduleWakeup`. Short delays un
 pressure, backing off toward the ceiling when idle. Pacing semantics, the seven-day `/loop` expiry,
 and cycle-budget behavior are owned by the convention (§4); on a budget or expiry hit, write a
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
-blocks on an interview (headless-config floor): take explicit or persisted config, else tier
-defaults, and log the assumption.
+blocks on an interview (headless-config floor) and never guesses its stop mode
+([reference/invocation-argv.md](reference/invocation-argv.md) "Headless launches").
 
 ## Invocation argument surface
 
 Argument grammar, validation, resolution order, and fail-closed rejections are owned by
 [reference/invocation-argv.md](reference/invocation-argv.md). Parse and validate `$ARGUMENTS` per
-that file before telemetry lookup or cycle work. Persist resolved `stop_mode`, `ordering`, `shard`,
-`scope`, and `lane_instance` in the durable state block every cycle so `/loop` relaunch can read
-them back from telemetry.
+that file before telemetry lookup or cycle work. Record the resolved values in the durable state
+block every cycle as a report; run config is never read back from it (that file says why).
 
 ## Telemetry and durable loop state
 
@@ -92,7 +91,7 @@ the source of truth for these counters):
 
 ```json
 {"schema":"work-items/loop-state@2","cycle":12,"clean_streak":1,"no_progress_streak":0,
- "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
+ "item_cap":2,"rate_limit_latch":false,"first_drain_proposed":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
  "paused_until":null,"latched_account":null,"effort":"unset",
@@ -102,8 +101,8 @@ the source of truth for these counters):
 ```
 
 `stop_mode`, `ordering`, `shard` (`{"index":i,"count":n}` or `null`), and `scope` (label string or
-`null`) record the resolved invocation surface so a `/loop` relaunch can read them back from the
-telemetry comment; they are not re-derived from prose in the launch prompt.
+`null`) record the resolved invocation surface for the operator, output only: each cycle resolves
+them from its invocation line, never from this block or launch-prompt prose.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
@@ -111,11 +110,10 @@ is the tripping account's fingerprint (see [reference/paused-wait.md](reference/
 `effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of: 2026-10-02. Recheck trigger: that row stops naming the variable.
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
-`clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,
-and `first_drain_complete` is set only by its own drain. Earn-trust is re-earned per instance: a
-newly named instance runs its first drain under the C3 ratification gate rather than inheriting
-another lane's trust period. Only the blanket period-end flag resets. Item-level ratifications
-travel with the item.
+`clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience.
+The block is lane-writable, so it may throttle or report but never widen autonomy (no gate reads
+`first_drain_proposed`); [reference/first-drain-ratification.md](reference/first-drain-ratification.md)
+owns the proposal, the label that alone ends the earn-trust period, and which fields may stay here.
 
 **Instance-collision check (cycle start, before any write).** After the re-read, compare
 `writer_nonce` and `heartbeat_at` and adopt, hand off, or stop per
@@ -220,11 +218,13 @@ the former default-on pause).
    captured id**, the exit condition tests their union and never re-reads the seam. Test the
    union, not the open ids alone: the two are one derivation apart on paper, but nothing here says
    the snapshot is one read, and an item created between two reads would otherwise be captured yet
-   never tested.
-   Apply the resolved `--scope` label filter and `--shard <i>/<n>` partition to the retained ids
-   before any later step reads the snapshot. The drain exit is evaluated against this filtered
-   snapshot. New automated intake arriving mid-cycle is **reported, never chased** (per the
-   convention).
+   never tested. **A snapshot counts only when every read behind it is complete**: an errored,
+   truncated, or unparsable read aborts the cycle with no state change and never proposes
+   first-drain completion; a truncated one escalates at once ([reference/snapshot-reads.md](reference/snapshot-reads.md), read first).
+   Pass the resolved `--scope` label to both reads as `--label`, then apply the `--shard <i>/<n>`
+   partition to the retained ids before any later step reads the snapshot. The drain exit is
+   evaluated against this filtered snapshot. New automated intake arriving mid-cycle is
+   **reported, never chased** (per the convention).
 2. **Intake sweep.** Invoke `/work-items:triage` via the Skill tool over untriaged intake in its **autonomous lane**,
    this loop's launch-prompt standing rules are the direction its mutation gate requires, and every
    comment or item it creates carries the AI disclaimer. Sweep hardening: an advisory issue
@@ -240,13 +240,12 @@ the former default-on pause).
    in-flight precondition below), then classify each remaining candidate and admit per the gate.
    Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
-   the adaptive item cap. When more than one item was admitted, sort the admitted set on
-   `createdAt` from the adapter **"List items"** projection over their numbers (the normalized
-   frontier omits `createdAt`) before filling cap slots. `oldest-first` ascending,
-   `newest-first` descending. Pass an explicit `--limit` covering every admitted number on that
-   projection; page per the adapter "List items" note if the set exceeds the max page size. When
-   `createdAt` is missing or unreadable for a number, that item sorts after any item with a valid
-   timestamp (stable tie on issue number). Each invocation uses that skill's **autonomous
+   the adaptive item cap. When more than one item was admitted, sort the admitted set on the
+   `created_at` each snapshot item already carries (the seam `CONTRACT.md`, "JSON output
+   contract") before filling cap slots, with no further read: `oldest-first` ascending,
+   `newest-first` descending. An item whose `created_at` is `null` or absent sorts after every
+   timestamped item; among those, and on equal timestamps, order by item number in the same
+   direction, a fixed tie-break so the order is deterministic. Each invocation uses that skill's **autonomous
    invocation** path: it
    names the admitted item id and states that this loop's admission gate (and any required
    ratification marker) passed, so `/work-items:work` proceeds without its interactive confirmation prompt.
@@ -271,7 +270,7 @@ the former default-on pause).
    convention's escalation contract: the human-gated role label **resolved from
    `config.role_labels`, never a literal**, plus a machine-marked escalation comment per
    [`${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md`](${CLAUDE_PLUGIN_ROOT}/reference/escalation-marker.md)
-   (`lane=work-loop`, `kind=escalated|ratify-c3|routed-advisory`), the marker,
+   (`lane=work-loop`, `kind=escalated|ratify-c3|ratify-first-drain|routed-advisory`), the marker,
    not a second label, is what discriminates a worker-escalated item from an operator-parked one.
    The same step performs the contract's escalation record write, **immediately before posting
    that comment**: create `.claude/lane-escalations/<UTC-stamp>-<item>-work-loop.json` (stamp
@@ -378,19 +377,20 @@ Hard gates that override any classification:
   EITHER it carries its own recorded ratification, the ratification reply
   `/work-items:attend-queue` writes on the item's `kind=ratify-c3` machine-marked comment, which
   is the recorded human ratification the autonomy matrix's promotion contract requires, OR
-  `first_drain_complete` is set in durable state (the blanket ratification period is over).
+  `${CLAUDE_PLUGIN_ROOT}/scripts/first-drain-ratified.sh` exits 0 this cycle: a person applied
+  `loop-lane: first-drain-ratified` to the telemetry issue, ending the blanket period. Durable
+  state never ends it, and this lane never applies that label
+  ([reference/first-drain-ratification.md](reference/first-drain-ratification.md)).
   Before that, an unratified C3 bug-fix candidate is queued, not dispatched: human-gated role
   label + a `kind=ratify-c3` comment stating the classification and intended dispatch. Once
   ratified it returns to the frontier autonomous-eligible and dispatches on a later cycle, the
   ratification travels with the item, so it is never re-queued.
 
-  Queuing an unratified C3 has write mechanics of its own, and getting their order wrong leaves
-  the item unreachable by every later cycle and every operator view. Read
-  [reference/c3-ratification-queue.md](reference/c3-ratification-queue.md) before writing either
-  the comment or the labels: it owns the comment-before-labels ordering, the at-most-one
-  `kind=ratify-c3` marker rule and its author check, the role-label convergence, why a
-  body-recorded ratification is context and never dispatch authority, and the manual check for
-  this gate. The dispositions and hard gates above bind whether or not you open it.
+  Queuing an unratified C3 has write mechanics of its own; a wrong order leaves the item
+  unreachable. Read [reference/c3-ratification-queue.md](reference/c3-ratification-queue.md)
+  before writing the comment or the labels: it owns their ordering, the at-most-one marker rule
+  and its author check, the role-label convergence, why a body-recorded ratification is never
+  dispatch authority, and this gate's manual check. The dispositions above bind regardless.
 - **Security-surface work.** Any security-surface class routes to the frontier capability tier,
   always (per the convention's tier rules).
 
@@ -460,7 +460,7 @@ citation. This lane's specifics:
   the cycles covered, and what sat unmoved in the snapshot. The at-most-one-open check matches on
   the exact title plus the seam's configured write identity as author, exactly like the
   `kind=ratify-c3` dedup. A stall item is ordinary human-gated backlog to the exit evaluation
-  (drain-terminal state), never lane infrastructure.
+  (drain-terminal state), never lane infrastructure. A truncated snapshot raises it at once.
 
 ## Exit condition
 
