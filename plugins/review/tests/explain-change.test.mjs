@@ -414,8 +414,8 @@ describe("publish gate: the default artifact medium publishes only a public, cre
   });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
-    assert.match(/^allowed-tools: (.*)$/m.exec(skill)[1], /"Bash\(gh repo view:\*\)"/);
-    assert.match(skill, /gh repo view <owner\/repo> --json visibility/);
+    assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\]`/);
+    assert.match(skill, /`<VISIBILITY>` is `visibility` in `facts\.json`; when it is absent, pass `UNKNOWN`/);
     assert.match(skill, /--publish-gate <VISIBILITY> \[--explicit\]/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
@@ -968,9 +968,9 @@ describe("read-only boundary", () => {
   test("the risk-map checker is the read-only brief-reviewer agent", () => {
     assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `review:brief-reviewer` agent/);
   });
-  test("the risk-map checker's brief carries only the pull request number and repository", () => {
+  test("the risk-map checker's brief carries only the pull request number, repository, and the saved reads' directory", () => {
     const brief = /## 3\. Check the risk map[\s\S]*?```text\n([\s\S]*?)```/.exec(skill)[1];
-    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<n>", "<owner/repo>"]);
+    assert.deepEqual([...new Set(brief.match(/<[^>]+>/g))].sort(), ["<dir>", "<n>", "<owner/repo>"]);
   });
   test("the scripts never call gh", () => {
     for (const script of [POLICY, BUILDER]) {
