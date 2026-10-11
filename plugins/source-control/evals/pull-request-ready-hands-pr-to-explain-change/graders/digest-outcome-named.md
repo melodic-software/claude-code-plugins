@@ -1,5 +1,5 @@
 ---
 type: regex
-pattern: '[Dd]igest[^\n]*(?:[Ss]kip|[Oo]ffer|[Bb]uil|[Nn]ot available|[Uu]navailable)'
+pattern: '(?:digest|Digest)[^\n]*(?:skip|Skip|offer|Offer|buil|Buil|not available|Not available|unavailable|Unavailable)'
 target: last_message
 ---
