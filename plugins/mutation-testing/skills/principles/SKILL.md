@@ -68,6 +68,11 @@ skill:
 `/mutation-testing:audit` delegates it to a fresh context rather than to the context that authored
 the tests.
 
+## Next
+
+- No mutation run on the change yet: `/mutation-testing:audit`.
+- A survivor is judged productive: `/testing:write`.
+
 ## What this skill does NOT do
 
 - Run a mutation tool. That is `/mutation-testing:audit`.

@@ -183,6 +183,12 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - **Does not own browser-automation mechanics**. `/playwright:playwright` (when the playwright plugin is enabled) covers sessions, snapshots, tracing, Windows quirks; this skill owns the broader orchestrator + API + UI story
 - **Does not replace `/verification:confirm`**. That skill orchestrates the mechanical prerequisite (build+test+lint) + outcome verification
 
+## Next
+
+- All scenarios pass and the change is not yet reviewed: `/review:quality-gate`.
+- All scenarios pass after review: `/verification:confirm outcome`.
+- A scenario fails: `/testing:diagnose`.
+
 ## Gotchas
 
 - **Semantic locators**. Use the snapshot's accessibility-based element refs; CSS selectors and XPath break on cosmetic changes

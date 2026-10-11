@@ -172,6 +172,7 @@ the file suppresses every config finding. Exemptions are counted in the coverage
 - A finding names a test that needs a real assertion: `/testing:write`.
 - Findings cover a folder of low-value tests to rewrite or prune: `/testing:cleanup <folder>`.
 - Findings are persisted with `--persist-findings`: `/review:fanout fix`.
+- No findings, yet the tests' strength is still in doubt: `/mutation-testing:audit`.
 
 ## Gotchas
 
