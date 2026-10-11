@@ -169,7 +169,7 @@ const longFlow = JSON.parse(
 check("a flow of 7 steps lands in the vertical list", longFlow.diagrams[0].flowcol?.length === 7 && longFlow.diagrams[0].flow.length === 0);
 check("a flow of 4 steps stays on the horizontal list", longFlow.diagrams[1].flow.length === 4 && longFlow.diagrams[1].flowcol?.length === 0);
 const css = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-const rule = (selector) => new RegExp(`(^|\\n)${selector.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css)?.[2] ?? "";
+const rule = (selector) => new RegExp(`(^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[2] ?? "";
 const flowWraps = [...css.matchAll(/(^|\n)([^{\n]*)\{([^}]*)\}/g)].filter((m) => /\.flow\b/.test(m[2]) && /flex-wrap: wrap/.test(m[3])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the horizontal flow never wraps a line", /flex-wrap: nowrap/.test(rule(".flow")) && flowWraps.length === 0, rule(".flow"));
 check("the horizontal flow scrolls inside its card", /overflow-x: auto/.test(rule(".flow")));
@@ -184,6 +184,60 @@ check("an empty timeline and an empty compare are hidden", /\.timeline:empty \{ 
 check("a hub with no center and no branches is hidden", /\.hub:has\(\.hub-center:empty\):has\(\.branches:empty\) \{ display: none; \}/.test(css));
 check("a before-after with no items is hidden", /\.change:not\(:has\(li\)\) \{ display: none; \}/.test(css));
 check("compare columns stack on a narrow page", /repeat\(auto-fit, minmax\(/.test(rule(".compare")), rule(".compare"));
+
+// Each theme's tokens, so the accents can be checked for variety and contrast.
+const themeBlock = (head) => css.split(head)[1]?.split("}")[0] ?? "";
+const tokens = (body) => Object.fromEntries([...body.matchAll(/--([a-z0-9]+): (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const themes = {
+  light: tokens(themeBlock(":root {")),
+  "dark by preference": tokens(themeBlock(":root:not([data-theme=light]) {")),
+  "dark by choice": tokens(themeBlock(":root[data-theme=dark] {")),
+};
+const ACCENTS = [1, 2, 3, 4, 5];
+const accentRule = (n) => (n === 1 ? rule(".picture") : rule(`.picture:nth-child(${n === 5 ? "5n" : `5n+${n}`})`));
+check(
+  "each of five card positions takes its own accent and tint",
+  ACCENTS.every((n) => accentRule(n).includes(`--accent: var(--a${n});`) && accentRule(n).includes(`--tint: var(--t${n});`)),
+  ACCENTS.map(accentRule).join(" | "),
+);
+for (const [name, t] of Object.entries(themes)) {
+  const values = ACCENTS.map((n) => t[`a${n}`]);
+  check(`adjacent cards differ in accent in the ${name} theme`, values.every(Boolean) && new Set(values).size === 5, values.join(","));
+}
+const luminance = (hex) => {
+  const [r, g, b] = hex.slice(1).match(/../g).map((h) => parseInt(h, 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+for (const [name, t] of Object.entries(themes)) {
+  const low = [];
+  for (const n of ACCENTS) {
+    // A node label sits on the surface; card text, a muted before-side, and an accent date sit on the tint.
+    const pairs = [["fg", "surface"], ["fg", `t${n}`], ["muted", `t${n}`], [`a${n}`, `t${n}`]];
+    for (const [fg, bg] of pairs) {
+      const r = t[fg] && t[bg] ? contrast(t[fg], t[bg]) : 0;
+      if (r < 4.5) low.push(`${fg} on ${bg} ${r.toFixed(2)}`);
+    }
+  }
+  check(`every accent keeps text at 4.5:1 or more in the ${name} theme`, low.length === 0, low.join(", "));
+}
+check("the box behind a node label is the surface", /background: var\(--surface\)/.test(rule(".box")), rule(".box"));
+check("the first card is the lead diagram, drawn larger", /padding: 2rem/.test(rule(".picture:first-child .diagram")) && /font-size/.test(rule(".picture:first-child h2")));
+check("every kind draws inside one tinted diagram area", /background: var\(--tint\)/.test(rule(".diagram")) && LISTS.every((key) => page.split('class="diagram"')[1]?.split('class="caption"')[0]?.includes(`data-rv-each="${key}"`)));
+const tick = /<label class="unclear"[^>]*>(.*?)<\/label>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("the still-unclear toggle wraps its pick", /^<input type="checkbox" data-rv-pick="">/.test(tick) && (page.match(/data-rv-pick=/g) ?? []).length === 1, tick);
+// A ticked toggle changes its glyph, not only its color, so the state survives forced colors.
+check(
+  "the still-unclear toggle shows a different glyph when ticked",
+  /<span class="mark-off" aria-hidden="true">\?<\/span><span class="mark-on" aria-hidden="true">✓<\/span>/.test(tick) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear \.mark-on, \.unclear:has\(input:checked\) \.mark-off \{ display: none; \}/.test(css) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear:has\(input:checked\) \.mark-on \{ display: inline; \}/.test(css), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  tick,
+);
+check("the still-unclear toggle is named for screen readers", /<span class="sr">Still unclear<\/span>/.test(tick) && /clip-path: inset\(50%\)/.test(rule(".sr")), tick);
 
 const wordy = "Gamma Ray (1996): first band name, dropped after a cease-and-desist";
 const capModel = { diagrams: [{ heading: "Albums", steps: ["short", wordy] }, { kind: "stack", steps: [wordy, "x".repeat(60)] }] };
