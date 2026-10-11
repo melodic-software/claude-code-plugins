@@ -283,9 +283,11 @@ describe("--config", () => {
       { concern: "retired-concern", id: "/pixel-art:ui" },
       { concern: "visual-direction", id: "/pixel-art:ui" },
     ]);
-    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
-    assert.match(errors, /routing\.disable\[1\]\.concern: retired-concern names no bundled concern/);
-    assert.doesNotMatch(errors, /disable\[2\]/);
+    const teamLayer = c.layers.find((l) => l.name === "team");
+    const warnings = (teamLayer.warnings ?? []).join("\n");
+    assert.match(warnings, /routing\.disable\[1\]\.concern: retired-concern names no bundled concern/);
+    assert.doesNotMatch(warnings, /disable\[2\]/);
+    assert.doesNotMatch(teamLayer.errors.join("\n"), /no bundled concern/);
   });
 
   test("a team row that matches no bundled row is held to the full row schema", () => {
