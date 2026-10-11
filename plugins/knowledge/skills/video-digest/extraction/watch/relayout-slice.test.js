@@ -2204,6 +2204,39 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "analysis/RESEARCH.md")).toBe("[t](../transcript/transcript.txt)\n");
   });
 
+  it("rewrites a tag-like angle link destination rather than masking it as HTML", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    fs.writeFileSync(
+      path.join(sliceDir, "RESEARCH.md"),
+      "[sources](<source>) beside <source>tag</source>.\n",
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/RESEARCH.md")).toBe(
+      "sources (source, split across analysis/, metadata/, transcript/ in this copy)" +
+        " beside <source>tag</source>.\n",
+    );
+  });
+
+  it("checks tag-like angle link and definition destinations", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    fs.writeFileSync(
+      path.join(sliceDir, "RESEARCH.md"),
+      "[x](<missing>) beside <missing>tag</missing>.\n\n[s]: <source>\n",
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    // A definition has no prose to take the split text, so the check flags it.
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/RESEARCH.md", ref: "missing" },
+      { file: "analysis/RESEARCH.md", ref: "source" },
+    ]);
+  });
+
   it("reads the .work/<epic>/<slug> form only with the slice's own work path", async () => {
     const { sliceDir: original, targetDir } = makeFixture();
     const slug = path.basename(original);

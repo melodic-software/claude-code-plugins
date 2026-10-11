@@ -196,6 +196,12 @@ const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?
 const HTML_START_TAG = /<([A-Za-z][A-Za-z0-9-]*)(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
 /** An HTML comment. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+/**
+ * A `<` opening a link or definition destination: after `](` or a definition
+ * label's `]:`, plus optional whitespace with at most one line ending.
+ */
+const DESTINATION_OPENER =
+  /(?<=(?:\]\(|(?:^|\n) {0,3}\[(?:[^\\[\]]|\\[\s\S])+\]:)[ \t]*(?:\r?\n[ \t]*)?)</y;
 
 /**
  * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
@@ -227,13 +233,21 @@ function htmlAttributeValues(text) {
 /**
  * Ranges of `text` holding HTML start tags and comments: attribute and
  * comment text is data, so the link, definition and backticked-path passes
- * skip it; only htmlAttributeValues reads a tag.
+ * skip it; only htmlAttributeValues reads a tag. An angle-bracket link or
+ * definition destination such as `<source>` is a destination, not a tag.
  *
  * @param {string} text
  * @returns {[number, number][]}
  */
 function htmlRanges(text) {
-  return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_START_TAG)].map((match) => {
+  const isDestination = (/** @type {number} */ at) => {
+    DESTINATION_OPENER.lastIndex = at;
+    return DESTINATION_OPENER.test(text);
+  };
+  const tags = [...text.matchAll(HTML_START_TAG)].filter(
+    (tag) => !isDestination(Number(tag.index)),
+  );
+  return [...text.matchAll(HTML_COMMENT), ...tags].map((match) => {
     const from = /** @type {number} */ (match.index);
     return /** @type {[number, number]} */ ([from, from + match[0].length]);
   });
