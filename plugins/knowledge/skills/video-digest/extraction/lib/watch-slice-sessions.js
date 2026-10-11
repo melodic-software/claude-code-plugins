@@ -3,17 +3,34 @@
  */
 
 /**
- * @param {string} boundaryLine e.g. "[0:57] welcome → [7:58] next segment"
+ * The only session shape the parser reads, for messages that reject an
+ * inventory with no parsed session. `context/watch-pipeline.md` Phase 2 shows it.
+ */
+export const SESSION_FORMAT_HINT =
+  "write each session as a `## <n>. <name>` heading followed by a " +
+  "`**Boundary:** [m:ss] <label> → [m:ss] <label>` line ([h:mm:ss] also accepted); " +
+  "a session table is not parsed";
+
+const BOUNDARY_STAMP = /\[(\d+):(\d+)(?::(\d+))?\]/g;
+
+/**
+ * @param {string} boundaryLine e.g. "[0:57] welcome → [7:58] next segment" or "[1:05:30] ..."
  * @returns {{ startSec: number, endSec: number|null }}
  */
 export function parseBoundaryLine(boundaryLine) {
-  const stamps = [...boundaryLine.matchAll(/\[(\d+):(\d+)\]/g)].map(
-    (m) => Number(m[1]) * 60 + Number(m[2]),
+  const stamps = [...boundaryLine.matchAll(BOUNDARY_STAMP)].map((m) =>
+    m[3] === undefined
+      ? Number(m[1]) * 60 + Number(m[2])
+      : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]),
   );
   return { startSec: stamps[0] ?? 0, endSec: stamps[1] ?? null };
 }
 
 /**
+ * Every `## <n>.` section must carry a `**Boundary:**` line with a bracketed
+ * stamp; one that does not rejects the whole inventory (returns no session),
+ * so a gate cannot pass while skipping a session it failed to read.
+ *
  * @param {string} claimInventoryBody
  * @returns {{ name: string, startSec: number, endSec: number|null }[]}
  */
@@ -23,7 +40,8 @@ export function parseSessionsFromClaimInventory(claimInventoryBody) {
   for (const section of sections) {
     const nameLine = section.split("\n")[0]?.trim();
     const boundaryMatch = section.match(/\*\*Boundary:\*\*\s*(.+)/);
-    if (!nameLine || !boundaryMatch) continue;
+    // A boundary with no bracketed stamp would span the whole video.
+    if (!nameLine || !boundaryMatch?.[1].match(BOUNDARY_STAMP)) return [];
     const { startSec, endSec } = parseBoundaryLine(boundaryMatch[1]);
     sessions.push({ name: nameLine, startSec, endSec });
   }
