@@ -1048,6 +1048,24 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(targetDir)).toBe(false);
   });
 
+  it("refuses, naming it, a frame-times.json key that is a directory", async () => {
+    const { sliceDir, targetDir, framesDir } = makeFixture();
+    fs.writeFileSync(
+      path.join(framesDir, "frame-times.json"),
+      JSON.stringify({ "scene_0001.png": { timestampSec: 1 }, scene_0002: { timestampSec: 2 } }),
+    );
+    fs.mkdirSync(path.join(framesDir, "scene_0002"));
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+    const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+    stderr.mockRestore();
+
+    expect(result.exitCode).toBe(1);
+    expect(message).toContain("scene_0002");
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
   it("refuses an empty video file", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.mp4`), "");
@@ -1314,6 +1332,38 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
       expect(read(targetDir, "metadata/decks/slide.pdf:12")).toBe("pdf");
       expect(read(targetDir, "frames/vision-plan.md")).toBe(
         "Deck: `../metadata/decks/slide.pdf:12`.\n",
+      );
+    },
+  );
+
+  // `:` is not allowed in a Windows file name.
+  it.skipIf(process.platform === "win32")(
+    "maps a linked path whose real name ends in :12 before reading it as a line suffix",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "source/decks/slide.pdf:12": "pdf",
+          "key-frames/vision-plan.md": [
+            "Deck: [deck](source/decks/slide.pdf:12).",
+            '<a href="source/decks/slide.pdf:12">deck</a>',
+            "",
+            "[d]: source/decks/slide.pdf:12",
+            "",
+          ].join("\n"),
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "frames/vision-plan.md")).toBe(
+        [
+          "Deck: [deck](../metadata/decks/slide.pdf:12).",
+          '<a href="../metadata/decks/slide.pdf:12">deck</a>',
+          "",
+          "[d]: ../metadata/decks/slide.pdf:12",
+          "",
+        ].join("\n"),
       );
     },
   );
@@ -2079,6 +2129,15 @@ describe("checkLayoutLinks", () => {
     });
 
     expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  it("checks a ~-prefixed relative name and skips only home paths", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "analysis/RESEARCH.md": "[notes](~notes.md), [home](~/x.md), [user](~someone/x.md).\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "analysis/RESEARCH.md", ref: "~notes.md" }]);
   });
 
   it("flags an unresolved path under a slice lane whose directory the slice had", async () => {

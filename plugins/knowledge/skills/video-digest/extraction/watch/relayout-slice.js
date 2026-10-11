@@ -132,6 +132,8 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /<[^<>]*>|\$\{[^}]*\}|\{[^{}]*\}|(?:^|\/)[^/]*\*/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
+/** A home path: `~` alone, `~/x` or `~user/x`; `~notes.md` is a relative name. */
+const HOME_PATH = /^~(?:[^/]*\/|$)/;
 /** ASCII punctuation: the only characters a CommonMark backslash escapes. */
 const ESCAPABLE = /[!-/:-@[-`{-~]/;
 /**
@@ -444,7 +446,7 @@ function deriveDirectoryMap(fileMap) {
  * @property {string} targetAbs - absolute final target directory
  */
 
-/** @typedef {{ target: string, isDir: boolean } | { retired: string, note: string } | { outside: string }} Lookup */
+/** @typedef {{ target: string, isDir: boolean, guessed?: boolean } | { retired: string, note: string } | { outside: string }} Lookup */
 
 /** Stand-ins for a backslash-escaped `#` or `?`, which are part of the path. */
 const LITERAL_HASH = "";
@@ -644,7 +646,7 @@ function lookUpReference(refPath, sourceFile, map) {
   for (const key of bare.includes("/") ? keys : []) {
     const dir = key === null ? undefined : map.dirs.get(path.posix.dirname(key));
     if (dir !== undefined && key !== null) {
-      return { target: `${dir}/${path.posix.basename(key)}`, isDir: false };
+      return { target: `${dir}/${path.posix.basename(key)}`, isDir: false, guessed: true };
     }
   }
   if (bare.includes("/")) return null;
@@ -655,6 +657,33 @@ function lookUpReference(refPath, sourceFile, map) {
 }
 
 const NOT_RETAINED = "not retained in this copy";
+
+/**
+ * How a reference is read, in order: the whole name, a raw `#` or `?` and a
+ * `:12` ending included (`notes#1.md`, `slide.pdf:12`), then without its line
+ * suffix, and only then with the rest read as a fragment.
+ */
+const WHOLE_NAME_FIRST = [{ fragments: false, lines: false }, { fragments: false }, {}];
+
+/**
+ * What a reference names under the first reading that names anything (an
+ * earlier reading must name it exactly, not as a guess into a copied
+ * directory), and that reading's split options (the last when none does).
+ *
+ * @param {string} ref
+ * @param {string} sourceFile
+ * @param {PathMap} map
+ * @returns {{ found: Lookup|null, split: { fragments?: boolean, lines?: boolean } }}
+ */
+function findReference(ref, sourceFile, map) {
+  for (const split of WHOLE_NAME_FIRST) {
+    const found = lookUpReference(splitReference(ref, split).refPath, sourceFile, map);
+    if (found && !("guessed" in found && split !== WHOLE_NAME_FIRST.at(-1))) {
+      return { found, split };
+    }
+  }
+  return { found: null, split: {} };
+}
 
 /**
  * @typedef {Object} InlineLink
@@ -888,7 +917,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   // `](dest)` becomes the note, so an image nested in the label keeps its
   // own rewrite. Any other destination takes the path rewrite.
   for (const link of inlineLinks(linkMasked)) {
-    const found = lookUpReference(splitReference(link.dest).refPath, sourceFile, map);
+    const { found, split } = findReference(link.dest, sourceFile, map);
     if (found && "retired" in found && link.labelStart !== -1) {
       rewrites += 1;
       const bracket = text[link.linkStart] === "!" ? link.linkStart + 2 : link.linkStart + 1;
@@ -900,7 +929,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       });
       continue;
     }
-    const next = rewrite(link.dest, {}, link.escapedChars, link.references);
+    const next = rewrite(link.dest, split, link.escapedChars, link.references);
     if (next === link.dest) continue;
     const written = next;
     edits.push({
@@ -915,7 +944,8 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
     const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
     const { dest, escapedChars, references } = unescapeDestination(raw);
-    const rewritten = rewrite(dest, {}, escapedChars, references);
+    const { split } = findReference(dest, sourceFile, map);
+    const rewritten = rewrite(dest, split, escapedChars, references);
     if (rewritten === dest) continue;
     edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
   }
@@ -926,7 +956,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     // quotes gets double quotes.
     const value = text.slice(from, to);
     const decoded = decodeHtmlReferences(value);
-    const next = rewrite(decoded);
+    const next = rewrite(decoded, findReference(decoded, sourceFile, map).split);
     if (next === decoded) continue;
     let escaped = next.replaceAll("&", "&amp;");
     if (group === 2) escaped = escaped.replaceAll('"', "&quot;");
@@ -940,17 +970,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const { ticks, content } = span;
     const { pad, quote, core, spaced } = spanPath(content);
     if (core === null) continue;
-    // The whole span, a raw `#` or `?` and a `:12` ending included
-    // (`notes#1.md`, `slide.pdf:12`), is tried first, then without its line
-    // suffix; only when neither names anything is the rest read as a fragment.
-    /** @type {{ fragments?: boolean, lines?: boolean }} */
-    let split = {};
-    let found = null;
-    for (const option of [{ fragments: false, lines: false }, { fragments: false }, {}]) {
-      split = option;
-      found = lookUpReference(splitReference(core, option).refPath, sourceFile, map);
-      if (found) break;
-    }
+    const { found, split } = findReference(core, sourceFile, map);
     // A span with spaces is a path only when it resolves as one whole path.
     if (spaced && !found) continue;
     let next;
@@ -1098,18 +1118,16 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       /** @type {boolean} */ isLink,
       /** @type {boolean} */ knownPath = isLink,
     ) => {
-      // A backticked path may hold a raw `#` or `?`, or a `:12` ending, in its
-      // name: if the whole span resolves, it is fine; then without its line
-      // suffix; otherwise the rest is a fragment.
-      if (!isLink) {
-        for (const option of [{ fragments: false, lines: false }, { fragments: false }]) {
-          const whole = splitReference(ref, option).refPath;
-          if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
-        }
+      // Any reference may hold a raw `#` or `?`, or a `:12` ending, in its
+      // name: read as WHOLE_NAME_FIRST orders it, the first reading that
+      // resolves passes; the last one is checked below.
+      for (const option of WHOLE_NAME_FIRST.slice(0, -1)) {
+        const whole = splitReference(ref, option).refPath;
+        if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
       }
       const { refPath } = splitReference(ref);
       if (!refPath || URL_SCHEME.test(refPath)) return;
-      if (refPath.startsWith("/") || refPath.startsWith("~")) return;
+      if (refPath.startsWith("/") || HOME_PATH.test(refPath)) return;
       if (isAllowedMiss(refPath)) return;
       if (!knownPath && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
       const resolved = path.resolve(fileDir, refPath);
@@ -1337,8 +1355,14 @@ function missingFrames(framesDir) {
           `(malformed: ${malformed.sort().join(", ")})`,
       );
     }
-    const gone = listed.filter((name) => !names.has(name));
-    if (gone.length > 0) missing.push(`the frames frame-times.json lists: ${gone.join(", ")}`);
+    // Every key, whatever its extension, must name a regular file in the
+    // frames dir itself: not a directory, a symlink or a missing name.
+    const gone = listed.filter(
+      (name) => !names.has(name) || !isRegularFile(path.join(framesDir, name)),
+    );
+    if (gone.length > 0) {
+      missing.push(`regular files for the frame-times.json keys: ${gone.sort().join(", ")}`);
+    }
     // Scene detection records every scene and interval frame it writes; an
     // anchor frame carries its time in its own name and is never listed.
     const untimed = [...names].filter(
