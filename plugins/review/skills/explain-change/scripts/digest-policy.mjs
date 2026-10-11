@@ -11,7 +11,7 @@
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
-//   digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff
+//   digest-policy.mjs --publish-gate <VISIBILITY>|--facts <facts.json> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
@@ -333,10 +333,22 @@ export function publishGate({ explicit, visibility, diff }) {
 
 // ------------------------------------------------------------ CLI
 
+// `--facts <file>` takes the visibility from the saved facts, so no second
+// interpreter reads them; a missing, unreadable or empty value gates as UNKNOWN.
+function factsVisibility(file) {
+  try {
+    const value = JSON.parse(readFileSync(file, "utf8"))?.visibility;
+    return typeof value === "string" && value ? value : "UNKNOWN";
+  } catch {
+    return "UNKNOWN";
+  }
+}
+
 function gateMain(argv) {
-  const [visibility, ...rest] = argv;
-  if (!visibility || rest.some((a) => a !== "--explicit")) {
-    process.stderr.write("usage: digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff\n");
+  let [visibility, ...rest] = argv;
+  if (visibility === "--facts" && rest[0]) [visibility, rest] = [factsVisibility(rest[0]), rest.slice(1)];
+  if (!visibility || visibility.startsWith("--") || rest.some((a) => a !== "--explicit")) {
+    process.stderr.write("usage: digest-policy.mjs --publish-gate <VISIBILITY>|--facts <facts.json> [--explicit] < diff\n");
     return 2;
   }
   const diff = readFileSync(0, "utf8");

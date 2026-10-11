@@ -412,11 +412,25 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(gate([], clean).status, 2);
     assert.equal(gate(["PUBLIC", "--force"], clean).status, 2);
   });
+  test("--facts takes the visibility from the saved facts, and anything else gates private", () => {
+    const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
+    const facts = (name, body) => {
+      const file = join(scratch, name);
+      writeFileSync(file, body);
+      return file;
+    };
+    assert.equal(JSON.parse(gate(["--facts", facts("public.json", '{"visibility":"PUBLIC","title":"x"}')], clean).stdout).medium, "artifact");
+    assert.equal(JSON.parse(gate(["--facts", facts("none.json", '{"title":"visibility PUBLIC"}')], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["--facts", facts("bad.json", "not json")], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["--facts", join(scratch, "missing.json")], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}'), "--explicit"], clean).stdout).medium, "artifact");
+    assert.equal(gate(["--facts"], clean).status, 2);
+  });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
     assert.match(skill, /`\/source-control:pull-request view <n> --diff --out <dir>\/pr\.diff`/);
-    assert.match(skill, /--publish-gate "\$\(node -p 'require\(process\.argv\[1\]\)\.visibility \?\? "UNKNOWN"' <dir>\/facts\.json\)" \[--explicit\] < <dir>\/pr\.diff/);
+    assert.match(skill, /--publish-gate --facts <dir>\/facts\.json \[--explicit\] < <dir>\/pr\.diff/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
     assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);

@@ -87,10 +87,10 @@ The page filters files, collapses hunks, and lets the reader tick files reviewed
 An Artifact publish that answers the reader's prompt runs with no permission prompt, so the gate below decides before anything leaves the machine. When `medium` is `artifact`, run:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate "$(node -p 'require(process.argv[1]).visibility ?? "UNKNOWN"' <dir>/facts.json)" [--explicit] < <dir>/pr.diff
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate --facts <dir>/facts.json [--explicit] < <dir>/pr.diff
 ```
 
-The visibility comes from `facts.json` by `node`, never retyped from the facts, whose title and paths the pull request's author wrote; a missing value gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
+The gate reads the visibility from `facts.json` itself, never retyped from the facts, whose title and paths the pull request's author wrote; a missing or unreadable value gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. The artifact is private to the reader until they share it. When the tool is unavailable or refused, give the path and say why.
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
