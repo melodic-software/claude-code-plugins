@@ -1,5 +1,31 @@
 # Changelog for the PR pipeline convention
 
+## 1.6.0 - 2026-10-11
+
+The write runner performs `prepare: merge-base` and takes the pr-unblock lane's inputs. `version`
+stays 1.
+
+- `pr-run-activity-write.yml` passes `prepare-supported: true` to resolve-config and runs a
+  `prepare: merge-base` leaf around a merge of the trusted base: the base's `prepare.sh` before
+  any model turn (a clean merge skips the skill), the skill without the commit tool, `post.sh`,
+  then a two-parent merge commit through the Git Data API, promoted onto the PR branch.
+  `collect-base-activity` takes a `prepare` input that leaves out the commit tool and the
+  instruction to commit. Paths and checks: `pr-run-activity.md`, "prepare: merge-base".
+- New inputs `dispatcher-run-id` (passed to `check-trusted-trigger` with the
+  `pr-unblock-dispatch.yml` and `pr-unblock.yml` paths, so a `github-actions[bot]` dispatch runs
+  only through a checked dispatcher run), `trusted-base` (`pr-base` or `default-tip`, passed to
+  `check-trusted-base` as `mode`; `default-tip` trusts the default branch tip for config, actions
+  and the merge's second parent) and `escalation-reason` (enum-checked, exported to a script as
+  `ESCALATION_REASON`). New `workflow_call` output `escalation-reason`.
+- Every `mutate-branch` activity re-reads its PR branch from `git/ref` before the mint; a moved
+  branch skips neutral `superseded-sha` with no token and no model turn. This changes pr-refine:
+  such a run used to run the skill and then fail at promote.
+- The promote step confirms the PR branch through `git/ref` after moving it, and the report job
+  re-reads `GET /pulls/{n}` until its head matches that ref, at most 5 reads 2 s apart.
+- New scripted leaf `.github/scripts/pr-unblock/report-escalation.sh` (effect
+  `publish-artifact`): labels the PR with the human-gated role label and posts one comment with
+  the reason and a resume key.
+
 ## 1.5.0 - 2026-10-11
 
 Composite activities, three new predicates and the `unblock` stage. `version` stays 1: no config
