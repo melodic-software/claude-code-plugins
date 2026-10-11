@@ -17,6 +17,13 @@
   ],
   "types": "./types/index.d.ts",
   "userConfig": {
+    "mask_style": {
+      "type": "string",
+      "title": "Mask style",
+      "options": ["block", "text"],
+      "default": "block",
+      "description": "How a match in a reply, prompt or command output is hidden. block draws it as a solid bar that shows the value while the pointer is over it; text replaces it with [hidden]. Tool rows always use [hidden]."
+    },
     "extra_patterns": {
       "type": "string",
       "title": "Extra mask patterns",

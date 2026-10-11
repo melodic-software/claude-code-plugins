@@ -19,7 +19,102 @@ const capture = (on: On, component: RenderComponent) => {
   return seen
 }
 
-test('masks an email in an assistant reply', async ($, on) => {
+// The prop-rewrite style: each match drawn as the mask text.
+const TEXT_MODE = { options: { mask_style: 'text' } }
+
+// The hide-email mod in Anthropic's "Mods in Claude Code" video: a bar the color of its own text,
+// readable while hovered.
+const VIDEO_MASKED = { backgroundColor: '#3B4252', color: '#3B4252' }
+const VIDEO_SHOWN = { backgroundColor: '#4C566A', color: '#ECEFF4', bold: true }
+const SURFACES = ['terminal', 'desktop', 'vscode', 'mobile'] as const
+
+type Node = { type?: string; props?: Record<string, unknown>; hover?: unknown; children?: unknown[] }
+
+// Every Text in a drawn tree that shows an at-sign, with its hover and whether its parent Box is
+// keyed (a hover outside a keyed Box is refused).
+const barsIn = (node: unknown, keyed = false): { text: string; props: unknown; hover: unknown; keyed: boolean }[] => {
+  if (typeof node !== 'object' || node === null) return []
+  const { type, props, hover, children = [] } = node as Node
+  const text = children.filter((c) => typeof c === 'string').join('')
+  if (type === 'Text' && text.includes('@')) return [{ text, props, hover, keyed }]
+  return children.flatMap((c) => barsIn(c, type === 'Box' && typeof props?.key === 'string'))
+}
+
+test('block mode draws each match as a bar the color of its text, readable while hovered', async ($) => {
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({
+      plugin: 'display-redaction',
+      surface,
+      component: 'AssistantMessage',
+      props: { text: `Hello **there**.\n\nWrite to ${EMAIL} today.`, isFirstOfReply: true },
+    })
+    // The real value is the bar's hidden content and appears nowhere else in the drawing.
+    expect(barsIn(await ui.drawn())).toEqual([{ text: ` ${EMAIL} `, props: VIDEO_MASKED, hover: VIDEO_SHOWN, keyed: true }])
+    expect(JSON.stringify(await ui.drawn()).split(EMAIL).length).toBe(2)
+    const markdown = await ui.findAll({ type: 'Markdown' })
+    expect(markdown.map((m) => m.props.text)).toEqual(['Hello **there**.'])
+    await ui.unmount()
+  }
+})
+
+test('block mode draws a fenced block with a match as text, the match a bar', async ($) => {
+  const ui = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    props: { text: `\`\`\`\nsend ${EMAIL}\n\nthen wait\n\`\`\``, isFirstOfReply: true },
+  })
+  expect(await ui.findAll({ type: 'Markdown' })).toEqual([])
+  const spans = await ui.findAll({ type: 'Text', text: /@/ })
+  expect(spans.map((s) => [s.text, s.props.color, s.props.backgroundColor])).toEqual([
+    [` ${EMAIL} `, '#3B4252', '#3B4252'],
+  ])
+})
+
+test('block mode draws a bar in a typed prompt and in command output', async ($) => {
+  const user = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'desktop',
+    component: 'UserMessage',
+    props: { text: `mail ${EMAIL}`, origin: ORIGIN, isExpanded: false },
+  })
+  const command = await $.ui.mount({
+    plugin: 'display-redaction',
+    surface: 'terminal',
+    component: 'CommandOutput',
+    props: { command: 'status', args: '', text: `Login: ${EMAIL}`, isErrored: false },
+  })
+  for (const ui of [user, command]) {
+    const spans = await ui.findAll({ type: 'Text', text: /@/ })
+    expect(spans.map((s) => s.text)).toEqual([` ${EMAIL} `])
+    expect(spans[0]?.props).toMatchObject(VIDEO_MASKED)
+  }
+})
+
+test('block mode rewrites a task notification row, which the engine draws compact', async ($, on) => {
+  const seen = capture(on, 'UserMessage')
+  const task = { id: 't1' } as unknown as RenderPropsOf['UserMessage']['task']
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'UserMessage',
+    requestId: 'u2',
+    props: { text: `done for ${EMAIL}`, origin: ORIGIN, isExpanded: false, task },
+  })
+  expect(seen.props).toEqual({ text: `done for ${M}`, origin: ORIGIN, isExpanded: false, task })
+})
+
+test('block mode rewrites text holding a control character a drawn Text refuses', async ($, on) => {
+  const seen = capture(on, 'CommandOutput')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'CommandOutput',
+    requestId: 'c2',
+    props: { command: 'status', args: '', text: `\u001b[1mLogin:\u001b[0m ${EMAIL}`, isErrored: false },
+  })
+  expect(seen.props).toEqual({ command: 'status', args: '', text: `\u001b[1mLogin:\u001b[0m ${M}`, isErrored: false })
+})
+
+test('masks an email in an assistant reply', TEXT_MODE, async ($, on) => {
   const seen = capture(on, 'AssistantMessage')
   await $.ui.render({
     surface: 'terminal',
@@ -111,7 +206,7 @@ test('masks Bash, Read and Edit results and keeps each result shape', async ($, 
   }
 })
 
-test('masks the text of a user prompt, a command output, a question dialog and a notice', async ($, on) => {
+test('masks the text of a user prompt, a command output, a question dialog and a notice', TEXT_MODE, async ($, on) => {
   const user = capture(on, 'UserMessage')
   const command = capture(on, 'CommandOutput')
   const ask = capture(on, 'AskUserQuestion')
@@ -155,7 +250,7 @@ test('masks the text of a user prompt, a command output, a question dialog and a
   expect(notice.props).toEqual({ text: `Signed in as ${M}`, command: '/status' })
 })
 
-test('masks an extra pattern from the options', { options: { extra_patterns: ['ACME-\\d{4}'] } }, async ($, on) => {
+test('masks an extra pattern from the options', { options: { mask_style: 'text', extra_patterns: ['ACME-\\d{4}'] } }, async ($, on) => {
   const seen = capture(on, 'AssistantMessage')
   await $.ui.render({
     surface: 'terminal',
@@ -281,7 +376,7 @@ test('/display-redaction off passes text through unmasked', async ($, on) => {
   expect(seen.props).toEqual({ text: `Write to ${EMAIL}.`, isFirstOfReply: true })
 })
 
-test('/display-redaction on after off masks again', async ($, on) => {
+test('/display-redaction on after off masks again', TEXT_MODE, async ($, on) => {
   const seen = capture(on, 'AssistantMessage')
   await $.command.run(run('off'))
   await $.command.run(run('on'))
@@ -299,7 +394,7 @@ test('the command answers with no text, so nothing reaches the model', async ($)
   expect(result.text).toBe(undefined)
 })
 
-test('masks while no choice has been recorded', async ($, on) => {
+test('masks while no choice has been recorded', TEXT_MODE, async ($, on) => {
   const seen = capture(on, 'UserMessage')
   await $.ui.render({
     surface: 'desktop',

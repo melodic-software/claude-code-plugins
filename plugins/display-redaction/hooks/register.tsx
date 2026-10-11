@@ -1,7 +1,13 @@
-import type { EngineInterface, Register, RenderPropsOf } from 'claude-code'
-import { compilePatterns, distinct, maskProps } from './mask.ts'
+import type { EngineInterface, Register, RenderElement, RenderPropsOf } from 'claude-code'
+import { blocks, compilePatterns, distinct, maskProps, splitMatches } from './mask.ts'
 
 const MASK = '[hidden]'
+// Block style, as the hide-email mod in Anthropic's "Mods in Claude Code" video draws it: a bar the
+// color of its own text, readable while the pointer is over its row.
+const MASKED = { backgroundColor: '#3B4252', color: '#3B4252' } as const
+const SHOWN = { backgroundColor: '#4C566A', color: '#ECEFF4', bold: true } as const
+// A drawn Text or Markdown refuses these, and a refused tree draws the original text.
+const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/
 const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
   name: 'display-redaction',
@@ -52,6 +58,30 @@ const distinctAsked = (tool: string, record: unknown): unknown =>
     ? { ...record, questions: distinctQuestions(record.questions) }
     : record
 
+type Elements = Pick<ReturnType<EngineInterface['ui']['resolve']>, 'Box' | 'Markdown' | 'Text'>
+
+// The mod's own tree for a text with a match: blocks without one drawn as Markdown, a block with one
+// as wrapping Text with each match a bar. Undefined where the text rewrite should draw instead.
+function drawMasked({ Box, Markdown, Text }: Elements, text: string, patterns: readonly RegExp[]): RenderElement | undefined {
+  if (CONTROL.test(text)) return undefined
+  const split = blocks(text).map((block) => ({ block, ...splitMatches(block, patterns) }))
+  if (split.every((s) => s.hidden.length === 0)) return undefined
+  const drawBlock = ({ block, parts, hidden }: (typeof split)[number], b: number) => {
+    if (hidden.length === 0) return <Markdown text={block} />
+    const rows = parts.flatMap((part, i) => {
+      const value = hidden[i]
+      if (part === '' && value === undefined) return []
+      const spans = [
+        ...(part === '' ? [] : [<Text>{part}</Text>]),
+        ...(value === undefined ? [] : [<Text {...MASKED} hover={SHOWN}>{' ' + value + ' '}</Text>]),
+      ]
+      return [<Box key={`b${b}m${i}`}>{spans}</Box>]
+    })
+    return <Box flexWrap="wrap">{rows}</Box>
+  }
+  return <Box flexDirection="column" gap={1}>{split.map(drawBlock)}</Box>
+}
+
 const isDisabled = async ($: EngineInterface): Promise<boolean> => (await $.state.get(DISABLED)).value === true
 
 export const register: Register = (on, options) => {
@@ -76,13 +106,25 @@ export const register: Register = (on, options) => {
     return { ...m, props: { ...m.props, output: distinctAsked(m.props.tool, m.props.output) } }
   }
 
+  const isBlock = options.mask_style !== 'text'
+  const draw = (elements: Elements, text: string) => (isBlock ? drawMasked(elements, text, patterns) : undefined)
+
   // Each .catch masks whatever failed, so a fault never draws the original props.
-  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.AssistantMessage)))
-    .catch(($, e, next) => next(hide(e, KEYS.AssistantMessage)))
-  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.UserMessage)))
-    .catch(($, e, next) => next(hide(e, KEYS.UserMessage)))
-  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.CommandOutput)))
-    .catch(($, e, next) => next(hide(e, KEYS.CommandOutput)))
+  on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (await isDisabled($)) return next(e)
+    return draw($.ui.resolve(e), e.props.text) ?? next(hide(e, KEYS.AssistantMessage))
+  }).catch(($, e, next) => next(hide(e, KEYS.AssistantMessage)))
+  // A task notification or another party's message the engine draws as a compact row; only the
+  // person's own prompt is drawn whole.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    if (await isDisabled($)) return next(e)
+    const isOwn = e.props.task === undefined && e.props.from === undefined
+    return (isOwn ? draw($.ui.resolve(e), e.props.text) : undefined) ?? next(hide(e, KEYS.UserMessage))
+  }).catch(($, e, next) => next(hide(e, KEYS.UserMessage)))
+  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    if (await isDisabled($)) return next(e)
+    return draw($.ui.resolve(e), e.props.text) ?? next(hide(e, KEYS.CommandOutput))
+  }).catch(($, e, next) => next(hide(e, KEYS.CommandOutput)))
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolUse(e)))
     .catch(($, e, next) => next(hideToolUse(e)))
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolResult(e)))
