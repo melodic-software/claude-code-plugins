@@ -22,11 +22,24 @@ CC CLI ── OTLP :4318 ──▶ Collector ──┬── file ──▶ Duck
 
 Hooks ──▶ envelope ──▶ sink ──┬── data.session_id ──▶ <root>/sessions/<session_id>.jsonl  (source: envelope)
                               └── no session id  ──▶ <root>/hook-events.jsonl[.1]         (legacy shape)
-Every event ──▶ session-event-log (opt-in) ──▶ <root>/sessions/<session_id>.jsonl         (source: event-log)
+Every event ──▶ hooks module (opt-in, mods on) ──▶ session-event-log.sh ──▶ <root>/sessions/<session_id>.jsonl  (source: event-log)
 ```
 
 The root is the plugin's `session_event_log_dir` option (project-relative, self-ignoring
-`.gitignore` inside). The skill-usage store and the OTEL store stay under `.claude/observability/`.
+`.gitignore` inside). The per-session event log is written by the plugin's hooks module, so a
+session the module did not run in has `source: envelope` rows at most, never `event-log` rows:
+read a session with the log on and no `event-log` rows as the module not running there, not as a
+quiet session. The skill-usage store and the OTEL store stay under `.claude/observability/`.
+
+- **Pointer**: when a session with the log on has no `event-log` rows, fetch
+  [overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  and [admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default)
+  live for when mods load, and "The rows" in
+  [`mods/sec-default/README.md`](https://github.com/anthropics/claude-code/blob/main/mods/sec-default/README.md#the-rows)
+  for which events the built-in guard keeps from a user's mod.
+- **As of**: 2026-10-09, Claude Code 2.1.288
+- **Recheck trigger**: a pin bump whose release notes change where mods load or which events the
+  built-in guard holds, or ADR 0058's list of accepted differences changes.
 
 ## Quick routing: "I need to know X"
 

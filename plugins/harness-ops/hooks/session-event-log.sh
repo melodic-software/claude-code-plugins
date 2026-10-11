@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # Per-session hook event log: one JSON line per hook event, appended to
 # <root>/sessions/<session_id>.jsonl (root defaults to .observability/claude,
-# project-relative). Registered on every documented event the generated
-# registry marks observable (plugins/harness-ops/hooks/hook-events.registry.json;
-# scripts/gen-hook-event-registry.sh writes the hooks.json rows).
+# project-relative). The plugin's hooks module (register.ts) runs it through
+# exec-bash.mjs on every documented event the generated registry marks
+# observable (plugins/harness-ops/hooks/hook-events.registry.json), with the
+# event's payload on stdin and the plugin's options as CLAUDE_PLUGIN_OPTION_*.
 #
-# DEFAULT OFF. The generated rows are exec form: node runs exec-bash.mjs with
-# --require-true SESSION_EVENT_LOG_ENABLED, and that process exits 0 before it
-# resolves bash when the option is not exactly true. The read below is what a
-# direct invocation pays: no library is sourced and stdin is not read until it
-# says so.
+# DEFAULT OFF. With the option off the module hooks nothing, so this script
+# never starts. The read below is what a direct invocation pays: no library is
+# sourced and stdin is not read until it says so.
 #
 # This script sources session-log-lib.sh (a few functions, no process) and
 # NOT hook-utils.sh: a producer that fires on every event cannot afford the

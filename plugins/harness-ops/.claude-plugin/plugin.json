@@ -120,7 +120,7 @@
     "session_event_log_enabled": {
       "type": "boolean",
       "title": "Session-event-log hook",
-      "description": "Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Off by default; while off, the only cost is reading this switch. It also gates the SessionEnd retention hook.",
+      "description": "Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention.",
       "default": false
     },
     "session_event_log_dir": {

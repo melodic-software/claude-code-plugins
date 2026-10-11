@@ -6,10 +6,12 @@
 # capture whose first host line is `windows-git-bash` into
 # reference/hook-log-budget.md to replace `windows-git-bash: unmeasured`.
 #
-# Every hook run goes through the registered launcher, `node exec-bash.mjs
-# --require-true SESSION_EVENT_LOG_ENABLED session-event-log.sh`, the command
-# hooks/hooks.json registers: a disabled row is node and the closed gate, an
-# enabled row is node, then bash, then the script.
+# Every hook run goes through the launcher, `node exec-bash.mjs --require-true
+# SESSION_EVENT_LOG_ENABLED session-event-log.sh`: disabled, node and the closed
+# gate; enabled, node, then bash, then the script. The hooks module (register.ts)
+# runs `node exec-bash.mjs session-event-log.sh` only while the log is on, so the
+# enabled figures are its per-event cost, and the disabled figures describe the
+# settings rows it replaced: with the log off it starts no process.
 #
 #   measure-hook-log-budget.sh [--samples N] [--record <file>]
 #   measure-hook-log-budget.sh --check-doc <file>

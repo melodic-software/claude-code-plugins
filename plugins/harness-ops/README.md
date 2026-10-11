@@ -278,36 +278,52 @@ audit-of-record.
 
 ### The per-session hook event log (off by default)
 
-Independently of any sink, `session_event_log_enabled=true` turns on one
-producer row per observable hook event (28 events; the generated
+Independently of any sink, `session_event_log_enabled=true` turns on the log.
+It is a mod: the hooks module `hooks/register.ts` hooks one `classic.<Event>`
+per observable hook event (28 events; the generated
 `hooks/hook-events.registry.json` says which, and why `WorktreeCreate`,
-`MessageDisplay` and `FileChanged` are left out). `PreToolUse` and
-`PostToolUse` are left out too: they fire on every tool call, so even a
-disabled row would cost a process creation per call. Tool activity is still
-recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is one line,
-not a per-call record: it carries the first `tool_name` and `tool_use_id` the
-payload text holds, normally the first call's. Each fire appends one line to
-`<root>/sessions/<session_id>.jsonl`: the correlation keys the payload carries
-(`prompt_id`, `tool_use_id`, `agent_id`), the event and its category, the tool
-and a repo-relative file path when present. Each row starts through
-`node hooks/exec-bash.mjs --require-true SESSION_EVENT_LOG_ENABLED`, which reads
-the kill switch before it resolves or spawns bash, so a consumer who has not
-turned it on starts one process (node) per event and no bash. The script
-keeps its own switch for a direct invocation (2.42 ms against a 2.08 ms spawn
-floor on the Linux CI host). Enabled, a 2 KB payload costs about 5 ms and a
-512 KB one 36 ms. Those are serial per-event figures taken before the node
-launcher. The parallel wall, the 4 KB and 16 KB appends, `ls -t`, and the
-late-EOF stall, all through the launcher, are measured by
+`MessageDisplay` and `FileChanged` are left out), and only while the switch is
+on. `PreToolUse` and `PostToolUse` are left out too: they fire on every tool
+call, so an enabled log would cost a process creation per call. Tool activity
+is still recorded through `PostToolUseFailure` and `PostToolBatch`. A batch is
+one line, not a per-call record: it carries the first `tool_name` and
+`tool_use_id` the payload text holds, normally the first call's. Each fire
+appends one line to `<root>/sessions/<session_id>.jsonl`: the correlation keys
+the payload carries (`prompt_id`, `tool_use_id`, `agent_id`), the event and its
+category, the tool and a repo-relative file path when present.
+
+Process cost: with the switch off (the default) the module hooks nothing, so no
+event starts a process (k = 0; `hooks/session-event-log.test.ts` counts the
+processes for every event). On, a mod cannot append to a file, so each event
+starts one process: the module hands the event's payload to
+`hooks/session-event-log.sh` through `node hooks/exec-bash.mjs`, the same script
+and launcher the settings rows ran, and `SessionEnd` starts a second for
+retention. No event waits on the write, which runs on a timer after the event
+goes on; `SessionEnd` waits for both, inside its teardown budget. Enabled, a 2 KB payload costs about 5 ms and a 512 KB one 36 ms of
+script time on the Linux CI host. The parallel wall, the 4 KB and 16 KB appends,
+`ls -t`, and the late-EOF stall are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
 recorded in
 [`reference/hook-log-budget.md`](reference/hook-log-budget.md). On Windows Git
-Bash (2026-09-30), the kill-switch-off median is 60 ms against a 33 ms bash
-spawn floor through the launcher's bash (49 ms node floor). Thirty parallel
-events take 406 ms wall off and 466 ms on. The 4 KB and 16 KB appends leave 0
-corrupt lines out of 33. `ls -t` ties at one-second resolution there, so no
-ordering is claimed. Late-EOF costs 358 ms. The switch stays off by default.
+Bash (2026-09-30), thirty parallel events take 466 ms wall on, and the 4 KB and
+16 KB appends leave 0 corrupt lines out of 33. `ls -t` ties at one-second
+resolution there, so no ordering is claimed. The switch stays off by default.
+
+The module needs Claude Code 2.1.287 or later with mods on, and was tested with
+`claude plugin test` on Claude Code 2.1.289; no live session type was run. Where
+mods are off (below 2.1.287, under `disableAllHooks`, with `--bare`, or when
+mods are switched off), the log does not run: no session file is written and
+retention does not prune. On a machine with managed settings, or for a user
+signed in with a Team or Enterprise plan, the built-in guard `sec-default`
+holds every `classic.*` event, so the log does not run there either. Mods start
+processes in the CLI only; where `$.process.run` cannot run, the module writes
+nothing and logs that once to the debug log. A row's `traceparent` key is not
+written, since a mod receives no per-hook `TRACEPARENT`. These differences from
+the settings rows the log replaced are recorded in
+[ADR 0058](../../docs/adr/0058-move-the-harness-ops-session-event-log-into-a-mod.md).
+
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
-hook, gated by the same switch, keeps the newest
+script, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
 `session_log_pre_prune_command` hands an archiver the files about to go. The
 root carries its own `*` `.gitignore`, so nothing under it reaches
@@ -364,6 +380,11 @@ use `jq`; without jq they fail open (no audit line is written).
 binary neither ships nor uses Node.js ([setup](https://code.claude.com/docs/en/setup), fetched
 2026-09-29), so without `node` on PATH those hooks do not launch. The `hook-failure-audit` Stop row
 is shell form (`"shell": "bash"`) and needs no node, so it still reports the failed launches. `/harness-ops:check` reports whether `node` and `jq` resolve.
+
+**Mods for the session event log.** The per-session hook event log runs in the hooks module, so it
+needs Claude Code 2.1.287 or later with mods on; where mods are off it does not run (see
+[The per-session hook event log](#the-per-session-hook-event-log-off-by-default)). The audit rows
+are settings hooks and run with mods off.
 
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
@@ -434,7 +455,8 @@ known-issues skill.
 
 ### Option details
 
-**`session_event_log_enabled`.** Off, a consumer pays the kill-switch read and nothing else.
+**`session_event_log_enabled`.** Off, the hooks module hooks no event, so the log starts no process.
+On, each recorded event starts one process. The log runs only where mods load.
 
 **`session_event_log_dir`.** Inside a checkout the directory carries a self-ignoring `.gitignore`,
 created on the first write.
@@ -473,7 +495,7 @@ reads it from.
 | `pre_compact_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED` | Emits telemetry on context-compaction events. On by default. |
 | `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
 | `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default. |
-| `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Off by default; while off, the only cost is reading this switch. It also gates the SessionEnd retention hook. |
+| `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Runs in the hooks module, so it needs mods on. Off (the default), no event starts a process; on, each starts one. It also gates SessionEnd retention. |
 | `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
 | `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
 | `session_event_log_content` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
