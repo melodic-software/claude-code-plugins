@@ -3,7 +3,8 @@
 Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
 > Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
-> [Context7's docs](https://context7.com/docs). Recheck when the installed `ctx7` is newer than
+> [Context7's docs](https://context7.com/docs) (linked without a section anchor: the fetched page
+> exposes no stable MCP heading id, checked 2026-10-11). Recheck when the installed `ctx7` is newer than
 > 0.5.5 (the `update` action reports it) or Context7's docs change the MCP URL or header name.
 
 - **Pointer**: when deciding where the entry goes and how a `${VAR}` in it expands, fetch
