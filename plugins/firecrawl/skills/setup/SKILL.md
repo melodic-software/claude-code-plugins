@@ -3,6 +3,8 @@ description: "Verify the firecrawl plugin's runtime prerequisites for this machi
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v firecrawl*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `firecrawl` probe ran at load time. Read this row instead of re-issuing it; it shows
 the tool's path when present, or `absent` when missing:
 
-- `firecrawl`: !`{ command -v firecrawl 2>/dev/null || echo "absent"; }`
+- `firecrawl`: !`command -v firecrawl 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

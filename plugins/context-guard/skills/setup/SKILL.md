@@ -3,6 +3,9 @@ description: "Verify the context-guard plugin on this machine: jq, node, whether
 argument-hint: "[check|apply] [defaults|cache-line]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v node*)"
 shell: bash
 ---
 
@@ -12,7 +15,7 @@ Three of `check`'s read-only probes run at load time. Read the values below; do 
 
 `jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
 `node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
-`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`{ if [ -e "$HOME/.claude/context-guard/zones.json" ]; then cat "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi; } | head -40`
+`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`if [ -e "$HOME/.claude/context-guard/zones.json" ]; then head -40 "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi`
 
 ## Purpose
 

@@ -3,6 +3,8 @@ description: "Verify the playwright plugin's runtime prerequisites: the playwrig
 argument-hint: "[check|apply] [install-cli]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v playwright-cli*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `playwright-cli` probe ran at load time. Read this row instead of re-issuing it; it shows
 the tool's path when present, or `absent` when missing:
 
-- `playwright-cli`: !`{ command -v playwright-cli 2>/dev/null || echo "absent"; }`
+- `playwright-cli`: !`command -v playwright-cli 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

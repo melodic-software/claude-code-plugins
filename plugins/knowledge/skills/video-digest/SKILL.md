@@ -11,10 +11,10 @@ shell: bash
 ## Pre-computed context
 
 ```!
-{ printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
-{ printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && { yt-dlp --version 2>/dev/null | head -1; :; } || echo "MISSING — install yt-dlp (see Prerequisites)"; }
-{ printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (watch action only)"; }
-{ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (watch action only)"; }
+printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"
+printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null | head -1 || command -v yt-dlp >/dev/null 2>&1 || echo "MISSING — install yt-dlp (see Prerequisites)"
+printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || command -v ffmpeg >/dev/null 2>&1 || echo "MISSING — install ffmpeg (watch action only)"
+printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || command -v magick >/dev/null 2>&1 || echo "MISSING — install ImageMagick 7 (watch action only)"
 ```
 
 # Video digest. YouTube and X

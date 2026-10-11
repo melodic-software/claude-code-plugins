@@ -3,6 +3,8 @@ description: "Verify repo-hygiene's external prerequisites on this machine and r
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v ghq*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `ghq` probe ran at load time. Read this row instead of re-issuing it; it shows
 the tool's path when present, or `absent` when missing:
 
-- `ghq`: !`{ command -v ghq 2>/dev/null || echo "absent"; }`
+- `ghq`: !`command -v ghq 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

@@ -14,8 +14,8 @@ shell: bash
 `check`'s build-preflight version probes ran at load time. Read these rows instead of re-issuing
 them; each shows the reported version, or `unavailable` when the tool is absent or fails to run:
 
-- `node --version`: !`{ node --version 2>/dev/null || echo "unavailable"; }`
-- `npm --version`: !`{ npm --version 2>/dev/null || echo "unavailable"; }`
+- `node --version`: !`node --version 2>/dev/null || echo unavailable`
+- `npm --version`: !`npm --version 2>/dev/null || echo unavailable`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
 Bash instead. `apply install-build-deps` still runs its own live guards.

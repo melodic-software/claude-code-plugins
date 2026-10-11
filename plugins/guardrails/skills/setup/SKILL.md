@@ -3,6 +3,9 @@ description: "Verify the guardrails hooks' runtime prerequisites and per-guard t
 argument-hint: "[check|apply] [install-commit-msg|install-pre-commit-content]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v node*)"
 shell: bash
 ---
 
@@ -11,8 +14,8 @@ shell: bash
 `check`'s `jq` and `node` probes ran at load time. Read these rows instead of re-issuing them;
 each shows the tool's path when present, or `absent` when missing:
 
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
+- `node`: !`command -v node 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

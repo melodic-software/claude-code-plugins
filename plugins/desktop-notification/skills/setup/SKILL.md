@@ -5,6 +5,8 @@ user-invocable: true
 disable-model-invocation: true
 allowed-tools:
   - "Bash(uname -s*)"
+  - "Bash(command -v node*)"
+  - "Bash(command -v jq*)"
 shell: bash
 ---
 
@@ -14,9 +16,9 @@ shell: bash
 of re-issuing them. The `node` and `jq` rows show the tool's path, or `absent` when missing; the
 `uname -s` row shows the kernel name, or `unknown` when it fails to run:
 
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-- `uname -s`: !`{ uname -s 2>/dev/null || echo "unknown"; }`
+- `node`: !`command -v node 2>/dev/null || echo absent`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
+- `uname -s`: !`uname -s 2>/dev/null || echo unknown`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
 Bash instead.
