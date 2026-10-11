@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"0.1.22\",\"is_error\":false}",
+      "why": "the binary ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"/bin/bash: line 1: playwright-cli: command not found\",\"is_error\":true}",
+      "why": "playwright-cli not on PATH"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"/usr/bin/env: 'node': No such file or directory\",\"is_error\":true}",
+      "why": "node not on PATH for the shebang"
+    }
+  ]
+}
