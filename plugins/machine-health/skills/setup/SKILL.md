@@ -30,16 +30,20 @@ updates. Create it if missing.
 
 **There is no hardcoded fallback path, and inventing one is a defect rather than a safety net.** The
 data directory is not named for the plugin alone, so any literal path written here resolves to a
-**different** directory than the one this plugin actually reads and writes, as observed on a real
-machine (this plugin's CHANGELOG records the split). The overlay and approvals land in one place while the audit's state
-and logs live in another, each half looking complete to whoever wrote it, and the operator's
-disabled checks silently stop taking effect.
+**different** directory than the one this plugin actually reads and writes. The overlay and
+approvals land in one place while the audit's state and logs live in another, each half looking
+complete to whoever wrote it, and the operator's disabled checks silently stop taking effect.
 
 - **Pointer**: how the data directory is named is in
   [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables).
   **As of**: 2026-10-11. **Recheck trigger**: that section changes how the directory name is derived,
-  or is renamed. The page does not cover `--plugin-dir` sessions; `check` prints the resolved path for
-  those.
+  or is renamed.
+- **Observed, not documented**: a `--plugin-dir` session names the directory `<name>-inline`, and a
+  hardcoded `machine-health` path split the overlay from the audit's state and logs on a real
+  machine. **Basis**: this plugin's `CHANGELOG.md`, `## [0.7.0]`, the first `### Fixed` entry.
+  **As of**: 2026-10-11. **Recheck trigger**: `check` run in a `--plugin-dir` session prints a
+  resolved path whose last segment does not end in `-inline`, or the Environment variables section
+  above starts documenting `--plugin-dir` naming.
 
 So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop at step 1 of
 `check`**: report that the skill is running outside plugin context and cannot resolve its state
