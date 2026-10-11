@@ -197,6 +197,21 @@ describe("--config", () => {
     assert.equal(seamed.values.css.token_fallback, "literal", "the local layer is still read");
   });
 
+  test("a team routing row that breaks routing.schema.json is dropped with an error; a valid one is kept", () => {
+    const team = join(scratch, "team-rows.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  rows:\n    - concern: css-authoring\n      id: /user-interface:write-css\n      rank: 2\n" +
+        "    - concern: Not A Concern\n      id: /user-interface:write-css\n      rank: 0\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.rows, [{ concern: "css-authoring", id: "/user-interface:write-css", rank: 2 }]);
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.rows\[1\]\.concern: must match/);
+    assert.match(errors, /routing\.rows\[1\]\.rank: must be an integer >= 1/);
+    assert.doesNotMatch(errors, /rows\[0\]/);
+  });
+
   test("a project with no pointer line uses docs/conventions", () => {
     const { config: plain } = detect(["--project", join(FIX, "no-ds"), ...seams, "--config"]);
     assert.equal(plain.home, "docs/conventions");

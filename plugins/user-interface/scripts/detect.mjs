@@ -22,6 +22,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { resolve } from "./lib/config-cascade.mjs";
 import { installed } from "./lib/installed.mjs";
+import { validate } from "./lib/routing-validate.mjs";
 import { parse as parseYaml } from "./lib/yaml-subset.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -244,6 +245,21 @@ const relabel = (v, names) => {
   return isMapping(v) ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, relabel(x, names)])) : v;
 };
 
+/** Drops each team routing row that breaks the bundled row schema, naming it on the team layer. A
+ * team row may re-rank a bundled row, so it needs only concern and id; every field it sets must fit. */
+function checkRoutingRows(out) {
+  const rows = out.values.routing?.rows;
+  if (!Array.isArray(rows)) return;
+  const { properties } = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.json"), "utf8")).properties.rows.items;
+  const rowSchema = { type: "object", required: ["concern", "id"], additionalProperties: false, properties };
+  const team = out.layers.find((l) => l.name === "team");
+  out.values.routing.rows = rows.filter((row, i) => {
+    const errors = validate(rowSchema, row, `routing.rows[${i}]`);
+    team.errors.push(...errors.map((e) => `team (${team.path}): ${e}`));
+    return errors.length === 0;
+  });
+}
+
 function config() {
   const { home, error } = conventionHome();
   const user = readUserConfig(opts["user-config"]);
@@ -269,6 +285,7 @@ function config() {
         Object.assign(local, { path: join(seam.refused, `${PLUGIN}.local.yaml`), state: "invalid", errors: [`local (${seam.refused}): ${why}`] });
       }
     }
+    checkRoutingRows(out);
     return { ...out, home, ...(error && { home_error: error }) };
   } finally {
     if (seam) rmSync(seam.dir, { recursive: true, force: true });
