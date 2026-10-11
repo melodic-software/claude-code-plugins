@@ -224,7 +224,9 @@ The module and the StopFailure hook are active once the plugin loads (the next s
 
 - A Claude Code build at or above the terminal version mods need, with mods on, for the module.
   Below that floor, or with mods off, only the StopFailure hook runs. `prerequisites.json` holds
-  the floor as data, which the check skill compares against; the pointer below is where to
+  the floor as data, in `detect.version.min` of the entry with `"id": "claude"`, which the check
+  skill compares against (relayed 2026-10-11; recheck when that key moves); the pointer below is
+  where to
   re-derive it.
 - [Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: the `StopFailure` hook
   launches through `node hooks/exec-bash.mjs`, and the module writes the file by running `node`,
