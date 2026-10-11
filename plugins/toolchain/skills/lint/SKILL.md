@@ -137,7 +137,7 @@ Per-project walking (ecosystems with `project-discovery`):
 - typescript: walk each `package.json` directory and run check/fix from there
 - go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary. See `/toolchain:check`'s per-ecosystem context file)
 
-Tool presence: verify on `PATH` before each ecosystem the tool its commands are invoked through (python's `uv`, not the `ruff` and `pyright` behind it); report `skip` with `install-hint` when missing. The probe is per ecosystem, not per sub-tool: a sub-tool bundled inside an opaque compound `check-cmd` is not probed, so its absence surfaces at execution time as a real non-zero exit and the ecosystem reports `FAIL`, not `skip`. Same rule `/toolchain:check` states, so both skills classify an identical environment identically.
+Tool presence: verify on `PATH` before each ecosystem the tool its commands are invoked through (python's `uv`, not the `ruff` and `pyright` behind it); report `skip (tool missing: <tool>)` with `install-hint` when missing, never `FAIL`. The probe is per ecosystem, not per sub-tool: a sub-tool bundled inside an opaque compound `check-cmd` is not probed, so its absence surfaces at execution time as a real non-zero exit and the ecosystem reports `FAIL`, not `skip`. Same rule `/toolchain:check` states, so both skills classify an identical environment identically.
 
 Tool pins (`tool-pin` sub-key, e.g. zizmor): when the resolved config pins a tool version, warn if the installed version drifts from the pin (a pin typically mirrors the consumer's own CI pin). No pin, no check.
 
@@ -197,7 +197,11 @@ Before applying `--code-fix`:
 Overall: FAIL (1 of 4 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, `skip` (tool not installed) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable). Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
+Use `pass`, `FAIL`, a named skip, or `—` (not applicable). Every skip names its reason in `/toolchain:check`'s named classes, and its class decides whether it blocks a "done" claim exactly as `/toolchain:check`'s report table (its section 3) classifies it: `skip (tool missing: <tool>)` is an environment skip and blocks "done"; `skip (opt-in unmet: <condition>)` is the consumer's opt-in and does not. Lint installs nothing and runs no CI-parity gates, so it never emits the `dependencies missing` or `unsupported` classes.
+
+An ecosystem's Status and the Overall line read `FAIL` when any cell failed, `INCOMPLETE` when nothing failed but an environment skip remains, and `PASS` only when neither holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (3 of 4 ecosystems passed; markdown: skip (tool missing: markdownlint-cli2))`), so a caller such as `/verification:confirm` holds its verdict on a lint-only environment gap. An opt-in-unmet skip or a `—` cell never makes a run `INCOMPLETE`.
+
+Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
 
 If `--fix` was used, note which ecosystems were format-fixed vs which have no `fix-cmd`.
 
@@ -215,7 +219,7 @@ Show failing output below the table. Truncated to key error lines, not the full 
 ## Edge cases
 
 - **No git changes but `/toolchain:lint all`**: run all applicable ecosystems (useful after rebase or pull)
-- **Missing tools**: report as `skip` with tool name and install hint, not as failure. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
+- **Missing tools**: report as `skip (tool missing: <tool>)` with the install hint, not as failure, and never as done: the Overall line reads `INCOMPLETE`. Scoped to the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (an un-probed sub-tool's absence is a real non-zero exit, so `FAIL`; see `/toolchain:check`'s Gotchas)
 - **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
 - **File outside any ecosystem**: silently skip (no noise for binary files, images, etc.)
