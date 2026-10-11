@@ -53,8 +53,9 @@ web access.
 3. **Inputs.**
    - `defaults` mode: run
      `${CLAUDE_SKILL_DIR}/scripts/list-pointers.sh --json $ARGUMENTS` and keep
-     the array it prints as `pointers`. An unknown owner exits 2 and names the
-     valid ones.
+     the array it prints as `pointers`. Pass only an owner (`<role>` or
+     `fanout`) after `--json`; with none, pass nothing, never the mode name
+     `defaults`. An unknown owner exits 2 and names the valid ones.
    - `repo` mode: run `${CLAUDE_SKILL_DIR}/scripts/list-targets.sh` and keep
      the array it prints as `targets`. It lists tracked markdown that states a
      model, effort, workflow or subagent claim, grouped into areas, and leaves
