@@ -170,11 +170,15 @@ NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
 # one; the keyword is checked lower-cased against TRACKER_KEYWORD_ERE. The
 # second keyword word is spelled `to` rather than any word: POSIX
 # leftmost-longest submatching would otherwise read `Closes ENG-123` as the
-# keyword `Closes EN` and the key `G-123`. This
+# keyword `Closes EN` and the key `G-123`. The qualified-id branch names the
+# work-items providers, so a URL (`Refs: https://host/page#1`) is not an id.
+# Known accept: an upper-case acronym alone after a keyword (`Fixes UTF-8`)
+# reads as an issue key, since without the tracker binding nothing tells it
+# from `ENG-8`. This
 # goes beyond the CI analyzer, which knows only GitHub's `#N`; there the body
 # contract is advisory, and blocking an adapter's own link would leave a
 # non-GitHub tracker no way to open a pull request through this gate.
-TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|[a-z][a-z0-9-]*:[^[:space:]#]+#[0-9]+)[[:blank:]]*$'
+TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
 TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
 

@@ -8,4 +8,4 @@ bump: patch
 
 ### Fixed
 
-- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` accept a tracker's link line as `/work-items:track link` prints it (`Closes ENG-123`, `Refs ENG-123`, `Refs: SW2-12`, `Refs: local-markdown:local/markdown#7`), alone on its line. They blocked every non-GitHub tracker's link before.
+- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` accept a tracker's link line as `/work-items:track link` prints it (`Closes ENG-123`, `Refs ENG-123`, `Refs: SW2-12`, `Refs: local-markdown:local/markdown#7`), alone on its line. They blocked the Linear, Jira and local-markdown link lines before.

@@ -257,6 +257,8 @@ assert_allow "local-markdown non-closing link line accepted" "$GATED" \
   "$(gh_body $'Refs: local-markdown:local/markdown#7'"$SECTIONS")"
 assert_block "a lower-case key-shaped token is not a tracker key" "$GATED" \
   "$(gh_body $'Fixes utf-8'"$SECTIONS")"
+assert_block "a URL with a fragment is not a qualified item id" "$GATED" \
+  "$(gh_body $'Refs: https://example.com/page#1'"$SECTIONS")"
 assert_block "a tracker key with trailing prose is not a link line" "$GATED" \
   "$(gh_body $'Refs: SW2-12 for context'"$SECTIONS")"
 assert_block "a tracker key after other text on the line is not a link line" "$GATED" \

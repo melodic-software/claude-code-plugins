@@ -28,6 +28,7 @@ A pull request is GitHub's change request; this file uses its terms.
 | The current branch's PR number | `gh pr view --json number -q .number` |
 | The same, with the branch named (ambiguous or stale checkout) | `gh pr view "$(git branch --show-current)" --json number -q .number` |
 | State for the smart default | `gh pr view --json state,number,isDraft` (non-zero exit: no PR) |
+| The current branch's PR with author and head branch (babysit-prs single-PR scope) | `gh pr view --json number,url,author,headRefName` |
 | Number, URL and state for `status` | `gh pr view <N> --json number,url,state` |
 | Head commit | `gh pr view <N> --json headRefOid -q .headRefOid` |
 | Mergeability | `gh pr view <N> --json mergeable`; `CONFLICTING` means GitHub runs no workflows until the base is integrated |
@@ -47,7 +48,7 @@ entry and pass it to every later `gh` call in that phase.
 | Check out the PR head | `gh pr checkout <N>`, or `gh pr checkout <N> --detach` when the branch is locked in another worktree. It is fork-safe: a fork's head branch is not fetchable from `origin` by name |
 | Merge the base into the head | `gh pr update-branch <N>` (pull-request `ready-for-review.md`) |
 | Flip a draft ready | `gh pr ready <N>`, run only inside `/source-control:pull-request ready`, never bare |
-| Merge pinned to the reviewed head | `gh pr merge <N> --squash --match-head-commit <sha>`, never `--admin` or `--auto` (pull-request `merge.md` §4.2.1 owns the merge-queue form) |
+| Merge pinned to the reviewed head | `gh pr merge <N> --squash --match-head-commit <sha>`, never `--admin` or `--auto` (pull-request `merge.md` §4.2.1 owns the merge-queue form). A babysit lane merges only through its merge-gate wrapper (babysit-prs `safety.md`) |
 | Open a tracking issue | `gh issue create` |
 
 ## Checks and CI logs
@@ -78,12 +79,16 @@ conversation comments carry only `created_at`.
 | Operation | GitHub command |
 |---|---|
 | React to a comment | `POST` to the comment's `/reactions` endpoint (`+1`, `-1`, `eyes`); verify with a `GET` on the same endpoint. Review bodies have no reactions endpoint |
-| Reply on an inline thread | `gh api repos/<owner>/<repo>/pulls/<N>/comments/<id>/replies -f body=…` |
-| Reply on the conversation | `gh pr comment <N>` |
+| Reply on an inline thread | `gh api repos/<owner>/<repo>/pulls/<N>/comments/<id>/replies -F body=@<body-file>` |
+| Reply on the conversation | `gh pr comment <N> --body-file <body-file>` |
 | Verify an inline reply | the inline surface filtered with `--jq '.[] \| select(.in_reply_to_id == <original-id>)'` |
-| Verify a conversation reply | the conversation surface filtered with `--jq '.[] \| select((.body \| contains("<sha>")) and .user.login == "<posting-identity>") \| .body'`, never `.[-1]` |
+| Verify a conversation reply (D5, before any fix) | the conversation surface filtered with `--jq '.[] \| select(.user.login == "<posting-identity>") \| .body'` |
+| Verify a follow-up reply citing the fix | the conversation surface filtered with `--jq '.[] \| select((.body \| contains("<sha>")) and .user.login == "<posting-identity>") \| .body'`, never `.[-1]` |
 | Tell a bot from a person | REST `user.type == "Bot"`; GraphQL `author.__typename == "Bot"` |
 | Resolve a review thread | the GraphQL `resolveReviewThread` mutation, then confirm `isResolved == true` over GraphQL |
+
+Write a reply body to a file with the Write tool and pass the file: a reply often quotes reviewer
+text, and a quote, `$(…)` or backtick inside it can break out of an inline shell argument.
 
 ## Branch rules
 
