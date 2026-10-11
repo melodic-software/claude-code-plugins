@@ -36,8 +36,10 @@ Opus 4.8 moved the default effort UP. The old deliberate `xhigh` choice is close
 
 > **Superseded:** availability, opt-in, launch approval per permission mode, and run limits have
 > changed since this tip; auto mode is one way to avoid prompts, not a requirement. For the
-> current rules, see [dynamic workflows: Behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits). As of
-> 2026-10-02; recheck when that page's "Behavior and limits" or approval sections change.
+> current rules, see [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off)
+> for availability and opt-out, [Approve the plan before it runs](https://code.claude.com/docs/en/workflows#approve-the-plan-before-it-runs)
+> for approval per permission mode, and [Behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)
+> for run limits. As of 2026-10-11; recheck when any of those three sections changes.
 
 Research preview (May 28, 2026) for tasks too big for one pass. Trigger: say **"use a workflow"** (refined Jun 9, since bare "workflow" had too many false positives, Section 93). Orchestrator shape, not peer-to-peer agent teams: a top-level Claude kicks off N tasks (100s possible); each task fans out implementer → two verifiers → fixer, looping until verifiers pass. Save it for the biggest jobs: migrations, refactors, perf optimization, batch bug fixes, catalogue-and-categorize sweeps. Token-intensive; don't burn it on a 20-line tweak. Auto mode is not optional. One permission prompt freezes a hundred-agent run. Cat Wu's example: catalogued 100s of A/B flags for stale rollouts in <10 minutes via parallel investigation.
 

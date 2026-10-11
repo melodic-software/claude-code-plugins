@@ -159,4 +159,4 @@ skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in 
 
 What a Claude Code session itself does to the cache, and why its usage climbs as it runs, are on
 [Actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
-(checked 2026-10-01; recheck when either section moves).
+(checked 2026-10-11; recheck when either section moves).

@@ -69,12 +69,13 @@ take no action against it here.
   ONLY sanctioned update mechanics are this skill (`/playbooks:update`) and
   `/plugin marketplace update`.
 - **Maintainer-facing.** Run in a working-tree checkout, never against an installed
-  marketplace copy. Consumers receive updates solely through `/plugin marketplace update`
-  once a new plugin `version` is published. Pointer: for how a published version reaches a
-  consumer's install, fetch
-  [Versions and updates](https://code.claude.com/docs/en/plugins/loading#versions-and-updates)
-  live. As of: 2026-10-11. Recheck trigger: that section changes how an installed plugin
-  picks up a new version.
+  marketplace copy. Consumers receive updates only once a new plugin `version` is
+  published. Pointer: for what `/plugin marketplace update` refreshes and how an installed
+  plugin picks up a published version, fetch
+  [Update plugins now](https://code.claude.com/docs/en/discover-plugins#update-plugins-now)
+  and [Manage marketplaces](https://code.claude.com/docs/en/discover-plugins#manage-marketplaces)
+  live. As of: 2026-10-11. Recheck trigger: either section changes what
+  `/plugin marketplace update` updates.
 - **`--apply` scope is the vendored baseline only.** It replaces `skills/<pack>/vendor/upstream-skill.md`
   verbatim and bumps that pack's frontmatter metadata (`upstream-version`, `synced`). It
   does NOT rewrite any distilled body, integrating the delta is a manual, reviewed step
