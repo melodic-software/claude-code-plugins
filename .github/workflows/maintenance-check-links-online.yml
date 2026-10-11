@@ -7,9 +7,12 @@ name: maintenance-check-links-online
 # not behind `ci-status`, so nothing here can block a merge. It holds only the
 # read-only GITHUB_TOKEN, used to lift the github.com rate limit; that token
 # cannot read another private repository, so lychee never reports a link into
-# one as OK. It never opens an issue or posts a comment.
+# one as OK. It never opens an issue or posts a comment. It runs weekly so a
+# link that rots upstream shows up as a red run, and on demand.
 
 on:
+  schedule:
+    - cron: "37 11 * * 2"
   workflow_dispatch:
 
 permissions: {}
