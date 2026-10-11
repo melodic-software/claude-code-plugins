@@ -28,8 +28,9 @@ Before recommending a target, determine WHERE the finding should live. The key d
 **Decision questions (ask in order, stop at first match):**
 
 1. **Would another contributor (human or agent) on a fresh clone need this?**
-   - Technical gotchas, tooling quirks, enforcement gaps, conventions → **project**
-     (rules/CLAUDE.md)
+   - Technical gotchas, tooling quirks, conventions → **project** (rules/CLAUDE.md)
+   - A mistake a deterministic check could catch → **project**, routed through
+     [Owner skills](#owner-skills) rather than written as prose
    - Example: "the analyzer silently skips generated files" → the relevant `.claude/rules/` file
 2. **Does it protect the accuracy or quality of a specific git-tracked artifact?**
    - Guard rails for skills, rules files, or documentation → **project** (in the artifact it
@@ -61,6 +62,27 @@ or would just this user's convenience suffer (→ memory is fine)?
 - "Project status" memories that duplicate git-tracked content, redundant with the file itself
 - Session metrics (retro scores). Personal by default; move into the repo only if the team wants
   AI quality visibility
+
+## Owner skills
+
+Some findings have an owner skill that decides the target better than this catalog. Name it in the
+Phase 3 row only if its plugin is installed; otherwise use the matching section below (Hooks,
+CLAUDE.md / Rules).
+
+| Finding | Hand to |
+| --- | --- |
+| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/review:audit-enforceability`, which picks the cheapest deterministic check and its owner |
+| Missing automation: a hook, MCP server, skill, subagent, or scheduled task | `/harness-config:audit-automation-gaps`, which rejects new automation unless evidence earns it |
+| An instruction the model followed unaided, or one that is stale or conflicting | `/harness-config:audit-instructions` |
+| Whether standing instructions are still needed at all | `/harness-config:unhobble`, the bare-model experiment |
+| A command-line tool or script whose output cost many tokens | `/developer-experience:build-cli` |
+| An agent-loaded doc (CLAUDE.md, AGENTS.md, rules) that misled or bloated the session | `/docs-hygiene:write-for-agents` |
+
+**When to propose a check.** Retro proposes a check and never adopts one: the user decides at the
+approval checkpoint, and the owner skill picks the mechanism. Propose one on the first occurrence of
+a policy-class mistake (irreversible, public, or security-relevant), and on a repeat with the same
+cause for a behavior correction. Sometimes the right outcome is no check: the model already
+complies, the action is reversible, or the repo has nothing to wire a check into.
 
 ## Memory
 
