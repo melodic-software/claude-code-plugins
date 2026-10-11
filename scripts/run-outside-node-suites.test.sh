@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Classifies declined suites without guessing a runner, and runs the registered
-# packages' own npm test.
+# Classifies declined suites without guessing a runner, and runs a fixture
+# registry's packages through their own npm test.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -40,10 +40,27 @@ else
   fail "wrapped node suite was not owned: $out"
 fi
 
-if bash "$RUNNER"; then
-  ok "registered packages pass their own npm test"
+# The no-argument mode against a fixture registry. Each registered package's
+# own suites run in test-node when the plan names that package.
+# shellcheck source=lib/fixture-tree.sh
+. scripts/lib/fixture-tree.sh
+fixture=""
+fixture_tree::build fixture --sut run-outside-node-suites.sh --label outside-node
+mkdir -p "$fixture/pkgs/pass" "$fixture/pkgs/fail"
+printf '{"private":true,"scripts":{"test":"exit 0"}}\n' >"$fixture/pkgs/pass/package.json"
+printf '{"private":true,"scripts":{"test":"exit 3"}}\n' >"$fixture/pkgs/fail/package.json"
+: >"$fixture/scripts/outside-node-exclusions.txt"
+printf 'pkgs/pass\n' >"$fixture/scripts/outside-node-packages.txt"
+if out="$(bash "$fixture/$RUNNER" 2>&1)" && grep -q "npm test in pkgs/pass" <<<"$out"; then
+  ok "with no arguments every registered package runs its own npm test"
 else
-  fail "registered packages failed npm test"
+  fail "the registered package did not run and pass: $out"
+fi
+printf 'pkgs/pass\npkgs/fail\n' >"$fixture/scripts/outside-node-packages.txt"
+if bash "$fixture/$RUNNER" >/dev/null 2>&1; then
+  fail "a registered package whose npm test fails should fail the run"
+else
+  ok "a failing registered package fails the run"
 fi
 
 printf '%s\n' "plugins/knowledge/vendor/not-a-suite/missing.test.js" >"$list"

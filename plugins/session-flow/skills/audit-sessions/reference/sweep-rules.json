@@ -90,7 +90,7 @@
       "unit": "count",
       "threshold": 27,
       "route": "config-change",
-      "suggested_skill": "/fewer-permission-prompts",
+      "suggested_skill": "/session-flow:audit-friction",
       "confidence": "measured",
       "basis": "tool denials per session; spike median 3, p90 27"
     },

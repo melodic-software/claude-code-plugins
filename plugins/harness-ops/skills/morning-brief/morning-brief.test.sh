@@ -48,6 +48,7 @@ fail() {
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "contains: $3" "$2"; fi; }
 assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "absent: $3" "$2"; fi; }
 assert_exit() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "exit $2" "exit $3"; fi; }
+assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$2" "$3"; fi; }
 section() {
   # section OUTPUT "== heading prefix" — the lines of one section, heading included.
   printf '%s\n' "$1" | awk -v h="$2" 'index($0, h) == 1 {p = 1; print; next} /^== / {p = 0} p'
@@ -628,20 +629,28 @@ assert_contains "stranded: the window is reported in the header" "$OUT_WIDE" "la
 # --- Degraded-mode contract: an unreadable source is never an all-clear -------
 # A `gh` test double on PATH stands in for the network. MB_GH_MODE selects the
 # host's behavior:
-#   blocked  every call is refused with the pinned-GraphQL 403 shape (body on
+#   blocked  every call is refused with the proxy's GraphQL 403 shape (body on
 #            stdout, message on stderr, exit 1) — the cloud-session shape
 #   fail     every call fails with an unrelated error
 #   rest     GraphQL-backed subcommands are refused as in `blocked`; `gh api
 #            repos/...` is served from MB_GH_FIXTURES/<sanitized path>.json,
 #            a missing fixture answering 404
+#   gql      the gh subcommands are served from MB_GH_FIXTURES/<key>.json, as gh
+#            would: a list read keeps its first --limit items (gh's default
+#            limit of 30 when none is given) and -q applies as a jq filter.
+#            Keys: label-list, pr-list, issue-list-label-<sanitized label>,
+#            issue-list-search, issue-view-<n>, and api-graphql-<cursor> (first
+#            page: api-graphql-first). `api graphql --paginate` follows the
+#            cursors to the last page, as gh does. Every key served is logged
+#            to MB_GH_LOG when set; a missing fixture fails the call.
 GH_STUB_DIR="$TMP/gh-stub"
 mkdir -p "$GH_STUB_DIR"
 cat >"$GH_STUB_DIR/gh" <<'STUB'
 #!/usr/bin/env bash
 mode="${MB_GH_MODE:?MB_GH_MODE not set}"
 blocked() {
-  printf '{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. Use REST via `gh api repos/{owner}/{repo}/...` instead.","documentation_url":"https://example.invalid/docs"}\n'
-  printf 'gh: This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served. (HTTP 403)\n' >&2
+  printf '{"message":"GitHub GraphQL is not available from Claude Code sessions. Use REST via `gh api repos/{owner}/{repo}/...` instead.","documentation_url":"https://example.invalid/docs"}\n'
+  printf 'gh: GitHub GraphQL is not available from Claude Code sessions. (HTTP 403)\n' >&2
   exit 1
 }
 case "$mode" in
@@ -668,6 +677,58 @@ case "$mode" in
     printf 'gh: Not Found (HTTP 404) — no fixture %s\n' "$key" >&2
     exit 1
     ;;
+  gql)
+    san() { printf '%s' "$1" | sed -E 's/[^A-Za-z0-9._-]/_/g'; }
+    serve() {
+      local f="${MB_GH_FIXTURES:?MB_GH_FIXTURES not set}/$1.json"
+      [[ -n "${MB_GH_LOG:-}" ]] && printf '%s\n' "$1" >>"$MB_GH_LOG"
+      [[ -f "$f" ]] || {
+        printf 'gh: no fixture %s (HTTP 404)\n' "$1" >&2
+        exit 1
+      }
+      cat "$f"
+    }
+    cmd="$1 $2"
+    shift 2
+    limit="" q="" label="" search=0 cursor="first" num="" paginate=0
+    while (($#)); do
+      case "$1" in
+        --limit) limit="$2"; shift ;;
+        -q) q="$2"; shift ;;
+        --label) label="$2"; shift ;;
+        --search) search=1; shift ;;
+        -f | -F) [[ "$2" == endCursor=* ]] && cursor="${2#endCursor=}"; shift ;;
+        --json | --repo | --state) shift ;;
+        --paginate) paginate=1 ;;
+        *) num="$1" ;;
+      esac
+      shift
+    done
+    case "$cmd" in
+      "api graphql")
+        while :; do
+          page="$(serve "api-graphql-$(san "$cursor")")" || exit 1
+          printf '%s\n' "$page"
+          ((paginate)) || exit 0
+          cursor="$(jq -r 'if .data.repository.pullRequests.pageInfo.hasNextPage then .data.repository.pullRequests.pageInfo.endCursor else "" end' <<<"$page")"
+          [[ -n "$cursor" ]] || exit 0
+        done
+        ;;
+      "label list") key="label-list" ;;
+      "pr list") key="pr-list" ;;
+      "issue list")
+        key="issue-list"
+        [[ -n "$label" ]] && key="$key-label-$(san "$label")"
+        ((search)) && key="$key-search"
+        ;;
+      "issue view") key="issue-view-$num" ;;
+      *) key="$(san "$cmd")" ;;
+    esac
+    [[ "$cmd" == *" list" ]] && limit="${limit:-30}"
+    body="$(serve "$key")" || exit 1
+    [[ -n "$limit" ]] && body="$(jq --argjson n "$limit" 'if type == "array" then .[:$n] else . end' <<<"$body")"
+    if [[ -n "$q" ]]; then jq -r "$q" <<<"$body"; else printf '%s\n' "$body"; fi
+    ;;
   *)
     printf 'gh stub: unknown MB_GH_MODE %s\n' "$mode" >&2
     exit 2
@@ -681,7 +742,7 @@ run_stub() {
   local mode="$1"
   shift
   PATH="$GH_STUB_DIR:$PATH" MB_GH_MODE="$mode" MB_GH_FIXTURES="${MB_GH_FIXTURES:-$TMP/rest}" \
-    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" "$@" 2>&1
+    bash "$BRIEF" --now "$NOW" --stale-hours 6 --repo "$FIXTURE_REPO" --data-dir "${MB_DATA_DIR:-$TMP/data}" "$@" 2>&1
 }
 
 # Every section live, every call refused: nothing may read as clear or absent.
@@ -699,7 +760,7 @@ assert_not_contains "blocked: telemetry never renders as absent" "$OUT_BLOCKED" 
 assert_not_contains "blocked: merge-ready never renders as none clean" "$OUT_BLOCKED" "(none clean right now)"
 assert_not_contains "blocked: decisions never render as none parked" "$OUT_BLOCKED" "(none parked)"
 assert_not_contains "blocked: queues never render a ? count" "$(section "$OUT_BLOCKED" "== Queues")" " ?"
-assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "not enabled for this session"
+assert_contains "blocked: the refusal is surfaced verbatim" "$OUT_BLOCKED" "GraphQL is not available from Claude Code sessions"
 
 # An unrelated failure degrades the same way; the shape of the error does not
 # decide whether a section is readable.
@@ -709,22 +770,23 @@ assert_exit "fail: every live section unreadable exits 5" 5 "$RC_FAIL"
 assert_contains "fail: the error is surfaced" "$OUT_FAIL" "UNREADABLE: boom, the upstream fell over"
 assert_not_contains "fail: no REST transport claimed for an unrelated error" "$OUT_FAIL" "transport: REST"
 
-# One live section among fixtures: a partial brief is still a brief (exit 0),
-# and the header says which section was lost.
+# One live section among fixtures: a partial brief still renders, exits 6 so a
+# caller cannot take it for a full one, and the header says which section was
+# lost.
 OUT_ONE="$(run_stub blocked \
   --counts-json "$TMP/counts.json" \
   --pr-json "$TMP/pr.json" \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/telemetry.json")"
 RC_ONE=$?
-assert_exit "partial: one unreadable section among fixtures exits 0" 0 "$RC_ONE"
+assert_exit "partial: one unreadable section among fixtures exits 6" 6 "$RC_ONE"
 assert_contains "partial: header names the lost section" "$OUT_ONE" "1 of 5 sections unreadable: stranded"
 assert_contains "partial: the fixture sections still render" "$OUT_ONE" "#10 clean pr"
 
 # A `message`-shaped error body (the REST/403 shape, no `errors` key) fed as a
 # fixture is an unreadable source, exactly like the GraphQL `errors` shape.
 cat >"$TMP/merged-message-error.json" <<'EOF'
-{"message":"This GraphQL query is not enabled for this session — only the pinned set of PR-review operations is served.","documentation_url":"https://example.invalid/docs"}
+{"message":"GitHub GraphQL is not available from Claude Code sessions.","documentation_url":"https://example.invalid/docs"}
 EOF
 OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
   --counts-json "$TMP/counts.json" \
@@ -733,7 +795,7 @@ OUT_MSG="$(bash "$BRIEF" --now "$NOW" \
   --telemetry-json "$TMP/telemetry.json" \
   --merged-json "$TMP/merged-message-error.json" 2>&1)"
 assert_not_contains "message-shaped error: never an all-clear" "$OUT_MSG" "every merged PR in the window is clear"
-assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: This GraphQL query is not enabled"
+assert_contains "message-shaped error: renders UNREADABLE" "$OUT_MSG" "UNREADABLE: GitHub GraphQL is not available"
 
 # --- Repo resolution falls back to the git origin remote ---------------------
 if have git; then
@@ -747,7 +809,7 @@ if have git; then
     --pr-json "$TMP/pr.json" \
     --decisions-json "$TMP/decisions.json" 2>&1)"
   RC_REMOTE=$?
-  assert_exit "git remote fallback: renders (exit 0, two of five unreadable)" 0 "$RC_REMOTE"
+  assert_exit "git remote fallback: renders (exit 6, two of five unreadable)" 6 "$RC_REMOTE"
   assert_contains "git remote fallback: owner/repo taken from origin" "$OUT_REMOTE" "Morning brief — $FIXTURE_REPO —"
   assert_contains "git remote fallback: the header names the source" "$OUT_REMOTE" "repo resolved from the git origin remote"
   assert_contains "git remote fallback: live sections still degrade honestly" "$OUT_REMOTE" "2 of 5 sections unreadable: telemetry stranded"
@@ -805,7 +867,7 @@ EOF
 
 OUT_REST="$(run_stub rest)"
 RC_REST=$?
-assert_exit "rest: renders with the stranded section unreadable (exit 0)" 0 "$RC_REST"
+assert_exit "rest: renders with the stranded section unreadable (exit 6)" 6 "$RC_REST"
 assert_contains "rest: the header names the transport" "$OUT_REST" "transport: REST"
 assert_contains "rest: queue count excludes pull requests" "$(section "$OUT_REST" "== Queues")" "status: ready            2"
 assert_contains "rest: queue count for the second label" "$(section "$OUT_REST" "== Queues")" "needs-human              1"
@@ -900,6 +962,183 @@ OUT_CAP="$(run_stub rest --pr-limit 1)"
 assert_contains "rest: a capped merge-state read is reported as PARTIAL" "$OUT_CAP" "PARTIAL: 3 open PRs; merge state read for the first 1 only"
 bash "$BRIEF" --pr-limit x --repo "$FIXTURE_REPO" >/dev/null 2>&1
 assert_exit "non-numeric --pr-limit exits 3" 3 "$?"
+
+# --- A response that cannot be parsed is UNREADABLE, never an empty state -----
+# Each section's empty-state line is what a swallowed parse failure used to
+# print; the fixture is not JSON at all.
+printf 'not json\n' >"$TMP/garbage.json"
+OUT_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/garbage.json" --decisions-json "$TMP/garbage.json" \
+  --telemetry-json "$TMP/garbage.json" --merged-json "$TMP/garbage.json" 2>&1)"
+RC_BAD=$?
+assert_exit "unparsable: a brief with unreadable sections exits 6" 6 "$RC_BAD"
+assert_contains "unparsable: the header counts the four lost sections" "$OUT_BAD" "4 of 5 sections unreadable: merge-ready decisions telemetry stranded"
+assert_contains "unparsable: merge-ready is UNREADABLE" "$(section "$OUT_BAD" "== Merge-ready")" "UNREADABLE: could not parse the PR list"
+assert_not_contains "unparsable: merge-ready never renders as none clean" "$OUT_BAD" "(none clean right now)"
+assert_contains "unparsable: decisions are UNREADABLE" "$(section "$OUT_BAD" "== Parked")" "UNREADABLE: could not parse the decision issues"
+assert_not_contains "unparsable: decisions never render as none parked" "$OUT_BAD" "(none parked)"
+assert_contains "unparsable: telemetry is UNREADABLE" "$(section "$OUT_BAD" "== Lane telemetry")" "UNREADABLE: could not parse the telemetry comments"
+assert_not_contains "unparsable: telemetry never renders as no lanes" "$OUT_BAD" "(no per-lane comments found"
+assert_contains "unparsable: stranded is UNREADABLE" "$(section "$OUT_BAD" "== Findings stranded")" "UNREADABLE: could not parse the merged-PR pages"
+assert_not_contains "unparsable: stranded never renders an all-clear" "$OUT_BAD" "every merged PR in the window is clear"
+
+# Well-formed JSON holding no page document is not a clean window either.
+OUT_NO_PAGE="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/empty.json" 2>&1)"
+assert_contains "no page: stranded is UNREADABLE" "$(section "$OUT_NO_PAGE" "== Findings stranded")" "UNREADABLE: could not parse the merged-PR pages"
+assert_not_contains "no page: stranded never renders an all-clear" "$OUT_NO_PAGE" "every merged PR in the window is clear"
+
+# --- A list read that reaches its cap says PARTIAL ----------------------------
+# Every capped read is one past its cap here, so gh hands back exactly the cap.
+# The caps are the script's: labels 500, counts 1000, open PRs 200, decisions
+# 200, telemetry search 100.
+CAPS="$TMP/gql-caps"
+mkdir -p "$CAPS"
+jq -n '[range(501) | {name: "label-\(.)"}]' >"$CAPS/label-list.json"
+printf '[{"number": 1}]\n' >"$CAPS/issue-list-label-needs-triage.json"
+jq -n '[range(1001) | {number: .}]' >"$CAPS/issue-list-label-status__ready.json"
+printf '[]\n' >"$CAPS/issue-list-label-needs-human.json"
+jq -n '[range(201) | {number: (. + 1), title: "decision \(.)", url: "http://x/d", body: "RECOMMENDED: go", comments: []}]' \
+  >"$CAPS/issue-list-label-status__needs-decision.json"
+jq -n '[range(201) | {number: (. + 1), title: "pr \(.)", url: "http://x/p", isDraft: true, mergeStateStatus: "BLOCKED", reviewDecision: ""}]' \
+  >"$CAPS/pr-list.json"
+jq -n '[range(150) | {number: (. + 1000)}]' >"$CAPS/issue-list-search.json"
+cat >"$CAPS/issue-view-1000.json" <<'EOF'
+{"comments": [{"body": "<!-- harness-ops:lane-telemetry marker=lane:babysit -->\n- lane: babysit\n- last-cycle: 2026-07-20T06:30Z\n- flags: none"}]}
+EOF
+OUT_CAPS="$(MB_GH_FIXTURES="$CAPS" run_stub gql --merged-json "$TMP/merged-clean.json")"
+RC_CAPS=$?
+assert_exit "caps: a capped but readable brief exits 0" 0 "$RC_CAPS"
+QUEUES_CAPS="$(section "$OUT_CAPS" "== Queues")"
+assert_contains "caps: a label inventory at its cap is PARTIAL" "$QUEUES_CAPS" "PARTIAL: the label inventory reached its 500-label cap"
+assert_contains "caps: a capped inventory does not drop a configured label" "$QUEUES_CAPS" "needs-human              0"
+assert_contains "caps: a count at its cap is shown as a floor" "$QUEUES_CAPS" "status: ready            1000+"
+assert_contains "caps: a count at its cap is PARTIAL" "$QUEUES_CAPS" "PARTIAL: status: ready: count reached the 1000-issue read cap"
+assert_not_contains "caps: a count under its cap is not flagged" "$QUEUES_CAPS" "needs-triage: count reached"
+assert_contains "caps: an open-PR list at its cap is PARTIAL" "$(section "$OUT_CAPS" "== Merge-ready")" "PARTIAL: the open-PR list reached its 200-PR read cap"
+assert_contains "caps: a decision list at its cap is PARTIAL" "$(section "$OUT_CAPS" "== Parked")" "PARTIAL: the decision list reached its 200-issue read cap"
+TEL_CAPS="$(section "$OUT_CAPS" "== Lane telemetry")"
+assert_contains "caps: a telemetry search at its cap is PARTIAL" "$TEL_CAPS" "PARTIAL: the telemetry issue search reached its 100-issue cap"
+assert_contains "caps: the telemetry search still picks the oldest match it read" "$TEL_CAPS" "source: issue #1000"
+
+# --- Stranded: paging stops at the cutoff; the bookmark widens the window ----
+# Pages are newest-updated first. NOW is 2026-07-20T08:00Z, so the 3-day floor
+# is 2026-07-17T08:00Z. Page c1's oldest PR was updated before both the floor
+# and the bookmark below, so page c2 must never be requested.
+#   #500  merged 07-19, post-merge P1      -> inside the floor
+#   #501  merged 07-14, post-merge P2      -> only inside the 07-10 bookmark
+#   #502  merged 07-08, post-merge P1      -> before the bookmark too
+#   #503  on page c2                       -> never read
+STR="$TMP/gql-stranded"
+mkdir -p "$STR"
+cat >"$STR/api-graphql-first.json" <<'EOF'
+{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": true, "endCursor": "c1"}, "nodes": [
+  {"number": 500, "title": "recent merge", "url": "https://github.com/o/r/pull/500",
+   "mergedAt": "2026-07-19T10:00:00Z", "updatedAt": "2026-07-19T11:00:00Z",
+   "reviewThreads": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"isResolved": false, "comments": {"nodes": [{"createdAt": "2026-07-19T10:30:00Z", "author": {"login": "bot"}, "body": "![P1 Badge](x) late finding"}]}}]}}
+]}}}}
+EOF
+cat >"$STR/api-graphql-c1.json" <<'EOF'
+{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": true, "endCursor": "c2"}, "nodes": [
+  {"number": 501, "title": "merge inside the bookmark", "url": "https://github.com/o/r/pull/501",
+   "mergedAt": "2026-07-14T10:00:00Z", "updatedAt": "2026-07-14T12:00:00Z",
+   "reviewThreads": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"isResolved": false, "comments": {"nodes": [{"createdAt": "2026-07-14T11:00:00Z", "author": {"login": "bot"}, "body": "![P2 Badge](x) older finding"}]}}]}},
+  {"number": 502, "title": "merge before the bookmark", "url": "https://github.com/o/r/pull/502",
+   "mergedAt": "2026-07-08T10:00:00Z", "updatedAt": "2026-07-08T10:00:00Z",
+   "reviewThreads": {"pageInfo": {"hasNextPage": false}, "nodes": [
+     {"isResolved": false, "comments": {"nodes": [{"createdAt": "2026-07-08T10:00:01Z", "author": {"login": "bot"}, "body": "![P1 Badge](x) too old"}]}}]}}
+]}}}}
+EOF
+cat >"$STR/api-graphql-c2.json" <<'EOF'
+{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"number": 503, "title": "never read", "url": "https://github.com/o/r/pull/503",
+   "mergedAt": "2026-07-01T10:00:00Z", "updatedAt": "2026-07-01T10:00:00Z", "reviewThreads": {"nodes": []}}
+]}}}}
+EOF
+FIX_ARGS=(--counts-json "$TMP/counts.json" --pr-json "$TMP/empty.json" --decisions-json "$TMP/empty.json" --telemetry-json "$TMP/empty.json")
+bookmark_of() { cat "$1/morning-brief/$FIXTURE_REPO/stranded-cutoff" 2>/dev/null; }
+
+OUT_PAGE="$(MB_GH_FIXTURES="$STR" MB_GH_LOG="$TMP/log-page" MB_DATA_DIR="$TMP/data-page" run_stub gql "${FIX_ARGS[@]}")"
+RC_PAGE=$?
+STR_PAGE="$(section "$OUT_PAGE" "== Findings stranded")"
+assert_exit "paging: a full read exits 0" 0 "$RC_PAGE"
+assert_contains "paging: the page past the first is read" "$(cat "$TMP/log-page")" "api-graphql-c1"
+assert_not_contains "paging: no page past the cutoff is requested" "$(cat "$TMP/log-page")" "api-graphql-c2"
+assert_contains "paging: the header prints the window bounds" "$STR_PAGE" "merged since 2026-07-17T08:00Z: last 3d"
+assert_contains "paging: a merge inside the floor is reported" "$STR_PAGE" "[P1] #500"
+assert_not_contains "paging: a merge before the floor is not reported" "$STR_PAGE" "#501"
+assert_eq "bookmark: a full read saves this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-page")"
+
+mkdir -p "$TMP/data-mark/morning-brief/$FIXTURE_REPO"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-mark/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_MARK="$(MB_GH_FIXTURES="$STR" MB_GH_LOG="$TMP/log-mark" MB_DATA_DIR="$TMP/data-mark" run_stub gql "${FIX_ARGS[@]}")"
+STR_MARK="$(section "$OUT_MARK" "== Findings stranded")"
+assert_contains "bookmark: an older bookmark widens the window" "$STR_MARK" "merged since 2026-07-10T08:00Z"
+assert_contains "bookmark: a merge after the bookmark is reported" "$STR_MARK" "[P2] #501"
+assert_not_contains "bookmark: a merge before the bookmark is not reported" "$STR_MARK" "#502"
+assert_not_contains "bookmark: paging still stops at the cutoff" "$(cat "$TMP/log-mark")" "api-graphql-c2"
+assert_eq "bookmark: a full read advances it to this run's floor" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-mark")"
+
+mkdir -p "$TMP/gql-none" "$TMP/data-fail/morning-brief/$FIXTURE_REPO"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-fail/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_MARK_FAIL="$(MB_GH_FIXTURES="$TMP/gql-none" MB_DATA_DIR="$TMP/data-fail" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a failed read renders UNREADABLE" "$(section "$OUT_MARK_FAIL" "== Findings stranded")" "UNREADABLE:"
+assert_eq "bookmark: a failed read leaves it where it was" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-fail")"
+
+mkdir -p "$TMP/gql-trunc" "$TMP/data-trunc/morning-brief/$FIXTURE_REPO"
+jq '.[0] | .data.repository.pullRequests.nodes[0].updatedAt = "2026-07-19T17:00:00Z"' "$TMP/merged-truncated.json" >"$TMP/gql-trunc/api-graphql-first.json"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-trunc/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_MARK_TRUNC="$(MB_GH_FIXTURES="$TMP/gql-trunc" MB_DATA_DIR="$TMP/data-trunc" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a partial thread read says it was not advanced" "$OUT_MARK_TRUNC" "bookmark not advanced: this read is PARTIAL"
+assert_eq "bookmark: a partial thread read leaves it where it was" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-trunc")"
+
+mkdir -p "$TMP/data-garbage/morning-brief/$FIXTURE_REPO"
+printf 'not a date\n' >"$TMP/data-garbage/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_GARBAGE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-garbage" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: an unparsable bookmark is named and ignored" "$(section "$OUT_GARBAGE" "== Findings stranded")" "bookmark unparsable, ignored"
+assert_eq "bookmark: a full read replaces an unparsable bookmark" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/data-garbage")"
+
+printf 'a file, not a dir\n' >"$TMP/data-is-file"
+OUT_NOSAVE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-is-file" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a data dir it cannot write says so" "$(section "$OUT_NOSAVE" "== Findings stranded")" "bookmark not saved under the data dir"
+
+# --data-dir is the one write destination a pre-approved run takes from its
+# arguments: only an absolute, literal path is accepted, and nothing is written
+# when it is refused.
+mkdir -p "$TMP/rel-cwd"
+OUT_REL="$(cd "$TMP/rel-cwd" && MB_GH_FIXTURES="$STR" MB_DATA_DIR="rel-data" run_stub gql "${FIX_ARGS[@]}")"
+RC_REL=$?
+assert_exit "data-dir: a relative path is refused with exit 3" 3 "$RC_REL"
+assert_contains "data-dir: a relative path names the rule" "$OUT_REL" "--data-dir must be an absolute path"
+assert_eq "data-dir: a relative path writes nothing" "" "$(ls -A "$TMP/rel-cwd")"
+OUT_DOTDOT="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/dd/../escaped" run_stub gql "${FIX_ARGS[@]}")"
+RC_DOTDOT=$?
+assert_exit "data-dir: a .. segment is refused with exit 3" 3 "$RC_DOTDOT"
+assert_contains "data-dir: a .. segment names the rule" "$OUT_DOTDOT" "no .. segment"
+assert_eq "data-dir: a .. segment writes nothing" "no" "$([[ -e "$TMP/escaped" || -e "$TMP/dd" ]] && echo yes || echo no)"
+MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/abs/data..dir" run_stub gql "${FIX_ARGS[@]}" >/dev/null
+RC_ABS=$?
+assert_exit "data-dir: an absolute path (.. inside a name) is accepted" 0 "$RC_ABS"
+assert_eq "data-dir: an absolute path still saves the bookmark" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/abs/data..dir")"
+mkdir -p "$TMP/data-link/morning-brief/$FIXTURE_REPO"
+printf 'untouched\n' >"$TMP/link-target"
+ln -s "$TMP/link-target" "$TMP/data-link/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_LINK="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-link" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a symlinked bookmark is not saved" "$(section "$OUT_LINK" "== Findings stranded")" "bookmark not saved under the data dir"
+assert_eq "bookmark: a symlinked bookmark's target is untouched" "untouched" "$(cat "$TMP/link-target")"
+
+# A page that claims more results but carries no cursor is not a full read.
+mkdir -p "$TMP/gql-nocursor" "$TMP/data-nocursor/morning-brief/$FIXTURE_REPO"
+jq '.data.repository.pullRequests.pageInfo.endCursor = null' "$STR/api-graphql-first.json" >"$TMP/gql-nocursor/api-graphql-first.json"
+printf '2026-07-10T08:00Z\n' >"$TMP/data-nocursor/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_NOCURSOR="$(MB_GH_FIXTURES="$TMP/gql-nocursor" MB_DATA_DIR="$TMP/data-nocursor" run_stub gql "${FIX_ARGS[@]}")"
+STR_NOCURSOR="$(section "$OUT_NOCURSOR" "== Findings stranded")"
+assert_contains "paging: a next page without a cursor is UNREADABLE" "$STR_NOCURSOR" "UNREADABLE: a merged-PR page reported more results but no cursor to them"
+assert_not_contains "paging: a next page without a cursor never reads as clear" "$STR_NOCURSOR" "every merged PR in the window is clear"
+assert_eq "paging: a next page without a cursor leaves the bookmark" "2026-07-10T08:00Z" "$(bookmark_of "$TMP/data-nocursor")"
 
 # --- Summary ------------------------------------------------------------------
 echo

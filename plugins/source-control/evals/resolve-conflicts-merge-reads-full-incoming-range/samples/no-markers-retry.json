@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "x = 1\ny = 2\n"
+    },
+    {
+      "answer": "# a ======= rule in a comment is fine mid-line ======= \n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<<<<<<< HEAD\nx = 1\n=======\nx = 2\n>>>>>>> main\n"
+    },
+    {
+      "answer": "x = 1\n=======\n",
+      "why": "a leftover separator"
+    }
+  ]
+}

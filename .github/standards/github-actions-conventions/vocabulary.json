@@ -55,6 +55,11 @@
       { "name": "scan-dependencies", "status": "in-use" },
       { "name": "test-windows", "status": "in-use" },
       {
+        "name": "unblock",
+        "status": "reserved",
+        "purpose": "Assess a blocked pull request and take the action that unblocks it."
+      },
+      {
         "name": "update",
         "status": "reserved",
         "purpose": "Bring the pull request branch up to date."
@@ -94,8 +99,14 @@
     "maintenance": [
       { "name": "audit-code-review-rules", "status": "in-use" },
       { "name": "audit-link-check-excludes", "status": "in-use" },
+      { "name": "audit-org-architecture-pointer", "status": "in-use" },
       { "name": "audit-pr-convention-pins", "status": "in-use" },
       { "name": "audit-test-selection", "status": "in-use" },
+      {
+        "name": "check-links",
+        "status": "in-use",
+        "purpose": "Check every Markdown link with the network on; audit-link-check-excludes covers only the exclude list."
+      },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },
@@ -109,6 +120,7 @@
     "address",
     "aggregate",
     "apply",
+    "assess",
     "attest",
     "audit",
     "automerge",
@@ -140,6 +152,7 @@
     "regenerate",
     "repin",
     "report",
+    "request",
     "require",
     "resolve",
     "respond",
@@ -156,6 +169,7 @@
     "test",
     "tidy",
     "triage",
+    "unblock",
     "update",
     "upload",
     "validate",

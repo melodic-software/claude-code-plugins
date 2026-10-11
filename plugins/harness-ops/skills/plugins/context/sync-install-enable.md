@@ -74,13 +74,16 @@ configured `install_new` with it, and the render falls back to the unset placeho
 step correctly reads as `ask`. That is the right fallback and the wrong silence: say so in the
 report rather than letting a policy the user set appear to have been honored.
 
-**Caveat (document, don't silently absorb):** with `install_new: all`, a catalog plugin that's
-installed at `user` scope and then *disabled* (not uninstalled, `enabledPlugins: false` still
-recorded, install record still present) is correctly excluded (it's not in `missing_from_user_install`,
-it's an installed, opted-out plugin). But a plugin that's *uninstalled entirely* without ever setting
-`false` reappears in `missing_from_user_install` on the very next sync and gets reinstalled.
-`install_new: all` has no memory of "I removed this on purpose." If that's not the intent, uninstall
-AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
+**Caveat (document, don't silently absorb):** with `install_new: all`, a plugin this step installed
+is not reinstalled on later syncs: its user-scope install record keeps it out of
+`missing_from_user_install`, and a disabled one (`enabledPlugins: false`, record still present) stays
+out the same way. A plugin that's *uninstalled* is different: `claude plugin uninstall` removes the
+install record and the `enabledPlugins` key together (see
+[gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)),
+so the id reappears in `missing_from_user_install` and the next sync reinstalls it.
+`install_new: all` has no memory of "I removed this on purpose." To keep one out, disable it
+(`claude plugin disable <id> -s user`) instead of uninstalling it, or switch the policy to
+`ask`/`none`.
 
 **Say that in the report, at the moment it fires.** When the policy is `all` and this step installed
 anything, the `Installed:` row carries the recurrence clause from SKILL.md's Report section. A

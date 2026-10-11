@@ -3,6 +3,39 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-11
+
+### Added
+
+- `reference/routing-rubric.md` sets the rule for Haiku: no role routes to it until it passes the repository's routing eval ([#6901](https://github.com/melodic-software/claude-code-plugins/issues/6901)), and a role that does runs at effort `high`, never `xhigh` or `max`. `/multi-agent:route` adds a note for any role that resolves to haiku, named or inherited from a Haiku session, and still resolves it.
+
+### Changed
+
+- config reference: the `effort` values row now points at the model-config section listing which levels each model supports.
+- defaults: the worker, verifier and retrieval roles now record the Agent tool's per-spawn effort docs as `pointer_spawn`, and their recheck triggers include a change to that parameter. Role values are unchanged.
+
+- The `retrieval` role's bundled effort is now `medium`, and the `research` workload no longer lowers the worker's effort, so research workers run at the worker's own `medium`.
+
+## [0.7.0] - 2026-10-10
+
+### Added
+
+- **The drift-audit fetch and judging agents start without CLAUDE.md files.** `docs-fetcher` and `drift-checker` set `omitClaudeMd: true`, so a stage that reads untrusted pages opts out of the CLAUDE.md instruction hierarchy. The README records where the field is documented.
+
+### Changed
+
+- **`/multi-agent:route` says how to apply a role to an Agent tool dispatch.** Since Claude Code 2.1.292 the Agent tool takes an `effort` on each call, so the role map's effort now reaches subagents spawned without a named type, not only workflow `agent()` calls. The skill tells the caller to pass the variant's model (or omit it on `inherit`) and its effort on the call, and links the upstream sections that decide which source wins.
+
+### Fixed
+
+- **The routing skill no longer says a named agent always runs at its own pinned model and effort.** A dispatcher can pass `model` or `effort` on the call, so keeping a named agent off a frontier model is the dispatcher's rule. The route gotcha, the setup skill, and the README now say so.
+
+## [0.6.5] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
 ## [0.6.4] - 2026-10-08
 
 ### Fixed

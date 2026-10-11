@@ -28,6 +28,7 @@
 #   2. every SKILL.md in the tree, proving the TREE
 #
 # Exit 0 = parity holds; 1 = a reader diverged; 2 = the gate could not run.
+# test-scope: plugins/*/skills/*/SKILL.md
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2

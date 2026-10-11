@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli -s=pinned goto file:///work/r/r/.base/plugins/testing/evals/browser-probe/peek/canary.html"}}],
+      "why": "the canary goto step"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli -s=default goto file://D:\\a\\r\\plugins\\testing\\evals\\browser-probe\\peek\\canary.html"}}],
+      "why": "Windows separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli -s=pinned goto https://example.com/"}}],
+      "why": "a different page"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/x/peek/canary.html"}}],
+      "why": "Read route, not the browser"
+    }
+  ]
+}

@@ -29,7 +29,11 @@ D/audit-sessions/
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
     the session's custom title and agent name; 0 stores none of the three;
   - the working directory, edited file paths (relative to it when inside it), branch names, PR
-    repositories, and the names of slash commands, model-invoked skills and assistant errors.
+    repositories, and the names of slash commands, model-invoked skills and assistant errors;
+  - in the `friction` block, per event: the command shape and, for a denial, the classifier's
+    category or the first line of the hook's message; with `audit_sessions_excerpt_chars` above 0,
+    also an excerpt of the call's command line or path, the agent's asking line, or the person's
+    reply. `/session-flow:audit-friction` documents the block's fields.
 
   A string longer than max(4096, 16 × `audit_sessions_excerpt_chars`) characters is skipped rather
   than cut and counted in `redaction.skipped_too_long`. While redaction fails closed, no excerpt,
@@ -72,7 +76,7 @@ D/audit-sessions/
 
 - Records carry `"schema": "session-record/v1"`, the plugin version that wrote them
   (`collector_version`, provenance only) and `collector_digest`: SHA-256 over the files that shape
-  a record, CRLF read as LF. Those files are `collect.py`, `census.py` and `redact.py`,
+  a record, CRLF read as LF. Those files are `collect.py`, `census.py`, `friction_scan.py` and `redact.py`,
   `vendor/gitleaks/gitleaks-rules.json`, and the plugin's `scripts/transcript_reader.py` and
   `lib/state-key.sh` (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
   re-ingested once.

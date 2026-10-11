@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: fires-synthesize
+description: "A single synthesis request (interview notes into personas) reaches /user-experience:synthesize"
+tags: [fires]
+runs: 3
+expected_outcome: "A Skill call reaches user-experience:synthesize, and each persona cites the note ids behind it"
+execution:
+  prompt: "Turn these interview notes into personas for our bike-repair booking app. N1: a courier who rides daily, needs same-day repair, and books by phone because the app shows no same-day slots. N2: a weekend rider who fixes small things at home and only books an annual service. N3: a courier who lost a day of pay waiting for a part. N4: a commuter who wants to drop the bike off before work and collect it after. N5: a weekend rider who compares prices at three shops before booking. N6: a commuter who never knows when the repair is done. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600

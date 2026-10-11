@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "source-control:resolve-conflicts"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "resolve-conflicts"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "source-control:commit"
+          }
+        }
+      ],
+      "why": "wrong skill"
+    }
+  ]
+}

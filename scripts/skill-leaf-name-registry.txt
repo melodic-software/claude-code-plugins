@@ -286,3 +286,11 @@ produce animation,explainer-video
 # description's first clause names it, and improvement:improve routes a
 # structural fix to its owning lane rather than repeating architecture's lens.
 improve architecture,improvement
+
+# Kept on merit. adhd:shape sets a standing output posture for the session's
+# responses; user-experience:shape is the front door for the user experience of
+# the app being built (stage, the project's own evidence, the hand-off to a job
+# skill). Different objects shaped: the namespace supplies which, and each
+# description's first clause names it ("Shape the assistant's output" beside
+# "Shape the user experience of the app being built").
+shape adhd,user-experience

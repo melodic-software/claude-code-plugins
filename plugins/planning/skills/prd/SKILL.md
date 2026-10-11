@@ -348,6 +348,12 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 `/planning:prd` is sister to `/planning:plan`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug and the memory slice, and feed each other.
 
+## Next
+
+- PRD locked and the engineering contract is next: /planning:interview.
+- PRD locked and the Brief already exists: /planning:plan.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+
 ## Gotchas
 
 - **Goals as outcomes, never implementations.** "Add a search box" is not a goal; "users can find a song from any of its lyrics in <2 seconds" is. Most common PRD failure: goals that pre-decide the architecture

@@ -1,8 +1,12 @@
 {
+  "change_link": {
+    "branch_pattern": "^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-"
+  },
   "features": {
     "cross_repo_edges": true,
     "labels": true,
     "leases": true,
+    "list_items_label_filter": true,
     "sub_items": true
   },
   "limits": {
@@ -16,6 +20,7 @@
   "verbs": {
     "add-sub-item": true,
     "capabilities": true,
+    "change-link": true,
     "claim": true,
     "create-item": true,
     "get-item": true,

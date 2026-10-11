@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```mermaid\nflowchart TD\n  A[Sign-up] --> B[Verify email]\n```",
+      "why": "flowchart block"
+    },
+    {
+      "answer": "```mermaid\ngraph LR\n  A --> B\n```",
+      "why": "graph keyword"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "1. Sign-up\n2. Verify email\n3. Pantry setup\n4. First recipe",
+      "why": "a numbered list, no diagram"
+    },
+    {
+      "answer": "```mermaid\nsequenceDiagram\n  A->>B: hi\n```",
+      "why": "another diagram kind"
+    }
+  ]
+}

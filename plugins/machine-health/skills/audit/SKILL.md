@@ -13,7 +13,7 @@ This skill performs a **weekly workstation health audit** with a fail-safe postu
 
 The skill is stateless about scheduling; a separate routine (e.g., a Monday 08:00 scheduled task, or an ad-hoc `/machine-health:audit` invocation) calls into it.
 
-**Progressive disclosure by OS.** The skill detects the host OS and loads only matching references and scripts. Windows is fully implemented. macOS and Linux are scaffolded as `NOT_IMPLEMENTED` stubs so they can be populated in future passes without restructuring.
+**Progressive disclosure by OS.** The skill detects the host OS and loads only matching references and scripts. Windows is fully implemented. macOS and Linux are scaffolded as `not-implemented.md` stubs so they can be populated in future passes without restructuring.
 
 ## Resolving output locations (do this first)
 
@@ -55,7 +55,7 @@ Read reference/shared/approvals.md
 Read reference/shared/catalog-overlay.md
 Read reference/<os>/*.md
 
-# If the detected OS folder contains NOT_IMPLEMENTED.md, STOP.
+# If the detected OS folder contains not-implemented.md, STOP.
 # Produce an UNKNOWN-severity report explaining the gap, link to
 # reference/shared/discovery-guide.md for porting guidance, and exit.
 # Never attempt to execute Windows scripts on macOS/Linux.
@@ -66,8 +66,8 @@ Routing table:
 | Detected OS | Orchestrator | Status |
 |---|---|---|
 | Windows | `scripts/windows/Invoke-MachineHealthCheck.ps1` | Implemented |
-| macOS | `scripts/macos/NOT_IMPLEMENTED.md` | Stub. Report UNKNOWN and stop |
-| Linux | `scripts/linux/NOT_IMPLEMENTED.md` | Stub. Report UNKNOWN and stop |
+| macOS | `scripts/macos/not-implemented.md` | Stub. Report UNKNOWN and stop |
+| Linux | `scripts/linux/not-implemented.md` | Stub. Report UNKNOWN and stop |
 
 ## High-level procedure
 

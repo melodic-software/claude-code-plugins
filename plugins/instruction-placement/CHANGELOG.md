@@ -3,6 +3,25 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.4] - 2026-10-11
+
+### Fixed
+
+- migrate: the headless canary checks in `cutover-check.sh` and `remove-shims.sh`, and the command in `reference/verification.md`, now run with `--model sonnet` instead of `haiku`.
+
+## [0.22.3] - 2026-10-10
+
+### Fixed
+
+- **The generated rules index no longer says deferred surfaces load only on read.** The preamble `render-index.sh` writes into every consuming repo's always-loaded file said each surface "enters context automatically when Claude reads a file it covers", which has been false for path-scoped rules and nested `CLAUDE.md` since Claude Code 2.1.288. It now says a surface loads once a file it covers triggers it, and links the Claude Code memory docs sections for rules and nested `CLAUDE.md` and for `AGENTS.md` instead of listing the triggers, so the next release that adds a trigger does not make every consuming repo's index wrong again. Re-run `render-index.sh write` (or `/instruction-placement:realign`) to pick up the new wording.
+- **The realign skill, the README and the adherence experiment state the same trigger correctly.** The realign skill's "the rule fires on read", the README's "a read happens to match it", and the adherence experiment's and results record's read-only trigger wording now point at `context/verified-mechanics.md` for the triggers by version. The recorded adherence results are unchanged, and creation-governing content is still denied the path-scoped destination. The migrate skill's verification guide no longer says a nested `AGENTS.md` attaches only on a Read, and it records that the changelog and the memory docs disagree on what attaches one.
+
+## [0.22.2] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
 ## [0.22.1] - 2026-10-08
 
 ### Changed

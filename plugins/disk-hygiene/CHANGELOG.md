@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.12] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.43.11] - 2026-10-08
 
 ### Changed

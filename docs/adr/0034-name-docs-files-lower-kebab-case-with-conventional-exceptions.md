@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-09-11
+- Extended by: [ADR 0059](0059-name-every-markdown-file-lower-kebab-case-with-a-closed-list-of-role-names.md)
 
 ## Context
 

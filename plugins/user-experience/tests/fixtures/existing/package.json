@@ -1,0 +1,6 @@
+{
+  "name": "streakly",
+  "private": true,
+  "dependencies": { "mixpanel-browser": "^2.55.0", "react": "^19.0.0" },
+  "devDependencies": { "@amplitude/analytics-browser": "^2.11.0", "vitest": "^2.1.0" }
+}

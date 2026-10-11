@@ -19,7 +19,8 @@
 # Config (consumer settings `env`, via userConfig; all optional):
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED           master opt-in (default false)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED  post-end analysis (default true)
-#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (default claude-haiku-4-5)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL    analysis model (unset: plugin.json userConfig default)
+#   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT   analysis effort (unset: plugin.json userConfig default)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE     pass --bare (default false; see reference/observer.md)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS      mtime-idle end threshold (default 900)
 #   CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS      poll interval (default 5)
@@ -63,7 +64,9 @@ LEDGER_DIR="$MEMORY_DIR/running-retros"
 # Transient observations are machine-local plugin state, never the consumer repo.
 WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 
-MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-4-5}"
+# Empty model or effort = observer.py reads the plugin.json userConfig default.
+MODEL="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-}"
+EFFORT="${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_EFFORT:-}"
 IDLE="${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
 POLL="${CLAUDE_PLUGIN_OPTION_OBSERVER_POLL_SECONDS:-5}"
 MAX="${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}"
@@ -79,7 +82,7 @@ ARM="$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py"
 [[ -f "$ARM" ]] || exit 0
 
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DIR"
-  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT" --model "$MODEL"
+  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT" --model "$MODEL" --effort "$EFFORT"
   --idle-seconds "$IDLE" --poll-seconds "$POLL" --max-seconds "$MAX")
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)

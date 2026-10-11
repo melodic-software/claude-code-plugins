@@ -140,6 +140,7 @@ carrying its provenance. It passes the records above through, then appends:
 CAVEAT: <text>                                                 what bounds the claim
 effective <kind> scopes=<a,b> precedence_basis=<token> <rule>  one per live rule
 inert <kind> scopes=<a,b> outranked_by=<kind> <rule>           one per beaten entry
+carveout <kind> source=<scope>:<surface> [bare] <rule>         one per ! Read/Edit rule
 ```
 
 Two mechanics decide those records, and conflating them produces confident wrong answers:
@@ -155,6 +156,16 @@ Two mechanics decide those records, and conflating them produces confident wrong
   makes every other rule naming that tool inert, other denies included, with the one exception
   `reference/criteria.md` names. A whole-tool ask leaves no scoped allow for that tool in effect.
   Both print a `NOTE:` naming the tool.
+- **The merge keeps a `!` carve-out inside its own source.** A deny or ask `Read` or `Edit` rule
+  whose pattern starts with `!` is reported as a `carveout` record naming the one file it came
+  from, never merged across scopes, so never read it as reopening a path another file blocks. A
+  carve-out whose pattern is a bare `!` is tagged `bare`, and its effect is a known gap the merge
+  does not model.
+  - **Pointer**: when you need what a carve-out reaches, fetch
+    [permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: that section changes what a carve-out reaches, or starts covering a bare
+    `!` pattern.
 
 `reference/criteria.md` maps every `precedence_basis` token to the docs section it follows from,
 with that record's as-of date and recheck trigger, and states the two standing bounds the run

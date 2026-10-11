@@ -75,12 +75,12 @@ const fanouts = calls => [...by(calls, 'search:'), ...by(calls, 'read:'), ...by(
 
 const FRONTIER_ROLES = {
   orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-  worker: { single: { model: 'inherit', effort: 'low' }, fanout: { model: 'opus', effort: 'low' } },
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'opus', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
 }
 const OPUS_ROLES = {
   orchestrator: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
-  worker: { single: { model: 'inherit', effort: 'low' }, fanout: { model: 'inherit', effort: 'low' } },
+  worker: { single: { model: 'inherit', effort: 'medium' }, fanout: { model: 'inherit', effort: 'medium' } },
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
 }
 
@@ -102,11 +102,11 @@ test('a blank question dispatches nothing', async () => {
   assert.equal(calls.length, 0)
 })
 
-test('frontier session: searchers, readers and skeptics get opus; searchers and readers low, skeptics high', async () => {
+test('frontier session: searchers, readers and skeptics get opus; searchers and readers medium, skeptics high', async () => {
   const { calls } = await run({ question: 'q', roles: FRONTIER_ROLES })
   for (const c of [...by(calls, 'search:'), ...by(calls, 'read:')]) {
     assert.equal(c.opts.model, 'opus', c.opts.label)
-    assert.equal(c.opts.effort, 'low', c.opts.label)
+    assert.equal(c.opts.effort, 'medium', c.opts.label)
   }
   assert.ok(by(calls, 'skeptic:').length > 0)
   for (const c of by(calls, 'skeptic:')) {
@@ -131,7 +131,7 @@ test('session model unknown (no roles passed): every fan-out stage gets opus', a
   const f = fanouts(calls)
   assert.ok(f.length > 0)
   for (const c of f) assert.equal(c.opts.model, 'opus', c.opts.label)
-  for (const c of [...by(calls, 'search:'), ...by(calls, 'read:')]) assert.equal(c.opts.effort, 'low')
+  for (const c of [...by(calls, 'search:'), ...by(calls, 'read:')]) assert.equal(c.opts.effort, 'medium')
   for (const c of by(calls, 'skeptic:')) assert.equal(c.opts.effort, 'high')
   assert.ok(!('model' in one(calls, 'synthesize').opts))
   assert.ok(logs.some(l => l.includes('built-in fallbacks')))
@@ -272,7 +272,7 @@ test('every selected page is fetched before any reader runs, and fetch prompts c
   for (const c of fetches) {
     assert.ok(!c.prompt.includes('secret question text'))
     assert.ok(!c.prompt.includes('claim from'))
-    assert.equal(c.opts.effort, 'low')
+    assert.equal(c.opts.effort, 'medium')
   }
   assert.ok(result.fetched.length > 0 && result.fetched.every(f => f.state === 'read' && !('body' in f)))
   assert.ok(result.ran.includes('fetch:1'))

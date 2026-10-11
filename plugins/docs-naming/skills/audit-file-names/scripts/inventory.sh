@@ -48,6 +48,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
+ROOT_SCOPES="$SCRIPT_DIR/../../../scripts/root-scopes.jq"
 
 die() {
   printf 'inventory: %s\n' "$1" >&2
@@ -123,12 +124,21 @@ propose() {
 
 # --- the file set ------------------------------------------------------------
 
+# What each root claims comes from root-scopes.jq, the definition the emitted
+# gate is rendered from too.
+SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\r')" ||
+  die "the configuration's roots are not strings or {path, extensions, exempt_paths} objects"
+n_scopes="$(printf '%s' "$SCOPES" | jq 'length')"
+[[ "${n_scopes:-0}" -gt 0 ]] || die "the configuration declares no roots"
+# One pathspec outside the repository makes `git ls-files` print nothing for
+# every root, and the audit would report an empty scan as a clean tree.
+unsafe="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
+[[ -z "$unsafe" ]] || die "a root's path or exempt_paths entry $unsafe"
+
 roots_pathspec=()
 while IFS= read -r r; do
-  [[ -n "$r" ]] || continue
-  roots_pathspec+=(":(glob)$r/**")
-done < <(cfg '.file_names.roots[]')
-[[ "${#roots_pathspec[@]}" -gt 0 ]] || die "the configuration declares no roots"
+  [[ -n "$r" ]] && roots_pathspec+=("$r")
+done < <(printf '%s' "$SCOPES" | jq -r '.[].specs[]' | tr -d '\r')
 
 exempt_paths_pathspec=()
 while IFS= read -r p; do
@@ -138,19 +148,51 @@ done < <(cfg '.file_names.exempt_paths[]')
 
 # Every tracked path under the roots, and separately those an exempt_paths
 # pathspec claims. Matching is git's own, so one matcher decides what `**` means.
-ALL_PATHS="$(git -C "$ROOT" ls-files -- "${roots_pathspec[@]}")"
+ALL_PATHS="$(git -C "$ROOT" ls-files -- "${roots_pathspec[@]}")" ||
+  die "git ls-files refused the roots' pathspecs"
 if [[ "${#exempt_paths_pathspec[@]}" -gt 0 ]]; then
-  EXEMPT_BY_PATH="$(git -C "$ROOT" ls-files -- "${exempt_paths_pathspec[@]}")"
+  EXEMPT_BY_PATH="$(git -C "$ROOT" ls-files -- "${exempt_paths_pathspec[@]}")" ||
+    die "git ls-files refused file_names.exempt_paths"
 else
   EXEMPT_BY_PATH=""
 fi
 
+# A root's own exempt_paths cover a path only when no root claims it without
+# exempting it: the judged set is the union of each root's claim minus its own
+# exemptions, and the root-exempt set is what the roots claim beyond that. The
+# exemptions are their own positive listing, never an `:(exclude)` pathspec
+# beside the root's: git matches an exclude glob against the wrong base once
+# the positive pathspecs share a directory prefix.
+JUDGED=""
+s=0
+while [[ "$s" -lt "$n_scopes" ]]; do
+  spec=()
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && spec+=("$one")
+  done < <(printf '%s' "$SCOPES" | jq -r --argjson s "$s" '.[$s].specs[]' | tr -d '\r')
+  exspec=()
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && exspec+=(":(glob)$one")
+  done < <(printf '%s' "$SCOPES" | jq -r --argjson s "$s" '.[$s].exempt[]' | tr -d '\r')
+  claimed="$(git -C "$ROOT" ls-files -- "${spec[@]}" | LC_ALL=C sort -u)"
+  if [[ "${#exspec[@]}" -gt 0 ]]; then
+    claimed="$(LC_ALL=C comm -23 <(printf '%s\n' "$claimed") \
+      <(git -C "$ROOT" ls-files -- "${exspec[@]}" | LC_ALL=C sort -u))"
+  fi
+  JUDGED="$JUDGED$claimed
+"
+  s=$((s + 1))
+done
+EXEMPT_BY_ROOT="$(LC_ALL=C comm -23 <(printf '%s\n' "$ALL_PATHS" | LC_ALL=C sort -u) \
+  <(printf '%s' "$JUDGED" | LC_ALL=C sort -u) | sed '/^$/d')"
+
 EXEMPT_BASENAMES=" $(cfg '.file_names.exempt_basenames[]' | tr '\n' ' ')"
 EXEMPT_EXTENSIONS=" $(cfg '.file_names.exempt_extensions[]' | tr '\n' ' ')"
 
-is_exempt_by_path() {
+# in_list <path> <newline-separated list>
+in_list() {
   case "
-$EXEMPT_BY_PATH
+$2
 " in
   *"
 $1
@@ -171,8 +213,12 @@ while IFS= read -r path; do
   ext="${base##*.}"
   [[ "$ext" == "$base" ]] && ext=""
 
-  if is_exempt_by_path "$path"; then
+  if in_list "$path" "$EXEMPT_BY_PATH"; then
     printf 'EXEMPT\t%s\texempt_paths\n' "$path"
+    continue
+  fi
+  if in_list "$path" "$EXEMPT_BY_ROOT"; then
+    printf 'EXEMPT\t%s\troot exempt_paths\n' "$path"
     continue
   fi
   case "$EXEMPT_BASENAMES" in
@@ -265,7 +311,7 @@ if [[ "$collisions" -eq 0 ]]; then
   printf '%s' "$offenders" | awk -F'\t' 'NF==2 {print "OFFENDER\t" $1 "\t" $2}'
 fi
 
-roots_joined="$(cfg '.file_names.roots | join(",")')"
+roots_joined="$(printf '%s' "$SCOPES" | jq -r 'map(.label) | join(",")' | tr -d '\r')"
 if [[ "$scanned" -eq 0 ]]; then
   printf 'inventory: no tracked files under the configured roots (%s); this is an empty root, not a clean tree\n' "$roots_joined" >&2
 fi

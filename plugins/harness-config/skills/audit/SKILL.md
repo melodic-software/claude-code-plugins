@@ -68,7 +68,7 @@ the document and does only what needs judgment:
 | E: marketplace membership, every `false` key as an inventory row (a finding only when an enabled plugin depends on it), ORPHAN / RENAME / REMOVED drift, catalog plugins with no entry in any scope as one inventory row per marketplace, keys the drift check did not diff, `strict` versus `plugin.json` | E: the fix for a disabled dependency, orphan-`true` review, rename confirmation |
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
-| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values, the version `enforceAvailableModels` requires, the `fallbackModel` cap and the values of every other string key whose Type bullet lists them come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values, the version `enforceAvailableModels` requires, the `fallbackModel` cap and the values of every other string key whose Type bullet lists them come from the fetched `settings-reference`; a `deniedModels` or `availableModelsMatch` key outside managed settings is flagged from a rule kept in our words | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
 | J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version") | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
@@ -272,7 +272,7 @@ The script never rewrites the baseline itself.
 - **Pointer**: for the levels, per-model defaults and level guidance the check reads, see
   [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
-- **As of**: 2026-10-02
+- **As of**: 2026-10-10
 - **Recheck trigger**: the check reports `table status=unparsed`, or either section is renamed or
   moved.
 

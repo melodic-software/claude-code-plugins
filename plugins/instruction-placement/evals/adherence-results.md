@@ -19,9 +19,11 @@ The convention: public classes are declared `sealed`; private fields take a lead
 Neither is the model's default, and both are mechanically checkable. Compliance was defined before
 any trial ran.
 
-The task edits an **existing** `.cs` file, so the read that triggers a path-scoped rule actually
-happens. A create-only task would instead be testing the documented write-trigger gap, which the
-rubric already answers by refusing that destination.
+The task edits an **existing** `.cs` file, so the file is read before it changes and the
+path-scoped rule is in context for the edit (triggers by Claude Code version:
+`context/verified-mechanics.md`). A create-only task would instead be testing the write-trigger
+gap, whether a rule that fires on the write arrives in time, which the rubric already answers by
+refusing that destination.
 
 Arms were interleaved so any drift in service conditions hit both alike.
 
@@ -53,8 +55,8 @@ real number in the underscore column.
 ## What this does and does not establish
 
 **Establishes:** a clear, unambiguous, non-conflicting convention is followed just as reliably from
-line 900 of a 1,927-line always-loaded file as from a path-scoped rule that fires on read. For that
-shape of instruction, moving it buys nothing in adherence.
+line 900 of a 1,927-line always-loaded file as from a path-scoped rule that loads when the task
+reads the file. For that shape of instruction, moving it buys nothing in adherence.
 
 **Does not establish** that adherence never degrades. The control arm scored 100%, so the experiment
 had a ceiling and could not have detected a smaller effect. Specifically untested:

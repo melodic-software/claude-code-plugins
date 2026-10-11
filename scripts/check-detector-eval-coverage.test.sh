@@ -1562,27 +1562,9 @@ else
 fi
 rm -rf "$root"
 
-# ====================== the built-in registry resolves =====================
-# The shipped rows are paths into this repository, and a renamed or moved
-# surface must not sit undetected behind an env override every test uses. This
-# asserts only that the rows RESOLVE (exit 0 or 1), never what they report:
-# the coverage verdict belongs to the tree, and asserting it here would make
-# this suite red for a backfill in flight.
-out="$(cd "$SELF_DIR/.." && bash scripts/check-detector-eval-coverage.sh --check 2>&1)"
-rc=$?
-if [[ $rc -eq 0 || $rc -eq 1 ]]; then
-  ok "the built-in registry rows resolve against this tree (exit $rc, not an environment answer)"
-else
-  fail "built-in registry does not resolve: rc=$rc out='$out'"
-fi
-
-# The live tree's own qualifying pairs are all registered, so the stopping rule
-# reports nothing against it. This is the assertion that turns "the registry is
-# complete today" into a standing fact rather than a one-time audit.
-if [[ "$out" != *"UNREGISTERED PAIR"* ]]; then
-  ok "no qualifying detector-plus-evals skill in this tree is missing a registry row"
-else
-  fail "an unregistered qualifying pair exists in this tree: $out"
-fi
+# The built-in registry is checked against the live tree by the
+# detector_eval_coverage gate step of pr-require-checks.yml, which runs --check
+# whenever a skill script or eval set changes and fails on an unresolved row or
+# an unregistered pair. Run here, that check reads every skill script of the tree.
 
 test_harness::report

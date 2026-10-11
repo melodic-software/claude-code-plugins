@@ -4,15 +4,16 @@
     {
       "id": 1,
       "name": "attend-queue-one-merged-view-escalations-ratify-intake",
-      "prompt": "/work-items:attend-queue\n\nThe repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; one item whose escalation marker carries kind=ratify-c3; four untriaged items (two unlabeled, one with the raw marker, one status:needs-info where the reporter just replied). The binding remaps human-gated to blocked-on-human.",
-      "expected_output": "One merged attention view, oldest first, rows tagged [escalated], [ratify], and [intake]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal. Only the item with the machine-marked escalation comment appears as [escalated] — the parked item wearing the same label but no marker is excluded, because the marker (not the label) discriminates escalated from parked. The ratify-c3 item appears as [ratify]. The [intake] rows come from composing /work-items:triage's attention view (unlabeled, raw marker, needs-info-with-reply buckets), not from a re-derived bucket definition. Ratifications are worked first at equal age since they unblock the waiting worker loop.",
+      "prompt": "/work-items:attend-queue\n\nThe repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; one item whose escalation marker carries kind=ratify-c3; four untriaged items (two unlabeled, one with the raw marker, one status:needs-info where the reporter just replied); and one already-triaged agent-ready item whose only blocker was closed as not planned, so triage's attention view lists it under blocked by won't-do. The binding remaps human-gated to blocked-on-human.",
+      "expected_output": "One merged attention view, oldest first, rows tagged [escalated], [ratify], [intake], and a report-only [won't-do]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal. Only the item with the machine-marked escalation comment appears as [escalated] — the parked item wearing the same label but no marker is excluded, because the marker (not the label) discriminates escalated from parked. The ratify-c3 item appears as [ratify]. The [intake] rows come from composing /work-items:triage's attention view, buckets 1-3 only (unlabeled, raw marker, needs-info-with-reply), not from a re-derived bucket definition. The item blocked by a won't-do blocker comes from that view's bucket 4 and is listed as a report-only [won't-do] row, never as [intake]: no claim is taken and nothing on it is changed from this lane. Ratifications are worked first at equal age since they unblock the waiting worker loop.",
       "files": [],
       "expectations": [
         "Builds ONE merged view containing escalations, ratifications, and untriaged intake — not separate disconnected reports",
         "Resolves the human-gated role from config.role_labels (blocked-on-human) and never queries or compares the needs-human default literal after the remap",
         "Includes as [escalated] only items carrying BOTH the human-gated role label AND a machine-marked work-items:escalation comment; excludes the operator-parked item that has the label but no marker",
         "Tags the kind=ratify-c3 item as [ratify] and prioritizes ratify rows at equal age",
-        "Sources [intake] rows by composing /work-items:triage's attention view rather than re-deriving its buckets"
+        "Sources [intake] rows from buckets 1-3 of /work-items:triage's attention view rather than re-deriving its buckets",
+        "Lists the item blocked by won't-do as a report-only row, not [intake], and takes no claim or action on it"
       ]
     },
     {
@@ -100,6 +101,34 @@
         "Clears @me through the adapter's assignee edit after the flip",
         "Runs the seam release verb with the claim's lease_comment_id after the assignee clear",
         "Never hand-writes or PATCHes lease-comment JSON directly"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "attend-queue-ratifies-first-drain-on-the-telemetry-issue",
+      "prompt": "/work-items:attend-queue\n\n#900 'Lane telemetry: work-loop' carries needs-human and a comment authored by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=ratify-first-drain -->, proposing that instance melo-lap-001's first drain completed at cycle 41 over a 37-item snapshot. #900 has no work-class: label. The repository has no loop-lane: first-drain-ratified label yet. The operator says: ratify it.",
+      "expected_output": "#900 lists as a [ratify] row. Before asking, the lane restates the item, the decision, and the consequence: ratifying lets that work-loop dispatch unratified C3 bug-fix items without a [ratify] row for each. On the operator's ratification it creates the loop-lane: first-drain-ratified label, then in one edit applies it to #900 and removes needs-human, and records the ratification as a reply comment. It does not apply the autonomous-eligible role label and does not ask for a work class, because #900 is a lane's telemetry issue, not a work item.",
+      "files": [],
+      "expectations": [
+        "Lists #900 as a [ratify] row from its kind=ratify-first-drain marker",
+        "Restates the item, the decision, and what ratifying changes before asking",
+        "Creates the loop-lane: first-drain-ratified label because the repository lacks it",
+        "Applies loop-lane: first-drain-ratified and removes the human-gated role label in one edit",
+        "Does not apply the autonomous-eligible role label or stamp a work class on #900",
+        "Records the ratification as a reply comment"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "attend-queue-lists-first-drain-proposal-despite-infrastructure-exclusion",
+      "prompt": "/work-items:attend-queue\n\nBuild the attention view. Open items: #900 'Lane telemetry: work-loop' carries needs-human and a comment by the tracker's write identity whose first line is <!-- work-items:escalation lane=work-loop kind=ratify-first-drain -->. #901 'Lane telemetry: attend-queue' carries needs-human and a comment by the write identity whose first line is <!-- work-items:escalation lane=work-loop kind=escalated -->. #950 is an ordinary work item with needs-human and a kind=escalated marker from the write identity. #960 is unlabeled raw intake.",
+      "expected_output": "The view lists #900 as a [ratify] row even though it is a lane telemetry issue, because a kind=ratify-first-drain marker from the write identity on a human-gated telemetry issue is the one exception to the lane-infrastructure exclusion. #901 stays out of the view: it is lane infrastructure and its marker kind is not ratify-first-drain. #950 lists as [escalated] and #960 as [intake]. [ratify] rows sort before [escalated] before [intake] at equal age.",
+      "files": [],
+      "expectations": [
+        "Lists #900 as a [ratify] row",
+        "Does not list #901 in any row",
+        "Lists #950 as [escalated] and #960 as [intake]",
+        "Names the ratify-first-drain marker as the reason #900 appears despite being a telemetry issue"
       ]
     }
   ]

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fixture docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><span class="brand">Fixture</span><nav><a href="#">Docs</a><a href="#">API</a><a href="#">Community</a></nav></header>
+<aside><a href="#">Introduction</a><a href="#">Installation</a><a href="#">Writing tests</a><a href="trace.html">Trace viewer</a></aside>
+<main class="doc">
+  <h1>Installation</h1>
+  <p>Install the package and run the first test.</p>
+  <p>Every command below runs in a terminal.</p>
+  <section id="search-panel">
+    <input id="search" placeholder="Search" autocomplete="off">
+    <ul id="results" hidden><li><a href="trace.html">Trace viewer: open a trace</a></li><li><a href="trace.html">Tracing API</a></li></ul>
+  </section>
+</main>
+<script>
+  const q = document.getElementById('search'), r = document.getElementById('results');
+  q.addEventListener('input', () => { r.hidden = q.value.trim().length < 5; });
+</script>
+</body>
+</html>

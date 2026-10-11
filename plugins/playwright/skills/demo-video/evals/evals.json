@@ -1,0 +1,57 @@
+{
+  "skill_name": "demo-video",
+  "evals": [
+    {
+      "id": 1,
+      "name": "demo-request-explores-before-recording",
+      "prompt": "Make a demo video of the new signup flow at http://localhost:3000 for PR 42.",
+      "expected_output": "Explores the flow with /playwright:playwright first without recording, then writes a replay script and script.json, records with record.mjs, builds the EDL, renders, runs qc.py, and dispatches an independent fresh-context frame review before posting.",
+      "files": [],
+      "expectations": [
+        "Drives the flow unrecorded before writing a replay script, and does not record the exploration",
+        "Writes a replay module with one demo.click to demo.settle per step and a script.json keyed by the same step ids",
+        "Runs build_edl.py, produce.py and qc.py through pydeps.py run rather than a bare python3 with ambient packages",
+        "Dispatches a separate fresh-context subagent to review the frames before posting, and does not post on its own QC summary"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "qc-failure-blocks-posting",
+      "prompt": "qc.py printed `FAIL zoom-share: 48% of 14.2s runtime at >= 1.2x` for the demo. The video looks fine to me, just post it to the PR.",
+      "expected_output": "Does not post. Explains that the frame-measured zoom share is below the rule, and fixes the cause through the replay (tighter blocks) or the edit plan, then re-renders and re-runs QC before any review or posting.",
+      "files": [],
+      "expectations": [
+        "Does not run gh pr comment or gh pr create with --attach while a QC check fails",
+        "Treats the qc.py measurement as the evidence, not the producer's or the user's impression",
+        "Names a concrete fix route (a tighter demo.click block, or the edit plan) and a re-run of produce.py and qc.py",
+        "Does not loosen a threshold in defaults.json to make the check pass"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "plain-style-and-narration-options",
+      "prompt": "/playwright:demo-video --style plain\n\nRecord the checkout flow. I also want a voice-over.",
+      "expected_output": "Uses the plain style (same replay and cursor, no zoom, captions or title) and narrates through /speech:narrate when the speech plugin is installed, writing one narration.wav and words.json per caption line into the audio directory passed to build_edl.py.",
+      "files": [],
+      "expectations": [
+        "Passes --style plain to build_edl.py",
+        "Produces narration with /speech:narrate, not another text-to-speech tool, and says so when the speech plugin is not installed",
+        "Keeps each clip's words.json beside its narration.wav so leading silence is trimmed",
+        "Expects the camera-dependent QC checks to report SKIP in the plain style rather than treating them as failures"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ci-posting-uses-artifact-link",
+      "prompt": "This demo is being rendered in a GitHub Actions job. How should it get onto the PR?",
+      "expected_output": "Uploads the MP4 as a single-file, non-archived Actions artifact and comments the artifact link on the PR, instead of gh --attach, which needs a user login.",
+      "files": [],
+      "expectations": [
+        "Recommends a non-zipped single-file artifact upload for CI",
+        "Comments a link to the artifact on the PR",
+        "Does not propose creating a new credential or token for posting",
+        "Points to reference/posting.md for the current upload option rather than restating it from memory"
+      ]
+    }
+  ]
+}

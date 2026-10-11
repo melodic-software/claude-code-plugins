@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Fair-choice check: leaving takes seven steps; joining takes one.",
+      "why": "hyphenated heading"
+    },
+    {
+      "answer": "I ran a fair choice check on every exit.",
+      "why": "spaced form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The cancel flow has too many steps.",
+      "why": "no check named"
+    }
+  ]
+}

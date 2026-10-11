@@ -3,7 +3,8 @@
 //
 //   {"repo":"","generated":"","items":[{"number":1,"title":"","kind":"issue","state":"","labels":[""],"blockedBy":[2]}]}
 //
-// state is the attention-view bucket; omit blockedBy when blockers were not read.
+// state is the attention-view bucket (unlabeled, raw marker, needs-info reply, blocked by
+// won't-do); omit blockedBy when blockers were not read.
 //
 //   build-board.mjs --out <file>      writes the page, prints its path
 //   build-board.mjs --out <data_dir>/page.html --connect http://127.0.0.1:<port>

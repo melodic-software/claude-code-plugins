@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4] - 2026-10-10
+
+### Fixed
+
+- **`/fleet:reach` no longer says `claude logs` rejects a session name.** Current Claude Code accepts part of a session's name for `claude logs` and `claude attach`. The skill and its relay reference now say to address a background session by the id from `claude agents --json --all`, which lists completed sessions too and works on every lane, and to check the lane's version against the CLI reference before passing a name instead.
+
 ## [0.2.3] - 2026-10-02
 
 ### Fixed

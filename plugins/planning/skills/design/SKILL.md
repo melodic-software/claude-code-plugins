@@ -256,7 +256,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Code writing**. That's the implementation stage
 - **External research**. That's the research capability (this skill synthesizes research results into design decisions)
 - **Diagram craft**. This skill selects the dialect a typed artifact is written in; it teaches no dialect. Layout, readability, and syntax idiom route to the visualization capability (`/visualization:visualize` if that plugin is enabled); without it, the plainest correct form of the dialect is emitted
-- **UI/UX design**. Use dedicated frontend design and UI/UX tooling
+- **UI/UX design**. User research, flows and information architecture are `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if enabled)
 - **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
 - **Product intent**. That's `/planning:prd` (problem, users, success metrics)
 - **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)

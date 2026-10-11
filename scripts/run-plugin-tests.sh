@@ -32,7 +32,10 @@
 # spuriously under load, so they run one at a time, before the parallel group,
 # and never overlap anything. An entry there that matches no discovered suite
 # is an error rather than an ignored line: an allowlist must not outlive what
-# it excuses.
+# it excuses. The parallel group starts longest first by
+# scripts/suite-seconds.txt ($PLUGIN_TEST_SECONDS_LIST overrides it), so a long
+# suite never starts late and outlasts the rest of its leg; a suite the file
+# does not list counts 0 and keeps its sorted place after the listed ones.
 #
 # SHARDING. --shard I/N keeps leg I of N of the sorted discovered suites, by
 # index modulo N, with scripts/affected-tests.sh's semantics: the union of legs
@@ -86,6 +89,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 runner="$script_dir/${BASH_SOURCE[0]##*/}"
 SERIAL_LIST="${PLUGIN_TEST_SERIAL_LIST:-$script_dir/run-plugin-tests-serial.txt}"
+SECONDS_LIST="${PLUGIN_TEST_SECONDS_LIST:-$script_dir/suite-seconds.txt}"
 
 usage() {
   echo "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR] [--shard I/N] [--suites-from FILE] | --list [--root DIR]" >&2
@@ -290,6 +294,15 @@ for i in "${!tests[@]}"; do
     parallel_suites+=("${suite_keys[$i]}:$t")
   fi
 done
+
+# Longest first, as scripts/selection-audit.sh orders its traces. The sort is
+# stable, so unlisted suites (0 s) keep their order. Each entry keeps its key,
+# so the summary still reads in corpus order.
+if ((${#parallel_suites[@]} > 1)) && [[ -s "$SECONDS_LIST" ]]; then
+  mapfile -t parallel_suites < <(printf '%s\n' "${parallel_suites[@]}" |
+    awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { p = $0; sub(/^[0-9]+:/, "", p); print (p in s ? s[p] : 0) "\t" $0 }' "$SECONDS_LIST" - |
+    sort -s -t $'\t' -k1,1nr | cut -f2-)
+fi
 
 log_dir="$(mktemp -d)"
 trap 'rm -rf "$log_dir"' EXIT

@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research-deep's verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or the user wants to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
+description: "Validate the discipline plugin's configuration, the posture-batch overlay and do-your-research's fan-out verification depth, and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', or the user wants to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
@@ -17,7 +17,7 @@ Deep-research verification depth: `${user_config.research_deep_verification}`
 Report discipline's effective configuration without editing Claude Code settings.
 The plugin's whole configuration surface is native `userConfig`: three
 `sweep-all` batch-overlay options (`batch_exclude` / `batch_promote` /
-`batch_demote`) plus `do-your-research-deep`'s verification-depth default
+`batch_demote`) plus the verification-depth default of `do-your-research`'s fan-out tier
 (`research_deep_verification`). Claude Code prompts for them when the plugin is
 enabled, stores non-sensitive options in user settings, and ignores `pluginConfigs`
 entries in project and local settings on current releases (>= 2.1.207).
@@ -58,13 +58,13 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
      core, unknown is ignored. Do not report these as successful promotes.
    - a `batch_demote` naming an already-situational corrector, a no-op; INFO.
 5. **Report the deep-research verification depth.** `research_deep_verification` sets
-   `do-your-research-deep`'s default depth. Report the effective value: `tiered`
+   the default depth of `do-your-research`'s fan-out tier. Report the effective value: `tiered`
    (fan subagents out only over load-bearing items) or `full` (subagent-verify every
    item). An unset value, a surviving literal placeholder, OR any unrecognized string
    (not exactly `tiered` or `full`) all resolve to the `tiered` default. Report an
    unrecognized value as a WARN (typo; remediation: fix it via the plugin
    configuration prompt) that still falls back to tiered, never a hard failure. Note
-   that an invocation argument to `do-your-research-deep` overrides this default per
+   that an invocation argument to `do-your-research` (`tiered` or `full`) overrides this default per
    invocation.
 6. **Full-batch prerequisite.** INFO: the batch's mid-session pass dispatches
    conversation-inheriting fork subagents. Fork mode is on by default in interactive sessions

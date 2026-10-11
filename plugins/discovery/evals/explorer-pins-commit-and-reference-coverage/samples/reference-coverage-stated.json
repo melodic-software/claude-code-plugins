@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "## Code references\n\ncoverage: key-files\n\n- Rounding: `src/payments/rounding.py`\n"},
+    {"answer": "## Code references\ncoverage: exhaustive\n- `src/payments/charge.py`\n", "why": "no blank line before the coverage line"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "## Code references\n\n- `src/payments/rounding.py`\n\ncoverage: key-files\n", "why": "coverage line is not the first line of the section"},
+    {"answer": "## Code references\n\ncoverage: complete\n", "why": "payload vocabulary, not the listing's"},
+    {"answer": "## Sections\n\ncoverage: key-files\n", "why": "a different section"}
+  ]
+}

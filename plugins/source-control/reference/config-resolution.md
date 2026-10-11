@@ -67,8 +67,8 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
   still falls through to the portable default.
 - `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
-  to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
-  number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
+  to parse the work-item reference from the branch name; its LAST capture group holds the
+  reference, an issue number or a tracker key such as `SW2-1234`, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
   non-blank line, surrounding backticks stripped, or, when that line opens a code fence, the first
   non-blank line inside the fence. A plain scalar under per-key override;
   `parse-branch-issue.sh` reads the three layers itself. Every note it prints on stderr names the

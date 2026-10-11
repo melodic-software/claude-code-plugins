@@ -137,8 +137,8 @@ plugins/context-budget/hooks/settings-write-ask.test.sh 1
 plugins/context-budget/skills/audit/scripts/levers.test.sh 1
 plugins/context-budget/skills/audit/scripts/measure.test.sh 6
 plugins/context-guard/hooks/post-compact-mark.test.sh 1
+plugins/context-guard/scripts/cache-line.test.sh 1
 plugins/context-guard/scripts/context-zone.test.sh 1
-plugins/context-guard/scripts/prompt-cache-cause.test.sh 1
 plugins/coupling/skills/reduce/scripts/value-sites.test.sh 8
 plugins/debugging/scripts/build-view.test.sh 6
 plugins/desktop-notification/hooks/desktop-notification.test.sh 1
@@ -405,7 +405,7 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/surface/surface.test.sh 1
+plugins/planning/surface/surface.test.sh 390
 plugins/planning/surface/test_exporters.py 92
 plugins/planning/surface/test_round.py 49
 plugins/planning/surface/test_schema.py 1

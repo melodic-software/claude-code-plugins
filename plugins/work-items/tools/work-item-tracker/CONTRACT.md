@@ -16,6 +16,7 @@
   - [Multi-provider topology: the role-split model (recorded decision, not yet built)](#multi-provider-topology-the-role-split-model-recorded-decision-not-yet-built)
 - [Capabilities manifest](#capabilities-manifest)
   - [Contract-version handshake](#contract-version-handshake)
+- [Change links](#change-links)
 - [Identity routing (GitHub adapter)](#identity-routing-github-adapter)
 - [local-markdown adapter](#local-markdown-adapter)
   - [Branch, worktree, and lease confinement](#branch-worktree-and-lease-confinement)
@@ -54,14 +55,19 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ### Degradation without `gh` (cloud / MCP-only sessions)
 
-Some execution environments have GitHub access but no `gh` binary, notably cloud sessions
-whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+Some execution environments have GitHub access but no `gh` binary: their GitHub surface is MCP
+tools (model-plane, not shell-plane). Anthropic-hosted cloud sessions are not that case by
+default, since `gh` is in their
+[installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools), but their
+[GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) refuses
+GraphQL-backed `gh` calls, so a verb that makes one fails there even with `gh` present. In a
+session with no `gh` the
 seam **cannot run any `github` verb that shells out**, reads and writes alike: the
 dispatcher's presence gate exits `3` (the same first-run signal as a missing binding), and
 there is deliberately no silent fallback to another provider (the binding names the
 coordination surface; "Offline role activates only by manual binding switch" applies to
 degradation too). `capabilities` is the sole verb that still answers, since it reads the
-adapter manifest rather than the provider. Honest limitation, recorded 2026-08-17 (#2942):
+adapter manifest rather than the provider. Limitation, recorded 2026-08-17 (#2942):
 this repository's own spec board (#2933) had to be published through MCP tools with
 blocking edges as body text, because the publishing session had no `gh`.
 
@@ -146,7 +152,8 @@ user-global layer.
   credential from the merged view), and the self-describing `docs`
   pointer. Everything else is shared coordination state and team-layer-only: `provider`,
   `config.role_labels`, `config.container_label`, `config.storage_dir`,
-  `config.jira.site`/`project_keys` and the JQL-shaping keys. An overlay value for any such key is a
+  `config.jira.site`/`project_keys`, the JQL-shaping keys, and the won't-do classifiers
+  `config.jira.resolutions` and `config.github.wont_do_labels`. An overlay value for any such key is a
   configuration error (exit `3`, naming the offending keys), never a merge, including a
   non-allowlisted key holding an empty object (only allowlisted-prefix scaffolding like
   `{"config":{}}` is inert). Allowlisted keys hold scalars: an object or array value at an
@@ -190,7 +197,9 @@ work-item-tracker.sh reclaim <id>
 work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
 work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
-work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
+work-item-tracker.sh list-items [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
+work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>] [--label <name>]
+work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
 
@@ -203,6 +212,18 @@ enumeration: closed children and nested-container children are kept (the closed-
 invariant check and sub-map traversal both need them); frontier filtering is the separate
 core-side step below. The container is addressed by its qualified id, which carries the repo, so
 there is no `--repo` flag. `--state` defaults to `all`.
+
+`list-items` is the adapter's raw listing (below) passed through the core: `--state` defaults to
+`open`, and the envelope, `truncated` included, is the adapter's.
+
+`--label <name>` (on `list-items` and `list-frontier`) keeps only items carrying exactly that
+label. When the adapter declares `features.list_items_label_filter`, core hands it `--label`, so
+the provider filters and `limits.list_items_max` counts only labeled items. Either way core then
+keeps exact matches itself, which is the whole filter for an adapter without the feature and a
+guard against a provider whose label match is looser (case-insensitive, comma-split, or dropping
+a label the repository lacks). Filtering never clears `truncated`: an unfiltered listing past the
+ceiling stays truncated after the filter, because a labeled item may sit past the ceiling. With
+`--parent`, the label is filtered core-side only.
 
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
@@ -229,27 +250,46 @@ frontier. Passing both is a usage error (exit `2`), not a silent drop.
 ## Adapter contract
 
 Adapters live at `adapters/<provider>/` as verb-per-script (`<verb>.sh`) plus a
-`capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`
-plus `list-items`** (`list-sub-items` is both a core and an adapter verb: it has a native
+`capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`**
+(`list-items` and `list-sub-items` are both core and adapter verbs: each has a native
 counterpart, unlike the core-derived `list-frontier`):
 
 ```text
-adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>]
+adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--label <name>]
 adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
 - `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
-  silently). Exceeding the ceiling is a documented truncation, not an error.
+  silently). Exceeding the ceiling is a documented truncation, not an error, and the
+  envelope reports it: `truncated: true` when items past the ceiling exist and were not
+  returned, `false` when the listing is complete. A listing that holds exactly
+  `list_items_max` items is complete; an adapter that cannot tell the two apart (it
+  stopped at the ceiling without learning whether more exist) reports `true`.
+- The ceiling counts only items that match the request. `--state` belongs in the provider
+  query wherever the provider can filter on it, never in a filter applied after the fetch:
+  dropping closed items after counting them makes a tracker with many closed items read as
+  truncated. An adapter MAY re-check state after the query as a guard.
+- `--label <name>` is optional. An adapter that accepts it declares
+  `features.list_items_label_filter: true` and puts the label in the provider query, so the
+  ceiling counts labeled items only; it MAY match more loosely than exact, since core filters
+  exactly afterward ("Verbs"), and it MAY refuse with exit `2` a label its provider cannot
+  hold. An adapter without the feature never receives `--label`. Every bundled adapter
+  declares it: github (`gh issue list --label`, which gh serves from the search API; that API
+  returns at most 1000 results, so a labeled listing that reaches 1000 reports `truncated: true`), gitea (the `labels` query parameter), jira
+  (a `labels = "<name>"` JQL clause), linear (a `labels.some.name.eq` issue filter), and
+  local-markdown (filtered in its walk before the ceiling check).
 - `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
   envelope, each item's `parent_id` set to the container. Where a provider's list surface
   omits parent linkage (GitHub's does, see "JSON output contract"), the adapter resolves
   children through the provider's native sub-item link (GitHub's `subIssues`) and intersects
   with `list-items` output; its truncation bound is therefore `list-items`' own
-  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`. A child in
+  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`, and its
+  `truncated` is the intersected `list-items` envelope's. A child in
   another repo is out of scope for this repo-keyed intersect (documented truncation, not an
-  error). A parent with no children returns an empty `items` array, never an error.
+  error, and not reported by `truncated`). A parent with no children returns an empty `items`
+  array, never an error.
 - An adapter MAY keep shared helpers (e.g. `common.sh`); only `<verb>.sh` files named in
   the manifest are contract surface.
 - A verb declared `false` in the manifest exits `6` with a clear stderr message when
@@ -309,11 +349,19 @@ Normalized item object:
   "blocked_by_count": 0,
   "blocked_by_wont_do_count": 0,
   "parent_id": null,
-  "url": "https://…"
+  "url": "https://…",
+  "created_at": "2026-03-01T10:00:00Z"
 }
 ```
 
 - `state` is normalized lowercase: `open` | `closed`.
+- `created_at` is when the provider created the item, in UTC to the second
+  (`YYYY-MM-DDTHH:MM:SSZ`), so values from one adapter sort as text; `null` when the
+  provider gives none or one the adapter cannot parse. Every bundled adapter reads the
+  provider's own creation time (github `createdAt`, gitea `created_at`, jira `created`,
+  linear `createdAt`); local-markdown records one at `create-item`, and its items created
+  before that read `null`. Additive field: an adapter written before it emits none, which a
+  reader treats as `null`.
 - `type` is the native issue-type NAME (the type axis, org-defined `Task`/`Bug`/
   `Feature`), or `null` when the item has none. On GitHub it is the native Issue Type
   (`create-item --type` sets it; requires push access, silently dropped otherwise);
@@ -330,23 +378,40 @@ Normalized item object:
 
   | Adapter | Resolved | Won't-do (blocks, counted) |
   |---|---|---|
-  | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
+  | GitHub | `stateReason` `COMPLETED` or `null`, carrying no `wont_do_labels` label | `NOT_PLANNED`, `DUPLICATE`, or any close carrying a `wont_do_labels` label |
   | Linear | state type `completed`, while `done_state_types` lists it | other done types (`canceled`, `duplicate`) |
   | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
-  | Jira, Gitea | any closed blocker (won't-do detection unsupported) | none |
+  | Jira | done-category blocker with no resolution, a resolution id in `resolutions.completed`, or any resolution when `resolutions` is absent | resolution id in `resolutions.wont_do` |
+  | Gitea | any closed blocker (won't-do detection unsupported) | none |
+
+  No adapter carries a built-in list of a consumer's won't-do markers: Jira resolutions
+  and GitHub labels are named per tracker, so the team binding classifies them
+  (`config.jira.resolutions`, `config.github.wont_do_labels`, both optional and
+  written by `/work-items:setup`).
 
   GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
-  blockedBy` projection has no `stateReason`, so the adapter reads each closed blocker's
-  `stateReason` through `gh api graphql`. When that query fails, or returns no node for a
-  blocker, the closed blocker keeps blocking (fail closed) without counting as won't-do,
-  and a warning goes to stderr. A `null` reason is an issue closed before GitHub recorded
-  reasons.
+  blockedBy` projection has no `stateReason` or labels, so the adapter reads each closed
+  blocker's `stateReason` and labels through `gh api graphql`. The optional team binding
+  key `config.github.wont_do_labels` (an array of label names, no default, matched
+  case-insensitively; a present value must be an array of non-empty strings, exit `3`)
+  makes a closed blocker carrying any listed label won't-do whatever its `stateReason`,
+  for repos that mark won't-do with a label; absent, only the reasons above count. When
+  that query fails, or returns no node for a blocker, the closed blocker keeps blocking
+  (fail closed) without counting as won't-do, and a warning goes to stderr. A `null`
+  reason is an issue closed before GitHub recorded reasons. Jira reads done blockers'
+  resolutions with one extra search and fails closed the same way ("jira adapter"
+  below); it also keeps a done blocker blocking, without counting it as won't-do, when
+  its resolution id is in neither list.
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
 
 Envelopes: `list-items`, `list-sub-items`, and `list-frontier` emit
-`{"schema_version":"1.0","items":[…]}`.
+`{"schema_version":"1.0","items":[…],"truncated":false}`. `truncated` is a boolean every
+bundled adapter emits (see "Adapter contract"); `list-frontier` passes its source envelope's
+flag through unchanged, so a frontier filtered from a truncated listing is truncated even when
+its `items` is empty. An adapter written before the field emits none, and `list-frontier` then
+emits none either: a reader treats an absent `truncated` as **unknown, never as complete**.
 
 Per-verb result objects:
 
@@ -521,10 +586,14 @@ Building `sources` is demand-gated: a consumer who needs it opens a new item cit
   "schema_version": "1.0",
   "provider": "github",
   "verbs": { "create-item": true },
-  "features": { "cross_repo_edges": true, "sub_items": true, "leases": true },
-  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 }
+  "features": { "cross_repo_edges": true, "sub_items": true, "leases": true, "list_items_label_filter": true },
+  "limits": { "sub_items_per_parent": 100, "sub_item_depth": 8, "dependencies_per_type": 50, "list_items_max": 1000 },
+  "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" }
 }
 ```
+
+`change_link` is the branch grammar "Change links" defines. `features.list_items_label_filter`
+is optional, and absent reads as `false` ("Adapter contract").
 
 Provider ceilings surface as exit `7` with the ceiling named on stderr when hit at
 runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/type).
@@ -566,6 +635,64 @@ first-run/setup signal as a missing binding, pointing at the mismatched pair rat
 failing later inside a verb with a shape error. The conformance suite asserts both refusal
 directions and the newer-minor notice against a synthetic skewed manifest, and every real
 conformance case exercises the passing handshake.
+
+## Change links
+
+The text that links a change (a pull request, a commit) to its work item, and the token a
+branch name carries to name that item, are provider grammar: `Closes #42` on GitHub, `Closes
+ENG-123` on Linear, an issue key on Jira. The adapter owns both, so a skill asks the bound
+adapter instead of writing GitHub's grammar
+([ADR 0060](../../../../docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+
+`change-link` is offline: it never calls the provider and does not check that the item exists
+(`get-item` does). It takes exactly one input form:
+
+| Input | Meaning |
+|---|---|
+| `<id>` | a qualified item ID ("ID grammar") |
+| `--branch-ref <ref>` | a token captured from a branch name; the adapter qualifies it into an ID, exit `5` when it names no item of this binding (wrong shape, or a Jira project or Linear team outside the declared scope); exit `2` stays a usage error |
+| `--branch <name>` | core applies the manifest's `change_link.branch_pattern` to the name and dispatches `--branch-ref` with the last capture group; no match is exit `5` |
+
+`--repo <o>/<r>` names the repository the change lives in. GitHub and Gitea need it to qualify a
+`--branch-ref`; local-markdown, which has no forge, qualifies one in its default namespace and
+ignores it. A manifest declaring `change-link` without `change_link.branch_pattern` makes
+`--branch` exit `3`. GitHub and Gitea
+emit the short `#N` form only when it equals the item's repository, else the cross-repository
+`owner/repo#N` form, which both providers also honor inside the same repository.
+
+```json
+{ "schema_version": "1.0", "item_id": "github:acme/webapp#42", "closes": "Closes #42", "refs": "Refs: #42", "branch_ref": "42" }
+```
+
+- `closes`: the line that links the change and closes the item when the change merges into the
+  default branch. `null` when the provider closes nothing on merge (jira, local-markdown): the
+  caller then closes the item itself after the merge.
+- `refs`: the line that links the change without closing the item.
+- `branch_ref`: the token a branch name carries, as in `<type>/<branch_ref>-<slug>`.
+
+The manifest declares the branch grammar as `change_link.branch_pattern`, a POSIX ERE whose
+**last** capture group is the `branch_ref`. A consumer convention (for example
+`/source-control:pull-request`'s `branch_issue_pattern`) may override it; the adapter's pattern is
+the default. A manifest with `change-link` absent from `verbs` predates this section: the verb
+exits `6` and the caller keeps its own default.
+
+| Provider | `closes` | `refs` | `branch_ref` | `branch_pattern` |
+|---|---|---|---|---|
+| github | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| gitea | `Closes #N` | `Refs: #N` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+| linear | `Closes ENG-N` | `Refs ENG-N` | `ENG-N` | `^([^/]+/)?([A-Za-z][A-Za-z0-9]*-[0-9]+)-` |
+| jira | `null` | `Refs: SW2-N` | `SW2-N` | `^([^/]+/)?([A-Z][A-Z0-9_]*-[0-9]+)-` |
+| local-markdown | `null` | `Refs: <id>` | `N` | `^[a-z]+/(routine-issue-)?([0-9]+)-` |
+
+Sources, read 2026-10-11 (recheck when a provider renames its linking keywords): GitHub's closing
+keywords ([Linking a pull request to an issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue));
+Gitea's closing keywords and `owner/repository#N` form
+([Automatically Linked References](https://docs.gitea.com/usage/automatically-linked-references));
+Linear's closing and non-closing magic words ([GitHub integration](https://linear.app/docs/github));
+Jira links a branch, commit or pull request by its capitalized key and documents no closing
+keyword ([Reference work items in your development work](https://support.atlassian.com/jira-software-cloud/docs/reference-issues-in-your-development-work/)).
+`Refs: #N` with the colon is the non-closing linkage line `/source-control:pull-request` accepts;
+GitHub itself links any `#N` mention without closing it.
 
 ## Identity routing (GitHub adapter)
 
@@ -701,13 +828,17 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
         "auth_email": "ci@company.com",
         "auth_env": "JIRA_API_TOKEN",
         "blocked_by_link_type": "Blocks",
-        "done_category_keys": ["done", "completed"]
+        "done_category_keys": ["done", "completed"],
+        "resolutions": { "completed": ["10000"], "wont_do": ["10001", "10002"] }
       }
     }
   }
   ```
 
-  `list-items`/`list-frontier` build JQL scope from `project_keys`; `--repo <site>/<PROJECTKEY>`
+  `list-items`/`list-frontier` build JQL scope from `project_keys`, and `--label` adds a
+  `labels = "<name>"` clause, refusing (exit `2`) a label with a quote or a backslash rather
+  than escaping it, and answering a label with whitespace, which no Jira label can hold, with an
+  empty, complete listing; `--repo <site>/<PROJECTKEY>`
   narrows to one project (site must match the bound site, and the project must be one of the
   declared `project_keys`). `project_keys` is both the read scope and the authorization
   boundary: **every read is confined to the declared projects.** `get-item` refuses an id whose
@@ -721,16 +852,38 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
   with real instances, and both known keys are defaulted so the adapter is independent of that
-  deferred fact).
+  deferred fact). `resolutions` classifies the instance's resolutions by **id**:
+  `completed` lists the ids that resolve a done blocker, `wont_do` the ids that make it
+  won't-do. It has no default and is team-binding only: absent, won't-do detection is off,
+  no resolution lookup is made, and every done blocker is resolved. A present value must
+  be an object with exactly those two keys, each an array of non-empty string ids, with no
+  id in both (exit `3` otherwise). Ids, not names, because Jira admins can rename, add,
+  and delete resolutions
+  ([add, edit, or delete resolutions](https://support.atlassian.com/jira-cloud-administration/docs/add-edit-or-delete-resolutions/),
+  as of 2026-10-10; recheck when that page changes how resolutions are identified), so no
+  name list fits every instance and a rename must not reclassify a resolution.
+  `/work-items:setup apply` writes the key from the instance's own resolution list.
 - **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` is `closed` when the
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
   them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
-  `blocked_by_link_type` links only (the linked issue's status is inlined in `issuelinks`, so
-  no second round-trip); won't-do detection is unsupported, because `issuelinks` carries no
-  resolution, so `blocked_by_wont_do_count` is `0` (a follow-up could fetch done blockers'
-  resolutions under a binding key naming the completed ones); `parent_id` comes from
+  `blocked_by_link_type` links (the linked issue's status is inlined in `issuelinks`) plus
+  done ones that are not resolved, and `blocked_by_wont_do_count` counts the done ones whose
+  resolution id is in `resolutions.wont_do`. `issuelinks` carries no resolution, so when
+  `resolutions` is present the adapter reads every done blocker's resolution (`id` and
+  `name`) in one `POST /search/jql` per page, or per issue for `get-item` (`key in (...)`,
+  `fields: ["resolution"]`, up to 100 keys per query), skipped when there is no done
+  blocker. Only blockers in `project_keys` are looked up; a done blocker in another project
+  stays resolved. A done blocker with no resolution, or a resolution id in `completed`, is
+  resolved. One whose id is in neither list (a resolution added after setup) keeps
+  blocking (fail closed), is not counted as won't-do, and a stderr warning names the
+  resolution and its id. When a lookup query fails, every blocker in that query keeps
+  blocking without counting as won't-do: Jira answers a `key in (...)` naming one key it
+  cannot resolve (a deleted issue, say) with a `400` for the whole query, so one bad key
+  fails its whole chunk of up to 100 closed, with no retry. A blocker the search did not
+  return keeps blocking the same way. Both warn on stderr, and the second names the
+  missing keys; `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.
@@ -820,7 +973,9 @@ throwaway target.
 `conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
 adapter through the core CLI only: every verb, valid + invalid input, exit-code +
 `schema_version` + JSON-shape assertions, claim-race back-off, CR-free stdout,
-capability-gated skips (declared-unsupported verbs asserted to exit `6`). Bindings live
+capability-gated skips (declared-unsupported verbs asserted to exit `6`), and the list
+contract: `list-items` rows carry `created_at` as a UTC timestamp or `null`, and `--label` with a
+label no item carries returns no items. Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown.
 

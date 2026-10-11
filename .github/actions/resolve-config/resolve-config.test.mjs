@@ -451,6 +451,46 @@ test("a renamed file's previous path counts as changed", async () => {
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
 });
 
+test("changed-paths holds the head's changed files minus removed ones and the base CODEOWNERS paths", async () => {
+  const { env } = workspace();
+  const config = join(env.BASE_PATH, CONFIG_PATH);
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      "    effect: mutate-branch\n",
+      "    effect: mutate-branch\n    inputs: [changed-paths]\n",
+    ),
+  );
+  mkdirSync(join(env.BASE_PATH, ".github"), { recursive: true });
+  writeFileSync(
+    join(env.BASE_PATH, ".github/CODEOWNERS"),
+    "/plugins/ai-slop/** @owner\n",
+  );
+  env.LANE = "pr-refine";
+  env.ACTIVITY = "fix-docs";
+  const files = [
+    { filename: "docs/kept.md", status: "modified" },
+    { filename: "docs/gone.md", status: "removed" },
+    {
+      filename: "docs/new.md",
+      previous_filename: "docs/old.md",
+      status: "renamed",
+    },
+    { filename: "plugins/ai-slop/README.md", status: "modified" },
+  ];
+  const { github } = fakeGitHub(pullRoutes({ changedFiles: 4, files }));
+  assert.equal(await main({ env, github }), 0);
+  const resolved = JSON.parse(readFileSync(env.OUTPUT_PATH, "utf8"));
+  assert.deepEqual(resolved.selected["changed-paths"], [
+    "docs/kept.md",
+    "docs/new.md",
+  ]);
+  assert.equal(
+    Object.hasOwn(readOutputs(env.GITHUB_OUTPUT), "changed-paths"),
+    false,
+  );
+});
+
 test("a paths miss outputs not-applicable-paths", async () => {
   const { env } = workspace();
   env.ACTIVITY = "measure-coverage";
@@ -564,4 +604,255 @@ test("a work-classes predicate fails red: no run supplies work classes yet", asy
   const { env } = workspace();
   withPredicate(env, { "work-classes": ["C2"] });
   await assertFailsRed(t, env, /needs workClasses/);
+});
+
+// valid.yaml's fix-docs (lane pr-refine) with prepare: merge-base and `extra`.
+function withPrepare(env, extra = "") {
+  const config = join(env.BASE_PATH, CONFIG_PATH);
+  writeFileSync(
+    config,
+    readFileSync(config, "utf8").replace(
+      "    effect: mutate-branch\n",
+      `    effect: mutate-branch\n    prepare: merge-base\n${extra}`,
+    ),
+  );
+  env.LANE = "pr-refine";
+  env.ACTIVITY = "fix-docs";
+}
+
+test("a leaf's prepare mode is a step output, set only when the leaf declares one", async () => {
+  const { env } = workspace();
+  withPrepare(env);
+  env.PREPARE_SUPPORTED = "true";
+  assert.equal(await main({ env, github: noApi }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).prepare, "merge-base");
+});
+
+test("an applying leaf with prepare fails red unless the runner declares prepare support", async (t) => {
+  for (const supported of [undefined, "", "false", "TRUE"]) {
+    const { env } = workspace();
+    withPrepare(env);
+    if (supported === undefined) {
+      delete env.PREPARE_SUPPORTED;
+    } else {
+      env.PREPARE_SUPPORTED = supported;
+    }
+    await assertFailsRed(t, env, /prepare-supported/);
+  }
+});
+
+test("a leaf with prepare that does not apply resolves without prepare support", async () => {
+  const { env } = workspace();
+  withPrepare(env, "    applies-when:\n      labels: [never-set]\n");
+  assert.equal(await main({ env, github: noApi }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "false");
+});
+
+// mergeable, labels-absent and draft, from GET /pulls/{n}
+
+const GATED_HEAD = "a".repeat(40);
+const OTHER_HEAD = "b".repeat(40);
+
+// Serves GET /pulls/42 from `reads` in turn, repeating the last one.
+function pullReads(reads) {
+  let index = 0;
+  return fakeGitHub({
+    "/repos/melodic-software/claude-code-plugins/pulls/42": () => {
+      const read = reads[Math.min(index, reads.length - 1)];
+      index += 1;
+      return {
+        number: 42,
+        draft: false,
+        labels: [],
+        ...read,
+        head: { sha: read.headSha ?? GATED_HEAD },
+      };
+    },
+  });
+}
+const PULL = "GET /repos/melodic-software/claude-code-plugins/pulls/42";
+const noSleep = async () => {};
+
+function dispatchWithPredicate(env, predicate) {
+  writeFileSync(env.EVENT_PATH, JSON.stringify({ inputs: {} }));
+  env.EVENT_NAME = "workflow_dispatch";
+  env.HEAD_SHA = GATED_HEAD;
+  withPredicate(env, predicate);
+}
+
+test("mergeable false at the gated head reads as conflicting", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github, calls } = pullReads([{ mergeable: false }]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  assert.deepEqual(calls, [PULL]);
+});
+
+test("mergeable true reads as clean and misses a conflicting predicate", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github } = pullReads([{ mergeable: true }]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.deepEqual(
+    [
+      readOutputs(env.GITHUB_OUTPUT).applies,
+      readOutputs(env.GITHUB_OUTPUT)["skip-reason"],
+    ],
+    ["false", "not-applicable"],
+  );
+});
+
+test("a null mergeable is re-read a bounded number of times, then skips with prerequisite-missing", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github, calls } = pullReads([{ mergeable: null }]);
+  const sleeps = [];
+  const sleep = async (ms) => {
+    sleeps.push(ms);
+  };
+  assert.equal(await main({ env, github, sleep }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.deepEqual(
+    [outputs.applies, outputs["skip-reason"]],
+    ["false", "prerequisite-missing"],
+  );
+  assert.equal(calls.length, 3);
+  assert.equal(sleeps.length, 2);
+});
+
+test("a null mergeable that settles within the bound is used", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github, calls } = pullReads([
+    { mergeable: null },
+    { mergeable: false },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  assert.equal(calls.length, 2);
+});
+
+test("a mergeable read whose head.sha is not the gated head-sha is re-read, then skips with prerequisite-missing", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github, calls } = pullReads([
+    { mergeable: false, headSha: OTHER_HEAD },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(
+    readOutputs(env.GITHUB_OUTPUT)["skip-reason"],
+    "prerequisite-missing",
+  );
+  assert.equal(calls.length, 3);
+});
+
+test("a mergeable read at another head that reaches the gated head within the bound is used", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  const { github } = pullReads([
+    { mergeable: true, headSha: OTHER_HEAD },
+    { mergeable: false },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+});
+
+test("a mergeable predicate with no head-sha fails red", async (t) => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { mergeable: ["conflicting"] });
+  delete env.HEAD_SHA;
+  await assertFailsRed(
+    t,
+    env,
+    /head-sha/,
+    pullReads([{ mergeable: false }]).github,
+  );
+});
+
+test("mergeable never comes from the event payload", async () => {
+  const { env } = workspace();
+  writeFileSync(
+    env.EVENT_PATH,
+    JSON.stringify({
+      action: "synchronize",
+      pull_request: { number: 42, labels: [], draft: false, mergeable: false },
+    }),
+  );
+  env.HEAD_SHA = GATED_HEAD;
+  withPredicate(env, { mergeable: ["conflicting"] });
+  const { github, calls } = pullReads([{ mergeable: true }]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "false");
+  assert.deepEqual(calls, [PULL]);
+});
+
+test("on workflow_dispatch, labels, draft and mergeable come from one GET /pulls/{n}", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, {
+    mergeable: ["conflicting"],
+    "labels-absent": ["do-not-merge", "needs-human"],
+    draft: [false],
+  });
+  const { github, calls } = pullReads([
+    { mergeable: false, draft: false, labels: [{ name: "C2" }] },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  assert.deepEqual(calls, [PULL]);
+});
+
+test("a needs-human label skips with awaiting-human", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, {
+    mergeable: ["conflicting"],
+    "labels-absent": ["do-not-merge", "needs-human"],
+  });
+  const { github } = pullReads([
+    { mergeable: false, labels: [{ name: "needs-human" }] },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "awaiting-human");
+});
+
+test("labels-absent reads labels from GET /pulls/{n}, not the event payload", async () => {
+  const { env } = workspace();
+  writeFileSync(
+    env.EVENT_PATH,
+    JSON.stringify({
+      action: "synchronize",
+      pull_request: { number: 42, labels: [], draft: false },
+    }),
+  );
+  withPredicate(env, { "labels-absent": ["needs-human"] });
+  const { github, calls } = pullReads([
+    { labels: [{ name: "needs-human" }] },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "awaiting-human");
+  assert.deepEqual(calls, [PULL]);
+});
+
+test("a draft PR misses draft: [false] with not-applicable", async () => {
+  const { env } = workspace();
+  dispatchWithPredicate(env, { draft: [false] });
+  const { github } = pullReads([{ draft: true }]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "not-applicable");
+});
+
+test("on a pull_request event, draft comes from the payload without an API call", async () => {
+  const { env } = workspace();
+  writeFileSync(
+    env.EVENT_PATH,
+    JSON.stringify({
+      action: "synchronize",
+      pull_request: { number: 42, labels: [], draft: true },
+    }),
+  );
+  withPredicate(env, { draft: [false] });
+  const { github, calls } = fakeGitHub({});
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "not-applicable");
+  assert.deepEqual(calls, []);
 });

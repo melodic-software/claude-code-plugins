@@ -7,7 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
-import { applies, factsFor } from "./predicate.mjs";
+import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
@@ -107,6 +107,117 @@ function checkVocabularyShape(vocabulary) {
   }
 }
 
+const isComposite = (activity) => Object.hasOwn(activity, "children");
+
+// What the schema cannot check about composites: each child is defined, a
+// child's needs name its siblings, no composite contains itself, and a
+// composite holds only leaves, so no leaf sits more than two layers below its
+// lane.
+function checkComposites(activities) {
+  const composites = Object.entries(activities).filter(([, activity]) =>
+    isComposite(activity),
+  );
+  for (const [name, { children }] of composites) {
+    const siblings = new Set(children.map((child) => child.activity));
+    for (const child of children) {
+      if (!Object.hasOwn(activities, child.activity)) {
+        throw new Rejection(
+          "undefined-activity",
+          `composite \`${name}\` names activity \`${child.activity}\`, which is not defined`,
+        );
+      }
+      for (const need of child.needs ?? []) {
+        if (!siblings.has(need)) {
+          throw new Rejection(
+            "needs-not-sibling",
+            `composite \`${name}\` child \`${child.activity}\` needs \`${need}\`, which is not one of its siblings`,
+          );
+        }
+      }
+    }
+  }
+  const done = new Set();
+  const visit = (name, trail) => {
+    if (done.has(name) || !isComposite(activities[name])) {
+      return;
+    }
+    if (trail.includes(name)) {
+      throw new Rejection(
+        "activity-cycle",
+        `composite \`${name}\` contains itself: ${[...trail, name].join(" -> ")}`,
+      );
+    }
+    for (const child of activities[name].children) {
+      visit(child.activity, [...trail, name]);
+    }
+    done.add(name);
+  };
+  for (const [name, { children }] of composites) {
+    visit(name, []);
+    const nested = children.find((child) =>
+      isComposite(activities[child.activity]),
+    );
+    if (nested) {
+      throw new Rejection(
+        "activity-depth",
+        `composite \`${name}\` holds composite \`${nested.activity}\`; a composite holds only leaves, at most two layers below the lane`,
+      );
+    }
+  }
+}
+
+// activity-rules.json: per leaf, the effects it may never have and what it
+// never does. A leaf with no row is valid; a missing file is not, and every
+// forbidden effect must be one effect-grants.json knows.
+function checkActivityRules(activityRules, effectGrants) {
+  const valid =
+    isObject(activityRules) &&
+    isObject(effectGrants) &&
+    Object.values(activityRules).every(
+      (row) =>
+        isObject(row) &&
+        typeof row.never === "string" &&
+        row.never !== "" &&
+        (row["forbidden-effects"] === undefined ||
+          (Array.isArray(row["forbidden-effects"]) &&
+            row["forbidden-effects"].every(
+              (effect) =>
+                typeof effect === "string" &&
+                Object.hasOwn(effectGrants, effect),
+            ))),
+    );
+  if (!valid) {
+    throw new Rejection(
+      "activity-rules",
+      "activity-rules.json must be present and map each activity to a `never` string and an optional `forbidden-effects` list of effect-grants.json effects",
+    );
+  }
+  return activityRules;
+}
+
+function checkLeaves(activities, activityRules) {
+  for (const [name, activity] of Object.entries(activities)) {
+    if (isComposite(activity)) {
+      continue;
+    }
+    if (activity.prepare !== undefined && activity.effect === "read") {
+      throw new Rejection(
+        "invalid-prepare",
+        `activity \`${name}\` sets prepare with effect read; prepare needs a skill that can write`,
+      );
+    }
+    const rule = Object.hasOwn(activityRules, name)
+      ? activityRules[name]
+      : undefined;
+    if ((rule?.["forbidden-effects"] ?? []).includes(activity.effect)) {
+      throw new Rejection(
+        "forbidden-by-activity",
+        `activity \`${name}\` may not have effect ${activity.effect}: ${rule.never}`,
+      );
+    }
+  }
+}
+
 // Rejections 1, 2, 4-9 and 3 over the whole file, whichever lane the run asked for.
 export function loadConfig(files, { configPath }) {
   checkConfigPath(configPath);
@@ -140,6 +251,11 @@ export function loadConfig(files, { configPath }) {
       throw new Rejection("vocabulary", problem);
     }
   }
+  checkComposites(doc.activities);
+  checkLeaves(
+    doc.activities,
+    checkActivityRules(files.activityRules, files.effectGrants),
+  );
 
   for (const [laneName, lane] of Object.entries(doc.lanes)) {
     const rule = Object.hasOwn(files.laneRules, laneName)
@@ -173,12 +289,26 @@ export function loadConfig(files, { configPath }) {
           );
         }
       }
-      const activity = doc.activities[slot.activity];
+    }
+    const leaves = expand(doc, lane.slots ?? [], ROOT).map(
+      (entry) => entry.name,
+    );
+    const repeated = leaves.find(
+      (name, index) => leaves.indexOf(name) !== index,
+    );
+    if (repeated !== undefined) {
+      throw new Rejection(
+        "undefined-activity",
+        `lane \`${laneName}\` holds activity \`${repeated}\` more than once; a leaf may appear once in a lane`,
+      );
+    }
+    for (const name of leaves) {
+      const activity = doc.activities[name];
       // The lane rule compares strictly, so it must not depend on the schema enum.
       if (typeof activity.effect !== "string") {
         throw new Rejection(
           "invalid-config",
-          `activity \`${slot.activity}\` has an effect that is not a string`,
+          `activity \`${name}\` has an effect that is not a string`,
         );
       }
       if (
@@ -187,7 +317,7 @@ export function loadConfig(files, { configPath }) {
       ) {
         throw new Rejection(
           "forbidden-by-lane",
-          `lane \`${laneName}\` may not run \`${slot.activity}\` (effect ${activity.effect}, gating ${activity.gating}): ${rule.never}`,
+          `lane \`${laneName}\` may not run \`${name}\` (effect ${activity.effect}, gating ${activity.gating}): ${rule.never}`,
         );
       }
     }
@@ -202,17 +332,47 @@ function laneSection(doc, lane) {
   return doc.lanes[lane];
 }
 
-// Each slot of the lane with its activity, effective predicate and enabled flag.
+const ROOT = Object.freeze({ enabled: true, predicates: [], needs: [] });
+
+// The leaf keys a needs entry waits on: a composite's leaves, or the leaf.
+const leafKeys = (doc, name) =>
+  isComposite(doc.activities[name])
+    ? doc.activities[name].children.map((child) => child.activity)
+    : [name];
+
+// Each leaf under these slots, depth first in list order, with its own
+// effective predicate, every predicate it must also pass (ancestors first),
+// enabled as the AND down its path, and needs as its ancestors' then its own.
+function expand(doc, slots, parent) {
+  return slots.flatMap((slot) => {
+    const activity = doc.activities[slot.activity];
+    const predicate = slot["applies-when"] ?? activity["applies-when"];
+    const path = {
+      enabled: parent.enabled && (slot.enabled ?? true),
+      predicates:
+        predicate === undefined
+          ? parent.predicates
+          : [...parent.predicates, predicate],
+      needs: [
+        ...new Set([
+          ...parent.needs,
+          ...(slot.needs ?? []).flatMap((need) => leafKeys(doc, need)),
+        ]),
+      ],
+    };
+    return isComposite(activity)
+      ? expand(doc, activity.children, path)
+      : [{ name: slot.activity, activity, predicate, ...path }];
+  });
+}
+
+// Each leaf of the lane, with its activity, predicates and enabled flag.
 function laneSlots(doc, lane) {
   const section = laneSection(doc, lane);
-  const laneEnabled = section.enabled ?? true;
-  return (section.slots ?? []).map((slot) => ({
-    slot,
-    activity: doc.activities[slot.activity],
-    predicate:
-      slot["applies-when"] ?? doc.activities[slot.activity]["applies-when"],
-    enabled: laneEnabled && (slot.enabled ?? true),
-  }));
+  return expand(doc, section.slots ?? [], {
+    ...ROOT,
+    enabled: section.enabled ?? true,
+  });
 }
 
 // The index of the requested activity's slot, -1 when none was requested.
@@ -221,7 +381,7 @@ function selectedIndex(entries, lane, activity) {
     return -1;
   }
   const indexes = entries.flatMap((entry, index) =>
-    entry.slot.activity === activity ? [index] : [],
+    entry.name === activity ? [index] : [],
   );
   if (indexes.length !== 1) {
     throw new Rejection(
@@ -243,14 +403,86 @@ export function neededFacts(files, { lane, activity, configPath }) {
   const entries = laneSlots(doc, lane);
   const selected = selectedIndex(entries, lane, activity);
   const needed = new Set();
-  entries.forEach(({ predicate, enabled }, index) => {
+  entries.forEach(({ activity: definition, predicates, enabled }, index) => {
     if (enabled && decides(index, selected)) {
-      for (const fact of factsFor(predicate)) {
+      for (const fact of predicates.flatMap(factsFor)) {
         needed.add(fact);
+      }
+      if ((definition.inputs ?? []).includes("changed-paths")) {
+        needed.add("changedPaths");
       }
     }
   });
   return [...needed];
+}
+
+// Files Claude Code or a plugin loads as instructions. Target selection, not a
+// control: a write activity is not asked to fix them, though its token and
+// tools can change any file and the PR reviews what it did.
+const INSTRUCTION_SURFACES = [
+  "**/claude.md",
+  "**/claude.local.md",
+  "**/agents.md",
+  "**/.claude/**",
+  "**/.claude-plugin/**",
+  "**/skill.md",
+  "**/skills/**",
+  "**/agents/**",
+  "**/commands/**",
+  "**/hooks/**",
+  "**/output-styles/**",
+  "**/prompts/**",
+];
+// A name that is safe as a prompt word: no space, quote, comma, glob or shell
+// character, no `.`/`..` segment, no segment that starts with `-`, so it
+// cannot read as an option, and no leading `@`, so it cannot read as a file
+// mention.
+const SAFE_PATH = /^(?![-@])[A-Za-z0-9_@+.-]+(?:\/(?!-)[A-Za-z0-9_@+.-]+)*$/;
+const isSafePath = (path) =>
+  SAFE_PATH.test(path) &&
+  !path.split("/").some((segment) => segment === "." || segment === "..");
+
+// Every path pattern in CODEOWNERS, owned or not, as globs: a leading `/`
+// anchors at the root, any other pattern matches at any depth, and a pattern
+// also covers everything under it.
+function codeownersGlobs(text) {
+  return (text ?? "").split("\n").flatMap((line) => {
+    const pattern = line.replace(/#.*/, "").trim().split(/\s+/)[0];
+    if (!pattern) {
+      return [];
+    }
+    const body = pattern.startsWith("/") ? pattern.slice(1) : `**/${pattern}`;
+    const trimmed = body.replace(/\/+$/, "");
+    return trimmed ? [trimmed, `${trimmed}/**`] : [];
+  });
+}
+
+// The changed-paths input: the PR's changed files that still exist, that match
+// the slot's `paths` predicate when it has one, and that have a safe name. For
+// any effect but `read`, instruction surfaces and every path CODEOWNERS lists
+// are left out of what the activity is asked to fix. Sorted, without
+// duplicates.
+export function changedPathTargets({
+  paths,
+  predicatePaths,
+  effect,
+  codeowners,
+}) {
+  const owned = codeownersGlobs(codeowners);
+  const notTargeted = (path) =>
+    effect !== "read" &&
+    (INSTRUCTION_SURFACES.some((glob) =>
+      posix.matchesGlob(path.toLowerCase(), glob),
+    ) ||
+      owned.some((glob) => posix.matchesGlob(path, glob)));
+  const kept = paths.filter(
+    (path) =>
+      isSafePath(path) &&
+      (predicatePaths === undefined ||
+        predicatePaths.some((glob) => posix.matchesGlob(path, glob))) &&
+      !notTargeted(path),
+  );
+  return [...new Set(kept)].sort();
 }
 
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
@@ -280,8 +512,8 @@ function grantFor(effectGrants, effect) {
 }
 
 function resolveSlot(
-  { slot, activity, predicate, enabled },
-  effectGrants,
+  { name, activity, predicate, predicates, enabled, needs },
+  { effectGrants, codeowners },
   facts,
   decided,
 ) {
@@ -290,20 +522,45 @@ function resolveSlot(
   if (!enabled) {
     outcome = { applies: false, skipReason: "disabled-by-config" };
   } else if (decided) {
-    outcome = applies(predicate, facts);
+    outcome = appliesAll(predicates, facts);
+  }
+  let targets;
+  if (outcome.applies && (activity.inputs ?? []).includes("changed-paths")) {
+    if (facts.changedTargets === undefined) {
+      throw new MissingFact("changedTargets");
+    }
+    // A composite's paths predicate narrows its leaves' targets too.
+    const ancestors =
+      predicate === undefined ? predicates : predicates.slice(0, -1);
+    targets = changedPathTargets({
+      paths: facts.changedTargets.filter((path) =>
+        ancestors.every(
+          (outer) =>
+            outer.paths === undefined ||
+            outer.paths.some((glob) => posix.matchesGlob(path, glob)),
+        ),
+      ),
+      predicatePaths: predicate?.paths,
+      effect: activity.effect,
+      codeowners,
+    });
+    if (targets.length === 0) {
+      outcome = { applies: false, skipReason: "not-applicable-paths" };
+    }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
   return {
-    name: slot.activity,
+    name,
     kind,
     [kind]: activity[kind],
     ...(activity.args === undefined ? {} : { args: activity.args }),
+    ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],
     scope: activity.scope ?? "diff",
     inputs: activity.inputs ?? [],
-    needs: slot.needs ?? [],
+    needs,
     ...(predicate === undefined ? {} : { "applies-when": predicate }),
     enabled,
     model: activity.model ?? null,
@@ -311,6 +568,7 @@ function resolveSlot(
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
+    ...(outcome.applies && targets ? { "changed-paths": targets } : {}),
   };
 }
 
@@ -364,7 +622,7 @@ export function resolve(
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files.effectGrants, facts, decides(i, index)),
+    resolveSlot(entry, files, facts, decides(i, index)),
   );
   return {
     version: 1,

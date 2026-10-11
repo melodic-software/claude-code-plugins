@@ -184,6 +184,24 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The playwright demo-video skill's hash-locked Python packages
+  # (numpy, Pillow), installed the same way.
+  - package-ecosystem: pip
+    directory: /plugins/playwright/skills/demo-video
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      pip-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # Ruff is a CI-only executable pinned to the Ubuntu x64 wheel and its PyPI
   # digest. Dependabot must update both the version and reviewed hash.
   - package-ecosystem: pip

@@ -96,7 +96,7 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 **When to fan out, and to what.** Fan-out is the worker's, not the parent's: the parent dispatches **one** `discovery:explorer`, which scales inside its own run. Two triggers, either one: the scope names **two or more disjoint areas**, or the numbered gap-list after the first pass carries **four or more** entries in areas that share no files. Below that, go sequential; a scout costs a spawn and returns a pointer, which a single-area scope does not need. The worker type is the **built-in Explore scout** described above, one per disjoint area, each told what it owns and what it must not wander into. **Spawn at most a dozen scouts at once.** That is this plugin's own ceiling, not the session's: the harness enforces a separate concurrency limit whose value this body does not restate and which a consumer can configure *below* a dozen, so a wave of twelve is not guaranteed to fit. Treat a refused spawn as an area **deferred, not dropped**: hold it and re-spawn it in the next wave, and let the gap-list rather than the first wave decide when coverage is done. The scout is locate-tier: its hits are pointers, and the worker Reads the file itself before any sidecar records `verified: read`.
 
-**One `EXPLORE.md`, one worker.** Fanning the six dimensions across *parent-side* explorers, the shape `/discovery:research-deep` uses for N independent topics, is deliberately not done here. Research topics are independent; codebase areas share a dependency graph, and dimension 3 is the one a parent-side split severs. Revisit only when an ask arrives as N genuinely separable modules with no cross-area dependency; then the sub-slice machinery this plugin already has applies unchanged.
+**One `EXPLORE.md`, one worker.** Fanning the six dimensions across *parent-side* explorers, the shape the `/discovery:research` deep tier uses for N independent topics, is deliberately not done here. Research topics are independent; codebase areas share a dependency graph, and dimension 3 is the one a parent-side split severs. Revisit only when an ask arrives as N genuinely separable modules with no cross-area dependency; then the sub-slice machinery this plugin already has applies unchanged.
 
 ## Worker procedure
 
@@ -109,6 +109,8 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 - **Every Output-format section populated with specifics**. Each of the 7 sections carries concrete findings, not placeholders or "TBD".
 - **Every load-bearing area covered OR listed as a numbered gap**. Nothing the task plausibly depends on is silently unexplored.
 - **Conclusion-driving claims are Read-verified, not inferred from a filename or grep hit**. Anything a downstream decision rests on came from reading the file or code.
+- **A pass/fail claim was run, not read**. Every claim that a test or check passes, fails or builds carries `verified: ran` with its `command:` and observed `result:`; a test that was only opened supports no such claim.
+- **The index pins and lists what it cites**. Its frontmatter `repos:` carries each explored repository's `sha` and `dirty` flag, its `## Code references` section opens with `coverage: exhaustive` or `coverage: key-files` followed by the staleness-check line, and every abstract states a finding rather than naming what was covered.
 - **Paths are machine-agnostic**. No finding in the artifact echoes an absolute machine path (notably the project root gathered above); every path it records is written relative to the repo root, or, when there is no repo root, to the current working directory, so the handoff stays portable across machines.
 - **Open questions handed off, never dropped**. Surfaced to the user inline, or carried in the payload's `open_questions` for the parent to surface under dispatch. Each with a recommended default.
 
@@ -126,13 +128,13 @@ Write the exploration output to `<memory_dir>/<slug>/EXPLORE.md`, a memory-tier 
 
 This file is the authoritative stage summary, a fresh session must be able to resume external research or planning reading only this artifact.
 
-**`EXPLORE.md` is always an INDEX**, at every size, not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the closing Next-stage-handoff naming what external research (`/discovery:research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema and the two load-bearing placement rules. Sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
+**`EXPLORE.md` is always an INDEX**, at every size, not only past an overflow threshold. It carries a task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, a `## Code references` listing with its `coverage:` and staleness-check lines, and the closing Next-stage-handoff naming what external research (`/discovery:research`) or planning needs. The 7-point Output format's content lives in sibling `EXPLORE-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers and read exactly one file. Schema, the `repos:` commit pin, and the two load-bearing placement rules. Sidecars stay inside `<memory_dir>/<slug>/`, and `EXPLORE.md` stays the entry point: [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
 
 **Sidecar bodies match their length to what the section needs**. Cover the substance, but do not pad with filler sections, redundant summaries, or boilerplate; the index's one-line abstracts and the outcome gate's specifics are the floor, not an invitation to narrate.
 
 **Sidecar filenames are keyed on the SECTION, not the scope**, a run has one scope and many sections, so a scope-keyed name gives every sidecar the same filename and later sections overwrite earlier ones. Use the same stable id the header's `section` field and the index anchor carry.
 
-**Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
+**Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | ran | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
 
 **If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Occupancy is the PARENT's to resolve, before any write: stat the slice root pre-dispatch, and when it is occupied assign a sub-slice `<memory_dir>/<slug>/<scope-slug>/` as the envelope's slice path, so the whole artifact set is written there under its normal names. A worker never picks a sub-slice itself, and on an inline run this session is the parent and applies the same check before writing. A prior exploration lost to a filename collision is silent and unrecoverable.
 
@@ -159,9 +161,9 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 ## Next
 
 - Findings raise a question about current external practice: `/discovery:research <topic>`.
-- Findings raise a question about why the code is the way it is: `/discovery:trace-intent <subject>`.
-- The picture is enough and the work adds types, contracts, or module boundaries: `/planning:design`.
-- The picture is enough and no design question is open: `/planning:plan`.
+- The picture is enough, no contract is locked, and the diff will not be quick to review and cheap to retry: `/planning:interview`.
+- The contract is locked and the work adds types, contracts, or module boundaries: `/planning:design`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## Gotchas
 

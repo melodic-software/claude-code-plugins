@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Connect an analytics MCP server, or send me an export.",
+      "why": "MCP"
+    },
+    {
+      "answer": "A CSV export of the onboarding events would replace these assumptions.",
+      "why": "export"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "I pulled your onboarding data from Mixpanel.",
+      "why": "claims a tool, names no access"
+    }
+  ]
+}

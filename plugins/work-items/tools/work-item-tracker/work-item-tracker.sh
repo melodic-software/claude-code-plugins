@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/lib/gh-version.sh"
 
 readonly EX_USAGE=2
 readonly EX_CONFIG=3
+readonly EX_NOT_FOUND=5
 readonly EX_CAPABILITY=6
 
 # wit_resolve_adapter_dir <provider>: CONTRACT.md "Adapter resolution". When none
@@ -51,7 +52,9 @@ Verbs:
   link-blocks <id> --blocked-by <id>
   add-sub-item <id> --parent <id>
   list-sub-items <parent-id> [--state open|closed|all]
-  list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>]
+  list-items [--state open|closed|all] [--repo <owner>/<repo>] [--label <name>]
+  list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
+  change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -120,7 +123,8 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | change-link | capabilities) ;;
+  list-items) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.
@@ -169,8 +173,8 @@ main() {
     list-items)
       check_gh_version
       ;;
-    capabilities)
-      # Reads the JSON manifest only; never shells out to gh.
+    capabilities | change-link)
+      # Read the JSON manifest or format text only; never shell out to gh.
       ;;
     *)
       check_gh_present
@@ -185,22 +189,34 @@ main() {
   fi
 
   local out rc
-  if [[ "$verb" == "list-frontier" ]]; then
-    local autonomous="false" parent="" list_args=()
+  if [[ "$verb" == "list-frontier" || "$verb" == "list-items" ]]; then
+    local autonomous="false" parent="" state="open" label="" has_label="false" list_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --autonomous)
+        [[ "$verb" == "list-frontier" ]] || fail_usage
         autonomous="true"
         shift
         ;;
       --parent)
-        [[ $# -ge 2 ]] || fail_usage
+        [[ "$verb" == "list-frontier" && $# -ge 2 ]] || fail_usage
         parent="$2"
+        shift 2
+        ;;
+      --state)
+        [[ "$verb" == "list-items" && $# -ge 2 ]] || fail_usage
+        state="$2"
         shift 2
         ;;
       --repo)
         [[ $# -ge 2 ]] || fail_usage
         list_args+=(--repo "$2")
+        shift 2
+        ;;
+      --label)
+        [[ $# -ge 2 && -n "$2" ]] || fail_usage
+        label="$2"
+        has_label="true"
         shift 2
         ;;
       *) fail_usage ;;
@@ -211,21 +227,65 @@ main() {
       printf 'work-item-tracker: --repo is not valid with --parent (container id carries the repo)\n' >&2
       exit "$EX_USAGE"
     fi
+    # CONTRACT.md "Adapter contract": an adapter that declares the label filter narrows
+    # its provider query, so list_items_max counts only matching items. Any other adapter
+    # gets no --label (it would be a usage error there) and lists unfiltered.
+    if [[ "$has_label" == "true" && -z "$parent" &&
+      "$(jq -r '.features.list_items_label_filter // false' "$manifest")" == "true" ]]; then
+      list_args+=(--label "$label")
+    fi
     if [[ -n "$parent" ]]; then
       # The same filter's container exclusion keeps a nested sub-map among the
       # children from being a frontier item itself.
       out="$(bash "$adapter_dir/list-sub-items.sh" "$parent" --state open)"
     else
-      out="$(bash "$adapter_dir/list-items.sh" --state open "${list_args[@]+"${list_args[@]}"}")"
+      out="$(bash "$adapter_dir/list-items.sh" --state "$state" "${list_args[@]+"${list_args[@]}"}")"
     fi
     rc=$?
     if ((rc != 0)); then
       exit "$rc"
     fi
+    out="$(printf '%s\n' "$out" | wit_strip_cr)"
+    # Exact match core-side in every case: it is the whole filter for an adapter without
+    # the provider filter, and the guard against a provider that matches loosely.
+    if [[ "$has_label" == "true" ]]; then
+      out="$(printf '%s\n' "$out" | wit_filter_label "$label")" || exit 1
+    fi
+    if [[ "$verb" == "list-items" ]]; then
+      printf '%s\n' "$out"
+      exit 0
+    fi
     # wit_read_binding above guarantees both labels; no inline defaults here.
-    printf '%s\n' "$out" | wit_strip_cr |
+    printf '%s\n' "$out" |
       wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
+  fi
+
+  if [[ "$verb" == "change-link" ]]; then
+    # --branch <name> is core-side: apply the manifest's branch grammar (CONTRACT.md
+    # "Change links") and hand the adapter the captured ref, so adapters only qualify refs.
+    local cl_args=() branch="" pattern
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "--branch" ]]; then
+        [[ $# -ge 2 && -n "$2" && -z "$branch" ]] || fail_usage
+        branch="$2"
+        shift 2
+      else
+        cl_args+=("$1")
+        shift
+      fi
+    done
+    if [[ -n "$branch" ]]; then
+      pattern="$(jq -r '.change_link.branch_pattern // empty' "$manifest")"
+      [[ -n "$pattern" ]] ||
+        fail_config "adapter '$WIT_PROVIDER' declares change-link but no change_link.branch_pattern"
+      if ! [[ "$branch" =~ $pattern ]] || ((${#BASH_REMATCH[@]} < 2)); then
+        printf "work-item-tracker: branch '%s' carries no %s item reference\n" "$branch" "$WIT_PROVIDER" >&2
+        exit "$EX_NOT_FOUND"
+      fi
+      cl_args+=(--branch-ref "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}")
+    fi
+    set -- "${cl_args[@]+"${cl_args[@]}"}"
   fi
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"

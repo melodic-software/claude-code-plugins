@@ -1,5 +1,23 @@
 # Changelog: docs-hygiene plugin
 
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+
+## [0.27.4] - 2026-10-10
+
+### Fixed
+
+- **The agent-doc surfaces guide no longer says nested CLAUDE.md and path-scoped rules load only on a file read.** `/docs-hygiene:write-for-agents` told authors these surfaces load when Claude reads a matching file, but current Claude Code also loads them when Claude writes or edits one, and counts some single-file shell reads. The guide now says they load when Claude works with a matching file and points at the memory docs for the exact trigger list, with an as-of date and a recheck trigger, so the next change to that list does not make the guide wrong again. The same claim in the `/docs-hygiene:extract-ssot` anti-patterns reference is corrected the same way. The guide's AGENTS.md row no longer says a nested AGENTS.md attaches only on a read, and the guide notes that the changelog and the memory docs disagree on what attaches one, pointing at both.
+
+## [0.27.3] - 2026-10-10
+
+### Changed
+
+- **The derivability route follow-ups cite machine-health's renamed porting stubs** (`scripts/{linux,macos}/not-implemented.md`).
+
 ## [0.27.2] - 2026-10-07
 
 ### Changed

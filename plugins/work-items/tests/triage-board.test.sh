@@ -83,6 +83,11 @@ build({ items: [{ number: 1, title: "t" }] });
 const bare = JSON.parse(/id="rv-data">([^]*?)<\/script>/.exec(readFileSync(`${work}/board.html`, "utf8"))[1]);
 check("an item with no labels and no state groups as no label, untriaged", bare.bylabel[0].name === "no label" && bare.bystate[0].name === "untriaged");
 check("an item whose blockers were not read is neither blocked nor unblocked", bare.byblocker[0].name === "blockers not read");
+const wontDo = build({ items: [{ number: 62, title: "t", state: "blocked by won't-do", blockedBy: [58] }, { number: 61, title: "u", state: "unlabeled" }] });
+const wontDoPage = readFileSync(`${work}/board.html`, "utf8");
+const wontDoData = JSON.parse(/id="rv-data">([^]*?)<\/script>/.exec(wontDoPage)[1]);
+check("the blocked-by-won't-do bucket groups as its own state", wontDo.status === 0 && wontDoData.bystate.some((g) => g.name === "blocked by won't-do" && g.srows[0].ref === "#62"), wontDo.stderr);
+check("a board with the won't-do bucket passes the interactive profile", validateView(wontDoPage).ok, validateView(wontDoPage).failures);
 check(
   "the act list holds every item in input order, ref and title only",
   JSON.stringify(data.items) === JSON.stringify(items.slice(0, 3).map((item, i) => ({ ref: `#${i + 1}`, title: item.title }))),

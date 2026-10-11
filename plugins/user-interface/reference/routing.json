@@ -71,6 +71,8 @@
     {"concern": "responsive-testing", "rank": 3, "id": "chrome-devtools-mcp@claude-plugins-official", "kind": "plugin", "detect": "chrome-devtools-mcp@claude-plugins-official", "account": "none", "status": "confirmed", "platforms": ["windows", "macos", "linux"], "as_of": "2026-10-04", "pointer": "https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md"},
     {"concern": "responsive-testing", "rank": 4, "id": "playwright@claude-plugins-official", "kind": "plugin", "detect": "playwright@claude-plugins-official", "account": "none", "status": "confirmed", "platforms": ["windows", "macos", "linux"], "as_of": "2026-10-04", "pointer": "https://github.com/microsoft/playwright-mcp"},
 
+    {"concern": "css-authoring", "rank": 1, "id": "/user-interface:write-css", "kind": "skill", "detect": "user-interface", "account": "none", "status": "confirmed", "platforms": ["windows", "macos", "linux"], "as_of": "2026-10-10"},
+
     {"concern": "ux-writing", "rank": 1, "id": "/writing:be-concise", "kind": "skill", "detect": "writing", "account": "none", "status": "confirmed", "platforms": ["windows", "macos", "linux"], "as_of": "2026-10-04"},
     {"concern": "ux-writing", "rank": 2, "id": "/design:ux-copy", "kind": "skill", "detect": "design@knowledge-work-plugins", "account": "none", "status": "confirmed", "platforms": ["windows", "macos", "linux"], "as_of": "2026-10-04", "pointer": "https://github.com/anthropics/knowledge-work-plugins"}
   ]

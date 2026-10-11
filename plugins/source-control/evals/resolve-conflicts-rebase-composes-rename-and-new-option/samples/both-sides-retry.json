@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "    max_attempts: int = 3\n    backoff_jitter: float = 0.0\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "    max_retries: int = 3\n    backoff_jitter: float = 0.0\n"
+    },
+    {
+      "answer": "    max_attempts: int = 3\n"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

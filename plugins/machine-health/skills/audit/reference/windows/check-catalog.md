@@ -629,7 +629,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   A project-key directory is reused across sessions, so its own timestamp reports when the key was
   first seen, not how long the oldest unreclaimed content has survived. Unreadable paths are counted
   into `detail.unreadable_dir_count` and noted, so totals are a lower bound, never silently short.
-  The check is Windows-only: `scripts/macos/` and `scripts/linux/` are `NOT_IMPLEMENTED` stubs, so
+  The check is Windows-only: `scripts/macos/` and `scripts/linux/` are `not-implemented.md` stubs, so
   there is no POSIX implementation to register and the skill reports `UNKNOWN` wholesale on those
   hosts. A POSIX port resolves its own base and per-user segment rather than copying the Windows
   candidates, and lists the same `tasks/*.output` level beneath it.

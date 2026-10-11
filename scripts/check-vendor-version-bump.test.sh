@@ -210,6 +210,47 @@ else
 fi
 rm -rf "$f"
 
+# A verified Dependabot change set needs no fragment: dependabot-fragments.yml
+# writes it after the merge. A gh stub answers the signature lookup with
+# $GH_ANSWER, as in check-changelog-fragments.test.sh.
+base_fixture f
+printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
+git -C "$f" add -A
+git_test_config "$f" commit -qm "fragment mode"
+dependabot_base="$(git -C "$f" rev-parse HEAD)"
+mkdir -p "$f/stub"
+# shellcheck disable=SC2016  # the stub expands this when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\n' >"$f/stub/gh"
+chmod +x "$f/stub/gh"
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+git -C "$f" add plugins
+GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com' \
+  GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com git_test_config "$f" commit -qm "build(deps): bump pkg"
+run_dependabot_gate() { # <gh-answer> <author>
+  PATH="$f/stub:$PATH" GH_ANSWER="$1" CHANGELOG_PR_AUTHOR="$2" GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
+    run_gate "$f" --check-bump "$dependabot_base" 2>&1
+}
+if out="$(run_dependabot_gate true 'dependabot[bot]')" && grep -q "Dependabot-only change to plugins/alpha/vendor/" <<<"$out"; then
+  ok "a verified Dependabot vendor change to a fragment-mode plugin needs no fragment"
+else
+  fail "a verified Dependabot change set should pass, got: $out"
+fi
+if out="$(run_dependabot_gate false 'dependabot[bot]')"; then
+  fail "an unverified Dependabot commit should not be exempt, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+  ok "an unverified Dependabot commit still needs a fragment"
+else
+  fail "expected STALE VERSION for an unverified commit, got: $out"
+fi
+if out="$(run_dependabot_gate true kyle-sexton)"; then
+  fail "a pull request another author opened should not be exempt, got success: $out"
+elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+  ok "a pull request another author opened still needs a fragment"
+else
+  fail "expected STALE VERSION for another author, got: $out"
+fi
+rm -rf "$f"
+
 # --- a plugin new in this change set is exempt ------------------------------
 base_fixture f
 plugin "$f" gamma 0.1.0

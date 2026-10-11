@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .work-item-tracker.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # common.sh is a sourceable contract lib — assert it sources cleanly and exposes
 # its public helpers (no --help contract; it is sourced, never invoked).
@@ -81,7 +82,7 @@ repo)
 api)
   case "$*" in
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
-  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1"}\n' ;;
+  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z"}\n' ;;
   esac
   exit 0
   ;;
@@ -103,6 +104,8 @@ EOF
     "$(jq -r '.url' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → parent_id null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → blocked_by_count 0" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → created_at from created_at" "2026-03-01T10:00:00Z" \
+    "$(jq -r '.created_at' <<<"$OUT")"
   assert_contains "wit_emit_item on gh 2.45 reads over REST" "$(<"$EMIT_STUB/calls.log")" \
     "api repos/o/r/issues/1"
   assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
@@ -124,6 +127,7 @@ EOF
   assert_contains "wit_emit_item on gh 2.94 requests blockedBy" "$CALLS" "blockedBy"
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
   assert_contains "wit_emit_item on gh 2.94 requests issueType" "$CALLS" "issueType"
+  assert_contains "wit_emit_item on gh 2.94 requests createdAt" "$CALLS" "createdAt"
 
   : >"$EMIT_STUB/calls.log"
   REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"
@@ -152,6 +156,7 @@ node() {
   4) printf '{"id":"I4","number":104,"state":"CLOSED"}' ;;
   5) printf '{"id":"I5","number":105,"state":"CLOSED"}' ;;
   6) printf '{"id":"I2","number":102,"state":"CLOSED"},{"id":"I6","number":106,"state":"CLOSED"}' ;;
+  7) printf '{"id":"I7","number":107,"state":"CLOSED"}' ;;
   esac
 }
 issue() {
@@ -176,6 +181,7 @@ elif [[ "$1 $2" == "api graphql" ]]; then
     "ids[]=I3") out+='{"id":"I3","stateReason":"NOT_PLANNED"},' ;;
     "ids[]=I4") out+='{"id":"I4","stateReason":"DUPLICATE"},' ;;
     "ids[]=I5") out+='{"id":"I5","stateReason":null},' ;;
+    "ids[]=I7") out+='{"id":"I7","stateReason":"COMPLETED","labels":{"nodes":[{"name":"bug"},{"name":"Wont-Fix"}]}},' ;;
     esac
   done
   printf '{"data":{"nodes":[%s]}}' "${out%,}"
@@ -238,6 +244,44 @@ EOF
     "$(jq -r '[.items[].blocked_by_wont_do_count] | map(tostring) | join(" ")' <<<"$OUT")"
   assert_eq "list-items fetches every closed reason in one graphql query" "1" \
     "$(grep -c 'api graphql' "$REASON_STUB/calls.log")"
+  assert_contains "the close-reason query fetches each closed blocker's labels" \
+    "$(grep 'api graphql' "$REASON_STUB/calls.log")" "labels"
+
+  # config.github.wont_do_labels: a closed blocker carrying a listed label is won't-do
+  # whatever its stateReason, matched case-insensitively. Fixture item 7 has one blocker
+  # closed COMPLETED and labeled Wont-Fix.
+  LABEL_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  gh_binding() { # <github-config-json>: a github binding with that config.github
+    jq -cn --argjson g "$1" '{schema_version: "1.0", provider: "github", config: {lease_ttl_hours: 24, github: $g}}' \
+      >"$LABEL_DIR/binding.json"
+  }
+  emitb() {
+    WORK_ITEM_TRACKER_BINDING="$LABEL_DIR/binding.json" GH_STUB_DIR="$REASON_STUB" PATH="$REASON_STUB:$PATH" \
+      wit_emit_item o r "$1" 2>/dev/null
+  }
+  jq -cn '{schema_version: "1.0", provider: "github", config: {lease_ttl_hours: 24}}' >"$LABEL_DIR/binding.json"
+  OUT="$(emitb 7)"
+  assert_eq "no wont_do_labels key → a labeled COMPLETED close stays resolved" "0/0" \
+    "$(jq -r '"\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+  gh_binding '{"wont_do_labels": ["wont-fix"]}'
+  OUT="$(emitb 7)"
+  assert_eq "a listed label on a COMPLETED close counts as won't-do, case-insensitively" "1/1" \
+    "$(jq -r '"\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+  OUT="$(emitb 2)"
+  assert_eq "an unlabeled COMPLETED close stays resolved with wont_do_labels set" "0/0" \
+    "$(jq -r '"\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+  OUT="$(emitb 3)"
+  assert_eq "NOT_PLANNED still counts with wont_do_labels set" "1/1" \
+    "$(jq -r '"\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+  OUT="$(GH_STUB_GRAPHQL_FAIL=1 emitb 7)"
+  assert_eq "a failed query with wont_do_labels set keeps blocking, not won't-do" "1/0" \
+    "$(jq -r '"\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+  for bad in '"wont-fix"' '[""]' '[1]' '{}'; do
+    gh_binding "{\"wont_do_labels\": $bad}"
+    (emitb 7 >/dev/null)
+    assert_eq "malformed wont_do_labels $bad → config (3)" "3" "$?"
+  done
+  rm -rf "$LABEL_DIR"
 
   rm -rf "$REASON_STUB"
 fi

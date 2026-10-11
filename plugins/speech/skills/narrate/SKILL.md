@@ -1,5 +1,5 @@
 ---
-description: "Text-to-speech: turn a narration script into narration.wav plus words.json, a start and end time in seconds for every word of the script, so a video, caption track or page can sync to the voice. The default kokoro backend is local, with no network at run time. The optional elevenlabs backend sends the script text to the third-party ElevenLabs API (api.elevenlabs.io), only after showing its character count, host and cost estimate and getting the user's go-ahead. Use when: 'narrate this script', 'text to speech', 'read this aloud', 'make a voiceover', 'generate narration audio', 'TTS with word timings', 'I need audio for this explainer', 'narrate with elevenlabs'. Not for transcribing existing audio."
+description: "Text-to-speech: turn a narration script into narration.wav plus words.json, a start and end time in seconds for every word of the script, so a video, caption track or page can sync to the voice. The default kokoro backend is local, with no network at run time. The optional elevenlabs backend sends the script text to the third-party ElevenLabs API (api.elevenlabs.io), only after showing its character count against the plan's remaining quota and getting the user's go-ahead; a repeated identical request reuses cached audio. Use when: 'narrate this script', 'text to speech', 'read this aloud', 'make a voiceover', 'generate narration audio', 'TTS with word timings', 'I need audio for this explainer', 'narrate with elevenlabs'. Not for transcribing existing audio."
 argument-hint: "<script or text> [--backend kokoro|elevenlabs] [--out <dir>] [--voice <v>] [--speed <n>]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,10 +33,13 @@ only when the user asks for it by name.
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGIN_DATA}" -- \
   "${CLAUDE_PLUGIN_ROOT}/scripts/narrate.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
+  --model-dir '${user_config.model_dir}' \
   --script <script file> --out <output folder> [--voice <name>] [--speed <x>]
 ```
 
 Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
+Keep the `--model-dir` argument exactly as shown, in single quotes: it carries the plugin's
+`model_dir` option, and the script handles an unset one ([reference/plugin-options.md](../../reference/plugin-options.md)).
 
 `narrate.py` owns the behavior: how words are split, how timings are measured, and the
 `words.json` fields. Read its docstring when you need the details.
@@ -54,44 +57,59 @@ Third-party egress: the script text goes to `api.elevenlabs.io`, and ElevenLabs 
 character. Pick this backend only when the user names ElevenLabs. Never pick it because kokoro is
 slow or its output was disliked, and never switch to it after a kokoro failure.
 
-The key is the `ELEVENLABS_API_KEY` environment variable, set by the user. Never ask the user to
-paste it into the chat, never put it on a command line, and never print, echo or log it.
+The key is the `ELEVENLABS_API_KEY` environment variable. When it is unset and `vault-exec` is on
+PATH, the script runs itself again under `vault-exec`, which supplies the key to that one process
+from the user's vault. Never ask the user to paste the key into the chat, never put it on a command
+line, never wrap the command in `vault-exec` yourself, and never print, echo or log the key.
 
 Two runs, with the user's answer between them:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --script <script file> --out <output folder> \
-  [--voice <voice id>] [--model <model id>]
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --data-dir "${CLAUDE_PLUGIN_DATA}" \
+  --model '${user_config.elevenlabs_model}' --script <script file> --out <output folder> \
+  [--voice <voice id>] [--setting <name>=<value> ...] [--no-cache]
 ```
 
+Keep `--model` exactly as shown, in single quotes: it carries the plugin's `elevenlabs_model`
+option, and the script uses its default model, `eleven_v4`, when that option is unset ([reference/plugin-options.md](../../reference/plugin-options.md)). When the
+user names a model for this run, replace that argument with `--model <model id>`.
+`eleven_multilingual_v2` gives a steadier, less expressive delivery.
+
 1. **Without `--proceed`**, the script prints one statement and sends nothing (exit 3): the
-   character count, the host, the model and voice, and the estimated cost. Show that statement to the
-   user as printed and ask whether to proceed. Stop until they answer.
+   character count, the host, the model and voice, the plan's remaining character quota, and the
+   pricing page. Show that statement to the user as printed and ask whether to proceed. Stop until
+   they answer.
 2. **After a yes**, run the same command with `--proceed` added. A no, or no answer, ends the task.
-   Do not add `--proceed` on your own, and do not reuse an earlier yes for a changed script, model or
-   voice: run step 1 again.
+   Do not add `--proceed` on your own, and do not reuse an earlier yes for a changed script, model,
+   voice or setting: run step 1 again.
 
-The default model is `eleven_multilingual_v2`; `--model eleven_flash_v2_5` takes longer scripts and
-is priced differently. `--voice` takes an ElevenLabs voice id. Rates and per-request limits are the script's
-`MODELS` table, read from <https://elevenlabs.io/pricing/api> and
-<https://elevenlabs.io/docs/overview/models> on 2026-10-03; recheck when either page changes. The
-cost is an estimate: ElevenLabs bills credits against the user's plan.
+A request identical to an earlier one (text, voice, model, settings) is served from the cache in
+the plugin data directory: the script says so, sends nothing, needs no key and no `--proceed`, and
+exits 0. `--no-cache` forces a new call, which goes through both steps above.
 
-- **Exit 0:** report the audio path with its length, and the `words.json` path.
-- **Exit 3:** the estimate was shown and nothing was sent. Ask, as above.
+The models, their limits, and whether each is confirmed on the timed endpoint are the script's
+`MODELS` table. `--setting` takes the voice settings the script names in its `--help`. Where to read the
+live ElevenLabs specifics (models, script-writing guidance, voice cloning, pricing) is
+[reference/elevenlabs.md](../../reference/elevenlabs.md).
+
+- **Exit 0:** report the audio path with its length, and the `words.json` path, and say when the
+  audio came from the cache.
+- **Exit 3:** the statement was shown and nothing was sent. Ask, as above.
 - **Exit 4:** the organization's egress floor forbids this backend (`SPEECH_EGRESS_FLOOR` is
   set in the environment, usually from managed settings). Report the reason as written, use kokoro
   if the user agrees, and do not try to unset the variable.
-- **Exit 2:** `ELEVENLABS_API_KEY` is not set. Tell the user to set it in their shell environment.
-- **Exit 1:** report the error, such as a rejected key or a script over the model's limit.
+- **Exit 2:** no key: `ELEVENLABS_API_KEY` is unset and `vault-exec` is absent or could not supply
+  the secret. Report the message as written; it names the remedy.
+- **Exit 1:** report the error, such as a rejected key, a script over the model's limit, or an
+  empty audio reply.
 
 ## Outputs
 
 - `narration.wav`: 24 kHz mono, 16-bit PCM.
-- `words.json`: `audio`, `sample_rate`, `duration`, `backend`, `voice`, `speed` (kokoro) or `model`
-  (elevenlabs), and `words`, a list with one `{word, start, end}` per whitespace-separated token of
-  the script, in script order. A kokoro token with only punctuation, such as a dash, spans its pause.
-  ElevenLabs reports a time for every character, and a word spans its first to its last character.
+- `words.json`: `audio`, `sample_rate`, `duration`, `backend`, `voice`, `speed` (kokoro) or `model`,
+  `voice_settings`, `request_id`, `character_cost` and `cached` (elevenlabs), and `words`, a list
+  with one `{word, start, end}` per whitespace-separated token of the script, in script order. A
+  kokoro token with only punctuation, such as a dash, spans its pause. ElevenLabs reports a time for every character, and a word spans its first to its last character.
 
 ## Next
 

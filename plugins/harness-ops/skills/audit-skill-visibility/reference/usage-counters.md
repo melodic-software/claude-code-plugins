@@ -113,7 +113,7 @@ question needs the plugin's own `skill-usage.jsonl` store, whose rows carry
 
 The file is never swept: `cleanupPeriodDays` does not reach it, because it lives
 in the home directory rather than under `~/.claude`. The supported lever is
-`claude project purge <path>`, which removes one project's entry. Every running
+`claude purge <path>`, which removes one project's entry. Every running
 session polls the file at 1 Hz, and the strongest public report of curing input
 lag pruned this file rather than the install tree.
 

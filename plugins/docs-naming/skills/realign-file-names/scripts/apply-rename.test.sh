@@ -14,6 +14,7 @@
 # list at the bottom is the only place a group is scheduled, and the suite
 # refuses to start when a defined group is missing from it, so the two halves
 # always add up to the whole suite.
+# test-scope: plugins/docs-naming/skills/audit-file-names/scripts/fixtures/tree/* plugins/docs-naming/skills/audit-file-names/scripts/inventory.sh plugins/docs-naming/skills/audit-file-names/scripts/emit-findings.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

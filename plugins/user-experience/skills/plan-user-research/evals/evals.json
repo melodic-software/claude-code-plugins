@@ -1,0 +1,75 @@
+{
+  "skill_name": "plan-user-research",
+  "evals": [
+    {
+      "id": 1,
+      "name": "discussion-guide-in-envelope",
+      "prompt": "Write a discussion guide for interviews with people who have tried and quit habit-tracking apps.",
+      "expected_output": "A discussion guide with goals, participant criteria (no names), warm-up, open questions about past behavior, probes and a wrap-up. It opens with the header block (Evidence: assumption-based, since no project evidence is given), carries the AI-use disclosure in its methods note, and ends with an Assumptions to test list.",
+      "files": [],
+      "expectations": [
+        "The guide opens with an Evidence: line labeled assumption-based or mixed",
+        "The guide includes a methods note disclosing that it was AI-drafted and who reviews it",
+        "The questions ask about past behavior rather than hypothetical future use",
+        "The guide ends with an Assumptions to test section"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-to-recruit",
+      "prompt": "Write the screener questions and then go email ten of our customers to book interview slots.",
+      "expected_output": "The skill writes the screener but does not contact anyone or book sessions; it says it writes instruments only and hands the screener to the person who will recruit.",
+      "files": [],
+      "expectations": [
+        "The response provides screener questions",
+        "The response does not send email or claim to have contacted or booked anyone, and says recruiting is left to a person"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "method-has-basis",
+      "prompt": "Should we run a survey or interviews to learn why trial users drop off in week one?",
+      "expected_output": "The skill states the research question and the decision it informs, picks a method with a Basis: line, and explains the choice in plain words.",
+      "files": [],
+      "expectations": [
+        "The response recommends a method and gives a Basis: line for it",
+        "The response states the research question and the decision its answer changes"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "facilitator-guide-for-usability-test",
+      "prompt": "Write a facilitator guide for a moderated usability test of our new checkout prototype.",
+      "expected_output": "A usability test script: tasks written as scenarios with a success criterion each, think-aloud instructions, neutral facilitator prompts and post-task questions, in the deliverable envelope with the AI-use disclosure in its methods note.",
+      "files": [],
+      "expectations": [
+        "Each task is a scenario with a stated success criterion",
+        "The script includes think-aloud instructions and neutral prompts that do not lead the participant",
+        "The script carries an AI-use disclosure in a methods note"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "inclusive-research-plan",
+      "prompt": "We want to include people with disabilities in our next round of user research. Plan it.",
+      "expected_output": "An inclusive-research plan with participant criteria stated as needs and assistive technologies (never names), session accommodations, and how sessions adapt, opening with an Evidence: line and ending with an Assumptions to test list. It does not recruit anyone.",
+      "files": [],
+      "expectations": [
+        "The plan states participant criteria by need or assistive technology, with no names",
+        "The plan names accommodations for sessions",
+        "The response does not claim to recruit or contact participants"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "not-a-research-ask",
+      "prompt": "Fix the null reference in the cart total calculation when the cart is empty.",
+      "expected_output": "The skill does not fire: this is a code fix with no user research question.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "No Skill call reaches user-experience:plan-user-research"
+      ]
+    }
+  ]
+}

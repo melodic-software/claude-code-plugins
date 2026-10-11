@@ -9,6 +9,7 @@
 # scanner error and a hang, silence on a pure addition, a create, a
 # gitignored or excluded path and an unjudgeable fragment, the per-call dedup,
 # and that test-scan still reports for a call test-weaken already saw.
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

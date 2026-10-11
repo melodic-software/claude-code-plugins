@@ -24,11 +24,18 @@ contains git.
 
 ## Pre-computed context
 
-Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config >/dev/null 2>&1 && { "${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>/dev/null | head -40; :; } || echo "detector unavailable"`
+Effective config: !`"${CLAUDE_SKILL_DIR}/scripts/detect.sh" --show-config 2>&1 | head -40`
 
 The bound above is generous on purpose: `--show-config` prints `disabled_rules` and every
 `rule_allowed_paths` entry after the fixed lines, and those are the values that decide which
-rules ran at all.
+rules ran at all. A shell error in place of the config means the detector did not run. Every
+command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill.
+
+- **Pointer**: when changing this line or its grants, fetch
+  <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a
+  zero-turn run under dontAsk is in
+  <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-10. **Recheck trigger**: a Claude
+  Code release note that changes how pre-compute commands are permission-checked.
 
 ## Purpose
 

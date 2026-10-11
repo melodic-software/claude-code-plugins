@@ -1,0 +1,113 @@
+{
+  "pass": [
+    {
+      "answer": "**Findings**\nNone.\nVERDICT: CONFIRMED",
+      "why": "plural Findings heading"
+    },
+    {
+      "answer": "## Findings (none)\nVERDICT: CONFIRMED",
+      "why": "plural Findings heading with a parenthesis"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED"
+    },
+    {
+      "answer": "No findings. The blue heading reads fine.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Findings: none\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "No findings.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "FINDINGS: none\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Finding: the layout is correct at both widths.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Findings were none.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Findings:\n- none\nVERDICT: CONFIRMED"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [contrast]: The heading is blue.\nVERDICT: CONFIRMED",
+      "why": "tagged FINDING line"
+    },
+    {
+      "answer": "- **FINDING:** overlap - ruled out\nVERDICT: CONFIRMED",
+      "why": "untagged FINDING line"
+    },
+    {
+      "answer": "finding [other]: none\nVERDICT: CONFIRMED",
+      "why": "lower-case FINDING line"
+    },
+    {
+      "answer": "Checked.\nFINDING [unknown]: nothing\nVERDICT: CONFIRMED",
+      "why": "unknown category FINDING line"
+    },
+    {
+      "answer": "### FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "## FINDING: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING [overlap] - badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "Finding (overlap): badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "**FINDING**: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "**FINDING [overlap]**: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING [overlap] badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "| FINDING [overlap]: badge on title |\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "- [ ] FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "1. FINDING [overlap]: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "FINDING- badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "> FINDING (overlap): badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    },
+    {
+      "answer": "Finding **overlap**: badge on title\nVERDICT: CONFIRMED",
+      "why": "FINDING-like line"
+    }
+  ]
+}

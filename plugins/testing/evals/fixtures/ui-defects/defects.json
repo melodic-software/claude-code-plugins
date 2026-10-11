@@ -1,0 +1,132 @@
+{
+  "base": "site/index.html",
+  "defects": [
+    {
+      "id": "D1",
+      "name": "Overlapping text",
+      "injection": "Abs-positioned badge over title at width <= 375 only",
+      "layers": ["geometry (box overlap at 375)", "pixel"],
+      "patches": [
+        {
+          "find": "</style>",
+          "replace": "@media (max-width: 375px) { .badge { position: absolute; top: 0; left: 0; } }\n</style>"
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Clipped element",
+      "injection": "Button width:64px; overflow:hidden; white-space:nowrap",
+      "layers": ["geometry (scrollWidth > clientWidth)"],
+      "patches": [
+        {
+          "find": "</style>",
+          "replace": ".card:first-child .actions .add { width: 64px; overflow: hidden; white-space: nowrap; }\n</style>"
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Low contrast",
+      "injection": "Body text #a0a0a0 on #fff",
+      "layers": ["axe color-contrast"],
+      "patches": [
+        {
+          "find": "color: #222222; background: #ffffff;",
+          "replace": "color: #a0a0a0; background: #ffffff;"
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "name": "Missing image",
+      "injection": "src to a missing local file; alt present",
+      "layers": ["DOM (naturalWidth 0)", "console/network failure"],
+      "patches": [
+        {
+          "find": "<img src=\"img/card.png\" alt=\"Trail backpack\">",
+          "replace": "<img src=\"img/photo.png\" alt=\"Trail backpack\">"
+        }
+      ]
+    },
+    {
+      "id": "D5",
+      "name": "Layout shift",
+      "injection": "setTimeout(300) inserts a 48 px banner above the button",
+      "layers": ["geometry before vs after 1 s", "CLS observer"],
+      "patches": [
+        {
+          "find": "</body>",
+          "replace": "<script>\nsetTimeout(function () {\n  var note = document.createElement(\"div\");\n  note.textContent = \"Free shipping today\";\n  note.style.cssText = \"height: 48px; line-height: 48px; padding: 0 12px; background: #fff4ce;\";\n  var row = document.querySelector(\".card .actions\");\n  row.parentNode.insertBefore(note, row);\n}, 300);\n</script>\n</body>"
+        }
+      ]
+    },
+    {
+      "id": "D6",
+      "name": "Off-by-one content",
+      "injection": "\"Showing 5 results\", 4 rows render",
+      "layers": ["content assertion only (generic-layer blind spot)"],
+      "patches": [
+        {
+          "find": "  <li>Sleeping pad</li>\n",
+          "replace": ""
+        }
+      ]
+    },
+    {
+      "id": "D7",
+      "name": "Console error, UI fine",
+      "injection": "Click shows success toast, then throws TypeError",
+      "layers": ["console only"],
+      "patches": [
+        {
+          "find": "    toast.hidden = false;\n",
+          "replace": "    toast.hidden = false;\n    document.querySelector(\".cart-count\").textContent = \"1\";\n"
+        }
+      ]
+    },
+    {
+      "id": "D8",
+      "name": "Misalignment",
+      "injection": "One button margin-top:8px",
+      "layers": ["geometry (shared top edge)"],
+      "patches": [
+        {
+          "find": "</style>",
+          "replace": ".card:first-child .actions .save { margin-top: 8px; }\n</style>"
+        }
+      ]
+    },
+    {
+      "id": "D9",
+      "name": "Off-viewport",
+      "injection": "420 px table at width 375",
+      "layers": ["geometry (scrollWidth > innerWidth)"],
+      "patches": [
+        {
+          "find": ".specs { border-collapse: collapse; margin-top: 24px; width: 100%; }",
+          "replace": ".specs { border-collapse: collapse; margin-top: 24px; width: 420px; }"
+        }
+      ]
+    },
+    {
+      "id": "C0",
+      "name": "Clean control",
+      "injection": "none",
+      "layers": ["none; any finding is a false positive"],
+      "patches": []
+    },
+    {
+      "id": "C1",
+      "name": "Benign change",
+      "injection": "Intended color change still >= 4.5:1",
+      "layers": ["pixel diff flags; all other layers quiet"],
+      "patches": [
+        {
+          "find": "h1 { margin: 0 0 8px; font-size: 28px; color: #1a1a1a; }",
+          "replace": "h1 { margin: 0 0 8px; font-size: 28px; color: #1d4ed8; }"
+        }
+      ]
+    }
+  ]
+}

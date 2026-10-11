@@ -151,7 +151,7 @@ while IFS= read -r rec; do
   set -- $rec
   [[ $# -ge 3 ]] || continue
   case "$1" in
-  rule | effective | inert | conf | entry-diff | CAVEAT: | NOTE: | MANAGED-NOTE: | LINT-NOTE: | DIFF-NOTE:) continue ;;
+  rule | effective | inert | carveout | conf | entry-diff | CAVEAT: | NOTE: | MANAGED-NOTE: | LINT-NOTE: | DIFF-NOTE:) continue ;;
   *) ;; # anything else is a surface record, which is what this loop reads
   esac
   case "$3" in

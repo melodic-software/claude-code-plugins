@@ -94,8 +94,8 @@ the audit runs against.
 - **Does not open the standards PR itself.** It names and drafts the
   shared-standards change and routes it to the human; opening the PR. Or
   any outward artifact. Waits on the user's explicit opt-in, mirroring the
-  OFFER gate the sibling `/discipline:recheck-against-upstream-deep` applies
-  to its work-items routing.
+  OFFER gate the fan-out tier of `/discipline:recheck-against-upstream`
+  applies to its work-items routing.
 - **Does not fabricate a citation or a violation.** Cite the doc that
   actually resolved; report "conforms" honestly when it does.
 

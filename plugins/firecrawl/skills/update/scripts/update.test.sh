@@ -45,7 +45,7 @@ else
 fi
 assert_contains "--help mentions --check" "$help_out" "--check"
 assert_contains "--help mentions --apply" "$help_out" "--apply"
-assert_contains "--help mentions UPSTREAM" "$help_out" "UPSTREAM"
+assert_contains "--help mentions upstream.md" "$help_out" "upstream.md"
 
 help_out_short=$(bash "$SCRIPT" -h 2>&1)
 short_exit=$?
@@ -73,9 +73,9 @@ else
   fail "source-guard: helpers exposed after source" "function defined" "undefined"
 fi
 
-# --- 4. recorded_field parses UPSTREAM.md fixture ----------------------------------
+# --- 4. recorded_field parses upstream.md fixture ----------------------------------
 
-FIXTURE_UP="$TEST_TMPDIR/UPSTREAM.md"
+FIXTURE_UP="$TEST_TMPDIR/upstream.md"
 cat >"$FIXTURE_UP" <<'EOF'
 # Firecrawl skill upstream sync state
 
@@ -94,11 +94,11 @@ assert_eq "parses recorded CLI version" "1.18.0" "$parsed_ver"
 # Missing file yields empty, not an error.
 UPSTREAM_MD="$TEST_TMPDIR/does-not-exist.md"
 missing=$(recorded_upstream_sha)
-assert_eq "missing UPSTREAM.md returns empty" "" "$missing"
+assert_eq "missing upstream.md returns empty" "" "$missing"
 
 # --- 5. rewrite_upstream_md writes the full record ----------------------------------
 
-UPSTREAM_MD="$TEST_TMPDIR/UPSTREAM-out.md"
+UPSTREAM_MD="$TEST_TMPDIR/upstream-out.md"
 rewrite_upstream_md "deadbeef" "2.0.0" "1.18.0"
 written=$(cat "$UPSTREAM_MD")
 assert_contains "record has SHA" "$written" "Upstream SHA256: deadbeef"

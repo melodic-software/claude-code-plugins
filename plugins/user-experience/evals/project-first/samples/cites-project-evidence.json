@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "research/2026-q2-interview-synthesis.md shows three themes.",
+      "why": "names the file"
+    },
+    {
+      "answer": "Your Night-shift dispatcher persona needs to know who is off duty.",
+      "why": "names the persona"
+    },
+    {
+      "answer": "Drivers lose detention pay (P5, P6, P8).",
+      "why": "names a theme"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Typical users are fleet managers and long-haul drivers.",
+      "why": "generic personas"
+    }
+  ]
+}

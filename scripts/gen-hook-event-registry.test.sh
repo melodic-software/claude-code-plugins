@@ -4,6 +4,7 @@
 # stale event-log rows, the real session-log-lib.sh, and a register.ts whose
 # generated block is stale) and runs the generator against a saved copy of the
 # Hooks reference lifecycle table, so nothing here touches the network.
+# test-scope: plugins/harness-ops/hooks/hooks.json
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

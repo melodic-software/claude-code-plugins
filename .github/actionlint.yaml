@@ -18,7 +18,19 @@ self-hosted-runner:
 # (https://github.com/rhysd/actionlint/issues/732).
 # Trade-off: actionlint cannot resolve the local action, so `with:` input
 # validation is lost for `$/` steps.
+#
+# `concurrency.queue` is GA and GitHub honors it at workflow and job level, but
+# actionlint 1.7.12 rejects it with `unexpected key "queue" for "concurrency"
+# section` (https://github.com/rhysd/actionlint/issues/654); the ignore matches
+# only that message. claude-code-plugins `.github/workflows/pr-refine.yml` uses
+# `queue: max` for its per-PR write queue.
+# Remove when rhysd/actionlint#654 ships and the pinned actionlint is bumped.
+# Trade-off: actionlint cannot check `queue` against the other keys, so a
+# `queue` with `cancel-in-progress: true` passes the lint; GitHub rejects that
+# file when it parses it, and concurrency-policy flags `queue` on PR-triggered
+# top-level blocks.
 paths:
   .github/workflows/**/*.{yml,yaml}:
     ignore:
       - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
+      - 'unexpected key "queue" for "concurrency" section'

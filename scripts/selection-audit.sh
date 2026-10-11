@@ -9,8 +9,10 @@
 #       selector would not take is a GAP: a change to that file could break the
 #       suite on main while the pull request's affected run never started it.
 #       Default corpus: every tracked *.test.sh, and every test_*.py outside
-#       /evals/fixtures/, which holds data no lane runs; --shard keeps
-#       suites I, I+N, I+2N, ... of the sorted list.
+#       /evals/fixtures/, which holds data no lane runs, but the two suites
+#       that run strace themselves; --shard keeps suites I, I+N, I+2N, ...
+#       of the sorted list. Each suite gets 600 s under strace, and the
+#       slowest start first.
 #
 #   scripts/selection-audit.sh replay --suite S --good SHA --bad SHA
 #       For each first-parent commit in GOOD..BAD, run that commit's own
@@ -41,6 +43,11 @@
 # open resolves without replaying the process's working directory. Reads
 # through git objects (`git show HEAD:path`) and existence probes (stat, `-f`)
 # are not opens, so the trace cannot see them.
+#
+# Three root files are read by almost every suite through its tools, not its
+# logic: node reads package.json for the module type, the version manager reads
+# .node-version, and git reads .gitignore. A read of one is no gap; a change to
+# one is the toolchain's to gate, and as a scope it would select every suite.
 #
 # Writes report.md, gaps.tsv and suites.tsv (trace) or report.md (replay,
 # red-replay) under --out, and appends report.md to $GITHUB_STEP_SUMMARY when
@@ -130,9 +137,10 @@ trace_one() {
   *) runner=(bash "$suite") ;;
   esac
   start="$(date +%s)"
-  timeout 240 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
+  # -k: a daemon a suite leaves behind stays traced, and strace outlives a TERM waiting for it.
+  timeout -k 10 600 strace -f -y -z -qq --seccomp-bpf -e trace=open,openat -e signal=none \
     -o "$out/strace.$key" "${runner[@]}" >"$out/logs/$key.log" 2>&1 || rc=$?
-  reads "$out/strace.$key" "$ROOT" | grep -vxF -- "$suite" |
+  reads "$out/strace.$key" "$ROOT" | grep -vxF -e "$suite" -e package.json -e .node-version -e .gitignore |
     awk 'NR == FNR { t[$0] = 1; next } t[$0]' "$out/tracked" - >"$out/reads/$key"
   rm -f "$out/strace.$key"
   printf '%s\t%s\t%s\t%s\n' "$suite" "$rc" "$(($(date +%s) - start))" "$(wc -l <"$out/reads/$key")" >"$out/suites/$key"
@@ -183,10 +191,18 @@ cmd_trace() {
   if ((${#suites[@]} == 0)); then
     # A Python eval fixture is data no lane runs (scripts/plan-test-lanes.sh);
     # a *.test.sh there would still run in the bash lane, so it stays traced.
+    # These suites run strace themselves, which fails under the audit's own strace.
     mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
-      awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
+      grep -vxF -e scripts/selection-audit.test.sh -e scripts/hook-census.test.sh | awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
+  # Slowest first by scripts/suite-seconds.txt, so a long suite starts while the
+  # budget still has room for it to finish and for its reads to be checked.
+  if [[ -f scripts/suite-seconds.txt ]]; then
+    mapfile -t suites < <(printf '%s\n' "${suites[@]}" |
+      awk 'NR == FNR { if (!/^#/) s[$1] = $2; next } { print ($0 in s ? s[$0] : 0) "\t" $0 }' scripts/suite-seconds.txt - |
+      sort -s -t $'\t' -k1,1nr | cut -f2-)
+  fi
 
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"
   export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG

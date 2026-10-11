@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git revert --continue"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "GIT_EDITOR=true git revert --continue"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git revert --continue"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        }
+      ],
+      "why": "checks after the commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git revert --continue"
+          }
+        }
+      ],
+      "why": "no checks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        }
+      ],
+      "why": "never concluded"
+    }
+  ]
+}

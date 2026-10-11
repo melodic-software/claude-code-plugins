@@ -749,6 +749,12 @@
       "tags": ["user-interface", "ui", "terminal", "cli", "tui", "design-system", "accessibility", "skill"]
     },
     {
+      "name": "user-experience",
+      "source": "./plugins/user-experience",
+      "category": "design",
+      "tags": ["user-experience", "ux", "user-research", "personas", "jobs-to-be-done", "skill"]
+    },
+    {
       "name": "developer-experience",
       "source": "./plugins/developer-experience",
       "category": "development",

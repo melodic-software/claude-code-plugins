@@ -1,0 +1,5 @@
+[
+  { "id": "user-interface@fixture-market", "scope": "user", "enabled": true, "projectEnabled": false },
+  { "id": "product-management@knowledge-work-plugins", "scope": "user", "enabled": true, "projectEnabled": false },
+  { "id": "design@knowledge-work-plugins", "scope": "user", "enabled": false, "projectEnabled": false }
+]

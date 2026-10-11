@@ -237,15 +237,17 @@ function resolveRemovableTempDir(dir) {
 }
 
 /**
- * Remove the directories recorded on this slice's tempSession after a successful close.
+ * Remove the directories recorded on this slice's tempSession, after a successful close
+ * or a watch that failed before recording them.
  * Only those three fields, and only when each resolved path is a directory inside the
  * OS temp dir. Never lists or globs the temp directory. Best-effort: a directory
  * that cannot be removed (on Windows, a file another process holds open fails with
  * EBUSY or EPERM) gets a stderr warning naming it, and the others are still tried.
  *
  * @param {WatchState["tempSession"]} tempSession
+ * @param {string} [label] the command named in that warning
  */
-export async function removeRecordedTempSessionDirs(tempSession) {
+export async function removeRecordedTempSessionDirs(tempSession, label = "close") {
   if (!tempSession) return;
   const resolved = resolveTempSession(
     /** @type {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} */ (
@@ -260,7 +262,7 @@ export async function removeRecordedTempSessionDirs(tempSession) {
       await fs.rm(real, { recursive: true, force: true });
     } catch (err) {
       const reason = /** @type {NodeJS.ErrnoException} */ (err).code ?? String(err);
-      writeStderr(`close: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
+      writeStderr(`${label}: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
     }
   }
 }
@@ -292,16 +294,29 @@ export function findNextPhase(phases) {
 /**
  * Build a continuation prompt for `/video-digest resume`.
  *
- * Prompt paths render from the resolved slice dir the caller already holds —
- * never re-derived from the epic-dir constant — so a non-default `--work-root`
- * always yields resumable paths (storage invariant A1 (4)).
+ * The prompt is written inside the slice and may be committed, so every path
+ * in it is slice-relative (temp paths `{tmp}`-tokenized): no work root, no
+ * epic dir, no machine path. Resume finds the slice by its slug.
  *
  * @param {WatchState} state
- * @param {string} sliceDir - resolved slice directory
  * @returns {string}
  */
-export function buildContinuationPrompt(state, sliceDir) {
+export function buildContinuationPrompt(state) {
   const next = findNextPhase(state.phases);
+  const closed = state.status === "complete";
+  const closeCommand = "`watch/watch-state.js close <slice-dir>`";
+  let nextLine;
+  let step3;
+  if (closed) {
+    nextLine = "**complete**. Nothing to resume: the slice is closed.";
+    step3 = "Nothing to resume: `status` is `complete`";
+  } else if (next === null) {
+    nextLine = `None: every phase is marked, but the slice is not closed. Run ${closeCommand}.`;
+    step3 = `Run ${closeCommand} so the outcome checks run and the slice closes`;
+  } else {
+    nextLine = `**${next}**: resume from this slice's artifacts (paths below are relative to the slice directory).`;
+    step3 = `Continue from the **${next}** phase per SKILL.md watch protocol`;
+  }
   const completed = Object.entries(state.phases)
     .filter(([, value]) => value !== null)
     .map(([name, value]) =>
@@ -311,6 +326,7 @@ export function buildContinuationPrompt(state, sliceDir) {
   return `# Continue /knowledge:video-digest watch — ${state.title}
 
 Video slug: \`${state.videoSlug}\`
+Locate the slice: \`watch/run-resume.js ${state.videoSlug}\` (SKILL.md resume) reports it as \`sliceDir\`.
 Source: ${state.sourceUrl}
 
 ## Completed phases
@@ -319,7 +335,7 @@ ${completed.length > 0 ? completed.map((p) => `- ${p}`).join("\n") : "- (none ye
 
 ## Next phase
 
-**${next ?? "complete"}** — resume from \`${sliceDir}\` artifacts.
+${nextLine}
 
 ## Synthesis target
 
@@ -343,9 +359,9 @@ ${state.tempSession ? `- Frames temp: \`${normalizePortableTempPath(state.tempSe
 
 ## Instructions
 
-1. Read \`${watchStatePath(sliceDir)}\` for phase markers
+1. Read \`${LANES.runState}/${WATCH_STATE_FILENAME}\` for phase markers
 2. Read \`source/transcript.txt\` and the existing lane deliverables (\`research/\`, \`key-frames/\`, \`recommendations/\`)
-3. Continue from the **${next ?? "synthesis"}** phase per SKILL.md watch protocol
+3. ${step3}
 4. Default-on research stage unless user passed \`--skip-research\`
 5. Emit \`recommendations/\` hub (README + menu/takeaways/questions/interview) — no auto-implement, no auto-filed issues
 `;
@@ -407,7 +423,7 @@ export async function writeContinuationPrompt(
   writeFile = fs.writeFile,
   mkdir = fs.mkdir,
 ) {
-  const prompt = buildContinuationPrompt(state, sliceDir);
+  const prompt = buildContinuationPrompt(state);
   await mkdir(lanePath(sliceDir, LANES.runState), { recursive: true });
   await writeFile(continuationPromptPath(sliceDir), prompt, "utf8");
   return prompt;
@@ -445,7 +461,31 @@ async function verifyWatchOutcomes(sliceDir) {
 }
 
 /**
- * Close the slice: the only writer of `status: "complete"`. Marks synthesis
+ * Set the slice README's frontmatter `status:` to `complete`. A slice with no
+ * README, or a README whose frontmatter has no `status:` line, is left as is.
+ *
+ * @param {string} sliceDir
+ * @param {typeof fs.readFile} [readFile]
+ * @param {typeof fs.writeFile} [writeFile]
+ */
+async function markReadmeComplete(sliceDir, readFile = fs.readFile, writeFile = fs.writeFile) {
+  const readmePath = path.join(sliceDir, "README.md");
+  let body;
+  try {
+    body = await readFile(readmePath, "utf8");
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return;
+    throw error;
+  }
+  const updated = body.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, (frontmatter) =>
+    frontmatter.replace(/^status:[^\r\n]*/m, "status: complete"),
+  );
+  if (updated !== body) await writeFile(readmePath, updated, "utf8");
+}
+
+/**
+ * Close the slice: the only writer of `status: "complete"`, in `watch.json` and in the
+ * slice README's frontmatter. Marks synthesis
  * when unmarked, runs the outcome checks against that state on disk, and sets
  * `complete` only when they pass. After writing `complete`, removes the directories
  * recorded in this slice's `tempSession`, best-effort, so a directory that cannot be
@@ -468,6 +508,8 @@ export async function runClose(
   }
 
   if (state.status === "complete") {
+    // Repairs the README of a slice closed before close wrote its status.
+    await markReadmeComplete(sliceDir, readFile, writeFile);
     writeStdout("close: status already complete, no-op\n");
     return 0;
   }
@@ -483,6 +525,8 @@ export async function runClose(
     return 1;
   }
 
+  // README first: a failed write here leaves watch.json open, so a re-run retries both.
+  await markReadmeComplete(sliceDir, readFile, writeFile);
   await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
   writeStdout("close: outcome checks passed, status complete\n");
   await removeRecordedTempSessionDirs(closing.tempSession);

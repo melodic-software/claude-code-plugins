@@ -20,9 +20,16 @@ const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
+const CODEOWNERS_PATH = ".github/CODEOWNERS";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
+const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+// Reads of GET /pulls/{n} while mergeability is unknown, and the wait between
+// them; then the activity skips with prerequisite-missing and the next trigger
+// retries.
+const MERGEABLE_READS = 3;
+const MERGEABLE_WAIT_MS = 5000;
 
 const readOwn = (name) =>
   JSON.parse(readFileSync(new URL(name, import.meta.url), "utf8"));
@@ -52,21 +59,48 @@ function readJsonUnderBase(basePath, relative) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, repository, github },
+  { eventName, event, prNumber, headSha, repository, github, sleep },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
-  const fetchPull = async () => {
+  const readPull = async () => {
     if (!PR_NUMBER.test(prNumber ?? "")) {
       throw new Error(
         "an applies-when predicate needs the PR, and no pr-number was given",
       );
     }
-    pull ??= await github("GET", `/repos/${repository}/pulls/${prNumber}`);
+    pull = await github("GET", `/repos/${repository}/pulls/${prNumber}`);
     return pull;
   };
+  const fetchPull = async () => pull ?? (await readPull());
+  if (needed.includes("mergeable")) {
+    // GitHub computes mergeability in the background and answers null until
+    // it is done; a read at another head describes another commit. Only the
+    // gated head's answer counts, and the payload's never does.
+    if (!SHA.test(headSha ?? "")) {
+      throw new Error(
+        "a mergeable predicate needs the gated head-sha, and none was given",
+      );
+    }
+    facts.mergeable = null;
+    for (let read = 1; read <= MERGEABLE_READS; read += 1) {
+      const { mergeable, head } = await readPull();
+      if (head?.sha === headSha && typeof mergeable === "boolean") {
+        facts.mergeable = mergeable ? "clean" : "conflicting";
+        break;
+      }
+      if (read < MERGEABLE_READS) {
+        await sleep(MERGEABLE_WAIT_MS);
+      }
+    }
+  }
+  if (needed.includes("draft")) {
+    facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
+  }
   if (needed.includes("labels")) {
-    const labels = event.pull_request?.labels ?? (await fetchPull()).labels;
+    const labels = needed.includes("freshLabels")
+      ? (await fetchPull()).labels
+      : (event.pull_request?.labels ?? (await fetchPull()).labels);
     facts.labels = labels.map((label) => label.name);
   }
   if (needed.includes("changedPaths")) {
@@ -87,6 +121,10 @@ async function gatherFacts(
         ? [file.filename, file.previous_filename]
         : [file.filename],
     );
+    // What the head still holds: an activity cannot edit a removed file.
+    facts.changedTargets = files
+      .filter((file) => file.status !== "removed")
+      .map((file) => file.filename);
   }
   return facts;
 }
@@ -116,6 +154,7 @@ function outputsFor({ lane, selected }) {
     issues: selected.grant.issues,
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
+    ...(selected.prepare === undefined ? {} : { prepare: selected.prepare }),
   };
 }
 
@@ -126,7 +165,9 @@ const escapeCommand = (text) =>
     .replaceAll("\r", "%0D")
     .replaceAll("\n", "%0A");
 
-export async function main({ env = process.env, github } = {}) {
+const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+
+export async function main({ env = process.env, github, sleep = wait } = {}) {
   const outputPath = env.OUTPUT_PATH;
   try {
     if (!outputPath) {
@@ -144,8 +185,10 @@ export async function main({ env = process.env, github } = {}) {
       config: readUnderBase(basePath, configPath),
       schema,
       vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
+      codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
       laneRules: readOwn("./lane-rules.json"),
       effectGrants: readOwn("./effect-grants.json"),
+      activityRules: readOwn("./activity-rules.json"),
     };
     const request = {
       lane: env.LANE,
@@ -157,12 +200,22 @@ export async function main({ env = process.env, github } = {}) {
       eventName: env.EVENT_NAME,
       event: JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
       prNumber: env.PR_NUMBER,
+      headSha: env.HEAD_SHA,
       repository: env.REPOSITORY,
+      sleep,
       github:
         github ??
         createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     });
     const resolved = resolve(files, { ...request, facts });
+    // A runner that does not perform the prepare step would run the skill
+    // without it, so an applying leaf that needs one fails instead.
+    const { selected: chosen } = resolved;
+    if (chosen?.applies && chosen.prepare && env.PREPARE_SUPPORTED !== "true") {
+      throw new Error(
+        `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
+      );
+    }
     writeFileSync(outputPath, `${JSON.stringify(resolved, null, 2)}\n`);
     writeOutputs(outputsFor(resolved), env.GITHUB_OUTPUT);
     const selected = resolved.selected;

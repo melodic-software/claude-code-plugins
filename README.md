@@ -97,6 +97,7 @@ scripts/affected-tests.sh                 # list the suites covering your diff v
 scripts/affected-tests.sh --run           # ... and run them, sequentially
 scripts/affected-tests.sh --explain       # ... and say why each one was selected
 scripts/affected-tests.sh path/to/file.sh # explicit paths instead of a diff
+scripts/check-affected.sh [--tests]       # CI's diff-scoped lint checks (+ the suites); runs before every agent git push
 ```
 
 `--run` is a Linux gate. On a Windows Git Bash host a standing set of suites
@@ -159,17 +160,16 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
 | `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
-There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
-consumes CI step outcomes; it does not run the gates. A pre-commit hook or a make target that
-wraps the runnable rows is a later tooling decision, not this record.
+`scripts/check-affected.sh` runs the diff-scoped rows, not the whole hygiene set.
+`scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
   pinned composite's own entry script.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.39.3 (`ab83b01273026ab5c23c6f3b40e946d97a863fa2`), the pin in
-  `.github/workflows/pr-require-checks.yml`.
+- **As of:** `ci-workflows` v0.39.8 (`594987abe8657a40bccc13d301f1f0d5cccb5348`), the pin in
+  `.github/workflows/pr-require-checks.yml`, re-verified by hand on 2026-10-10: the `contract-only` default is unchanged.
 - **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
 

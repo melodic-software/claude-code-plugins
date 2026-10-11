@@ -1,0 +1,53 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:shape",
+        "skill:plan-user-research",
+        "skill:synthesize",
+        "skill:structure",
+        "skill:evaluate",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, detect.mjs cannot run: the skills read the project's research, persona and manifest files directly and check routes against the session's own skill listing, as they do when installed is null.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:shape",
+        "skill:plan-user-research",
+        "skill:synthesize",
+        "skill:structure",
+        "skill:evaluate",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI on PATH, detect.mjs reports installed as null with a reason, and the skills check routes against the session's own skill listing instead of the installed plugin and MCP records.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

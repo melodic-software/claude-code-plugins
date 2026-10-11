@@ -66,6 +66,6 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 ## Scope
 
-- **Interviewing mechanical work:** typo, lint-only, whitespace skips the interview per skill policy. Behavior-changing work is interview-first.
+- **Interviewing a quick change:** a diff that is quick to review and cheap to retry skips the interview per skill policy, behavior change or not; align on the diff after it is built. Work that fails either test is interview-first.
 
 - **Interview used as the execution container for bulk work:** a corpus application yields one small contested-decision set plus an execution contract naming the per-unit loop, never one decision row per source unit with its own adoption ceremony. The tell is the count: candidate questions scaling with the number of source units instead of with genuine forks. Collapse (SKILL.md "Bulk application work is not a decision set").

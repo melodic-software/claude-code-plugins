@@ -66,7 +66,7 @@ Present to the user:
   can set. Confirm the user intends to delete from that absolute path before proceeding, since
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only, **not** CLAUDE.md, rules, transcripts, or history.
-  If the intent is the full per-project wipe, point to `claude project purge` instead, and state
+  If the intent is the full per-project wipe, point to `claude purge` instead, and state
   its scope to the user (what it deletes and what it leaves alone) from the record in
   [reference/official-guidance.md](../reference/official-guidance.md), "Out of scope for this
   skill", rather than from memory. Read the deletion plan and flags at
@@ -159,7 +159,7 @@ otherwise leaving the empty directory is harmless.
   stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
   re-accumulate memory.
 - If the intent was wiping everything Claude holds for this repo, point to
-  `claude project purge` (Step 2's pointer). Its scope is the full per-project one recorded in
+  `claude purge` (Step 2's pointer). Its scope is the full per-project one recorded in
   [reference/official-guidance.md](../reference/official-guidance.md), not auto memory alone.
 - If the user wants to be stateless everywhere, summarize the Claude Desktop / claude.ai
   account store steps in [desktop.md](desktop.md). That store is server-side and cannot be

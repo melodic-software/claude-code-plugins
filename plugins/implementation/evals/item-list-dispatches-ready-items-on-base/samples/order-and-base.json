@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Wave 1: acme/billing#41 and acme/billing#43 (both open, blocked_by_count 0, disjoint targets). Held: acme/billing#42, blocked by open #41; it is ready once #41 lands on origin/integration/rounding and closes.\n\n## Brief: acme/billing#41, half-even rounding helper\n\nProvision your worktree first: `git -C /srv/dev/billing fetch origin`, then `git -C /srv/dev/billing worktree add -b feat/41-rounding /srv/dev/wt/41-rounding origin/integration/rounding`. Before your first edit, confirm the base: `git -C /srv/dev/wt/41-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/41-rounding rev-parse origin/integration/rounding`. On a mismatch, STOP and report.\n\nALLOWED: billing/rounding.py, new tests. FORBIDDEN: billing/tax.py, billing/invoice.py, everything else.\n\nAcceptance: round_half_even(2.675) returns 2.68; pytest tests/test_rounding.py passes.\n\nIf an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.",
+      "why": "ready items together, blocked item held with its blocker named, base checked against the integration branch before the first edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Order: #41, then #42, then #43, one at a time in list order.\n\n## Brief: acme/billing#41\n\nCreate worktree feat/41-rounding from origin/integration/rounding. Before your first edit, check `git merge-base HEAD origin/integration/rounding` equals origin/integration/rounding; STOP on a mismatch.\n\nALLOWED: billing/rounding.py. Acceptance: round_half_even(2.675) returns 2.68; pytest passes.",
+      "why": "strict list order holds the ready #43 behind the blocked #42"
+    },
+    {
+      "answer": "Wave 1: #41 and #43. Held: #42 (blocked by #41).\n\n## Brief: acme/billing#41\n\nProvision your worktree on feat/41-rounding. Before your first edit, confirm `git merge-base HEAD origin/main` equals origin/main; STOP on a mismatch.\n\nALLOWED: billing/rounding.py. Acceptance: round_half_even(2.675) returns 2.68; pytest tests/test_rounding.py passes.",
+      "why": "checks the base against the default branch, not the --base ref"
+    },
+    {
+      "answer": "implement-dispatch needs an approved PLAN.md before any dispatch. Please run /planning:plan first.",
+      "why": "asks for a plan instead of running the item list"
+    }
+  ]
+}

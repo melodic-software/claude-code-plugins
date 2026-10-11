@@ -123,9 +123,14 @@ denial; with the cap at 3, all three launch.
 **Recheck trigger.** A release note naming `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` or the subagent
 concurrency cap.
 
+**Basis.** Both cases now spawn `sonnet` subagents instead of `haiku`, and were rerun live after
+that change, `probe.py run --live --retries 1 --max-runs 4 --max-cost-usd 4 --case <id>...`, with
+the launch above. Linux (WSL2), Claude Code **2.1.296**, 2026-10-11: 2 runs, no retry needed. Raw
+streams were not kept. The recheck trigger and expiry above apply.
+
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
-| `concurrency/subagent-cap-refuses-over-limit` | refused (any of 3) | 1 of 3 refused | pass |
+| `concurrency/subagent-cap-refuses-over-limit` | refused (any of 3) | 1 of 3 refused, "Concurrent subagent limit reached" | pass |
 | `concurrency/subagent-cap-allows-within-limit` | ran (all 3) | 3 of 3 launched | pass |
 
 ## 8. The sandbox blocks unlisted hosts inside the command
@@ -188,3 +193,99 @@ checks, or how rules match a hook-modified input.
 | `hooks/updatedinput-no-decision-runs-in-auto` | ran | ran, `PROBE_REWRITE_APPLIED` | pass |
 | `hooks/updatedinput-no-decision-denied-in-default` | deny | deny, `other`, "This command requires approval" | pass |
 | `hooks/updatedinput-no-decision-rule-matches-rewrite` | ran | ran | pass |
+
+## Basis for the 2026-10-10 Windows refresh
+
+A rerun of every case on Windows 11, with Git for Windows bash running the scaffolds, Claude Code
+**2.1.296**, 2026-10-10. It used the launch above and the runner defaults (`--max-runs 20`,
+`--max-cost-usd 10`, each case's `max_budget_usd`), in batches that keep each negative case with its
+control. The two failing cases were run a second time and failed the same way. The sandbox cases are
+Linux-only and were skipped. Platform and version both differ from the runs above, so a changed
+outcome here is not attributed to the release alone. Raw streams were not kept. Records 1 to 10 hold
+on this run except where the table says otherwise.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `auto-mode/flag-automode-rule-denies` | deny (classifier) | deny, classifier, `[Auto-Mode Bypass]` | pass |
+| `auto-mode/probemark-runs-without-rule` | ran | ran | pass |
+| `concurrency/subagent-cap-refuses-over-limit` | refused (any of 3) | 1 of 3 refused, "Concurrent subagent limit reached" | pass |
+| `concurrency/subagent-cap-allows-within-limit` | ran (all 3) | 3 of 3 launched | pass |
+| `auto-mode/ask-rule-denies-in-print-mode` | deny (rule) | deny, rule | pass |
+| `auto-mode/dry-run-push-allowed-without-ask-rule` | allow | allowed; the push itself was rejected by the remote | pass |
+| `auto-mode/subagent-ask-rule-denies` | deny (rule), in subagent | deny, rule | pass |
+| `auto-mode/subagent-dry-run-push-allowed` | allow, in subagent | allowed; rejected by the remote | pass |
+| `auto-mode/classifier-denies-file-sourced-force-push` | deny (classifier) | deny, classifier, `[Git Destructive]` | pass |
+| `auto-mode/narrow-allow-rule-passes-classifier` | ran | ran, forced update | pass |
+| `hooks/pretooluse-allow-skips-classifier` | ran | ran, forced update | pass |
+| `auto-mode/project-automode-rule-ignored` | ran | ran, `PROBEMARK project-settings-loaded` | pass |
+| `auto-mode/soft-deny-without-defaults-keeps-defaults` | deny (classifier) | deny, classifier, `[Git Destructive]` | pass |
+| `auto-mode/custom-soft-deny-benign-command-runs` | ran | ran | pass |
+| `auto-mode/bot-thread-resolve-denied-without-allow` | deny (classifier) | deny, classifier, "judged this action dangerous (it gave no explanation)", no category label | pass |
+| `auto-mode/bot-thread-resolve-conditional-allow-denied` | deny (classifier) | deny, classifier, same unlabeled reason | pass |
+| `auto-mode/bot-thread-resolve-allowed-with-allow-entry` | allow | allowed; gh failed to connect to `probe.invalid` | pass |
+| `hooks/updatedinput-no-decision-runs-in-auto` | ran | deny, classifier, `[Auto-Mode Bypass]` | fail |
+| `hooks/updatedinput-no-decision-denied-in-default` | deny | deny, `other`, "This command requires approval" | pass |
+| `hooks/updatedinput-no-decision-rule-matches-rewrite` | ran | ran | pass |
+| `worktree/enterworktree-inside-allowed` | ran | refused: the temp path was an 8.3 short name and git resolved the worktree to the long name | fail |
+| `worktree/enterworktree-outside-denied` | deny (safetyCheck) | deny, safetyCheck | inconclusive (its control failed) |
+| `sandbox/network-blocked-outside-allowlist` | refused | not run, Linux-only | skipped |
+| `sandbox/write-in-cwd-runs` | ran | not run, Linux-only | skipped |
+
+**Changed.** Record 10's auto-mode claim did not hold: the classifier denied the call as
+`[Auto-Mode Bypass]` instead of running the rewrite. Record 4's inside case was refused because the
+run's temp directory came through as a Windows 8.3 short path that git resolves to the long form, so
+it measures the fixture's path rather than `EnterWorktree` itself. Record 9's denials no longer
+carried the `[External System Writes]` label.
+
+## Basis for records 11 to 13
+
+A live run of the `subagent` area, `probe.py run --live --area subagent --retries 1 --max-runs 12`,
+with the launch above. Linux (WSL2), Claude Code **2.1.296**, 2026-10-10: 6 runs, no retry needed.
+Each case reads the level from the `effort.level` field of the hook payload, which the fixture's
+hook appends to `effort.log` and the subagent then `cat`s, so the reading is not the model's own
+report. `env-effort-overrides-spawn` first ran with a stricter check that also wanted the Agent
+call's `effort` in the PreToolUse hook's `tool_input`. It failed because that `tool_input` carried
+no `effort`, even though the saved stream shows the driver passed `"effort":"high"`. That was
+observed only with `CLAUDE_CODE_EFFORT_LEVEL` set. The case went back to its original check and
+was rerun once with `--keep`. That run passed, and its saved stream again shows `"effort":"high"`
+on the Agent call. The streams were not committed. The recheck trigger and expiry above apply.
+
+## 11. A per-spawn effort overrides a subagent's pin, and the environment variable overrides both
+
+**Claim.** A subagent pinned at `effort: low` runs at `low` when the spawn passes no `effort`, even
+with the session at `high`. It runs at `high` when the Agent call passes `effort: "high"`. With
+`CLAUDE_CODE_EFFORT_LEVEL=medium` it runs at `medium` despite both the pin and the spawn value.
+
+**Recheck trigger.** A release note naming the Agent tool's `effort` parameter, a subagent's
+`effort` field, or `CLAUDE_CODE_EFFORT_LEVEL`.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/definition-pin-applies-without-spawn-effort` | ran, `effort=low` | `effort=low` (session `high`) | pass |
+| `subagent/spawn-effort-overrides-pin` | ran, `effort=high` | `effort=high` | pass |
+| `subagent/env-effort-overrides-spawn` | ran, `effort=medium` | `effort=medium`; the stream shows `effort: "high"` passed | pass (rerun) |
+| `subagent/spawn-agent-call-carries-effort` | Agent call with `"effort": "high"` runs | ran | pass |
+
+## 12. An unpinned subagent with no spawn effort runs at the session level
+
+**Claim.** A subagent with no `effort` field, spawned with no `effort`, runs at the session's
+`effortLevel` (`low`). This case checks the instrument the other effort cases depend on.
+
+**Recheck trigger.** As record 11.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/placeholder-tracks-session-effort` | ran, `effort=low` | `effort=low` | pass |
+
+## 13. `${CLAUDE_EFFORT}` in a skill preloaded into a subagent is the session's level
+
+**Claim.** In a skill preloaded into a subagent pinned at `effort: low`, `${CLAUDE_EFFORT}` expands
+to the session's `effortLevel` (`medium`), not to the pin. A `fail` showing `low` would mean the
+placeholder now follows the subagent's level; `/discovery:research`'s parent contract depends on
+this case.
+
+**Recheck trigger.** A release note naming `${CLAUDE_EFFORT}` or skill string substitution.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `subagent/preloaded-skill-placeholder-reflects-session-effort` | ran, `effort=medium` | `echo effort=medium` | pass |

@@ -1,22 +1,17 @@
 # Claude Code cloud sessions: concepts, setup guide, and this repo's setup
 
 A how-to for provisioning Claude Code on the web (cloud sessions): what the pieces are, how to
-set them up for any account or repository, and how this repository is set up. Details
-deliberately live in the linked official pages, not here. Links into the three cloud pages
-(`web-quickstart`, `claude-code-on-the-web`, `cloud-environments`) and the claims restated from
-them were verified on 2026-08-13 against rung-1 raw-markdown fetches of those pages; links to
-other pages were last verified 2026-07-30. Per the
-[upstream-drift convention](conventions/upstream-drift/README.md), re-fetch a page before acting
-on it.
+set them up for any account or repository, and how this repository is set up. This doc states
+this repository's decisions and its own measurements; for platform behavior, limits, and defaults
+it links the exact upstream section instead of restating it. Read a linked section live before
+acting on it (`/discovery:read-docs` caches the page). The upstream pages:
 
-**Recheck trigger:** re-verify the claims this document restates from those pages when any of
-these change: the
-`cloud-environments` page's Setup scripts vs SessionStart hooks, Environment caching, Default
-allowed domains, Access levels, or What carries over from your setup sections; the
-`web-quickstart` page's Connect GitHub or New sessions hang or time out during setup sections;
-the `hooks#sessionstart` reference's documented pickup timing for hook effects; or Claude Code
-ships a `/plugin`-equivalent or `--plugin-dir` mechanism usable in cloud sessions (closing the
-first-turn slash gap tracked as #2733).
+- [Use Claude Code in the cloud](https://code.claude.com/docs/en/claude-code-on-the-web),
+  including its [Limitations](https://code.claude.com/docs/en/claude-code-on-the-web#limitations)
+- [Get started with Claude Code in the cloud](https://code.claude.com/docs/en/web-quickstart)
+- [Configure cloud environments](https://code.claude.com/docs/en/cloud-environments)
+- [Routines](https://code.claude.com/docs/en/routines)
+- [Remote Control vs cloud sessions](https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions)
 
 ## Contents
 
@@ -37,19 +32,17 @@ first-turn slash gap tracked as #2733).
   [cloud environment](https://code.claude.com/docs/en/cloud-environments): the dialog with name,
   network access, environment variables, and setup script. Environments are **scoped to your
   claude.ai account** (or
-  [shared org-wide by an admin](https://code.claude.com/docs/en/cloud-environments#organization-shared-environments)),
-  **not to a repository**: one environment serves every repo and every surface that starts cloud
-  sessions (web, `claude --cloud`, mobile, desktop, routines, and
-  [Claude Tag](https://code.claude.com/docs/en/cloud-environments#organization-shared-environments),
-  whose channel sessions use org-shared environments only).
+  [shared org-wide by an Owner](https://code.claude.com/docs/en/cloud-environments#organization-shared-environments)),
+  **not to a repository**: one environment serves every repo and
+  [every surface that starts cloud sessions](https://code.claude.com/docs/en/cloud-environments).
 - Two setup mechanisms exist, with an
   [official division of labor](https://code.claude.com/docs/en/cloud-environments#setup-scripts-vs-sessionstart-hooks):
   the environment's **setup script** provisions the VM itself (toolchains, CLI tools), while a
   repo-committed **[SessionStart hook](https://code.claude.com/docs/en/hooks#sessionstart)**
   handles project setup and runs in local and cloud sessions alike.
 - [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
-  is the key reference: repo-committed `.claude/` config reaches cloud sessions; user-level
-  `~/.claude` config never does. That is why the fleet `claude-permissions` floor, composed
+  is the key reference for which repo-committed and user-level config reaches a cloud session.
+  User-level `~/.claude` config does not, which is why the fleet `claude-permissions` floor, composed
   locally by chezmoi into `~/.claude/settings.json`, never reaches a cloud session
   ([#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172)).
 
@@ -61,28 +54,29 @@ Usually nothing to do. Onboarding (the
 [browser flow](https://code.claude.com/docs/en/web-quickstart#connect-github), or
 [`/web-setup` from the CLI](https://code.claude.com/docs/en/web-quickstart#connect-from-your-terminal)
 if you already use `gh`) creates a
-[Default environment](https://code.claude.com/docs/en/cloud-environments#the-default-environment)
-whose Trusted network level already reaches the
-[default allowed domains](https://code.claude.com/docs/en/cloud-environments#default-allowed-domains)
-(common package registries, GitHub, SchemaStore). Configure an environment only when you need
-more, and keep it repo-agnostic, since it serves all repos:
+[Default environment](https://code.claude.com/docs/en/cloud-environments#the-default-environment),
+whose network level and reach are on that page and in
+[Default allowed domains](https://code.claude.com/docs/en/cloud-environments#default-allowed-domains).
+Configure an environment only when you need more, and keep it repo-agnostic, since it serves all
+repos:
 
 - [Create or edit environments](https://code.claude.com/docs/en/cloud-environments#configure-your-environment)
-  from the selector at claude.ai/code; pick a
+  from the environment selector; pick a
   [network access level](https://code.claude.com/docs/en/cloud-environments#access-levels) if
-  Trusted isn't right. This fleet's accounts all run **All** (see
+  the default isn't right. This fleet's accounts all run **Full** (see
   [One environment or several?](#one-environment-or-several)).
-- [Environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)
-  are readable by anyone who uses the environment and there is no secrets store, so no credentials.
+- Put no credentials in
+  [environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables):
+  the page says who can read them, and
+  [network secrets](https://code.claude.com/docs/en/cloud-environments#add-network-secrets) covers
+  the plans that have a store for keys.
 - A [setup script](https://code.claude.com/docs/en/cloud-environments#setup-scripts) is only for
   tools missing from the
   [pre-installed inventory](https://code.claude.com/docs/en/cloud-environments#installed-tools);
-  mind its [requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements),
-  which are to exit zero, finish within the roughly-five-minute cache-build budget, and reach the
-  registries at the chosen access level,
-  and [caching behavior](https://code.claude.com/docs/en/cloud-environments#environment-caching).
-  The docs' worked example installs the `gh` CLI, which pairs with the
-  [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) for auth.
+  write it to the [script requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements)
+  and the [caching behavior](https://code.claude.com/docs/en/cloud-environments#environment-caching).
+  `gh` is in the pre-installed inventory, and the
+  [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) authenticates it.
 - CLI users pick their environment with
   [`/remote-env`](https://code.claude.com/docs/en/cloud-environments#select-an-environment-from-the-cli).
 
@@ -95,14 +89,13 @@ Everything repo-specific goes in source control, following the docs' pattern in
   `.claude/settings.json`, pointing at a script in the repo via `$CLAUDE_PROJECT_DIR`.
 - In the script, exit immediately unless `CLAUDE_CODE_REMOTE=true` so local machines are never
   mutated, then install what the repo's own checks need.
-- Design rules that matter in practice: make every step idempotent (hooks run on every startup
-  and resume, per the
-  [limitations list](https://code.claude.com/docs/en/cloud-environments#limitations-in-cloud-sessions)),
-  fail the session only for installs the session genuinely can't work without, and warn-and-
-  continue for the rest. Persist `PATH` or other variables by appending to `$CLAUDE_ENV_FILE`.
+- Design rules that matter in practice: make every step idempotent (see
+  [Limitations in cloud sessions](https://code.claude.com/docs/en/cloud-environments#limitations-in-cloud-sessions)
+  for when hooks run), fail the session only for installs the session genuinely can't work
+  without, and warn-and-continue for the rest. Persist `PATH` or other variables by appending to
+  `$CLAUDE_ENV_FILE`.
 - Merge the hook to the default branch; from then on every cloud session on that repo picks it
-  up. In a cloud session you can also just ask Claude to create the hook. An Anthropic-provided
-  `session-start-hook` skill is preloaded there for exactly this.
+  up. In a cloud session you can also ask Claude to create the hook.
 
 ### Setup script vs SessionStart hook: decision criteria
 
@@ -112,18 +105,21 @@ plus the cost model of
 [environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching):
 
 - **Setup script** (environment dialog; cached): heavy, repo-agnostic, static installs such as SDKs
-  (e.g. .NET, which the docs call out as setup-script material), `apt` packages, and Docker image
-  pulls. Runs as root; its cost is paid once per cache rebuild (script/network-config edit, or
-  roughly-seven-day expiry), not per session. Total runtime must stay under the
-  roughly-five-minute cache-build budget or
-  [sessions hang or fail at setup](https://code.claude.com/docs/en/web-quickstart#new-sessions-hang-or-time-out-during-setup)
-  and you must parallelize independent installs and push oversized downloads into a SessionStart hook.
+  (e.g. .NET, which [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools)
+  sends to a setup script), `apt` packages, and Docker image pulls. Its cost is paid once per
+  cache rebuild (the rebuild events are in
+  [Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching)),
+  not per session. Keep its runtime inside the
+  [script requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements),
+  or the environment is not cached and
+  [sessions can hang or fail at setup](https://code.claude.com/docs/en/web-quickstart#new-sessions-hang-or-time-out-during-setup).
 - **SessionStart hook** (repo-committed; every session start and resume): anything driven by the
   repo's own manifests or that must track branch state, such as dependency installs and pinned-tool
   provisioning. Runs locally and in the cloud, so guard cloud-only work with
   `CLAUDE_CODE_REMOTE` and make every step idempotent; the cost is paid per session.
-- **Neither is for processes**: the cache keeps files, not running services. Start databases or
-  `docker compose` stacks per session (ask Claude, or start them from the hook).
+- **Neither is for processes**: the cache keeps files, not running services
+  ([Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching)).
+  Start databases or `docker compose` stacks per session (ask Claude, or start them from the hook).
 - **The setup script is the only pre-launch slot. Plugins require it, and it caches the
   bootstrap's work**: the setup script runs after the repository is cloned and before the
   session's Claude Code process starts, so a guarded line in the environment's setup script can
@@ -138,39 +134,42 @@ plus the cost model of
   ```
 
   The guard keeps it a no-op for repositories without the script, so the environment stays
-  generic, and this repo's ~40 s bootstrap fits comfortably inside the five-minute cache-build
-  budget. (How the cache interacts with sessions across *different* repos isn't documented;
+  generic, and this repo's ~40 s bootstrap fits comfortably inside the cache-build limit in the
+  [script requirements](https://code.claude.com/docs/en/cloud-environments#script-requirements). (How the cache interacts with sessions across *different* repos isn't documented;
   the idempotent script makes either behavior safe.)
 
 ### One environment or several?
 
 Start with one Default. Environments are account-scoped and repo-agnostic, so a single
-environment serves every repository. This fleet runs its Default at **All** network access
+environment serves every repository. This fleet runs its Default at **Full** network access
 (operator decision 2026-08-22; rationale in
 [cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
 Add a second, named environment only when a class of work needs something incompatible or heavy
 enough to isolate: a big SDK whose cache churn you want contained, or an account that handles
-sensitive material and therefore has to run narrower than All, on a
+sensitive material and therefore has to run narrower than Full, on a
 [custom domain allowlist](https://code.claude.com/docs/en/cloud-environments#allow-specific-domains).
-A repo needing an uninstalled toolchain (the docs' example is the .NET SDK) means adding its
-install to a setup script. Extend Default, or create a dedicated environment and select it when
-starting sessions on that repo. Reaching NuGet and dotnet.microsoft.com is not what settles .NET:
-both are on the default allowlist, yet under Trusted the installer's redirect chain still came
-back `403` (#2654 Blocker 1). That is why the toolchain question and the network-access question
-are separate, and why the fleet answers the second with All.
+A repo needing a toolchain missing from
+[Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) means
+adding its install to a setup script. Extend Default, or create a dedicated environment and
+select it when starting sessions on that repo. Reaching NuGet and dotnet.microsoft.com is not
+what settles .NET: in this fleet's 2026-08-14 verification run, with both hosts reachable under
+Trusted, the installer's redirect chain still came back `403` (#2654 Blocker 1). That is why the
+toolchain question and the network-access question are separate, and why the fleet answers the
+second with Full.
 
 ## How this repository is set up
 
-The environment side stays generic (Default environment, **All** network access, no variables, the
-`gh` setup-script one-liner and the guarded pre-launch bootstrap call from above). The repo side:
+The environment side stays generic (Default environment, **Full** network access, no variables,
+and the setup script from [cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time),
+which carries the guarded pre-launch bootstrap call from above). The repo side:
 
 - [`.claude/cloud-bootstrap.sh`](../.claude/cloud-bootstrap.sh) is the bootstrap, with two
   callers: the account environments' setup scripts run it (with `CLAUDE_CODE_REMOTE=true`)
   after clone and before the session process launches, the only path that gets plugins loaded
   at turn one, and the `SessionStart` hook registered in
   [`.claude/settings.json`](../.claude/settings.json) (matcher `startup|resume`) re-runs the
-  same script per session start/resume as drift repair, since the environment cache can be
-  ~7 days stale. Cloud
+  same script per session start/resume as drift repair, since the environment cache can be as
+  old as its [expiry](https://code.claude.com/docs/en/cloud-environments#environment-caching). Cloud
   VMs only; ~40 s on a fresh VM, ~3 s on re-runs. It provisions the tool inventory
   [`pr-require-checks.yml`](../.github/workflows/pr-require-checks.yml) pins, reading in-repo manifests wherever one exists:
 
@@ -195,7 +194,8 @@ Best-effort rather than required, deliberately: the plugin contract suites SKIP 
 optional tool is absent and CI remains the enforcing gate, while a required install failure would
 block the session from starting. GitHub release-asset downloads are additionally best-effort
 because the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
-documents that release assets from repositories not attached to the session can return 403.
+scopes its requests to the repositories attached to the session, so a release asset from
+another repository can be refused.
 
 Not installed at session start (install on demand when working in those areas): the plugin npm
 packages. `plugins/miro/server` and `.github/standards/runner-policy` are each an `npm ci` in their
@@ -203,7 +203,9 @@ own directory, while the video-digest, course-digest, and ai-briefing suites ins
 their skills' entry scripts (`plugins/knowledge/skills/video-digest/scripts/run-tests.sh
 install`, `plugins/knowledge/skills/course-digest/scripts/run-tests.sh install`,
 `plugins/ai-briefing/skills/generate/scripts/run-tests.sh install`); the heavy ones pull
-Playwright. `gh`, `pwsh`, and `lychee` are likewise on-demand.
+Playwright. `lychee` is likewise on-demand. `gh` and `pwsh` are not the bootstrap's to install:
+they come from the VM image and the shared environment's setup script
+([cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
 
 ### Plugins in sessions on this repo
 
@@ -225,51 +227,46 @@ catalog on, and the cloud bootstrap installs from the two together (see
   the health verdict against the clone's HEAD rather than the checkout's, and prints one
   warning naming both commits, so a branch that changed a plugin knows its copy is not the one
   being served.
-- **`skillListingBudgetFraction` is set to `0.05`, and what that buys depends entirely on the
-  live model's context window.** Claude Code loads every enabled skill's name and description
-  each turn and caps the total at
-  [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings) of the context window,
-  default `0.01`. On overflow it keeps every *name* and sheds *descriptions*, lowest-scoring
-  skills first, so a skill that is never invoked loses the keywords a request would have matched
-  and goes on not being invoked. Measured at `main` 3ea592bb with
-  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`: **182 listing-eligible
-  skills, 135,596 characters**. The budget is `window_tokens x 4 chars/token x fraction`, so at
-  `0.05` the listing fits **only on a context window of 677,980 tokens or larger**. Read the
-  setting as a window assumption, not a guarantee:
+- **`skillListingBudgetFraction` is set to `0.07`, and what that buys depends on the live
+  model's context window and its bytes per token.** Claude Code caps the per-turn skill listing
+  at a fraction of the context window; the key and its default are in
+  [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction),
+  and what overflow drops is in
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
+  A skill whose description is dropped loses the keywords a request would have matched and goes
+  on not being invoked. The budget is `window_tokens x bytes_per_token x fraction`, and
+  bytes per token is 3 or 4 depending on the model.
 
-  | Context window | Budget at `0.05` | `harness-ops:audit-skill-visibility` |
-  | --- | --- | --- |
-  | 200,000 (Claude Code's documented default) | 40,000 chars | `overflowing`, **135 of 182 starved** |
-  | 677,980 (break-even for today's fleet) | 135,596 chars | `listing-fits`, 0 starved |
-  | 750,000 | 150,000 chars | `listing-fits`, 0 starved, 14,404 spare |
-  | 1,000,000 | 200,000 chars | `listing-fits`, 0 starved, 64,404 spare |
+  Measured 2026-10-10 on Claude Code 2.1.296 with
+  `/harness-ops:audit-skill-visibility --installed --context-window 1000000 --listing-capture
+  <session transcript>`: the full listing for the installed fleet is about **177,000
+  characters**. That is 302 competing skills at 169,124, plus 8,237 for built-in and other
+  entries only the captured listing shows. A `claude-opus-5-5` session on a 1M window got a
+  listing of exactly 150,000 characters at the previous `0.05`, so that model runs at 3 bytes
+  per token, and it shed 38 descriptions. At `0.07`:
 
-  On a 200k-window machine this setting does not clear the fleet; it moves the starved count from
-  177 to 135. It reaches 0 starved only on the large-window models this marketplace is actually
-  driven on. Re-measured after merging `main` 8dd38b81: 182 skills, 135,572 characters. Every
-  row above reproduces unchanged, so treat the table as accurate to within a few dozen characters
-  of whatever `main` you read it on, not as a live reading.
+  | Context window | Budget at 3 bytes/token | Budget at 4 bytes/token | Against about 177,000 |
+  | --- | --- | --- | --- |
+  | 200,000 | 42,000 chars | 56,000 chars | overflowing at either rate |
+  | 750,000 | 157,500 chars | 210,000 chars | overflowing at 3, fits at 4 |
+  | 1,000,000 | 210,000 chars | 280,000 chars | fits, about 33,000 spare at 3 |
 
-  **The repo did not previously run `0.03` or a 90,000-character budget.**
-  `git log -S skillListingBudgetFraction -- .claude/settings.json` returns exactly one commit on
-  this branch, a5a9503a, the commit in this change that adds the key, so before it this repo
-  inherited the harness default `0.01`,
-  which is the documented 8,000-character fallback on a 200k window and leaves **177 of 182
-  skills starved**. The `0.03` / 90,000-character pair belongs to one contributor's machine in
-  [#3505](https://github.com/melodic-software/claude-code-plugins/issues/3505)'s debug log, where
-  the audit reports 72 of 182 starved. That is a real observation of one consumer, not this
-  repository's prior configuration.
+  A 200k-window session, including a subagent whose listing is sized to its own window, still
+  sheds descriptions at any fraction anyone would want to pay for. The setting is sized for the
+  1M-window models this marketplace is driven on. Re-measure with the command above rather than
+  trusting this table on a later `main`.
 
-  **This is a stopgap measured in days.** The same tool measured 59,465 characters on 2026-07-20
-  and 86,316 on 2026-08-05 against 135,596 on 2026-09-05, which is 1,620 to 1,700 characters of
-  growth a day. Against the 14,404-character headroom on a 750,000-token window that is **about
-  9 days**; against the 64,404 on a 1,000,000-token window, **about 40 days**. No fraction anyone
-  would want to pay for changes that shape, because the aggregate is what grows. Trimming the
-  descriptions at their source is the fix, and it is
-  [#3526](https://github.com/melodic-software/claude-code-plugins/issues/3526). That is required
-  work, not optional follow-up. Until it lands, a second report-only CI step measures the
-  aggregate at this configured fraction on the tighter 750,000-token basis, so the WARN arrives
-  with days of warning instead of after the consumers on that basis have already overflowed.
+  **This is a stopgap.** The repository's own skills grew 1,620 to 1,700 description characters
+  a day between July and September 2026 (measured with
+  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`). At that rate the
+  1M/3 headroom lasts about three weeks, an estimate because the installed fleet includes skills
+  from outside this repository. Raising the fraction again only resets the clock. Trimming the
+  descriptions at their source is the fix, and
+  [#6846](https://github.com/melodic-software/claude-code-plugins/issues/6846) owns it, including
+  lowering this fraction again once the trimmed listing is re-measured. Until it lands, a
+  second report-only CI step measures this repository's skills at the configured fraction on a
+  750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, which
+  overflows at 750,000 tokens already.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,
@@ -277,11 +274,11 @@ catalog on, and the cloud bootstrap installs from the two together (see
   session on this repo had `projects["<repo-root>"].hasTrustDialogAccepted` set to `false` in
   `~/.claude.json`, an empty `~/.claude/plugins/installed_plugins.json`, no plugin skill loaded
   and every `/plugin` command unknown, while the same settings file's `env` block *had* applied.
-  That is exactly the split the table predicts, and it is why
-  [what carries over](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
-  promising plugins "installed at session start from the marketplace you declared" did not hold
-  here. Hooks run untrusted, so a hook can repair the on-disk state but not the running
-  session; see the next bullet.
+  That is exactly the split the table predicts.
+  [What carries over from your setup](https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup)
+  now lists repo-declared plugins and marketplaces among what a cloud session does not install,
+  which matches what this repo observed. Hooks run untrusted, so a hook can repair the on-disk
+  state but not the running session; see the next bullet.
 - **A SessionStart install is never visible to the session that ran it.** Observed 2026-08-15 in
   a cloud session on this repo: the hook completed `65 enabled, 65 newly installed, 0 failed`,
   `~/.claude/plugins/installed_plugins.json` and user-scope `settings.json` were fully populated
@@ -290,7 +287,9 @@ catalog on, and the cloud bootstrap installs from the two together (see
   skill registry resolved no plugin skill. The command/skill registry is built when the Claude
   Code process starts, before SessionStart hook effects land, and is not re-read afterwards; the
   [hooks reference](https://code.claude.com/docs/en/hooks#sessionstart) documents no same-session
-  pickup, and neither `/plugin` nor `--plugin-dir` exists in cloud sessions to force one. On an
+  pickup, and neither `/plugin`
+  ([terminal-only commands](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context))
+  nor `--plugin-dir` exists in cloud sessions to force one. On an
   ephemeral VM this is a chicken-and-egg: every fresh session re-installs after its registry is
   already built, so the hook alone can never produce a session with plugins loaded. What the
   hook still buys is correct on-disk state for any process start that happens *after* it: a
@@ -317,11 +316,10 @@ catalog on, and the cloud bootstrap installs from the two together (see
   working tree and follow it manually (note: this bypasses skill-load string substitutions
   such as `${CLAUDE_EFFORT}`). Prefer fixing the environment so the setup-script path
   pre-installs before process start; do not invent plugin-side registry hacks.
-- Being a `directory` source may compound the symptom:
-  [that source is documented for development only](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)
-  and the carry-over note qualifies install-at-session-start with "requires network access to reach
-  the marketplace source". The two candidates were not separated, because the trust gate alone
-  accounts for the symptom and the bootstrap makes both moot.
+- Whether being a `directory` source
+  ([its intended uses](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces))
+  compounds the symptom was never separated out: the trust gate alone accounts for it, and the
+  bootstrap makes the question moot.
 - The bootstrap therefore registers the checkout by absolute path and installs the enabled set
   explicitly, for the benefit of the *next* process start, per the timing bullet above. It
   never calls `claude plugin marketplace remove`, which deletes the marketplace's
@@ -331,7 +329,8 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `audit` re-derives the fleet from `installed_plugins.json` and the settings maps on the run, so
   a bootstrap that ran a moment earlier shows up only as current state, never as a branch in the
   skill.
-  directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
+- On resume the bootstrap also repairs [same-version commit drift](migration-playbook.md#same-version-commit-drift-copied-installs):
+  because a directory-source cache is keyed by the semver in `plugin.json` rather than the commit, a
   presence check alone would keep serving whichever commit installed first. The script compares the
   `gitCommitSha` recorded at install time against `HEAD` and forces the documented
   uninstall/install/enable cycle for the plugins whose own directory changed between the two, so
@@ -424,10 +423,16 @@ Both exist in cloud sessions and don't conflict, because they serve different ca
   authenticate through the
   [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) with no setup.
 - The **`gh` CLI** is what this repo's plugin scripts and hooks shell out to (several
-  `source-control`, `guardrails`, and `work-items` suites SKIP without it). It isn't
-  pre-installed; the environment setup script installs it, and in cloud sessions it
-  [authenticates via the proxy automatically](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests)
-  with no token needed. Locally, contributors authenticate `gh` themselves as usual.
+  `source-control`, `guardrails`, and `work-items` suites SKIP without it). It is in the VM
+  image's [installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools),
+  and this fleet's environment setup script replaces that build with a pinned release
+  ([cloud-fleet-setup.md](cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
+  In cloud sessions it
+  [authenticates through the proxy](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests),
+  and the [GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) refuses
+  its GraphQL-backed subcommands, which is why this repo opens PRs and issues there through the
+  GitHub MCP tools and reads with `gh api` REST calls. Locally, contributors authenticate `gh`
+  themselves as usual.
 
 ### Known gap: Ubuntu-archive `gh` 2.45 vs the seam's 2.94 floor (#3169)
 

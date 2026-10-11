@@ -1,0 +1,15 @@
+# user-experience team file fixture: an added kind: tool row, which the team policy drops.
+version: 1
+routing:
+  version: 1
+  rows:
+    - job: evaluation
+      rank: 1
+      id: card-sort-cli
+      kind: tool
+      detect: card-sort-cli
+      account: none
+      status: confirmed
+      as_of: 2026-10-09
+      pointer: https://example.com/card-sort-cli
+      recheck: the tool is renamed

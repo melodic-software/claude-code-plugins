@@ -9,7 +9,10 @@
 #   scripts/check-changelog-fragments.sh --check-required <base-ref>
 #       a change set that changes a fragment-mode plugin's shipped files adds or
 #       modifies a fragment for it; a fragment it adds must not already exist at
-#       <base-ref>
+#       <base-ref>. A Dependabot pull request whose every commit is a verified
+#       Dependabot commit needs no fragment: scripts/dependabot-fragments.sh
+#       writes it after the merge (changelog_fragments::dependabot_only in
+#       scripts/lib/changelog-fragments.sh)
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: <base-ref> holds no fragment this release
 #       left unconsumed for a plugin whose version it bumps, and no fragment it
@@ -139,6 +142,11 @@ done <"$status_file"
 
 if [[ "$mode" == --check-required ]]; then
   findings=0
+  dependabot=""
+  # shellcheck disable=SC2310  # the non-zero return IS the answer
+  if changelog_fragments::dependabot_only "$base"; then
+    dependabot=1
+  fi
   for path in ${added_fragments[@]+"${added_fragments[@]}"}; do
     if git cat-file -e "$base:$path" 2>/dev/null; then
       echo "FRAGMENT PATH TAKEN: $path already exists at $base; create a new one with scripts/new-changelog-fragment.sh." >&2
@@ -155,6 +163,10 @@ if [[ "$mode" == --check-required ]]; then
     esac
     checked=$((checked + 1))
     [[ -z "${covered[$name]:-}" ]] || continue
+    if [[ -n "$dependabot" ]]; then
+      echo "Dependabot-only change to plugins/$name/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      continue
+    fi
     echo "MISSING FRAGMENT: this change set changes files under plugins/$name/ but adds or edits no fragment under .changes/$name/." >&2
     echo "  Run scripts/new-changelog-fragment.sh $name <major|minor|patch|none> and describe the change; use none, with a reason, when it needs no release." >&2
     findings=$((findings + 1))

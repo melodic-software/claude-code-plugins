@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "retry:\n  max_attempts: 5\n  backoff_seconds: 2\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "retry:\n  max_attempts: 3\n  backoff_seconds: 2\n"
+    },
+    {
+      "answer": "retry:\n  max_attempts: 5\n  backoff_seconds: 1\n"
+    }
+  ]
+}

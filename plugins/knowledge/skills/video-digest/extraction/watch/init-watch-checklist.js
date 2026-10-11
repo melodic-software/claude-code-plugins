@@ -86,7 +86,56 @@ export function buildFloorsLine(contentClass, durationHours, sessionCount, durat
   );
 }
 
+const ROW_ID = /^- \[([ xX])\] \*\*([^*]+)\*\*/;
+const RESUME_HEADING = "## Resume notes";
+
 /**
+ * Carry an existing checklist's ticks (matched by row id), the indented
+ * evidence lines under each ticked row, and its Resume notes section into a
+ * freshly rendered one, so a regenerate never erases evidence. The row text
+ * itself is regenerated.
+ *
+ * @param {string} rendered freshly rendered checklist
+ * @param {string} previous checklist already on disk
+ * @returns {string}
+ */
+export function carryOverProgress(rendered, previous) {
+  /** @type {Map<string, string[]>} ticked row id -> indented evidence lines under it */
+  const ticked = new Map();
+  /** @type {string[] | null} */
+  let evidence = null;
+  for (const line of previous.split("\n")) {
+    const match = ROW_ID.exec(line);
+    if (match) {
+      evidence = match[1] === " " ? null : [];
+      if (evidence) ticked.set(match[2], evidence);
+    } else if (evidence && /^\s+\S/.test(line)) {
+      evidence.push(line);
+    } else {
+      evidence = null;
+    }
+  }
+  let merged = rendered
+    .split("\n")
+    .flatMap((line) => {
+      const match = ROW_ID.exec(line);
+      const kept = match ? ticked.get(match[2]) : undefined;
+      return kept ? [line.replace("- [ ]", "- [x]"), ...kept] : [line];
+    })
+    .join("\n");
+
+  const previousNotes = previous.indexOf(RESUME_HEADING);
+  const renderedNotes = merged.indexOf(RESUME_HEADING);
+  if (previousNotes !== -1 && renderedNotes !== -1) {
+    merged = merged.slice(0, renderedNotes) + previous.slice(previousNotes);
+  }
+  return merged;
+}
+
+/**
+ * Write the checklist. With `force`, an existing checklist is regenerated (floors,
+ * signals, per-sheet rows) and keeps its ticks and Resume notes.
+ *
  * @param {string} sliceDir
  * @param {{ force?: boolean }} [options]
  * @returns {string} output path
@@ -147,10 +196,10 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
   // Floors derive from the vision-plan content class. Post-bootstrap, vision-plan.md
   // does not exist yet, so the class — and every floor computed from it — is unknown.
   // Defer the whole floors sentence rather than substitute fabricated numbers: the
-  // checklist re-materializes (--force) once the plan lands.
+  // checklist re-materializes (--force, which keeps ticks) once the plan lands.
   const floorsLine = visionPlanPresent
     ? buildFloorsLine(contentClass, durationHours, sessionCount, durationSec)
-    : "**Floors for this slice:** deferred — pending `key-frames/vision-plan.md` (content class + floors set after the vision-plan lands; re-run with `--force`).";
+    : "**Floors for this slice:** deferred — pending `key-frames/vision-plan.md` (content class + floors set after the vision-plan lands; re-run with `--force`, which keeps ticks and Resume notes).";
   // Item 4.9's percent comes from the same floors. Without a vision plan the
   // class is unknown, so the item names the deferred floor rather than a number.
   const floorSheetTriageText = visionPlanPresent
@@ -177,6 +226,10 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
 
   for (const [key, value] of Object.entries(replacements)) {
     template = template.replaceAll(key, value);
+  }
+
+  if (fs.existsSync(outPath)) {
+    template = carryOverProgress(template, fs.readFileSync(outPath, "utf8"));
   }
 
   fs.mkdirSync(lanePath(absSlice, LANES.runState), { recursive: true });

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/discovery/hooks/hooks.json
 # Tests for check.sh: a healthy plugin passes every row; a PATH without node
 # fails the node and hook rows but still reports registration; a hooks.json
 # without the hook fails registration.

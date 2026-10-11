@@ -49,18 +49,26 @@ unattended runs; that a `--bg` lane denies with it is not probed. Never use bypa
 credentials. On a long run, keep the task list in a file and tick it as you go, and end with
 three headings: Blocked on me, Changed, Found, unless a skill defines its own report shape.
 
+## Org architecture
+
+Org architecture (cross-repo decisions, glossary, why each trust link exists): private repo `melodic-software/architecture`; repo map: `gh api orgs/melodic-software/properties/values` (system and role per repo). Read it before cross-repo or infrastructure changes: `gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/architecture/contents/<path>`; on Claude Code on the web, attach it at session start; in CI, check it out with a read-only App token. If you need it and cannot read it, say so instead of guessing its contents; tasks that don't need it continue.
+
 ## Code Review Rules
 
 Each line names a rule CI does not enforce; the linked file states it in full.
 
 - Org-wide criteria: [`REVIEW.md`](REVIEW.md), synced from `melodic-software/standards`.
-- Skill and agent bodies link volatile upstream specifics with an as-of date and recheck trigger,
-  never restate them: [rule](.claude/rules/skill-bodies-state-current-rules.md).
+- Skill and agent bodies never restate a volatile upstream specific (behavior, limit, default,
+  version), even with a stamp; they point at the exact section, and the pointer carries an as-of
+  date and recheck trigger: [rule](.claude/rules/skill-bodies-state-current-rules.md).
 - Skill and agent text meets the skill standard, and a cut to an existing skill ships only with
   eval evidence of no loss:
   [skill criteria](plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
 - Cost claims: no prices or per-task costs, outside two named exceptions:
   [rule](.claude/rules/cost-claims.md).
+- A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
+  owner or in a declared-provider surface:
+  [ADR 0060](docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 - Eval cases hold no raw session or product transcript:
   [rule](.claude/rules/eval-case-transcripts.md).
 - Cross-plugin citations name the skill by `/plugin:skill`, never by path:
@@ -78,11 +86,15 @@ Each line names a rule CI does not enforce; the linked file states it in full.
 
 ## Conventions that load on demand
 
-Each surface below enters context automatically when Claude reads a file it covers, in subagents
-as well as in the main session. The match is on the requested path, so even a read that finds no
-file fires it. A surface whose trigger has not fired is simply absent, and after a compaction it
-returns only when a covered file is read again. When you are working on something an entry covers
-and its content is not already in context, read the file directly.
+Each surface below enters context automatically, in subagents as well as in the main session,
+once a file it covers triggers it. The triggers differ by surface type: see
+<https://code.claude.com/docs/en/memory#path-specific-rules> for rules,
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load> for nested `CLAUDE.md`, and
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> for `AGENTS.md`. The
+match is on the requested path, so even a Read tool call that finds no file fires it. A surface
+whose trigger has not fired is simply absent, and after a compaction it returns only when its
+trigger fires again. When you are working on something an entry covers and its content is not
+already in context, read the file directly.
 
 | Surface | Covers | Topic |
 |---|---|---|
@@ -95,6 +107,7 @@ and its content is not already in context, read the file directly.
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |
 | `plugins/playbooks/reference/model-adaptation/AGENTS.md` | `plugins/playbooks/reference/model-adaptation/**` | model-adaptation chapters: contributor conventions |
+| `plugins/user-experience/tests/fixtures/pointer-home/AGENTS.md` | `plugins/user-experience/tests/fixtures/pointer-home/**` | Fixture project for the user-experience team-surface resolver |
 | `plugins/work-items/skills/work-loop/AGENTS.md` | `plugins/work-items/skills/work-loop/**` | work-loop: contributor conventions |
 
 <!-- END GENERATED: instruction-placement rules index -->
