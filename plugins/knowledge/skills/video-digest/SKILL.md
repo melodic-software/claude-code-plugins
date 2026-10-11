@@ -43,7 +43,7 @@ Read a spoke **only when its condition holds**. These are mutually exclusive by 
 | `context/watch-pipeline.md` | when running the **watch** action (or `resume` into it), the full per-phase procedure |
 | `context/workflow.md` | when you want the watch phase-flow diagram + phase summary table |
 | `context/watch-queue.md` | when running any **queue** action, or dequeuing via `watch` / `watch <n>`. Claim protocol and preflight decision table |
-| `context/output-contract.md` | when about to write or stage slice artifacts, or when a non-default `library_dir` work root is configured |
+| `context/output-contract.md` | when about to write or stage slice artifacts, when a non-default `library_dir` work root is configured, or when re-laying out a closed slice into a corpus layout |
 | `context/quality-gates.md` | when grading a phase or a finished slice against binary criteria |
 | `context/synthesis-contract.md` | when harvesting decks, or when applying the frame promotion bar |
 | `templates/vision-json-shapes.md` | when briefing a vision subagent to write a sheet triage, promotion-decisions or quality-audit JSON file. Each file's keys and the rules its validators enforce |

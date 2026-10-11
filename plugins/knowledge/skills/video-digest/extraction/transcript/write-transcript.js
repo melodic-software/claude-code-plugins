@@ -73,7 +73,9 @@ export function dropParagraphBoundaryRepeats(transcript) {
       currentWords.length - 1,
     );
     for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
-      if (comparableRun(previousWords.slice(-length)) === comparableRun(currentWords.slice(0, length))) {
+      if (
+        comparableRun(previousWords.slice(-length)) === comparableRun(currentWords.slice(0, length))
+      ) {
         paragraphs[index] = current[1] + currentWords.slice(length).join(" ");
         break;
       }

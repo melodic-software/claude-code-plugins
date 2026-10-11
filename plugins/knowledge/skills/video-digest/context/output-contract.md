@@ -55,9 +55,28 @@ once per process, and the new name wins when both are set.
 
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
-material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that
-shape from this skill: land under `library_dir` as-written and re-lay-out by hand, or fork
-the sub-path in your own automation. This skill's contract is root relocation only.
+material at a differently-shaped path (for example `sources/<type>/<slug>/`) lands under
+`library_dir` as written, then re-lays out the closed slice with `relayout-slice.js`:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media]
+```
+
+It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`),
+`frames/all/`, `frames/key/` beside the three frame logs in `frames/`, `media/<id>.<ext>`,
+`analysis/` (`RESEARCH.md`, `research/`, `recommendations/`), and a provenance `README.md` when
+the target has none. The script's header comment is the authoritative mapping. It rewrites each
+slice path the copied markdown names (links and backticked paths) through a path map, relative to
+the file's new location, then link-checks the target and exits 1 listing every slice-internal path
+that still does not resolve; paths under `plugins/`, `docs/`, `templates/` and `.claude/`,
+`AGENTS.md`, and paths that leave the target are not checked. Fix those by hand and re-run the
+script, which overwrites the copied files.
+
+It refuses a slice whose `run-state/watch.json` status is not `complete`. The media, every
+extracted frame, the served caption tracks and the info JSON come from the temp session that
+`watch.json` records, and it refuses a slice whose temp media is gone unless `--no-media` is
+passed, which re-lays out the slice files alone. `close` removes that temp session when it can,
+so after a normal close only `--no-media` runs.
 
 ## Agent-written artifacts share the same root
 
