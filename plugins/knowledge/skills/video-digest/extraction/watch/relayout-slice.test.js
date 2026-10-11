@@ -909,6 +909,37 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     );
   });
 
+  it("reads a title on the next line after the destination", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md": '[t](../source/transcript.txt\n  "The transcript")\n',
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      '[t](../transcript/transcript.txt\n  "The transcript")\n',
+    );
+  });
+
+  it("keeps a nested image's rewrite when the outer link names a dropped file", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md":
+          "[![slide](frames/title-slide.png)](../run-state/watch.json)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "![slide](key/title-slide.png) (run-state/watch.json, not retained in this copy)\n",
+    );
+  });
+
   it("reads an image nested in a link as two links with the right labels", () => {
     expect(
       inlineLinks("[![alt](a.png)](b.md)").map(({ dest, label }) => ({ dest, label })),

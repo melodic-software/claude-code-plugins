@@ -333,9 +333,26 @@ const NOT_RETAINED = "not retained in this copy";
  * @property {boolean} escaped - held backslash-escaped parentheses
  * @property {string} label - the link text, `!` and brackets removed
  * @property {number} labelStart - offset of the link's `[` (or its `!`), -1 when unmatched
+ * @property {number} labelEnd - offset of the `]` that closes the link text
  * @property {number} linkStart - offset where the whole link starts
  * @property {number} linkEnd - offset just past the link's closing `)`
  */
+
+/**
+ * The offset past spaces and tabs at `at`, including at most one line ending
+ * (CommonMark allows one between a link's destination and its title).
+ *
+ * @param {string} text
+ * @param {number} at
+ */
+function skipLinkSpace(text, at) {
+  let next = at;
+  while (text[next] === " " || text[next] === "\t") next += 1;
+  if (text[next] === "\r" && text[next + 1] === "\n") next += 2;
+  else if (text[next] === "\n" || text[next] === "\r") next += 1;
+  while (text[next] === " " || text[next] === "\t") next += 1;
+  return next;
+}
 
 /**
  * Every inline link in `text`, scanned the way CommonMark reads a
@@ -355,7 +372,7 @@ export function inlineLinks(text) {
     if (open === -1) return links;
     from = open + 2;
     let at = open + 2;
-    while (text[at] === " " || text[at] === "\t") at += 1;
+    at = skipLinkSpace(text, at);
     const destStart = at;
     let raw;
     let angle = false;
@@ -386,7 +403,8 @@ export function inlineLinks(text) {
     }
     const destEnd = at;
     // An optional title, then the closing `)`.
-    while (text[at] === " " || text[at] === "\t") at += 1;
+    // Spaces with at most one line ending may separate the parts (CommonMark).
+    at = skipLinkSpace(text, at);
     // A title is "...", '...' or (...), set off from the destination by space.
     const quote = text[at];
     if (at > destEnd && (quote === '"' || quote === "'" || quote === "(")) {
@@ -405,7 +423,7 @@ export function inlineLinks(text) {
       }
       if (closeQuote === -1) continue;
       at = closeQuote + 1;
-      while (text[at] === " " || text[at] === "\t") at += 1;
+      at = skipLinkSpace(text, at);
     }
     if (text[at] !== ")") continue;
     const linkEnd = at + 1;
@@ -433,6 +451,7 @@ export function inlineLinks(text) {
       escaped: /\\[()]/.test(raw),
       label,
       labelStart: linkStart,
+      labelEnd: open,
       linkStart,
       linkEnd,
     });
@@ -475,19 +494,25 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     return next;
   };
   // Inline links: a link naming a file the layout drops becomes its label plus
-  // not-retained text; any other destination takes the path rewrite. Edits
-  // apply back to front; one overlapping an earlier-starting edit (an image
-  // inside a link that is itself replaced) is dropped.
+  // not-retained text; any other destination takes the path rewrite. Every
+  // edit touches only link syntax or a destination, never a label, so edits
+  // for nested links do not overlap; they apply back to front, and any
+  // overlap that still occurred would drop the later-starting edit.
   /** @type {{ from: number, to: number, text: string }[]} */
   const edits = [];
   for (const link of inlineLinks(text)) {
     const found = lookUpReference(splitReference(link.dest).refPath, sourceFile, map);
     if (found && "retired" in found && link.labelStart !== -1) {
+      // Keep the label text in place and edit only the link syntax around it:
+      // drop the opening `[` (or `![`), and replace `](dest)` with the note. An
+      // image or link nested in the label keeps its own rewrite.
       rewrites += 1;
+      const bracket = text[link.linkStart] === "!" ? link.linkStart + 2 : link.linkStart + 1;
+      edits.push({ from: link.linkStart, to: bracket, text: "" });
       edits.push({
-        from: link.linkStart,
+        from: link.labelEnd,
         to: link.linkEnd,
-        text: `${link.label} (${found.retired}, ${found.note})`,
+        text: ` (${found.retired}, ${found.note})`,
       });
       continue;
     }
