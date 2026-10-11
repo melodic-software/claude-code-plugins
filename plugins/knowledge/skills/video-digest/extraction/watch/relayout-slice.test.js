@@ -1887,6 +1887,32 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("checks an extensionless definition destination", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "analysis/README": "readme",
+      "analysis/notes.md": "[guide]: missing-thing\n[readme]: README\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "analysis/notes.md", ref: "missing-thing" }]);
+  });
+
+  it("reads no angle destination broken by a backslash before a line ending", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "frames/visual-frames.md": [
+        "[example](<source/missing\\",
+        "rest>)",
+        "",
+        "[d]: <source/gone\\",
+        "rest>",
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
   it("flags a reference-style definition to a path that does not exist", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "research/claim-inventory.md": "[gone][g]\n\n[g]: findings/gone.md\n" },

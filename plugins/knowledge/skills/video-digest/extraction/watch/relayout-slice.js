@@ -132,17 +132,27 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /<[^<>]*>|\$\{[^}]*\}|\{[^{}]*\}|(?:^|\/)[^/]*\*/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
+/** ASCII punctuation: the only characters a CommonMark backslash escapes. */
+const ESCAPABLE = /[!-/:-@[-`{-~]/;
+/**
+ * A backslash and the punctuation it escapes, or a lone literal backslash:
+ * before anything else, a line ending included, it escapes nothing.
+ */
+const BACKSLASH = String.raw`\\[!-/:-@[-\x60{-~]|\\(?![!-/:-@[-\x60{-~])`;
 /**
  * The `[label]:` opening of a reference-style link definition, with
  * CommonMark's label rules: up to 999 characters, backslash escapes allowed
  * (`[a\]b]`), no unescaped bracket, line endings allowed but not a blank line.
  * The destination may follow one line ending; parseDestination reads it.
  */
-const REFERENCE_DEFINITION_LABEL =
-  /^ {0,3}\[((?:\\[^\n]|[^[\]\\\n]|\r?\n(?![ \t]*\r?\n)){1,999})\]:[ \t]*(?:\r?\n[ \t]*)?/gm;
+const REFERENCE_DEFINITION_LABEL = new RegExp(
+  String.raw`^ {0,3}\[((?:${BACKSLASH}|[^[\]\\\r\n]|\r?\n(?![ \t]*\r?\n)){1,999})\]:[ \t]*(?:\r?\n[ \t]*)?`,
+  "gm",
+);
 /** What may follow a definition's destination: a line ending, or a title then one. */
-const DEFINITION_TAIL =
-  /^(?:[ \t]+(?:"(?:\\[^]|[^"\\])*"|'(?:\\[^]|[^'\\])*'|\((?:\\[^]|[^()\\])*\)))?[ \t]*(?:\r?\n|$)/;
+const DEFINITION_TAIL = new RegExp(
+  String.raw`^(?:[ \t]+(?:"(?:${BACKSLASH}|[^"\\])*"|'(?:${BACKSLASH}|[^'\\])*'|\((?:${BACKSLASH}|[^()\\])*\)))?[ \t]*(?:\r?\n|$)`,
+);
 
 /**
  * Every reference-style link definition in `text` whose label holds a
@@ -694,11 +704,11 @@ export function parseDestination(text, at) {
   if (text[at] === "<") {
     for (let scan = at + 1; scan < text.length; scan += 1) {
       const char = text[scan];
-      if (char === "\\") {
+      if (char === "\\" && ESCAPABLE.test(text[scan + 1] ?? "")) {
         scan += 1;
         continue;
       }
-      if (char === "\n" || char === "<") return null;
+      if (char === "\n" || char === "\r" || char === "<") return null;
       if (char === ">") return { raw: text.slice(at + 1, scan), angle: true, end: scan + 1 };
     }
     return null;
@@ -707,7 +717,7 @@ export function parseDestination(text, at) {
   let depth = 0;
   while (end < text.length) {
     const char = text[end];
-    if (char === "\\" && /[!-/:-@[-`{-~]/.test(text[end + 1] ?? "")) {
+    if (char === "\\" && ESCAPABLE.test(text[end + 1] ?? "")) {
       end += 2;
       continue;
     }
@@ -758,7 +768,7 @@ export function inlineLinks(text) {
       const closer = quote === "(" ? ")" : quote;
       let closeQuote = -1;
       for (let scan = at + 1; scan < text.length; scan += 1) {
-        if (text[scan] === "\\") {
+        if (text[scan] === "\\" && ESCAPABLE.test(text[scan + 1] ?? "")) {
           scan += 1;
           continue;
         }
@@ -1112,11 +1122,10 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
     };
     const { fenceMasked, linkMasked, tagText } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
+    // A definition is unambiguous link syntax, so every relative destination is
+    // checked, an extensionless one (`[guide]: README`) included.
     for (const { raw } of referenceDefinitions(linkMasked)) {
-      // A line such as `[0:33]: implementing ...` parses as a definition but is
-      // prose; only a destination that reads as a path is checked.
-      const destination = unescapeDestination(raw).dest;
-      if (PATH_LIKE.test(destination)) check(destination, true);
+      check(unescapeDestination(raw).dest, true);
     }
     for (const { from, to } of htmlAttributeValues(tagText)) {
       check(decodeHtmlReferences(text.slice(from, to)), true);
