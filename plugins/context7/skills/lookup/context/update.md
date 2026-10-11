@@ -37,6 +37,8 @@ bash "<skill-dir>/scripts/update.sh" --refresh-baseline
 
 This overwrites `vendor/find-docs/SKILL.md` (and `vendor/cli/SKILL.md`) with current upstream and stamps `synced:` in the skill frontmatter. It writes next to the script itself, so run it only in a working clone, never in the installed plugin cache.
 
+Then set `metadata.upstream-version` to `upstash/context7@<commit>`, the `master` commit the baseline came from (`git ls-remote https://github.com/upstash/context7 refs/heads/master`). Upstash publishes no version for these files, so the commit is the record of what was reviewed, and the marketplace's vendor gate accepts a `vendor/` change only with a changed `upstream-version`.
+
 ## What to preserve when integrating upstream changes
 
 When porting upstream additions, **keep** this plugin's customizations:

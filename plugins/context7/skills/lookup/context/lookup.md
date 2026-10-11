@@ -51,6 +51,12 @@ MSYS_NO_PATHCONV=1 ctx7 docs "<libraryId>" "<query>"
 mcp__context7__query-docs(libraryId: "/org/project", query: "<query>")
 ```
 
+When you know the language the user writes in, add `--language` to the CLI call so examples in that language rank first:
+
+```bash
+MSYS_NO_PATHCONV=1 ctx7 docs /websites/twilio "How to send an SMS" --language Ruby
+```
+
 ### Version-specific IDs
 
 If the user mentions a specific version, use the version-specific ID:
@@ -76,7 +82,7 @@ Query quality directly affects results. Be specific and include relevant details
 | Bad | `"hooks"` |
 | Bad | `"tracking"` |
 
-Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
+Describe what to look up in the library's documentation, not the task to complete. Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
 
 Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic. A combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js middleware with NextAuth session validation"`).
 

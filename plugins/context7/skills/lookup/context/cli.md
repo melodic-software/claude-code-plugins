@@ -2,15 +2,15 @@
 
 Install, configure, command reference, flags, env vars, and Windows-specific gotchas.
 
-> Verified 2026-07-18 against `ctx7` 0.5.5 (live `--help`/`--version` output) and
-> [Context7's CLI docs](https://context7.com/docs/clients/cli).
+> Verified 2026-10-11 against `ctx7` 0.6.0 (live `--help` output); first verified 2026-07-18
+> against 0.5.5 and [Context7's CLI docs](https://context7.com/docs/clients/cli).
 > The CLI moves fast. Re-check against a current install before acting on a row.
 
 ## Install
 
 ```bash
 npm install -g ctx7@latest
-ctx7 --version  # 0.5.5 or later
+ctx7 --version  # 0.6.0 or later
 ```
 
 Fallback (no global install): `npx ctx7@latest <command>`. It is slower per invocation, but needs no PATH setup.
@@ -58,6 +58,7 @@ never invokes it (see below), so no behavior here depends on it.
 | Flag | Purpose |
 |---|---|
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
+| `--language <name>` | `docs` only: the programming language the user writes in (e.g. `Python`, `Go`); code examples in that language rank first |
 
 **No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
 
