@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "This change fits in one sentence: rename `cnt` to `count` on the three lines of `tally()` in utils/stats.py. Do you still want a plan for it?",
+      "why": "asks whether a plan is still wanted"
+    },
+    {
+      "answer": "The whole diff is a single sentence: in tally(), cnt becomes count. Should I write a plan anyway, or is that enough?",
+      "why": "asks whether to write a plan"
+    },
+    {
+      "answer": "One sentence covers it: cnt becomes count inside tally(). Want me to draft a full plan regardless?",
+      "why": "offers the plan as a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This change fits in one sentence, so I skipped the plan: rename cnt to count in tally().",
+      "why": "skips without asking, which is the proactive path, not the explicit one"
+    },
+    {
+      "answer": "## Plan: rename cnt\n\n**Approach:** rename cnt to count. Approve this plan to proceed to execution, or provide feedback to revise.",
+      "why": "writes the plan instead of asking"
+    }
+  ]
+}

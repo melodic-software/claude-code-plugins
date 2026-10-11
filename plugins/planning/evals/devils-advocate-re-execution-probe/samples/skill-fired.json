@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:devils-advocate", "args": "stress-test the receipt import cron plan"}}
+      ],
+      "why": "the devils-advocate skill fired"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "devils-advocate"}}
+      ],
+      "why": "unqualified skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:plan"}}
+      ],
+      "why": "a different planning skill"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

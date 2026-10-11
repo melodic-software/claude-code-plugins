@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: devils-advocate-re-execution-probe
+description: A stress-test of a single-environment cron script that changes files must still ask what a second run and a half-finished run do, and propose a reconciliation step
+tags: [devils-advocate, operational]
+expected_outcome: The review asks what happens when the receipt import starts again over the same inbox (duplicate CSV rows or uploads, including an overlapping run 15 minutes later) and when it stops between its writes (row added but the PDF never moved, so the next run adds it again), and proposes a reconciliation step that reads what already exists before acting.
+execution:
+  prompt: "Use the devils-advocate skill from the planning plugin to stress-test this plan before we build it: a cron job, import_receipts.sh, runs every 15 minutes on one server. It lists new PDF receipts in the inbox/ folder, adds one row per receipt to expenses.csv, uploads each PDF to the shared drive, and then moves it into done/. One script, one environment."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: probes-second-run
+    type: regex
+    pattern: 'twice|second run|runs? again|re-?runs?\b|re-?execut|overlapping run|starts? again'
+    flags: i
+    arm: both
+  - name: probes-half-finished-run
+    type: regex
+    pattern: '(?:crash|kill|dies|died|interrupt|fail)\w*[^.\n]{0,120}(?:before|after|between|mid|part ?way|halfway)|(?:part ?way|halfway|mid-?run)[^.\n]{0,120}(?:crash|kill|die|interrupt|fail)'
+    flags: i
+    arm: both
+  - name: reconciliation-mitigation
+    type: regex
+    pattern: 'reconcil'
+    flags: i
+    arm: both
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?devils-advocate"'
+    arm: with-only
+  - name: re-execution-finding
+    type: llm
+    arm: both
+    criteria: "PASS only if the review (1) asks what happens when the job starts again over the same inbox, such as an overlapping run or a rerun after success producing duplicate expenses.csv rows or uploads, AND (2) asks what happens when the job stops between two of its writes and names a concrete half-finished state (for example the CSV row written but the PDF never moved to done/, so the next run adds it again), AND (3) proposes as mitigation a step at the start of each run that reads what already exists (rows already in expenses.csv, files already on the drive or in done/) and acts only on what is missing, with at least one concrete technique. FAIL if any of the three is missing, or if the plan is waved through because it is one script in one environment."

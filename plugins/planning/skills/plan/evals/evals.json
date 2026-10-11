@@ -422,6 +422,58 @@
         "Both phases have a blank Attempts cell; neither is marked multi-shape",
         "Does NOT write per-attempt constraints or a selection rule into either phase body"
       ]
+    },
+    {
+      "id": 33,
+      "name": "proactive-one-sentence-change-skips-plan",
+      "narration": true,
+      "prompt": "Rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py; nothing outside that function uses it. Get it ready.",
+      "expected_output": "The skill was reached proactively (no one asked for a plan) and the change fits one sentence, so it says so, states that sentence, and skips the plan: no plan body, no checklist, no plan-reviewer dispatch, no PLAN.md draft.",
+      "files": [],
+      "expectations": [
+        "States that the change fits in one sentence and gives that sentence (rename `cnt` to `count` inside `tally()` in utils/stats.py)",
+        "Does NOT write a plan body (Goal, Approach, Test strategy, phases) or an approval request",
+        "Does NOT dispatch a plan-reviewer sub-agent, emit plan-checklist.md, or persist a PLAN.md draft"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "explicit-request-one-sentence-change-asks",
+      "narration": true,
+      "prompt": "/planning:plan rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py",
+      "expected_output": "The user asked for a plan explicitly, and the change fits one sentence. The skill says the change fits one sentence, states it, and asks whether to plan it anyway, writing no plan before the user answers.",
+      "files": [],
+      "expectations": [
+        "States that the change fits in one sentence and gives that sentence",
+        "Asks the user whether to write a plan anyway, as a question the user can answer yes or no",
+        "Does NOT write a plan body, dispatch a plan-reviewer, or persist a PLAN.md draft before the user answers"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "execution-shape-four-dimensions-with-na",
+      "narration": true,
+      "prompt": "/planning:plan a two-phase plan: phase 1 adds a `--json` flag to cli/report.py, phase 2 adds a `--csv` flag to cli/export.py. The two files import nothing from each other, share no config, and neither phase needs the other's output. Design is settled; no open decisions.",
+      "expected_output": "Step 4.5 opens with a four-row dimension table (gates, shared state, disjoint streams, worker count). Gates and shared state have nothing to report here, so each of those rows still appears, its cell reading `n/a: <reason>` (no phase waits on another; no file is written by both), and the worker-count row gives a number of workers and the reason for it.",
+      "files": [],
+      "expectations": [
+        "Step 4.5 output carries four separately named dimension rows covering gates (work that must finish first), shared state, disjoint streams, and worker count",
+        "Each dimension that does not apply to this plan still has its row, filled in as `n/a: <reason>` naming a concrete reason, and no dimension is omitted",
+        "The worker-count row states a number of workers and gives the reason for it"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "execution-shape-splits-shared-state-first",
+      "narration": true,
+      "prompt": "/planning:plan three phases: phase 1 adds discount codes in pricing/discounts.py, phase 2 adds gift cards in pricing/giftcards.py, phase 3 adds store credit in pricing/credit.py. Each phase also registers its new payment type by appending to the one shared `PAYMENT_TYPES` dict in pricing/registry.py, which is the only file the three phases have in common. Design is settled.",
+      "expected_output": "Step 4.5's shared-state dimension names pricing/registry.py as the only shared write and proposes splitting it before serializing the phases (for example one registration module per payment type that registry.py collects, landed first), so the three feature phases can run in parallel; it does not simply mark all three phases fully sequential because of that one file.",
+      "files": [],
+      "expectations": [
+        "The shared-state dimension names pricing/registry.py (the `PAYMENT_TYPES` dict) as the one file all three phases write",
+        "Proposes splitting that shared target (per-type registration files or entries collected by the registry) before serializing the phases",
+        "Does NOT conclude the three phases must run fully sequential solely because they share pricing/registry.py"
+      ]
     }
   ]
 }

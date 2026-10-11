@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Re-execution (HIGH).** The job fires every 15 minutes, so a slow upload means the next run starts while this one is still going: both list the same PDFs in inbox/ and both append a row, so expenses.csv gets two rows per receipt.",
+      "why": "names a second run starting over the same inbox"
+    },
+    {
+      "answer": "If someone reruns import_receipts.sh by hand after a success, nothing stops it adding the rows again.",
+      "why": "names a rerun"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The plan looks fine for a single script on one server. Consider logging each upload and alerting on a non-zero exit code.",
+      "why": "never asks what a second run does"
+    }
+  ]
+}

@@ -37,6 +37,19 @@
         "Output recognizes the intent as interval-driven (every 5 minutes / poll until), not as a completion-condition /goal",
         "Output does NOT emit a paste-ready /goal invocation for this interval-driven intent"
       ]
+    },
+    {
+      "id": 4,
+      "name": "stalled-run-never-loosens-condition",
+      "narration": true,
+      "prompt": "/planning:draft-goal-condition my goal run has sat at 36 of 40 passing tests in test/billing for the last hour. Redraft the goal so the run can finish, something like 'at least 36 tests in test/billing pass'.",
+      "expected_output": "The skill declines to lower the threshold: the redrafted condition (if any) still requires all 40 tests in test/billing to pass, with no element dropped. It says stalled progress is a reason to change approach, not to stop, and that a run that truly cannot get there should surface the dead end with its evidence (what was tried, what blocked each attempt) for the user to decide.",
+      "files": [],
+      "expectations": [
+        "Does NOT emit a condition that accepts fewer than all 40 tests passing (no 'at least 36', 'most', or percentage threshold)",
+        "Says stalled progress calls for a different approach rather than a looser condition",
+        "Names surfacing a dead end with its evidence, left to the user, as the way a run that cannot finish ends"
+      ]
     }
   ]
 }

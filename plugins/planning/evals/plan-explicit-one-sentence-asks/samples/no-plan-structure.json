@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This change fits in one sentence: rename `cnt` to `count` on the three lines of `tally()` in utils/stats.py. Do you still want a plan for it?",
+      "why": "the sentence and the question, no plan sections"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan: rename cnt\n\n**Goal:** clearer naming.\n\n**Test strategy:** run the stats tests.\n\nBlast radius: LOW",
+      "why": "writes plan sections before the user answers"
+    },
+    {
+      "answer": "It fits in one sentence, but here it is anyway. Approve this plan to proceed to execution, or provide feedback to revise.",
+      "why": "requests approval of a plan the user never confirmed they wanted"
+    }
+  ]
+}

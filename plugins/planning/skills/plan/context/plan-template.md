@@ -335,7 +335,7 @@ Per Kent Beck: separate structural commits (renames, extracts, reorganizations) 
 
 ## Phase Review tags (optional per phase)
 
-When a phase touches a review concern that should be caught at the phase boundary (not deferred to PR), add a `Review:` line immediately under the phase header. Implementation dispatches a fresh-context sub-agent review before the phase commit.
+When a phase touches a review concern that should be caught at the phase boundary (not deferred to PR), add a `Review:` line immediately under the phase header. For the four concern tags below, implementation dispatches a fresh-context sub-agent review before the phase commit; that phase-boundary review applies to these tags only.
 
 ```markdown
 ### Phase N: <name> [TODO]
@@ -344,6 +344,14 @@ Review: security       # auth, input handling, secrets
 Review: concurrency    # races, shared state
 Review: code-design    # configurability, testability, observability
 ```
+
+A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
+
+```markdown
+Review: screenshots of each changed screen, plus a short recording of the changed interaction
+```
+
+Leave out the recording when no interaction changes. No reviewer runs on this value at the phase boundary: the evidence is gathered when the pull request is marked ready (`/source-control:pull-request ready`, when it is among the available skills; otherwise attach it by hand) and linked from the pull request. A phase that must leave its screens unchanged uses [Visual parity](#visual-parity-optional-per-phase) instead.
 
 Omit `Review:` when the phase is docs-only or trivial with no new types/contracts.
 

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Three lines in `tally()` change: `cnt = 0` becomes `count = 0`, `cnt += 1` becomes `count += 1`, and `return cnt` becomes `return count`.",
+      "why": "the change only, no plan sections"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan: rename cnt\n\n**Goal:** clearer naming in tally().\n\n**Approach:** rename cnt to count on lines 2, 5 and 6.\n\n**Test strategy:** run the existing stats tests.\n\nBlast radius: LOW\n\nApprove this plan to proceed to execution, or provide feedback to revise.",
+      "why": "a full plan with a blast-radius line and an approval request for a one-sentence rename"
+    },
+    {
+      "answer": "Execution shape: single phase, main session. Rename cnt to count in tally().",
+      "why": "carries plan machinery for a one-sentence change"
+    }
+  ]
+}

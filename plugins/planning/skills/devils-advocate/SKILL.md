@@ -159,10 +159,11 @@ For each category, ask: *"What's the worst-case scenario? Does the plan handle i
 | **Path / resource resolution** | Relative paths interpreted where? Glob ambiguity? Plugin-cache boundary? Worktree shared state? Cross-platform path-separator handling? |
 | **Schema drift** | Type changes between versions/layers? Contract changes? Version mismatches across producer/consumer? Type-coercion vs error policy? |
 | **Ordering / sequencing** | Multiple valid orderings. Which wins? Documented? Reproducible across runs? Stable under concurrent input? |
+| **Re-execution** | Started again straight after a clean finish, or while a previous start is still going: same result, or doubled work (two rows, two charges, two messages)? Stopped between any two of its writes: does the next start pick up, or trip over what was left? Mitigation: open every run with a reconciliation step that reads what already exists and acts only on the difference. Examples: upsert on a natural key instead of a blind insert; write to a temp path, then rename; a per-item done-marker the next run checks; build the to-do list from the destination's current contents, not a saved cursor. |
 
 Findings use the same severity / failure-scenario / mitigation / residual-risk format as Round 3.
 
-**When to run Round 4:** plans involving multi-layer composition (config layering, plugin extension points, hook chains, override mechanisms), or any plan whose blast radius spans multiple contexts (local + CI + cloud). Skip Round 4 for single-context single-mechanism plans where Round 3 already covers the failure surface.
+**When to run Round 4:** plans involving multi-layer composition (config layering, plugin extension points, hook chains, override mechanisms), or any plan whose blast radius spans multiple contexts (local + CI + cloud). Skip Round 4 for single-context single-mechanism plans where Round 3 already covers the failure surface. The Re-execution row is the exception: run it on any plan with a step that writes state and can run again (a scheduled job, a retry, a resumed run), even when the rest of Round 4 is skipped.
 
 ### Alternatives Sweep (`incumbent` mode)
 

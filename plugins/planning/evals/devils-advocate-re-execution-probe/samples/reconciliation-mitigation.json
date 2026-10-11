@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Mitigation: start each run with a reconciliation pass. Read the receipt ids already in expenses.csv and the files already in done/, and process only PDFs that appear in neither.",
+      "why": "names a reconciliation step"
+    },
+    {
+      "answer": "Reconcile before acting: compare inbox/ against the CSV and the drive, then do only the missing steps for each receipt.",
+      "why": "reconcile wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mitigation: add a lock file so only one run happens at a time, and log every upload.",
+      "why": "a lock alone does not read existing state; no reconciliation step"
+    }
+  ]
+}

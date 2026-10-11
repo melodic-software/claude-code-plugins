@@ -72,6 +72,42 @@
         "The one-pager compresses sections to roughly one line each rather than omitting any required section",
         "Success metrics still include a threshold and window despite the terse tier"
       ]
+    },
+    {
+      "id": 7,
+      "name": "goals-ask-where-easier-build-hurts-users",
+      "prompt": "/planning:prd consumer-feature: shared grocery lists, so two people in a household can edit the same list from their own phones. Nothing is decided yet; ask me what you need.",
+      "expected_output": "The first question round's Goals questions include one question asking where the easier way to build the feature would give users a worse experience (for example last-write-wins sync that silently drops one person's edit, versus merging both edits) and which of the two the PRD picks. It is asked once for the feature, not once per goal.",
+      "files": [],
+      "expectations": [
+        "The Goals questions include one asking where the simpler or cheaper implementation would conflict with the users' experience",
+        "That question asks which side wins (build convenience or user experience), not only whether a conflict exists",
+        "The conflict question appears once in the round, not repeated for each goal"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "non-goals-reason-per-option-keeps-configurability",
+      "prompt": "/planning:prd synthesize one-pager: shared grocery lists for households. Primary user: two adults sharing one weekly shop. Success metric: 20% of active households create a shared list within 45 days. Options in v1: a per-list colour picker, a toggle for push notifications on every edit, a sort-by-aisle switch, and a choice of three list fonts. Our platform rule is that every user-facing behaviour stays configurable, so keep options rather than cutting them. Write it.",
+      "expected_output": "The PRD records a reason for each of the four options (or marks an option with no stated reason as an open question or a Non-goal candidate), keeps the options rather than cutting them to ship less because the platform rule keeps behaviour configurable, and adds no new Scope or Options section: the reasons sit with the existing sections, the unexplained ones under Non-goals or Open questions.",
+      "files": [],
+      "expectations": [
+        "Every one of the four options (colour picker, push-notification toggle, sort-by-aisle switch, font choice) has a stated reason or is explicitly flagged as lacking one",
+        "Does NOT remove options only to ship less; the platform's keep-it-configurable rule is honoured",
+        "Adds no new section beyond the seven required ones (no separate Scope or Options section)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "success-metric-ties-to-main-repeated-task",
+      "prompt": "/planning:prd synthesize one-pager: show a short celebration animation when a household ticks off the last item on a grocery list. Primary user: households that shop weekly from a shared list. Success metric: app-store rating rises from 4.1 to 4.3 within 60 days. Write it.",
+      "expected_output": "The Success metrics section names the repeated task the product exists for (building and finishing the weekly shared list) and says whether the given metric measures that task; because an app-store rating does not, it flags the gap and proposes or asks for a metric on the repeated task (for example the share of weekly lists finished), keeping a threshold and window.",
+      "files": [],
+      "expectations": [
+        "Success metrics name the main repeated user task the feature should serve (finishing the weekly shared list)",
+        "States whether the given metric (app-store rating) measures that task, and flags that it does not",
+        "Any proposed metric for the repeated task carries a threshold and a measurement window"
+      ]
     }
   ]
 }

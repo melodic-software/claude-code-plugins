@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: plan-proactive-one-sentence-skip
+description: A rename that fits one sentence, asked for without any request for a plan, gets the change itself and no written plan
+tags: [plan, scale]
+expected_outcome: The answer gives the rename of cnt to count inside tally() in utils/stats.py directly. It writes no plan body, blast-radius block or approval request; if planning comes up at all, it only says the change is small enough to skip a plan.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Rename the local variable cnt to count inside tally() in utils/stats.py. I'll make the edit myself, so tell me exactly which lines change."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-the-rename
+    type: regex
+    pattern: '(?=[\s\S]*\bcnt\b)(?=[\s\S]*\bcount\b)'
+    arm: both
+  - name: no-plan-structure
+    type: regex
+    pattern: 'Blast radius|Approve this plan|Execution shape|Test strategy'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: answers-without-a-plan
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer names the lines in tally() where cnt becomes count (the assignment, the increment and the return) AND contains no structured plan: no goal, approach, test strategy or phase sections, no blast-radius assessment, and no request to approve a plan. A brief remark that the change is small enough to need no plan is allowed. FAIL if the answer writes a plan for this rename, asks for plan approval, or does not say which lines change."

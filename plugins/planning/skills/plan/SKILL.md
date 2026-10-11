@@ -45,11 +45,16 @@ This skill takes the outputs of the earlier stages, exploration (local understan
 
 **Philosophy**: a 2-minute plan prevents a 20-minute rework cycle. The depth of planning should match the blast radius. A one-file fix gets a brief plan; a cross-cutting architecture change gets a full plan with stress-testing and research-iterate loops.
 
+**Skip the plan when one sentence covers the change.** Before anything else, try to write the whole diff as one sentence. The test passes when no design question is open and that sentence describes every edit; reviewing a plan for such a change takes longer than making it. How this skill was reached decides what happens next:
+
+- **Invoked proactively** (nobody asked for a plan): say the change fits one sentence, give the sentence, and skip the plan. No checklist, no plan-reviewer, no PLAN.md draft.
+- **Invoked on an explicit request** (`/planning:plan`, "plan this"): say the change fits one sentence, give the sentence, and ask whether to plan it anyway. Write a plan only after a yes; then the Trivial row of the Step 2 scale table applies. A run with nobody to ask records the sentence and skips the plan.
+
 ## Emit checklist
 
 For multi-step planning sessions (almost always: steps 1-5 of this skill), copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/plan-checklist.md` (default `.work/`). Tick each `- [ ]` as the corresponding step completes. Step 3 (Plan stress-test via fresh-context sub-agent) and Step 5 (Present for approval) are non-negotiable ticks. Stress-test before presenting, always.
 
-**Skip when:** mid-flight `review` replan only. Append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
+**Skip when:** the one-sentence skip (Purpose) applied, so no plan is written. Also skip on a mid-flight `review` replan: append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
 For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan**, confirming the plan reflects the resolved threads recorded in PLAN.md's `## Design` section (and the design artifacts behind it) rather than re-deriving the axes inline. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling. Audit that the plan carries their resolutions, don't re-open them here. Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
 
@@ -72,7 +77,7 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 **Verification.** Claim: after auto-compaction Claude Code re-attaches each skill's most recent invocation keeping its first 5,000 tokens, within a shared 25,000-token budget. Basis: https://code.claude.com/docs/en/skills (auto-compaction paragraph); `tests/reattach-slice.test.sh` stands in for the 5,000 tokens with the first 20,000 bytes. As-of: 2026-09-29. Recheck when that paragraph changes either figure, or when the page stops describing a per-skill re-attach.
 
-- **Reviewer.** Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent. The producing thread does not self-attack the plan inline.
+- **Reviewer.** Before assessing blast radius, dispatch a fresh-context plan-reviewer sub-agent for any plan you present. The producing thread does not self-attack the plan inline. A change skipped under the one-sentence rule (Purpose) has no plan to review.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
 - **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory.
 
@@ -110,7 +115,7 @@ Unattended approval is the Gates rule under Planning Process, above.
 1. The structured plan (from Step 2, updated by Steps 3-4 if applicable)
 2. Blast-radius assessment (from Step 3b)
 3. Stress-test summary (from Step 4, if run). Or "Skipped: blast radius LOW, no triggers matched"
-4. **Execution shape** (from Step 4.5). Parallelism shape AND per-phase routing table, with each `multi-shape` phase's attempt constraints and selection rule. Skipped for single-phase plans
+4. **Execution shape** (from Step 4.5). The four-dimension table, parallelism shape AND per-phase routing table, with each `multi-shape` phase's attempt constraints and selection rule. Skipped for single-phase plans
 5. **Displaced answers and new external effects** (from "Plan changes after the Brief"). One row per change: `Q<N>` or `none`, what the user said, what the plan now proposes, the new external effect, and the source (`reviewer fix`, `research update`, or `stress-test finding`). Omit the block when empty. The approval request names every row as needing its own reply
 6. **Decisions made (gate-passed)** (from Step 4.6). TABLE per [context/tag-decisions.md](context/tag-decisions.md) "Presentation contract": `Decision | What it changes in the plan | Basis (evidence) | Source`, one row per gate-passed `[EXEC-SHAPE]` / `[FALLBACK]` tag, written for a cold reader (no session shorthand). Below-bar decisions never appear here. They were interviewed before the plan locked. An empty section ("no unilateral decisions. Every PLAN item traces to brief") is also valid output
 7. **Explicit approval request**: "Approve this plan to proceed to execution, or provide feedback to revise. Anything tagged `[EXEC-SHAPE]` or `[FALLBACK]` above is /planning:plan's discretion. Flag any you want changed."
@@ -193,7 +198,7 @@ Scale the plan to the task:
 
 | Task scale | Plan depth |
 |-----------|-----------|
-| Trivial (1 file, well-understood) | 3-5 bullet points |
+| Trivial (1 file, well-understood) | 3-5 bullet points, when the one-sentence skip (Purpose) did not apply |
 | Small (2-5 files, clear scope) | Brief plan. Goal, steps, test strategy |
 | Medium (5-15 files, some unknowns) | Full plan with alternatives and risks |
 | Large (cross-cutting, architectural) | Full plan + stress-test + research-iterate |
@@ -299,6 +304,15 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 
 After the phase plan is locked but before Step 5 approval, compute the execution shape: which phases can run in parallel and which surface each phase runs on. **Default ON** for any plan with ≥2 phases; emits a one-line "fully sequential. Phase X gates phase Y" note when no parallelism opportunity exists. Skip entirely for single-phase plans or trivial fixes. Skipped = all-main-session execution, stated in one line.
 
+A multi-phase plan opens this analysis with the table below, its four rows in this order. Fill every row. A dimension with nothing to report for this plan gets `n/a: <reason>` in its cell; an empty cell or a removed row is incomplete.
+
+| Dimension | What to write | Example `n/a` |
+|---|---|---|
+| **Gates** | The work the other phases wait on (a schema migration, a new interface), and the phases blocked behind it. | `n/a: every phase can start from the base branch` |
+| **Shared state** | Each file, table or config key that two phases would both write. Split shared state before serializing: hand each phase its own file, key range or module, and make two phases wait on each other only for a rule that has to hold across both writes. | `n/a: no file appears in two phases` |
+| **Disjoint streams** | Groups of phases that change separate modules, packages or processes, and so can run at the same time. | `n/a: every phase edits the invoicing module` |
+| **Worker count** | The smallest number of workers that keeps every stream safe. A count of one names the reason, for example that every phase edits the same migration script. | Never `n/a`: the count is at least one. |
+
 The analysis steps, the file-overlap matrix, and the composition risks: [context/plan-template.md](context/plan-template.md) "Execution-shape analysis". Each routing row also carries a `Model` (`sonnet`, `opus` or `frontier`) that decides which implementer agent dispatch uses; the eligibility rules are in that file's "Per-phase routing table".
 
 Each routing row also carries an `Attempts` cell. Mark a phase `multi-shape` when this step finds more than one plausible shape the design left open for it; leave the cell blank otherwise, which means one attempt. A marked phase's body lists one stated constraint per attempt and the selection rule (`first pass`, `rank all`, or `best-of` with its criteria), both written now, before any dispatch. The mark reads no setting: whether a marked phase gets several attempts is decided at dispatch. The format is in that file's "Per-phase routing table".
@@ -402,7 +416,7 @@ each section must contain for a cleared session to execute the plan from this fi
 
 PLAN.md is a multi-turn shared artifact: re-read it from disk before every write. Another turn or agent may have modified it. Prefer appending or refining sections over wholesale rewrites.
 
-Write the plan even for small changes. A cleared session or a fresh agent has only this file to work from.
+Write the plan even for small changes; only the one-sentence skip (Purpose) writes none. A cleared session or a fresh agent has only this file to work from.
 
 **Close-out (PR time).** `/planning:plan` owns describing the close-out. Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the three-step procedure, the ADR admission test, and the spec-container ship ritual.
 

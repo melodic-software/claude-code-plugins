@@ -150,11 +150,11 @@ Question shapes that recur, in priority order:
 | Section | Highest-value surfacing question |
 |---------|----------------------------------|
 | Problem | "Whose problem is this, and what do they currently do instead?" |
-| Goals | "If we ignore implementation, what changes for the user when this ships?" |
-| Non-goals | "What is explicitly out of scope so we don't drift?" |
+| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Where would the easier build leave users worse off, and which side do we pick?" |
+| Non-goals | "What is explicitly out of scope so we don't drift?" Then: "What is each setting, control or option this adds for?" An option nobody can give a reason for moves here. |
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
-| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." |
+| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
@@ -182,9 +182,9 @@ Required sections (every tier. Verbosity varies):
 
 1. **Problem**. What is broken, missed, or unmet for users today
 2. **Goals**. Outcome-level, not implementation-level
-3. **Non-goals**. Explicit out-of-scope items
+3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
-5. **Success metrics**. Named metric + threshold + measurement window
+5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
 6. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
 7. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
 
