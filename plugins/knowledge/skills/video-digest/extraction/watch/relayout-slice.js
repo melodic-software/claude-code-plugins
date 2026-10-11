@@ -112,14 +112,37 @@ const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 const SLICE_LANE_NAMES = new Set([...Object.values(LANES), "SLICE"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$]/;
-const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
-const BACKTICK_SPAN = /`([^`\s]+)`/g;
+/** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
+const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
+/** A code span: a run of backticks, its content, and the same run closing it. */
+const BACKTICK_SPAN = /(?<!`)(`+)([^`\n](?:[^\n]*?[^`\n])?)\1(?!`)/g;
 /** `[label]: path` reference-style link definitions. */
 const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
 const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/gi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
-const PATH_LIKE = /\/|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)?(?:#.*)?$/;
+const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
+
+/**
+ * A code span's content split for path handling: CommonMark strips one space
+ * on each side when both are there (`` ` x ` ``), and a path may sit in
+ * quotes. `core` is null when the content does not read as a single path:
+ * spaces are allowed inside a segment (`My Slides.pdf`) but not at either
+ * end or next to a separator, which is prose or a command.
+ *
+ * @param {string} content
+ * @returns {{ pad: string, quote: string, core: string|null }}
+ */
+function spanPath(content) {
+  const pad = /^ .*[^ ].* $/.test(content) ? " " : "";
+  let core = pad ? content.slice(1, -1) : content;
+  const quoted = /^(["'])(.+)\1$/.exec(core);
+  const quote = quoted ? quoted[1] : "";
+  if (quoted) core = quoted[2];
+  const readsAsPath =
+    core === "SLICE" || (PATH_LIKE.test(core) && !/^\s|\s$|\s[/\\]|[/\\]\s|\s{2}/.test(core));
+  return { pad, quote, core: readsAsPath ? core : null };
+}
 
 /**
  * Corpus-layout path for a slice-relative file, or null when the corpus keeps
@@ -286,7 +309,11 @@ function lookUpReference(refPath, sourceFile, map) {
   let keys;
   // `SLICE/<path>` names the slice root explicitly, and so does the work-root
   // form `.work/<epic>/<slug>/<path>`, but only with this slice's own prefix:
-  // a path segment that merely equals the slice's name says nothing.
+  // a path segment that merely equals the slice's name says nothing. The bare
+  // aliases (`SLICE`, `SLICE/`, `.work/<epic>/<slug>/`) name the root itself.
+  if (bare === "SLICE" || (map.sliceWorkPath !== null && bare === map.sliceWorkPath)) {
+    return sliceRootLookup(map);
+  }
   if (bare.startsWith("SLICE/")) {
     keys = [path.posix.normalize(bare.slice("SLICE/".length))];
   } else if (map.sliceWorkPath && bare.startsWith(`${map.sliceWorkPath}/`)) {
@@ -582,14 +609,15 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       const quote = doubled !== undefined ? '"' : single !== undefined ? "'" : "";
       return `${open}${quote}${rewrite(doubled ?? single ?? bare)}${quote}`;
     })
-    .replace(BACKTICK_SPAN, (match, span) => {
-      if (!PATH_LIKE.test(span)) return match;
-      const found = lookUpReference(splitReference(span).refPath, sourceFile, map);
+    .replace(BACKTICK_SPAN, (match, ticks, content) => {
+      const { pad, quote, core } = spanPath(content);
+      if (core === null) return match;
+      const found = lookUpReference(splitReference(core).refPath, sourceFile, map);
       if (found && "retired" in found) {
         rewrites += 1;
         return `${found.retired} (${found.note})`;
       }
-      return `\`${rewrite(span)}\``;
+      return `${ticks}${pad}${quote}${rewrite(core)}${quote}${pad}${ticks}`;
     });
   return { text: rewritten, rewrites };
 }
@@ -661,13 +689,17 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
     };
     for (const link of inlineLinks(text)) check(link.dest, true);
     for (const match of text.matchAll(REFERENCE_DEFINITION)) {
-      check(match[2].replace(/^<|>$/g, ""), true);
+      // A line such as `[0:33]: implementing ...` parses as a definition but is
+      // prose; only a destination that reads as a path is checked.
+      const destination = match[2].replace(/^<|>$/g, "");
+      if (PATH_LIKE.test(destination)) check(destination, true);
     }
     for (const match of text.matchAll(HTML_PATH_ATTRIBUTE)) {
       check(match[2] ?? match[3] ?? match[4], true);
     }
     for (const match of text.matchAll(BACKTICK_SPAN)) {
-      check(match[1], false);
+      const { core } = spanPath(match[2]);
+      if (core !== null) check(core, false);
     }
   }
   return unresolved;

@@ -1227,6 +1227,77 @@ describe("checkLayoutLinks", () => {
     ]);
   });
 
+  it("rewrites every backticked path form and leaves prose spans alone", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/s1/My Slides.pdf": "pdf",
+        "recommendations/questions.md": [
+          "Spaced: `../source/decks/s1/My Slides.pdf`.",
+          "Double: `` source/transcript.txt `` and ``a `tick` in source/transcript.txt``.",
+          'Quoted: `"source/transcript.txt"`.',
+          "Line and column: `source/transcript.txt:3:5`.",
+          "Backslash: `source\\transcript.txt`.",
+          "Trailing slash: `research/findings/`.",
+          "Dot prefix: `./menu.md`.",
+          "Lane only: `research`.",
+          "Prose: `run the source / research step`.",
+          "",
+        ].join("\n"),
+        "recommendations/menu.md": "# Menu\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+      [
+        "Spaced: `../../metadata/decks/s1/My Slides.pdf`.",
+        "Double: `` ../../transcript/transcript.txt `` and ``a `tick` in source/transcript.txt``.",
+        'Quoted: `"../../transcript/transcript.txt"`.',
+        "Line and column: `../../transcript/transcript.txt:3:5`.",
+        "Backslash: `../../transcript/transcript.txt`.",
+        "Trailing slash: `../research/findings/`.",
+        "Dot prefix: `menu.md`.",
+        "Lane only: `research`.",
+        "Prose: `run the source / research step`.",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("rewrites the exact slice-root aliases as split text", async () => {
+    const { sliceDir: original, targetDir } = makeFixture();
+    const slug = path.basename(original);
+    const sliceDir = path.join(makeDir("relayout-root-"), ".work", "youtube-watch", slug);
+    fs.mkdirSync(path.dirname(sliceDir), { recursive: true });
+    fs.renameSync(original, sliceDir);
+    fs.writeFileSync(
+      path.join(sliceDir, "recommendations", "questions.md"),
+      `\`SLICE\` \`SLICE/\` \`.work/youtube-watch/${slug}\` \`.work/youtube-watch/${slug}/\`\n`,
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    const split = `${slug} (split across analysis/, frames/, metadata/, transcript/ in this copy)`;
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+      `${split} ${split} ${split} ${split}\n`,
+    );
+  });
+
+  it("does not check a reference definition whose destination is prose", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/claim-inventory.md": "[0:33]: implementing a whole spec in one session\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+  });
+
   it("says so for a path below a lane folder this slice never produced", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "key-frames/vision-plan.md": "Slides: `source/decks/s1/slides.pdf`.\n" },
