@@ -27,8 +27,10 @@ const CLONE_TIMEOUT_MS = 120_000;
 /**
  * Shallow-clone an untrusted harvested URL so that a private, renamed or
  * LFS-heavy repository fails fast instead of prompting or downloading:
- * `credential.helper=` empties the helper list, `GIT_TERMINAL_PROMPT=0` stops
- * the terminal prompt, `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
+ * `credential.helper=` empties the helper list, an empty `GIT_ASKPASS` stops
+ * git falling back to `core.askPass` or `SSH_ASKPASS` (which git consults
+ * before `GIT_TERMINAL_PROMPT`), `GIT_TERMINAL_PROMPT=0` stops the terminal
+ * prompt, `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
  * and a clone that outlives the timeout is killed and counted as failed.
  *
  * @param {string} url
@@ -48,7 +50,13 @@ export async function shallowCloneGitHubRepo(
     const child = spawnFn("git", [...args, "--", url, destDir], {
       stdio: "ignore",
       timeout: timeoutMs,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_LFS_SKIP_SMUDGE: "1" },
+      env: {
+        ...process.env,
+        GIT_ASKPASS: "",
+        SSH_ASKPASS: "",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_LFS_SKIP_SMUDGE: "1",
+      },
     });
     child.on("close", (code) => resolve(code === 0));
     child.on("error", () => resolve(false));

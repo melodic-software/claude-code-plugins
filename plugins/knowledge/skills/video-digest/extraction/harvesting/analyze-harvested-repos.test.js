@@ -82,6 +82,8 @@ describe("shallowCloneGitHubRepo hardening", () => {
     await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", spawnFn);
 
     expect(capturedArgs.slice(0, 3)).toEqual(["-c", "credential.helper=", "clone"]);
+    expect(capturedOptions.env.GIT_ASKPASS).toBe("");
+    expect(capturedOptions.env.SSH_ASKPASS).toBe("");
     expect(capturedOptions.env.GIT_TERMINAL_PROMPT).toBe("0");
     expect(capturedOptions.env.GIT_LFS_SKIP_SMUDGE).toBe("1");
   });
