@@ -451,9 +451,11 @@ measurements below carry the conditions they were taken under.
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
   returns a hook-issued `ask` for the canonical engine `apply` and `handoff-apply` calls (same
   `permissionDecision: "ask"` as the PowerShell deletion lane; how each permission mode treats it:
-  [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+  [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
   and [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
-  as of 2026-10-11; recheck when either section changes whether a hook `ask` prompts in a mode).
+  as of 2026-10-11; recheck when any of those sections changes whether a hook `ask` prompts in a
+  mode).
   The guard rejects shell expansion and operator syntax instead of validating only the
   post-split argument vector; script identity follows the host path rules and remains
   case-sensitive on POSIX. No `eval`, dynamic shell construction, or downloads are used. Paths cross
