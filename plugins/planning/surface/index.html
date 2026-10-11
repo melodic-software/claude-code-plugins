@@ -387,6 +387,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <div class="hright">
         <div class="meter"><button class="mlink" id="meterText" title="Next item needing you (n)">0 of 0 answered</button><span class="bar"><i id="meterBar" style="width:0%"></i></span>
           <button class="mlink sep" id="pendBtn" title="Show the questions pending Claude's research" hidden></button>
+          <button class="mlink sep" id="revBtn" title="Show the answered questions to review" hidden></button>
           <button class="mlink sep assume" id="assumeCount" hidden></button>
           <button class="mlink sep assume" id="wrapChip" hidden title="Open the list of what is still undone"></button></div>
         <button class="tbtn" id="sumBtn" title="Summary and wrap-up (w)" aria-keyshortcuts="w">Summary</button>
@@ -612,6 +613,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if ((q.upstreamChanged || []).length) return q.upstreamChanged;
     const ps =(q.dependsOn || []).filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine);
     return c.length ? c : ps;
+  }
+  function firstDecided(p, q){ // p's first decision came after q's latest one: nothing of p's was replaced
+    const mine = lastDecisionSeq(q.id);
+    return lastDecisionSeq(p) > mine && !events().some(e => e.id === p && DEC.has(e.kind) && !e.withdrawn && e.seq < mine);
   }
   function confirmed(q){ // ticked on the page, or confirmed by Claude after a terminal confirmation
     const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && (e.seq || 0) <= q.commitsSinceSeq)).map(e => String(e.alt)));
@@ -860,6 +865,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterText").title = "Next item needing you (n). " + S.doc.questions.filter(q => stateOf(q) === "arch").length + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
+    const rn = l.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length, rb = $("revBtn"); rb.hidden = !rn; rb.textContent = rn + " to review"; // the Review filter's predicate
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
@@ -1075,7 +1081,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + inline((q.archived || {}).why || "off the current path") + "</div>";
-    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(refHtml).join(" ") + " changed. ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
+    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
@@ -1969,7 +1975,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
     if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
-    if (t.closest("#pendBtn")) { S.filter = "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
+    if (t.closest("#pendBtn, #revBtn")) { S.filter = t.closest("#revBtn") ? "review" : "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
     const tc = t.closest("#assumeCount, [data-toconfirm]"); // the list, or one question's entries in it
     if (tc) { select(SUMMARY, {animate: true}); const c = $("tc-" + (tc.dataset.toconfirm || "")) || $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
     if (t.closest("[data-again]")) { const r = document.querySelector('#choices input[type="radio"]'); if (r) r.focus(); return; }
