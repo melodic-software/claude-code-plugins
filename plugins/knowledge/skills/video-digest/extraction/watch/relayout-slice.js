@@ -115,7 +115,7 @@ const BACKTICK_SPAN = /`([^`\s]+)`/g;
 /** `[label]: path` reference-style link definitions. */
 const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
-const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/g;
+const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/gi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /\/|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)?(?:#.*)?$/;
 
@@ -216,19 +216,27 @@ function splitReference(ref) {
     suffix = line[0] + suffix;
     refPath = refPath.slice(0, line.index);
   }
-  // Compare paths the way the filesystem sees them: percent-decoded, with
-  // Windows separators as `/`. A rewrite re-encodes when the original was.
+  // Compare paths the way the filesystem sees them: Windows separators as
+  // `/`, then each segment percent-decoded (`%23` is `#`, `%3F` is `?`). A
+  // malformed escape, or one decoding to a separator, stays as written. A
+  // rewrite re-encodes each segment when the original was encoded.
+  if (!URL_SCHEME.test(refPath)) refPath = refPath.replace(/\\/g, "/");
   let encoded = false;
   if (refPath.includes("%")) {
-    try {
-      const decoded = decodeURI(refPath);
-      encoded = decoded !== refPath;
-      refPath = decoded;
-    } catch {
-      // Not valid percent-encoding: keep it as written.
-    }
+    const decoded = refPath
+      .split("/")
+      .map((segment) => {
+        try {
+          const plain = decodeURIComponent(segment);
+          return /[/\\]/.test(plain) ? segment : plain;
+        } catch {
+          return segment;
+        }
+      })
+      .join("/");
+    encoded = decoded !== refPath;
+    refPath = decoded;
   }
-  if (!URL_SCHEME.test(refPath)) refPath = refPath.replace(/\\/g, "/");
   return { refPath, suffix, encoded };
 }
 
@@ -448,7 +456,8 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       relative = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
       trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
     }
-    const next = `${encoded ? encodeURI(relative) : relative}${trailing}${suffix}`;
+    const written = encoded ? relative.split("/").map(encodeURIComponent).join("/") : relative;
+    const next = `${written}${trailing}${suffix}`;
     if (next !== ref) rewrites += 1;
     return next;
   };
@@ -659,6 +668,27 @@ function readJsonObject(file) {
 
 /** The file a run writes into the target directory it has claimed. */
 export const CLAIM_MARKER = ".relayout-claim";
+/** The file a run writes into its staging dir once the link check passes. */
+export const COMPLETE_MARKER = ".relayout-complete";
+
+/** @param {unknown} error */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The entries of `dir` when it is a real directory (not a symlink), else null.
+ *
+ * @param {string} dir
+ * @returns {string[]|null}
+ */
+function directoryEntries(dir) {
+  try {
+    return fs.lstatSync(dir).isDirectory() ? fs.readdirSync(dir) : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Whether `target` is a claim left by a relayout: `"none"` when it is not a
@@ -892,20 +922,64 @@ export async function relayoutSlice({
         `a leftover backup ${backup} sits beside ${target}; keep one of them and remove the other`,
       );
     }
-    fs.renameSync(backup, target);
+    try {
+      fs.renameSync(backup, target);
+    } catch (error) {
+      return refuse(`could not restore ${target} from ${backup}: ${errorMessage(error)}`);
+    }
     writeStderr(`relayout: restored ${target} from the backup an interrupted run left`);
   }
 
-  // A run interrupted while it held the target's claim leaves a directory
-  // holding only the claim marker. Unless that run is still alive, the claim
-  // is stale: remove it and go on. Anything else in the target stays refused.
+  // A run killed after its link check passed but before its staged layout was
+  // renamed into place leaves the target empty (or holding only its claim
+  // marker) beside a staging dir marked complete. Finish that install. Any
+  // other staging state beside an empty target is ambiguous: refuse.
   const stale = staleClaimProblem(target);
   if (stale === "live") {
     return refuse(`${target} is claimed by a relayout that is still running`);
   }
+  const targetEntries = directoryEntries(target);
+  const claimOnly = targetEntries?.length === 1 && targetEntries[0] === CLAIM_MARKER;
+  if (targetEntries && (targetEntries.length === 0 || claimOnly)) {
+    const stagings = (directoryEntries(path.dirname(target)) ?? [])
+      .filter((name) => name.startsWith(stagingPrefix))
+      .map((name) => path.join(path.dirname(target), name));
+    if (stagings.length > 0) {
+      const complete = stagings.filter((dir) => fs.existsSync(path.join(dir, COMPLETE_MARKER)));
+      if (stagings.length !== 1 || complete.length !== 1) {
+        return refuse(
+          `${target} is empty beside staging dirs an interrupted run left (${stagings.join(", ")}); ` +
+            "remove the ones you do not want and re-run",
+        );
+      }
+      try {
+        fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
+        fs.rmdirSync(target);
+        fs.renameSync(complete[0], target);
+        fs.rmSync(path.join(target, COMPLETE_MARKER), { force: true });
+      } catch (error) {
+        return refuse(
+          `could not finish the interrupted install of ${target}: ${errorMessage(error)}`,
+        );
+      }
+      writeStderr(
+        `relayout: finished the install an interrupted run left, from ${complete[0]}; ` +
+          "re-run with --replace for a fresh copy",
+      );
+      return { exitCode: 0, copied: 0, rewrites: 0, unresolved: [] };
+    }
+  }
+
+  // A run interrupted while it held the target's claim, before staging
+  // finished, leaves a directory holding only the claim marker. Its run is not
+  // alive (checked above), so the claim is stale: remove it and go on.
   if (stale === "stale") {
-    fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
-    fs.rmdirSync(target);
+    try {
+      fs.rmSync(path.join(target, CLAIM_MARKER), { force: true });
+      fs.rmdirSync(target);
+    } catch (error) {
+      return refuse(`could not remove the stale claim on ${target}: ${errorMessage(error)}`);
+    }
     writeStderr(`relayout: removed a stale claim on ${target} an interrupted run left`);
   }
 
@@ -1178,6 +1252,14 @@ export async function relayoutSlice({
     unresolved = checkLayoutLinks(staging, {
       sliceDirs: new Set([...sliceEntries].filter((entry) => !sliceFiles.includes(entry))),
     });
+    // Marks the staged layout as ready to install, so a run killed during the
+    // install can be finished by the next one.
+    if (unresolved.length === 0) {
+      fs.writeFileSync(
+        path.join(staging, COMPLETE_MARKER),
+        `${JSON.stringify({ pid: process.pid, completedAt: new Date().toISOString() })}\n`,
+      );
+    }
   } catch (error) {
     discard(staging);
     releaseClaim();
@@ -1197,15 +1279,29 @@ export async function relayoutSlice({
     if (claimed) fs.rmSync(path.join(target, CLAIM_MARKER));
     fs.renameSync(staging, target);
   } catch (error) {
-    if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) fs.renameSync(backup, target);
-    releaseClaim();
-    discard(staging);
+    try {
+      if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) {
+        fs.renameSync(backup, target);
+      }
+      releaseClaim();
+      discard(staging);
+    } catch (cleanupError) {
+      return refuse(
+        `could not move the layout into place (${errorMessage(error)}), and cleanup failed ` +
+          `(${errorMessage(cleanupError)}); check ${target}, ${backup} and ${staging}`,
+      );
+    }
     if (!replace && fs.existsSync(target)) {
       return refuse(`${target} appeared during the run; pass --replace to replace it`);
     }
-    return refuse(`could not move the layout into place: ${/** @type {Error} */ (error).message}`);
+    return refuse(`could not move the layout into place: ${errorMessage(error)}`);
   }
-  if (hadTarget) discard(backup);
+  try {
+    fs.rmSync(path.join(target, COMPLETE_MARKER), { force: true });
+    if (hadTarget) discard(backup);
+  } catch (error) {
+    writeStderr(`relayout: installed ${target}, but cleanup failed: ${errorMessage(error)}`);
+  }
   return { exitCode: 0, copied, rewrites, unresolved };
 }
 
