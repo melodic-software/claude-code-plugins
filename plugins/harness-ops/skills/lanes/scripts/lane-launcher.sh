@@ -1818,33 +1818,82 @@ action_run_once() {
 # Single-quoted for a POSIX shell line (cron).
 sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 
-# Writes <script> calling run-once for <name>, atomically, executable.
+# The scheduled script and its config snapshot live under the launcher's data
+# directory, never in the checkout: a scheduler runs the script as the operator,
+# and a lane can write anywhere in its checkout, lanes.json included.
+schedule_dir() { printf '%s/%s/scheduled' "$(resolve_data_dir)" "$(repo_marker_key)"; }
+
+# sha256 of the file <path> as bare hex; nonzero when no hash tool resolves.
+sha256_of() {
+  local out
+  if command -v sha256sum >/dev/null 2>&1; then
+    out="$(sha256sum <"$1" 2>/dev/null)" || return 1
+  elif command -v shasum >/dev/null 2>&1; then
+    out="$(shasum -a 256 <"$1" 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+  out="${out%% *}"
+  [[ "$out" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "$out"
+}
+
+# Writes <script> calling run-once for <name>, atomically, executable, beside a
+# snapshot of the config taken now. The script runs only while the snapshot's
+# sha256 matches the one recorded here.
 write_schedule_script() {
-  local name="$1" script="$2" self config data_base tmp
+  local name="$1" script="$2" self snapshot data_base tmp sum prompt_default=".work/lanes"
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-  config="$(cd "$(dirname "$CONFIG")" && pwd)/$(basename "$CONFIG")"
+  snapshot="${script%.sh}.lanes.json"
   data_base="$(resolve_data_dir)"
   data_base="${data_base%/lanes}"
   if ((DRY_RUN)); then
-    printf 'DRY-RUN: write %s\n' "$script"
+    printf 'DRY-RUN: write %s and %s\n' "$snapshot" "$script"
     return 0
   fi
   mkdir -p "$(dirname "$script")" 2>/dev/null || {
     err "lane '$name': cannot create $(dirname "$script")"
     return 1
   }
+  # Outside the repository the snapshot cannot be recognized as a pre-move
+  # config, so it names the prompt directory that config would default to.
+  ((LEGACY_CONFIG_HOME)) && prompt_default=".work"
+  tmp="$snapshot.tmp.$$"
+  if ! { jq --arg d "$prompt_default" '.prompt_dir //= $d' "$CONFIG" >"$tmp" 2>/dev/null &&
+    mv -f "$tmp" "$snapshot" 2>/dev/null; }; then
+    rm -f "$tmp" 2>/dev/null
+    err "lane '$name': cannot write the config snapshot $snapshot"
+    return 1
+  fi
+  sum="$(sha256_of "$snapshot")" || {
+    err "lane '$name': cannot hash $snapshot (no sha256sum or shasum)"
+    return 1
+  }
   tmp="$script.tmp.$$"
   if {
     printf '#!/usr/bin/env bash\n'
     printf '# Written by lane-launcher.sh print-schedule --write-script. Rewrite it the\n'
-    printf '# same way after a harness-ops update moves the launcher; do not edit it.\n'
+    printf '# same way after a harness-ops update moves the launcher or the lane config\n'
+    printf '# changes; do not edit it or the config snapshot it checks.\n'
     # A scheduler starts with a short PATH (cron's is /usr/bin:/bin), so the
     # PATH that found claude and jq when the script was written goes with it.
     printf 'export PATH=%q\n' "$PATH"
-    printf 'exec bash %q run-once %q --repo %q --config %q --data-dir %q\n' \
-      "$self" "$name" "$REPO" "$config" "$data_base"
+    printf 'lane=%q\nsnapshot=%q\nwant=%q\n' "$name" "$snapshot" "$sum"
+    cat <<'CHECK'
+if command -v sha256sum >/dev/null 2>&1; then got="$(sha256sum <"$snapshot" 2>/dev/null)"
+elif command -v shasum >/dev/null 2>&1; then got="$(shasum -a 256 <"$snapshot" 2>/dev/null)"
+else got=""; fi
+if [[ "${got%% *}" != "$want" ]]; then
+  printf 'lane %s: %s does not match the sha256 recorded when this script was written; refusing to run. Rerun print-schedule --write-script.\n' "$lane" "$snapshot" >&2
+  exit 1
+fi
+CHECK
+    # shellcheck disable=SC2016 # "$snapshot" expands when the generated script runs
+    printf 'exec bash %q run-once %q --repo %q --config "$snapshot" --data-dir %q\n' \
+      "$self" "$name" "$REPO" "$data_base"
   } >"$tmp" 2>/dev/null && chmod +x "$tmp" 2>/dev/null && mv -f "$tmp" "$script" 2>/dev/null; then
     info "  wrote $script"
+    info "  wrote $snapshot (sha256 $sum)"
     return 0
   fi
   rm -f "$tmp" 2>/dev/null
@@ -1867,7 +1916,7 @@ _schedule_one() {
     err "lane '$name': no effort set; run-once would refuse every scheduled pass; add lanes[].effort"
     return 1
   fi
-  script="$REPO/.work/lanes/scheduled/$name.sh"
+  script="$(schedule_dir)/$name.sh"
   if ((WRITE_SCRIPT)); then
     write_schedule_script "$name" "$script" || return 1
   elif [[ ! -f "$script" ]]; then
@@ -1882,7 +1931,7 @@ _schedule_one() {
   win_script="$(cygpath -w "$script" 2>/dev/null)" || win_script="$script"
   tr="\"$win_bash\" \"$win_script\""
   if ((${#tr} > SCHTASKS_TR_MAX)); then
-    err "lane '$name': the Windows task command is ${#tr} characters, over schtasks' $SCHTASKS_TR_MAX-character /TR limit; move the checkout to a shorter path"
+    err "lane '$name': the Windows task command is ${#tr} characters, over schtasks' $SCHTASKS_TR_MAX-character /TR limit; pass a shorter --data-dir"
     rc=1
   else
     info "Windows, from cmd.exe (a new run does not start while one is running):"
