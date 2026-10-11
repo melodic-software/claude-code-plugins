@@ -48,6 +48,17 @@ on:
         required: false
         type: boolean
         default: false
+      env-scrub:
+        description: >-
+          Strip credentials from Bash subprocesses in the eval
+          (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB). Turning it off lets Bash
+          subprocesses in the eval see the Claude credentials; turn it off only
+          for cases whose allowed tools cannot exfiltrate, such as Bash(echo *).
+          What those tools print lands in the public results artifact and, with
+          debug-errors, the public job log.
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -179,12 +190,20 @@ jobs:
           fi
           echo "playwright-cli inside bwrap: $out"
 
+      - name: Record that env scrub is off
+        if: ${{ !inputs.env-scrub }}
+        env:
+          DISPATCHER: ${{ github.actor }}
+        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
+
       - name: Run the plugin eval
         working-directory: .base
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Strips credentials from Bash subprocesses inside each eval run.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          # The env-scrub input set false gives "0", the opt-out value Claude
+          # Code's own messages name.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ inputs.env-scrub && '1' || '0' }}
           TARGET: ${{ inputs.target }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
