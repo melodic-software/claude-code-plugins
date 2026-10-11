@@ -34,10 +34,9 @@ Wrapper:
    results is a **finding**, never a silent overwrite. A ran-negative probe caps a positive
    declaration; the identity stays `unsupported` while the finding is open.
 2. **Prose-context pass (proposal only).** Read host instruction files (`CLAUDE.md`),
-   secondary agent-instruction files (`AGENTS.md`, which reaches a session through a
-   reference wherever a `CLAUDE.md` above it is read instead; the dated record for that
-   platform bound is the prerequisite-resolution contract in this plugin's reference
-   tree), and `README` for *proposed* declarations into
+   secondary agent-instruction files (`AGENTS.md`; whether a session loads it is a Claude
+   Code rule, recorded in [Instruction-file loading](#instruction-file-loading)), and
+   `README` for *proposed* declarations into
    **non-security keys only**.
    The deterministic resolver never parses prose; prose is never runtime authority.
 3. **Human ratifies.** Interactive contexts present proposals one at a time. Non-interactive
@@ -57,6 +56,19 @@ Wrapper:
 
 Wrapper (non-interactive propose / optional `--ratify` for tests):
 [`scripts/apply-prerequisite-resolution.mjs`](../scripts/apply-prerequisite-resolution.mjs).
+
+## Instruction-file loading
+
+The prose-context pass reads `CLAUDE.md` and `AGENTS.md` from disk whatever a session loads. This
+record holds the upstream pointer for the platform bound the
+[prerequisite-resolution contract](../../../reference/prerequisite-resolution.md) owns.
+
+- **Pointer**: when a proposal depends on whether a session sees `AGENTS.md`, fetch
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load> live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a Claude Code release note names `AGENTS.md` loading or the Project
+  instructions setting, or either section is renamed or removed.
 
 ## Binding section shape
 

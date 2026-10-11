@@ -277,9 +277,8 @@ fails loud on internal failure, never a verdict-shaped fallback.
 2. **`apply`**. Detect-diff-reconcile against existing `prerequisite_resolution`
    declarations; a declaration contradicting a ran-negative probe is a finding (identity
    stays negative while the finding is open). The prose-context pass
-   reads `CLAUDE.md` / `AGENTS.md` (session-reachable by reference wherever a `CLAUDE.md`
-   above it is read instead; the dated record for that platform bound is the
-   prerequisite-resolution contract in this plugin's reference tree) / `README` to
+   reads `CLAUDE.md` / `AGENTS.md` (whether a session loads `AGENTS.md` is a Claude Code
+   rule, recorded in the slice context's "Instruction-file loading" section) / `README` to
    *propose* declarations into **non-security keys only**; the human ratifies; the slice
    writes the additive section (`surface_refs` + `declarations`, no `surfaces` map).
    Narrowing-only enablement: enable in `routines.enabled` only when the verdict clears;
