@@ -66,6 +66,9 @@ Each line names a rule CI does not enforce; the linked file states it in full.
   [skill criteria](plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md).
 - Cost claims: no prices or per-task costs, outside two named exceptions:
   [rule](.claude/rules/cost-claims.md).
+- A generic skill names no `gh` command or GitHub grammar unless it sits behind the operation's
+  owner or in a declared-provider surface:
+  [ADR 0060](docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md).
 - Eval cases hold no raw session or product transcript:
   [rule](.claude/rules/eval-case-transcripts.md).
 - Cross-plugin citations name the skill by `/plugin:skill`, never by path:

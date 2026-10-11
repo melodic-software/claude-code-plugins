@@ -31,6 +31,16 @@ describe("buildTranscriptText", () => {
     expect(result.paragraphCount).toBeGreaterThan(0);
   });
 
+  it("decodes HTML entities in auto-caption cue text", () => {
+    const autoVtt = `WEBVTT
+
+00:00:04.000 --> 00:00:06.000
+[music] &gt;&gt; Hi everybody.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:04] [music] >> Hi everybody.");
+  });
+
   it("parses manual captions without auto-clean pass", () => {
     const manualVtt = `WEBVTT
 

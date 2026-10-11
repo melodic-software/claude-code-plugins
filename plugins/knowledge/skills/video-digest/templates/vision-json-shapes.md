@@ -13,7 +13,8 @@ author those by hand.
 One file per contact sheet, written by that sheet's subagent. The brief also carries the sheet's
 entry from `key-frames/sheet-frame-index.json`, because the cells must match it.
 `merge-triage-json.js` validates each file and builds `triage/manifest.json`, which
-`validate-triage-json.js` checks against the index.
+`validate-triage-json.js` checks against the index. The `model` rule is enforced later, by
+`check-watch-outcomes.js` at outcome verification.
 
 | Key | Rule |
 | --- | --- |
@@ -53,7 +54,7 @@ image (`context/synthesis-contract.md` sets the bar). `vision-gated-promote.js` 
 | `decisions` | Array, one row per candidate. |
 | `sourceFile` | Required. The frame file name in the temp session's frames directory; promotion fails when the file is not there. |
 | `verdict` | `promote` or `reject`. |
-| `destName` | Required for `promote`. Semantic kebab-case name, `.png` optional: lowercase letters, digits and single hyphens. Pipeline tokens are refused: the prefixes `at-`, `scene_`, `anchor_`, `dens-`, `densification-`, `code-code-`, `code-demo-`, `code-terminal-`, `code-slides-`, `win-code-`, and the forms `dens-scene<N>` and `-m<N>.png`. |
+| `destName` | Required for `promote`. Semantic kebab-case name, `.png` optional: lowercase letters, digits and single hyphens. Pipeline tokens are refused: the prefixes `at-`, `scene_`, `anchor_`, `dens-`, `densification-`, `code-code-`, `code-demo-`, `code-terminal-`, `code-slides-`, `win-code-`, and the forms `dens-scene<N>`, `-m<N>.png` and `-m<N>-s<N>.png`. |
 | `gapNote` | Required for `promote`, at least 8 characters after trimming: what the frame shows that the transcript does not. |
 | `session` | Optional. The claim-inventory segment the frame belongs to. A slug ending in `-topup` or starting with `pipeline-` is refused. |
 | `rejectReason` | Required for `reject`, a string. |

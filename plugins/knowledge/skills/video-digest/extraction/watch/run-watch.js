@@ -54,6 +54,7 @@ import {
   continuationPromptPath,
   createWatchState,
   markPhaseComplete,
+  removeRecordedTempSessionDirs,
   writeContinuationPrompt,
   writeWatchState,
 } from "./watch-state.js";
@@ -61,7 +62,6 @@ import {
 /**
  * @param {string[]} argv
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: single CLI pipeline walk over the 0..N envelope arities
 export async function runWatchCli(argv) {
   const recoverIndex = argv.indexOf("--recover");
   if (recoverIndex !== -1) {
@@ -128,10 +128,42 @@ export async function runWatchCli(argv) {
   }
   const maxFrameGapSec = maxFrameGapArg.override ?? MAX_FRAME_GAP_SEC;
 
+  // Until watch.json records the temp dirs, nothing else points at them, so a
+  // failure removes the ones this run made. Once recorded, --recover needs them.
+  /** @type {TempDirs} */
+  const temp = { dirs: {}, recorded: false };
+  try {
+    return await watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp });
+  } finally {
+    if (!temp.recorded) await removeRecordedTempSessionDirs(temp.dirs, "watch");
+  }
+}
+
+/**
+ * @typedef {Object} TempDirs
+ * @property {{ workDir?: string, framesDir?: string, contactSheetsDir?: string }} dirs - created by this run
+ * @property {boolean} recorded - true once watch.json holds them as tempSession
+ */
+
+/**
+ * @param {{
+ *   url: string,
+ *   adapter: import('../adapters/adapter-contract.js').SourceAdapter,
+ *   skipResearch: boolean,
+ *   target: string|undefined,
+ *   strategyArg: { override: import('../adapters/adapter-contract.js').TranscriptStrategy | null },
+ *   maxFrameGapSec: number,
+ *   temp: TempDirs,
+ * }} options
+ */
+async function watchUrl({ url, adapter, skipResearch, target, strategyArg, maxFrameGapSec, temp }) {
   // Temp dirs retained for vision reads in the same session; regen via run-watch when missing.
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-extraction-"));
+  temp.dirs.workDir = workDir;
   const framesDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-frames-"));
+  temp.dirs.framesDir = framesDir;
   const sheetsDir = await fs.mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
+  temp.dirs.contactSheetsDir = sheetsDir;
 
   /** @type {import('../adapters/adapter-contract.js').AcquireOutcome} */
   let acquisition;
@@ -237,6 +269,7 @@ export async function runWatchCli(argv) {
     }
 
     await writeWatchState(sliceDir, next);
+    temp.recorded = true;
     const continuationPrompt = await writeContinuationPrompt(sliceDir, next);
 
     let postBootstrap = null;
@@ -302,6 +335,7 @@ export async function runWatchCli(argv) {
   state.status = "watching";
   writeStderr("watch: watching start");
   await writeWatchState(sliceDir, state);
+  temp.recorded = true;
 
   const watching = await orchestrateWatching({
     videoPath: primary.mediaPath,

@@ -70,7 +70,9 @@ snapshotted to `key-frames/contact-sheets/` for local disaster recovery, see
 A successful `close` writes `status: complete` and then removes the three directories recorded in
 that slice's `tempSession`, only those and only when each resolves inside the OS temp dir. A
 directory it cannot remove gets a stderr warning naming it and stays for removal by hand; the close
-still succeeds. A failed close leaves them in place for the re-run.
+still succeeds. A failed close leaves them in place for the re-run. A watch that fails before
+`watch.json` records `tempSession` (an acquisition error, a 429) removes the three directories it
+made, downloaded media included; once recorded, they stay for `--recover`.
 `highVolume: true` in output → fan out vision subagents; no hard frame cap.
 
 ## Prerequisites gate
@@ -133,7 +135,9 @@ After CLI bootstrap (or on resume), materialize and maintain the slice checklist
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/init-watch-checklist.js "<slice-dir>"
 ```
 
-Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Tick `[ ]` → `[x]`
+Use `--force` to regenerate the floors and per-sheet rows after `vision-plan.md` lands or
+`contactSheetCount` changes; it keeps every tick (by row id), the indented lines under a ticked row,
+and the Resume notes, and regenerates the row text itself. Tick `[ ]` → `[x]`
 only with verification evidence (command exit code, artifact path, verify row). **Ordered
 checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
 
@@ -160,7 +164,22 @@ inspection sample:
 
 Before the research agenda, write `research/claim-inventory.md`:
 
-- Segment the transcript into sessions with timestamps
+- Segment the transcript into sessions with timestamps, one `## <n>. <name>` heading per session
+  followed by a `**Boundary:**` line with the start and end stamps. Stamps are `[m:ss]` (minutes
+  unbounded, as the transcript writes them) or `[h:mm:ss]`. The session gates and
+  `list-promotion-candidates.js` read only this shape; a session table is not parsed, and an
+  inventory with no parsed session fails `session-visual-coverage` and `session-synthesis-depth`:
+
+  ```markdown
+  ## 1. Opening and agenda
+
+  **Boundary:** [0:04] welcome → [1:33] first demo
+
+  ## 2. First demo
+
+  **Boundary:** [1:33] first demo → [1:05:30] Q&A
+  ```
+
 - Extract verifiable claims per segment (product names, version gates, metrics, comparisons) as
   tier-3 rows
 - Derive `research/research-agenda.md` clusters from the inventory; do not jump to research without
@@ -242,7 +261,7 @@ node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-res
   **claim clusters** mapped to inventory rows
 - Per cluster: standard research, or deep external research when 3+ vendors/tools (template:
   `templates/research-cluster.md`)
-- Write slice `RESEARCH.md` + optional `research/findings/*.md`
+- Write slice `RESEARCH.md` + one `research/findings/*.md` per `done` cluster
 - Name each shard `research/findings/<cluster-topic-slug>.md` (e.g. `complex-types.md`) after the
   topic, not an opaque `RA1`/`RA2` ordinal; the agenda carries cluster ordering
 - Each finding: author claim, consensus, staleness, promoted tier

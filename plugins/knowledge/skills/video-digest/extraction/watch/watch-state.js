@@ -237,15 +237,17 @@ function resolveRemovableTempDir(dir) {
 }
 
 /**
- * Remove the directories recorded on this slice's tempSession after a successful close.
+ * Remove the directories recorded on this slice's tempSession, after a successful close
+ * or a watch that failed before recording them.
  * Only those three fields, and only when each resolved path is a directory inside the
  * OS temp dir. Never lists or globs the temp directory. Best-effort: a directory
  * that cannot be removed (on Windows, a file another process holds open fails with
  * EBUSY or EPERM) gets a stderr warning naming it, and the others are still tried.
  *
  * @param {WatchState["tempSession"]} tempSession
+ * @param {string} [label] the command named in that warning
  */
-export async function removeRecordedTempSessionDirs(tempSession) {
+export async function removeRecordedTempSessionDirs(tempSession, label = "close") {
   if (!tempSession) return;
   const resolved = resolveTempSession(
     /** @type {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} */ (
@@ -260,7 +262,7 @@ export async function removeRecordedTempSessionDirs(tempSession) {
       await fs.rm(real, { recursive: true, force: true });
     } catch (err) {
       const reason = /** @type {NodeJS.ErrnoException} */ (err).code ?? String(err);
-      writeStderr(`close: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
+      writeStderr(`${label}: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
     }
   }
 }
@@ -459,7 +461,31 @@ async function verifyWatchOutcomes(sliceDir) {
 }
 
 /**
- * Close the slice: the only writer of `status: "complete"`. Marks synthesis
+ * Set the slice README's frontmatter `status:` to `complete`. A slice with no
+ * README, or a README whose frontmatter has no `status:` line, is left as is.
+ *
+ * @param {string} sliceDir
+ * @param {typeof fs.readFile} [readFile]
+ * @param {typeof fs.writeFile} [writeFile]
+ */
+async function markReadmeComplete(sliceDir, readFile = fs.readFile, writeFile = fs.writeFile) {
+  const readmePath = path.join(sliceDir, "README.md");
+  let body;
+  try {
+    body = await readFile(readmePath, "utf8");
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === "ENOENT") return;
+    throw error;
+  }
+  const updated = body.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, (frontmatter) =>
+    frontmatter.replace(/^status:[^\r\n]*/m, "status: complete"),
+  );
+  if (updated !== body) await writeFile(readmePath, updated, "utf8");
+}
+
+/**
+ * Close the slice: the only writer of `status: "complete"`, in `watch.json` and in the
+ * slice README's frontmatter. Marks synthesis
  * when unmarked, runs the outcome checks against that state on disk, and sets
  * `complete` only when they pass. After writing `complete`, removes the directories
  * recorded in this slice's `tempSession`, best-effort, so a directory that cannot be
@@ -482,6 +508,8 @@ export async function runClose(
   }
 
   if (state.status === "complete") {
+    // Repairs the README of a slice closed before close wrote its status.
+    await markReadmeComplete(sliceDir, readFile, writeFile);
     writeStdout("close: status already complete, no-op\n");
     return 0;
   }
@@ -497,6 +525,8 @@ export async function runClose(
     return 1;
   }
 
+  // README first: a failed write here leaves watch.json open, so a re-run retries both.
+  await markReadmeComplete(sliceDir, readFile, writeFile);
   await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
   writeStdout("close: outcome checks passed, status complete\n");
   await removeRecordedTempSessionDirs(closing.tempSession);
