@@ -41,11 +41,15 @@ for t in one two; do
 done
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
 assert_eq "exactly the ceiling's worth of open items: truncated is false" "false" "$(jq -c '.truncated' <<<"$LISTED")"
+WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "closed" >/dev/null
+sed -i 's/^state: "open"$/state: "closed"/' "$STORE/3.md"
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
+assert_eq "a closed item past the ceiling: the open listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "three" >/dev/null
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
 assert_eq "an open item past the ceiling: truncated is true" "true" "$(jq -c '.truncated' <<<"$LISTED")"
 assert_eq "past the ceiling: only the ceiling's worth of items" "2" "$(jq '.items | length' <<<"$LISTED")"
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --state closed)"
-assert_eq "no closed item past the ceiling: the closed listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
+assert_eq "one closed item, under the ceiling: the closed listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 
 [[ $FAILED -eq 0 ]] || exit 1

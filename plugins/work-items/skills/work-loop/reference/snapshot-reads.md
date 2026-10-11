@@ -9,9 +9,10 @@ when the reads behind it were complete.
 
 - **Frontier**: the seam's `list-frontier --autonomous`. Its envelope carries `truncated` (the
   tracker seam's `CONTRACT.md`, "JSON output contract").
-- **Open items**: the adapter "List items" projection with an explicit `--limit` set to the adapter's
-  `limits.list_items_max` (from the seam's `capabilities`). That projection carries no flag, so a
-  read returning as many rows as its `--limit` counts as truncated.
+- **Open items**: the adapter "List items" projection with an explicit `--limit` set to one more than
+  the adapter's `limits.list_items_max` (from the seam's `capabilities`). That projection carries no
+  flag, so a read returning more than `list_items_max` rows counts as truncated; a backlog of
+  exactly `list_items_max` items is complete.
 
 ## A read that is not complete aborts the cycle
 
