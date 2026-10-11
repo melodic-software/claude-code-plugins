@@ -48,8 +48,8 @@ repository keeps for native-overlap decisions, because whether such a reference 
 is a human's call. This paragraph is a boundary, not a routing verdict.
 
 - **Pointer**: when you need what `/hooks` lists, or what it shows for a selected hook, fetch
-  [the /hooks menu](https://code.claude.com/docs/en/hooks#the-hooks-menu) live.
-- **As of**: 2026-10-10
+  [the /hooks menu](https://code.claude.com/docs/en/hooks#the-/hooks-menu) live.
+- **As of**: 2026-10-11
 - **Recheck trigger**: that section stops showing each hook's source, or the menu stops listing
   the resolved set of configured hooks.
 

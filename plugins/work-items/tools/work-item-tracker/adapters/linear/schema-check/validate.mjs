@@ -9,6 +9,7 @@ const F = `
   number
   title
   url
+  createdAt
   state { type name }
   assignee { displayName email }
   labels(first: 50) { nodes { name } }
@@ -64,13 +65,22 @@ const ops = [
     q: `mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }`,
     vars: { id: 'u', input: { assigneeId: null } } },
 
-  { name: 'list-items issues', loc: 'list-items.sh:57-62',
-    q: `query($teams: [String!], $first: Int!, $after: String) {
-  issues(filter: { team: { key: { in: $teams } } }, first: $first, after: $after) {
+  { name: 'list-items issues (open, labeled)', loc: 'list-items.sh:70-75',
+    q: `query($filter: IssueFilter!, $first: Int!, $after: String) {
+  issues(filter: $filter, first: $first, after: $after) {
     nodes { ${F} }
     pageInfo { hasNextPage endCursor }
   }
-}`, vars: { teams: ['ENG'], first: 50, after: null } },
+}`, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { nin: ['completed', 'canceled', 'duplicate'] } }, // spellchecker:disable-line
+    labels: { some: { name: { eq: 'area: ci' } } } }, first: 50, after: null } },
+
+  { name: 'list-items issues (closed)', loc: 'list-items.sh:70-75',
+    q: `query($filter: IssueFilter!, $first: Int!, $after: String) {
+  issues(filter: $filter, first: $first, after: $after) {
+    nodes { ${F} }
+    pageInfo { hasNextPage endCursor }
+  }
+}`, vars: { filter: { team: { key: { in: ['ENG'] } }, state: { type: { in: ['completed'] } } }, first: 50, after: 'cur' } },
 
   { name: 'create-item team resolve', loc: 'create-item.sh:110',
     q: `query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }`,

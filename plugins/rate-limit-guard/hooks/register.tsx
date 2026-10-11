@@ -107,7 +107,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
   return {
     bad,
     writes: options.rate_limit_guard_enabled !== false,
-    lines: options.rate_limit_lines_enabled !== false,
+    lines: options.model_notices === true,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
     approach: number('rate_limit_approach_pct', 90),
@@ -133,8 +133,7 @@ export const liveWindows = (limits: readonly SessionRateLimit[], nowMs: number):
 const levelOf = (percent: number, cfg: Config): Level =>
   percent >= cfg.threshold ? 'edge' : percent >= cfg.approach ? 'approach' : 'quiet'
 
-const edgeName = (cfg: Config) =>
-  cfg.threshold === PAUSE_EDGE ? `${PAUSE_EDGE}% pause edge` : `${cfg.threshold}% line threshold`
+const edgeName = (cfg: Config) => `${cfg.threshold}% line threshold`
 
 const resetLabel = (iso: string) => {
   const at = new Date(iso)
@@ -218,10 +217,16 @@ const dueEvents = (st: State): [string, Due][] => {
     : [...new Map<string, Due>([...st.pending.entries(), ...atEdge])]
 }
 
-const dueLines = (st: State, cfg: Config): string[] =>
-  dueEvents(st)
-    .sort(([a], [b]) => order(a) - order(b))
-    .map(([kind, due]) => `rate-limit-guard: ${clause(kind, due.event, due.limit, cfg)}.`)
+// Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
+// and to move work to a smaller model, so the options are stated and lowering quality is not one of them.
+const OPTIONS =
+  "rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor."
+
+const dueLines = (st: State, cfg: Config): string[] => {
+  const due = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
+  const lines = due.map(([kind, d]) => `rate-limit-guard: ${clause(kind, d.event, d.limit, cfg)}.`)
+  return due.some(([, d]) => d.event === 'approach' || d.event === 'edge') ? [...lines, OPTIONS] : lines
+}
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
@@ -552,7 +557,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. By default rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`, where a loop lane that opted in to pausing pauses; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. With the model_notices option on (off by default), rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({

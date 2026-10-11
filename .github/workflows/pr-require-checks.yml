@@ -847,6 +847,22 @@ jobs:
           config: .gitleaks.toml
           scan-mode: git
 
+      # Offline links and anchors: local files and #fragments only, no
+      # network. Ungated like the other whole-repo scanners, because a
+      # docs-only diff is exactly what can break a link. The excludes are test
+      # data whose links are meant not to resolve here: the attribution audit's
+      # golden fixtures, and a verbatim copy of an upstream table with a
+      # site-root-relative link.
+      - name: Check local links and anchors
+        id: lychee
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        with:
+          config: lychee.toml
+          exclude: >-
+            (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
+            (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
+
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
@@ -1101,6 +1117,7 @@ jobs:
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
+            lychee-offline=${{ steps.lychee.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}

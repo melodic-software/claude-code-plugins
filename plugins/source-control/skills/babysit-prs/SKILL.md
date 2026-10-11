@@ -14,7 +14,9 @@ metadata:
 
 ## Pre-computed context
 
+<!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
+<!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
 
 Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. The dated record for that composition claim is the `worktree` skill's [reference/gather-block.md](../worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".

@@ -10,7 +10,7 @@
       "expectations": [
         "Reads settings files only; never writes settings, pluginConfigs, a wrapper script, or the contract directory",
         "Reports PASS/FAIL/INFO with one remediation line per FAIL",
-        "Reports each of rate_limit_guard_enabled, rate_limit_lines_enabled, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data, rate_limit_guard_band and rate_limit_guard_toast as its own row with its value",
+        "Reports each of rate_limit_guard_enabled, model_notices, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data, rate_limit_guard_band and rate_limit_guard_toast as its own row with its value",
         "Does not tell the person to wire anything into their statusLine: the plugin needs no wiring"
       ]
     },

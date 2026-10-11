@@ -78,9 +78,9 @@ Ensure the branch is current with the default branch before pushing. Prevents me
 
 **Ordering: rebase needs a clean tree.** `git rebase` refuses to run with unstaged changes (`error: cannot rebase: You have unstaged changes.`). On the normal `create` path the PR changes are still uncommitted when this phase starts. In that case run 2.3 (classify unrelated changes + stage + commit) FIRST, then return here and integrate before the 2.4 push. Run 2.2 in the listed order only when the tree is already clean (all work committed).
 
-```bash
-DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
+First set `DEFAULT_BRANCH` to the repository's default branch ([GitHub](../../../reference/providers/github/README.md#identity-and-repository)), then:
 
+```bash
 # Resolve the FETCH remote that hosts the default branch via the shared resolver
 # (scripts/resolve-remote.sh): the current branch's configured remote
 # (branch.<name>.remote), else `origin`, else the sole OTHER configured remote
@@ -112,11 +112,7 @@ fi
 
 **Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
-**Sandboxed sessions: resolve the default branch over REST.** `gh repo view --json` sends the same `RepositoryInfo` GraphQL query `gh pr create` does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` where only a pinned set of GraphQL operations is served. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute:
-
-```bash
-DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
-```
+**Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query its PR create does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` where only a pinned set of GraphQL operations is served. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
 
 ## 2.3 Stage and commit
 
@@ -183,39 +179,23 @@ ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" "" '<branch-issue-p
 
 Then invoke `/work-items:track link` via the Skill tool, `<owner>/<repo>` being this PR's repository: on `PARSE_RC` 0, `link --branch-ref "$ISSUE_NUM" --repo <owner>/<repo>`; on `PARSE_RC` 3 (no consumer pattern), `link --current-branch --repo <owner>/<repo>` (add `--worktree "$WT"` under §2.7), which reads the branch itself and applies the adapter's grammar; never type the branch name into the arguments, since git allows shell metacharacters in it; on `PARSE_RC` 1, no item, so go to the orphan-PR prompt. From the JSON it prints: an item whose `state` is `open` (or `null`, unchecked) sets `CLOSES_LINE` to its `closes` text, or to its `refs` text when `closes` is `null` (a merge closes nothing on that tracker: tell the user to close the item with `/work-items:track done` after the merge). A `missing` or closed item, or "no linked item", goes to the orphan-PR prompt. Only when the action reports that the adapter predates `change-link` does the GitHub default below run instead. A usage error or a configuration error it reports (a missing branch grammar) stops here: relay it to the user rather than opening a PR with no link. `REFS_LINES` starts empty on this path too. In the multi-issue and orphan-PR prompts below, build each extra line from `/work-items:track link <item>` the same way rather than writing `Closes #X`.
 
-**Without a tracker binding**, the GitHub default:
+**Without a tracker binding**, the GitHub default
+([GitHub](../../../reference/providers/github/pull-request/create.md#closes-line-without-a-tracker)).
+It starts `CLOSES_LINE` and `REFS_LINES` empty. `REFS_LINES` collects newline-separated
+`Refs #Y — <why>` bullets for the `## Related` section, populated by the multi-issue or orphan-PR
+prompts below; never a closing keyword and not a linkage line (see §2.4.1 for routing). When
+`ISSUE_NUM` is a number, it validates that the issue exists in the current repository BEFORE
+shipping `Closes #N`: GitHub auto-close only fires when the issue exists, lives in this repo, and is
+open at merge time, and a typo'd branch like `feat/99999-foo` would otherwise ship a misleading
+`Closes #99999` line. An open issue sets `CLOSES_LINE` to `Closes #<N>`; otherwise it warns that the
+issue is missing or not open, clears `ISSUE_NUM`, and the orphan-PR prompt below populates
+`CLOSES_LINE`.
 
-```bash
-CLOSES_LINE=""
-REFS_LINES=""  # newline-separated `Refs #Y — <why>` bullets for the ## Related section, populated
-                # by the multi-issue or orphan-PR prompts below; never a closing keyword and
-                # not a linkage line — see §2.4.1 for routing.
-if [[ "$ISSUE_NUM" =~ ^[0-9]+$ ]]; then   # the GitHub default needs an issue number
-  # Validate issue exists in current repo BEFORE shipping `Closes #N`.
-  # GitHub auto-close only fires when the issue exists, lives in this repo,
-  # and is open at merge time. A typo'd branch like
-  # `feat/99999-foo` would otherwise ship a misleading `Closes #99999` line.
-  ISSUE_STATE=$(gh issue view "$ISSUE_NUM" --json state --jq '.state' 2>/dev/null || true)
-  if [[ "$ISSUE_STATE" == "OPEN" ]]; then
-    CLOSES_LINE="Closes #${ISSUE_NUM}"
-  else
-    echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
-    ISSUE_NUM=""   # fall through to orphan-PR 2-option prompt below
-  fi
-fi
-# If still empty, the orphan-PR prompt populates CLOSES_LINE below.
-```
+**Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When the issue read confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt. Never ship a stale or unverified keyword.
 
-**Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When `gh issue view` confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt. Never ship a stale or unverified keyword.
+**Sandboxed sessions: run this check over REST.** The CLI's issue read routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with `HTTP 403`, whatever credentials are supplied. The default block swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issue read, which reports `state` in lower case ([GitHub](../../../reference/providers/github/pull-request/create.md#issue-state-over-rest), with the evidence and its recheck trigger).
 
-**Sandboxed sessions: run this check over REST.** `gh issue view --json` routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with `HTTP 403`. Verified 2026-09-06 against Claude Code 2.1.263 and [Configure cloud environments](https://code.claude.com/docs/en/cloud-environments#github-proxy): "the proxy serves only a pinned set of GraphQL operations for pull-request workflows", rejecting the rest with a 403 reading `This GraphQL query is not enabled for this session` and naming the REST fallback `gh api repos/{owner}/{repo}/...`. The restriction applies to every request through the proxy regardless of the credentials supplied, so a `GH_TOKEN` gets the same 403. Recheck when that page stops carrying that span, or when a release note names the GitHub proxy or its GraphQL allowlist. The `2>/dev/null || true` above swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issues endpoint, which reports `state` in lower case:
-
-```bash
-ISSUE_STATE=$(gh api "repos/{owner}/{repo}/issues/${ISSUE_NUM}" --jq '.state' 2>/dev/null || true)
-if [[ "$ISSUE_STATE" == "open" ]]; then   # REST returns `open`/`closed`, not `OPEN`/`CLOSED`
-```
-
-`gh api` has no `--repo` flag. `{owner}` and `{repo}` expand from the repository of the **current directory**, or from `GH_REPO`. That is safe on the normal `create` path, whose cwd is the branch's own clone, but not under §2.7, where the invoking orchestrator sits out-of-tree: there, run the call from `$WT` (`( cd "$WT" && gh api … )`, the form §2.7 already uses for `resolve-remote.sh`) or prefix `GH_REPO=<owner>/<repo>`. The same rule governs the REST PR-create fallback in §2.4.3.
+**Placeholder anchoring.** A REST call's `{owner}` and `{repo}` placeholders expand from the repository of the **current directory** ([GitHub](../../../reference/providers/github/pull-request/create.md#placeholder-anchoring)). That is safe on the normal `create` path, whose cwd is the branch's own clone, but not under §2.7, where the invoking orchestrator sits out-of-tree: there, run the call from `$WT` (the subshell form §2.7 already uses for `resolve-remote.sh`) or name the repository explicitly. The same rule governs the REST PR-create fallback in §2.4.3.
 
 **Multi-issue PR (same branch closes 2+ issues):** after primary line is set, ask user inline:
 
@@ -288,11 +268,11 @@ user-supplied content), and the §2.4.3 attribution line.
 
 The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
 
-**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. `gh pr create` has no option that uploads a file, so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
+**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. The PR create command has no option that uploads a file ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)), so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
 - **Pointer**: when the person asks how to add the captures, fetch GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) live for the upload routes and size limits.
 - **As of**: 2026-10-02
-- **Recheck trigger**: a gh release adds an option to `gh pr create` or `gh pr edit` that uploads a file, at which point the step attaches the captures itself.
+- **Recheck trigger**: a GitHub CLI release adds an option to its PR create or edit command that uploads a file, at which point the step attaches the captures itself.
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
@@ -328,7 +308,7 @@ ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)' 
 # closes that hole structurally, rather than teaching the gate a footer shape.
 ```
 
-A body passed with `gh pr create --body-file` (or `--body`) fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751). Body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections`, per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+A body passed at PR creation fully overrides the repository's PR template ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)). Body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections`, per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 **Linkage scaffolds: always emitted, independent of the section scaffold.** The closing-keyword line and the section scaffold are two separate mechanisms that happen to compose on the same body:
 
@@ -339,9 +319,9 @@ A PR that references an issue without closing it carries `Refs: #N` (or `Relates
 
 ### 2.4.2 Pre-create gate
 
-Before invoking `gh pr create`, run two independent checks against the body file `$BODY_FILE`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
+Before creating the PR, run two independent checks against the body file `$BODY_FILE`: the closing-keyword check and the required-section check (generic: it reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
 
-A `gh pr create` / `gh pr edit` issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own PR-contract check (a workflow that `uses:` the `pr-contract` composite step) and blocks a statically-readable body that would fail it. See [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
+A PR create or edit command issued **outside** this skill reaches the same contract through the plugin's `pr-body-linkage-gate` PreToolUse hook, which mirrors the repository's own PR-contract check (a workflow that `uses:` the `pr-contract` composite step) and blocks a statically-readable body that would fail it. See [`../../../hooks/pr-body-linkage-gate.sh`](../../../hooks/pr-body-linkage-gate.sh) for its scope guard and coverage limits. Nothing changes for this skill's path: its gate runs first and the hook then sees a body that already passes.
 
 #### 2.4.2.1 Verify closing-keyword line
 
@@ -407,61 +387,39 @@ out of the gated content:
 # heredoc, so a `$`-bearing configured ATTRIBUTION value is never re-evaluated.
 [[ -n "$ATTRIBUTION" ]] && printf '\n\n%s\n' "$ATTRIBUTION" >>"$BODY_FILE"
 
-# Identity: plain `gh` (the human PR author) by default. If the consuming
-# project's conventions route automation writes through a bot identity
-# wrapper, follow those for comments/reactions — PR creation itself is
-# normally authored by the human account.
-# No reviewers are auto-requested by default — `gh pr create` runs without
-# `--reviewer`. Reviews come from whatever AI reviewers the repo wires up
-# and any humans who opt in.
-# Title shape: whatever the resolved subject/title convention requires
-# (Conventional Commits default shown; a custom resolved pr_title_pattern
-# or the project's own convention overrides this).
 BRANCH=$(git branch --show-current)
 if [[ -z "$BRANCH" ]]; then
   echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
   exit 1
 fi
-# --draft: every PR opens as a draft. Draft is the state in which no review
-# is owed; `/source-control:pull-request ready` performs the flip
-# (reference/ready-for-review.md).
-PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
-
-# Extract PR number from URL (gh pr create outputs the URL on success).
-# This number is the source of truth for the rest of this phase — pass it
-# explicitly to every subsequent gh call.
-PR_NUMBER=$(basename "$PR_URL")
 ```
 
-**`--draft` is not a preference here.** A draft is the state in which nothing is owed: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready-for-review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A consuming project whose own convention opens PRs ready for review overrides this.
+Then open the PR as a draft from head `$BRANCH`, with the title and the body file, and capture
+`PR_URL` and `PR_NUMBER`
+([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-draft-pr)). That
+number is the source of truth for the rest of this phase: pass it explicitly to every later forge
+call.
 
-**Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:
+- **Identity:** the human PR author by default. If the consuming project's conventions route
+  automation writes through a bot identity wrapper, follow those for comments and reactions; PR
+  creation itself is normally authored by the human account.
+- **No reviewers are auto-requested by default.** Reviews come from whatever AI reviewers the repo
+  wires up and any humans who opt in.
+- **Title shape:** whatever the resolved subject/title convention requires (Conventional Commits
+  default shown; a custom resolved `pr_title_pattern` or the project's own convention overrides
+  it).
+- **Draft:** every PR opens as a draft. Draft is the state in which no review is owed;
+  `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
 
-- **`base` is required.** `gh pr create` defaults it to the repository's default branch; REST does not. Resolve it over REST as well, since §2.2's `gh repo view --json defaultBranchRef` reads the same GraphQL surface and 403s alongside the rest.
-- **`head` is bare `<branch>` only for a same-repo PR.** From a fork (the triangular flow §2.7's remote resolver allows), it must be namespaced `<fork-owner>:<branch>`, and when both repositories belong to the same organization, REST additionally requires `head_repo=<fork-repo-name>`.
-- **Send the body from its file with `-F body=@"$BODY_FILE"`.** `-F`/`--field` reads a value that starts with `@` from the named file. `-f`/`--raw-field` would send the path itself as the body.
-- **The response carries the PR identity.** Read `.number` and `.html_url` from it rather than parsing the number back out of the URL.
-- **`draft` is a boolean, so it goes with `-F`.** `-f draft=true` sends the string `"true"`, which the API rejects; `-F` is the flag that type-converts it. The other literal fields (`title`, `head`, `base`) stay on `-f`, so a title that reads `true` or a number is still sent as a string.
+**Draft is not a preference here.** A draft is the state in which nothing is owed: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready-for-review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A consuming project whose own convention opens PRs ready for review overrides this.
 
-```bash
-BASE=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
-PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
-  -f title="<type>: <description>" \
-  -f head="$BRANCH" \
-  -f base="$BASE" \
-  -F body=@"$BODY_FILE" \
-  -F draft=true)
-PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
-PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
-```
+**Sandboxed sessions: open the PR over REST.** The CLI's PR create sends a GraphQL query before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. The REST pull-request endpoint works, with differences that matter: the base branch must be passed (resolved over REST as well, since §2.2's repository read 403s alongside the rest), a head from a fork must be namespaced `<fork-owner>:<branch>`, the body is sent from its file, `draft` is sent as a boolean, and the response carries the PR number and URL ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-over-rest)). Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both of its calls.
 
-`--method POST` and `-X POST` are the same flag. Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both calls above.
+**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches the CLI's PR create and edit commands and names the REST pulls call among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing. §2.4.2's gates already ran against `$BODY_FILE`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
 
-**The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches `gh pr create` / `gh pr edit` and names `gh api …/pulls` among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing. §2.4.2's gates already ran against `$BODY_FILE`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
+PR identity (number + URL) is queried live from the forge whenever a later phase needs it ([GitHub](../../../reference/providers/github/pull-request/create.md#pr-identity)). We do not persist it to a state file. The forge is the authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it over REST.
 
-PR identity (number + URL) is queried live from `gh pr view --json number,url` whenever a later phase needs it. We do not persist it to a state file. `gh` is the authoritative source. That read is GraphQL-backed like the others, so under the restriction above a sandboxed session takes identity from the create response instead, or re-reads it with `gh api "repos/{owner}/{repo}/pulls/<n>" --jq '{number, html_url}'`.
-
-**All subsequent phases MUST use `<pr_number>` explicitly**, never bare `gh pr view` / `gh pr checks` / `gh pr merge` without PR number argument.
+**All subsequent phases MUST use `<pr_number>` explicitly**, never a bare PR view, checks or merge call without the PR number argument.
 
 ## 2.5 Record expected CI workflows
 
@@ -511,36 +469,16 @@ BRANCH=$(git -C "$WT" branch --show-current)
 **Sub-steps relative to the normal `create` path:**
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
-- **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by `gh pr view --json mergeable` and CI in Phase 3. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
+- **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
-- **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). Draft is as §2.4.3 states it.
 
-  ```bash
-  PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
-  ```
+  In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`.
 
-  `--draft` is as §2.4.3 states it.
+  `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way.
 
-  In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`:
-
-  ```bash
-  PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
-    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true )
-  ```
-
-  `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way: `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
-
-  **On a triangular flow, anchoring to the worktree is not enough.** Where the worker pushed to a fork and the PR targets an upstream base, the placeholders resolve against the worktree's own remotes, so `repos/{owner}/{repo}/pulls` can post to the **fork**, opening a PR that targets the fork's own default branch instead of upstream, with no error to notice. Name the base repository explicitly and namespace `head`, per §2.4.3's `head` bullet:
-
-  ```bash
-  BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
-  PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
-    -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
-    -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
-  ```
-
-  `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a triangular flow resolve `$BASE` through `GH_REPO` too, as `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, not through the `cd "$WT"` form above, which would read the fork's default branch.
+  **On a triangular flow, anchoring to the worktree is not enough.** Where the worker pushed to a fork and the PR targets an upstream base, the placeholders resolve against the worktree's own remotes, so the REST create can post to the **fork**, opening a PR that targets the fork's own default branch instead of upstream, with no error to notice. Name the base repository (the PR's target, not the push destination) explicitly and namespace `head` as `<fork-owner>:$BRANCH`, per §2.4.3. Resolve `$BASE` against that base repository too, never through the worktree-anchored form, which would read the fork's default branch. The provider reference holds each of these commands.
 
 - **§2.5 / §2.6:** unchanged: record expected workflows, report the PR URL + number, and stop.
 

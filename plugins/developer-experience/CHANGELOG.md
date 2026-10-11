@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-10-11
+
+### Fixed
+
+- `build-cli`'s CLI contract cites clig.dev's Philosophy "Robustness" section by its live anchor, `#robustness-principle`; the old `#robustness` anchor matched no section.
+
 ## [0.1.0] - 2026-10-08
 
 ### Added
