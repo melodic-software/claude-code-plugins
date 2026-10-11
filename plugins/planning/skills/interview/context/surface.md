@@ -55,9 +55,9 @@ Write `<surface_dir>` out as an absolute path in single quotes, or run the watch
 
 When the first wake prompts for permission, offer the user one allow rule, `Bash(bash '<surface_dir>/wake.sh' *)`, with `<surface_dir>` spelled out exactly as the command quotes it, so later wakes run without a prompt. A bare `watch.sh` re-arm (nothing to record) is covered by `Bash(bash '<surface_dir>/watch.sh' *)`. Permission record:
 
-- **Claim:** a `Bash(<prefix> *)` rule matches one subcommand of a compound command, never the whole `&&` chain; the wake is one `wake.sh` command, so a single rule covers it, and a bare `watch.sh` re-arm needs its own rule.
-- **Basis:** [permissions "Compound commands"](https://code.claude.com/docs/en/permissions#compound-commands): "Claude Code is aware of shell operators, so a rule like `Bash(safe-cmd *)` won't give it permission to run the command `safe-cmd && other-cmd`." and "A rule must match each subcommand independently." "Wildcard patterns" adds that "Claude Code matches everything before the first `*` as written", so the prefix keeps its quotes.
-- **As of:** 2026-09-29.
+- **Decision:** the wake is one `wake.sh` command so that a single prefix rule covers it, a bare `watch.sh` re-arm gets its own rule, and the rule's prefix keeps the command's quotes exactly as written. How a prefix rule matches a compound command and what part of a pattern is matched literally are read live.
+- **Pointer:** [permissions: compound commands](https://code.claude.com/docs/en/permissions#compound-commands) and [permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns).
+- **As of:** 2026-10-11.
 - **Recheck trigger:** a change to that page's "Compound commands" or "Wildcard patterns" section, or a wake that prompts again after the rule is in place.
 
 `ops.json` is `{"ops": [...]}`; each op's fields are in the table below, and the full shapes are in `'<surface_dir>/schema/ops.schema.json'`:
@@ -250,13 +250,15 @@ When Python, curl or bash is missing, the port cannot bind, the server stays unr
 ## Idle wake: verification record
 
 - **Claim:** a background Bash task's exit starts a new turn in an idle interactive session, which is what wakes the session when the watcher exits.
-- **Basis:** re-verified in the parent session on Windows with Claude Code 2.1.281: `sleep 30; echo idle-wake-probe-done` armed with `run_in_background`, the turn ended with no pending input, and the task's exit started a new turn with no typing. The Bash tool's own text: it "keeps running across turns and re-invokes you when it exits".
-- **As of:** 2026-09-24.
+- **Probe:** `sleep 30; echo idle-wake-probe-done` armed with `run_in_background` in an interactive session on Windows with Claude Code 2.1.281; the turn ended with no pending input, and the task's exit started a new turn with no typing. Rerun that probe to recheck.
+- **Pointer:** [tools reference: background commands](https://code.claude.com/docs/en/tools-reference#background-commands).
+- **As of:** 2026-10-11 (probe 2026-09-24).
 - **Recheck trigger:** a Claude Code release note that changes background-task notifications or Monitor deadlines, or a wake that fails to arrive in a session.
 
 ## Wake payload: verification record
 
 - **Claim:** the notification that wakes the session when a background Bash task exits carries the task's output-file path and exit status, not the task's stdout, so the watcher's JSON is read from the output file. Read prefixes each line with its line number, and a whole-file read over the token limit returns a partial view. The output file ends with an exit-code footer and holds the task's stderr as well as its stdout.
-- **Basis:** the [tools reference, "Background commands"](https://code.claude.com/docs/en/tools-reference) says a backgrounded command's result gives the task ID and the path of the file its output is written to, and its `TaskOutput` row says to use `Read` on the task's output file path. The [tools reference, "Read tool behavior"](https://code.claude.com/docs/en/tools-reference#read-tool-behavior) says Read "returns the contents with line numbers" and that a whole-file read over the token limit returns the first page with a `PARTIAL view` notice. The Read tool's own description says results use `cat -n` format (line number, tab, text), and a probe of a two-line file in Claude Code 2.1.285 returned each line as the number, a tab, then the text. A probe of a single 20,000-character line in the same version came back whole from Read, and probes that wrote to stdout and stderr left both in the one output file, followed by a blank line and an `[exited with code N]` footer (N = 0 and 3 probed). A probe in an agent session (subagent) on Linux (WSL2) with Claude Code 2.1.285 ran `echo '{"seq":1,"events":[],"note":"probe"}'` with `run_in_background`. The `<task-notification>` held `task-id`, `tool-use-id`, `output-file`, `status` and a `summary` with the exit code (`completed (exit code 0)`); the echoed JSON was not in it.
-- **As of:** 2026-09-29.
+- **Pointer:** what a backgrounded command's result and the task-output tool give, in [tools reference: background commands](https://code.claude.com/docs/en/tools-reference#background-commands); how Read numbers lines and what it returns for a file over its limit, in [tools reference: read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior) and [tools reference: large files](https://code.claude.com/docs/en/tools-reference#large-files).
+- **Probe:** in Claude Code 2.1.285, a Read of a two-line file returned each line as the number, a tab, then the text; a single 20,000-character line came back whole from Read; and background commands that wrote to stdout and stderr left both in the one output file, followed by a blank line and an `[exited with code N]` footer (N = 0 and 3 probed). In an agent session (subagent) on Linux (WSL2) with the same version, `echo '{"seq":1,"events":[],"note":"probe"}'` run with `run_in_background` produced a `<task-notification>` holding `task-id`, `tool-use-id`, `output-file`, `status` and a `summary` with the exit code (`completed (exit code 0)`); the echoed JSON was not in it.
+- **As of:** 2026-10-11 (probes 2026-09-29).
 - **Recheck trigger:** a Claude Code release note that changes background-task notifications, or a wake whose notification includes the task output.

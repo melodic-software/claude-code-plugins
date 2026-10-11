@@ -68,7 +68,8 @@ For non-trivial work this skill does not recommend a faster main model running
 **without** a stronger advisor: it recommends the faster main model paired with a
 stronger advisor that the main model escalates hard decisions to, rather than paying
 for the stronger model on every routine turn (for when the advisor is consulted, see
-<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>).
+<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>, as of 2026-10-11;
+recheck when that section changes when the main model consults the advisor).
 The concrete tier names that fill this **faster-main + stronger-advisor** shape are
 exactly the values that drift between versions, and which specific pairings are
 accepted drifts with them. Source them live (below), never pin them here: the durable
@@ -106,10 +107,13 @@ it degrades.
 
 Primary sources, fetched once when you form the recommendation (not per round):
 
-- `https://code.claude.com/docs/en/model-config`: model aliases and the effort setting
+- `https://code.claude.com/docs/en/model-config#model-aliases` and `https://code.claude.com/docs/en/model-config#adjust-effort-level`: model aliases and the effort setting
 - `https://claude.com/blog/claude-model-and-effort-level-in-claude-code`: correlate only, for which model and effort fit which work
-- `https://code.claude.com/docs/en/advisor`: advisor enablement and accepted main+advisor pairings
+- `https://code.claude.com/docs/en/advisor#enable-the-advisor` and `https://code.claude.com/docs/en/advisor#common-model-pairings`: advisor enablement and accepted main+advisor pairings
 - `https://claude.com/blog/the-advisor-strategy`: correlate only, for why a faster main + stronger advisor works
+
+As of 2026-10-11. Recheck when any docs section above is renamed or moved, or stops covering the
+topic it is listed for.
 
 **Fetch failure degrades, never halts.** The recommendation is an auxiliary output, so
 a doc-fetch failure must not block the interview or the Brief. Fall back to the
