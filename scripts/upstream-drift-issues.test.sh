@@ -23,7 +23,8 @@ trap cleanup EXIT
 
 STUB="$TMP/bin"
 mkdir -p "$STUB"
-# The stub answers `issue list` with $GH_STUB_LIST (a JSON file) and fails the
+# The stub answers the sweep's `issue list` (searching `in:title "Upstream drift"`)
+# with $GH_STUB_SWEEP, any other `issue list` with $GH_STUB_LIST (JSON files), and fails the
 # subcommand named in $GH_STUB_FAIL (list, create, edit or close).
 printf '%s\n' \
   '#!/usr/bin/env bash' \
@@ -36,6 +37,7 @@ printf '%s\n' \
   '  prev="$a"' \
   'done' \
   '[[ "$1 $2" == "issue ${GH_STUB_FAIL:-none}" ]] && exit 1' \
+  'if [[ "$1 $2" == "issue list" && " $* " == *" in:title \"Upstream drift\" "* ]]; then cat "${GH_STUB_SWEEP:-/dev/null}" 2>/dev/null || echo "[]"; exit 0; fi' \
   'if [[ "$1 $2" == "issue list" ]]; then cat "${GH_STUB_LIST:-/dev/null}"; fi' \
   'exit 0' >"$STUB/gh"
 chmod +x "$STUB/gh"
@@ -55,6 +57,7 @@ run_sut() {
   OUT="$(env PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" \
     GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=acme/site GITHUB_RUN_ID=777 \
     ${GH_STUB_LIST:+GH_STUB_LIST="$GH_STUB_LIST"} ${GH_STUB_FAIL:+GH_STUB_FAIL="$GH_STUB_FAIL"} \
+    ${GH_STUB_SWEEP:+GH_STUB_SWEEP="$GH_STUB_SWEEP"} \
     ${COMPAT:+BASH_COMPAT="$COMPAT"} \
     bash "$SUT" "$@" "$report" 2>&1)"
   CODE=$?
@@ -179,13 +182,35 @@ expect_lacks "spoof only: never edits the user's issue 9" "$c" 'issue edit 9'
 run_sut "$CLEAN"
 expect_lacks "spoof only, clean: never closes the user's issue 9" "$(calls)" 'issue close'
 
+# --- an upstream that left the report has its bot issue closed --------------
+# Open: the bot's #12 (acme/widgets, still reported), the bot's #20
+# (acme/gone, no longer reported), a user's #21 for acme/old, and the bot's
+# #22 whose title is not the drift shape.
+SWEEP="$TMP/sweep.json"
+printf '[{"number":12,"title":"Upstream drift: acme/widgets",%s},{"number":20,"title":"Upstream drift: acme/gone",%s},{"number":21,"title":"Upstream drift: acme/old",%s},{"number":22,"title":"Upstream drift notes",%s}]\n' \
+  "$BOT_AUTHOR" "$BOT_AUTHOR" "$USER_AUTHOR" "$BOT_AUTHOR" >"$SWEEP"
+GH_STUB_LIST="$LIST_OPEN" GH_STUB_SWEEP="$SWEEP"
+run_sut "$DRIFT"
+expect_code "sweep: exit 0" 0
+c="$(calls)"
+expect_has "sweep: closes the bot's issue for the unreported upstream" "$c" 'issue close 20 --comment'
+expect_has "sweep: the comment says it left the report" "$c" 'no longer in the drift report'
+expect_has "sweep: reports the action" "$OUT" 'action=close-unreported repo=acme/gone'
+expect_lacks "sweep: never closes the user's issue" "$c" 'issue close 21'
+expect_lacks "sweep: never closes an issue of another title shape" "$c" 'issue close 22'
+expect_lacks "sweep: never closes a reported upstream's issue" "$c" 'issue close 12'
+run_sut "$DRIFT" --dry-run
+expect_lacks "sweep, dry run: closes nothing" "$(calls)" 'issue close'
+expect_has "sweep, dry run: still reports the action" "$OUT" 'action=close-unreported repo=acme/gone'
+unset GH_STUB_SWEEP
+
 # --- untracked page touches nothing -----------------------------------------
 UNTRACKED="$TMP/untracked.txt"
 printf '%s\n' "page repo=acme/plans pin=$PIN head=$HEAD status=untracked path=docs/upstream/plans.md" >"$UNTRACKED"
 GH_STUB_LIST="$LIST_OPEN"
 run_sut "$UNTRACKED"
 expect_code "untracked: exit 0" 0
-expect_has "untracked: no gh call at all" "[$(calls)]" '[]'
+expect_has "untracked: the only gh call is the sweep's read" "[$(calls)]" '[issue list --state open --author app/github-actions --search in:title "Upstream drift" --limit 500 --json number,title,author]'
 expect_has "untracked: reports action none" "$OUT" 'action=none repo=acme/plans'
 
 # --- body over the cap is cut with a job-summary pointer --------------------

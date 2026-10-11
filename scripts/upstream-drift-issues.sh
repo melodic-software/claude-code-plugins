@@ -12,7 +12,9 @@
 # repository with a drifted page gets that issue created,
 # or its body replaced in place; a repository whose pages are all clean gets
 # an open issue closed with a comment; a repository whose pages are all
-# `untracked` is left alone. The body names the pin, head, run date and run URL,
+# `untracked` is left alone. Last, the bot's open drift issue for any upstream
+# the report no longer names is closed with a comment, printed as
+# `action=close-unreported`. The body names the pin, head, run date and run URL,
 # then one line per changed row or unit, every report-derived string inside a
 # code span with backticks replaced. It is cut at 60,000 characters with a
 # pointer to the run's job summary, written to a temp file and passed with
@@ -24,7 +26,8 @@
 # breaks the order exits 2 with no gh call.
 #
 # --dry-run makes only the `gh issue list` reads. Every run prints one
-# `action=<create|edit|close|none> repo=<owner>/<repo>` line per repository.
+# `action=<create|edit|close|none> repo=<owner>/<repo>` line per repository,
+# then one `action=close-unreported` line per swept issue.
 # The run URL comes from GITHUB_SERVER_URL, GITHUB_REPOSITORY and GITHUB_RUN_ID.
 #
 # Exit: 0 success, 1 any failed gh call (the other repositories still run),
@@ -220,5 +223,31 @@ for i in "${!REPOS[@]}"; do
   *) ;; # none
   esac
 done
+
+# Sweep: an open bot issue for an upstream the report no longer names (its
+# docs/upstream page was removed or renamed) is closed, since no later run
+# would reach it. Titles are matched exactly and the repository part must be
+# <owner>/<repo>; an upstream listed in this report in any state is left alone.
+if ! swept="$(gh issue list --state open --author "$BOT" --search 'in:title "Upstream drift"' \
+  --limit 500 --json number,title,author)"; then
+  printf '%s: issue list failed for the sweep\n' "$SELF" >&2
+  exit 1
+fi
+rows="$(jq -r --arg bot "$BOT" '.[] | select(.author.is_bot == true and .author.login == $bot)
+  | select(.title | startswith("Upstream drift: ")) | [.number, (.title | ltrimstr("Upstream drift: "))] | @tsv' <<<"$swept")" || {
+  printf '%s: unreadable issue list for the sweep\n' "$SELF" >&2
+  exit 1
+}
+reported="$(printf '%s\n' "${REPOS[@]}")"
+while IFS=$'\t' read -r num repo; do
+  [[ "$num" =~ ^[0-9]+$ && "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || continue
+  grep -qxF -- "$repo" <<<"$reported" && continue
+  printf 'action=close-unreported repo=%s\n' "$repo"
+  ((DRY)) && continue
+  gh issue close "$num" --comment "Upstream $(span "$repo") is no longer in the drift report as of $RUN_DATE ($RUN_URL): its docs/upstream page was removed or renamed." >/dev/null || {
+    printf '%s: issue close failed for %s\n' "$SELF" "$repo" >&2
+    failed=1
+  }
+done <<<"$rows"
 
 exit "$failed"
