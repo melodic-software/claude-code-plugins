@@ -199,10 +199,11 @@ information the other lacks (a deep-but-cache-heavy window, a small window near 
 a routing hint must degrade toward caution, never toward optimism.
 
 **Version floor:** we read `total_input_tokens` / `total_output_tokens` as *current context
-occupancy* only from Claude Code **2.1.132** on (the source note below points at why); earlier
-figures would misfire the token bands badly. What a figure means is **not observable from the
-number**: a 170k reading in a 200k window is a perfectly plausible current occupancy, sits inside
-the window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
+occupancy* only from Claude Code **2.1.132** on (the source note below gives the basis). Before
+that they were cumulative session totals, which would misfire the token bands badly. Cumulative
+semantics are **not observable from the numbers**: a cumulative 170k in a 200k window is a
+perfectly plausible current occupancy, sits inside the window, and resolves `dumb` while the live
+context may be smart-zone. So the token shape requires
 an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
 reports to the module (Pointer: `$.session.version()` in
 <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
@@ -211,8 +212,8 @@ Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). *
 leaves the percentage shape to stand alone.
 
 > **Source of the 2.1.132 floor.** We do not trust `total_input_tokens` /
-> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release we take the
-> floor from.
+> `total_output_tokens` as current occupancy below Claude Code 2.1.132, the release whose
+> changelog entry names the statusline token-count fix.
 >
 > - **Pointer**: when deciding where the floor sits, fetch
 >   [Changelog 2.1.132](https://code.claude.com/docs/en/changelog#2-1-132) live; for the fields'
