@@ -41,7 +41,8 @@ hooks:
         # never System32\bash.exe, then runs destructive-guard.sh. `args`
         # names only ${CLAUDE_PLUGIN_ROOT}: a skill-frontmatter hook given
         # ${CLAUDE_PLUGIN_DATA} was observed to refuse launch (the
-        # disk-hygiene launch-refusal observation in that plugin's README).
+        # launch-refusal observation /disk-hygiene:clean records for its
+        # own frontmatter hook).
         # Pointer: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#reference-scripts-by-path.
         # As of: 2026-10-11.

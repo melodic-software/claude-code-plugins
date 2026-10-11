@@ -112,8 +112,11 @@ A merged PR whose head the local branch has moved off (priority 5a and 5b) is se
 | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage | whoever pushed it | 30 days (`CLEAN_RETENTION_PREWIPE_DAYS`) |
 | `none` | anything else | no known source | not decided by family | none (`n/a`) |
 
-The `agent` and `claude` sources are claims about Claude Code's branch naming; their evidence and
-pointer records live with the same family table in `/repo-fleet-hygiene:audit`, which owns them.
+- **Pointer**: the `claude/` prefix for routine runs is in
+  [Repositories and branch permissions](https://code.claude.com/docs/en/routines#repositories-and-branch-permissions);
+  the on-the-web half rests on branches observed on remotes. **As of**: 2026-10-11. **Recheck
+  trigger**: that section changes the prefix or is renamed, or a `claude/*` branch turns up with
+  another origin.
 
 The `Retention` column is read only by the remote mode below; the local audit still reads the family for information alone.
 
