@@ -116,7 +116,9 @@ After CLI bootstrap (or on resume), materialize and maintain the slice checklist
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/init-watch-checklist.js "<slice-dir>"
 ```
 
-Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Tick `[ ]` → `[x]`
+Use `--force` to regenerate the floors and per-sheet rows after `vision-plan.md` lands or
+`contactSheetCount` changes; it keeps every tick (by row id), the indented lines under a ticked row,
+and the Resume notes, and regenerates the row text itself. Tick `[ ]` → `[x]`
 only with verification evidence (command exit code, artifact path, verify row). **Ordered
 checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
 
