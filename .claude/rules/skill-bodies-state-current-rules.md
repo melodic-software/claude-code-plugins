@@ -15,14 +15,14 @@ error string, schema or benchmark figure. The body states our decision in our ow
 name the topic, never what the page says about it) and records where to read the specific live,
 in the links-only record the
 [upstream-drift convention](../../docs/conventions/upstream-drift/README.md#required-parts)
-defines: pointer to the exact section, as-of date, recheck trigger. A body that needs the specific
+defines: pointer to the exact section or issue, as-of date, recheck trigger. A body that needs the specific
 at run time fetches it from the pointer.
 
 A record never cures a restatement: restated text with an as-of stamp or `Claim/Basis` block
 beside it is still the defect, fixed by deleting the restated value and keeping the pointer. Older
 `Claim/Basis` records in nearby files are not precedent (#5684 converts them). The record is also
-defective when the pointer lacks the section anchor, the trigger does not cover every cited
-section, a blog post is the pointer where a docs section covers the topic (it goes beside the
+defective when a docs-page pointer lacks the section anchor (an upstream issue or probe needs
+none), a blog post is the pointer where a docs section covers the topic (it goes beside the
 pointer as a "correlate with" note), a probe observation names no probe, or the as-of date or
 trigger is missing.
 
