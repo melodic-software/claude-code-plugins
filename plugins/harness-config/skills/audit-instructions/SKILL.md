@@ -89,10 +89,8 @@ repository's tracker, never in-place edits; absent such a declaration, no exclus
 One native surface audits prompts for the same anti-pattern families this catalog names, and the
 two are routinely conflated:
 
-- **`claude-api` (bundled skill), `prompt-audit` subcommand**: the vendor's prompt audit, which
-  reaches application code that calls the Claude API. What it inventories, what it outputs and when
-  it applies are read at the pointers in
-  [reference/bundled-claude-api.md](reference/bundled-claude-api.md), never from here.
+- **`claude-api` (bundled skill), `prompt-audit` subcommand**: the vendor's prompt audit, reaching
+  application code too; its scope, output and apply step: [reference/bundled-claude-api.md](reference/bundled-claude-api.md).
 - **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
   instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
   target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
@@ -118,8 +116,7 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 `/doctor prompt-audit` and this skill both audit instruction files and are easily conflated.
 
 - **`doctor` (bundled skill)**: its `prompt-audit` subcommand is the vendor's audit of instruction
-  files. The person runs it; this skill does not invoke it. Its alias, invocability and the probe
-  behind them are in [reference/native-doctor.md](reference/native-doctor.md).
+  files. The person runs it, never this skill ([reference/native-doctor.md](reference/native-doctor.md)).
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
 
@@ -380,11 +377,7 @@ gate fails, dropped for that named reason.
 ### When dispatch is unavailable
 
 Phases B and C **require** fresh-context, non-fork subagent dispatch. When the Agent tool is
-blocked, unavailable, or the session cannot spawn subagents (a nested session at the spawn-depth
-limit is one such case; Pointer: when this skill runs inside a subagent, fetch
-[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
-live. As of: 2026-10-11. Recheck trigger: that section changes the depth limit or what a subagent at
-it can spawn):
+blocked, unavailable, or the session cannot spawn subagents (including a nested session at the [spawn-depth limit](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents), read live; as of 2026-10-11; recheck when that section changes the limit):
 
 1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
    was unavailable, so a run that skipped verification is distinguishable from a verified one.

@@ -52,11 +52,7 @@ with a narrowed accident surface, never an enforced guarantee. `Write` is kept, 
 the report persist under `${CLAUDE_PLUGIN_DATA}`, and it can mutate a file, so never describe the
 restriction to an operator as mechanical. `audit-instructions` states the same posture.
 
-- **Pointer**: when deciding how long the restriction lasts, fetch
-  [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: that section changes what `disallowed-tools` removes or how long the removal
-  lasts.
+- **Pointer**: when deciding how long the restriction lasts, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what `disallowed-tools` removes or how long it lasts.
 
 **`scripts/run-state.sh` writes under that same plugin data directory and nowhere else**, never
 inside a target repository. It takes the data directory as an argument rather than discovering one,
@@ -199,14 +195,7 @@ Claude receives, `keep-coding-instructions` changes what a custom one keeps, and
 settings reports a selection as live when it is not. Report the resolved live style and what
 resolved it.
 
-- **Pointer**: when resolving the live style and what it changes, fetch
-  [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work)
-  and
-  [output styles: create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style)
-  live.
-- **As of**: 2026-10-11
-- **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how
-  `force-for-plugin` interacts with `outputStyle`.
+- **Pointer**: when resolving the live style, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
 servers override *by name*: where two share a name across scopes, exactly one is live. That is name
