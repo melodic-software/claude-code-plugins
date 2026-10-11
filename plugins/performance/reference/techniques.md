@@ -464,32 +464,33 @@ checklist.
 Used by: `/performance:target` (candidate mechanisms) and `/implementation:implement`. Each pattern
 still needs a measured baseline; the catalog names mechanisms, not wins.
 
-### From a profile to a strategy family
+### Match the evidence to a change
 
-The evidence picks the family. Match the profile or trace you already have against the second
-column below and try the change in the first. Evidence that matches no row means there is no
-candidate yet, and working down the table one family at a time burns attempts on changes no
-measurement pointed at.
+Start from the profile or trace already in hand: find its signature in the first column and try
+the change beside it. If the signature fits no row, you have nothing to try yet; going through
+the rows in turn anyway spends attempts on changes that no measurement pointed at.
 
-| Strategy family | The profile shows | Counter | Catalog rows |
+| The profile shows | Change to try | Counter | Catalog rows |
 |---|---|---|---|
-| Coalesce: one call carries many items | A fixed per-call overhead times a large call count, such as one hook spawn per tool call | Calls per user action | none yet |
-| Keep the first result | One lookup, parse or render repeated with input that has not changed | Repeats per operation | Deduplicate repeated lookups; Memoize finished work; Precompiled code cache; Keep expensive components mounted |
-| Break it into pieces | One task that holds the thread for a whole frame, or cost that rises with input length | Longest single task | Progressive reveal; Cut re-renders |
-| Put a cheap test or an index ahead of it | An expensive match on inputs that mostly fail it, or a linear walk to answer a keyed question | Items examined per answer | Cheap prefilter before an expensive match; Normalize before the hot loop |
-| Build on first use | Output built before anyone looks at it, such as a panel that starts closed | Work before first use | none yet |
-| Reschedule: before the interaction, after it, or on another thread | Work that has to run, landing while input is blocked | Main-thread blocking during the interaction | Move growing work off the main thread; Static interactive shell; Intent-driven prefetch |
-| Hedge: if one replica has not answered within a short delay, ask a second, use the first reply and cancel the slower request | p99 of a network call far above its median, traced to one backend replica | p99 latency of the call; extra requests sent | none yet |
-| Delete it: read the callers before anything else (below) | A path that looks necessary and dominates anyway | Executions of that path | Duplicate persistence on the main thread |
+| A network call whose p99 sits far above its median, traced to one backend replica | Hedge: when one replica has not replied after a short delay, send the request to a second, take whichever answers first and cancel the other | p99 latency of the call; extra requests sent | none yet |
+| A single task holding the thread for a whole frame, or cost that grows with input length | Split the work into chunks | Longest single task | Progressive reveal; Cut re-renders |
+| Work that must happen but lands while input is blocked | Move it ahead of the interaction, after it, or onto another thread | Main-thread blocking during the interaction | Move growing work off the main thread; Static interactive shell; Intent-driven prefetch |
+| A fixed cost per call multiplied by a high call count, for example a hook process spawned for every tool call | Batch many items into one call | Calls per user action | none yet |
+| The same lookup, parse or render run again on input that has not changed | Cache or memoize the first result | Repeats per operation | Deduplicate repeated lookups; Memoize finished work; Precompiled code cache; Keep expensive components mounted |
+| A costly match run on inputs that mostly fail it, or a linear scan answering a keyed question | Put a cheap prefilter or an index in front | Items examined per answer | Cheap prefilter before an expensive match; Normalize before the hot loop |
+| Output produced before anyone opens it, like a panel that starts closed | Build it lazily, on first use | Work before first use | none yet |
+| A path that dominates the profile and looks necessary | Remove it, after reading its callers first (below) | Executions of that path | Duplicate persistence on the main thread |
 
-**Deletion candidates come from reading code.** Three examples of such a path: a write identical to the last one (the catalog row above), a hook registered for an event no
-plugin emits any more, and a cache rebuilt at startup that no command reads. In each, the profile
-ranks the path by its cost while staying silent on whether anything consumes the output. Listing
-the consumers of the result is the only way to show the Delete row's path can go.
+**Removal rests on the callers, not the profile.** A profile ranks a path by its cost and says
+nothing about whether anything uses what the path produces. Before the removal row applies, list
+who reads the result; that list is the only evidence that the path can go. Paths that have turned
+out removable this way: a write that repeats the previous one unchanged (the catalog row in the
+table), a hook registered for an event no plugin emits any more, and a startup cache rebuild that
+no command reads.
 
-**Rescheduling moves the wait.** A Reschedule change is judged by its counter in the table,
-main-thread blocking during the interaction; a process total that stays flat or rises does not
-count against it.
+**Judge a moved task by main-thread blocking.** Moving work ahead of the interaction, after it or
+to another thread does not make it smaller. Its counter is main-thread blocking during the
+interaction, and a process total that holds steady or grows is not evidence against the change.
 
 ### Perceived performance
 

@@ -176,9 +176,15 @@ that cell, the cause is too vague to test: narrow it until you can, or delete th
 
 Ground the ranking in real repo state before you rank: recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
 
-**Fails after a restart, code unchanged.** Rank stored state first. Work through it in this order: what the previous run serialized to disk, then caches, then the config the new process reads at startup, then lock files. Ruling each in or out takes one move: rename the file, relaunch, and run the loop.
+Two symptom shapes come with a known first suspect:
 
-**Uneven load.** Sometimes one worker, host, shard or tenant takes far more of the symptom than the rest. Count it per actor with a small script and rerun that script on every loop pass, because a dashboard figure read once has nothing to compare against on the next pass. Across passes, a top actor that keeps changing is noise. When the same actor tops every pass, the next hypothesis to test is the scheduling, routing or hashing code that keeps choosing it.
+| Symptom shape | Goes at the top of the table | Cheapest test |
+|---|---|---|
+| Started after a restart, with no code change | Stored state, checked in this order: files the last run serialized to disk, caches, startup config the new process loads, lock files | One file per loop run: rename it, relaunch, run the loop |
+| One worker, host, shard or tenant carries far more of it than the rest | The scheduling, routing or hashing code that keeps picking that actor, once the same actor leads on every pass | A small script that counts the symptom per actor, rerun on each loop pass |
+
+Make that count a script rather than a dashboard reading: a figure read once leaves the next pass
+nothing to compare against. A leader that changes from pass to pass is noise.
 
 **Pick the test that rules out more.** When two tests cost about the same, run the one whose result eliminates more of the remaining hypotheses.
 

@@ -136,11 +136,17 @@ produces numbers that look like measurements. Failure 7 completed with plausible
 
 ### 8. A frozen harness prints its error and work counts
 
-Two kinds of change look alike in a duration or a counter: one that speeds up the subject, and one
-that makes it fail sooner or skip part of its work. Only the harness output can separate them, so
-every run of a harness frozen for repeated use prints a failed-operation count next to a
-completed-unit count. Measured against the baseline arm, more failures or any change in completed
-units rules the run out as a gain.
+Example: a harness replays 300 PreToolUse hook calls and a change takes the median from 180 ms to
+120 ms. A hook that got faster produces that drop, and so does a hook that now exits on a parse
+error or skips its matcher for a third of the calls. The duration cannot tell these apart, so a
+harness frozen for repeated runs reports two tallies on every run, operations that failed and
+units it completed, and the comparison reads them against the baseline arm before the timing:
+
+| Compared with the baseline arm | The run is |
+|---|---|
+| Failed operations went up | Not a gain |
+| Completed units changed, up or down | Not a gain |
+| Neither of the above | Judged on its duration or counter |
 
 ## Process counting on MSYS/Cygwin (Git Bash)
 

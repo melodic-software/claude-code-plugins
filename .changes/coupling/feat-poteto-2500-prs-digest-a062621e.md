@@ -11,5 +11,5 @@ bump: minor
 ### Changed
 
 - **Shared mutable state: split the write target before adding a lock.** The remediation catalog's shared-mutable-state entry gains a first rung: when several writers update one file, row or cache key and the proposed fix is a lock, check whether each writer can own its own target so nothing is shared. The entry's "not when" covers a store holding one value every writer must agree on, which keeps one target and serializes the writes.
-- Reworded the passages of `reduce`'s `reference/remediations.md` adapted from an upstream skill in our own words; every remedy and condition is unchanged.
+- Reworded the passages of `reduce`'s `reference/remediations.md` adapted from an upstream skill in our own words, and recast the shared-mutable-state first rung as a decision table with its own example; every remedy and condition is unchanged.
 - **`reduce` sizes `--prs` from git history instead of a `gh` query.** The daily merge rate now comes from first-parent commits on the default branch over the last few days, so the skill text names no forge command.

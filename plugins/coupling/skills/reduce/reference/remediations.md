@@ -35,18 +35,20 @@ moves in lockstep with the first. The coupling remains, plus a layer.
 - **Move behavior to the data it envies**: feature envy and reach-through chains resolve by
   relocating the calculation onto the type that owns the state, or by asking the collaborator
   ("tell, don't ask") instead of interrogating its graph.
-- **De-globalize shared mutable state**: first rung, remove the shared write target before
-  adding a lock. The cue is a lock or mutex proposed around a store (a file, a table row, a cache
-  key) that several writers update. Ask whether those writers record separate facts that only
-  happen to land in one place; if so, give each its own target and combine them where they are
-  read. The import job updates the `sync_status` row keyed `import`, the webhook handler the row
-  keyed `webhook`, and the status page reads both rows. With no common target there is nothing to
-  lock. Next rung,
-  common coupling via statics/singletons becomes an injected instance whose lifetime the
-  composition root owns; shared config objects become read-only snapshots handed in.
-  *Not when (first rung):* a balance or a sequence number, one stored value that every writer has to
-  agree on. Separate targets would hand the conflict to the reader, so keep the single store
-  and serialize the writes to it.
+- **De-globalize shared mutable state**: two rungs, and the first comes before any lock is added.
+  - *Rung 1, split the write target.* When several writers update one file, table row or cache
+    key and someone proposes a lock, test the store first. If no reader needs the writers' values
+    to agree at the moment of writing, the store is only a meeting point: split it, then decide
+    whether any lock is still needed.
+
+    | What the writers store | Do | Example |
+    |---|---|---|
+    | Values no reader needs to agree at write time | One writer per key, and the reader joins the keys; nothing is shared, so nothing needs a lock | A rate limiter and a usage meter both bump fields of `quota:acme`. After the split the limiter alone writes `quota:acme:limit`, the meter alone writes `quota:acme:used`, and the quota endpoint reads both keys to build its answer |
+    | One value every writer must agree on, such as a balance or a sequence number | Keep one store and serialize the writes; splitting it would only move the conflict to the reader | Two checkout workers debit one account balance |
+
+  - *Rung 2, inject what was global.* Common coupling through statics or singletons becomes an
+    injected instance whose lifetime the composition root owns; a shared config object becomes
+    a read-only snapshot passed in.
 - **Facade / anti-corruption layer over a messy or foreign surface**: when many call sites
   each reach deep into a subsystem or an external model, one owned surface absorbs the churn.
   *Not when:* it would forward calls one-to-one and absorb nothing. That is a middle man.
