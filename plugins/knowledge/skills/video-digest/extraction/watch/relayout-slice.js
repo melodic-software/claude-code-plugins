@@ -152,7 +152,7 @@ const REFERENCE_DEFINITION_LABEL = new RegExp(
   "gm",
 );
 /** A line ending inside a title, which never spans a blank line (only spaces or tabs). */
-const TITLE_LINE_END = String.raw`\n(?![ \t]*\r?\n)`;
+const TITLE_LINE_END = String.raw`\r?\n(?![ \t]*\r?\n)`;
 /** What may follow a definition's destination: a line ending, or a title then one. */
 const DEFINITION_TAIL = new RegExp(
   String.raw`^(?:[ \t]+(?:"(?:${BACKSLASH}|${TITLE_LINE_END}|[^"\\\n])*"|'(?:${BACKSLASH}|${TITLE_LINE_END}|[^'\\\n])*'|\((?:${BACKSLASH}|${TITLE_LINE_END}|[^()\\\n])*\)))?[ \t]*(?:\r?\n|$)`,
@@ -374,7 +374,7 @@ export function codeSpans(text) {
     while (scan < text.length) {
       const next = text.indexOf("`", scan);
       if (next === -1) break;
-      if (/\n[ \t]*\n/.test(text.slice(runEnd, next))) break;
+      if (/\n[ \t]*\r?\n/.test(text.slice(runEnd, next))) break;
       let nextEnd = next;
       while (text[nextEnd] === "`") nextEnd += 1;
       if (nextEnd - next === ticks.length) {
@@ -751,26 +751,35 @@ function lookUpReference(refPath, sourceFile, map) {
 const NOT_RETAINED = "not retained in this copy";
 
 /**
- * How a reference is read, in order: the whole name, a raw `#` or `?` and a
+ * How a code span is read, in order: the whole name, a raw `#` or `?` and a
  * `:12` ending included (`notes#1.md`, `slide.pdf:12`), then without its line
- * suffix, and only then with the rest read as a fragment.
+ * suffix, and only then with the rest read as a fragment. A code span names a
+ * file literally.
  */
 const WHOLE_NAME_FIRST = [{ fragments: false, lines: false }, { fragments: false }, {}];
 
 /**
- * What a reference names under the first reading that names anything (an
- * earlier reading must name it exactly, not as a guess into a copied
+ * How a link destination (Markdown or HTML) is read: a raw `#` or `?` always
+ * starts its fragment or query (an escaped `\#` or `%23` is a name
+ * character), and the name is tried with its `:12` ending, then without it.
+ */
+const LINK_READINGS = [{ lines: false }, {}];
+
+/**
+ * What a reference names under the first of `readings` that names anything
+ * (an earlier reading must name it exactly, not as a guess into a copied
  * directory), and that reading's split options (the last when none does).
  *
  * @param {string} ref
  * @param {string} sourceFile
  * @param {PathMap} map
+ * @param {{ fragments?: boolean, lines?: boolean }[]} [readings]
  * @returns {{ found: Lookup|null, split: { fragments?: boolean, lines?: boolean } }}
  */
-function findReference(ref, sourceFile, map) {
-  for (const split of WHOLE_NAME_FIRST) {
+function findReference(ref, sourceFile, map, readings = LINK_READINGS) {
+  for (const split of readings) {
     const found = lookUpReference(splitReference(ref, split).refPath, sourceFile, map);
-    if (found && !("guessed" in found && split !== WHOLE_NAME_FIRST.at(-1))) {
+    if (found && !("guessed" in found && split !== readings.at(-1))) {
       return { found, split };
     }
   }
@@ -1081,7 +1090,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const { ticks, content } = span;
     const { pad, quote, core, spaced } = spanPath(content);
     if (core === null) continue;
-    const { found, split } = findReference(core, sourceFile, map);
+    const { found, split } = findReference(core, sourceFile, map, WHOLE_NAME_FIRST);
     // A span with spaces is a path only when it resolves as one whole path.
     if (spaced && !found) continue;
     let next;
@@ -1245,10 +1254,10 @@ export function checkLayoutLinks(
         unresolved.push({ file, ref: literalText(ref) });
         return;
       }
-      // Any reference may hold a raw `#` or `?`, or a `:12` ending, in its
-      // name: read as WHOLE_NAME_FIRST orders it, the first reading that
-      // resolves passes; the last one is checked below.
-      for (const option of WHOLE_NAME_FIRST.slice(0, -1)) {
+      // A code span may hold a raw `#` or `?` in its name, and any reference a
+      // `:12` ending: read as WHOLE_NAME_FIRST or LINK_READINGS orders it, the
+      // first reading that resolves passes; the last one is checked below.
+      for (const option of (isLink ? LINK_READINGS : WHOLE_NAME_FIRST).slice(0, -1)) {
         const whole = splitReference(ref, option).refPath;
         if (whole && fs.existsSync(path.resolve(fileDir, whole))) return;
       }

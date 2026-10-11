@@ -156,6 +156,8 @@ It also does not decode named character references beyond `&amp; &lt; &gt; &quot
 (numeric references are decoded). A destination holding another one (`a&commat;b.pdf` for the file
 `a@b.pdf`) is not mapped to its file, and the link check refuses it, naming the path, so nothing
 passes silently.
+When a retained file's name literally contains such a reference and the layout leaves its path
+unchanged, the link is left as written and is not flagged.
 
 ## Agent-written artifacts share the same root
 

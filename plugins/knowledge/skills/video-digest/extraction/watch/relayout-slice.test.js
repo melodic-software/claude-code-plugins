@@ -837,6 +837,15 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it("ends a code span search at a CRLF blank line, so a later link is still checked", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "analysis/notes.md": "A lone ` backtick.\r\n\r\n[gone](missing.md) then ` again.\r\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "analysis/notes.md", ref: "missing.md" }]);
+  });
+
   it("reads \\![x](dest) as a plain link and keeps the \\! when retiring it", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
@@ -1021,6 +1030,40 @@ describe("relayoutSlice", () => {
     expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
       "Raw: `../research/findings/notes#1.md`. Fragment: `../research/findings/topic.md#intro`.\n",
     );
+  });
+
+  it("reads a raw # in a link as a fragment, unlike the same backticked path", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "analysis/research/findings/notes#1.md": "n\n",
+      "analysis/notes.md":
+        "[notes](research/findings/notes#1.md) `research/findings/notes#1.md`\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "analysis/notes.md", ref: "research/findings/notes#1.md" },
+    ]);
+    writeTree(root, { "analysis/research/findings/notes": "n\n" });
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  it("refuses a link whose raw # names a retained file only as part of the name", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/findings/notes#1.md": "n\n",
+        "recommendations/questions.md": "[notes](research/findings/notes#1.md)\n",
+      },
+    });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.unresolved).toHaveLength(1);
+      expect(result.unresolved[0].ref).toMatch(/research\/findings\/notes#1\.md$/);
+    } finally {
+      stderr.mockRestore();
+    }
   });
 
   it.each([
