@@ -76,8 +76,8 @@ Check these by hand after a re-layout; neither the rewrite nor the link check se
 - A link destination written with backslash escapes or character references (the link check
   flags it when it does not resolve, but it is not rewritten).
 - Code spans holding spaces (read as commands, not paths).
-- Paths written from the work root (`.work/<watch-epic>/<slug>/…`) or with a bare `SLICE/`
-  prefix: they are left as written, not rewritten to the corpus layout.
+- Paths written from the work root (`.work/<watch-epic>/<slug>/…`): they are left as written,
+  not rewritten to the corpus layout. `SLICE/…` paths are rewritten.
 
 ## Agent-written artifacts share the same root
 
