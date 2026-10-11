@@ -813,6 +813,45 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     );
   });
 
+  it("rewrites single-quoted and unquoted HTML src and href", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md":
+          "<img src='frames/title-slide.png'> <a href=../source/transcript.txt>t</a>\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "<img src='key/title-slide.png'> <a href=../transcript/transcript.txt>t</a>\n",
+    );
+  });
+
+  it("flags a single-quoted HTML src that does not resolve", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "frames/visual-frames.md": "<img src='key/gone.png'>\n" });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "key/gone.png" },
+    ]);
+  });
+
+  it.each([
+    ["null", "null"],
+    ["an array", "[]"],
+    ["corrupt JSON", "{"],
+  ])("refuses, before staging, an info JSON holding %s", async (_label, body) => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.info.json`), body);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
+  });
+
   it("flags a reference-style definition to a path that does not exist", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "research/claim-inventory.md": "[gone][g]\n\n[g]: findings/gone.md\n" },

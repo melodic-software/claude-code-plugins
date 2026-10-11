@@ -116,8 +116,8 @@ const FULL_LINK = /!?\[([^\]\n]*)\]\((<[^>]+>|[^)\s]+)[^)\n]*\)/g;
 const BACKTICK_SPAN = /`([^`\s]+)`/g;
 /** `[label]: path` reference-style link definitions. */
 const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
-/** `src="…"` and `href="…"` in inline HTML. */
-const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)=")([^"\n]+)"/g;
+/** `src` and `href` in inline HTML, double-, single- or unquoted. */
+const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/g;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /\/|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)?(?:#.*)?$/;
 
@@ -367,7 +367,10 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     .replace(REFERENCE_DEFINITION, (_match, open, target) =>
       target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
     )
-    .replace(HTML_PATH_ATTRIBUTE, (_match, open, target) => `${open}${rewrite(target)}"`)
+    .replace(HTML_PATH_ATTRIBUTE, (_match, open, doubled, single, bare) => {
+      const quote = doubled !== undefined ? '"' : single !== undefined ? "'" : "";
+      return `${open}${quote}${rewrite(doubled ?? single ?? bare)}${quote}`;
+    })
     .replace(BACKTICK_SPAN, (match, span) => {
       if (!PATH_LIKE.test(span)) return match;
       const found = lookUpReference(splitReference(span).refPath, sourceFile, map);
@@ -444,10 +447,13 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
       if (!fs.existsSync(resolved)) unresolved.push({ file, ref });
     };
-    for (const pattern of [MARKDOWN_LINK, REFERENCE_DEFINITION, HTML_PATH_ATTRIBUTE]) {
+    for (const pattern of [MARKDOWN_LINK, REFERENCE_DEFINITION]) {
       for (const match of text.matchAll(pattern)) {
         check(match[2].replace(/^<|>$/g, ""), true);
       }
+    }
+    for (const match of text.matchAll(HTML_PATH_ATTRIBUTE)) {
+      check(match[2] ?? match[3] ?? match[4], true);
     }
     for (const match of text.matchAll(BACKTICK_SPAN)) {
       check(match[1], false);
@@ -502,6 +508,26 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
     ...contents,
     "",
   ].join("\n");
+}
+
+/**
+ * The JSON object in `file`, or null when it cannot be read, does not parse,
+ * or parses to anything but a plain object (null, an array, a scalar).
+ *
+ * @param {string} file
+ * @returns {Record<string, unknown>|null}
+ */
+function readJsonObject(file) {
+  /** @type {unknown} */
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    ? /** @type {Record<string, unknown>} */ (parsed)
+    : null;
 }
 
 /** A video id as yt-dlp's `%(id)s` writes it: no separator, no `..`. */
@@ -807,6 +833,9 @@ export async function relayoutSlice({
         ? [`a non-empty video (${path.basename(media.videoPath)} is empty)`]
         : []),
       ...(media.videoPath && !media.metadataPath ? [`the info JSON (${mediaId}.info.json)`] : []),
+      ...(media.metadataPath && !readJsonObject(media.metadataPath)
+        ? [`an info JSON holding a JSON object (${path.basename(media.metadataPath)})`]
+        : []),
       ...missingFrames(temp.framesDir),
       ...[temp.workDir, temp.framesDir]
         .flatMap((dir) => (dir ? findSymlinks(dir).map((link) => path.join(dir, link)) : []))
@@ -914,7 +943,9 @@ export async function relayoutSlice({
       }
     }
     if (media.metadataPath) {
-      const info = JSON.parse(fs.readFileSync(media.metadataPath, "utf8"));
+      // Checked to be an object before staging; a change since then is a failure.
+      const info = readJsonObject(media.metadataPath);
+      if (!info) throw new Error(`${media.metadataPath} no longer holds a JSON object`);
       write("metadata/info.json", `${JSON.stringify(trimInfoJson(info), null, 2)}\n`);
     }
 

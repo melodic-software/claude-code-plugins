@@ -76,8 +76,8 @@ tracks or info JSON) even when it still exists; after a normal close that is the
 It refuses a `watch.json` that is not an object, whose `videoId` is not a plain id (it names
 `media/<id>.<ext>`), that lacks a `title` or `sourceUrl`, or whose temp session dirs are not
 strings. Without `--no-media` it also refuses a partly removed temp session, naming the missing
-piece: the video, an empty video, caption track or frame image, the info JSON,
-`frame-times.json` (or one that is not a JSON object), any frame image, a frame
+piece: the video, an empty video, caption track or frame image, the info JSON or
+`frame-times.json` (or either one not holding a JSON object), any frame image, a frame
 `frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
 (anchor frames carry their time in their name), or the caption tracks. It refuses a temp session
 holding several videos (an X post with more than one), naming them, since the watch does not
@@ -99,8 +99,8 @@ the companion sources brief, and the fetched `decks/` and `attachments/`), `fram
 (`RESEARCH.md`, `research/`, `recommendations/`, the companion digest), and a provenance
 `README.md` when the target has none; the trimmed `info.json` also drops the local download
 paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
-the copied markdown names (inline and reference-style links, HTML `src`/`href`, and backticked
-paths, percent-encoded or with `\` separators) is rewritten through a path map relative to the
+the copied markdown names (inline and reference-style links, HTML `src`/`href` in any quoting,
+and backticked paths, percent-encoded or with `\` separators) is rewritten through a path map relative to the
 file's new location, and a relative link that leaves the slice keeps pointing at the same file.
 One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
 own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
