@@ -47,20 +47,19 @@ when the `planning` plugin is enabled).
    `--disallowedTools` when the implementer runs as its own `claude` session, or in
    `.claude/settings.local.json` when it is a subagent of this session (the rule then binds this
    session too, which is fine, since a test change goes through the user). Remove it when the run
-   ends. The rule blocks Claude's file tools and the shell file commands Claude Code recognizes,
-   not a script that writes files itself (`python -c`, `node -e`), so the check above stays the
-   gate.
+   ends. A deny rule does not cover every way a file can change (see Basis and limits for what it
+   covers), so the check above stays the gate.
 5. **Review for special-casing.** A frozen test stops test edits, not code that recognizes the
    tested inputs and returns the expected values for them. Read the implementation diff for
    branches keyed to test data before trusting the green run.
 
 ## Basis and limits
 
-Claude Code's best-practices page suggests one Claude writing tests and another writing code to
-pass them, and describes a separate verifier so the agent doing the work isn't the one grading it:
+The split between the test author and the implementer, and the review that does not trust the
+implementer's own green run, follow Claude Code's best-practices page:
 [Run multiple Claude sessions](https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions)
 and [Add an adversarial review step](https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step).
-As of 2026-10-06. Recheck trigger: either section moves or drops the test-writer and code-writer
+As of 2026-10-11. Recheck trigger: either section moves or drops the test-writer and code-writer
 split.
 
 The optional lock in step 4 rests on file-path deny rules:

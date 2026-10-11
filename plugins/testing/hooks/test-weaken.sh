@@ -50,8 +50,12 @@ tool="${HOOK_JQ_FIELDS[0]}" call="${HOOK_JQ_FIELDS[1]}"
 testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
 # Two `if` rows can match one path; only the run that creates the marker
-# reports. PreToolUse and PostToolUse share a tool_use_id, so the name stays
-# apart from test-scan's call- marker (test-scan prunes both).
+# reports. The marker is keyed on tool_use_id, which test-scan's PostToolUse
+# run for the same call also carries, so the name stays apart from
+# test-scan's call- marker (test-scan prunes both). Both events' input fields:
+# https://code.claude.com/docs/en/hooks#pretooluse-input and
+# https://code.claude.com/docs/en/hooks#posttooluse-input (as of 2026-10-11;
+# recheck when either drops tool_use_id).
 if [[ -n "$call" ]] && ! (set -o noclobber && : >"$DATA/marks/weaken-$call") 2>/dev/null; then exit 0; fi
 
 work="$(mktemp -d)" || exit 0
