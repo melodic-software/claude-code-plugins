@@ -93,4 +93,15 @@ describe("listPromotionCandidates", () => {
       ["scene_0003.png", null, "unknown"],
     ]);
   });
+
+  it("throws naming the session format when the inventory parses to no session", () => {
+    const sliceDir = makeSlice();
+    writeLaneFile(
+      sliceDir,
+      LANES.research,
+      "claim-inventory.md",
+      "## Session segments\n\n| ID | Window |\n| --- | --- |\n| S1 | 0:00-1:00 |\n",
+    );
+    expect(() => listPromotionCandidates(sliceDir)).toThrow(/no session parsed.*\*\*Boundary:\*\*/s);
+  });
 });

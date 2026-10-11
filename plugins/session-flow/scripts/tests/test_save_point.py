@@ -1259,15 +1259,20 @@ def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
     assert not (cwd / ".work").exists()
 
 
+def _install_in_cache(version_dir):
+    # save_point.py and io_streams.py, the one module it imports, under the
+    # plugin cache layout.
+    scripts = version_dir / "scripts"
+    scripts.mkdir(parents=True)
+    for name in ("save_point.py", "io_streams.py"):
+        shutil.copy2(SCRIPT.parent / name, scripts / name)
+
+
 def test_new_without_memory_dir_outside_git_derives_data_dir_from_cache(tmp_path):
     cwd = _outside_git(tmp_path)
     config = tmp_path / "config"
     version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
-    shutil.copytree(
-        SCRIPT.parent,
-        version_dir / "scripts",
-        ignore=shutil.ignore_patterns("tests", "__pycache__"),
-    )
+    _install_in_cache(version_dir)
     memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
     memory.mkdir(parents=True)
     (memory / ".gitignore").write_text("*\n", encoding="utf-8")
@@ -1294,11 +1299,7 @@ def test_new_without_memory_dir_ignores_another_plugins_data_env(tmp_path):
     cwd = _outside_git(tmp_path)
     config = tmp_path / "config"
     version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
-    shutil.copytree(
-        SCRIPT.parent,
-        version_dir / "scripts",
-        ignore=shutil.ignore_patterns("tests", "__pycache__"),
-    )
+    _install_in_cache(version_dir)
     memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
     memory.mkdir(parents=True)
     (memory / ".gitignore").write_text("*\n", encoding="utf-8")

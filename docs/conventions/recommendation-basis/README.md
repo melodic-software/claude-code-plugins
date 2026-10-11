@@ -147,8 +147,7 @@ Conforming with this contract's 1.0.0:
 |---|---|
 | `discipline` shipped contract (`plugins/discipline/context/recommendation-basis.md`) | The essentials of this contract, stated once for the plugin's skills. |
 | `discipline` loop, step 4 "Report" (`plugins/discipline/context/re-anchor-audit-correct.md`) | A corrector whose audit changed a pending recommendation re-states it old → new → why. |
-| `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why, as verified, judgment, or withheld. |
-| `/discipline:do-your-research-deep` | Recommendations are an inventory type with one ledger row each, including a withheld verdict for an unsettled consequential one. |
+| `/discipline:do-your-research` | Pending recommendations are an audit unit: each is grounded on both sides and reported old → new → why, or unchanged with why, as verified, judgment, or withheld. In its fan-out tier, recommendations are an inventory type with one ledger row each, including a withheld verdict for an unsettled consequential one. |
 | `/discipline:pick-for-the-problem` | The chosen tool or approach carries a `Basis:`, or is withheld as an open question when research cannot settle a consequential choice. |
 | Shipped copies of the contract (`plugins/<plugin>/context/recommendation-basis.md` in `planning`, `source-control`, `github`, `work-items`, `naming`, `architecture`, `code-tidying`, `debugging`, `harness-ops`, `session-flow`, `developer-experience`) | The essentials, byte-identical to the `discipline` copy, held in sync by `scripts/check-cross-plugin-source-drift.sh`. |
 | `/planning:interview` (`SKILL.md` "Ground before recommending", "Recommended answers") | Every `My recommendation:` line has a `Basis:` line; a consequential question research cannot settle is asked open with a `Withheld:` line; a revised recommendation is re-stated old → new → why. |

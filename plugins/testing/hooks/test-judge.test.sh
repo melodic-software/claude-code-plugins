@@ -2,6 +2,7 @@
 # Contract test for test-judge.sh, the task-end judge's Stop hook: it waits for
 # jobs still running, judges what has no verdict, and relays the verdicts
 # once from a fixed template. The judge is the stub behind TEST_JUDGE_CMD.
+# test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016,SC2034  # check() evals its single-quoted condition, which reads these
 
 # shellcheck source=judge-test-helpers.sh
@@ -91,15 +92,27 @@ field() { jq -r "$1 // empty" <<<"$out" 2>/dev/null; }
 # relay: the reason a relaying run (exit 2) wrote to stderr, its first line.
 ERR="$TMP/hook.err"
 relay() { ((rc == 2)) && head -1 "$ERR"; }
-# stop_jobs <sid>: end the background jobs a Stop handed keys to (each runs in
-# its own process group), and their judges, so they call no stub later.
+# stop_jobs <sid>: end the background jobs a Stop handed keys to, and their
+# judges, and wait until each job has exited, so none calls a stub during a
+# later case. A marker holds the job's own pid, the last command of the
+# Stop's pipeline: no process group has that id, and only the Stop's shell
+# could signal it as one. A job still alive after 10 s fails the run. A
+# zombie has exited: an orphan stays one under an init that does not reap.
+gone() { ! kill -0 "$1" 2>/dev/null || [[ "$(sed 's/.*) //' "/proc/$1/stat" 2>/dev/null | cut -c1)" == Z ]]; }
 stop_jobs() {
-  local p
+  local p pids=() pid live n
   for p in "$DATA/pending/$PKEY/$1"/*; do
-    [[ -f "$p" ]] && kill -TERM -- "-$(cut -d' ' -f1 "$p" | head -1)" 2>/dev/null
+    [[ -f "$p" ]] && pids+=("$(cut -d' ' -f1 "$p" | head -1)")
   done
+  for pid in ${pids[@]+"${pids[@]}"}; do kill -TERM "$pid" 2>/dev/null; done
   tmp_kill TERM "$TMP/judge-stub.sh"
-  sleep 0.3
+  for ((n = 0; n < 50; n++)); do
+    live=""
+    for pid in ${pids[@]+"${pids[@]}"}; do gone "$pid" || live+=" $pid"; done
+    [[ -z "$live" ]] && return 0
+    sleep 0.2
+  done
+  fail "stop_jobs $1: background job(s)$live still running 10 s after TERM"
 }
 bg() { payload "$1" "$2" "$3" | bash "$BG"; }
 TEMPLATE_END="Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
@@ -349,7 +362,7 @@ wait
 cat >"$TMP/term-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 trap '' TERM
-printf x >"$STUB_DIR/call-term-$$.args"
+printf x >"$STUB_DIR/term-$$.args"
 end=$((SECONDS + 8))
 while ((SECONDS < end)); do sleep 0.2; done
 echo '{"type":"result","subtype":"success","is_error":false,"result":"{\"verdicts\":[]}"}'
@@ -368,7 +381,9 @@ p="$(find "$DATA/pending/$PKEY/s8c" -type f | head -1)"
 check "its key gets a pending/ marker and a live background job" '[[ -n "$p" ]] && kill -0 "$(head -1 "$p" | cut -d" " -f1)" 2>/dev/null'
 assert_contains "the message counts the key not judged in time" "$(field .systemMessage)" "1 more test is judged in the background"
 stop_jobs s8c
-tmp_kill TERM "$TMP/term-stub.sh"
+# KILL: the stub ignores TERM. Its marker is not a call-*.args file, so a
+# background run that starts late is never counted as a later case's call.
+tmp_kill KILL "$TMP/term-stub.sh"
 wait
 
 # Two failed attempts: "judge not run", and no third attempt.

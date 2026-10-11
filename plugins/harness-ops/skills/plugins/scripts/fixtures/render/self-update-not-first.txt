@@ -1,0 +1,13 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Updated: 2 plugin(s)
+  - alpha@market1 (user): 0.1.0 → 0.2.0
+  - zeta@market1 (user): 0.1.0 → 0.2.0
+Divergences: 0 actionable
+Note: this run updated zeta (0.1.0 → 0.2.0). The algorithm that ran is the pre-update one:
+  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins
+  before relying on the new version.
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

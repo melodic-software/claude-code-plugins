@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".btn { transition: background-color 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out; }",
+      "why": "named properties"
+    },
+    {
+      "answer": ".btn { transition-property: background-color, border-color, box-shadow; }",
+      "why": "longhand"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".btn { transition: all 150ms ease-out; }",
+      "why": "all"
+    }
+  ]
+}

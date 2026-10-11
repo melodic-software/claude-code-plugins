@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: https://example.com/\\n- Page Title: Example Domain\"}",
+      "why": "a page section printed by playwright-cli"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: The browser 'pinned' is not open, please run open first\",\"is_error\":true}",
+      "why": "an error section is still playwright-cli output"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"/bin/bash: line 1: playwright-cli: command not found\",\"is_error\":true}",
+      "why": "the shell answered, not playwright-cli"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"This command requires approval\",\"is_error\":true}",
+      "why": "the call never ran"
+    }
+  ]
+}

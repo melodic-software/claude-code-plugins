@@ -20,6 +20,9 @@
 # .claude-plugin/plugin.json `version` must also differ from <base-ref>, or, for
 # a plugin in fragment mode, the change set must add a changelog fragment whose
 # bump is not none (the shared predicate in scripts/lib/changelog-fragments.sh).
+# A fragment-mode plugin needs neither when the change set is a verified
+# Dependabot one (changelog_fragments::dependabot_only), whose fragment
+# scripts/dependabot-fragments.sh writes after the merge.
 # General over plugins/*/vendor/ by construction, not a per-plugin list: a
 # future plugin adopting the ADR's intra-plugin shape is covered the moment its
 # vendor/ directory lands. A plugin absent at the base ref is new in this
@@ -131,6 +134,11 @@ trap 'rm -f "$base_manifest_file"' EXIT
 
 stale=0
 stale_fragment=0
+# A Dependabot-only change set needs no fragment, as in
+# check-changelog-fragments.sh --check-required: scripts/dependabot-fragments.sh
+# writes it after the merge. Asked once, and only when a fragment-mode plugin
+# would otherwise fail, because the answer costs an API call per commit.
+dependabot=""
 for plugin in "${changed_plugins[@]}"; do
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
@@ -173,6 +181,17 @@ for plugin in "${changed_plugins[@]}"; do
   fi
   # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
   if ((rc == 1)) && [[ -n "$head_version" ]] && changelog_fragments::in_mode "$plugin"; then
+    if [[ -z "$dependabot" ]]; then
+      dependabot=no
+      # shellcheck disable=SC2310  # the non-zero return IS the answer
+      if changelog_fragments::dependabot_only "$base"; then
+        dependabot=yes
+      fi
+    fi
+    if [[ "$dependabot" == yes ]]; then
+      echo "Dependabot-only change to plugins/$plugin/vendor/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      continue
+    fi
     echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
     echo "  Run scripts/new-changelog-fragment.sh $plugin patch and describe the vendored change." >&2
     stale_fragment=1

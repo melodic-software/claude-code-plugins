@@ -122,7 +122,7 @@ pull-request review reply, an issue, a design document, a message to a third par
 in the index and says so. What `publish` tightens, and why the value is copied into the index
 rather than trusted from the envelope: the research dispatch contract's `Evidence use` row.
 
-Those labels are the ones `/discovery:research-deep` already ships in its literal dispatch block;
+Those labels are the ones the research deep tier already ships in its literal dispatch block;
 they are reproduced here rather than reinvented, so the two cannot drift.
 
 **`/discovery:trace-intent` keeps the `Topic:` label rather than adding a `Target:` one.** Its
@@ -268,7 +268,7 @@ than each carrying its own copy.
 Practically: name a path in plain words rather than passing a `${CLAUDE_…}` token and expecting it
 back. The `topic_as_received` / `scope_as_received` echo-back in the acceptance gate is what catches
 this whichever way the substitution actually runs, and it matters most under
-`/discovery:research-deep`, where one topic is copied into every envelope of an N-way fan-out, so
+the research deep tier, where one topic is copied into every envelope of an N-way fan-out, so
 check each dispatched agent's echo against the envelope it was sent, per topic, before synthesis.
 
 ## Credentials stay unread, stated once
@@ -361,8 +361,8 @@ stays here.
 
 **This is the single statement of where a dispatched agent may write.** All three agent definitions
 point here rather than restating it; three earlier restatements disagreed with each other about
-whether scratch was inside the boundary or outside it. The dispatched agents and a Tier-2
-`research-deep` subagent cannot ask, so any assumed destination is flagged in the return rather than
+whether scratch was inside the boundary or outside it. The dispatched agents, including a
+research deep-tier subagent, cannot ask, so any assumed destination is flagged in the return rather than
 silently adopted.
 
 A dispatched `discovery:explorer` / `discovery:researcher` / `discovery:intent-tracer` writes to
@@ -395,8 +395,8 @@ so it downloads nothing.
 ## Persistence by value
 
 The memory slice exists only in the checkout that wrote it. The by-value boundary is the checkout,
-not the process: the `-deep` dispatch resolves to `research-deep`, whose isolated subagent runs in
-the parent's checkout and writes `RESEARCH.md` there directly (already visible to the parent),
+not the process: a research deep-tier dispatch runs its isolated subagents in
+the parent's checkout, which write `RESEARCH.md` there directly (already visible to the parent),
 returning a summary by value; a worker dispatched into its **own** checkout (worktree or background
 session) returns findings by value instead, and the parent writes the memory slice.
 
@@ -458,7 +458,7 @@ same available-tools section.
 ### The `Workflow` tool is absent from every non-fork subagent
 
 *What we rely on.* Only the main conversation, or a fork of it, can dispatch a workflow engine,
-which is why the deep-research tier ladder runs from main context. *Pointer:* the same
+which is why the research deep tier is selected only in the main conversation. *Pointer:* the same
 available-tools section.
 
 ### Background is the default execution mode, and it narrows the tool set again
@@ -485,21 +485,25 @@ see
 for the depth limit, see
 [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 
-### `${CLAUDE_EFFORT}` is the loading context's level
+### `${CLAUDE_EFFORT}` in a preloaded skill is the session's level
 
-*What we rely on.* `${CLAUDE_EFFORT}` substitutes the effort level of the context that loaded the
-skill. A skill or subagent frontmatter `effort` pin overrides the session level while that lane is
-active, so a skill preloaded into a pinned worker expands the pin, not the parent's session level.
+*What we rely on.* `${CLAUDE_EFFORT}` in a skill preloaded into a subagent expands to the session's
+effort level, not the subagent's own `effort` pin, even though the subagent runs at that pin. A
+spawn that passes `effort` was not observed, so what the placeholder expands to then is unknown.
 A body Read from disk is unsubstituted: the placeholder remains the literal characters.
 *Pointer:* for the placeholder, see
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
 for the pin, see
-[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
 [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+No docs page states which level a preloaded skill expands; our `/harness-ops:behavior-probes`
+case `subagent/preloaded-skill-placeholder-reflects-session-effort`,
+run on Claude Code 2.1.296, is the record. *As of:* 2026-10-10. *Recheck trigger:* that probe case
+fails, or a docs page starts stating which level a preloaded skill's placeholder expands.
 *Why the plugin cares.* `/discovery:research` scales source breadth by caller effort, and
 `discovery:researcher` is pinned `high` so reasoning does not degrade inside a session tuned down
-for cost. The worker's substituted value is therefore the pin. The parent writes
-`Source breadth:` from its own load so the table still follows the caller.
+for cost. The worker's substituted value is therefore the session's level, not the pin it runs
+at. The parent writes `Source breadth:` from its own load, so the table follows the caller either
+way.
 
 ### The built-in Explore agent cannot hold this plugin's contract
 
@@ -511,7 +515,7 @@ agent ID to resume. A caller passes it a thoroughness level (`quick`, `medium`, 
 for preloading and resume, see
 [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
 and [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
-*Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
+*Why the plugin cares.* Each denial removes one required piece of the dispatch contract, which
 is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
 artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
 token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
@@ -610,7 +614,7 @@ include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (th
 separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
 explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
 ceiling. Samples this small do not settle a number. Decision: `maxTurns` stays 40 as a
-checkpoint, and research-deep does not size its lanes to finish within one dispatch; a run that
+checkpoint, and the research deep tier does not size its lanes to finish within one dispatch; a run that
 reaches the limit completes through resume. The recheck triggers above still apply.
 
 ### A named `discovery:explorer` dispatch delivers its definition body and its `skills:` preload
@@ -706,7 +710,7 @@ allowed the same path as one plain command. The side-effect-free `--help` probes
 
 - **Pointer**: when a worktree-isolated Bash command is refused, fetch <https://code.claude.com/docs/en/worktrees> (isolation, command shape) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
 - **As of**: 2026-10-03
-- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in `/discovery:research-deep`.
+- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in the research deep tier (`skills/research/context/deep-tier.md`).
 
 The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
 `python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
@@ -762,7 +766,7 @@ legs:
 - **Recheck trigger**: either section changes where plugin variables substitute or how long an
   `allowed-tools` grant lasts.
 
-So the honest statement is the one the rest of this plugin already makes about un-run checks:
+So the rule is the one the rest of this plugin already makes about un-run checks:
 
 > **A gate that could not run is a FAIL, never a skip.** If the invocation is denied, prompts and is
 > declined, or errors out, report that and halt exactly as on a non-zero exit. Do not substitute a

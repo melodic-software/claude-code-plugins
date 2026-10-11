@@ -42,7 +42,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 3: Claim landscape (before research)
 
-- [ ] **3.1** `research/claim-inventory.md`. Verify: sessions with boundaries; ≥4 claims/session (conference); ≥40 claims if ≥4h
+- [ ] **3.1** `research/claim-inventory.md`. Verify: one `## <n>. <name>` heading plus `**Boundary:** [m:ss] … [m:ss]` line per session (format in `watch-pipeline.md` Phase 2; a table is not parsed); ≥4 claims/session (conference); ≥40 claims if ≥4h
 - [ ] **3.2** `research/research-agenda.md` drafted from inventory. Verify: cluster rows map to claim IDs
 - [ ] **3.3** No research fan-out started before 3.1. Verify: agenda exists before first research cluster
 
@@ -86,7 +86,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 ## Phase 7: Research
 
 - [ ] **7.1** Each agenda cluster `done` or `deferred` with reason. Verify: no `pending` in `research-agenda.md`
-- [ ] **7.2** Per done cluster: finding file or inline in `RESEARCH.md`. Verify: research outcome gate per cluster
+- [ ] **7.2** Per done cluster: a `research/findings/*.md` file. Verify: research outcome gate per cluster
 - [ ] **7.3** `RESEARCH.md` slice summary. Verify: ≥200 chars; conflicts + gaps sections
 - [ ] **7.4** Top harvested URLs fetched; repos analyzed to temp if GitHub links. Verify: fetch log / `analyze-harvested-repos.js` when applicable
 - [ ] **7.5** Research verify. Verify: `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-research-complete.js "<slice-dir>"` exit 0

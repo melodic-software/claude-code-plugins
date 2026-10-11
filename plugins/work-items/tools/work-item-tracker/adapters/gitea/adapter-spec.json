@@ -1,5 +1,6 @@
 {
   "spec_version": "1.0",
+  "change_link": { "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-" },
   "provider": "gitea",
   "display_name": "Gitea / Forgejo",
   "api": {
@@ -24,7 +25,8 @@
     "list-items": true,
     "label-provenance": false,
     "list-sub-items": false,
-    "capabilities": true
+    "capabilities": true,
+    "change-link": true
   },
   "features": {
     "cross_repo_edges": true,

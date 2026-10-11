@@ -1,14 +1,15 @@
 ---
-description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Dispatches a subagent by default. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say'. This is the right skill for a single topic (breadth=low narrows it) and for a local folder outside any repository or machine state. For a multi-topic pass, use research-deep."
-argument-hint: "[breadth=low|medium] [topic]"
+description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', 'deep research', 'research these N topics', 'migration research', 'exhaustive research on X'. Also a local folder outside any repository, or machine state. breadth=low narrows; deep or multi-topic asks take the deep tier."
+argument-hint: "[breadth=low|medium] [deep] [topic]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(discovery:research-sweep)"]
 metadata:
   workflow-stage: research
   summary: Multi-source external research with source tiers and a coverage ledger
 ---
 
-**Arguments.** `[breadth=low|medium] [topic]`. e.g., /discovery:research breadth=low <library> <version> changelog, /discovery:research <framework> hook event schema, /discovery:research <ORM> query optimization
+**Arguments.** `[breadth=low|medium] [deep] [topic]`. e.g., /discovery:research breadth=low <lib> changelog, /discovery:research deep <topic>
 
 ## Routing. Dispatch by default
 
@@ -150,6 +151,16 @@ present the result with that caveat. Medium and above return a FAIL row to its p
 routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
 missing artifact still takes the recovery ladder, resume before discard.
 
+## The deep tier
+
+In the main conversation, take the deep tier when any of these holds, and read [context/deep-tier.md](context/deep-tier.md) before dispatching anything:
+
+- **Two or more separable topics** (they share no claims): one `discovery:researcher` per topic, each in its own sub-slice, never one engine over the combined blob.
+- **One topic that needs adversarial verification**: contested, high-stakes, or broad enough (multi-vendor, comparison, migration) that independent skeptics should try to refute each claim. The `discovery:research-sweep` workflow runs it when the Workflow tool is observed in this session's toolset; otherwise one researcher does.
+- **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
+
+Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because `Workflow` and a dependable `Agent` spawn exist only in the main conversation: it runs inline, and never promises the workflow engine.
+
 ## Pre-dispatch envelope and baseline
 
 Resolve these before dispatching. The envelope is six shared fields (topic, reason, memory-slice path, memory root, budget, capability flags) plus research-only `Source breadth:` and `Evidence use:` (`publish` when the output will be quoted outside this session, such as a pull-request reply, an issue, or a document for a third party; else `internal`), written into the dispatch prompt as the labeled lines below, not as prose the agent has to parse:
@@ -201,7 +212,7 @@ The one obligation the acceptance gate does not grade (the memory root's `.gitig
 
 ## Topic caveats
 
-**A dispatched run does not read the `Research the following topic:` line.** The topic does not reach a preloaded body by argument substitution, and a non-fork subagent has no conversation to fall back on, so **do not rely on seeing an unfilled slot**. Whatever the `## Topic` line renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. What is and is not documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no topic supplied under `## Topic`, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
+**A dispatched run does not read the `Research the following topic:` line.** The topic does not reach a preloaded body by argument substitution, and a non-fork subagent has no conversation to fall back on, so **do not rely on seeing an unfilled slot**. Whatever the `## Topic` line renders as, a dispatched run takes its topic from the dispatch prompt, and an absent one is a parent-envelope failure the agent reports rather than repairs. A leading `deep` token in that topic is not part of the subject: `topic_as_received` quotes the topic as sent, token included, and the research works on the topic without it. What is and is not documented about that path: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no topic supplied under `## Topic`, infer it from the conversation. Identify the claim, decision, or implementation being worked on and research that.
 
 **Caveat, a `${CLAUDE_…}`-shaped token in a topic may not arrive as you typed it**, which is a different question from the paragraph above and not evidence for or against it. What was observed, what is documented, what is not, and the practical rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md) ("A different question"). The `topic_as_received` echo-back in the acceptance gate is what catches it whichever way the substitution actually runs.
 
@@ -223,7 +234,7 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 External research is mandatory before acting on external facts, and its sources are authoritative and official ones fetched this session. Training data drifts, library APIs change, SEO content farms outrank authoritative sources, and AI synthesis tools repackage the same secondary blogs as "multi-source", so cross-tool consensus, primary-source priority and recency verification are what drive accuracy.
 
-Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. A local folder outside any repository (a vendor install directory) or machine state is this skill's too: read it directly and cite those reads as Tier 0 primaries. For a multi-topic or workflow-driven pass, invoke `/discovery:research-deep` via the Skill tool, which layers tiered execution on this discipline.
+Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers what SHOULD BE. A local folder outside any repository (a vendor install directory) or machine state is this skill's too: read it directly and cite those reads as Tier 0 primaries. A multi-topic or adversarially verified pass is this skill's deep tier ("The deep tier").
 
 ## Phases
 
@@ -271,14 +282,37 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
+## Boundary, the bundled `deep-research` workflow
+
+A native workflow also answers "research this deeply" with a cited report, so a request for deep
+research can mean either surface.
+
+- **`deep-research` (bundled workflow)**: `/deep-research <question>` scopes one question, fans out
+  web searches, fetches and cross-checks sources, votes on each claim, and returns one cited report.
+  It is reserved for the person to run: its registration disables model invocation, so the model
+  does not start it and the deep tier does not dispatch it.
+- **This skill (marketplace plugin).** Splits a multi-topic ask across per-topic
+  `discovery:researcher` workers under this discipline (source tiers, recency gate, coverage
+  ledger), and grades every run off disk with a fresh verifier before surfacing it.
+
+**Routing.** When the deep tier is selected, offer it to the person at the start of the run,
+before dispatching: for a single-topic ask that wants one deep cited report, "you can run
+`/deep-research <question>` instead of or alongside this skill"; for a multi-topic ask, only as an
+addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
+An unattended run records the offer in its output instead of asking, and dispatches.
+
+**Mutation gate.** This skill writes only its own research slice. It never starts the workflow on
+the person's behalf, and a report from the person's own run is not a graded `RESEARCH.md`.
+
+**Availability is never assumed.** The workflow needs the WebSearch tool, and bundled surfaces vary
+by settings, plan, and host; this section states what to offer, never that it is present. The
+four-part records live in [reference/native-deep-research.md](reference/native-deep-research.md).
+
 ## Next
 
+- Findings feed work with no locked contract whose diff will not be quick to review and cheap to retry: `/planning:interview`.
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
-- Findings are ready to act on with no design question open: `/planning:plan`.
-- A multi-topic or workflow-driven pass: `/discovery:research-deep`.
-- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`
-  (`scripts/fetch-docs.sh --cache`).
-- The reasons behind a past decision: `/discovery:trace-intent <subject>`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## See also
 

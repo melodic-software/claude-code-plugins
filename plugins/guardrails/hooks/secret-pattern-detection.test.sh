@@ -7,6 +7,7 @@
 # Token construction discipline: every real-shape token is assembled at runtime
 # from concatenated parts, so the literal joined string never appears in this
 # file's source bytes — no secret scanner (gitleaks etc.) sees a committed key.
+# test-scope: plugins/guardrails/hooks/hooks.json
 
 set -uo pipefail
 

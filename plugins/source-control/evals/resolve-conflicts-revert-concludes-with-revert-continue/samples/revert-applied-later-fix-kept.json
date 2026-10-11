@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "SESSION_TTL_HOURS = 12\nSESSION_COOKIE_NAME = \"sid\"\n\n\ndef cookie_options():\n    return {\"httponly\": True, \"secure\": True}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "SESSION_TTL_HOURS = 12\nREMEMBER_ME_TTL_HOURS = 720\nSESSION_COOKIE_NAME = \"sid\"\n"
+    },
+    {
+      "answer": "SESSION_TTL_HOURS = 12\n\n\ndef cookie_options():\n    return {\"httponly\": True, \"secure\": True}\n"
+    }
+  ]
+}

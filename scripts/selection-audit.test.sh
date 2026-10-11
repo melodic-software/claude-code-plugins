@@ -72,7 +72,12 @@ else
   echo named >"$t/data/named.txt"
   echo odd >"$t/data/unmapped.txt"
   echo broken >"$t/data/broken.txt"
-  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' >"$t/suites/reader.test.sh"
+  # The root toolchain files every suite reads are no gap.
+  echo '{}' >"$t/package.json"
+  echo 22 >"$t/.node-version"
+  echo '*.log' >"$t/.gitignore"
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
+    'cat package.json .node-version .gitignore' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
@@ -80,6 +85,8 @@ else
   mkdir -p "$t/plugins/x/evals/fixtures"
   printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
+  # The audit's own suite runs strace, which fails under the audit's strace.
+  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt' >"$t/scripts/selection-audit.test.sh"
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
   cat >"$TMP_ROOT/stub-selector.sh" <<'EOF'
@@ -104,7 +111,7 @@ EOF
     fail "trace: exit $rc, want 1: $(cat "$TMP_ROOT/trace.log")"
   fi
   if [[ "$gaps" == "$want" ]]; then
-    ok "trace: gaps are the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, fallback-run, unchecked, untracked and self are not)"
+    ok "trace: gaps are the unmapped-to-suite read and the unmapped read of a suite the fallback does not run (mapped, fallback-run, unchecked, untracked, self and root toolchain files are not)"
   else
     fail "trace: gaps.tsv [$gaps] want [$want]"
   fi
@@ -120,7 +127,7 @@ EOF
     fail "trace: verdicts.tsv [$(cat "$TMP_ROOT/out/verdicts.tsv" 2>/dev/null)]"
   fi
   if [[ "$(cut -f1,2 "$TMP_ROOT/out/suites.tsv")" == $'suites/quiet.test.sh\t0\nsuites/reader.test.sh\t0\nsuites/zz-outside.test.sh\t0' ]]; then
-    ok "trace: suites.tsv records every traced suite and its exit, and no eval fixture"
+    ok "trace: suites.tsv records every traced suite and its exit, and no eval fixture or audit suite"
   else
     fail "trace: suites.tsv [$(cat "$TMP_ROOT/out/suites.tsv")]"
   fi

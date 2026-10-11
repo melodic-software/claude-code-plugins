@@ -7,13 +7,24 @@ paths:
 
 # Skill bodies state current rules
 
-A skill or agent body that depends on a volatile upstream specific (an official doc page, an
-upstream issue) never restates it, quoted or paraphrased. It states our decision in our own words
-and records where to read the specific live, in the links-only record the
+A skill or agent body never restates a volatile upstream specific, quoted or paraphrased. Volatile
+means an upstream page, issue or release can change it without our edit: product or tool behavior
+given as our reason ("because WebFetch returns a summary", "the artifact stays private until
+shared"), API availability ("thread resolution is GraphQL-only"), a limit, default, version,
+error string, schema or benchmark figure. The body states our decision in our own words (it may
+name the topic, never what the page says about it) and records where to read the specific live,
+in the links-only record the
 [upstream-drift convention](../../docs/conventions/upstream-drift/README.md#required-parts)
-defines: pointer to the exact section, as-of date, recheck trigger. A body that needs the specific
-at run time fetches it from the pointer. Restated upstream text is the defect, and so is a pointer
-with no as-of date or no trigger.
+defines: pointer to the exact section or issue, as-of date, recheck trigger. A body that needs the specific
+at run time fetches it from the pointer.
+
+A record never cures a restatement: restated text with an as-of stamp or `Claim/Basis` block
+beside it is still the defect, fixed by deleting the restated value and keeping the pointer. Older
+`Claim/Basis` records in nearby files are not precedent (#5684 converts them). The record is also
+defective when a docs-page pointer lacks the section anchor (an upstream issue or probe needs
+none), a blog post is the pointer where a docs section covers the topic (it goes beside the
+pointer as a "correlate with" note), a probe observation names no probe, or the as-of date or
+trigger is missing.
 
 ## Successor sections
 

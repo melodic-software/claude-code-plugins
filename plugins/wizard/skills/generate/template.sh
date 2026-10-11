@@ -66,6 +66,7 @@ SKIPPED=()        # manual follow-ups: no gh, a gh failure, a declined repo
 _WIZARD_TMP=""
 # if-form, not `[[ ]] &&`: a false condition must not leave a nonzero status
 # for the EXIT trap under set -e, which would turn a successful run into exit 1.
+# shellcheck disable=SC2329  # invoked by the EXIT trap below
 _cleanup() { if [[ -n "$_WIZARD_TMP" && -f "$_WIZARD_TMP" ]]; then rm -f -- "$_WIZARD_TMP"; fi; }
 trap _cleanup EXIT
 
@@ -456,6 +457,7 @@ set_secret() { _gh_set secret "$1" "$2"; }
 # set_var NAME VALUE: the same for a plain (non-secret) Actions variable, value
 # on stdin (gh reads standard input when --body is omitted), never
 # argv. Same refusals as set_secret.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
 set_var() { _gh_set variable "$1" "$2"; }
 
 # finish: last screen. Lists what was saved and what is left to the person, by
@@ -478,26 +480,34 @@ finish() {
 # STAGES: the part you write. Delete the example stage below, add one stage()
 # call per row of the confirmed stage plan, in plan order, and make
 # TOTAL_STAGES equal the number of stage() calls.
+# Keep every stage inside run_wizard, ahead of its closing `finish` and `exit`,
+# and keep the last line as is: bash then parses the whole file before the
+# first prompt, so editing the script while it runs cannot re-run a step.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=1
+run_wizard() {
+  TOTAL_STAGES=1
 
-banner "Mail provider setup"
+  banner "Mail provider setup"
 
-# ── EXAMPLE STAGE (fictional provider at mail.example.com): delete it ─────
-# shellcheck disable=SC2154  # ask/ask_secret assign the named variable via printf -v
-stage "Mail provider: sending domain and API token"
-say "This stage records the sending domain and a send-only API token."
-open_url "https://mail.example.com/settings/api"
-step "Under Sending domain, copy the domain shown as Verified."
-ask MAIL_FROM_DOMAIN "Sending domain:"
-step "Choose Create token, tick only the Send scope, and copy the new token."
-ask_secret MAIL_API_TOKEN "API token:"
-# shellcheck disable=SC2154  # assigned by ask via printf -v
-write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
-# shellcheck disable=SC2154  # assigned by ask_secret via printf -v
-write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
-set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
-# ── END EXAMPLE STAGE ─────────────────────────────────────────────────────
+  # ── EXAMPLE STAGE (fictional provider at mail.example.com): delete it ───
+  # shellcheck disable=SC2154  # ask/ask_secret assign the named variable via printf -v
+  stage "Mail provider: sending domain and API token"
+  say "This stage records the sending domain and a send-only API token."
+  open_url "https://mail.example.com/settings/api"
+  step "Under Sending domain, copy the domain shown as Verified."
+  ask MAIL_FROM_DOMAIN "Sending domain:"
+  step "Choose Create token, tick only the Send scope, and copy the new token."
+  ask_secret MAIL_API_TOKEN "API token:"
+  # shellcheck disable=SC2154  # assigned by ask via printf -v
+  write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
+  # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
+  write_env MAIL_API_TOKEN "$MAIL_API_TOKEN"
+  set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
+  # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 
-finish
+  finish
+  exit
+}
+
+run_wizard "$@"

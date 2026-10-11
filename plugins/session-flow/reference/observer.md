@@ -70,8 +70,10 @@ running the parser.
 The default analysis command is:
 
 ```text
-claude -p --model <observer_analysis_model> --permission-mode dontAsk --output-format json \
+claude -p --model <observer_analysis_model> --effort <observer_analysis_effort> \
+  --permission-mode dontAsk --output-format json \
   --tools Read --allowedTools Read --strict-mcp-config \
+  --settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<observer_analysis_effort>"}}' \
   --add-dir <checkpoint-context-dir> --add-dir <work_dir>
 ```
 
@@ -88,8 +90,40 @@ the user's ambient tool grants; `--allowedTools Read` keeps the authorized read 
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report
 `Not logged in · Please run /login` and fail on an **OAuth-login** install, because it drops the login
 credential state. Enable it only where auth is an env-var API key that survives it. The dominant cost
-lever is the **model** (`observer_analysis_model`, default the cheapest active tier); `--bare` is a
-secondary, environment-dependent one.
+levers are the **model** and **effort** (`observer_analysis_model`, `observer_analysis_effort`);
+`--bare` is a secondary, environment-dependent one.
+
+## Model and effort
+
+The defaults are the `observer_analysis_model` and `observer_analysis_effort` `default` values in
+`.claude-plugin/plugin.json`, the one place they are set: the hook, the `arm` action and the launcher
+pass an empty value when the option is unset, and `observer.py` reads the manifest. The current
+defaults were chosen for faithful findings: in a four-session local pilot against Haiku 5.5 high,
+Sonnet 5.5 medium and Sonnet 5.5 high, they missed the fewest important findings and invented the
+fewest events.
+
+The run always passes `--effort`, even at the default, and also passes
+`--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,
+and the child re-applies it from any settings file's `env` block, so the run both drops it from the
+child environment (an exported value) and pins it with `--settings` (a `--settings` `env` value
+outranks user, project and local settings). Whether an exported value outranks the pin is
+undocumented, hence both.
+Probed on Claude Code 2.1.296 with a project `env` of `max` and `--effort low`: output tokens rose
+about fourfold without the `--settings` pin and returned to the `low` range with it.
+
+**Record.** Claim: `CLAUDE_CODE_EFFORT_LEVEL` takes precedence over `--effort`; a settings file's
+`env` replaces the inherited value; `--settings` outranks user, project and local settings; the levels
+a model accepts depend on the model. Basis: <https://code.claude.com/docs/en/env-vars#precedence>,
+<https://code.claude.com/docs/en/settings#settings-precedence> and
+<https://code.claude.com/docs/en/model-config#adjust-effort-level>. As of: 2026-10-10. Recheck: any
+of those sections changes the precedence between the variable, the flag and the settings levels, or
+the levels a model accepts.
+
+## When a run counts as failed
+
+The observations are kept, and nothing is written to the ledger, when the run exits non-zero, its JSON
+body reports `is_error`, its output is not JSON, `terminal_reason` (when present) is not `completed`,
+`subtype` is not `success`, `permission_denials` is non-empty, or the result text is empty.
 
 ## Config surface (userConfig)
 
@@ -99,7 +133,8 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = zero-config unchanged; manual `arm` still works. |
 | `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: the distilled observations are retained under the plugin work dir for manual inspection; the observer does not itself analyze or write the ledger. There is no automatic in-session consumer of the observations today (deferred; see below). |
-| `observer_analysis_model` | `claude-haiku-4-5` | Analysis model (the cost lever). |
+| `observer_analysis_model` | plugin.json | Analysis model (a cost lever; see "Model and effort"). |
+| `observer_analysis_effort` | plugin.json | Analysis effort, passed as `--effort` (a cost lever; see "Model and effort"). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
 | `observer_max_seconds` | `86400` | Hard lifetime safety valve; exits WITHOUT analysis. |

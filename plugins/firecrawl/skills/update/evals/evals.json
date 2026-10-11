@@ -5,12 +5,12 @@
       "id": 1,
       "name": "check-flag-is-read-only-drift-report",
       "prompt": "/firecrawl:update --check",
-      "expected_output": "Runs the read-only drift report: fetches npm metadata and the upstream SKILL.md, compares the installed CLI against the registry latest (logging the UPSTREAM.md recorded version without treating record-only staleness as CLI drift), and compares the fetched upstream SKILL.md SHA against UPSTREAM.md. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
+      "expected_output": "Runs the read-only drift report: fetches npm metadata and the upstream SKILL.md, compares the installed CLI against the registry latest (logging the upstream.md recorded version without treating record-only staleness as CLI drift), and compares the fetched upstream SKILL.md SHA against upstream.md. It writes nothing, runs no npm install, and does not rewrite the wrapper skill.",
       "files": [],
       "expectations": [
         "Treats --check as the read-only mode and performs no mutations",
-        "Compares installed CLI versus registry latest, and fetched upstream SKILL.md SHA versus UPSTREAM.md",
-        "Does not treat a stale UPSTREAM.md CLI version as CLI drift when installed already equals latest",
+        "Compares installed CLI versus registry latest, and fetched upstream SKILL.md SHA versus upstream.md",
+        "Does not treat a stale upstream.md CLI version as CLI drift when installed already equals latest",
         "Does not run npm install -g or rewrite plugins/firecrawl/skills/firecrawl/SKILL.md"
       ]
     },
@@ -30,11 +30,11 @@
       "id": 3,
       "name": "refuses-installed-marketplace-copy",
       "prompt": "/firecrawl:update --check from an installed marketplace copy of the plugin, not a working-tree checkout.",
-      "expected_output": "Refuses to treat the installed marketplace copy as the apply target. The skill is maintainer-facing and only rewrites UPSTREAM.md inside a working-tree checkout; consumers update via /plugin marketplace update.",
+      "expected_output": "Refuses to treat the installed marketplace copy as the apply target. The skill is maintainer-facing and only rewrites upstream.md inside a working-tree checkout; consumers update via /plugin marketplace update.",
       "files": [],
       "expectations": [
         "States that the skill must run from a working-tree checkout, not an installed marketplace copy",
-        "Does not write UPSTREAM.md or other skill files inside the installed copy",
+        "Does not write upstream.md or other skill files inside the installed copy",
         "Points consumers at /plugin marketplace update instead of running the maintainer pipeline"
       ]
     },

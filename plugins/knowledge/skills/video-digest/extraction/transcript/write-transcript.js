@@ -7,7 +7,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { cleanAutoCaptions } from "@melodic/video-digestion/transcript/auto-caption-clean";
-import { cleanManualCaptions } from "@melodic/video-digestion/transcript/manual-caption-clean";
+import {
+  cleanManualCaptions,
+  stripCaptionHtmlEntities,
+} from "@melodic/video-digestion/transcript/manual-caption-clean";
 import { formatTranscript } from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { primaryEntry } from "../adapters/adapter-contract.js";
@@ -46,7 +49,10 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
   let cues;
 
   if (isAutoCaption) {
-    cues = cleanAutoCaptions(vttText).cues;
+    // Decode after parsing: the cleaner's VTT output must keep `&lt;` escaped.
+    cues = cleanAutoCaptions(vttText)
+      .cues.map((cue) => ({ ...cue, text: stripCaptionHtmlEntities(cue.text) }))
+      .filter((cue) => cue.text.length > 0);
   } else {
     const cleaned = cleanManualCaptions(vttText);
     cues = cleaned.cues;

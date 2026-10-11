@@ -166,7 +166,7 @@ CLAUDE.md files and `.claude/rules/`, since the model may pick either.
 ## Rules files
 
 The audit treats `.claude/rules/` as the place for modular instructions, and a path-scoped rule as
-loading only after Claude reads a file its globs match. Features it relies on:
+loading once Claude reads or writes a file its globs match. Features it relies on:
 
 - Symlinks in `.claude/rules/` share rules across projects.
 - User-level rules in `~/.claude/rules/` apply to every project and load before project rules.
@@ -177,13 +177,20 @@ loading only after Claude reads a file its globs match. Features it relies on:
   [User-level rules](https://code.claude.com/docs/en/memory#user-level-rules).
 
 **Path scoping status (verified working 2026-07-24 on Claude Code 2.1.219):** Path scoping defers as
-documented. A path-scoped rule is not in context at session start and loads when Claude reads a
-matching file. A first-party repro on 2.1.219 with `paths: ["**/*.tsx"]` found the rule absent at
-session start, present after reading a matching `.tsx` file, and absent again after reading a
-non-matching one: deferral works in both directions. No changelog entry or maintainer comment pins
-the version where this began working, so do not claim a version floor. Recheck trigger: a Claude
-Code release note or memory-doc change touching rule loading, or any session in which a path-scoped
-rule is present at session start.
+documented. The audit treats a path-scoped rule as absent at session start and loaded once Claude
+reads or writes a matching file, and prices a move into one on that basis; which tools and Bash
+commands count is read live, not restated here. A first-party repro on 2.1.219 with
+`paths: ["**/*.tsx"]` found the rule absent at session start, present after reading a matching
+`.tsx` file, and absent again after reading a non-matching one: deferral works in both directions.
+No changelog entry or maintainer comment pins the version where this began working, so do not claim
+a version floor. Recheck trigger: a Claude Code release note or memory-doc change touching rule
+loading, or any session in which a path-scoped rule is present at session start.
+
+- **Pointer**: when a finding depends on what loads a path-scoped rule or a nested CLAUDE.md, fetch
+  [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
+  [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: either section changes the tools or commands that load the file.
 
 Caveats that do survive, each verified:
 
@@ -207,8 +214,6 @@ Caveats that do survive, each verified:
   Claude Code minor version moves past 2.1.268, a release note names subagent context inheritance,
   memory loading, or path-scoped rule triggering, or a read of a covered path inside a subagent
   injects nothing.
-- Writing a NEW file does not trigger the rule. We treat a read, not any tool use, as the trigger
-  (pointer: [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)).
 - Excluding `project` from `--setting-sources` also drops the on-demand rules of both kinds:
   path-scoped ones, and those kept in a nested `.claude/rules/` (pointer:
   [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules)).
@@ -283,8 +288,8 @@ and prices a recommended move with that destination's row:
 
 | Method | Session start | After compaction | On-demand trigger |
 |--------|---------------|------------------|-------------------|
-| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read in that subdirectory |
-| Path-scoped rules | Matching paths only | Re-injected when paths match again | File read / edit |
+| CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read, write or edit in that subdirectory |
+| Path-scoped rules | Matching paths only | Re-injected when paths match again | File read, write or edit |
 | Unscoped rules | Full load | Re-injected | None |
 | Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
 | Subagents | Name + description | Same as skills | Dispatch |

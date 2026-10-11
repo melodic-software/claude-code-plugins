@@ -3,7 +3,8 @@
 19 criteria (C1-C19) derived from three upstream authorities, cited so the current text governs. Do
 not recap them here, read them at the source:
 
-- [MCP specification 2025-11-25: Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+- [MCP specification 2026-07-28: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+  (Spec revision record below)
 - [Define tools: best practices for tool definitions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools#best-practices-for-tool-definitions)
   (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits
@@ -12,20 +13,52 @@ not recap them here, read them at the source:
 treats 500,000 characters as the ceiling above which a declared `anthropic/maxResultSizeChars`
 value no longer applies, and treats a tool returning image content as outside that annotation. C18
 treats only the JSON boolean `true` as an effective `anthropic/requiresUserInteraction`, and grades
-any other value FAIL because the consent prompt it was meant to force never fires. C4 treats
-2,048 characters as the default length at which Claude Code truncates each tool description and
-each server `instructions` field.
+any other value FAIL because the consent prompt it was meant to force never fires. C19 treats a
+tool's `anthropic/alwaysLoad: false` as a deliberate opt-out that keeps the tool deferred even when
+the server's own config loads it upfront, honored only for the server sources the per-tool pointer
+names.
 
 - **Pointer**: for the result-size annotation, see
   <https://code.claude.com/docs/en/mcp#raise-the-limit-for-a-specific-tool> and
   <https://code.claude.com/docs/en/mcp#images-in-tool-results>; for the per-call approval
   annotation, see <https://code.claude.com/docs/en/mcp#require-approval-for-a-specific-tool>; for
-  per-tool deferral, see <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>; for
-  the description and instructions truncation length, see
-  <https://code.claude.com/docs/en/mcp#for-mcp-server-authors>.
-- **As of**: 2026-10-04 (truncation length); 2026-09-06 (the other values)
-- **Recheck trigger**: the page moves any of these values or the truncation default, or a release
-  note names MCP `_meta` annotations or description truncation.
+  per-tool deferral and which server sources honor `false`, see
+  <https://code.claude.com/docs/en/mcp#per-tool-alwaysload>; for the server-level field, see
+  <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>.
+- **As of**: 2026-10-10 (per-tool deferral); 2026-09-06 (the other values)
+- **Recheck trigger**: the page moves any of these values, or changes which server sources honor a
+  per-tool `false`, or a release note names MCP `_meta` annotations.
+
+**Description length record.** C4 holds each tool description and each server `instructions` field
+to a floor this skill chose; the number sits in the C4 row as this skill's own rule. C4 warns
+rather than fails past that floor, because whether a given client cuts there is read at the
+pointer, not decided here. C4 ignores the session-level override
+`CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH`, which the server author does not control.
+
+- **Pointer**: when grading C4 or revisiting its number, fetch
+  <https://code.claude.com/docs/en/changelog> (versions 2.1.295 and 2.1.296) and
+  <https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors> live; for the override,
+  <https://code.claude.com/docs/en/env-vars#variables>.
+- **Source conflict**: the mcp page
+  (<https://code.claude.com/docs/en/mcp#tool-search-for-mcp-server-authors>) and the env-vars page
+  (<https://code.claude.com/docs/en/env-vars#variables>) disagree with changelog 2.1.295 and
+  2.1.296 (<https://code.claude.com/docs/en/changelog>) on the MCP description and instructions
+  length limits.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the mcp page changes its stated default or states a limit per load path, or
+  a release note names MCP description or instructions truncation.
+
+**Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
+Code negotiates by default. Moving to that revision changed no criterion here; tool rules the
+revision added are not yet criteria.
+
+- **Pointer**: when grading a SPEC-tagged criterion, fetch
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools> live; for which revision
+  Claude Code negotiates, <https://code.claude.com/docs/en/mcp#mcp-client-runtimes>; for what the
+  revision changed, <https://modelcontextprotocol.io/specification/2026-07-28/changelog>.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a newer spec revision becomes the one Claude Code negotiates by default, or a
+  release note names the MCP protocol revision.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -38,7 +71,7 @@ naming how much a violation hurts. They are independent. A low-authority criteri
 | **SPEC-SHOULD** | The MCP spec recommends it (**SHOULD**) | MCP spec |
 | **SPEC-OPTIONAL** | The spec defines it as OPTIONAL, so a missing value is never a spec violation | MCP spec |
 | **ANTHROPIC** | Anthropic tool-design guidance | The define-tools section above |
-| **OPINION** | A design judgment with no upstream mandate (e.g. a client-specific limit or heuristic) | this skill. For C4 and C17-C19 the client-behavior facts are cited from the Claude Code page, which documents that behavior rather than mandating the criterion |
+| **OPINION** | A design judgment with no upstream mandate (e.g. a client-specific limit or heuristic) | this skill. For C4 and C17-C19 the client-behavior facts are cited from the Claude Code page and changelog, which document that behavior rather than mandating the criterion |
 
 Severity levels:
 
@@ -53,7 +86,7 @@ Severity levels:
 | C1 | **Has "what"**. The description states what the tool does | ANTHROPIC | FAIL | First sentence should clearly describe the action. Missing or generic ("handles X") fails |
 | C2 | **Has "when"**. The description states when to use the tool | ANTHROPIC | WARN | Look for usage context: "Use this when...", "Call this before...", "Useful for...". Absent = warn |
 | C3 | **Has "returns"**. The description states what the tool returns | ANTHROPIC | WARN | Look for return documentation: "Returns the board id and...", "Returns a list of...". Absent = warn |
-| C4 | **Within the truncation length**. A tool description, and a server `instructions` field, fits within the length Claude Code keeps by default (Client-behavior record) | OPINION | FAIL | Count characters, per tool description and once per server for the server `instructions` field. Over 2,048 characters fails: Claude Code drops the rest, so text past the cut never reaches the model. Critical details belong near the start, where truncation cannot reach them. The length is client behavior the page documents, not a spec rule |
+| C4 | **Within the length floor**. A tool description, and a server `instructions` field, fits within the floor this skill holds (Description length record) | OPINION | WARN | Count characters, per tool description and once per server for the server `instructions` field. Over 2,048 characters warns: text past this floor may be cut before it reaches the model, depending on the client (read at the record's pointer). Critical details belong near the start, where truncation cannot reach them. The floor is this skill's rule built on client behavior, not a spec rule |
 | C5 | **No implementation-detail leak**. No database types, API names, partition keys, or internal structure | ANTHROPIC | WARN | Prefer semantic names over technical identifiers. Scan for terms that belong to the implementation, not the domain |
 
 ## 2. Parameter quality (C6-C8)
@@ -108,7 +141,7 @@ advisory that the server could benefit), and for C19 not a finding at all. Two d
   generally, FAIL for `anthropic/requiresUserInteraction`, where a silently ignored value ships a
   consent gate that never fires.
 - **Declared, honored, and unwarranted**. Claude Code applies the value exactly as asked, and that is
-  the cost (C19 declared where no turn needs the tool, or across many of a server's tools, spending
+  the cost (C19 declared `true` where no turn needs the tool, or across many of a server's tools, spending
   session-start context deferral would have saved). WARN.
 
 When auditing SOURCE, accept each SDK's native way of attaching `_meta` to a tool's `tools/list` entry,
@@ -122,7 +155,7 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 |---|-----------|-----------|----------|-----------------|
 | C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling (Client-behavior record). Set above 500,000 (this check's ceiling; the excess never applies) or on a tool returning image content (outside the annotation, per the record) = WARN |
 | C18 | **`anthropic/requiresUserInteraction` set, as JSON `true`, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than JSON `true`) | Missing on a consent-shaped tool = info. Declared with any value other than the JSON boolean `true` (e.g. the string `"true"`, `1`) = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
-| C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. The server-level `alwaysLoad` config field is client configuration, outside this audit |
+| C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared `true` on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. Declared `false` is never a finding: it keeps a heavy tool deferred when a user configures the whole server to load upfront, on the server sources the Client-behavior record's pointer names, so it is the opt-out to suggest for a large tool on a server whose docs recommend the server-level `alwaysLoad`. Its absence is not a finding either: make that suggestion in the fix guidance, unscored, never as an info count. That server-level config field itself is client configuration, outside this audit |
 
 ## Scoring
 

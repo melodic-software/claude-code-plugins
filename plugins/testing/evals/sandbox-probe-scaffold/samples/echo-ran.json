@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "echo sandbox-ok-7f3a", "description": "Print the probe marker"}}],
+      "why": "the one command, as written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "echo sandbox-ok-7f3a && pwd"}}],
+      "why": "a different command than the step"
+    }
+  ]
+}

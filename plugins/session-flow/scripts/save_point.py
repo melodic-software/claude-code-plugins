@@ -124,7 +124,8 @@ REWRITTEN = {
     "Environment to re-establish": (
         "environment",
         "branch and worktree, services, env vars, background tasks, and the live TaskList "
-        "with literal recreate calls, or an explicit line that there is nothing to recreate",
+        "(or the latest TodoWrite list) with literal recreate calls (or, in a session with "
+        "neither, a line saying so), or an explicit line that there is nothing to recreate",
     ),
     "File roles in this work": (
         "file-roles",

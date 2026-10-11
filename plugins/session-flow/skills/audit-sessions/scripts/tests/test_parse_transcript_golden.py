@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/golden/*
 """Golden-output seam for retro's parse_transcript.py on the shared transcript reader.
 
 `fixtures/golden/expected/*.json` hold the parser's output over `fixtures/golden/proj/` captured

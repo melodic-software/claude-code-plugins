@@ -9,6 +9,19 @@ describe("parseBoundaryLine", () => {
       endSec: 478,
     });
   });
+
+  it("parses h:mm:ss stamps, as written from YouTube chapter times", () => {
+    // 59:00 = 3540 s; 1:05:30 = 3600 + 300 + 30 = 3930 s
+    expect(parseBoundaryLine("[59:00] a → [1:05:30] b")).toEqual({
+      startSec: 3540,
+      endSec: 3930,
+    });
+  });
+
+  it("keeps minutes unbounded in m:ss stamps, as transcripts write them", () => {
+    // 75:30 = 4500 + 30 = 4530 s
+    expect(parseBoundaryLine("[75:30] a")).toEqual({ startSec: 4530, endSec: null });
+  });
 });
 
 describe("parseSessionsFromClaimInventory", () => {
@@ -25,5 +38,36 @@ describe("parseSessionsFromClaimInventory", () => {
     expect(sessions[0].name).toBe("Opening segment");
     expect(sessions[0].startSec).toBe(0);
     expect(sessions[0].endSec).toBe(600);
+  });
+
+  it("parses no session from a table-form inventory", () => {
+    const body = `## Session segments
+
+| ID | Window | Topic |
+| --- | --- | --- |
+| S1 | 0:04-1:33 | Opening |
+| S2 | 1:33-9:10 | Main talk |
+`;
+    expect(parseSessionsFromClaimInventory(body)).toEqual([]);
+  });
+
+  it("rejects the whole inventory when one numbered session cannot be parsed", () => {
+    const body = `## 1. Opening
+
+**Boundary:** [0:00] start → [10:00] break
+
+## 2. Main talk
+
+**Boundary:** 10:00 → 40:00
+`;
+    expect(parseSessionsFromClaimInventory(body)).toEqual([]);
+  });
+
+  it("parses no session from a heading whose boundary has no bracketed stamp", () => {
+    const body = `## 1. Opening
+
+**Boundary:** 0:04 → 1:33
+`;
+    expect(parseSessionsFromClaimInventory(body)).toEqual([]);
   });
 });

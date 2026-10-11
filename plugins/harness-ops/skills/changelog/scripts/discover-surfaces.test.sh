@@ -14,6 +14,7 @@
 #
 # Uses the fixture under ../evals/fixtures/consumer-repo and needs no git, network
 # or installed CLI.
+# test-scope: plugins/harness-ops/skills/changelog/evals/fixtures/consumer-repo/*
 
 set -uo pipefail
 

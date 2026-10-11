@@ -95,8 +95,10 @@ What the model sees, if the user asks, depends on the path a value takes:
 ## Phase 2: the stage code
 
 Work in a copy of [template.sh](template.sh) at the chosen path. Delete its example stage and leave
-every line above the `STAGES` marker exactly as it is. The confirmed table then decides the code,
-cell by cell:
+every line above the `STAGES` marker exactly as it is. Write every stage inside `run_wizard`, and
+keep its closing `finish` and `exit` and the final `run_wizard "$@"` call: bash then reads the whole
+file before the first prompt, so editing the script mid-run cannot re-run a step. The confirmed
+table then decides the code, cell by cell:
 
 | Table content | Code it produces |
 |---|---|
@@ -124,7 +126,9 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
    <!-- portability-ok: matching set_secret names to CI secrets.* references applies only when the consumer's declared CI-secret destination is GitHub Actions -->
    - each `set_secret` / `set_var` name is spelled exactly as a `secrets.*` / `vars.*` reference
      in the CI workflows;
-   - the library above the `STAGES` marker is unchanged.
+   - the library above the `STAGES` marker is unchanged;
+   - every stage sits inside `run_wizard`, which ends with `finish` then `exit`, and the script's
+     last line is `run_wizard "$@"`.
 3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below
    the marker, and wait for their explicit approval. Until it arrives, do NOT run `chmod +x` and do
    NOT give the user a command to run. The order is fixed, not advisory: the person is about to type

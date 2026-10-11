@@ -162,6 +162,24 @@ trim_to() {
 CLOSING_ERE='(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:blank:]]*:?[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+'
 NON_CLOSING_ERE='^ {0,3}(refs|relates[[:blank:]]+to):[[:blank:]]*([a-z0-9_.-]+/[a-z0-9_.-]+)?#[0-9]+[[:blank:]]*$'
 NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
+# A tracker's link line, which `/work-items:track link` prints from the bound
+# adapter (work-items CONTRACT.md "Change links"): a linking keyword, then an
+# issue key (`Closes ENG-123`, `Refs SW2-12`) or a qualified item id
+# (`Refs: local-markdown:<namespace>#<n>`), alone on its line. Matched against
+# the original-case line, so a key stays upper-case and `fixes utf-8` is not
+# one; the keyword is checked lower-cased against TRACKER_KEYWORD_ERE. The
+# second keyword word is spelled `to` rather than any word: POSIX
+# leftmost-longest submatching would otherwise read `Closes ENG-123` as the
+# keyword `Closes EN` and the key `G-123`. The qualified-id branch names the
+# work-items providers, so a URL (`Refs: https://host/page#1`) is not an id.
+# Known accept: an upper-case acronym alone after a keyword (`Fixes UTF-8`)
+# reads as an issue key, since without the tracker binding nothing tells it
+# from `ENG-8`. This
+# goes beyond the CI analyzer, which knows only GitHub's `#N`; there the body
+# contract is advisory, and blocking an adapter's own link would leave a
+# non-GitHub tracker no way to open a pull request through this gate.
+TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
+TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
 
 # CI's `negation_trigger`: the first disclaimer word among the last five words
@@ -195,7 +213,7 @@ negation_trigger_to() {
 
 # Scan the masked body for linkage. Returns 0 when it carries an un-negated
 # closing keyword, a non-closing `Refs:` / `Relates to:` marker on its own line,
-# or a no-issue opt-out. Fills LINKAGE_NEGATED with one `"<text>" (trigger
+# a tracker link line, or a no-issue opt-out. Fills LINKAGE_NEGATED with one `"<text>" (trigger
 # "<word>")` entry per distinct negated closing reference, in first-seen order.
 # A negated closer never counts as linkage, and CI fails it even when valid
 # linkage exists elsewhere, because GitHub's parser still closes the issue.
@@ -209,6 +227,7 @@ scan_linkage() {
     line="${LINKAGE_LINES[i]}"
     lower="${line,,}"
     [[ "$lower" =~ $NON_CLOSING_ERE ]] && found=0
+    [[ "$line" =~ $TRACKER_LINK_ERE && "${BASH_REMATCH[1],,}" =~ $TRACKER_KEYWORD_ERE ]] && found=0
     off=0
     while chunk="${lower:off}" && [[ "$chunk" =~ $CLOSING_ERE ]]; do
       m="${BASH_REMATCH[0]}"
@@ -451,5 +470,5 @@ linkage::block_message() {
   local p
   echo "BLOCKED: PR body fails the pr-contract step in $1." >&2
   for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
-  echo "The body needs a closing line (Closes #N, Refs: #N, or No linked issue) and non-empty ## Summary, ## Fix, ## Verification and ## Related sections." >&2
+  echo "The body needs a closing line (Closes #N, Refs: #N, the bound tracker's link line from /work-items:track link, or No linked issue) and non-empty ## Summary, ## Fix, ## Verification and ## Related sections." >&2
 }

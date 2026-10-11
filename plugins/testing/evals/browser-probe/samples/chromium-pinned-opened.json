@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Browser `pinned` opened with pid 4127.\\n### Ran Playwright code\"}",
+      "why": "pinned session launched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: browserType.launch: Failed to launch: Error: spawn /opt/pw/chromium-not-found ENOENT\",\"is_error\":true}",
+      "why": "pinned executable missing"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Browser `default` opened with pid 4130.\"}",
+      "why": "only the default session opened"
+    }
+  ]
+}

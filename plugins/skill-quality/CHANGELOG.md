@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2] - 2026-10-10
+
+### Changed
+
+- **The probe-set guide is now `probes/template.md`**, renamed from `TEMPLATE.md` so every markdown file in the repository is lower-kebab-case (ADR 0059).
+
 ## [0.29.1] - 2026-10-07
 
 ### Changed

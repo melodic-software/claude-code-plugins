@@ -352,7 +352,9 @@ effort settings". What governs the category:
 - **Scope.** `effortLevel`, `fallbackModel`, `availableModels`, `enforceAvailableModels` in the
   settings files this skill already opens, `settings.local.json` included: `check-structure.sh`
   reports those four by value while keeping env and permission entries as counts, so a local-only
-  misconfiguration is checkable without dumping the secrets beside it. `modelOverrides` values are
+  misconfiguration is checkable without dumping the secrets beside it. The engine also checks each
+  file it reads for `deniedModels` and `availableModelsMatch`, which take effect only from managed
+  settings, and reports either one there as a policy not in force. `modelOverrides` values are
   deliberately not validated; the checklist says why
 - **Fetch before reporting.** Every row rests on upstream-owned behavior, so a finding requires the
   Phase 3.3 model-config fetch, not this file's wording
@@ -368,7 +370,8 @@ effort settings". What governs the category:
 - **Placement is out of reach.** `availableModels` and `enforceAvailableModels` belong in the
   highest-precedence managed source, and admin-deployed managed sources do not merge. Nothing in the
   files this skill reads decides whether that holds, so report the value-level finding and leave
-  placement to the administrator
+  placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
+  every file this skill reads is outside managed settings, so finding either key in one settles it
 
 ## Category I: Deep-link registration
 

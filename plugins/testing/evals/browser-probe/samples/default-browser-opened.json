@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Browser `default` opened with pid 4130.\\n### Page\"}",
+      "why": "default session launched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome\",\"is_error\":true}",
+      "why": "chrome channel absent"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Browser `pinned` opened with pid 4127.\"}",
+      "why": "only the pinned session opened"
+    }
+  ]
+}

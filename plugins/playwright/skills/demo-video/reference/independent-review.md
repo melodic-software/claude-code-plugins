@@ -11,7 +11,7 @@ Brief to send, filled in:
 Review a demo video for a pull request. You did not make it; judge only what the frames show.
 
 Video: <work>/demo.mp4 (30 fps; frame N is at t = (N - 1) / 30)
-QC sheets: <work>/qc/sheet-key-moments.png, <work>/qc/sheet-failures.png if present
+QC sheets: <work>/qc/sheet-key-moments.png, <work>/qc/sheet-fail-*.png if present
 QC report: <work>/qc/qc.json (machine checks; confirm or refute them from frames, do not trust them)
 What the demo should show: <one line per step, from script.json>
 

@@ -119,7 +119,9 @@ where a judge sees only the first 12 and last 12 messages and quotes are JSON-es
 - [ ] `runs`, `max_turns`, and `timeout_seconds` are inside their bounds. Hitting `max_turns` is a
       run error, not a low score.
 - [ ] `allowed_tools` requests only what the case needs. Read-only tools (`Read`, `Glob`, `Grep`,
-      `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) need no operator grant;
+      `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`,
+      `TaskList`, `TaskUpdate`, `TaskStop`; see the record in the validator's `READ_ONLY_TOOLS`)
+      need no operator grant;
       anything else needs `--allow-tools` and, for `Bash`, `PowerShell`, `Write`, or `Edit`, a sandbox backend.
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 

@@ -14,6 +14,7 @@
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
+# test-scope: plugins/context-budget/hooks/hooks.json
 
 set -uo pipefail
 

@@ -104,9 +104,12 @@ and confirm by reading the record's `projectPath` directly.
 
 ## Concurrency / TOCTOU
 
-`fleet-state.sh`'s output is a snapshot. A background `autoUpdate` sweep (random delay up to ten
-minutes after session start) or a concurrent Claude Code session can mutate installed/enabled state
-between when you read it and when you act on it. Re-read state immediately before each mutating
+`fleet-state.sh`'s output is a snapshot. A background `autoUpdate` sweep or a concurrent Claude
+Code session can mutate installed/enabled state between when you read it and when you act on it.
+For when the sweep fires, see
+[When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
+(as of 2026-10-10; ***Recheck trigger:*** a release note changing when, or in which sessions,
+auto-update runs). Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
 snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase.

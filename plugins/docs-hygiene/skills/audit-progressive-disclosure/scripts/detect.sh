@@ -117,8 +117,9 @@ frontmatter() {
 # Load-tier classification per the skill's tier model (path + frontmatter
 # heuristic; the judgment layer owns ambiguous cases). $2 is the path relative
 # to its scan root: a root-level CLAUDE.md/AGENTS.md is always-loaded, but the
-# same basename nested deeper is a SUBTREE file — loaded when Claude reads
-# that directory, i.e. invocation tier (per context/tier-model.md). An absolute
+# same basename nested deeper is a SUBTREE file — loaded lazily when Claude
+# works in that directory (CLAUDE.md; AGENTS.md triggers: see
+# agent-doc-surfaces), i.e. invocation tier (per context/tier-model.md). An absolute
 # path to the repository-root file does not equal the bare basename; at_repo_root
 # still classifies that file always-loaded. A nested file keeps invocation.
 classify_tier() {

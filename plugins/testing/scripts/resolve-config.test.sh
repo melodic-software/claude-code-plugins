@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for resolve-config.sh: layer order, list concatenation, scalar
 # override, validation exits, hook coverage, and the one path-glob matcher.
+# test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR

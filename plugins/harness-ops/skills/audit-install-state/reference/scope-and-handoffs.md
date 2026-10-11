@@ -67,7 +67,7 @@ So: write the report outside the target root. If a destination inside it is unav
 | `product-managed-healthy` | Nothing to do. The only lever that shrinks it is lowering `cleanupPeriodDays`, a config change, not a deletion |
 | `age-exceeds-window` | Investigate the sweep's unit for that path first. Never a deletion authorization |
 | `settings-unparsable-pauses-sweep` | Fix the JSON. Retention is stopped until you do. `/harness-config:audit` owns settings correctness |
-| Home-root `~/.claude.json` growth | `claude project purge <path>`, the supported command. `--dry-run` previews |
+| Home-root `~/.claude.json` growth | `claude purge <path>`, the supported command. `--dry-run` previews |
 | `deny-listed` | Stop. Read the ledger, diff against the stored baseline, and confirm with whoever ran the experiment |
 | `keep` / secret-bearing | Nothing to do |
 | `unclassified-report-only`, and you want it gone | `/disk-hygiene:clean`, the engine that owns exact-path deletion with a live-handle preflight |

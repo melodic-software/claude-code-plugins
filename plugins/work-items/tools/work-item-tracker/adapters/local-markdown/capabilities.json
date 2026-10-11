@@ -13,7 +13,8 @@
     "list-items": true,
     "label-provenance": false,
     "list-sub-items": true,
-    "capabilities": true
+    "capabilities": true,
+    "change-link": true
   },
   "features": {
     "cross_repo_edges": false,
@@ -26,5 +27,8 @@
     "sub_item_depth": 100000,
     "dependencies_per_type": 100000,
     "list_items_max": 100000
+  },
+  "change_link": {
+    "branch_pattern": "^[a-z]+/(routine-issue-)?([0-9]+)-"
   }
 }

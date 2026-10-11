@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Tests for catalog.sh against fixture catalogs written into a temp dir.
+# test-scope: plugins/playbooks/skills/repo-sweep/catalogs/*.md
 set -uo pipefail
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/catalog.sh"

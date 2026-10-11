@@ -19,7 +19,7 @@ export default async (demo) => {
 | `demo.goto(url)` | `start` (first call) | Waits for network idle, then starts capture |
 | `demo.click(step, target, { block })` | `move`, `click` | `target`: CSS selector, Playwright locator or `[x, y, w, h]`. `block` is what the shot frames; default is the target plus padding |
 | `demo.type(step, target, text, { modal })` | `type`, `key`, `typed` | One key at a time, two captures per key. `modal`: the panel the shot frames while typing |
-| `demo.settle(step, { box, modal })` | `settled` | Waits for network idle and four identical captures. `box`/`modal`: the results area the typing shot frames |
+| `demo.settle(step, { box, modal })` | `settled` | Waits for network idle and four identical captures. `box`/`modal`: the results area the typing shot frames; a typing step behind a modal on the same page needs `modal` |
 | `demo.style(css)` | | Injects CSS for the rest of the run; returns a remover. Hide flashing partial states with it |
 | `demo.moveTo(step, target)` | `move` | Cursor travel without a click. An id used only by `moveTo` is not a step: its travel plays inside the hold around it |
 | `demo.wait(ms)`, `demo.page` | | The Playwright page for anything else (`waitForURL`, `keyboard`) |
@@ -30,6 +30,10 @@ Rules the edit relies on:
   `type` between them. A step whose URL changes by `settle` is a navigation: the camera eases to
   1.0x and cuts. In a typing step the cut starts when `type` returns, so submit after it (for
   example `demo.page.keyboard.press('Enter')`), not with a newline inside the typed text.
+- A typing step that stays on the same page behind a modal settles with
+  `demo.settle(step, { modal })` (and `box` for the results area). Without `modal` the edit treats
+  the dimmed page behind it as content: the typing shot, its edges and the caption anchor are
+  judged against text the viewer cannot read, and the plan can be refused.
 - A `block` must hug visible content. A block-level element's box spans its container, so build
   it with `demo.union` from elements that hug their text, or pass explicit coordinates.
 - Settle after every state change you want shown; anything between a navigating click (or the

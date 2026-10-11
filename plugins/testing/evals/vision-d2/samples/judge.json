@@ -1,0 +1,122 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [clipping]: The Add to cart button in the first card is too narrow and cuts its label off.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [clipping]: Trail backpack card: the \"Add to cart\" label is truncated inside its button.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix"
+    },
+    {
+      "answer": "**FINDING [clipping]:** The first Add to cart button shows only part of its label; the rest is cut off.\nVERDICT: NEEDS WORK",
+      "why": "bold label"
+    },
+    {
+      "answer": "FINDING [clipping]: The Add to cart label on the Trail backpack card is not fully visible; the button hides its end.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [clipping]: The first card's Add to cart button does not fit its text, so the label is cut off.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [clipping]: The Add to cart button's label is cut off inside the button.\nVERDICT: NEEDS WORK",
+      "why": "location named only as the Add to cart button"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [clipping]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: All the Add to cart labels fit inside their buttons.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [clipping]: Checked the first card's buttons; no text is cut off.\nVERDICT: NEEDS WORK",
+      "why": "checked and fine"
+    },
+    {
+      "answer": "FINDING [clipping]: The first Add to cart label might be slightly clipped; hard to tell.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [clipping]: The product image in the first card is cropped at the top.\nVERDICT: NEEDS WORK",
+      "why": "a different defect"
+    },
+    {
+      "answer": "FINDING [clipping]: Some text is cut off.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [clipping]: The Save button's label is cut off in the first card.\nVERDICT: NEEDS WORK",
+      "why": "names only another element"
+    },
+    {
+      "answer": "FINDING [overflow]: The first card's Add to cart label is cut off inside the button.\nVERDICT: NEEDS WORK",
+      "why": "under another category"
+    },
+    {
+      "answer": "FINDING [clipping]: The first card's Add to cart label is cut off inside the button.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "FINDING [clipping]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [clipping]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [clipping]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    }
+  ]
+}

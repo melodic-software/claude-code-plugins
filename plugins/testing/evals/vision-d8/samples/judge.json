@@ -1,0 +1,122 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [misalignment]: Trail backpack card: Save sits lower than Add to cart, so their top edges differ.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix"
+    },
+    {
+      "answer": "**FINDING [misalignment]:** The Save button is offset downward from the Add to cart button beside it.\nVERDICT: NEEDS WORK",
+      "why": "bold label; location named as the Save button"
+    },
+    {
+      "answer": "FINDING [misalignment]: The Save button is not aligned with Add to cart in the backpack card.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [misalignment]: The first card's two buttons don't line up: Save drops below Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [misalignment]: Save sits lower than Add to cart on the Trail backpack card at both widths.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [misalignment]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: Save and Add to cart share the same top edge in every card.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [misalignment]: Checked the first card's buttons; they line up.\nVERDICT: NEEDS WORK",
+      "why": "checked and fine"
+    },
+    {
+      "answer": "FINDING [misalignment]: The Save button might sit a pixel or two low; hard to tell.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [misalignment]: The five card images are different heights.\nVERDICT: NEEDS WORK",
+      "why": "names only other elements"
+    },
+    {
+      "answer": "FINDING [misalignment]: Some elements are out of line.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Save sits lower than Add to cart in the first card.\nVERDICT: NEEDS WORK",
+      "why": "under another category"
+    },
+    {
+      "answer": "FINDING [misalignment]: Save sits lower than Add to cart in the first card.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "Save sits lower than Add to cart in the first card.\nVERDICT: NEEDS WORK",
+      "why": "prose only, no FINDING line"
+    },
+    {
+      "answer": "FINDING [misalignment]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [misalignment]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for scripts/check-hooks-description.sh: a fixture tree per case so the
-# verdict is on the shape under test and nothing else, then the live tree.
+# verdict is on the shape under test and nothing else. The live tree is the
+# gate's own CI step (pr-require-checks.yml, step id hooks_description).
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -150,12 +151,5 @@ else
   ok "two concatenated documents fail closed"
 fi
 rm -rf "$f"
-
-# --- the live tree ----------------------------------------------------------
-if out="$(cd "$SELF_DIR/.." && bash scripts/check-hooks-description.sh 2>&1)"; then
-  ok "the repository's own hooks.json files all carry a description"
-else
-  fail "the live tree fails the gate: $out"
-fi
 
 test_harness::report

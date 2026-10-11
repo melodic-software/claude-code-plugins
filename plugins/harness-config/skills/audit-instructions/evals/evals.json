@@ -437,6 +437,19 @@
         "Does not flag the formatter rule and its vendor/ exception",
         "Reports no I15 finding"
       ]
+    },
+    {
+      "id": 34,
+      "name": "i21-high-pin-keys-to-resolved-target-default",
+      "prompt": "/harness-config:audit-instructions claude-md --target-model opus-5-5. My root CLAUDE.md is the only instruction surface and has one line about effort: \"Run every subagent at `high` effort.\" Then run the same audit with --target-model haiku-5-5, and again with --target-model opus-5.",
+      "expected_output": "Judges the `high` pin against the default the model-config docs state for each resolved target, read live at the I21 row's pointer, not against the wording. On the opus-5-5 run and on the haiku-5-5 run, both of which default to `medium`, the exemption lifts and the line is an I21 finding: a durable, model-agnostic effort pin with no re-derivation when the model changes, remediated by naming the model the level was measured against and stating that a model change re-opens it, or by a fresh effort sweep. On the opus-5 run, which defaults to `high`, the pin equals the default and the line is not an I21 finding.",
+      "files": [],
+      "expectations": [
+        "Reports an I21 finding on the `high` pin for the opus-5-5 run",
+        "Reports an I21 finding on the `high` pin for the haiku-5-5 run",
+        "Reports no I21 finding on the `high` pin for the opus-5 run, citing that `high` is that target's default",
+        "Takes each target's default from the model-config docs rather than from a model list written into the skill"
+      ]
     }
   ]
 }

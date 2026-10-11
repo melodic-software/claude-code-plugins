@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Fact-record tests. Assertion helpers are local.
+# test-scope: plugins/source-control/scripts/*.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
 

@@ -140,7 +140,7 @@ step 1 and before any tracker read or write:
 Layers, lowest first: the manifest default, then the per-user `userConfig` value, then the
 repository's `docs/conventions/work-items.yaml` (schema:
 [`${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json);
-layer order from ADR 0060 Decision 8; these keys have no `~/.claude` file or local overlay). For
+layer order from ADR 0064 Decision 8; these keys have no `~/.claude` file or local overlay). For
 each key:
 
 1. **Repository.** When the invocation carried `--config-ref <ref>`, check `<ref>` before any
@@ -253,8 +253,8 @@ admission gate enforces the window.
 
 - An autonomous-eligible item: `/work-items:work`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
-- A human-gated item lands in the operator's queue: `/work-items:attend-queue`.
-- A briefed item too large for one slice: `/work-items:decompose`.
+- A briefed item too large for one vertical slice: `/work-items:decompose`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer
 

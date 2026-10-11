@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "- `max_attempts`: how many calls in total, including the first.\n- `backoff_jitter`: upper bound.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- `max_retries`: how many times.\n- `backoff_jitter`: upper bound.\n"
+    },
+    {
+      "answer": "- `max_attempts`: total calls.\n"
+    }
+  ]
+}

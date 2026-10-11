@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest -v"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "GIT_EDITOR=true git rebase --continue"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest -v"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rebase --continue"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "GIT_EDITOR=true git rebase --continue"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest -v"
+          }
+        }
+      ],
+      "why": "checks after the commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "GIT_EDITOR=true git rebase --continue"
+          }
+        }
+      ],
+      "why": "no checks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest -v"
+          }
+        }
+      ],
+      "why": "never concluded"
+    }
+  ]
+}

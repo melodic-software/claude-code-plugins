@@ -56,7 +56,7 @@ Skill cannot answer the question. Never hide a gap. Surface it.
 - Required cmdlet or module is missing (e.g., `Get-MpComputerStatus` blocked by policy).
 - Check needs admin and run is non-elevated (do not attempt to elevate, just report and move on).
 - Parsing failure on vendor CLI output.
-- OS is macOS or Linux and implementation is still `NOT_IMPLEMENTED`.
+- OS is macOS or Linux and implementation is still a `not-implemented.md` stub.
 
 ## The trend rule
 

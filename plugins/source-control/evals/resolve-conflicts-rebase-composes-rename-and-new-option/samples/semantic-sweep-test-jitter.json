@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "retry(boom, RetryOptions(max_attempts=2, backoff_jitter=0.5))"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "retry(boom, RetryOptions(max_retries=2, backoff_jitter=0.5))"
+    }
+  ]
+}

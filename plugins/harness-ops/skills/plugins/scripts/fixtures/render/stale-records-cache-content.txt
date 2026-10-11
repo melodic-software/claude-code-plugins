@@ -9,6 +9,9 @@ Stale project records: 3 record(s) across 2 path(s) not present on this machine
   (not counted as divergences: converge cannot cd into a path that is not present. A path can also
    be absent because a volume is unmounted or a share is offline, so this is an observation, not a
    verdict that the directory is gone for good.)
+  2 of these are project-scope. For those left by worktrees removed under the
+  source-control worktree root, /source-control:worktree audit (if installed) classifies them
+  and gives the gated reap; local-scope records and other paths are not that audit's to reap.
 Cache content: 1 user-scope install(s) whose cache files disagree with their recorded gitCommitSha
   - alpha@market1 0.1.0: 4 file(s) differ
   Remediation: remove that version's directory under the plugin cache, then re-run

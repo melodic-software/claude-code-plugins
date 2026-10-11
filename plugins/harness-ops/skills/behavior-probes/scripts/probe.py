@@ -392,6 +392,21 @@ def apply_controls(rows: list[dict], cases: dict[str, dict]) -> None:
 # ---------------------------------------------------------------- runners
 
 
+def bash_argv0() -> str:
+    """Git for Windows bash by full path; a bare `bash` there may be WSL or a Store alias."""
+    if os.name != "nt":
+        return "bash"
+    git = shutil.which("git")
+    for root in Path(git).resolve().parents if git else ():
+        for candidate in (root / "bin" / "bash.exe", root / "usr" / "bin" / "bash.exe"):
+            if candidate.exists():
+                return str(candidate)
+    raise RuntimeError(
+        "Git for Windows bash is required to run scaffolds: no bin/bash.exe or "
+        "usr/bin/bash.exe found above the git on PATH"
+    )
+
+
 def child_env(extra: dict) -> dict:
     env = {name: os.environ[name] for name in ENV_ALLOWLIST if os.environ.get(name)}
     if "HOME" not in env and env.get("USERPROFILE"):
@@ -589,6 +604,10 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
         case_dir = case["dir"]
         scaffold = case_dir / "scaffold.sh"
         if scaffold.is_file():
+            try:
+                bash = bash_argv0()
+            except RuntimeError as exc:
+                return {**row, "verdict": "error", "note": str(exc)}
             env = child_env(
                 {
                     "PROBE_WORKDIR": workdir.as_posix(),
@@ -597,7 +616,7 @@ def run_case(case: dict, runner, keep: bool, live: bool) -> dict:
                 }
             )
             done = subprocess.run(  # noqa: S603 - fixed argv
-                ["bash", str(scaffold)],
+                [bash, scaffold.as_posix()],
                 cwd=workdir,
                 env=env,
                 capture_output=True,

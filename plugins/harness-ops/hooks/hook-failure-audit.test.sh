@@ -8,6 +8,7 @@
 # (a `hook_success` quoting an error in stdout, and a message record quoting a
 # failure record as a string) are the exact traps hit while mining the incident
 # transcripts — see #2577.
+# test-scope: plugins/harness-ops/hooks/hooks.json
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

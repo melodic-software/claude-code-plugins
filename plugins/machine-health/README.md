@@ -7,7 +7,7 @@ dated markdown report per run. Fail-safe posture throughout: surface issues over
 them, and every finding carries reproduction commands.
 
 Windows is fully implemented (19 checks, PowerShell 7.x). macOS and Linux are scaffolded as
-honest `NOT_IMPLEMENTED` stubs. On those hosts the skill reports UNKNOWN and stops rather than
+honest `not-implemented.md` stubs. On those hosts the skill reports UNKNOWN and stops rather than
 pretending coverage.
 
 | Skill | What it does |

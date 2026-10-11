@@ -17,13 +17,13 @@ audit/
 ├── reference/
 │   ├── shared/                    # OS-agnostic semantics (severity, schema, report, discovery, philosophy, overlay)
 │   ├── windows/                   # Windows-specific check catalog + remediation policy
-│   ├── macos/NOT_IMPLEMENTED.md   # porting stub
-│   └── linux/NOT_IMPLEMENTED.md   # porting stub
+│   ├── macos/not-implemented.md   # porting stub
+│   └── linux/not-implemented.md   # porting stub
 ├── evals/                         # evals.json; the skill-quality gate requires it
 ├── scripts/
 │   ├── windows/                   # orchestrator, checks, remediations, lib helpers
-│   ├── macos/NOT_IMPLEMENTED.md   # porting stub
-│   └── linux/NOT_IMPLEMENTED.md   # porting stub
+│   ├── macos/not-implemented.md   # porting stub
+│   └── linux/not-implemented.md   # porting stub
 └── tests/                         # Pester 5.7+ suite (Windows-only) + runner
 ```
 
@@ -73,7 +73,7 @@ environment variable is set). A single check can run in isolation:
 1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `reference/windows/check-catalog.md`, and add the repo's release record for the plugin (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them; see the repo's AGENTS.md).
 2. Machine-local custom check (consumer-side): see `reference/shared/catalog-overlay.md`. Script under the state base, entry in `checks.local.jsonc`, no plugin change.
 3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `reference/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
-4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `reference/shared/discovery-guide.md` for the porting checklist.
+4. New OS: replace the matching `not-implemented.md` with a populated folder. Consult `reference/shared/discovery-guide.md` for the porting checklist.
 
 How the orchestrator applies cross-finding correlation rules after check dispatch: `reference/shared/correlation-rules.md`.
 

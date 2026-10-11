@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "def fetch_orders(session, customer_id, region=None):\n    params = {\"customer\": customer_id}\n    if region:\n        params[\"region\"] = region\n    return session.get(\"/orders\", params=params)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def fetch_orders(session, customer_id, legacy_token=None, region=None):\n    params = {\"customer\": customer_id}\n    if region:\n        params[\"region\"] = region\n    if legacy_token:\n        params[\"token\"] = legacy_token\n"
+    },
+    {
+      "answer": "def fetch_orders(session, customer_id):\n    params = {\"customer\": customer_id}\n"
+    }
+  ]
+}

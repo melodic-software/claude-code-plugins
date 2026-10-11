@@ -1,3 +1,4 @@
+# test-scope: plugins/pixel-art/palettes/*.json
 """Preset resolution and palette snapping."""
 import json
 import pathlib

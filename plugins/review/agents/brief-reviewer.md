@@ -33,6 +33,6 @@ the one that produced the work it checks.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for which tools a definition's `tools` list withholds, see
   [create custom subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
-- **As of:** 2026-10-04.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release, or that section changes how an omitted `tools` entry
   is withheld from a subagent.

@@ -50,7 +50,8 @@ to the provisioning repository.
 | Fallback | Repo-relative `.claude/observability/otel` when unset (development-only) |
 
 Files are gitignored per-developer-local. Content capture (prompts, API bodies) is opt-in via
-`.claude/settings.local.json`. See operator-setup "Privacy consequence".
+each developer's user settings or shell, never a project or local settings file. See
+[operator-setup-emission-privacy.md](operator-setup-emission-privacy.md) "Privacy consequence".
 
 ## Health checks
 

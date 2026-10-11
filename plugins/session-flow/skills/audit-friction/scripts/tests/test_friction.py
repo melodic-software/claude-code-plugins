@@ -1,3 +1,4 @@
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-friction/scripts/tests/fixtures/*
 """Contract tests for friction.py, and for the `friction` block collect.py writes, by subprocess.
 
 Fixture `fixtures/friction/` is synthetic. `proj-f/sess-f1` (interactive, 2026-09-10) holds, in its

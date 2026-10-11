@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "from users import render_user\n\n\ndef signup_report(users):\n    return \"\\n\".join(render_user(u) for u in users)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from users import format_user\n\n\ndef signup_report(users):\n    return \"\\n\".join(format_user(u) for u in users)\n"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

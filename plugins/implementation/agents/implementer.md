@@ -21,8 +21,9 @@ is then your mandated first step, and you discover the path there and return it.
 its absence. What is never optional is one of the two: a brief that names neither an assigned path
 nor provisioning instructions is the omission that STOPs. After provisioning and before your first
 edit, fetch and confirm the branch starts from the intended base (`git -C <path> merge-base HEAD
-<remote>/<default>` equals `<remote>/<default>`, where `<remote>` is the remote provisioning based
-the branch on, not always `origin`); on a mismatch, STOP and report.
+<base>` equals `<base>`, where `<base>` is the base ref the brief names, such as an integration
+branch, else `<remote>/<default>`, and `<remote>` is the remote provisioning based the branch on,
+not always `origin`); on a mismatch, STOP and report.
 
 **The brief is the contract.** Its scope fence (ALLOWED/FORBIDDEN files and actions), its
 divergence-escalation clause, the project invariants it names, its acceptance criteria, its
@@ -61,6 +62,15 @@ unavailable, run the same wait with Bash `run_in_background`.
 - **As of**: 2026-10-09
 - **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
   available.
+
+That `run_in_background` wait passes the background maximum as its `timeout`, and when a stop
+notice ends it while the wait still matters, start it again.
+
+- **Pointer**: when a background wait could run long, fetch
+  <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions it covers, its limits, or its stop
+  notice.
 
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
@@ -123,5 +133,5 @@ brief is scoped, day-to-day engineering work, and the phase verifier that checks
 - **Pointer:** the `medium` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.

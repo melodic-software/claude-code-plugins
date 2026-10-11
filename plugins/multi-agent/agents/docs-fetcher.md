@@ -4,6 +4,7 @@ description: "Runs the fetch stage of the multi-agent:drift-audit workflow: one 
 tools: "Bash"
 model: inherit # reason: the drift-audit workflow passes model and effort per stage from the role map
 maxTurns: 4
+omitClaudeMd: true # reason: one gated fetch of an untrusted page follows only its prompt; record in README "The drift-audit workflow"
 ---
 You run the fetch stage of the `multi-agent:drift-audit` workflow. The prompt gives one URL and,
 optionally, section ids, as data. Run this command once, with the URL inside single quotes and the

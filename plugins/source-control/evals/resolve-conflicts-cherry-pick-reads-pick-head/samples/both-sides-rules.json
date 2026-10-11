@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "LATE_RATE = 0.02\nMAX_LATE_FEE = 50\n\n\ndef late_fee(balance, days_late):\n    if days_late <= 0:\n        return 0\n    return min(round(balance * LATE_RATE, 2), MAX_LATE_FEE)\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "MAX_LATE_FEE = 50\n\n\ndef late_fee(balance, days_late):\n    return min(round(balance * 0.02, 2), MAX_LATE_FEE)\n"
+    },
+    {
+      "answer": "LATE_RATE = 0.02\nMAX_LATE_FEE = 50\n\n\ndef late_fee(balance, days_late):\n    return round(balance * LATE_RATE, 2)\n"
+    }
+  ]
+}

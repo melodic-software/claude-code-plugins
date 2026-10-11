@@ -13,7 +13,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { indexSelectedFrames, readLaneJson } from "../lib/watch-frame-index.js";
-import { parseSessionsFromClaimInventory } from "../lib/watch-slice-sessions.js";
+import {
+  parseSessionsFromClaimInventory,
+  SESSION_FORMAT_HINT,
+} from "../lib/watch-slice-sessions.js";
 import { compareTimesUntimedLast } from "../watching/timestamp-interleave.js";
 
 const MIN_CANDIDATES_PER_SESSION = 3;
@@ -40,6 +43,9 @@ export function listPromotionCandidates(sliceDir) {
     "utf8",
   );
   const sessions = parseSessionsFromClaimInventory(claimBody);
+  if (sessions.length === 0) {
+    throw new Error(`no session parsed from research/claim-inventory.md: ${SESSION_FORMAT_HINT}`);
+  }
   const byFile = indexSelectedFrames(selection);
   const durationSec = selection.durationSec;
 

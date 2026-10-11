@@ -13,7 +13,7 @@ Read when running the update action. The update model, preservation invariants, 
 
 | Invocation | Effect |
 |---|---|
-| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. Prints CLI version delta, upstream SHA delta. **No mutations.** |
+| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `upstream.md`. Prints CLI version delta, upstream SHA delta. **No mutations.** |
 | `/firecrawl:update` | Full update pipeline with two approval gates |
 
 ## Pipeline (full update)
@@ -26,7 +26,7 @@ Read when running the update action. The update model, preservation invariants, 
                    update.sh creates one run directory per invocation with
                    mktemp -d "${TMPDIR:-/tmp}/firecrawl-update-XXXXXX" and removes
                    it on exit, so every intermediate file lives there.
-2. Compare         version delta, upstream SHA vs UPSTREAM.md record
+2. Compare         version delta, upstream SHA vs upstream.md record
 3. Report          one-pane summary — nothing mutated yet
 4. [Gate 1]        prompt to proceed with npm install
 5. Execute npm     npm install -g firecrawl-cli@latest
@@ -39,6 +39,6 @@ Read when running the update action. The update model, preservation invariants, 
                      in ../SKILL.md, if installed (passing the Preservation rules), otherwise
                      inline-edit
                    show proposed SKILL.md diff, prompt to apply
-7. Finalize        update UPSTREAM.md (date, SHA, version, previous-version for rollback)
+7. Finalize        update upstream.md (date, SHA, version, previous-version for rollback)
                    run the repo's markdown + shell linters over the changed files
 ```

@@ -7,7 +7,7 @@ nothing set, each skill runs on the defaults below. The plugin's other `userConf
 ## Layers
 
 Resolved lowest first; a later layer wins
-([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md)
+([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)
 Decision 8):
 
 | Order | Layer | Where |

@@ -77,8 +77,8 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   still falls through to `briefing`. `briefing` and `summary-test-plan` are resolved
   values in the same way: a layer declaring one replaces a lower layer's list or keyword whole.
 - `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
-  to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
-  number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
+  to parse the work-item reference from the branch name; its LAST capture group holds the
+  reference, an issue number or a tracker key such as `SW2-1234`, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first
   non-blank line, surrounding backticks stripped, or, when that line opens a code fence, the first
   non-blank line inside the fence. A plain scalar under per-key override;
   `parse-branch-issue.sh` reads the three layers itself. Every note it prints on stderr names the
@@ -146,7 +146,7 @@ Absent sections are absent, never empty.
 ## YAML keys (`docs/conventions/source-control.yaml`)
 
 A key added to this plugin after the YAML config home
-([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-home-plugin-customization-in-docs-conventions-yaml.md))
+([ADR 0064](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md))
 has no H2 in
 `.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
 repo root, a YAML mapping validated by

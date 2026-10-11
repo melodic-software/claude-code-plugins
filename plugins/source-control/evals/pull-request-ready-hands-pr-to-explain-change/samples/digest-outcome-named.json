@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Flipped PR 512 to ready. Digest: offered (files trigger fired)."},
+    {"answer": "- Change digest: skipped, digest_policy is off"},
+    {"answer": "The digest was built and saved locally."},
+    {"answer": "Digest not available: /review:explain-change does not resolve here."}
+  ],
+  "fail": [
+    {"answer": "Flipped PR 512 to ready for review."},
+    {"answer": "Base merged, reviews clean, verify passed, flipped.", "why": "no digest outcome"}
+  ]
+}

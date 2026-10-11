@@ -46,6 +46,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATES="$SCRIPT_DIR/../templates"
 RESOLVER="$SCRIPT_DIR/../../../scripts/resolve-config.sh"
+ROOT_SCOPES="$SCRIPT_DIR/../../../scripts/root-scopes.jq"
 
 die() {
   printf 'emit-gate: %s\n' "$1" >&2
@@ -136,6 +137,9 @@ REGEX="$(cfg '.file_names.regex')"
 RULE="$(cfg '.file_names.rule')"
 [[ -n "$REGEX" && "$REGEX" != "null" ]] || die "the configuration declares no file_names.regex"
 [[ -n "$RULE" && "$RULE" != "null" ]] || die "the configuration declares no file_names.rule"
+# Both land raw on `#` comment lines of the emitted checker, where a newline
+# would end the comment and run the rest as shell on every CI run.
+[[ "$REGEX$RULE" != *$'\n'* ]] || die "file_names.regex or file_names.rule carries a newline"
 
 # The regex is validated here as well as by `setup check`: emission is the last
 # point at which a rule that cannot compile is still a refusal rather than a
@@ -180,19 +184,51 @@ human() {
   }'
 }
 
-ROOTS_LIST="$(list '.file_names.roots[]')"
-[[ -n "$ROOTS_LIST" ]] || die "the configuration declares no file_names.roots"
+# What each root claims comes from root-scopes.jq, the definition the audit
+# inventory reads too.
+SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\r')" ||
+  die "file_names.roots must hold strings or {path, extensions, exempt_paths} objects"
+[[ "$(printf '%s' "$SCOPES" | jq 'length')" -gt 0 ]] || die "the configuration declares no file_names.roots"
+# An extension lands inside a glob bracket expression and every value is read
+# back one per line, so both shapes are refused here rather than emitted.
+printf '%s' "$SCOPES" | jq -e 'all(.[]; all(.extensions[]; test("^[A-Za-z0-9]+$")))' >/dev/null ||
+  die "a root's extensions may use letters and digits only"
+# git ls-files dies on a pathspec outside the repository, and inside the
+# gate's process substitution that death is invisible to `set -e`: the gate
+# would judge nothing and report a clean tree.
+UNSAFE="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
+[[ -z "$UNSAFE" ]] || die "a root's path or exempt_paths entry $UNSAFE"
+
+# The suite seeds its cases under the first root that takes every extension,
+# else under the first root, with probe names cut to that root's extensions.
+PRIMARY_JSON="$(printf '%s' "$SCOPES" | jq -c '(map(select(.extensions == [])) + .)[0]')"
+PRIMARY_EXTS=" $(printf '%s' "$PRIMARY_JSON" | jq -r '.extensions | map(ascii_downcase) | join(" ")' | tr -d '\r') "
 # Escaped like every other value that lands inside a single-quoted assignment in
 # an emitted file. A root carrying a `'` would otherwise close the quoting and
 # the rest of the value would be read as shell: `bash -n` accepts the result, so
 # the parse gate below would not catch it either.
-PRIMARY_ROOT="$(sq "$(printf '%s\n' "$ROOTS_LIST" | head -1)")"
+PRIMARY_ROOT="$(sq "$(printf '%s' "$PRIMARY_JSON" | jq -r '.path' | tr -d '\r')")"
 
-ROOTS_ARRAY="$(printf '%s\n' "$ROOTS_LIST" | quoted)"
-ROOTS_HUMAN="$(printf '%s\n' "$ROOTS_LIST" | human)"
+# One scope entry per git pathspec a root expands to, and beside each the root's
+# exempt_paths as one `:(glob)` pathspec per line. jq's @sh
+# single-quotes each value the way `quoted` does.
+SCOPE_SPECS_ARRAY="$(printf '%s' "$SCOPES" | jq -r '[.[] | .specs[]] | @sh' | tr -d '\r')"
+SCOPE_EXEMPTS_ARRAY="$(printf '%s' "$SCOPES" |
+  jq -r '[.[] | . as $r | .specs[] | $r.exempt | map(":(glob)" + .) | join("\n")] | @sh' | tr -d '\r')"
+# A root with extensions or exemptions reads as `` `.` (`*.md` files, except
+# under `a`) `` in prose.
+ROOTS_HUMAN="$(printf '%s' "$SCOPES" | jq -r '.[] |
+  "`\(.path)`"
+  + (if .extensions == [] and .exempt == [] then ""
+     else " (" + (if .extensions == [] then "every file" else (.extensions | map("`*.\(ascii_downcase)`") | join(", ")) + " files" end)
+       + (if .exempt == [] then "" else ", except under " + (.exempt | map("`\(.)`") | join(", ")) end) + ")"
+     end)' | tr -d '\r' | awk 'NF {a[++n] = $0} END {
+    for (i = 1; i <= n; i++) s = s (i == 1 ? "" : (i == n ? (n == 2 ? " and " : ", and ") : ", ")) a[i]
+    print s
+  }')"
 # The comma-joined form, for the two places a value lands inside a
 # single-quoted string in the emitted script rather than in an array.
-ROOTS_PLAIN="$(sq "$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s", (n++ ? ", " : ""), $0} END {print ""}')")"
+ROOTS_PLAIN="$(sq "$(printf '%s' "$SCOPES" | jq -r 'map(.label) | join(", ")' | tr -d '\r')")"
 REGEX_SQ="$(sq "$REGEX")"
 RULE_SQ="$(sq "$RULE")"
 EXEMPT_BASENAMES_ARRAY="$(list '.file_names.exempt_basenames[]' | quoted)"
@@ -217,11 +253,25 @@ EXEMPT_PATH_SEEDS_ARRAY="$(list '.file_names.exempt_paths[]' |
 # hardcoded `conforming-name.md` is only conforming under a rule that allows a
 # hyphen, so a consumer with a different regex would receive a suite that fails
 # on its own clean fixture.
+#
+# The stems also take each extension the seeding root is limited to, so a root
+# claiming only `rst` still gets probes it claims.
+probe_names() {
+  local stem ext
+  {
+    printf '%s\n' "$@"
+    for ext in $PRIMARY_EXTS; do
+      for stem in "${@%.*}"; do printf '%s.%s\n' "$stem" "$ext"; done
+    done
+  } | awk '!seen[$0]++'
+}
+
 probe_ok() {
-  for cand in conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt; do
+  for cand in $(probe_names conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt); do
     printf '%s\n' "$cand" | grep -Eq "$REGEX" || continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
+    in_primary_root "$cand" || continue
     printf '%s' "$cand"
     return 0
   done
@@ -238,14 +288,22 @@ EOF
   return 1
 }
 
+# A probe whose extension the seeding root does not claim would be out of scope.
+in_primary_root() {
+  local ext
+  ext="$(printf '%s' "${1##*.}" | tr '[:upper:]' '[:lower:]')"
+  [[ "$PRIMARY_EXTS" == "  " || "$PRIMARY_EXTS" == *" $ext "* ]]
+}
+
 PROBE_OK="$(probe_ok)" ||
   die "no probe name this contract knows passes file_names.regex without being exempt, so the emitted suite would have no clean case; widen the rule or emit by hand"
 
 PROBE_BAD_ARRAY="$(
-  for cand in UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt; do
+  for cand in $(probe_names UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt); do
     printf '%s\n' "$cand" | grep -Eq "$REGEX" && continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
+    in_primary_root "$cand" || continue
     printf '%s\n' "$cand"
   done | quoted
 )"
@@ -253,7 +311,13 @@ PROBE_BAD_ARRAY="$(
   die "no probe name this contract knows is rejected by file_names.regex, so the emitted suite could not prove the rule fires"
 
 # The rule file's `paths:` frontmatter, one glob per root.
-RULE_PATHS="$(printf '%s\n' "$ROOTS_LIST" | awk 'NF {printf "%s%s/**", (n++ ? ", " : ""), $0} END {print ""}')"
+# The suite seeds an exempt extension only where the seeding root claims it;
+# elsewhere the case would pass whether or not the exemption works.
+EXEMPT_EXT_SEEDS_ARRAY="$(list '.file_names.exempt_extensions[]' | while IFS= read -r e; do
+  [[ -n "$e" ]] && in_primary_root "x.$e" && printf '%s\n' "$e"
+done | quoted)"
+
+RULE_PATHS="$(printf '%s' "$SCOPES" | jq -r '[.[].rule_paths[]] | join(", ")' | tr -d '\r')"
 
 # The templates carry `@@SHEBANG@@` rather than a literal `#!`. A tracked file
 # whose first bytes are a shebang is expected to be executable, and a template
@@ -286,7 +350,8 @@ render() {
     GFG_REGEX_SQ="$REGEX_SQ" \
     GFG_RULE="$RULE" \
     GFG_RULE_SQ="$RULE_SQ" \
-    GFG_ROOTS_ARRAY="$ROOTS_ARRAY" \
+    GFG_SCOPE_SPECS_ARRAY="$SCOPE_SPECS_ARRAY" \
+    GFG_SCOPE_EXEMPTS_ARRAY="$SCOPE_EXEMPTS_ARRAY" \
     GFG_ROOTS_HUMAN="$ROOTS_HUMAN" \
     GFG_ROOTS_PLAIN="$ROOTS_PLAIN" \
     GFG_EB_ARRAY="$EXEMPT_BASENAMES_ARRAY" \
@@ -296,6 +361,7 @@ render() {
     GFG_EE_ARRAY="$EXEMPT_EXTENSIONS_ARRAY" \
     GFG_EE_HUMAN="$EXEMPT_EXTENSIONS_HUMAN" \
     GFG_EPS_ARRAY="$EXEMPT_PATH_SEEDS_ARRAY" \
+    GFG_EES_ARRAY="$EXEMPT_EXT_SEEDS_ARRAY" \
     GFG_RULE_PATHS="$RULE_PATHS" \
     GFG_SCRIPT_NAME="$SCRIPT_NAME" \
     GFG_TEST_NAME="$TEST_NAME" \
@@ -308,20 +374,22 @@ render() {
     GFG_SHEBANG="$SHEBANG" \
     awk '
     BEGIN {
-      split("REGEX REGEX_SQ RULE RULE_SQ ROOTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
-            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY " \
+      split("REGEX REGEX_SQ RULE RULE_SQ SCOPE_SPECS_ARRAY SCOPE_EXEMPTS_ARRAY ROOTS_HUMAN ROOTS_PLAIN " \
+            "EB_ARRAY EB_HUMAN EP_ARRAY EP_HUMAN EE_ARRAY EE_HUMAN EPS_ARRAY EES_ARRAY " \
             "RULE_PATHS SCRIPT_NAME TEST_NAME SCRIPT_PATH SCRIPT_STEM ROOT_HOP " \
             "PRIMARY_ROOT PROBE_OK PROBE_BAD_ARRAY SHEBANG", names, " ")
       # The placeholder for each name, and the value straight out of the
       # environment. The two arrays are indexed together.
       map["REGEX"] = "@@REGEX@@";                          map["REGEX_SQ"] = "@@REGEX_SQ@@"
       map["RULE"] = "@@RULE@@";                            map["RULE_SQ"] = "@@RULE_SQ@@"
-      map["ROOTS_ARRAY"] = "@@ROOTS_ARRAY@@";              map["ROOTS_HUMAN"] = "@@ROOTS_HUMAN@@"
+      map["SCOPE_SPECS_ARRAY"] = "@@SCOPE_SPECS_ARRAY@@";  map["SCOPE_EXEMPTS_ARRAY"] = "@@SCOPE_EXEMPTS_ARRAY@@"
+      map["ROOTS_HUMAN"] = "@@ROOTS_HUMAN@@"
       map["ROOTS_PLAIN"] = "@@ROOTS_PLAIN@@"
       map["EB_ARRAY"] = "@@EXEMPT_BASENAMES_ARRAY@@";      map["EB_HUMAN"] = "@@EXEMPT_BASENAMES_HUMAN@@"
       map["EP_ARRAY"] = "@@EXEMPT_PATHS_ARRAY@@";          map["EP_HUMAN"] = "@@EXEMPT_PATHS_HUMAN@@"
       map["EE_ARRAY"] = "@@EXEMPT_EXTENSIONS_ARRAY@@";     map["EE_HUMAN"] = "@@EXEMPT_EXTENSIONS_HUMAN@@"
       map["EPS_ARRAY"] = "@@EXEMPT_PATH_SEEDS_ARRAY@@";    map["RULE_PATHS"] = "@@RULE_PATHS@@"
+      map["EES_ARRAY"] = "@@EXEMPT_EXT_SEEDS_ARRAY@@"
       map["SCRIPT_NAME"] = "@@SCRIPT_NAME@@";              map["TEST_NAME"] = "@@TEST_NAME@@"
       map["SCRIPT_PATH"] = "@@SCRIPT_PATH@@";              map["SCRIPT_STEM"] = "@@SCRIPT_STEM@@"
       map["ROOT_HOP"] = "@@ROOT_HOP@@";                    map["PRIMARY_ROOT"] = "@@PRIMARY_ROOT@@"

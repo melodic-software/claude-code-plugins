@@ -157,16 +157,15 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
   first (`design`, `design-handoff`, `implement`, `implement-dispatch`) so prefix typeahead and
   sorted listings group the family. A standalone skill keeps natural English order (`batch-simplify`, `quality-gate`).
   A structural variant earns a new sibling name; a depth/intensity variant takes an argument, never
-  a sibling. **Execution tier counts as structural when the tier is genuinely not reachable from the
-  base skill's execution path:** `discovery`'s `research-deep` is a sibling because its heaviest tier
-  needs the `Workflow` tool and its multi-topic path needs the `Agent` tool, neither of which a
-  dispatched context can reach, so the tier cannot be selected at runtime by `research` itself. The
-  `-deep` suffix names that isolation tier, not a depth knob on the same execution path; a true effort
-  knob on one execution path still takes an argument.
-  **The converse is equally binding: a tier the base skill CAN reach at runtime does not earn a
-  sibling.** `discovery` retired `explore-deep` for exactly this reason. Once `/discovery:explore`
-  dispatched a named agent by default, the `-deep` variant was a second door onto an execution path
-  the base skill already had, and the test is same-execution-path vs. a genuinely second one.
+  a sibling. **A heavier execution tier is a depth variant whenever the base skill can select it at
+  runtime from its main-context entry,** even when the tier needs tools a dispatched context lacks
+  (the `Workflow` tool, an `Agent` fan-out): the base skill's main-context half chooses the tier
+  before it dispatches, and a dispatched run of the base skill never selects it. So the tier is a
+  `deep` argument or an automatic choice inside the base skill, never a `-deep` sibling. That is
+  why `discovery` folded `explore-deep` into `explore` and `research-deep` into `research`, and why
+  `discipline` folded `do-your-research-deep` and `recheck-against-upstream-deep` into their base
+  skills. Only a tier no entry point of the base skill can reach earns a sibling, and none does
+  today.
 - **A vendor-CLI plugin that decomposes names its skills after the vendor's own CLI verbs.** When a
   tool-scoped plugin splits into multiple skills, it mirrors that CLI's verb vocabulary:
   `/playwright:test` would mirror `npx playwright test`; a firecrawl decomposition would use
@@ -183,7 +182,7 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
 ([skills](https://code.claude.com/docs/en/skills), fetched 2026-07-15; recheck when that page
 changes the plugin-namespace sentence). A shadow-dodge name is never
 *required*. The catalog's historical dodge names (`quality-gate`, `fanout`,
-`batch-simplify`, `research-deep`) stand or evolve on their own merits, not out of collision fear.
+`batch-simplify`) stand or evolve on their own merits, not out of collision fear.
 The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
 (auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
 
@@ -1517,9 +1516,17 @@ claude --plugin-dir ./plugins/<name>
 
 - **Edit, then `/reload-plugins`** to pick up changes without restarting. It reloads skills, agents,
   hooks, and plugin MCP/LSP servers, reading the files on disk, so no commit or reinstall is needed.
-- **Multiple plugins at once.** Repeat the flag: `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`.
+- **Multiple plugins at once.** Pass the plugins folder, `claude --plugin-dir ./plugins`, when you
+  want the whole working tree in the session; repeat the flag for only the plugins you are changing,
+  `claude --plugin-dir ./plugins/<a> --plugin-dir ./plugins/<b>`, when the rest should stay on the
+  installed copies.
   `--plugin-dir` also accepts a `.zip` archive (Claude Code v2.1.128+). See
   [Create plugins](https://code.claude.com/docs/en/plugins/create#from-a-directory-or-zip) "From a directory or `.zip`".
+  - **Pointer**: when choosing between the folder and per-plugin forms, fetch
+    [plugin commands: flags that load a plugin for one session](https://code.claude.com/docs/en/plugins/cli-reference#flags-that-load-a-plugin-for-one-session)
+    live.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: that section changes what a folder of plugins loads.
 - **Session-scoped and non-destructive.** The override lasts only for that session and never edits a
   consumer's `extraKnownMarketplaces`; the published registration stays on its GitHub remote. The lone
   exception: `--plugin-dir` cannot override a plugin that *managed* settings force-enable or

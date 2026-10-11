@@ -28,6 +28,11 @@ Scan the recent conversation for learnings, or, for `reviews`, run "The `reviews
 | Project context | Auto-memory project entry | "Middleware rewrite driven by compliance, not tech debt" |
 | Tool/API discovery | The repo's rules gotcha section | "Flag Z breaks the test runner" |
 
+A finding about instructions, CLI output, or agent docs goes to the owner skill in the Owner skills
+table of `<plugin-root>/skills/retro/reference/ecosystem-improvement-catalog.md`, which also says
+when to propose a check. A mistake a deterministic check could catch takes step 2's route: the
+findings hand-off to `/review:audit-enforceability`, that table's owner for it.
+
 ### 2. Strength: pick the rung before the place
 
 A written instruction depends on someone reading and obeying it; a check holds without either.

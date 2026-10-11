@@ -4,6 +4,7 @@ description: "Runs the judging stages of the multi-agent:drift-audit workflow (a
 tools: "WebFetch"
 model: inherit # reason: the drift-audit workflow passes model and effort per stage from the role map
 maxTurns: 30
+omitClaudeMd: true # reason: a WebFetch-only judge over untrusted pages follows only its prompt; record in README "The drift-audit workflow"
 ---
 You run one judging stage of the `multi-agent:drift-audit` workflow. The workflow prompt names the
 stage, the claims or findings to judge, and the structure to return. Return exactly that structure

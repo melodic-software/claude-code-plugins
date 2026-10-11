@@ -62,7 +62,7 @@ Apply this template when:
 - Issue is intended for AFK agent execution (`/schedule`, `/loop`, Codex)
 - Issue body is vague and needs structuring for autonomous execution
 
-The brief can be the issue body itself or a comment; a comment starts with the `## Agent Brief` heading, which is how agents find it. A slice `/work-items:decompose` publishes already carries these fields as body sections (Outcome, Key interfaces, Done when, Out of scope) and needs no separate `## Agent Brief` block.
+The brief can be the issue body itself or a comment; a comment starts with the `## Agent Brief` heading, which is how agents find it. An item `/work-items:decompose` publishes already carries these fields as body sections (Outcome, Key interfaces, Done when, Out of scope) and needs no separate `## Agent Brief` block.
 
 ### Key interfaces from a design
 
@@ -83,7 +83,7 @@ In this variant the brief describes the work still owed on the attached change, 
 |-----|-----|-----|
 | File paths in key interfaces | Go stale within days | Name types and functions instead |
 | "Fix the bug" acceptance criteria | Not verifiable | "Running X produces Y" |
-| No out-of-scope section | Agent gold-plates | List 2-3 explicit boundaries |
+| No out-of-scope section | Agent does more than the job needs | List 2-3 explicit boundaries |
 | Procedural steps ("open file, add line") | Agent makes different implementation choices | Describe desired behavior |
 | Implementation-specific ("use a HashMap") | Constrains agent unnecessarily | Describe the requirement the data structure must satisfy |
 | Restarting a PR from a blank implementation | Ignores attached code | Finish what exists; current-behavior-of-the-diff |

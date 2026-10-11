@@ -30,7 +30,7 @@ and an explicit yes.
 |---|---|---|
 | `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable`, `best` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
-| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.research.effort: low`, `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer) |
+| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer); a layer may set others, for example `worker.workloads.mechanical.effort: low` |
 | `frontier` | comma-separated aliases treated as frontier | `fable,best` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
@@ -38,12 +38,22 @@ and an explicit yes.
 Roles are `orchestrator`, `worker`, `verifier` and `retrieval`. A layer naming
 another role, workload or key is reported and ignored. A full model id
 (`claude-opus-5-5`) is rejected, so a role map stays portable across providers.
+Whether a role may name `haiku` is decided in
+[`routing-rubric.md`](routing-rubric.md); the resolver accepts it and adds a
+note.
 `inherit` means the calling workflow omits `opts.model`. For what an alias
 resolves to per provider, see
 [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases);
 for the model an agent with no `model` runs on, see
 [workflows: cost](https://code.claude.com/docs/en/workflows#cost). Both as of
 2026-10-02; recheck when either section changes.
+
+The `effort` values are the full set this resolver accepts; which of them a
+spawn can use depends on the model it runs on. For each model's supported
+levels, see
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
+as of 2026-10-10; recheck when that section changes the levels or which models
+support them.
 
 `pointer*`, `as_of` and `recheck` record where each bundled default's basis
 lives. They are read from the bundled layer only, by
@@ -64,19 +74,18 @@ as of 2026-10-04; recheck when that section changes its model split.
 ## Where effort applies
 
 Role effort reaches workflow `agent()` calls, which pass `opts.effort`
-explicitly. An Agent tool dispatch has no effort parameter: it runs at the
-dispatched agent's `effort` frontmatter, or at the session's level when the
-agent sets none. route reads no settings file, so the effort it prints is the
-level a caller asks for, before any cap. A loop lane's level is its own
-`lanes[].effort`, not the `orchestrator` role.
+explicitly, and Agent tool dispatches with no named type, which pass it as the
+per-spawn `effort` parameter (route's Output section). A named agent runs at
+its `effort` frontmatter unless its dispatcher passes `effort` on the call, or
+at the session's level when it sets none. route reads no settings file, so the
+effort it prints is the level a caller asks for, before any cap. A loop lane's
+level is its own `lanes[].effort`, not the `orchestrator` role.
 
-- Pointer: [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-  (`effort` overrides the session level; with none set, the subagent inherits
-  it). The same page lists a per-invocation `model` parameter for a subagent
-  spawn and no `effort` parameter.
-- As of: 2026-10-04
-- Recheck: the page adds a per-invocation effort parameter, or changes what an
-  unset `effort` field inherits.
+- Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
+  and [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+- As of: 2026-10-10
+- Recheck: either section changes which source wins for a subagent's effort,
+  or what an unset `effort` field inherits.
 
 ## Hard cap
 

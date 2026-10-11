@@ -139,7 +139,7 @@ if [[ "$want_entry" -eq 1 ]]; then
     section "Effective set"
     # The merge re-emits the inventory it was given; the section above already
     # printed that, so show only what the merge itself decided.
-    printf '%s\n' "$merged" | grep -E '^(CAVEAT:|effective |inert |merge summary)' || true
+    printf '%s\n' "$merged" | grep -E '^(CAVEAT:|effective |inert |carveout |merge summary)' || true
   else
     rc=$?
     echo "ERROR: the merge stage failed (exit $rc)." >&2

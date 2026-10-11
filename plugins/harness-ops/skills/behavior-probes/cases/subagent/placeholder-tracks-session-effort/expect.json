@@ -1,0 +1,22 @@
+{
+  "claim": "Instrument check: a subagent with no effort pin, spawned with no effort parameter, runs at the session effort set by the effortLevel setting (low). Read from the PreToolUse hook payload's effort.level, which the subagent's cat of effort.log returns.",
+  "tags": [
+    "effort",
+    "subagent",
+    "Agent tool",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "effortLevel"
+  ],
+  "permission_mode": "auto",
+  "max_turns": 8,
+  "target": {
+    "tool": "Bash",
+    "input_match": "cat .*effort\\.log",
+    "in_subagent": true,
+    "example": {
+      "command": "cat /tmp/cc-probe-x/effort.log"
+    }
+  },
+  "outcome": "ran",
+  "match": "tool=Bash effort=low"
+}

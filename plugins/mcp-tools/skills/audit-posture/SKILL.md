@@ -99,7 +99,8 @@ P1-P5 criterion reads it.
 Load [reference/checklist.md](reference/checklist.md) and evaluate each row whose `effective` is
 `yes` or `approval-unknown` (a project server whose approval sits in settings the script does not
 read; qualify its findings "if approved"). Rows that are shadowed, suppressed by managed config,
-disabled, or `rejected-by-client` appear in the inventory but are not scored. A
+disabled, `rejected-by-client`, or `skipped-by-client` (a `"type": "sdk"` entry, treated as dead
+config per the checklist's SDK entries record) appear in the inventory but are not scored. A
 `shadowed-by:project-if-approved` user row runs only if its project twin is not approved: score
 it and say so.
 

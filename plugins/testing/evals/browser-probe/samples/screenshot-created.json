@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ["pinned-shot.png"],
+      "why": "workspace-relative path"
+    },
+    {
+      "answer": [".playwright-cli/page-1.yml", "/tmp/w/default-shot.png"],
+      "why": "absolute path among other created files"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": [".playwright-cli/page-1.yml", "page-2026-10-10.png"],
+      "why": "a screenshot under another name"
+    }
+  ]
+}

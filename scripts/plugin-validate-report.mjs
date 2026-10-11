@@ -9,6 +9,14 @@
 // (https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate):
 // success, strict, target, manifest (or null), contents[] of {file, errors,
 // warnings, notes}. Each finding is {path, message, code}.
+//
+// We print a per-file gatingHooks item whose hasCatch is false as a warning
+// row, so a mod hook that can refuse an action and has no .catch shows up in
+// the validate output without failing it. Any other item prints nothing.
+// - Pointer: when the gatingHooks item shape matters, fetch
+//   https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate live.
+// - As of: 2026-10-10
+// - Recheck trigger: that section renames gatingHooks or its hasCatch field.
 
 import { readFileSync } from "node:fs";
 
@@ -58,6 +66,23 @@ function emit(label, bucket) {
           : JSON.stringify(item);
       process.stdout.write(`${label}\t${file}\t${kind}\t${path}${message}\n`);
     }
+  }
+  const gating = bucket.gatingHooks;
+  if (gating === undefined) return;
+  if (!Array.isArray(gating)) {
+    process.stderr.write(
+      `plugin-validate-report: ${file} gatingHooks is not an array\n`,
+    );
+    process.exitCode = 2;
+    return;
+  }
+  for (const item of gating) {
+    if (item?.hasCatch !== false) continue;
+    const where = typeof item.module === "string" ? `${item.module} ` : "";
+    const hook = typeof item.hook === "string" ? item.hook : "(unnamed hook)";
+    process.stdout.write(
+      `${label}\t${file}\twarnings\t${where}gating hook without .catch: ${hook}\n`,
+    );
   }
 }
 

@@ -3,6 +3,7 @@
 # pwsh stubs: with node absent each prints one fixed line and exits 1; with node
 # present each hands its arguments and exit code to prerequisites.mjs.
 # scripts/run-outside-node-suites.sh treats a sibling .test.sh as the runner.
+# test-scope: plugins/*/prerequisites.json plugins/*/.claude-plugin/plugin.json
 set -uo pipefail
 
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -4,6 +4,14 @@ The staged development workflow, including its optional and conditional stages. 
 repo defines a skill for a stage, invoke it; otherwise execute the stage inline per its definition
 here. A conditional stage runs only when its trigger holds; otherwise it is skipped and marked SKIPPED, with the reason, on its checklist box.
 
+These definitions govern the full path. A change whose diff is quick to review and cheap to retry
+takes the quick-change on-ramp (SKILL.md "On-ramps") instead: it enters at stage 8, where reading
+the code it needs is part of implement, and returns to stage 4 if its diff turns out not to be
+quick to review. A diff that adds types, public contracts, or module boundaries is not cheap to
+retry and takes the full path. New work whose diff fails either test enters at stage 4 (after
+stage 3 when the PRD trigger holds): the interview runs first, and stages 1-2 run as detours it
+triggers.
+
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
 advice, pick the level whose described use fits that kind of work, and name both the level and
@@ -41,7 +49,8 @@ External verification of technical claims: official docs, primary sources, curre
   the plan
 
 Discover (stages 1-2) and shape (stages 3-4) interleave: a contract locked first gives explore and
-research their scope, and either may run again after it.
+research their scope, and either may run again after it. The numbering is the ladder's order, not
+the entry point.
 
 ## 3. PRD (conditional: lock product intent)
 
@@ -51,8 +60,9 @@ contract aims at an agreed outcome.
 - Trigger conditions: the change is user-facing AND business-driven AND alignment across people
   matters (a new user-facing surface, a cross-team initiative)
 - Skip conditions: engineering-internal work (refactors, infrastructure, conventions, bug fixes)
-- Before it, a too-big and still-foggy effort is charted into decisions first, and a rough problem
-  is diverged into candidate approaches; both are optional
+- Before it, a rough problem may be diverged into candidate approaches. A too-big and still-foggy
+  effort is charted into decisions only after an interview outgrows one session, and the chart
+  can graduate here
 - **Effort:** settling product intent with the human, one open question at a time
 
 ## 4. Contract (optional: lock the brief before building)
@@ -61,9 +71,10 @@ Drive fuzzy intent to a zero-ambiguity contract before behavior-changing work: g
 acceptance criteria, captured assumptions. Persist it (a plan file in the repo's artifact location)
 so later stages aim at an explicit target instead of inferring one mid-task.
 
-- Trigger conditions: intent is fuzzy, scope is uncalibrated, or the work changes behavior,
-  structure, or contracts
-- Skip conditions: one-line bug fixes, or follow-ups where the contract IS the conversation
+- Trigger conditions: intent is fuzzy, scope is uncalibrated, or, on the full path, the work
+  changes behavior, structure, or contracts
+- Skip conditions: a change whose diff is quick to review and cheap to retry (the quick-change
+  on-ramp), or follow-ups where the contract IS the conversation
 - Front-loads clarification cost in one round-trip; ask the questions the design turns on one at a
   time, highest architectural blast radius first
 - **Effort:** scoping in question rounds the human answers one at a time
@@ -79,7 +90,7 @@ design section, which is how they reach the implementer.
   cross-module, or data-model change. Two to five files with one new type is light design
 - Skip conditions: a single-file bug fix, a config or doc change, a rename, a pure test addition.
   The skip is recorded as a one-line early exit with its reason, not left implicit, so the plan
-  stage can see it. Size alone never skips it
+  stage can see it. On the full path, size alone never skips it
 - Domain modeling, prototypes, and architecture surveys feed it; a decision that is hard to
   reverse, surprising without context, and the result of a real trade-off is recorded as an
   architecture decision before planning

@@ -377,7 +377,8 @@ duplication against either is a real redundancy for that layer.
 
 ### R2: Path Scoping Fit [INFO]
 
-**What**: Should this rule carry `paths:` frontmatter so it loads only when matching files are read?
+**What**: Should this rule carry `paths:` frontmatter so it loads only when Claude works with a matching file (read or write; trigger list per
+official-guidance.md, "Path scoping status")?
 
 **How to check**: If the rule applies only to specific file types or directories but has no `paths:`
 frontmatter, note it as a path-scoping candidate: an always-loaded rule costs context every session.

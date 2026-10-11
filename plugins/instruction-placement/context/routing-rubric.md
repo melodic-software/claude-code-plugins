@@ -56,7 +56,7 @@ absent at the moment it was needed, not how the sentence is worded.
   inlines at session start and defeats the scoping, producing a move that reads as a saving and is
   not one.
 
-When a hard-deny candidate is genuinely bloating an always-loaded file, the honest remedy is
+When a hard-deny candidate is genuinely bloating an always-loaded file, the remedy is
 compression in place, not relocation: tighten the wording, cut what is derivable. Say that rather
 than proposing nothing.
 
@@ -195,8 +195,8 @@ incomplete, and the operator cannot gate what they cannot see.
 
 State, for each candidate: the destination and its trigger; roughly what leaves the always-loaded
 budget; that the content is not inherited by a subagent and announces itself nowhere, so it arrives
-only once some context reads a covered path or reaches it through the index; and, for path-scoped
-destinations, that it returns after compaction only when a matching file is read again.
+only once Claude works with a covered path in some context or reaches it through the index; and,
+for path-scoped destinations, that it returns after compaction only when its trigger fires again.
 
 ## What this rubric does not decide
 

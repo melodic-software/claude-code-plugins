@@ -291,6 +291,7 @@ BASE_REF_ALLOW=(
   "check-changelog-parity.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "check-changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "dependabot-plugin-bump.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
+  "changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
 )
 
 # Prints the rev-parse lines under <scripts-dir> that peel to a commit or use
@@ -320,7 +321,8 @@ stale_base_ref_allow() {
   for entry in "${BASE_REF_ALLOW[@]}"; do
     file="${entry%%|*}"
     sub="$(cut -d'|' -f2 <<<"$entry")"
-    grep -qF -- "$sub" "$dir/$file" 2>/dev/null || printf '%s\n' "$entry"
+    # An entry names a file under scripts/ or scripts/lib/, as the scan reads both.
+    grep -qF -- "$sub" "$dir/$file" "$dir/lib/$file" 2>/dev/null || printf '%s\n' "$entry"
   done
 }
 

@@ -151,7 +151,7 @@ Do not run `firecrawl init --all --browser`. That command installs the `firecraw
 
 The CLI ships new versions roughly weekly; the upstream canonical skill at `https://www.firecrawl.dev/agent-onboarding/SKILL.md` evolves alongside it. This skill **owns** its content. Upstream is a *source*, not a parallel install.
 
-Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `UPSTREAM.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout. Consumers receive updates through `/plugin marketplace update`.
+Keeping in sync is a **maintainer-facing** concern, split into its own sibling skill: `/firecrawl:update` (`--check` for a read-only drift report, bare for the full gated update). It tracks the `firecrawl-cli` npm release and the upstream `SKILL.md` source via the sidecar `upstream.md`, integrates upstream changes behind two approval gates, and preserves this skill's invariants (see its Preservation rules). Run it only in a working-tree checkout. Consumers receive updates through `/plugin marketplace update`.
 
 ## Gotchas
 

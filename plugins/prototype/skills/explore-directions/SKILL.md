@@ -194,6 +194,8 @@ agree on the three structural "must differ" rows, they are one design shown twic
 different their colors or wording; structure comes first and the visual direction sits on top. Rewrite one of the
 pair under an explicit ban, such as "no table".
 
+On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The HTML mockup has no project styling to defer to, so write its CSS here from each variant's declared direction.
+
 ### 3. Build the switcher
 
 Add one switcher component to the page at that route, using the framework's own routing and the

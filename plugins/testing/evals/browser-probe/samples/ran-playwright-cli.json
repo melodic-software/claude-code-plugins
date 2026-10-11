@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "/tmp/w/probe/commands.txt"}},
+        {"tool": "Bash", "input": {"command": "playwright-cli --version", "description": "Print the CLI version"}}
+      ],
+      "why": "first step run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/w/probe/commands.txt"}}],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "npx playwright-cli --version"}}],
+      "why": "a different command than the step"
+    }
+  ]
+}

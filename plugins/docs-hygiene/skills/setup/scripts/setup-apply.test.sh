@@ -146,7 +146,7 @@ for extra in 'verbosity: high' 'stray:'; do
   expect "apply beside '$extra' warns once" test "$(grep -c 'WARN.*is not in the schema' <<<"$OUT")" -eq 1
 done
 
-# --check names the effective repository value per key (ADR 0060 Decision 7):
+# --check names the effective repository value per key (ADR 0064 Decision 7):
 # an invalid value drops this layer for its key, which then resolves to the
 # schema default, keep, never to the lower userConfig layer; a key the schema
 # does not list is reported and leaves the valid key in force, as

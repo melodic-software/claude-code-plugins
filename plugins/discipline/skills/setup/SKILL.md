@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research-deep's verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
+description: "Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research's fan-out verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -17,9 +17,9 @@ Lever scope: `${user_config.lever_scope}`
 
 Report discipline's effective configuration and write its one repository file. The
 plugin's personal options are native `userConfig`: three `sweep-all` batch-overlay
-options (`batch_exclude` / `batch_promote` / `batch_demote`),
-`do-your-research-deep`'s verification-depth default (`research_deep_verification`)
-and `lever_scope`. Claude Code prompts for them when the plugin is enabled, stores
+options (`batch_exclude` / `batch_promote` / `batch_demote`), the verification-depth
+default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
+`lever_scope`. Claude Code prompts for them when the plugin is enabled, stores
 non-sensitive options in user settings, and ignores `pluginConfigs` entries in project
 and local settings on current releases (>= 2.1.207).
 
@@ -62,13 +62,13 @@ Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#u
      core, unknown is ignored. Do not report these as successful promotes.
    - a `batch_demote` naming an already-situational corrector, a no-op; INFO.
 5. **Report the deep-research verification depth.** `research_deep_verification` sets
-   `do-your-research-deep`'s default depth. Report the effective value: `tiered`
+   the default depth of `do-your-research`'s fan-out tier. Report the effective value: `tiered`
    (fan subagents out only over load-bearing items) or `full` (subagent-verify every
    item). An unset value, a surviving literal placeholder, OR any unrecognized string
    (not exactly `tiered` or `full`) all resolve to the `tiered` default. Report an
    unrecognized value as a WARN (typo; remediation: fix it via the plugin
    configuration prompt) that still falls back to tiered, never a hard failure. Note
-   that an invocation argument to `do-your-research-deep` overrides this default per
+   that an invocation argument to `do-your-research` (`tiered` or `full`) overrides this default per
    invocation.
 6. **Report `lever_scope`.** Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check`
    from the project root and report each line it prints with its own INFO, PASS or
