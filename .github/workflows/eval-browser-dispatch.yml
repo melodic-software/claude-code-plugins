@@ -43,6 +43,11 @@ on:
         required: true
         type: string
         default: Bash(playwright-cli *)
+      debug-errors:
+        description: Print short Bash error excerpts from each eval trace to the PUBLIC job log.
+        required: false
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -185,6 +190,7 @@ jobs:
           RUNS: ${{ inputs.runs }}
           ALLOW_TOOLS: ${{ inputs.allow-tools }}
           OUT: ${{ runner.temp }}/eval-results
+          DEBUG_ERRORS: ${{ inputs.debug-errors }}
         run: |
           case "$TARGET" in
             '' | -*) echo "::error::target must be a path"; exit 1 ;;
@@ -217,7 +223,55 @@ jobs:
           if [ "${#tags[@]}" -gt 0 ]; then
             args+=(--tag "${tags[@]}")
           fi
+          # Without --keep-temp each run's directory, trace.jsonl included,
+          # is deleted when the run ends. It stays on the runner, outside $OUT.
+          if [ "$DEBUG_ERRORS" = true ]; then
+            args+=(--keep-temp)
+          fi
           claude plugin eval "${args[@]}"
+
+      # Opt-in because the job log of this public repository is public. Prints,
+      # per run, at most 20 Bash calls whose tool_result has is_error true: the
+      # command and the result text, each cut to 300 characters and JSON-quoted
+      # onto one line. Nothing else from the trace is printed. Trace text is
+      # tool output, so workflow commands are off while it prints.
+      - name: Print Bash error excerpts
+        if: always() && inputs.debug-errors
+        env:
+          RESULTS: ${{ runner.temp }}/eval-results/results.json
+        run: |
+          if [ ! -f "$RESULTS" ]; then
+            echo "no results.json, so no traces to read"
+            exit 0
+          fi
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          jq -r '.cases[] as $c | $c.arms | to_entries[] | .key as $arm
+            | .value | to_entries[]
+            | [($c.name // $c.dir // "case"), $arm, (.key + 1 | tostring), (.value.tracePath // "")]
+            | @tsv' "$RESULTS" |
+            while IFS=$'\t' read -r name arm run trace; do
+              echo "== $name, $arm arm, run $run"
+              if [ ! -f "$trace" ]; then
+                echo "   trace not found"
+                continue
+              fi
+              jq -nrR '
+                [inputs | fromjson? | objects] as $m
+                | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
+                    | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
+                    | {key: .id, value: (.input.command // "" | tostring)}] | from_entries) as $bash
+                | [$m[] | select(.type == "user") | .message.content[]? | objects
+                    | select(.type == "tool_result" and .is_error == true)
+                    | (.tool_use_id // "" | tostring) as $id
+                    | select($bash | has($id))
+                    | {cmd: $bash[$id],
+                       out: (.content | if type == "array" then map(.text? // "" | tostring) | join("\n") else tostring end)}]
+                | "   \(length) Bash error(s), showing up to 20",
+                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out[:300] | tojson)")
+              ' "$trace" || echo "   could not read the trace"
+            done
+          echo "::$token::"
 
       - name: Upload the eval results
         if: always()
