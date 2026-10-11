@@ -515,7 +515,7 @@ agent ID to resume. A caller passes it a thoroughness level (`quick`, `medium`, 
 for preloading and resume, see
 [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
 and [subagents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
-*Why the plugin cares.* Each denial removes one load-bearing piece of the dispatch contract, which
+*Why the plugin cares.* Each denial removes one required piece of the dispatch contract, which
 is why built-in Explore is a scout under a worker and never the worker: no `Write` means no
 artifact set for the acceptance gate to grade, no preload means no discipline to fire the liveness
 token against, no CLAUDE.md means the project's own conventions never reach it, and no agent ID
@@ -766,7 +766,7 @@ legs:
 - **Recheck trigger**: either section changes where plugin variables substitute or how long an
   `allowed-tools` grant lasts.
 
-So the honest statement is the one the rest of this plugin already makes about un-run checks:
+So the rule is the one the rest of this plugin already makes about un-run checks:
 
 > **A gate that could not run is a FAIL, never a skip.** If the invocation is denied, prompts and is
 > declined, or errors out, report that and halt exactly as on a non-zero exit. Do not substitute a

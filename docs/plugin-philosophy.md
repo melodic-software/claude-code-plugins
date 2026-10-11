@@ -884,7 +884,7 @@ platform boundary. Consequently:
 - never assume Bash, `jq`, executable bits, symlinks, a package manager, or a browser is present;
 - state a shell requirement and provide the supported Windows path when a shell script is unavoidable;
 - keep tracked filenames, encoding, and generated output portable; and
-- verify OS-sensitive changes on each supported platform, or record an honest manual-verification gap.
+- verify OS-sensitive changes on each supported platform, or record the manual-verification gap.
 
 Optional platform integrations must degrade visibly and preserve the portable core result.
 
@@ -973,7 +973,7 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
   deletion round proves itself safe.
 - **The durable tier is exempt.** Deterministic policy hooks (gates that enforce team or safety
   policy regardless of model capability) and team conventions checked into git are the officially
-  carved-out durable instruction tiers. Classify a hook honestly before keeping it: a hook that
+  carved-out durable instruction tiers. Classify a hook before keeping it: a hook that
   enforces policy survives ablation; a hook that corrects model behavior is an ablation candidate
   like any prose instruction.
 
