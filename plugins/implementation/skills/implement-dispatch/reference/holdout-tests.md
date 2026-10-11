@@ -20,8 +20,8 @@ an unattended run, a phase whose acceptance criteria are executable, a behavior 
 special-case.
 
 - **Pointer**: the test-writer split in
-  [best practices](https://code.claude.com/docs/en/best-practices), the verification section.
-- **As of**: 2026-10-06.
+  [best practices: run multiple Claude sessions](https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions).
+- **As of**: 2026-10-11.
 - **Recheck trigger**: that page drops or reframes the separate test writer, or a second study
   measures hidden tests' effect on legitimate performance.
 
@@ -58,14 +58,16 @@ special-case.
    `Edit(//<memory-slice root>/**)`, through `--disallowedTools` or a `--settings` file outside the
    worker's worktree. The root, not the holdout path, keeps the rule from pointing at the tests. A
    worker dispatched as a subagent of the orchestrator's session gets no such rule: a session-wide
-   deny would also stop the orchestrator, which reads and writes the slice, and a subagent's
-   `disallowedTools` removes a whole tool rather than one path. The rules stop Claude's file tools
+   deny would also stop the orchestrator, which reads and writes the slice, and a subagent
+   definition's tool restriction cannot scope a deny to one path. The rules stop Claude's file tools
    and the shell file commands Claude Code recognizes, not a script that reads or writes files
    itself (`python -c`, `node -e`), so the hash recheck in step 4 stays the gate.
 
    - **Pointer**: [Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit) in
-     the permissions page, for the path syntax and what a deny does not cover.
-   - **As of**: 2026-10-10.
+     the permissions page, for the path syntax and what a deny does not cover;
+     [sub-agents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools), for
+     what a subagent's `disallowedTools` entry removes.
+   - **As of**: 2026-10-11.
    - **Recheck trigger**: that section changes `//` path anchoring or starts covering files a
      script opens itself, or subagent definitions gain path-scoped deny rules.
 4. **Hand them to the verifier in a throwaway worktree.** At the phase boundary the orchestrator

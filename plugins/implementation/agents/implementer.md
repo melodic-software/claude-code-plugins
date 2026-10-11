@@ -125,13 +125,17 @@ this binding (see `/implementation:implement-dispatch` Dispatch cadence step 2).
 The same holds for a Workflow script this repository ships: an `agent()` call naming this agent
 never passes `effort` or `model` below this binding, and omits both to keep it.
 
-`effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
-orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
-implementation too. The binding is `medium`, the model-config row the pointer below names: a phase
-brief is scoped, day-to-day engineering work, and the phase verifier that checks it runs at `high`.
+`effort` is bound alongside it for the same reason: an orchestrator that lowered effort for its own
+bookkeeping must never lower it for the phase implementation too. The binding is `medium`, the
+model-config row the pointer below names: a phase brief is scoped, day-to-day engineering work, and
+the phase verifier that checks it runs at `high`.
 
 - **Pointer:** the `medium` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
-  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
-- **As of:** 2026-10-10.
-- **Recheck trigger:** next model release.
+  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task);
+  what effort a subagent runs at without the pin, in the `effort` row of
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  and in [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
+  what a subagent's effort follows.
