@@ -55,7 +55,8 @@ with no per-plugin subfolder.
 - Keys a plugin declares team-only (`routing` for `user-interface`) are accepted in layer 4 alone
   and rejected in layers 2, 3 and 5, because a personal routing override would change which skill a
   whole team's agents reach for without review.
-- Every resolved value carries the layer that supplied it.
+- Every resolved value carries its provenance: the layer that supplied it, or for a `*.disable`
+  list every layer that contributed to the union, in layer order.
 - Prose from layers 3, 4 and 5 is concatenated in that order.
 - A design system detected in the project outranks every configured default.
 
