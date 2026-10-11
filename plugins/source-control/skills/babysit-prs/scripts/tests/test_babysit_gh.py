@@ -469,6 +469,15 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
     def test_the_pinned_operation_refusal_is_recognized(self) -> None:
         self.assertTrue(gh.is_graphql_unavailable(GRAPHQL_403))
 
+    def test_the_graphql_refusal_prefix_is_recognized_without_a_status(self) -> None:
+        # Prefix from cloud-environments#github-proxy, "GraphQL restrictions".
+        message = (
+            "gh api graphql failed: GitHub GraphQL is not available from "
+            "Claude Code sessions; use gh api repos/{owner}/{repo}/... instead"
+        )
+        self.assertIsNone(gh.gh_http_status(message))
+        self.assertTrue(gh.is_graphql_unavailable(RuntimeError(message)))
+
     def test_a_bare_403_is_recognized(self) -> None:
         self.assertTrue(
             gh.is_graphql_unavailable(RuntimeError("gh: Forbidden (HTTP 403)"))

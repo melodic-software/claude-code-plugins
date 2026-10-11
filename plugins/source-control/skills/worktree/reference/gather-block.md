@@ -29,7 +29,7 @@ calls, one command per call, where each is screened on its own.
   continuous integration stays green.
 
 **Verified.** The composition half, 2026-09-06, against Claude Code 2.1.263 and the skills page.
-The isolation half, 2026-09-28, against the worktrees page named above.
+The isolation half, 2026-10-11, against the worktrees section named above.
 
 **Recheck trigger.** Any of these: the skills page gains or loses a statement about how a block's
 commands are submitted to the shell; the worktrees page drops the command-shape check or stops

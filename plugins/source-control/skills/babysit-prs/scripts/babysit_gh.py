@@ -113,9 +113,9 @@ GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 # through a proxy that refuses GraphQL requests with HTTP 403, whatever the
 # credential. The refusal reads like an expired token or a missing scope and is
 # neither: re-authenticating never clears it, and the only remedy is to source
-# the same fact over REST. The markers are casefolded refusal wordings: an
-# earlier one, kept for proxies still sending it, and the prefix the section
-# below documents now.
+# the same fact over REST. The markers are casefolded refusal wordings from the
+# section below: the first is its repository-scope refusal, the second its
+# GraphQL refusal prefix.
 #   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops rejecting GraphQL outright, or changes
@@ -159,10 +159,11 @@ def gh_http_status(text: str) -> int | None:
 def is_graphql_unavailable(failure: BaseException | str) -> bool:
     """Whether a failed GraphQL-backed `gh` call was refused the API itself.
 
-    Two signals, either sufficient: the pinned-operation refusal text, and a
-    PARSED 403 status. Applied ONLY to GraphQL-backed calls, where both
-    readings lead somewhere safe -- a REST re-source that either answers or
-    fails loudly on its own, or a fail-closed verdict.
+    Two signals, either sufficient: a refusal wording from
+    `GRAPHQL_UNAVAILABLE_MARKERS`, and a PARSED 403 status. Applied ONLY to
+    GraphQL-backed calls, where both readings lead somewhere safe -- a REST
+    re-source that either answers or fails loudly on its own, or a
+    fail-closed verdict.
 
     Neither signal may be a bare substring scan of the failure text. That text
     is `run_command`'s, which embeds the whole argv, and every GraphQL call
