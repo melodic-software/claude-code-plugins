@@ -26,6 +26,14 @@
 #   - ruff:                scripts/run-ruff.sh check on changed .py
 #   - tests (--tests):     scripts/affected-tests.sh --run --base <base>
 #
+# Code runs from the tree holding this script; the files checked are those of
+# the current directory's repository. The pre-push hook runs a merge-base copy
+# of this script against a branch, so the two differ: then every check script
+# runs from the copy with CHECK_DATA_ROOT naming the branch tree, markdownlint
+# reads only the copy's configs (a branch config can load a custom rule, which
+# is code), and checks that run the branch's own code skip: --tests, and the
+# validate-plugins steps that report `SKIP` themselves.
+#
 # CI is still the gate that decides: this covers the diff-scoped LINT tier, not
 # CI's whole-repo scanners, and it does not widen shellcheck to the files that
 # source a changed library the way CI's lint-shell job does.
@@ -60,11 +68,17 @@ while (($#)); do
   shift
 done
 
+tools="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || exit 2
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "check-affected: not inside a git work tree" >&2
   exit 2
 fi
 cd "$(git rev-parse --show-toplevel)" || exit 2
+foreign=0
+if [[ "$(pwd -P)" != "$tools" ]]; then
+  foreign=1
+  export CHECK_DATA_ROOT="$PWD"
+fi
 
 declare -a passed=() skipped=() failed=()
 out="$(mktemp)" || exit 2
@@ -78,6 +92,11 @@ run_check() {
   local name="$1" repro="$2" rc=0
   shift 2
   "$@" >"$out" 2>&1 || rc=$?
+  # A check that skips part of itself says so on a `SKIP <part> (<why>)` line.
+  local line
+  while IFS= read -r line; do
+    skip "$name: ${line#SKIP }" "reported by the check"
+  done < <(grep '^SKIP ' "$out")
   case "$rc" in
   0) passed+=("$name") ;;
   2 | 127) skip "$name" "could not run, exit $rc: $(tail -n 1 "$out")" ;;
@@ -142,6 +161,22 @@ if ((${#md[@]} == 0)); then
   skip markdown "no changed .md"
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
+elif ((foreign)); then
+  # Lint HEAD's copy of each file beside only the tooling tree's configs.
+  markdown_staged() {
+    local stage f rc=0
+    stage="$(mktemp -d)" || return 2
+    while IFS= read -r f; do
+      mkdir -p "$stage/${f%/*}" && cp "$tools/$f" "$stage/$f" || rc=2
+    done < <(cd "$tools" && find . -name node_modules -prune -o -name .git -prune -o -name '.markdownlint*' -type f -print)
+    for f in "${md[@]}"; do
+      mkdir -p "$stage/$(dirname "$f")" && git show "HEAD:$f" >"$stage/$f" || rc=2
+    done
+    ((rc)) || (cd "$stage" && markdownlint-cli2 --config .markdownlint-cli2.jsonc "${md[@]}") || rc=$?
+    rm -rf "$stage"
+    return "$rc"
+  }
+  run_check markdown "markdownlint-cli2 --config .markdownlint-cli2.jsonc ${md[*]}" markdown_staged
 else
   run_check markdown "markdownlint-cli2 --config .markdownlint-cli2.jsonc ${md[*]}" \
     markdownlint-cli2 --config .markdownlint-cli2.jsonc "${md[@]}"
@@ -153,11 +188,11 @@ elif ! command -v shellcheck >/dev/null 2>&1; then
   skip shellcheck "shellcheck not installed"
 else
   run_check shellcheck "shellcheck --rcfile .shellcheckrc ${sh[*]}" \
-    shellcheck --rcfile .shellcheckrc "${sh[@]}"
+    shellcheck --rcfile "$tools/.shellcheckrc" "${sh[@]}"
 fi
 
 run_check shell-portability "scripts/check-shell-portability.sh $merge_base" \
-  scripts/check-shell-portability.sh "$merge_base"
+  "$tools/scripts/check-shell-portability.sh" "$merge_base"
 
 exec_bit() {
   local f mode bad=0
@@ -172,15 +207,15 @@ exec_bit() {
 run_check exec-bit "git ls-files -s -- <file> for each changed #! file" exec_bit
 
 frag() {
-  scripts/check-changelog-fragments.sh --check &&
-    scripts/check-changelog-fragments.sh --check-required "$base"
+  "$tools/scripts/check-changelog-fragments.sh" --check &&
+    "$tools/scripts/check-changelog-fragments.sh" --check-required "$base"
 }
 run_check changelog-fragments \
   "scripts/check-changelog-fragments.sh --check && scripts/check-changelog-fragments.sh --check-required $base" frag
 
 if ((fetched)); then
   run_check stale-base-overlap "scripts/check-stale-base-overlap.sh --check $base" \
-    scripts/check-stale-base-overlap.sh --check "$base"
+    "$tools/scripts/check-stale-base-overlap.sh" --check "$base"
 else
   skip stale-base-overlap "git fetch of $base failed"
 fi
@@ -191,21 +226,23 @@ elif ! command -v claude >/dev/null 2>&1; then
   skip validate-plugins "claude CLI not installed"
 else
   run_check validate-plugins "scripts/validate-plugins.sh --only \"${plugins[*]}\"" \
-    scripts/validate-plugins.sh --only "${plugins[*]}"
+    "$tools/scripts/validate-plugins.sh" --only "${plugins[*]}"
 fi
 
 if ((${#py[@]} == 0)); then
   skip ruff "no changed .py"
 else
-  run_check ruff "scripts/run-ruff.sh check ${py[*]}" scripts/run-ruff.sh check "${py[@]}"
+  run_check ruff "scripts/run-ruff.sh check ${py[*]}" "$tools/scripts/run-ruff.sh" check "${py[@]}"
 fi
 
-if ((run_tests)); then
+if ((run_tests && foreign)); then
+  skip tests "runs the checked tree's own test code"
+elif ((run_tests)); then
   # affected-tests exits 3 when it ran every shell suite but selected suites of
   # another ecosystem it does not run; those are CI's, so that is a pass here.
   affected() {
     local rc=0
-    scripts/affected-tests.sh --run --base "$base" || rc=$?
+    "$tools/scripts/affected-tests.sh" --run --base "$base" || rc=$?
     ((rc == 3)) && return 0
     return "$rc"
   }
