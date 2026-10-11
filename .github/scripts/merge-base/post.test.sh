@@ -225,6 +225,30 @@ put a.txt 'resolved\n'
 tg add a.txt
 run_post
 check 'unresolved-marker: a path that never conflicted is not checked' 0/ "$RC/$(reason)"
+# The marked file moved to a new path clears the unmerged entries but not the
+# markers: a path staged since the snapshot is checked wherever it lives.
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+cp "$R/a.txt" "$R/b.txt"
+tg rm -q --cached a.txt
+rm "$R/a.txt"
+tg add b.txt
+run_post
+check 'unresolved-marker: markers moved to a new path are unresolved' unresolved-conflict "$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+cp "$R/a.txt" "$R/keep.txt"
+put a.txt 'resolved\n'
+tg add a.txt keep.txt
+run_post
+check 'unresolved-marker: markers copied over another path are unresolved' unresolved-conflict "$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put b.txt 'new\n'
+tg add a.txt b.txt
+run_post
+check 'unresolved-marker: a new path without markers passes' 0/ "$RC/$(reason)"
 
 echo '# workflow-staged'
 WF=.github/workflows/ci.yml

@@ -18,9 +18,9 @@
 #    content. Remove every such entry from the index and re-apply the
 #    snapshot's entries for them.
 # 3. Checks, first match wins:
-#    unresolved-conflict  an unmerged entry remains, or a path that was
-#                         unmerged before the model now stages a blob holding a
-#                         conflict-marker sequence;
+#    unresolved-conflict  an unmerged entry remains, or an entry staged since
+#                         the snapshot (a resolution, wherever the model put
+#                         it) holds a conflict-marker sequence;
 #    workflow-staged      an index entry under .github/workflows/ was added,
 #                         removed, or changed in mode or blob since the
 #                         snapshot.
@@ -133,10 +133,13 @@ reason() {
 
 [[ -z $(g ls-files -u) ]] || reason unresolved-conflict
 
-declare -A was_unmerged=()
+# Entries the snapshot already held at stage 0 are the merge's own; every
+# other entry, a conflict's resolution or a path the model added, moved or
+# changed, is scanned.
+declare -A merged=()
 while IFS= read -r -d '' record; do
   read -r _ _ stage <<<"${record%%$'\t'*}"
-  if [[ $stage != 0 ]]; then was_unmerged[${record#*$'\t'}]=1; fi
+  if [[ $stage == 0 ]]; then merged[$record]=1; fi
 done <"$out/index-snapshot"
 
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
@@ -150,8 +153,7 @@ marker_awk='
   END { print (s == 3) }'
 g ls-files -s -z >"$tmp/index"
 while IFS= read -r -d '' record; do
-  path=${record#*$'\t'}
-  [[ -n ${was_unmerged[$path]:-} ]] || continue
+  [[ -z ${merged[$record]:-} ]] || continue
   read -r mode oid _ <<<"${record%%$'\t'*}"
   [[ $mode != 160000 ]] || continue
   found=$(g cat-file blob "$oid" | tr -d '\r' | LC_ALL=C awk "$marker_awk")
