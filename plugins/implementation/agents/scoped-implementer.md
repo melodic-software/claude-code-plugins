@@ -121,7 +121,7 @@ brief's escalation clause names: STOP and report, so the orchestrator can re-dis
 `implementation:implementer`. Never stretch to finish it here.
 
 `effort` is pinned alongside `model` so the phase never runs at the session's level. A dispatcher
-passes no spawn `effort` here, because a passed value replaces the pin.
+passes no spawn `effort` here.
 
 We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
 binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we

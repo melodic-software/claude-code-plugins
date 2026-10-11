@@ -11,7 +11,7 @@ route the operator picks), a `**Needs you**:` line directly under the title name
 number and the choice it needs. Omit the line when nothing waits.
 
 One paragraph under the title (after any `**Needs you**:` line), before the first finding: mode, effort level, scope class, lens
-count, the model and effort the hunters and gates each ran at, the file count, whether the hotspot ranking ran, the
+count, the model and effort the hunters and gates were each dispatched with, the file count, whether the hotspot ranking ran, the
 cursor rung, and the candidate counts (raw, after triage, gated). A reader who sees only this
 paragraph knows how narrow or wide the sample was.
 

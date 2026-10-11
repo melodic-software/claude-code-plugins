@@ -139,8 +139,7 @@ resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
 passes no `effort` and the agent's definition pins none, so its gap from what a subtask needs IS
 the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
-non-fork spawn of an unpinned agent; omit it on a pinned named agent, since a passed value
-replaces the pin; the parameter applies to non-fork spawns only. Never read ultracode from this value. Pointer: for
+non-fork spawn of an unpinned agent, and omit it on a pinned named agent. Never read ultracode from this value. Pointer: for
 the subagent `effort` field, see <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>;
 for the per-spawn `effort` and its precedence, see
 <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>; for how ultracode relates to

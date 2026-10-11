@@ -19,9 +19,7 @@ Your job is to surface gaps the authoring thread would rubber-stamp, not to rewr
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
 We pin the reviewer's effort in this definition, and `/planning:plan` passes no `effort` on the
-dispatch, because a passed value replaces the pin: the `/harness-ops:behavior-probes`
-cases in the `subagent` area observed a spawn value overriding a
-named agent's pin on Claude Code 2.1.296.
+dispatch.
 
 - **Pointer**: when deciding whether this pin or a dispatch-time `effort` sets the reviewer's level,
   fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.

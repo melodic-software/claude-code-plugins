@@ -169,7 +169,7 @@ gates pass no `effort` either, so both stages run at the session level. Pointer:
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
 As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
 
-Name the model and effort each stage ran at in the report's run metadata. A dispatch the harness rejects means
+Name the model and effort each stage was dispatched with in the report's run metadata: the level passed, or `session` when none was. A dispatch the harness rejects means
 the role map names an alias this session cannot use: report it rather than substituting one.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope
