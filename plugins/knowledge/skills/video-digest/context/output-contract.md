@@ -82,8 +82,9 @@ without a finite number or null `timestampSec`), any frame image, a frame
 `frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
 (anchor frames carry their time in their name), or the caption tracks. It refuses a temp session
 holding several videos (an X post with more than one), naming them, since the watch does not
-record which one is primary; a recorded temp dir outside the OS temp dir or overlapping the
-slice; and a symlink in the slice or the temp session, since a copy would follow it. It refuses
+record which one is primary; a video whose id is not this slice's (for an X post, whose
+info JSON does not name this post as its `display_id`); a recorded work, frames or
+contact-sheets dir outside the OS temp dir or overlapping the slice; and a symlink in the slice or the temp session, since a copy would follow it. It refuses
 when the slice is, holds, or sits inside a path the run writes: the target,
 `<target>.relayout-backup`, or a `.<target-name>.relayout-*` staging dir beside the target. In
 every mode, `--no-media` included, it refuses when one of those paths is, holds, or sits inside a
@@ -104,7 +105,8 @@ the copied markdown names is rewritten through a path map relative to the file's
 inline links (balanced or escaped parentheses in the destination, quoted or parenthesized titles),
 reference-style links, HTML `src`/`href` in any quoting or case, and backticked paths, with each
 segment percent-decoded (and re-encoded on rewrite) and `\` separators read as `/`.
-A relative link that leaves the slice keeps pointing at the same file.
+A relative link that leaves the slice keeps pointing at the same file. Fenced code blocks are
+left untouched, and link syntax inside an inline code span is not read as a link.
 One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
 own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
 saying it is not retained; one naming a directory whose files went to several places (`source/`)
@@ -117,7 +119,8 @@ that leave the target, and backticked paths that are neither under such a lane d
 under a top-level directory of the target or an entry beside the naming file (paths into another
 repository, such as `research/deepening/...` from an upstream repo). Fix what the check lists in
 the slice and re-run. Only a passing check moves the staging directory into place; on any failure
-the staging directory is removed and the target is left as it was. Without `--replace` the install is a single rename of the staging dir onto the
+the staging directory is removed and the target is left as it was. Without `--replace` the
+install is a single rename of the staging dir onto the
 target path, which fails, and the run refuses, when a target with content appeared during the
 run. On POSIX that rename replaces an empty directory someone created meanwhile; that is
 accepted, since an empty directory holds no data. A run killed mid-copy or mid-install leaves its

@@ -722,6 +722,102 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(contactSheetsDir)).toBe(false);
   });
 
+  /**
+   * Rename the temp session's video, info JSON and caption tracks to another
+   * yt-dlp id, optionally writing an info JSON with `display_id`.
+   *
+   * @param {string} workDir
+   * @param {string} id
+   * @param {Record<string, unknown>} [info]
+   */
+  function renameMedia(workDir, id, info) {
+    for (const name of fs.readdirSync(workDir)) {
+      fs.renameSync(path.join(workDir, name), path.join(workDir, name.replace(VIDEO_ID, id)));
+    }
+    if (info) fs.writeFileSync(path.join(workDir, `${id}.info.json`), JSON.stringify(info));
+  }
+
+  it("refuses a temp session whose video is another id, naming both", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    renameMedia(workDir, "otherVideo1", { id: "otherVideo1", display_id: "otherVideo1" });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+    const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+    stderr.mockRestore();
+
+    expect(result.exitCode).toBe(1);
+    expect(message).toContain("otherVideo1");
+    expect(message).toContain(VIDEO_ID);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("accepts an X media id whose info JSON names this slice's post as display_id", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    renameMedia(workDir, "1800000000000000001", {
+      id: "1800000000000000001",
+      display_id: VIDEO_ID,
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(targetDir, `media/${VIDEO_ID}.mp4`))).toBe(true);
+  });
+
+  it("refuses a recorded contact-sheets dir outside the OS temp dir", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    state.tempSession.contactSheetsDir = path.join(path.parse(os.tmpdir()).root, "relayout-sheets");
+    fs.writeFileSync(statePath, JSON.stringify(state));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses a recorded contact-sheets dir that overlaps the slice", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+    state.tempSession.contactSheetsDir = path.join(sliceDir, "key-frames");
+    fs.writeFileSync(statePath, JSON.stringify(state));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("leaves fenced code blocks alone and reads no link inside inline code", async () => {
+    const body = [
+      "Outside: [t](../source/transcript.txt).",
+      "```",
+      "[t](../source/transcript.txt) `source/transcript.txt` [gone](../research/gone.md)",
+      "```",
+      "~~~~ text",
+      "[t](../source/transcript.txt)",
+      "~~~~",
+      "Inline: `[gone](../research/gone.md)`.",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      body.replace(
+        "Outside: [t](../source/transcript.txt)",
+        "Outside: [t](../transcript/transcript.txt)",
+      ),
+    );
+  });
+
   it("refuses an empty video file", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.mp4`), "");

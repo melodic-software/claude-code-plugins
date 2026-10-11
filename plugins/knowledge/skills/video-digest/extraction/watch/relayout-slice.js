@@ -117,9 +117,9 @@ const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
 /** A code span: a run of backticks, its content, and the same run closing it. */
 const BACKTICK_SPAN = /(?<!`)(`+)([^`\n](?:[^\n]*?[^`\n])?)\1(?!`)/g;
 /** `[label]: path` reference-style link definitions. */
-const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
+const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/dgm;
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
-const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/gi;
+const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
 
@@ -556,19 +556,20 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     if (next !== ref) rewrites += 1;
     return next;
   };
-  // Inline links: a link naming a file the layout drops becomes its label plus
-  // not-retained text; any other destination takes the path rewrite. Every
-  // edit touches only link syntax or a destination, never a label, so edits
-  // for nested links do not overlap; they apply back to front, and any
-  // overlap that still occurred would drop the later-starting edit.
+  const { fenceMasked, linkMasked } = maskCode(text);
+  // Every pass records edits by offset into the original text; the scans run
+  // over masked copies, so nothing inside a fenced code block is touched and
+  // no link syntax inside an inline code span is read as a link. Inline code
+  // spans themselves are read for paths (the backticked-path rewrite).
   /** @type {{ from: number, to: number, text: string }[]} */
   const edits = [];
-  for (const link of inlineLinks(text)) {
+  // Inline links: a link naming a file the layout drops keeps its label in
+  // place and loses only its syntax: the opening `[` (or `![`) goes and
+  // `](dest)` becomes the note, so an image nested in the label keeps its
+  // own rewrite. Any other destination takes the path rewrite.
+  for (const link of inlineLinks(linkMasked)) {
     const found = lookUpReference(splitReference(link.dest).refPath, sourceFile, map);
     if (found && "retired" in found && link.labelStart !== -1) {
-      // Keep the label text in place and edit only the link syntax around it:
-      // drop the opening `[` (or `![`), and replace `](dest)` with the note. An
-      // image or link nested in the label keeps its own rewrite.
       rewrites += 1;
       const bracket = text[link.linkStart] === "!" ? link.linkStart + 2 : link.linkStart + 1;
       edits.push({ from: link.linkStart, to: bracket, text: "" });
@@ -588,38 +589,97 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       text: link.angle ? `<${written}>` : written,
     });
   }
+  // Reference-style definitions and HTML src/href values take the same path
+  // rewrite. One naming a file the layout drops is left for the link check to
+  // flag: a definition or attribute has no prose to rewrite into.
+  for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
+    const [from, to] = /** @type {[number, number]} */ (match.indices?.[2]);
+    const target = text.slice(from, to);
+    const next = target.startsWith("<") ? `<${rewrite(unwrap(target))}>` : rewrite(target);
+    if (next !== target) edits.push({ from, to, text: next });
+  }
+  for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
+    const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
+    const [from, to] = /** @type {[number, number]} */ (match.indices?.[group]);
+    const value = text.slice(from, to);
+    const next = rewrite(value);
+    if (next !== value) edits.push({ from, to, text: next });
+  }
+  for (const match of fenceMasked.matchAll(BACKTICK_SPAN)) {
+    const [whole, ticks, content] = match;
+    const from = /** @type {number} */ (match.index);
+    const { pad, quote, core } = spanPath(content);
+    if (core === null) continue;
+    const found = lookUpReference(splitReference(core).refPath, sourceFile, map);
+    let next;
+    if (found && "retired" in found) {
+      rewrites += 1;
+      next = `${found.retired} (${found.note})`;
+    } else {
+      next = `${ticks}${pad}${quote}${rewrite(core)}${quote}${pad}${ticks}`;
+    }
+    if (next !== whole) edits.push({ from, to: from + whole.length, text: next });
+  }
   edits.sort((a, b) => a.from - b.from);
   /** @type {typeof edits} */
   const kept = [];
   for (const edit of edits) {
     if (kept.length === 0 || edit.from >= kept[kept.length - 1].to) kept.push(edit);
   }
-  let linked = text;
+  let rewritten = text;
   for (const edit of kept.reverse()) {
-    linked = linked.slice(0, edit.from) + edit.text + linked.slice(edit.to);
+    rewritten = rewritten.slice(0, edit.from) + edit.text + rewritten.slice(edit.to);
   }
-  const rewritten = linked
-    // Reference-style definitions and HTML src/href attributes take the same
-    // path rewrite. One naming a file the layout drops is left for the link
-    // check to flag: a definition or attribute has no prose to rewrite into.
-    .replace(REFERENCE_DEFINITION, (_match, open, target) =>
-      target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
-    )
-    .replace(HTML_PATH_ATTRIBUTE, (_match, open, doubled, single, bare) => {
-      const quote = doubled !== undefined ? '"' : single !== undefined ? "'" : "";
-      return `${open}${quote}${rewrite(doubled ?? single ?? bare)}${quote}`;
-    })
-    .replace(BACKTICK_SPAN, (match, ticks, content) => {
-      const { pad, quote, core } = spanPath(content);
-      if (core === null) return match;
-      const found = lookUpReference(splitReference(core).refPath, sourceFile, map);
-      if (found && "retired" in found) {
-        rewrites += 1;
-        return `${found.retired} (${found.note})`;
-      }
-      return `${ticks}${pad}${quote}${rewrite(core)}${quote}${pad}${ticks}`;
-    });
   return { text: rewritten, rewrites };
+}
+
+/**
+ * Copies of `text` with code masked by spaces (line endings kept, so every
+ * offset still matches the original): `fenceMasked` blanks fenced code blocks
+ * (``` or ~~~, per CommonMark; an unclosed fence runs to the end), and
+ * `linkMasked` also blanks inline code spans. Indented code blocks are not
+ * masked: telling them from indented list content needs a full parser.
+ *
+ * @param {string} text
+ * @returns {{ fenceMasked: string, linkMasked: string }}
+ */
+export function maskCode(text) {
+  const blank = (/** @type {string} */ source, /** @type {[number, number][]} */ ranges) => {
+    let out = source;
+    for (const [from, to] of ranges) {
+      out = out.slice(0, from) + out.slice(from, to).replace(/[^\n]/g, " ") + out.slice(to);
+    }
+    return out;
+  };
+  /** @type {[number, number][]} */
+  const fences = [];
+  let offset = 0;
+  /** @type {{ char: string, length: number, start: number }|null} */
+  let open = null;
+  for (const line of text.split(/(?<=\n)/)) {
+    const body = line.replace(/\r?\n$/, "");
+    if (open === null) {
+      const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(body);
+      if (opening && !(opening[1][0] === "`" && opening[2].includes("`"))) {
+        open = { char: opening[1][0], length: opening[1].length, start: offset };
+      }
+    } else {
+      const closing = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(body);
+      if (closing && closing[1][0] === open.char && closing[1].length >= open.length) {
+        fences.push([open.start, offset + line.length]);
+        open = null;
+      }
+    }
+    offset += line.length;
+  }
+  if (open !== null) fences.push([open.start, text.length]);
+  const fenceMasked = blank(text, fences);
+  /** @type {[number, number][]} */
+  const spans = [...fenceMasked.matchAll(BACKTICK_SPAN)].map((match) => [
+    /** @type {number} */ (match.index),
+    /** @type {number} */ (match.index) + match[0].length,
+  ]);
+  return { fenceMasked, linkMasked: blank(fenceMasked, spans) };
 }
 
 /**
@@ -687,17 +747,18 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
       if (!fs.existsSync(resolved)) unresolved.push({ file, ref });
     };
-    for (const link of inlineLinks(text)) check(link.dest, true);
-    for (const match of text.matchAll(REFERENCE_DEFINITION)) {
+    const { fenceMasked, linkMasked } = maskCode(text);
+    for (const link of inlineLinks(linkMasked)) check(link.dest, true);
+    for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
       // A line such as `[0:33]: implementing ...` parses as a definition but is
       // prose; only a destination that reads as a path is checked.
       const destination = match[2].replace(/^<|>$/g, "");
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
-    for (const match of text.matchAll(HTML_PATH_ATTRIBUTE)) {
+    for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
       check(match[2] ?? match[3] ?? match[4], true);
     }
-    for (const match of text.matchAll(BACKTICK_SPAN)) {
+    for (const match of fenceMasked.matchAll(BACKTICK_SPAN)) {
       const { core } = spanPath(match[2]);
       if (core !== null) check(core, false);
     }
@@ -1085,7 +1146,7 @@ export async function relayoutSlice({
   // OS temp dir; anything else (a hand-edited path, the slice, the target) is
   // not a temp session to read from.
   const realTmp = fs.realpathSync.native(os.tmpdir());
-  for (const dir of [temp.workDir, temp.framesDir]) {
+  for (const dir of [temp.workDir, temp.framesDir, temp.contactSheetsDir]) {
     if (!dir) continue;
     if (!isSameOrInside(realPathOf(dir), realTmp) || realPathOf(dir) === realTmp) {
       return refuse(`temp session dir ${dir} is not inside the OS temp dir`);
@@ -1114,6 +1175,19 @@ export async function relayoutSlice({
     captionPaths: workFiles.filter((file) => ofMedia(file) && file.endsWith(".vtt")),
     metadataPath: workFiles.find((file) => ofMedia(file) && file.endsWith(".info.json")) ?? "",
   };
+  // The one video must be this slice's: its yt-dlp id is watch.json's videoId
+  // (YouTube), or, for an X post, whose media id differs from the post id, its
+  // info JSON's display_id is the post id the watch recorded.
+  if (!noMedia && mediaId !== null && mediaId !== state.videoId) {
+    const displayId = media.metadataPath ? readJsonObject(media.metadataPath)?.display_id : null;
+    const postIds = [state.videoId, state.sourceMetadata?.["source:displayId"]].filter(Boolean);
+    if (!(typeof displayId === "string" && postIds.includes(displayId))) {
+      return refuse(
+        `the temp session's video is ${mediaId}, not this slice's ${state.videoId}` +
+          (typeof displayId === "string" ? ` (its info JSON names post ${displayId})` : ""),
+      );
+    }
+  }
   if (!noMedia) {
     // A partly removed temp session would yield a layout silently missing a part.
     // Captions are required unless the transcript phase records that no
