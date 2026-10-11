@@ -946,6 +946,19 @@ assert_contains "--added-since counts only the changed file" "$add_out" "Summary
 add_out="$(cd "$REPOADD" && bash "$DETECT" --added-since HEAD old.py untouched.py)"
 assert_contains "--added-since with targets still filters to added lines" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
 
+# git names the root in one spelling and the shell resolves targets in another (Git for
+# Windows: C:/... against /c/...). A git wrapper reports the root through a symlink, so the
+# spellings differ on any host; an explicit target must still match its added lines.
+ln -s "$REPOADD" "$TEST_TMPDIR/repoadd-alias"
+ALTGIT="$TEST_TMPDIR/altgit"
+mkdir -p "$ALTGIT"
+# shellcheck disable=SC2016 # the wrapper's source; $1, $2 and $@ expand when it runs
+printf '#!/usr/bin/env bash\nif [[ "$1 $2" == "rev-parse --show-toplevel" ]]; then printf "%%s\\n" %q; exit 0; fi\nexec %q "$@"\n' \
+  "$TEST_TMPDIR/repoadd-alias" "$(command -v git)" >"$ALTGIT/git"
+chmod +x "$ALTGIT/git"
+add_out="$(cd "$REPOADD" && PATH="$ALTGIT:$PATH" bash "$DETECT" --added-since HEAD old.py)"
+assert_contains "--added-since keeps a target when git spells the root differently" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
+
 add_rc=0
 (cd "$REPOADD" && bash "$DETECT" --added-since no-such-ref >/dev/null 2>&1) || add_rc=$?
 assert_exit "--added-since with an unknown base exits 2" 2 "$add_rc"
