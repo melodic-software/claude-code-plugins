@@ -56,8 +56,28 @@ once per process, and the new name wins when both are set.
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
 material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that
-shape from this skill: land under `library_dir` as-written and re-lay-out by hand, or fork
-the sub-path in your own automation. This skill's contract is root relocation only.
+shape from this skill: land under `library_dir` as-written, then re-lay-out a finished slice
+into the knowledge-corpus layout with the bundled script, which copies it, rewrites the paths its
+markdown names, and refuses to write anything while a slice-internal path does not resolve:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js <slice-dir> <target-dir> [--no-media] [--replace]
+```
+
+Run it before `close` to keep the media: `close` removes the temp session, so on a closed slice
+the media is gone and only `--no-media` works. Its header comment documents the target layout and the exit codes. Any other layout is yours
+to fork in your own automation; this skill's contract is root relocation plus that one layout.
+
+### Known limits of the re-layout
+
+Check these by hand after a re-layout; neither the rewrite nor the link check sees them:
+
+- Raw HTML `<a href>` and `<img src>`, and paths in plain prose.
+- A link destination written with backslash escapes or character references (the link check
+  flags it when it does not resolve, but it is not rewritten).
+- Code spans holding spaces (read as commands, not paths).
+- Paths written from the work root (`.work/<watch-epic>/<slug>/…`): they are left as written,
+  not rewritten to the corpus layout. `SLICE/…` paths are rewritten.
 
 ## Agent-written artifacts share the same root
 
