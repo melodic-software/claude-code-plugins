@@ -309,11 +309,11 @@
       "id": "refactor-equivalence-01",
       "name": "large-reshape-asks-output-diff-or-replay",
       "prompt": "/verification:confirm refactor. The change splits the payroll module into three packages (gross pay, deductions, payslip rendering), moving 38 files and rewiring the two command-line entry points that produce payslips. No behavior change was intended. Build, tests and lint pass.",
-      "expected_output": "Refactor criterion. It classifies the change as a high-risk Restructure that reaches past what the tests cover, so beside the passing tests it asks for an output diff (old and new code run on the same payroll inputs, payslips compared) or a replay of a baseline recorded from the old code. Until that evidence exists it does not report CONFIRMED on the tests alone.",
+      "expected_output": "Refactor criterion. The change is a Restructure, rated high risk, and it moves code the tests do not directly cover, so the passing suite is not enough. It asks for equivalence evidence to report next to the test results: either the same payroll inputs fed to the old code and the new with the two sets of payslips compared, or a baseline captured from the old code and played back against the new. It withholds CONFIRMED while only the tests stand behind the change.",
       "files": [],
       "expectations": [
         "It classifies the change as a Restructure with high risk",
-        "It asks for an output diff of old and new payslips on the same inputs, or a replay of a baseline recorded from the old code, beside the test results",
+        "Next to the test results, it asks either for old and new payslips compared on the same inputs or for a baseline captured from the old code and played back against the new",
         "It does not report CONFIRMED on passing tests alone while that equivalence evidence is missing"
       ]
     }

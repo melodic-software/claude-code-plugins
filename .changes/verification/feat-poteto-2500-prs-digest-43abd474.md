@@ -10,6 +10,10 @@ bump: minor
 - **`proof_level` setting (`path`, `live`, `strict`) for `/verification:confirm`.** A per-user `userConfig` option and a repository key in `docs/conventions/verification.yaml` (schema `schemas/verification.schema.json`); the stricter wins, and the repository value is read from origin's default branch so a branch cannot lower it. `live` drives any runnable change in the live app; `strict` adds per-phase unit, live and perf proof boxes to `context/outcome.md`, with a merge-base A/B run when no baseline exists and the performance plugin is enabled. An invalid value is named and dropped, and resolution never prompts, so pipeline lanes get a level. `/verification:setup` gains a narrow-write `apply` and a settings-file `check` row. Upgrade every member before setting a repository floor: an older release does not read the file and falls back to `path`.
 - **`/verification:confirm refactor` asks for equivalence evidence on a large reshape.** When a refactor reaches past what the tests directly cover (a High-risk type, or a move across several modules or entry points), `context/refactor.md` asks for an output diff of old and new code on the same inputs, or a replay of a baseline recorded from the old code, beside the test results. One eval case covers it.
 
+### Changed
+
+- **Reworded the large-reshape equivalence bullet in our own words.** `/verification:confirm`'s `context/refactor.md` and its `refactor-equivalence-01` eval prose say the same thing in a new structure; what the case tests is unchanged.
+
 ### Fixed
 
 - **`proof_level` reader results in `reference/config.md` cover a bad `live_workers` beside an unset level.** `setup-apply.mjs --check` exits 1 with `PASS proof_level: (unset)` when the committed file sets no `proof_level` and an invalid `live_workers`; the list now reads that as an unset layer, not an invalid one.

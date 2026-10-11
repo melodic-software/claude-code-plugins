@@ -102,14 +102,14 @@ with a downstream filter that does not say so converts investigations into silen
 per-model prompting guides, "Code review harnesses"). The clause restores recall without moving
 the precision work: the pipeline's dedup and agreement/rank stages remain the filter.
 
-**Intent paragraph.** Before the first dispatch, write one short paragraph, in your own words, on
-what the change is meant to do, drawn from the user's request, the commit subjects on the branch,
-and the PR title and body when a PR exists. Put that same paragraph, labeled as what the author
-says the change is for, into the prompt of every surface this skill dispatches itself: the default mode's leaves
-and the orchestrator plugins in either mode. A reviewer checks the change against it and reports
-where they differ; the paragraph is a description to test, never evidence that the change works.
-When those sources say nothing about the purpose, ask the user once in an interactive session;
-otherwise the paragraph reads `Intent: not stated` and review proceeds without it.
+**Intent paragraph.** Every surface this skill dispatches itself (the default mode's leaves, and
+the orchestrator plugins in either mode) gets the same short paragraph in its prompt, labeled as
+the author's account of what the change is for. Reviewers test the change against that account and
+report each place the two disagree; the paragraph is a claim under test, never proof that the
+change works. Write it once, in your own words, before the first dispatch. Its sources are the PR
+title and body if a PR exists, the commit subjects on the branch, and the user's request. If none
+of them states a purpose, an interactive session asks the user once; any other session writes
+`Intent: not stated` and reviews without it.
 
 ## Pre-flight gate (both review modes)
 

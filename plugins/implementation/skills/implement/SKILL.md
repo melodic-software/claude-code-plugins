@@ -127,7 +127,7 @@ Either way the commit checkpoint follows the last green check.
 ### Commit discipline
 
 - **Commit after tests pass**. Each commit is a green save point, except a red commit inside a declared planned-breakage span (Execution cadence item 4)
-- **Default delivery order**. A fix lands its failing test, then the fix; a change that both removes and builds lands the removal, then the construction. Under a project-declared tests-after cadence the failing-test commit is optional
+- **Default delivery order**. Commits that delete code go ahead of the commits that build on what is left, and in a fix the commit holding the failing test goes ahead of the fix itself. Under a project-declared tests-after cadence the failing-test commit is optional
 - **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
 - **Commit before running a simplify pass**. Your working code is a save point. If simplification introduces a bad change, revert cleanly
 - **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
@@ -150,15 +150,9 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
 
-**Design signals** (the design, not only the plan, may need to go):
+**Design signals.** Some friction says the design itself, not only the plan, may need to go. Look for repetition first: plan deviations that trace back to one shared cause (two or more), or a workaround you are now writing at its second site. Then look at the boundaries. A module whose callers only use it correctly by knowing how it works inside, or code that compiles only after its types are weakened (a cast, `any`, an optional field that every path sets), points at a boundary drawn in the wrong place. Last, a race or ordering bug settled with a lock or a retry, where the real fix is changing which component owns the state, is the same signal.
 
-- Callers have to know a module's internals to use it correctly
-- Types are loosened to get code through: a cast, `any`, an optional field that is always set
-- The same workaround turns up at a second site
-- Two or more deviations from the plan share one cause
-- A race or ordering problem is being solved with a lock or a retry instead of a change to who owns the state
-
-Long code for irregular data is not one of these signals on its own: judge the structure, not the length.
+Length alone proves nothing here. Code that handles irregular input can run long and still be well shaped, so judge its structure.
 
 **When divergence is detected:**
 
@@ -168,7 +162,7 @@ Long code for irregular data is not one of these signals on its own: judge the s
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
    - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
-4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear. Start the redesign from the goal and what the failed attempt proved, not from the broken code, and keep the first revised sketch below the size of the failed attempt: name what it drops before what it adds
+4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear. Work from the goal and the facts the failed attempt established; the broken code is not the starting point. Write down what the revision removes from the failed attempt before anything it introduces, and keep its first sketch smaller than the attempt it replaces
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
 
@@ -258,7 +252,7 @@ When all planned work is done:
 4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Fold the bullets into the phase-boundary plan updates (Step 4 ritual) or the handoff summary
 5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
 6. **Hand off to the pre-PR sequence**. Hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides. The user controls timing). Do not commit-and-push unilaterally, final staging and PR creation belong to that flow. A run that ends without outcome verification against the Brief's outcome criteria (no `/verification:confirm`, no self-verification against intent) states in the handoff summary, or in `DEVIATIONS.md` when one exists, that it did not run and why, so the omission is never invisible. In an orchestrated run, a source commit the orchestrator itself makes after the last phase gets the `phase-verifier` verdict before it is pushed, per `/implementation:implement-dispatch` "Phase boundaries"
-7. **Completion reply**. The closing message names what was built, each choice the plan or task left open that you made, with its reason, and the decisions still open for the user, each with a recommendation, or says there are none
+7. **Completion reply**. Close by putting to the user every decision that is still theirs, each with your recommendation, or by saying none remain. Ahead of that, say what now exists, and wherever the plan or task left a call to you, say which way you went and why
 
 ## Skill chaining during execution
 

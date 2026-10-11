@@ -203,9 +203,9 @@ its confidence is the shared `confidence` axis.
 
 ## Step 6: Hand back the cheapest test that would catch it
 
-Name the smallest test or reproduction that fails if the most serious confirmed risk is real. The
-safety-fact probe of Step 2 is the one thing this mode runs; the test named here is handed back,
-not written or run.
+Take the most serious risk you confirmed and describe a test or reproduction, kept as small as
+possible, that would fail if that risk is real. This mode runs only one thing, the Step 2
+safety-fact probe; it hands this test back without writing or running it.
 
 - Authoring the test routes to `/testing:write` when the `testing` plugin is enabled.
 - Proving the test actually catches the bug routes to `/mutation-testing:audit` when the

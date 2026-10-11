@@ -150,3 +150,11 @@ bump: minor
   available (else the session model), raised to the strongest model any worker ran on. One
   `discovery` entry records the verdict and model. Interactive runs never run it; there is no
   setting.
+
+### Changed
+
+- **Reworded passages adapted from upstream skills in our own words.** In `/implementation:implement`, the
+  default delivery order, design signals, the major-divergence redesign step, the completion reply
+  and the bugfix, feature and refactor steps; in `/implementation:implement-dispatch`, the operator
+  hold, the run-boundary entry and the gate-fault gotcha. Every rule, threshold and setting stays
+  the same.
