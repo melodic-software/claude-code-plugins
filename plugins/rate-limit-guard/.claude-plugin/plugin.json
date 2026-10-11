@@ -23,7 +23,7 @@
     },
     "model_notices": {
       "type": "boolean",
-      "title": "Model notices (rate-limit lines to Claude)",
+      "title": "Model notices",
       "description": "Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. Off by default; the toast, transcript line, band row, status tool and snapshot work either way.",
       "default": false
     },

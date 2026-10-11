@@ -8,7 +8,7 @@ bump: major
 
 ### Changed
 
-- **Breaking:** `model_notices` replaces `zone_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool, snapshot and PostCompact marker work as before. Set `model_notices` to `true` for the zone lines and options line (#7135).
+- **Breaking:** `model_notices` replaces `zone_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool, snapshot and PostCompact marker work as before. Set `model_notices` to `true` for the zone lines and options line; a stored `zone_lines_enabled: true` no longer applies (#7135).
 
 ### Added
 
