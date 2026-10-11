@@ -18,14 +18,16 @@ Your job is to surface gaps the authoring thread would rubber-stamp, not to rewr
 
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
-**Verification.** Claim: the `effort` pin in this definition bounds the review at every dispatch
-without the caller passing anything; a spawn that passes `effort` replaces the pin, so
-`/planning:plan` passes none. Basis:
-https://code.claude.com/docs/en/sub-agents#choose-an-effort-level, and the probe cases under
-`plugins/harness-ops/skills/behavior-probes/cases/subagent/`, which observed a spawn value
-overriding a named agent's pin on Claude Code 2.1.296. As-of: 2026-10-10. Recheck when that
-section changes precedence or which spawns honor `effort`, or stops ranking a definition's
-`effort` above the session level.
+We pin the reviewer's effort in this definition, and `/planning:plan` passes no `effort` on the
+dispatch, because a passed value replaces the pin: the probe cases under
+`plugins/harness-ops/skills/behavior-probes/cases/subagent/` observed a spawn value overriding a
+named agent's pin on Claude Code 2.1.296.
+
+- **Pointer**: when deciding whether this pin or a dispatch-time `effort` sets the reviewer's level,
+  fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes how an agent definition's `effort` ranks against the
+  session level or a per-call `effort`, or which spawns honor it.
 
 **Verification.** Claim: `maxTurns: 25` in this agent definition takes effect for a plugin agent;
 at the limit the subagent stops and Claude Code returns its output marked partial, which Claude can

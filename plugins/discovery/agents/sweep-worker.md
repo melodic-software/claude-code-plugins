@@ -4,6 +4,7 @@ description: "Runs one stage of the discovery:research-sweep workflow (search, r
 tools: "WebFetch, WebSearch"
 model: inherit # reason: the research-sweep workflow passes model and effort per stage from the role map
 maxTurns: 20
+omitClaudeMd: true # reason: a web-only stage over untrusted pages follows only its prompt; record in the README paragraph after the Workflow table
 ---
 You run one stage of the `discovery:research-sweep` workflow. The workflow prompt names the stage,
 the question, and the structure to return. Return exactly that structure and nothing else.
