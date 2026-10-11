@@ -10,7 +10,7 @@ that shows it, at the consumer's binary, and stamped with that binary's version.
 | Rung | Mode | Precision | Requires | Recorded caveats |
 |---|---|---|---|---|
 | 1 | `sdk` | `exact` (integer tokens) | `@anthropic-ai/claude-agent-sdk` resolvable from `--sdk-dir` or the working directory | none |
-| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table with at least one of the two system-tool rows. The engine spawns the binary directly; a hand check from Git Bash must run `MSYS_NO_PATHCONV=1 claude -p "/context"`, because path conversion otherwise rewrites `/context` and the session answers in prose | rounded values; a system-tool row the table lacks is named in a caveat and left unmeasured; headless `/context` is undocumented as a `-p`-capable command, so this rung depends on unsanctioned behavior. When the token-counting API is unavailable, `/context` uses a local estimate instead of extra small-model requests (Claude Code 2.1.261). The commands page `/context` row, fetched 2026-09-28, does not yet say that; the changelog is the behavior source until the row does (recheck when the `/context` row names the local estimate) |
+| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table with at least one of the two system-tool rows. The engine spawns the binary directly; a hand check from Git Bash must run `MSYS_NO_PATHCONV=1 claude -p "/context"`, because path conversion otherwise rewrites `/context` and the session answers in prose | rounded values; a system-tool row the table lacks is named in a caveat and left unmeasured; headless `/context` is not listed as a `-p`-capable command, so this rung depends on unsanctioned behavior (record below the table); its counts are not always a measured API count (record under "Session-kind boundary") |
 | 3 | n/a | n/a | n/a | exit 3 with a `context-budget.error/1` record naming the remediation; **never a wrong number** |
 
 The `/context` output format carries no stability guarantee in either direction and has materially
@@ -23,9 +23,11 @@ emptied bucket) and a caveat names it with the binary version.
 - **Observation:** headless `/context` on Claude Code 2.1.289 printed a `System tools (deferred)`
   row and no `System tools` row. Whether every built-in tool is deferred in headless sessions or
   the format changed is not documented.
-- **Pointer:** the `/context` row of [commands](https://code.claude.com/docs/en/commands), which
-  does not list `/context` as available with `-p`.
-- **As of:** 2026-10-04.
+- **Probe:** the engine's `cli-parse` rung, `<binary> -p "/context"` against 2.1.289.
+- **Pointer:** the `/context` row in
+  [commands § All commands](https://code.claude.com/docs/en/commands#all-commands), read for
+  whether it lists `/context` as available with `-p`.
+- **As of:** 2026-10-11.
 - **Recheck trigger:** a release note names headless `/context`, tool deferral in `-p` sessions,
   or the `/context` category table.
 
@@ -41,23 +43,20 @@ the guard runs only in `sdk` mode.
 
 ## Mechanism claims and citations
 
-| Claim the skill relies on | Source |
-|---|---|
-| A bare tool name in a deny rule removes the tool's definition from the request, except `EndConversation`; a scoped rule (`Bash(rm *)`) is a runtime guard whose schema still ships | [Permissions: tool-name rules](https://code.claude.com/docs/en/permissions), [Agent SDK permissions: allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
-| Deferred tool loading controls what enters the context window, not what is sent. The full schema still goes out in the request | [Tool search: deferred tool loading](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading) |
-| `--disallowedTools` exists as a per-invocation CLI flag; there is **no** `disallowedTools` settings key. Persistent config uses `permissions.deny` | [CLI reference: flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings](https://code.claude.com/docs/en/settings) |
-| The Agent SDK exposes structured context usage over the control protocol (`getContextUsage()`) | [Agent SDK TypeScript reference](https://code.claude.com/docs/en/agent-sdk/typescript) |
-| When the token-counting API is unavailable, `/context` counts with a local estimate instead of extra small-model requests. The commands page `/context` row fetched 2026-09-28 does not say this; the 2.1.261 changelog does (recheck when that row names the local estimate) | [Claude Code changelog](https://code.claude.com/docs/en/changelog) (2.1.261) and [commands](https://code.claude.com/docs/en/commands) (`/context` row, which does not yet name the estimate) |
+Each row is our decision; what the upstream section says about it is read live at the pointer.
 
-The bare-name row was re-read on 2026-09-28 against
-[permissions](https://code.claude.com/docs/en/permissions). The page now says: "Bare-name removal
-applies to every tool except `EndConversation`: a deny rule can't remove it while any other tool
-remains, and an ask rule never prompts for it." The local-estimate row is verified 2026-09-28
-against the 2.1.261 changelog and a fetch of the commands page that still omits the estimate.
-The other rows in the table stay as verified 2026-09-06 against Claude Code 2.1.263. Recheck a
-row when its page stops carrying the statement, or when a release note names deny rules, the
-`EndConversation` exception, deferred tool loading, the `--disallowedTools` flag, the Agent SDK
-control protocol, or `/context` token counting.
+| Decision the engine and skill rely on | Pointer |
+|---|---|
+| Attribution denies a candidate by bare name, and only a bare-name deny is priced as a saving; a scoped rule is reported as saving nothing. The tool a bare-name deny cannot remove is listed in `interactive-only-tools.json` | [permissions § Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions), [Agent SDK permissions § Allow and deny rules](https://code.claude.com/docs/en/agent-sdk/permissions#allow-and-deny-rules) |
+| The deferred bucket is reported as recurring request weight outside the window, never as an already-saved figure | [Tool search § Deferred tool loading](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading) |
+| Persistent denies are printed as `permissions.deny` entries, never as a `disallowedTools` settings key; `--disallowedTools` is used only as a per-invocation flag | [CLI reference § CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags), [settings reference § `permissions.deny`](https://code.claude.com/docs/en/settings-reference#permissions-deny), and the [settings index](https://code.claude.com/docs/en/settings-reference#settings-index) read for a `disallowedTools` key |
+| Exact mode reads structured context usage from the Agent SDK control protocol | [Agent SDK TypeScript § SDKControlGetContextUsageResponse](https://code.claude.com/docs/en/agent-sdk/typescript#sdkcontrolgetcontextusageresponse) |
+| A `/context` count is not assumed to be a measured API count | "Session-kind boundary" below |
+
+- **As of:** 2026-10-11.
+- **Recheck trigger:** a row's section changes what it says about that row's topic, or a release
+  note names deny rules, the `EndConversation` exception, deferred tool loading, the
+  `--disallowedTools` flag, or the Agent SDK control protocol.
 
 Where the engine's behavior rests on empirical observation rather than documentation (headless
 `/context`, the skill-listing subtraction below), the record says so in `caveats`. The engine
@@ -122,8 +121,8 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   `knownUncovered.deniedAbsent` lists names from that file that were also passed in
   `--operator-deny`: the operator's bare-name deny explains their absence, so they are not
   labeled structurally unreachable. `EndConversation` is on the interactive-only list because it
-  never enters either attributed headless bucket, and a bare-name deny cannot remove it while any
-  other tool remains. A deny can empty a
+  never enters either attributed headless bucket, and deny rules treat it differently (the
+  bare-name row in "Mechanism claims and citations" carries the pointer). A deny can empty a
   summed bucket out of the snapshot entirely; the bucket's delta is then null and the row (or
   additivity record) reports `savedTokens`/`combinedSaved` as `null` with `comparable: false` and
   the reason: a missing measurement, never a coerced zero. That vanish path fires in
@@ -177,14 +176,18 @@ success.
 ## Session-kind boundary
 
 Every measurement is a **headless** session spawned against the pinned binary. Interactive
-sessions can compose the payload differently (deferral eligibility is partly server-decided), so
-records carry `sessionKind: "headless"` and reports repeat it. The spawned session's prompt is
-`/context`. **Claim:** that count is the token-counting API, or, from Claude Code 2.1.261, a
-local estimate when the token-counting API is unavailable, instead of extra small-model
-requests. It is not a generation call, and it is not always a measured API count. Connectors
-can also arrive after the first turn.
-**Basis:** [changelog](https://code.claude.com/docs/en/changelog) 2.1.261 ("Changed `/context`
-token counting to use a local estimate when the token-counting API is unavailable") and 2.1.260
-("Fixed claude.ai connectors staying absent for the whole session when the startup connector
-fetch timed out"). **As of:** 2026-09-28. **Recheck trigger:** a release note says `/context`
-always calls the token-counting API, or that a missed connector fetch is no longer retried.
+sessions can compose the payload differently, because whether tools are deferred does not rest on
+the session's own settings alone, so records carry `sessionKind: "headless"` and reports repeat
+it. The spawned session's prompt is `/context`. We treat its count as not a generation call and
+not always a measured API count, and we do not assume every connector is present at the first
+turn.
+
+- **Pointer:** for deferral, [MCP § Scale with MCP tool search](https://code.claude.com/docs/en/mcp#scale-with-mcp-tool-search)
+  and [§ Configure tool search](https://code.claude.com/docs/en/mcp#configure-tool-search); for how
+  `/context` counts, the [changelog 2.1.261 entry](https://code.claude.com/docs/en/changelog#2-1-261)
+  (the `/context` row in [commands § All commands](https://code.claude.com/docs/en/commands#all-commands)
+  does not name the counting method); for late connectors, the same 2.1.261 entry.
+- **As of:** 2026-10-11.
+- **Recheck trigger:** the tool search sections change what decides deferral, a release note says
+  `/context` always calls the token-counting API, the `/context` row names its counting method, or
+  a release note says a missed connector fetch is no longer retried.
