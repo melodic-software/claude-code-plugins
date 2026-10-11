@@ -291,16 +291,23 @@ and prices a recommended move with that destination's row:
 | CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read, write or edit in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read, write or edit |
 | Unscoped rules | Full load | Re-injected | None |
-| Skills | Name + description | Listing re-injected; body on invoke | `/skill` or model choice |
-| Subagents | Name + description | Same as skills | Dispatch |
+| Skills | Name + description | Listing re-injected; recently invoked bodies re-attached within a budget, older ones can drop | `/skill` or model choice |
+| Subagents | Name + description | Listing re-injected | Dispatch |
 | Hooks | N/A (deterministic) | N/A | Every tool call |
-| Auto-memory MEMORY.md | First 200 lines / 25KB | Persists on disk | None |
+| Auto-memory MEMORY.md | The start of the file, up to the load limit ([Auto-memory limits](#auto-memory-limits)) | Re-injected from disk | None |
 | Output style | If non-default | Persists for session | `/config` |
 
-- **Pointer**: [Troubleshoot memory issues](https://code.claude.com/docs/en/memory#troubleshoot-memory-issues),
-  the "Instructions seem lost after `/compact`" entry, and
-  [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
+We price a move into a skill as surviving compaction only partly: a large body comes back cut
+short, and in a session that invokes many skills an older one may not come back at all. The caps
+are read at the pointer, not here.
+
+- **Pointer**: [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction),
+  [Instructions seem lost after `/compact`](https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact),
+  and [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
   (correlate with [Steering Claude Code](https://claude.com/blog/steering-claude-code-skills-hooks-rules-subagents-and-more)).
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes what a mechanism in the table gets back after
+  compaction, or the skill re-attach budget.
 
 `AGENTS.md` is its own row's worth of behavior, and the row depends on the repository. The memory
 page changed its `AGENTS.md` guidance between 2026-06-20 and 2026-09-19, so the row below is
