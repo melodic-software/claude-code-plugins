@@ -5,7 +5,11 @@
 # path under ${CLAUDE_SKILL_DIR}, never under ${CLAUDE_PLUGIN_ROOT}, so a grant
 # that must reach a bundled script needs a path under the skill's own
 # directory. That is a repo convention, not a platform limit; its reason is
-# kept in plugins/prototype/scripts/allowed-tools-pairing.test.sh. Which
+# kept in the header paragraph of
+# plugins/prototype/scripts/allowed-tools-pairing.test.sh that opens "This gate requires
+# `${CLAUDE_SKILL_DIR}` in a grant" (lines 14-24; as of 2026-10-11; recheck
+# when that paragraph moves or is reworded, or the gate stops requiring
+# ${CLAUDE_SKILL_DIR} in a grant). Which
 # variables an `allowed-tools` Bash rule substitutes is read live from
 # https://code.claude.com/docs/en/skills#available-string-substitutions
 # (as of 2026-10-11; recheck when that section changes which variables a
