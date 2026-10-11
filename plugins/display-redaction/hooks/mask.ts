@@ -5,7 +5,8 @@ const QUANTIFIER_BRACE = /^\{\d/
 // Each built-in is anchored on a run start (a lookbehind) so a long run of word characters is
 // scanned once, not once per start position. Open-ended tails (`*`) mask a token still streaming.
 const BUILTIN_SOURCES = [
-  '(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}',
+  // An address with its TLD anywhere, or one still streaming at the end of the text.
+  '(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}|[A-Za-z0-9-]*(?:\\.[A-Za-z0-9-]*)*(?![\\s\\S]))',
   '(?<![A-Za-z0-9])sk-[\\w-]*',
   '(?<![A-Za-z0-9_])ghp_\\w*',
   '(?<![A-Za-z0-9_])github_pat_\\w*',
@@ -15,10 +16,11 @@ const BUILTIN_SOURCES = [
   '-----BEGIN [A-Z ]*PRIVATE KEY-----[\\s\\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|(?![\\s\\S]))',
 ]
 
-const NOREPLY = /noreply@|@users\.noreply\.github\.com/i
+const NOREPLY = /^noreply@/i
+const GITHUB_NOREPLY = /^\d+\+[^@]+@users\.noreply\.github\.com$/i
 
 const isAllowed = (match: string, offset: number, text: string): boolean =>
-  NOREPLY.test(match) || (/^git@/i.test(match) && text[offset + match.length] === ':')
+  NOREPLY.test(match) || GITHUB_NOREPLY.test(match) || (/^git@/i.test(match) && text[offset + match.length] === ':')
 
 // A group that holds a quantifier and is itself quantified can backtrack without bound.
 const hasNestedQuantifier = (source: string): boolean => {
@@ -83,12 +85,13 @@ export function maskText(text: string, patterns: readonly RegExp[], mask: string
 
 const walk = (value: unknown, patterns: readonly RegExp[], mask: string, depth: number): unknown => {
   if (typeof value === 'string') return maskText(value, patterns, mask)
-  if (depth >= MAX_DEPTH) return value
+  // Past the depth limit a structure is replaced whole, so nothing in it draws unmasked.
+  if (depth >= MAX_DEPTH) return value !== null && typeof value === 'object' ? mask : value
   if (Array.isArray(value)) return value.map((v) => walk(v, patterns, mask, depth + 1))
   if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
-    const copy: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value)) copy[k] = walk(v, patterns, mask, depth + 1)
-    return copy
+    const entries = Object.entries(value)
+    const keys = distinct(entries.map(([k]) => maskText(k, patterns, mask)), mask)
+    return Object.fromEntries(entries.map(([, v], i) => [keys[i], walk(v, patterns, mask, depth + 1)]))
   }
   return value
 }

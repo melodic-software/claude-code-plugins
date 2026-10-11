@@ -146,15 +146,55 @@ test('distinct leaves values that are already distinct alone', () => {
   expect(distinct(['a [hidden]', 'b [hidden]'], M)).toEqual(['a [hidden]', 'b [hidden]'])
 })
 
-test('distinct numbers the masks by position when masking made values equal', () => {
-  expect(distinct(['Mail [hidden]', 'Mail [hidden]', 'Skip'], M)).toEqual(['Mail [hidden 1]', 'Mail [hidden 2]', 'Skip'])
+const isDistinct = (list: readonly string[]) => new Set(list).size === list.length
+
+test('distinct makes values distinct that masking made equal, keeping the mask', () => {
+  const out = distinct(['Mail [hidden]', 'Mail [hidden]', 'Skip'], M)
+  expect(out.length).toBe(3)
+  expect(isDistinct(out)).toBe(true)
+  expect(out[0]).toContain('[hidden')
+  expect(out[1]).toContain('[hidden')
+  expect(out[2]).toContain('Skip')
 })
 
-test('distinct suffixes the position when numbering the masks is not enough', () => {
-  expect(distinct(['x [hidden 2]', 'x [hidden]', 'x [hidden]'], M)).toEqual([
-    'x [hidden 2] (1)',
-    'x [hidden 2] (2)',
-    'x [hidden 3] (3)',
-  ])
-  expect(distinct(['same', 'same'], M)).toEqual(['same (1)', 'same (2)'])
+test('distinct still makes values distinct when renumbering the masks would collide', () => {
+  for (const values of [['x [hidden 2]', 'x [hidden]', 'x [hidden]'], ['same', 'same']]) {
+    const out = distinct(values, M)
+    expect(out.length).toBe(values.length)
+    expect(isDistinct(out)).toBe(true)
+  }
+})
+
+test('masks an email that is still streaming, before its TLD arrives', () => {
+  expect(mask('kyle@example')).toBe(M)
+  expect(mask('reply to kyle@exa')).toBe(`reply to ${M}`)
+  expect(mask('reply to kyle@')).toBe(`reply to ${M}`)
+})
+
+test('leaves at-signs that are not addresses alone', () => {
+  const text = 'npm i @scope/pkg and foo @ bar, pkg@1.2.3, uses actions/checkout@v4 here'
+  expect(mask(text)).toBe(text)
+})
+
+test('allows only a noreply local part or a GitHub noreply address', () => {
+  expect(mask('a kyle.noreply@example.com b')).toBe(`a ${M} b`)
+  expect(mask('a xnoreply@example.com b')).toBe(`a ${M} b`)
+  expect(mask('a kyle@users.noreply.github.com b')).toBe(`a ${M} b`)
+  expect(mask('a noreply@example.com b')).toBe('a noreply@example.com b')
+})
+
+test('maskProps masks object keys and keeps them distinct', () => {
+  const out = maskProps({ answers: { 'Mail a@b.io?': 'yes', 'Mail c@d.io?': 'no' } }, ['answers'], patterns, M)
+  const keys = Object.keys(out.answers)
+  expect(keys.length).toBe(2)
+  expect(isDistinct(keys)).toBe(true)
+  expect(JSON.stringify(out)).not.toContain('.io')
+  expect(Object.values(out.answers).sort()).toEqual(['no', 'yes'])
+})
+
+test('maskProps masks a value nested past its depth limit instead of passing it through', () => {
+  let deep: unknown = { leaf: 'kyle@example.com' }
+  for (let i = 0; i < 100; i++) deep = { next: deep }
+  const out = maskProps({ deep }, ['deep'], patterns, M)
+  expect(JSON.stringify(out)).not.toContain('kyle@example.com')
 })

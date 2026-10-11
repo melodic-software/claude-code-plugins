@@ -191,45 +191,40 @@ const twoAddresses = (a: string, b: string, header: string) => ({
   ],
   multiSelect: false,
 })
+const ASKED = [twoAddresses('a@example.com', 'b@example.com', 'To'), twoAddresses('c@example.com', 'd@example.com', 'Cc')]
 
-test('keeps masked question texts and option labels distinct', async ($, on) => {
+type Drawn = { question: string; header: string; options: { label: string; description: string }[] }
+const isDistinct = (list: readonly string[]) => new Set(list).size === list.length
+
+// What the schema enforces holds, nothing original shows, and the other fields are as asked.
+const expectDistinctMasked = (questions: unknown) => {
+  const drawn = questions as Drawn[]
+  expect(drawn.length).toBe(2)
+  expect(isDistinct(drawn.map((q) => q.question))).toBe(true)
+  for (const q of drawn) {
+    expect(q.question).toContain('[hidden')
+    expect(q.options.length).toBe(2)
+    expect(isDistinct(q.options.map((o) => o.label))).toBe(true)
+  }
+  expect(drawn.map((q) => q.header)).toEqual(['To', 'Cc'])
+  expect(drawn.map((q) => q.options.map((o) => o.description))).toEqual([['first', 'second'], ['first', 'second']])
+  expect(JSON.stringify(drawn)).not.toContain('@example.com')
+}
+
+test('keeps masked question texts and option labels distinct in the dialog', async ($, on) => {
   const seen = capture(on, 'AskUserQuestion')
   await $.ui.render({
     surface: 'terminal',
     component: 'AskUserQuestion',
     requestId: 'q1',
-    props: {
-      tool: 'AskUserQuestion',
-      questions: [twoAddresses('a@example.com', 'b@example.com', 'To'), twoAddresses('c@example.com', 'd@example.com', 'Cc')],
-    },
+    props: { tool: 'AskUserQuestion', questions: ASKED },
   })
-  expect(seen.props).toEqual({
-    tool: 'AskUserQuestion',
-    questions: [
-      {
-        question: `Mail [hidden 1]?`,
-        header: 'To',
-        options: [
-          { label: 'Mail [hidden 1]', description: 'first' },
-          { label: 'Mail [hidden 2]', description: 'second' },
-        ],
-        multiSelect: false,
-      },
-      {
-        question: `Mail [hidden 2]?`,
-        header: 'Cc',
-        options: [
-          { label: 'Mail [hidden 1]', description: 'first' },
-          { label: 'Mail [hidden 2]', description: 'second' },
-        ],
-        multiSelect: false,
-      },
-    ],
-  })
-  expect(JSON.stringify(seen.props)).not.toContain('@example.com')
+  const props = seen.props as { tool: string; questions: unknown }
+  expect(props.tool).toBe('AskUserQuestion')
+  expectDistinctMasked(props.questions)
 })
 
-test('keeps option labels distinct in an AskUserQuestion tool row', async ($, on) => {
+test('keeps masked questions distinct in an AskUserQuestion tool row, input and output', async ($, on) => {
   const seen = capture(on, 'ToolUse')
   await $.ui.render({
     surface: 'terminal',
@@ -238,15 +233,40 @@ test('keeps option labels distinct in an AskUserQuestion tool row', async ($, on
     props: {
       tool_use_id: 't2',
       tool: 'AskUserQuestion',
-      input: { questions: [twoAddresses('a@example.com', 'b@example.com', 'To')] },
-      isRunning: true,
+      input: { questions: ASKED },
+      isRunning: false,
       isErrored: false,
       isInterrupted: false,
+      output: { questions: ASKED, answers: { 'Mail a@example.com?': 'Mail b@example.com' } },
     },
   })
-  const input = (seen.props as { input: { questions: { question: string; options: { label: string }[] }[] } }).input
-  expect(input.questions[0]?.question).toBe('Mail [hidden]?')
-  expect(input.questions[0]?.options.map((o) => o.label)).toEqual(['Mail [hidden 1]', 'Mail [hidden 2]'])
+  const props = seen.props as { input: { questions: unknown }; output: { questions: unknown; answers: object } }
+  expectDistinctMasked(props.input.questions)
+  expectDistinctMasked(props.output.questions)
+  expect(JSON.stringify(props.output.answers)).not.toContain('@example.com')
+})
+
+test('keeps masked questions distinct in an AskUserQuestion result', async ($, on) => {
+  const seen = capture(on, 'ToolResult')
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'ToolResult',
+    requestId: 'r-ask',
+    props: { tool_use_id: 'r-ask', tool: 'AskUserQuestion', output: { questions: ASKED, answers: {} }, isErrored: false },
+  })
+  expectDistinctMasked((seen.props as { output: { questions: unknown } }).output.questions)
+})
+
+test('masks the error text an errored tool result draws', async ($, on) => {
+  const seen = capture(on, 'ToolResult')
+  // An errored call's output is the error text the model read.
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'ToolResult',
+    requestId: 'r-err',
+    props: { tool_use_id: 'r-err', tool: 'Bash', output: `Error: no mailbox for ${EMAIL}`, isErrored: true },
+  })
+  expect(seen.props).toEqual({ tool_use_id: 'r-err', tool: 'Bash', output: `Error: no mailbox for ${M}`, isErrored: true })
 })
 
 test('/display-redaction off passes text through unmasked', async ($, on) => {

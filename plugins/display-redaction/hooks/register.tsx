@@ -24,15 +24,15 @@ const KEYS = {
 const extraPatterns = (value: unknown): string[] =>
   (Array.isArray(value) ? value : typeof value === 'string' ? value.split('\n') : []).filter((s) => s !== '')
 
-type Question = { question: string; options: { label: string }[] }
+type Question = { question: string; options?: { label: string }[] }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
 
 const isQuestion = (q: unknown): q is Question =>
   isRecord(q) &&
   typeof q.question === 'string' &&
-  Array.isArray(q.options) &&
-  q.options.every((o) => isRecord(o) && typeof o.label === 'string')
+  (q.options === undefined ||
+    (Array.isArray(q.options) && q.options.every((o) => isRecord(o) && typeof o.label === 'string')))
 
 // The AskUserQuestion schema refuses equal question texts and equal option labels within one
 // question, and a refused rewrite draws the original; so masked values are kept distinct.
@@ -40,10 +40,17 @@ const distinctQuestions = (questions: unknown): unknown => {
   if (!Array.isArray(questions) || !questions.every(isQuestion)) return questions
   const texts = distinct(questions.map((q) => q.question), MASK)
   return questions.map((q, i) => {
+    if (!q.options) return { ...q, question: texts[i] }
     const labels = distinct(q.options.map((o) => o.label), MASK)
     return { ...q, question: texts[i], options: q.options.map((o, j) => ({ ...o, label: labels[j] })) }
   })
 }
+
+// An AskUserQuestion record (the call's input, or its result) with its questions kept distinct.
+const distinctAsked = (tool: string, record: unknown): unknown =>
+  tool === 'AskUserQuestion' && isRecord(record) && 'questions' in record
+    ? { ...record, questions: distinctQuestions(record.questions) }
+    : record
 
 const isDisabled = async ($: EngineInterface): Promise<boolean> => (await $.state.get(DISABLED)).value === true
 
@@ -59,9 +66,14 @@ export const register: Register = (on, options) => {
   }
   const hideToolUse = <E extends { props: RenderPropsOf['ToolUse'] }>(e: E): E => {
     const m = hide(e, KEYS.ToolUse)
-    const input = m.props.input
-    if (m.props.tool !== 'AskUserQuestion' || !isRecord(input) || !('questions' in input)) return m
-    return { ...m, props: { ...m.props, input: { ...input, questions: distinctQuestions(input.questions) } } }
+    const { tool, input, output } = m.props
+    if (tool !== 'AskUserQuestion') return m
+    const props = { ...m.props, input: distinctAsked(tool, input) }
+    return { ...m, props: 'output' in m.props ? { ...props, output: distinctAsked(tool, output) } : props }
+  }
+  const hideToolResult = <E extends { props: RenderPropsOf['ToolResult'] }>(e: E): E => {
+    const m = hide(e, KEYS.ToolResult)
+    return { ...m, props: { ...m.props, output: distinctAsked(m.props.tool, m.props.output) } }
   }
 
   // Each .catch masks whatever failed, so a fault never draws the original props.
@@ -73,8 +85,8 @@ export const register: Register = (on, options) => {
     .catch(($, e, next) => next(hide(e, KEYS.CommandOutput)))
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolUse(e)))
     .catch(($, e, next) => next(hideToolUse(e)))
-  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.ToolResult)))
-    .catch(($, e, next) => next(hide(e, KEYS.ToolResult)))
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolResult(e)))
+    .catch(($, e, next) => next(hideToolResult(e)))
   on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => next((await isDisabled($)) ? e : hideQuestions(e)))
     .catch(($, e, next) => next(hideQuestions(e)))
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.InfoNotice)))
