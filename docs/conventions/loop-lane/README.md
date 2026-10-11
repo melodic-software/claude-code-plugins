@@ -737,9 +737,13 @@ session exposes, see [Available data](https://code.claude.com/docs/en/statusline
 As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
 the status line input.
 
-**Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
-persisted config, or tier defaults, and logs the assumption. The interactive path may run a
-mini-interview and offer to persist the answer; the headless path never waits on one.
+**Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
+config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
+config from its launch args only; when the stop mode (`--drain` or `--standing`) is absent it stops
+before any cycle work with a message naming the relaunch tokens, and only `shard`, `scope` and
+`ordering` fall back to their defaults. The babysit loop takes launch args, then its tracked config
+seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
+offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
