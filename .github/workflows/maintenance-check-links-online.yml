@@ -30,9 +30,11 @@ jobs:
           persist-credentials: false
 
       # The action evals `args`, so each regex and the glob stay single-quoted.
-      # Pacing: from a runner IP, Google-hosted blogs, Shopify stores and gnu.org
-      # throttle or drop lychee's default per-host burst, so each host gets
-      # fewer parallel requests, spaced out, with longer retries and timeout.
+      # Pacing: from a runner IP, some hosts (ziobrando.blogspot.com,
+      # newsletter.kentbeck.com, gnu.org) throttle or drop lychee's default
+      # per-host burst, so each host gets fewer parallel requests, spaced out,
+      # with longer retries and timeout. Pages that still answer 429 when paced
+      # get exact-URL .lycheeignore entries.
       - name: Check links (online)
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
