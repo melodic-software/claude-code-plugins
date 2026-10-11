@@ -17,6 +17,7 @@ the App token grant. The config's contract is the
 | `event-name`, `event-path` | the run's event | Decide an `events` predicate |
 | `pr-number` | empty | `check-trusted-trigger`'s `pr-number` output |
 | `head-sha` | empty | The gated head SHA; a `mergeable` predicate needs it |
+| `prepare-supported` | `false` | `true` only from a runner that performs a leaf's `prepare` step |
 | `github-token` | `${{ github.token }}` | Read-only; used only when a predicate needs the PR's labels, draft state, mergeability or changed files |
 
 It reads, all under `base-path`: the config, `docs/conventions/pr-pipeline/pr-pipeline.schema.json`
@@ -52,6 +53,9 @@ The step fails and writes no file when:
 10. A composite contains itself, directly or through another (`activity-cycle`), or holds a
     composite, which would put a leaf more than two layers below its lane (`activity-depth`).
 11. A leaf whose effect is `read` sets `prepare` (`invalid-prepare`).
+12. The selected leaf applies and sets `prepare`, and `prepare-supported` is not `true`: the
+    runner would run the skill without its prepare step. The action checks this; `resolveGrant`
+    does not.
 
 It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
 fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, a
