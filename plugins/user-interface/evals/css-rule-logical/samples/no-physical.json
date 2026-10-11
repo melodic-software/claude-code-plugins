@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": ".bubble--in { margin-inline-start: 12px; border-inline-start: 3px solid var(--accent); }",
+      "why": "logical only"
+    },
+    {
+      "answer": ".bubble { padding-block: 8px; text-align: start; }",
+      "why": "logical padding and start"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".bubble--in { margin-left: 12px; }",
+      "why": "margin-left"
+    },
+    {
+      "answer": ".bubble { border-left-width: 3px; }",
+      "why": "border-left-width"
+    },
+    {
+      "answer": ".bubble { text-align: left; }",
+      "why": "text-align left"
+    },
+    {
+      "answer": ".tail { position: absolute; left: 0; }",
+      "why": "physical offset"
+    }
+  ]
+}

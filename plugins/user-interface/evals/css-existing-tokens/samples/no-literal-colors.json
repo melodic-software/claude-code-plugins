@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".notice {\n  color: var(--color-text);\n  border-inline-start: 4px solid var(--color-accent);\n}",
+      "why": "tokens only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".notice {\n  border-inline-start: 4px solid #2563eb;\n}",
+      "why": "hex literal"
+    },
+    {
+      "answer": ".notice {\n  background: oklch(97% 0.02 250);\n}",
+      "why": "oklch literal"
+    }
+  ]
+}

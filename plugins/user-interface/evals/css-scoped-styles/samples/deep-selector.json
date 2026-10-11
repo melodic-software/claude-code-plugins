@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".price-tag:hover :deep(.info-link__icon) { color: var(--accent); }",
+      "why": ":deep()"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".price-tag:hover .info-link__icon { color: var(--accent); }",
+      "why": "plain descendant, never matches under scoping"
+    }
+  ]
+}

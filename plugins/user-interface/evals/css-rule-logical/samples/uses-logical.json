@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".bubble--in { margin-inline-start: 12px; }",
+      "why": "margin-inline-start"
+    },
+    {
+      "answer": ".bubble { padding-block: 8px; padding-inline: 12px; }",
+      "why": "shorthand logical padding"
+    },
+    {
+      "answer": ".bubble { text-align: start; }",
+      "why": "start alignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".bubble--in { margin-left: 12px; text-align: left; }",
+      "why": "physical only"
+    }
+  ]
+}

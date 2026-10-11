@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Pair a soft serif such as Lora for headings with Inter for body text.",
+      "why": "names a pairing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Calm, muted greens and sand tones.",
+      "why": "palette only"
+    }
+  ]
+}

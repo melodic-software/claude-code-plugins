@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".btn:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }",
+      "why": "styled outline"
+    },
+    {
+      "answer": ".btn:focus-visible { outline-color: oklch(55% 0.2 260); }",
+      "why": "outline-color"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".btn:focus { outline: none; }",
+      "why": "outline none"
+    },
+    {
+      "answer": ".btn:focus{outline:0}",
+      "why": "outline 0, minified"
+    },
+    {
+      "answer": ".btn:focus { outline-style: none !important; }",
+      "why": "outline-style none"
+    }
+  ]
+}

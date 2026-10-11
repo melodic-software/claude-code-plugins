@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".breadcrumb__item { margin-right: 8px; }",
+      "why": "physical"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".breadcrumb__item { margin-inline-end: 8px; }",
+      "why": "logical margin"
+    },
+    {
+      "answer": ".breadcrumb { padding-inline: 16px 0; }",
+      "why": "logical padding shorthand"
+    }
+  ]
+}

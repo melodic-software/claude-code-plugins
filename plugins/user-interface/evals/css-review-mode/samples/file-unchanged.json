@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --brand: #1f6feb;\n  --ink: #1b1f24;\n}\n\n.button {\n  color: var(--ink);\n  background: var(--brand);\n  margin-left: 8px;\n  transition: all 400ms ease-in;\n}\n\n.button:hover {\n  background: #174ea6;\n}\n\n.button:focus {\n  outline: none;\n}\n",
+      "why": "the seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ":root {\n  --brand: #1f6feb;\n  --ink: #1b1f24;\n}\n\n.button {\n  color: var(--ink);\n  background: var(--brand);\n  margin-left: 8px;\n  transition: all 400ms ease-in;\n}\n\n.button:hover {\n  background: #174ea6;\n}\n\n.button:focus {\n  outline: 2px solid var(--brand);\n}\n",
+      "why": "outline fixed in place"
+    },
+    {
+      "answer": ":root {\n  --brand: #1f6feb;\n  --ink: #1b1f24;\n}\n\n.button {\n  color: var(--ink);\n  background: var(--brand);\n  margin-left: 8px;\n  transition: background-color 200ms ease-out;\n}\n\n.button:hover {\n  background: #174ea6;\n}\n\n.button:focus {\n  outline: none;\n}\n",
+      "why": "transition fixed in place"
+    }
+  ]
+}

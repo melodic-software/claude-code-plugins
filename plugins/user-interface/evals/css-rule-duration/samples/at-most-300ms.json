@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": ".dropdown { transition: opacity 200ms var(--ease-out), translate 200ms var(--ease-out); }",
+      "why": "200ms"
+    },
+    {
+      "answer": ".tooltip { transition-duration: 150ms; }",
+      "why": "150ms longhand"
+    },
+    {
+      "answer": ".dropdown { transition: opacity 300ms ease-out; }",
+      "why": "exactly the limit"
+    },
+    {
+      "answer": ".tooltip { animation: fade .25s ease-out; }",
+      "why": "0.25s"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".dropdown { transition: opacity 600ms ease; }",
+      "why": "600ms"
+    },
+    {
+      "answer": ".tooltip { transition: opacity 0.5s ease-out; }",
+      "why": "0.5s"
+    },
+    {
+      "answer": ".dropdown { animation: fade-in 1s ease-out; }",
+      "why": "1s"
+    },
+    {
+      "answer": ".dropdown { transition-duration: 350ms; }",
+      "why": "350ms"
+    }
+  ]
+}

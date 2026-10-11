@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "src/app.css:18 [outline] Never remove the outline.",
+      "why": "path:line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The focus rule removes the outline.",
+      "why": "no location"
+    }
+  ]
+}

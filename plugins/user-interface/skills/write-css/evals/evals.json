@@ -1,0 +1,80 @@
+{
+  "skill_name": "write-css",
+  "evals": [
+    {
+      "id": 1,
+      "name": "writes-css-with-always-on-rules",
+      "prompt": "Write the CSS for a product card that lifts slightly on hover, with a focus style for its link and a short transition.",
+      "expected_output": "The skill runs its stack discovery, finds no project convention covering these rules, and writes CSS where every :hover rule sits inside @media (hover: hover) and (pointer: fine), focus uses :focus-visible with an outline, the movement transition sits inside @media (prefers-reduced-motion: no-preference), names its properties, avoids ease-in and stays at 300ms or less.",
+      "files": [],
+      "expectations": [
+        "Every :hover rule in the CSS is inside @media (hover: hover)",
+        "Focus is styled with :focus-visible and an outline, and the CSS never writes outline: none",
+        "The transform transition is inside @media (prefers-reduced-motion: no-preference), names its properties instead of all, uses no ease-in, and lasts 300ms or less"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's always-on rules, written for this suite"
+    },
+    {
+      "id": 2,
+      "name": "project-convention-wins",
+      "prompt": "Our docs/css-conventions.md says the app is left-to-right only and we write physical properties like margin-left, never logical ones. Add CSS for a .breadcrumb with 8px after each item and a 16px left indent.",
+      "expected_output": "The skill reads the project convention and follows it over its own logical-property rule: it writes margin-right and padding-left, and says the project convention decided it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The CSS uses physical margin and padding properties, not margin-inline or padding-inline",
+        "The response names the project convention as the reason it did not use logical properties"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The skill's own always-on rule says the opposite, so the model must rank the project convention above the shipped rule",
+      "source": "the project-first acceptance criterion, written for this suite"
+    },
+    {
+      "id": 3,
+      "name": "token-fallback-asks",
+      "prompt": "Add an amber .alert--warning variant beside .alert--danger. Our tokens.css has danger, accent, text and surface colors but nothing for warnings.",
+      "expected_output": "With no matching token and token_fallback at its default of ask, the skill does not invent a token value or hard-code amber as the finished answer. It says no warning token exists and asks whether to add one, offering a proposed value marked as a proposal.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The response says the project has no warning or amber token",
+        "The response asks the user how to proceed before delivering CSS that depends on a new value",
+        "The response does not present an invented token or literal amber value as the finished answer"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Inventing a plausible --color-warning token is the path of least resistance",
+      "source": "the token_fallback acceptance criterion, written for this suite"
+    },
+    {
+      "id": 4,
+      "name": "review-mode-read-only",
+      "prompt": "Review src/app.css for CSS problems. Do not change anything.",
+      "expected_output": "Review mode runs the bundled linter first, edits nothing, and reports findings as path:line entries with rule ids under Findings, lists findings that contradict a project convention under a Suppressed heading with the reason, and points at the project's Stylelint rules when a config exists.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The skill runs its bundled review script before giving judgment findings",
+        "No file is edited",
+        "Findings are reported as path:line entries",
+        "Findings that contradict a project convention appear under a Suppressed heading with the reason"
+      ],
+      "difficulty": "hard",
+      "why_hard": "A reviewer that sees outline: none tends to fix it in place, and a convention conflict tends to be dropped rather than shown",
+      "source": "the review-mode acceptance criterion, written for this suite"
+    },
+    {
+      "id": 5,
+      "name": "pure-design-request-does-not-trigger",
+      "prompt": "Suggest a brand direction for a meditation app: the mood, a palette described in words, and a typeface pairing. No code.",
+      "expected_output": "This is a visual-direction request with no CSS to write. write-css does not fire; /user-interface:design or plain guidance answers it.",
+      "files": [],
+      "expectations": [
+        "The write-css skill is not invoked",
+        "The response gives a mood, a palette in words and a typeface pairing without writing CSS"
+      ],
+      "difficulty": "routine",
+      "source": "the trigger boundary with /user-interface:design, written for this suite"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/css-conventions.md asks for physical properties, so I used margin-right.",
+      "why": "names the file"
+    },
+    {
+      "answer": "Your team's CSS conventions call for physical properties.",
+      "why": "names the convention"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is the breadcrumb CSS.",
+      "why": "no reason given"
+    }
+  ]
+}

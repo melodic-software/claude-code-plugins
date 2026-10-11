@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "@media (hover: hover) and (pointer: fine) {\n  .card:hover { translate: 0 -2px; }\n}",
+      "why": "the full query"
+    },
+    {
+      "answer": "@media (hover:hover) {\n  .card__title:hover { text-decoration: underline; }\n}",
+      "why": "hover feature only, no spaces"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".card:hover { transform: translateY(-2px); border-color: #333; }",
+      "why": "bare :hover"
+    },
+    {
+      "answer": "@media (any-hover: none) { .card { } }",
+      "why": "a different media feature"
+    }
+  ]
+}

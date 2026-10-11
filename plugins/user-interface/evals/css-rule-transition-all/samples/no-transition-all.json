@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".btn { transition: background-color 150ms, box-shadow 150ms; }",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".btn { transition: all 0.2s ease; }",
+      "why": "transition all"
+    },
+    {
+      "answer": ".btn { transition-property: all; }",
+      "why": "transition-property all"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "I could not verify how @quillkit/styled-core scopes class names.",
+      "why": "could not verify"
+    },
+    {
+      "answer": "Unverified: whether quillkit supports @layer.",
+      "why": "unverified label"
+    },
+    {
+      "answer": "I can't research the library in this run.",
+      "why": "cannot research"
+    },
+    {
+      "answer": "I was not able to confirm whether it supports @layer.",
+      "why": "was not able to confirm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "quillkit scopes classes with a hash prefix.",
+      "why": "confident assertion"
+    }
+  ]
+}

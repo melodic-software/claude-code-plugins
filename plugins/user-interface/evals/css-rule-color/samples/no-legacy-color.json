@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --brand: oklch(55% 0.2 260);\n  --gray-1: oklch(96% 0 none);\n}",
+      "why": "oklch only"
+    },
+    {
+      "answer": "I converted your hex values.\n\n:root {\n  --tint: color-mix(in oklch, var(--brand) 20%, transparent);\n}",
+      "why": "prose plus oklch"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ":root {\n  --brand: #2563eb;\n}",
+      "why": "hex custom property"
+    },
+    {
+      "answer": ":root {\n  --tint: rgba(37, 99, 235, 0.2);\n}",
+      "why": "rgba tint"
+    },
+    {
+      "answer": ".x {\n  color: hsl(220 80% 50%);\n}",
+      "why": "hsl declaration"
+    }
+  ]
+}

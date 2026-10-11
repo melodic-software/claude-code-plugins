@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".dropdown { transition: opacity 200ms var(--ease-out); }",
+      "why": "ms"
+    },
+    {
+      "answer": ".tooltip { animation: fade-in .15s ease-out; }",
+      "why": "seconds"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".dropdown { opacity: 1; }",
+      "why": "no timing"
+    }
+  ]
+}

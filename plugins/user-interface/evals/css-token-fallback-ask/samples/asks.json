@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "There is no warning token. Should I add --color-warning with a proposed amber value?",
+      "why": "asks about a token"
+    },
+    {
+      "answer": "Which amber value do you want for the warning background?",
+      "why": "asks for the value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".alert--warning { background: #fef3c7; }",
+      "why": "silent literal"
+    },
+    {
+      "answer": "Done. Want anything else?",
+      "why": "a question unrelated to the token"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@supports (anchor-name: --tip) {\n  #tip { position-anchor: --tip; }\n}",
+      "why": "@supports"
+    },
+    {
+      "answer": "Safari 15 lacks support for anchor positioning, so I skipped it.",
+      "why": "stated skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "#tip { position-anchor: --tip; top: anchor(bottom); }",
+      "why": "used unconditionally"
+    }
+  ]
+}
