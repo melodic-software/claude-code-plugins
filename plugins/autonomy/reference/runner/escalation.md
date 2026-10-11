@@ -158,14 +158,15 @@ naming instances is the binding surface's job, not this contract's.
 
 **Both classes shipped, dated record.** Each leg's transport class has a first-party mechanism
 available today, so neither waits on a primitive that has to be invented. *One bound the ladder
-order already reflects:* the push leg's delivery depends on where the harness is hosted and on an
-operator opt-in, a second reason it never substitutes for the channel leg.
+order already reflects:* the push leg's delivery depends on an operator opt-in and is not
+available everywhere the harness runs, a second reason it never substitutes for the channel leg.
 
 - **Pointer**: when binding either leg, read the guardrail slice's
   [escalation transports record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
   and fetch the sections it names live.
 - **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires.
+- **Recheck trigger**: that record's recheck trigger fires, or the linked heading is renamed or
+  removed.
 
 ### Contract-default severities
 
@@ -228,7 +229,8 @@ the two are not interchangeable.
   [pause and resume record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
   and fetch the sections it names live.
 - **As of**: 2026-10-11
-- **Recheck trigger**: that record's recheck trigger fires.
+- **Recheck trigger**: that record's recheck trigger fires, or the linked heading is renamed or
+  removed.
 
 ## Escalation telemetry
 

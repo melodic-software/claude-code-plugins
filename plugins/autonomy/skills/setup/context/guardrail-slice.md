@@ -130,12 +130,14 @@ that posts to an endpoint, and its push leg to the agent's own push-notification
 
 - **Pointer**: when binding the channel leg, fetch
   <https://code.claude.com/docs/en/hooks#http-hook-fields> live; when binding the push leg, fetch
-  <https://code.claude.com/docs/en/settings-reference#agentpushnotifenabled> live. The tools
-  reference lists the push tool in a table with no section anchor, so that setting is the nearest
-  anchored section.
+  <https://code.claude.com/docs/en/settings-reference#agentpushnotifenabled> live for the opt-in,
+  and <https://code.claude.com/docs/en/tools-reference> live for the `PushNotification` row of
+  its tools table, which says where push delivery is unavailable. That table has no section
+  anchor as of this date, so the pointer names the row.
 - **As of**: 2026-10-11
-- **Recheck trigger**: the hooks page drops the HTTP hook type, a release note names either
-  surface, or either section is renamed or removed.
+- **Recheck trigger**: the hooks page drops the HTTP hook type, the tools reference drops or
+  renames the `PushNotification` row, a release note names either surface, or either anchored
+  section is renamed or removed.
 
 **Pause and resume.** The escalation leaf's deferred mid-run interrupt would build on Claude Code's
 permission-prompt pause and on resuming a stopped run with its history.

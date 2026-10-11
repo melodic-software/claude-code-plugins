@@ -58,7 +58,8 @@ The slice treats spans as optional and never depends on beta span shapes.
 - **Pointer**: when a binding wires spans, fetch
   <https://code.claude.com/docs/en/monitoring-usage#traces-beta> live for the variables spans need.
 - **As of**: 2026-10-11
-- **Recheck trigger**: the page drops the beta label from that section.
+- **Recheck trigger**: the page drops the beta label from that section or drops the
+  `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA` flag.
 
 ## Evidence that a guardrail fired
 
@@ -94,8 +95,10 @@ with. The claim covers those two pages, not what the harness emits. A binding th
 of instruction-file or memory-file reads wraps the hooks that report them.
 
 Basis: raw-markdown reads of both pages on 2026-10-11. The monitoring page has zero
-case-insensitive matches for the stem of "memory"; the hooks page has zero matches for
-`auto memory` or `MEMORY.md`.
+case-insensitive matches for the stem of "memory". The hooks page has zero matches for
+`auto memory` or `MEMORY.md`, and its matches for the stem are unrelated (an MCP memory server,
+in-memory state, links to the memory page, and the `InstructionsLoaded` input's instruction-file
+scope field). The memory page does not say how memory writes are made.
 
 - **Pointer**: when checking whether that coverage changed, fetch
   <https://code.claude.com/docs/en/monitoring-usage#events>,
