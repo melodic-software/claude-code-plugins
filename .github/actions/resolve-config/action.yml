@@ -46,6 +46,12 @@ inputs:
       only from a pull read whose head is this SHA.
     required: false
     default: ""
+  prepare-supported:
+    description: >
+      `true` only from a runner that performs a leaf's `prepare` step. An
+      applying leaf that sets `prepare` fails the step otherwise.
+    required: false
+    default: "false"
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
@@ -122,6 +128,7 @@ runs:
         EVENT_PATH: ${{ inputs.event-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
         HEAD_SHA: ${{ inputs.head-sha }}
+        PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |

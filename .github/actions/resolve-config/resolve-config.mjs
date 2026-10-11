@@ -208,6 +208,14 @@ export async function main({ env = process.env, github, sleep = wait } = {}) {
         createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     });
     const resolved = resolve(files, { ...request, facts });
+    // A runner that does not perform the prepare step would run the skill
+    // without it, so an applying leaf that needs one fails instead.
+    const { selected: chosen } = resolved;
+    if (chosen?.applies && chosen.prepare && env.PREPARE_SUPPORTED !== "true") {
+      throw new Error(
+        `activity \`${chosen.name}\` sets prepare: ${chosen.prepare}, and this runner does not pass prepare-supported: true`,
+      );
+    }
     writeFileSync(outputPath, `${JSON.stringify(resolved, null, 2)}\n`);
     writeOutputs(outputsFor(resolved), env.GITHUB_OUTPUT);
     const selected = resolved.selected;

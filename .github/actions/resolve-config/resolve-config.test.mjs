@@ -606,20 +606,46 @@ test("a work-classes predicate fails red: no run supplies work classes yet", asy
   await assertFailsRed(t, env, /needs workClasses/);
 });
 
-test("a leaf's prepare mode is a step output, set only when the leaf declares one", async () => {
-  const { env } = workspace();
+// valid.yaml's fix-docs (lane pr-refine) with prepare: merge-base and `extra`.
+function withPrepare(env, extra = "") {
   const config = join(env.BASE_PATH, CONFIG_PATH);
   writeFileSync(
     config,
     readFileSync(config, "utf8").replace(
       "    effect: mutate-branch\n",
-      "    effect: mutate-branch\n    prepare: merge-base\n",
+      `    effect: mutate-branch\n    prepare: merge-base\n${extra}`,
     ),
   );
   env.LANE = "pr-refine";
   env.ACTIVITY = "fix-docs";
+}
+
+test("a leaf's prepare mode is a step output, set only when the leaf declares one", async () => {
+  const { env } = workspace();
+  withPrepare(env);
+  env.PREPARE_SUPPORTED = "true";
   assert.equal(await main({ env, github: noApi }), 0);
   assert.equal(readOutputs(env.GITHUB_OUTPUT).prepare, "merge-base");
+});
+
+test("an applying leaf with prepare fails red unless the runner declares prepare support", async (t) => {
+  for (const supported of [undefined, "", "false", "TRUE"]) {
+    const { env } = workspace();
+    withPrepare(env);
+    if (supported === undefined) {
+      delete env.PREPARE_SUPPORTED;
+    } else {
+      env.PREPARE_SUPPORTED = supported;
+    }
+    await assertFailsRed(t, env, /prepare-supported/);
+  }
+});
+
+test("a leaf with prepare that does not apply resolves without prepare support", async () => {
+  const { env } = workspace();
+  withPrepare(env, "    applies-when:\n      labels: [never-set]\n");
+  assert.equal(await main({ env, github: noApi }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "false");
 });
 
 // mergeable, labels-absent and draft, from GET /pulls/{n}

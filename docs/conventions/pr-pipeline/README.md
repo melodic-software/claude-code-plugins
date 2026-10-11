@@ -155,7 +155,9 @@ Each leaf declares:
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional, `skill` only, effect other than `read`): what the write runner does around
   the skill. `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it.
+  skill runs, and commits the result with both as parents after it. A write runner performs this
+  only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
+  else an applying leaf that sets `prepare` fails red rather than running without it.
 - `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
   run. When unset, `pr-run-activity`'s defaults apply.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
