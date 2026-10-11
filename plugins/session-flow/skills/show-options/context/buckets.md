@@ -95,8 +95,9 @@ Two consequences, both accepted and both stated rather than hidden:
 - Concurrent sessions are **last-write-wins**. There is no lease, and two sessions firing at once may
   each advance the rotation independently.
 
-**Not `${CLAUDE_PLUGIN_DATA}`.** That path is keyed to the plugin identifier and *nothing else*: no
-project, no checkout, no session. So a fixed filename there is one file per *machine*, shared by
+**Not `${CLAUDE_PLUGIN_DATA}`.** We treat that path as keyed to the plugin identifier and nothing
+else (record and pointer: `reference/structure.md`, "Verification record: plugin data dir" at the
+plugin root). So a fixed filename there is one file per *machine*, shared by
 every repository the operator works in. A spotlight surfaced in repo A would then suppress it in
 repo B, which is a worse failure than losing rotation on a fresh clone.
 
