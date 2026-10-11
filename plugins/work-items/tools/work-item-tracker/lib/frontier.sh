@@ -8,6 +8,14 @@ readonly _WIT_FRONTIER_LOADED=1
 # shellcheck source=labels.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/labels.sh"
 
+# wit_filter_label <label> — stdin a list envelope, stdout the items carrying exactly that
+# label. Core runs it after every `--label` read, so a provider whose label filter matches
+# loosely (case-insensitively, or by any of several comma-split names) cannot widen the
+# result. Every other envelope key, `truncated` included, passes through unchanged.
+wit_filter_label() {
+  jq -c --arg label "$1" '.items |= [.[] | select((.labels // []) | index($label))]'
+}
+
 # wit_filter_frontier <autonomous:true|false> [<human-gated-label>] [<container-label>]
 # stdin a list-items envelope, stdout the frontier. Callers with a binding pass its
 # resolved WIT_HUMAN_GATED_LABEL / WIT_CONTAINER_LABEL so a remap is honored. The

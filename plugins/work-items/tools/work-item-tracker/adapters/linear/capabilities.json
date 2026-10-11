@@ -6,6 +6,7 @@
     "cross_repo_edges": true,
     "labels": true,
     "leases": true,
+    "list_items_label_filter": true,
     "sub_items": true
   },
   "limits": {

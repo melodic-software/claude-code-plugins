@@ -9,10 +9,16 @@ when the reads behind it were complete.
 
 - **Frontier**: the seam's `list-frontier --autonomous`. Its envelope carries `truncated` (the
   tracker seam's `CONTRACT.md`, "JSON output contract").
-- **Open items**: the seam's `list-items --state open`, which every bundled adapter serves. Its
-  envelope carries `truncated` the same way; each adapter decides it exactly, by reading one item
-  past `limits.list_items_max` where the provider allows, so a backlog of exactly the ceiling is
-  complete. Never pass a provider-specific flag such as `--limit` here.
+- **Open items**: the seam's `list-items --state open`. Its envelope carries `truncated` the same
+  way; each adapter decides it exactly, by reading one item past `limits.list_items_max` where the
+  provider allows, so a backlog of exactly the ceiling is complete. Never pass a
+  provider-specific flag such as `--limit` here.
+
+With `--scope <label>`, both reads take `--label <label>`. Where the bound adapter filters by label
+in its provider query, the ceiling counts only scoped items, so a small scope on a large tracker
+reads complete; where it does not, the seam filters after the read and a listing past the ceiling
+stays truncated (`CONTRACT.md`, "Verbs"). `--shard` has no provider filter and partitions the
+retained ids after the reads.
 
 An envelope with no `truncated` field falls under "Completeness unknown" below, whichever read
 returned it.

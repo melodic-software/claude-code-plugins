@@ -12,37 +12,31 @@ Read the order there. This phase cites it and never states a different one.
 
 ## 2.5.1 Refuse without a pull request
 
-```bash
-BRANCH=$(git branch --show-current)
-PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
-```
+Set `BRANCH` to the current branch and look up its PR number into `PR_NUMBER`
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#find-the-pr-for-the-branch)).
 
 Empty: stop and report. There is nothing to flip and no head a reviewer can reach. Route to
 `/source-control:pull-request create`, which opens the draft this phase flips, rather than opening
 one here.
 
-Already out of draft (`gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`): the
+Already out of draft (the PR's draft flag reads `false`;
+[GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)): the
 flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4 and 2.5.5.
 
 ## 2.5.2 Refresh the base with a merge
 
-```bash
-BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName')
-REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1
+Read the PR's base branch into `BASE`, resolve `REMOTE` with `resolve-remote.sh`, have the forge
+merge the base into the head branch, then fetch the head branch from `REMOTE` and fast-forward the
+local branch to it
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
 
-gh pr update-branch "$PR_NUMBER"                     # merges the base into the head branch
-git fetch "$REMOTE" "$BRANCH" && git merge --ff-only FETCH_HEAD
-```
-
-When the head already contains the base tip, `gh pr update-branch` prints "PR branch already
-up-to-date" and pushes nothing (cli/cli `pkg/cmd/pr/update-branch/update_branch.go`, the
-`BehindBy == 0` return, read 2026-10-02; recheck when a gh release changes `update-branch`), so
-the flip adds no push of its own then.
+When the head already contains the base tip, the forge's update pushes nothing (the provider
+reference records the evidence and its recheck trigger), so the flip adds no push of its own then.
 
 Push any local commits first: `git merge --ff-only FETCH_HEAD` refuses when the local branch
 carries commits the remote lacks, and the local-merge fallback below handles that case too.
 
-Where `gh pr update-branch` is unavailable or refuses (a fork head, a session that cannot reach the
+Where the forge's update is unavailable or refuses (a fork head, a session that cannot reach the
 endpoint), do the same thing locally:
 
 ```bash
@@ -53,16 +47,17 @@ Refresh the base with a merge, never a rebase: a rebase of an open pull request 
 and rewrites commits reviewers have already read. Conflicts route to
 `/source-control:resolve-conflicts`, the sibling skill in this plugin.
 
-Completion criterion: `git rev-parse HEAD` equals
-`gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid'`. After `gh pr update-branch` the merge
-commit exists on the remote only, so the fetch above is what makes the two agree.
+Completion criterion: `git rev-parse HEAD` equals the PR's head commit
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#refresh-the-base-with-a-merge)).
+After the forge's update the merge commit exists on the remote only, so the fetch above is what makes the two agree.
 
 ## 2.5.3 Review and verify the merged head
 
 Three runs, in the pre-PR order cited at the top of this file, plus the plan's review evidence when
 a plan asks for it. Both reviews run in a fresh-context subagent, never in the authoring session:
-hand it the pull request's diff (`gh pr diff "$PR_NUMBER"`) and the acceptance criteria, not the
-author's reasoning.
+hand it the pull request's diff
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-diff)) and
+the acceptance criteria, not the author's reasoning.
 
 - **The plan's review evidence, when a plan asks for it.** When the branch implements a plan (the
   `PLAN.md` the pull request body or the session names) and a phase this pull request ships sets a
@@ -106,19 +101,17 @@ when that branch has no local ref or its push remote is not the PR's head reposi
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
-gh pr ready "$PR_NUMBER"
 ```
 
-In a cloud session `gh pr ready` fails, because the flip is a GraphQL mutation. Two routes work
-there. The proxy's REST route:
+Then mark the PR ready
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
-```bash
-gh api --method POST "repos/{owner}/{repo}/pulls/$PR_NUMBER/ccr/ready_for_review"
-```
+In a cloud session the CLI flip fails, because the flip is a GraphQL mutation. Two routes work
+there: the proxy's REST route, or the GitHub MCP `update_pull_request` call with `draft: false`
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#flip-to-ready)).
 
-Or the GitHub MCP `update_pull_request` call with `draft: false`.
-
-Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`.
+Completion criterion: the PR's draft flag reads `false`
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)).
 
 ## 2.5.5 Hand the pull request to the change digest
 

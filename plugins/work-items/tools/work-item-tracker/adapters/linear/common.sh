@@ -434,6 +434,7 @@ readonly WIT_LINEAR_ISSUE_FIELDS='
   number
   title
   url
+  createdAt
   state { type name }
   assignee { displayName email }
   labels(first: 50) { nodes { name } }
@@ -515,7 +516,7 @@ wit_linear_gql() {
 #   • Linear has no issue-TYPE axis in the contract's sense (its "type" here is the
 #     workflow-state category), so normalized `type` is null.
 # shellcheck disable=SC2016,SC2034  # jq program — $sv/$ws/$dt are jq args, not bash; used by verb scripts
-readonly WIT_LINEAR_NORMALIZE_PROGRAM='
+readonly WIT_LINEAR_NORMALIZE_PROGRAM="$WIT_JQ_DEF_UTC_TS"'
   def is_done($t): ($dt | index($t)) != null;
   def qualify(team; num): "linear:" + $ws + "/" + team + "#" + (num | tostring);
   {
@@ -536,7 +537,8 @@ readonly WIT_LINEAR_NORMALIZE_PROGRAM='
       | select(is_done($t) and $t != "completed") ] | length),
     parent_id: (if (.parent // null) == null then null
                 else qualify(.parent.team.key // ""; .parent.number) end),
-    url: (.url // "")
+    url: (.url // ""),
+    created_at: (.createdAt | wit_utc_ts)
   }'
 
 # wit_linear_scope_parts <workspace/TEAM> — split a scope entry, setting

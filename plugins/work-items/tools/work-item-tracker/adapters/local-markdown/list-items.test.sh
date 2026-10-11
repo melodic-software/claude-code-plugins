@@ -52,4 +52,24 @@ assert_eq "past the ceiling: only the ceiling's worth of items" "2" "$(jq '.item
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --state closed)"
 assert_eq "one closed item, under the ceiling: the closed listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 
+# --- --label filters before the ceiling counts (#7173) ---
+# Three open items already fill past the ceiling of 2; one more carries the label. The
+# labeled listing holds that one item and is complete.
+WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "labeled" --labels "area: ci" >/dev/null
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")"
+assert_eq "--label past an unlabeled ceiling → exit 0" "0" "$?"
+assert_eq "--label lists the labeled item only" "local-markdown:local/markdown#5" "$(jq -r '[.items[].id] | join(",")' <<<"$LISTED")"
+assert_eq "--label listing under the ceiling is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area")"
+assert_eq "--label matches whole label names, not substrings" "0" "$(jq '.items | length' <<<"$LISTED")"
+assert_usage_error "$S" --label
+
+# --- created_at: written at create, null for an item written before the field ---
+assert_eq "a created item carries a UTC created_at" "true" \
+  "$(jq -r '.items[0].created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")' <<<"$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")")"
+grep -v '^created_at: ' "$STORE/5.md" >"$STORE/5.md.old"
+mv "$STORE/5.md.old" "$STORE/5.md"
+assert_eq "an item without the field reads created_at null" "null" \
+  "$(jq -c '.items[0].created_at' <<<"$(WIT_STORAGE_DIR="$STORE" bash "$FS" --label "area: ci")")"
+
 [[ $FAILED -eq 0 ]] || exit 1

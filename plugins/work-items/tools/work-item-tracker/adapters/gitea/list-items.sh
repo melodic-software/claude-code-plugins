@@ -11,16 +11,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-USAGE='usage: list-items.sh [--state open|closed|all] [--repo <o>/<r>]'
+USAGE='usage: list-items.sh [--state open|closed|all] [--repo <o>/<r>] [--label <name>]'
 wit_help_if_requested "$USAGE" "$@"
 
 STATE="open"
 REPO=""
+LABEL_QUERY=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --state)
     [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
     STATE="$2"
+    shift 2
+    ;;
+  # Gitea's `labels` parameter filters server-side, so the ceiling counts labeled issues.
+  # It splits on commas and drops a name the repository has no label for, so it can
+  # match more than asked; the core's exact-match filter after this read covers both.
+  --label)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
+    LABEL_QUERY="&labels=$(jq -rn --arg l "$2" '$l | @uri')"
     shift 2
     ;;
   --repo)
@@ -83,7 +92,7 @@ while :; do
   # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
   # budget and, worse, the declared ceiling counted rows rather than items, making a PR-heavy
   # repo report "reached the declared ceiling of 1000 items" having collected far fewer.
-  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
+  wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues?state=$STATE&type=issues$LABEL_QUERY&page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
   wit_gitea_require_ok "listing issues in $REPO"
   GOT="$(printf '%s' "$WIT_GITEA_BODY" | jq 'length' 2>/dev/null)" || {
     printf 'list-items.sh: gitea returned a non-array issue list for %s\n' "$REPO" >&2

@@ -148,4 +148,16 @@ NEARMISS='{"schema_version":"1.0","items":[
 COUNT="$(frontier_count true <<<"$NEARMISS")"
 assert_eq "floor matching is exact, not substring" "1" "$COUNT"
 
+# --- wit_filter_label: exact label match, envelope keys untouched ---
+LABELED='{"schema_version":"1.0","truncated":true,"items":[
+  {"id":"github:o/r#1","labels":["area: ci"]},
+  {"id":"github:o/r#2","labels":["Area: CI"]},
+  {"id":"github:o/r#3","labels":["area: ci-extra","area: ci"]},
+  {"id":"github:o/r#4","labels":["area: ci-extra"]},
+  {"id":"github:o/r#5"}]}'
+assert_eq "label filter keeps only exact matches" "github:o/r#1,github:o/r#3" \
+  "$(wit_filter_label "area: ci" <<<"$LABELED" | jq -r '[.items[].id] | join(",")')"
+assert_eq "label filter passes truncated through" "true" \
+  "$(wit_filter_label "area: ci" <<<"$LABELED" | jq -c '.truncated')"
+
 [[ $FAILED -eq 0 ]] || exit 1

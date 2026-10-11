@@ -270,7 +270,7 @@ wit_emit_local_item() {
   local number="$1" unassign_expired="${2:-false}" file
   file="$(wit_item_file "$number")"
   [[ -f "$file" ]] || return 1
-  local id title state assignees labels type parent url
+  local id title state assignees labels type parent url created_at
   id="$(wit_fm_field "$file" id)"
   title="$(wit_fm_field "$file" title)"
   state="$(wit_fm_field "$file" state)"
@@ -295,6 +295,9 @@ wit_emit_local_item() {
   [[ -n "$type" ]] || type="null"
   parent="$(wit_fm_field "$file" parent)"
   url="$(wit_fm_field "$file" url)"
+  # Written by create-item; an item created before the field existed reads as null.
+  created_at="$(wit_fm_field "$file" created_at)"
+  [[ -n "$created_at" ]] || created_at="null"
   # Capture then iterate via here-string — a `< <(cmd)` process substitution whose
   # loop body itself forks (wit_item_file, wit_fm_field) intermittently deadlocks on
   # Git Bash/MSYS (bash/conventions.md gotchas: "Process substitution partial").
@@ -325,8 +328,9 @@ wit_emit_local_item() {
     --argjson assignees "$assignees" --argjson labels "$labels" \
     --argjson type "$type" \
     --argjson parent "$parent" --argjson count "$count" --argjson wont_do "$wont_do" \
-    --argjson url "$url" \
-    '{schema_version: $sv, id: $id, title: $title, state: $state,
+    --argjson url "$url" --argjson created_at "$created_at" \
+    "$WIT_JQ_DEF_UTC_TS"'{schema_version: $sv, id: $id, title: $title, state: $state,
       assignees: $assignees, labels: $labels, type: $type, blocked_by_count: $count,
-      blocked_by_wont_do_count: $wont_do, parent_id: $parent, url: $url}'
+      blocked_by_wont_do_count: $wont_do, parent_id: $parent, url: $url,
+      created_at: ($created_at | wit_utc_ts)}'
 }

@@ -99,7 +99,8 @@ what it judges clear, so the prompt below carries that discipline to it in words
 
 The model never runs it; it prints it filled in. Give the person:
 
-1. The checkout to run it from: the worktree path, or `gh pr checkout <N>`. It finds the PR from
+1. The checkout to run it from: the worktree path, or a checkout of the PR head
+   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). It finds the PR from
    the current branch.
 2. The command, with `<N>` and the project line filled:
 
