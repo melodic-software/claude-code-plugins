@@ -3,7 +3,19 @@
 # telemetry comment on the lane's tracking issue, and confirm the write landed.
 #
 # Usage:
-#   telemetry-upsert.sh --repo OWNER/REPO --issue N --instance ID --body-file PATH
+#   telemetry-upsert.sh --repo OWNER/REPO --issue N --instance ID --body-file PATH [--app-slug SLUG]
+#   telemetry-upsert.sh --repo OWNER/REPO --issue N --instance ID --read [--app-slug SLUG]
+#
+#   --read          print this identity's canonical comment body (empty when it has
+#                   none) and write nothing; the re-anchor read of the state block.
+#   --app-slug SLUG the GitHub App whose installation token gh runs under; its
+#                   writes land as SLUG[bot].
+#
+# Only comments written by this script's own write identity count, whoever else
+# posts the public sentinel. The identity is the `gh api user` login when that call
+# reports a User; when it fails (an App installation token cannot call it) or
+# reports a Bot, it is SLUG[bot] from --app-slug, else the reported Bot login with
+# its [bot] suffix. Unresolved: exit 5, nothing read or written.
 #
 #   --instance ID   lane instance id, ^[a-z0-9][a-z0-9-]{0,31}$. Empty, or a literal
 #                   unsubstituted ${user_config.…} placeholder, falls back to the
@@ -13,7 +25,8 @@
 #                   writes the sentinel line above it; a file that already opens with
 #                   this instance's sentinel is sent as-is.
 #
-# Steps: pre-write body gate; paginated lookup of comments opening with the sentinel;
+# Steps: pre-write body gate; write identity; paginated lookup of that identity's
+# comments opening with the sentinel;
 # POST when none exists, then re-list; PATCH the lowest id (canonical); read the
 # comment back and byte-compare it with the body sent (CR and trailing newlines
 # stripped from both sides, nothing else); only then tombstone duplicate sentinel
@@ -24,8 +37,11 @@
 #   0  written and the read-back matches the body sent byte for byte
 #   3  invalid input or a body that failed the pre-write gate — nothing written
 #   4  gh not found — nothing written
-#   5  a gh call failed before anything verifiable landed: the lookup (nothing
-#      written), the POST, or the PATCH (the comment holds an earlier body)
+#   5  a gh call failed before anything verifiable landed: the write identity or
+#      the lookup (nothing written), the POST, or the PATCH (the comment holds an
+#      earlier body), or the POST landed under another login (a wrong
+#      --app-slug; that comment is deleted); under --read, the identity,
+#      lookup, or read failed
 #   6  the write was sent but is unconfirmed: the created comment was not re-found,
 #      the read-back failed, or what was stored differs from what was sent
 # A failed duplicate tombstone after a verified write is reported on stderr only;
@@ -40,15 +56,21 @@ die() {
   exit "$code"
 }
 
-REPO="" ISSUE="" INSTANCE="" BODY_FILE=""
+REPO="" ISSUE="" INSTANCE="" BODY_FILE="" APP_SLUG="" READ=""
 while (($#)); do
-  [[ "$1" == --repo || "$1" == --issue || "$1" == --instance || "$1" == --body-file ]] ||
+  if [[ "$1" == --read ]]; then
+    READ=1
+    shift
+    continue
+  fi
+  [[ "$1" == --repo || "$1" == --issue || "$1" == --instance || "$1" == --body-file || "$1" == --app-slug ]] ||
     die 3 "unknown argument: $1"
   (($# >= 2)) || die 3 "$1 requires a value"
   case "$1" in
     --repo) REPO="$2" ;;
     --issue) ISSUE="$2" ;;
     --instance) INSTANCE="$2" ;;
+    --app-slug) APP_SLUG="$2" ;;
     *) BODY_FILE="$2" ;;
   esac
   shift 2
@@ -59,6 +81,8 @@ type -P gh >/dev/null 2>&1 || die 4 "gh not found; nothing written"
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ && ! "/$REPO/" =~ /\.+/ ]] ||
   die 3 "--repo must be owner/repo (got '$REPO'); nothing written"
 [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || die 3 "--issue must be a positive integer (got '$ISSUE'); nothing written"
+[[ -z "$APP_SLUG" || "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]] ||
+  die 3 "--app-slug must be a GitHub App slug (got '$APP_SLUG'); nothing written"
 
 if [[ -z "$INSTANCE" || "$INSTANCE" == "\${"* ]]; then
   INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -d '\r\n' | tr -c 'a-z0-9-' '-')"
@@ -69,6 +93,48 @@ fi
   die 3 "lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker"
 
 SENT="<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@$INSTANCE -->"
+
+# The write identity: whose comments this instance may adopt, edit, or tombstone.
+# A User login is the identity; a failed call or a Bot means an App token, whose
+# writes land as <slug>[bot]. Validated before it enters a jq program.
+resolve_identity() {
+  local who
+  if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null)" && [[ "$who" == *" User" ]]; then
+    ME="${who% User}"
+  elif [[ -n "$APP_SLUG" ]]; then
+    ME="${APP_SLUG}[bot]"
+  elif [[ "$who" == *" Bot" ]]; then
+    ME="${who% Bot}"
+    [[ "$ME" == *"[bot]" ]] || ME="${ME}[bot]"
+  else
+    return 1
+  fi
+  [[ "$ME" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]
+}
+
+lookup() {
+  gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
+    --jq ".[] | select(.user.login == \"$ME\" and (.body | startswith(\"$SENT\"))) | .id"
+}
+
+canonical() { printf '%s\n' "$1" | grep -E '^[0-9]+$' | sort -n | head -n1; }
+
+ME=""
+need_identity() {
+  resolve_identity ||
+    die 5 "cannot resolve the write identity (gh api user failed or reported no User; pass --app-slug under an App token); nothing written"
+}
+
+if [[ -n "$READ" ]]; then
+  need_identity
+  LIST="$(lookup)" || die 5 "comment lookup failed; nothing read (fail closed)"
+  CANON="$(canonical "$LIST")"
+  [[ -z "$CANON" ]] && exit 0
+  BACK="$(gh api "repos/$REPO/issues/comments/$CANON" --jq '.body')" ||
+    die 5 "reading comment $CANON failed (fail closed)"
+  printf '%s\n' "${BACK//$'\r'/}"
+  exit 0
+fi
 
 [[ -f "$BODY_FILE" ]] || die 3 "body file not found: '$BODY_FILE'; nothing written"
 body="$(tr -d '\r' <"$BODY_FILE")"
@@ -84,18 +150,27 @@ SEND_FILE="$(mktemp)" || die 3 "cannot create a temporary file; nothing written"
 trap 'rm -f "$SEND_FILE"' EXIT
 printf '%s\n' "$SENT_BODY" >"$SEND_FILE"
 
-lookup() {
-  gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-    --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"
-}
+need_identity
 
 LIST="$(lookup)" || die 5 "comment lookup failed; nothing written this cycle (fail closed)"
 if [[ -z "$LIST" ]]; then
-  gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" >/dev/null ||
+  POSTED="$(gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$SEND_FILE" \
+    --jq '(.id | tostring) + " " + .user.login')" ||
     die 5 "creating the telemetry comment failed; nothing written"
+  POSTED_ID="${POSTED%% *}" POSTED_AS="${POSTED#* }"
+  # A wrong --app-slug would otherwise leave a never-found comment behind every
+  # cycle; the token that posted it can delete it.
+  if [[ "$POSTED_AS" != "$ME" ]]; then
+    if [[ "$POSTED_ID" =~ ^[0-9]+$ ]] && gh api -X DELETE "repos/$REPO/issues/comments/$POSTED_ID" >/dev/null; then
+      cleanup="deleted it"
+    else
+      cleanup="deleting comment $POSTED_ID failed; remove it by hand"
+    fi
+    die 5 "the comment was posted as '$POSTED_AS', not the resolved write identity '$ME' ($cleanup); set --app-slug to match '$POSTED_AS' before the next cycle"
+  fi
   LIST="$(lookup)" || LIST=""
 fi
-CANON="$(printf '%s\n' "$LIST" | grep -E '^[0-9]+$' | sort -n | head -n1)"
+CANON="$(canonical "$LIST")"
 [[ -n "$CANON" ]] ||
   die 6 "a create was sent but no telemetry comment was re-found; the write is unconfirmed"
 

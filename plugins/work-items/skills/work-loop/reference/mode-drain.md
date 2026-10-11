@@ -28,7 +28,8 @@ errored, was truncated, or came back empty because a read failed has already abo
 point, and a snapshot of unknown completeness never satisfies it: an empty id set passes the test
 vacuously, so it may be trusted only when the reads behind it were complete.
 
-Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
+Satisfied → the drain is complete: propose first-drain completion per
+[first-drain-ratification.md](first-drain-ratification.md), write the final report (items
 escalated to a human first, then items closed and PR'd), apply the post-snapshot intake report below, and stop cleanly.
 
 When the drain stays open because a retained id is covered only by a draft closing PR or by the

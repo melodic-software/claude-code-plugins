@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [11.0.1] - 2026-10-11
+
+Patch. Wording only; no value, topology or invariant changed.
+
+- **§4 lane-instance identity no longer names `first_drain_complete`.** The work-loop's first-drain
+  period now ends on a person-applied label rather than a durable-state flag, so the examples of
+  what a clobbered or reset block loses name the adaptive cap and streaks instead. Evidence: #7161.
+
 ## [11.0.0] - 2026-10-11
 
 Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.
@@ -188,8 +196,8 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   block. The floor's values, paths and thresholds never moved in any of these passes; what moved
   was punctuation nobody was watching, three times, which is what the check now prevents.
 
-  Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
-  that all six agree under this check's comparison, byte for byte for the four prose copies and
+  Two of the six consumers are the blockquoted launch-prompt templates, so
+  all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
 
 ## [9.0.2] - 2026-08-28
@@ -371,7 +379,7 @@ body implements, and adds two more (instance identity, collision detection).
   ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
   tombstoned by a lane: its marker names no writer, so no instance can prove it owns it, and a lane
   that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
-  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
+  an operator action; until then it reads as stale, and it is stale, because nothing is writing it.
 
 ## [6.0.1] - 2026-07-29
 

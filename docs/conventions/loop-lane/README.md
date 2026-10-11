@@ -604,9 +604,8 @@ Every inline branch exits 0.
 
 **Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
 that names only the lane makes two concurrent instances resolve one comment and clobber each other's
-durable state under last-writer-wins, including `first_drain_complete`, whose loss silently ends
-one instance's earn-trust ratification period because a different machine finished a drain. The
-marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
+durable state under last-writer-wins, so one machine's adaptive cap and streaks overwrite
+another's. The marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
 
 ```text
 MARKER="<lane-marker>@<lane_instance>"
@@ -655,13 +654,11 @@ per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten ever
 `paused_until` is not the rate-limit latch and does not replace it: the latch says *do not claim
 work*, `paused_until` says *do not read my silence as death*. A lane entering a rate-limit pause
 writes it before pausing, so a paused lane is never adopted as a dead one. Detection runs before any
-write, so an id collision degrades to a stopped lane rather than a silently clobbered
-`first_drain_complete`.
+write, so an id collision degrades to a stopped lane rather than silently clobbered durable state.
 
 **Adopting the partition (one-time).** No pre-existing comment matches an instance's new sentinel,
-so the first cycle after adoption posts a fresh block from defaults, including
-`first_drain_complete:false` for every lane. That is intended and fails closed; it produces one
-burst of ratification queue comments on the next drain and is not a regression. The legacy
+so the first cycle after adoption posts a fresh block from defaults. That is intended and fails
+closed. The legacy
 un-suffixed comment is left in place and **never adopted, edited, or tombstoned by a lane**: its
 marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
 reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
