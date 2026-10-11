@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"     1\\tread-canary-5c1e9a7d\\n\"}",
+      "why": "canary returned"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"File is in a directory that is denied by your permission settings.\",\"is_error\":true}",
+      "why": "Read outside the workspace denied"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"File does not exist.\",\"is_error\":true}",
+      "why": "canary path missing"
+    }
+  ]
+}

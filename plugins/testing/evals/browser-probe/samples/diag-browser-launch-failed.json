@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Browser `pinned` opened with pid 4127.\"}",
+      "why": "browser launched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: browserType.launch: Executable doesn't exist at /x/.cache/ms-playwright/chromium-1200/chrome-linux64/chrome\",\"is_error\":true}",
+      "why": "no browser at the default path"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"/opt/pw/chrome: error while loading shared libraries: libnss3.so: cannot open shared object file\",\"is_error\":true}",
+      "why": "missing system library"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome\",\"is_error\":true}",
+      "why": "chrome channel absent"
+    }
+  ]
+}

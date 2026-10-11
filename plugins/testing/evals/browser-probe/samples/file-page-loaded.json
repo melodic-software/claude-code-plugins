@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: file:///tmp/w/probe/index.html\\n- Page Title: browser-probe-file-page\\n### Snapshot\"}",
+      "why": "workspace page loaded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: Access to \\\"file:\\\" protocol is blocked.\",\"is_error\":true}",
+      "why": "file protocol blocked"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"<!doctype html><title>browser-probe-file-page</title>\"}",
+      "why": "page source read as a file, never loaded in a browser"
+    }
+  ]
+}
