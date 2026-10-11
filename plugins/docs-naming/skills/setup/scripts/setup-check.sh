@@ -136,8 +136,14 @@ shape_errors="$(printf '%s' "$CONFIG" | jq -r '
   | [
       (if ($f.roots | type) != "array" or ($f.roots | length) == 0
          then "roots must be a non-empty array" else empty end),
-      (if ($f.roots | map(select(type != "string")) | length) > 0
-         then "roots must hold strings" else empty end),
+      (if ($f.roots | map(select(
+             type != "string" and
+             (type != "object"
+              or (keys - ["path", "extensions", "exempt_paths"]) != []
+              or (.path | type) != "string"
+              or ((.extensions // []) | type != "array" or any(.[]; type != "string" or test("^[A-Za-z0-9]+$") | not))
+              or ((.exempt_paths // []) | type != "array" or any(.[]; type != "string"))))) | length) > 0
+         then "roots must hold strings or {path, extensions, exempt_paths} objects, extensions of letters and digits" else empty end),
       (if ($f.rule | type) != "string" then "rule must be a string" else empty end),
       (if ($f.regex | type) != "string" then "regex must be a string" else empty end),
       (["exempt_basenames","exempt_paths","exempt_extensions","sweep_exclude","sweep_exclude_sites"][]

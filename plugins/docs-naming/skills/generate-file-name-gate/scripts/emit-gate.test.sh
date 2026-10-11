@@ -173,6 +173,61 @@ else
   printf 'SKIP: shellcheck not installed\n'
 fi
 
+# --- a root object: an extension filter and its own exempt paths --------------
+#
+# The emitted checker claims only the root's extensions, in any case; the
+# root's exempt_paths skip the basename rule unless another root claims the
+# path; and the case-collision pass still covers an exempt path.
+
+root="$(new_fixture)"
+jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["**/fixtures/**"]}]' \
+  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+out="$(emit "$root" --rule)"
+assert_contains "a root object emits" "$out" "EMITTED	scripts/check-file-names.sh"
+assert_contains "the rule lists the root's extension glob" "$(cat "$root/.claude/rules/file-names.md")" "paths: docs/**, **/*.md"
+
+scoped="$TEST_TMPDIR/scoped-$RANDOM"
+mkdir -p "$scoped/scripts" "$scoped/docs/fixtures" "$scoped/tools/fixtures"
+cp "$root/scripts/check-file-names.sh" "$scoped/scripts/"
+for f in docs/conforming-name.md tools/Other_File.txt tools/fixtures/Kept_Name.md README.md; do
+  printf 'x\n' >"$scoped/$f"
+done
+git init -q "$scoped"
+git -C "$scoped" config user.email fixture@example.invalid
+git -C "$scoped" config user.name Fixture
+git -C "$scoped" config commit.gpgsign false
+git -C "$scoped" add -A >/dev/null
+git -C "$scoped" commit -qm scoped >/dev/null
+out="$(bash "$scoped/scripts/check-file-names.sh" --check 2>&1)"
+assert_eq "an exempt path and an unclaimed extension pass" "0" "$?"
+assert_contains "the clean line labels the extension filter" "$out" "under docs, . (*.md) is"
+
+for f in tools/Notes_Here.md tools/LOUD.MD docs/fixtures/Judged_Name.md tools/fixtures/kept_name.md; do
+  printf 'x\n' >"$scoped/$f"
+done
+git -C "$scoped" add -A >/dev/null
+out="$(bash "$scoped/scripts/check-file-names.sh" --check 2>&1)"
+assert_eq "markdown outside docs is judged" "1" "$?"
+assert_contains "a markdown offender outside docs is named" "$out" "tools/Notes_Here.md: basename"
+assert_contains "the extension filter matches in any case" "$out" "tools/LOUD.MD: basename"
+assert_contains "a path another root claims stays judged" "$out" "docs/fixtures/Judged_Name.md: basename"
+assert_absent "a root's exempt path is not judged by basename" "$out" "tools/fixtures/Kept_Name.md: basename"
+assert_contains "an exempt path still collides by case" "$out" "tools/fixtures/Kept_Name.md: differs only by case"
+assert_absent "an unclaimed extension is out of scope" "$out" "tools/Other_File.txt"
+assert_contains "the summary counts each finding once" "$out" "5 offender(s)"
+
+out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
+assert_eq "the emitted suite passes under a root object" "0" "$?"
+
+for bad in '{"path": ".", "extensions": ["m]d"]}' '{"path": "a\nb"}'; do
+  root="$(new_fixture)"
+  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  emit "$root" >/dev/null
+  assert_eq "a root the gate cannot carry is refused ($bad)" "2" "$?"
+done
+
 # --- --rule -------------------------------------------------------------------
 
 root="$(new_fixture)"
