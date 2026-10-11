@@ -20,6 +20,7 @@ bump: minor
 - **`/review:fanout` states the change's intent to its reviewers and lists what it demoted.** Before dispatch it writes one paragraph on what the change is meant to do, from the request, commit subjects and PR text, and gives it to every surface it dispatches itself, as a description to check against. The persisted report gains a `## Dismissed` section listing each finding the CRITICAL check demoted, with one line of reason; the finding stays in `## Findings`. The `fix` action writes a failing test covering every site of a verified defect before fixing it, and reports the red and green runs.
 - **The `code-reviewer` agent's design-smell baseline is reworded and follows Fowler's chapter order.** Its list no longer follows an upstream course skill's order and phrasing. The twelve smells, the advisory framing, the project-standards override and the skip for tool-enforced patterns are unchanged.
 - **Reworded passages adapted from upstream skills in our own words.** The `code-reviewer` Repeated Switches item (now led by an `isArchived`/`isClosed` example), `/review:fanout`'s intent paragraph and Step 6 of `/review:quality-gate` downstream mode keep their rules; only the wording and structure changed.
+- Reworded the `code-reviewer` agent's Repeated Switches smell in our own words, leading with the copied branch on a kind value. Every rule is unchanged.
 
 ### Fixed
 

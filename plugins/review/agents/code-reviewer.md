@@ -86,7 +86,7 @@ The repeat-run, side-effect and cast-or-debug-output items above are SUGGESTION 
 - Feature Envy: a function works mostly on another module's data → relocate it beside that data
 - Data Clumps: a group of values always passed side by side → give the group its own type
 - Primitive Obsession: a domain idea carried as a raw string or number → wrap it in a small named type
-- Repeated Switches: a pair of booleans kept in lockstep, the newer only copying the older (`isArchived` set wherever `isClosed` is) → merge them into one enum or state field; the same switch on a kind value copied into several modules, or a diff whose support for one more kind is a further `else if` on a chain that was already there → route every kind through a single dispatch point, or use polymorphism
+- Repeated Switches: one branch on a kind value (a `kind` or `status` string) written out again in several modules, so a new kind means hunting down every copy → route every kind through a single dispatch point, or use polymorphism. It also covers a boolean that only ever mirrors another (`isReady` assigned wherever `isDraft` is cleared), fixed by replacing the pair with one enum or state field, and a diff that adds a kind by extending an `else if` chain already in place, fixed the same way as the copied branch
 - Speculative Generality: abstractions, extension points or parameters with no current user → delete them until a second real caller exists
 - Message Chains: callers walking `a.b().c().d()` through the object graph → let the first object hand over what the caller needs
 - Middle Man: a type that mostly forwards to another → call the target directly

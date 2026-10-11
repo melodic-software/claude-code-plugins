@@ -58,17 +58,21 @@ TypeScript; read that file first.
   const retry = { attempts: 3, backoff: "exponential" } satisfies RetryPolicy;
   ```
 
-- **Pick the narrowing by what the value is.** Rank 1 is the first choice; when two rows fit the
-  same value, the lower rank wins. Ranks 1 to 3 are checks the compiler runs; 4 and 5 are claims you
-  write, so reach them only when no compiler check fits.
+- **Narrow with a check the compiler runs; write a claim only where none can.** A type predicate
+  and an `as` are claims: the compiler takes your word for them. This repository's context-guard
+  hooks show where each one belongs, in the order a value meets them:
 
-  | The value is | Narrow with | Rank |
+  | Where the value is | What this repository does | Kind |
   |---|---|---|
-  | A primitive or a class instance | `typeof` or `instanceof` | 3 |
-  | An object whose variants differ in which keys exist | an `in` test, `"prNumber" in run` | 2 |
-  | A union whose variants carry a literal tag | a tag comparison, `run.status === "failed"` | 1 |
-  | Outside data no compiler check can settle | a type predicate function, `v is T` | 4 |
-  | Data a validation step has already checked | `as` | 5 |
+  | Just arrived as `unknown` and no compiler check settles it | `isZone(word: unknown): word is Zone` tests the word against the closed `ZONES` list (`plugins/context-guard/hooks/zone.ts`) | claim |
+  | Data a validation step has already checked | `asRule` casts `v.action as Action` only after `ACTIONS.includes(...)` passed (`plugins/context-guard/hooks/register.tsx`) | claim |
+  | A union whose members carry a literal tag | `e.kind === 'crossing'` picks the crossing events out of the event list (`register.tsx`) | compiler check |
+  | An object whose possible shapes differ in which keys they have | `'raw' in v` picks out a fixture value given as raw text before any other shape is tried (`plugins/context-guard/hooks/zone.test.ts`) | compiler check |
+  | A caught error, another class instance, or a primitive | `error instanceof Error ? error.message : String(error)` (`register.tsx`) | compiler check |
+
+  When more than one compiler check fits, use the most specific: a tag names the member outright,
+  a key test infers it from one key, and `typeof` or `instanceof` sorts only by runtime kind.
+  Of the two claims, write a predicate before an `as`.
 
 - **A predicate is a claim only its author checks.** `function isManifest(v): v is PluginManifest`
   that reads `name` and skips `version` lets a manifest with no version through as a
@@ -105,10 +109,12 @@ TypeScript; read that file first.
 
 - **Let the shape carry the rule where it can.** A closed set is a union of string literals, and
   "at least one" is a tuple with a rest element, `[Phase, ...Phase[]]`. To choose between `Phase[]`
-  and that tuple, read the code that consumes a plan's phases. A plan summary that prints "no
-  phases" when the list is empty handles that case, so `Phase[]` stays. Code that throws when the
-  array is empty, casts it, or reads `phases[0]!` is asserting that a phase exists: change the type
-  to the tuple so the compiler holds that guarantee instead.
+  and that tuple, read the code that consumes the list. Where an empty list is a normal case the
+  consumer has a branch for, the plain array stays: `showCrossing` in
+  `plugins/context-guard/hooks/register.tsx` takes `due.at(-1)` and tests it against `undefined`
+  before using it, so `Crossing[]` is the right type there. Where the consumer has no such branch
+  and still needs a first element, the guarantee lives only in the author's head; move it into the
+  tuple type so the compiler enforces it.
 - **Brand two kinds of value that share a primitive and must never be swapped.** An invoice id and
   a customer id are both strings; with a brand on each, passing one where the other belongs fails
   to compile. Only the parse function produces a branded value.

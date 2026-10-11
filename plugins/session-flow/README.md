@@ -156,16 +156,13 @@ comment, a deploy) *and* killing or restarting work it cannot prove is dead are 
 limit lifts it continues rather than summarizing-and-stalling (the block is already over if it is
 running again); while a limit still holds it hands back via `handoff` rather than self-arming a
 scheduler. Intent is inferred from the conversation; arguments are optional. Three situations get
-their own handling:
+their own handling, listed in the order keep-going reaches them:
 
-- **Another agent left a trail.** keep-going confirms the trail's status claims on the artifact,
-  gives it one verdict (ratify, ship the finished recommendation, continue, restart), and reports
-  what it took over separately from what it redid.
-- **An item keeps failing.** It is marked abandoned, and the plan for the remaining work redrawn
-  without it, when its second retry fails. Each retry is fitted to the cause of the failure before
-  it; only a cause outside the work, or no visible cause, gets an unchanged rerun.
-- **The session that started the work is gone.** Its agent and task ids went with it, so the work
-  is found by its branch, PR, worktree or commits.
+| Situation | What keep-going does | For example |
+|---|---|---|
+| The session that started the work has ended, so the agent and task ids it handed out no longer resolve | Looks the work up by what outlives a session: its branch, PR, worktree or commits | A `continue-in-background` session closed with the laptop; keep-going reads its pushed branch and draft PR |
+| Another agent's trail, such as a `handoff` save-point, reports progress | Checks each status claim on the artifact it names, gives the trail exactly one verdict (ratify, ship the finished recommendation, continue, restart), and reports what it took over apart from what it redid | A save-point says the fix is pushed; keep-going opens the branch before anything rests on that |
+| An item fails again after a retry | Fits each retry to the cause of the failure before it, and reruns unchanged only when that cause lay outside the work or none shows. When the second retry fails too, it marks the item abandoned and redraws the plan for what is left so nothing waits on it | A background test run hit its time limit, and both retries, each on a narrower slice, hit it again |
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report
