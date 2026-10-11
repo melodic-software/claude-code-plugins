@@ -74,7 +74,8 @@ Never invent steps that may not exist.
 ### 3. Author the wizard
 
 Copy [template.sh](template.sh) to the target path. Replace the example stage
-with one `stage` per step, in dependency order. Use the library helpers:
+inside `run_wizard` with one `stage` per step, in dependency order, and keep
+its closing `finish` and `exit` and the final `run_wizard` call. Use the library helpers:
 `stage`, `say`/`step`/`note`/`warn`, `open_url`, `ask`/`ask_secret`,
 `write_env`, `set_secret`/`set_var`, `pause`/`confirm`. Then set `TOTAL_STAGES`
 to the number of stages you wrote.
