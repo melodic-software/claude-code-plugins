@@ -293,11 +293,15 @@ so nothing substitutes a token in them before it reaches the Bash tool.
   the profile. See the active profile's filter section. An inferred tag that skips the
   profile's evidence rule is exactly how stale guidance enters a corpus.
 - **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
-  effort option; an Agent tool dispatch runs at the agent's pin or, with no pin, the session's.
+  effort option or the Agent tool's per-spawn `effort`; an Agent tool spawn that passes none runs
+  at the agent's pin or, with no pin, the session's, and a fork spawn ignores a passed value.
   Check the route live before
   relying on a "high effort" verification claim, and record the effective effort and its source in
   verification records.
   - **Pointer**: `docs/plugin-philosophy.md` "Effort tiers", the "Where per-task effort is set"
-    record, in the marketplace repository; no docs page covers per-call Workflow effort.
-  - **As of**: 2026-10-02
-  - **Recheck trigger**: a docs page starts covering it.
+    record, in the marketplace repository; for the per-spawn parameter, see
+    <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>. No docs page covers how
+    per-call Workflow effort ranks against a pin.
+  - **As of**: 2026-10-10
+  - **Recheck trigger**: a docs page starts covering the Workflow ranking, or that subagents
+    section changes precedence or which spawns honor `effort`.

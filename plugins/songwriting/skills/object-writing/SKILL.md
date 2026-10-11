@@ -104,9 +104,12 @@ Dispatch rules:
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
-   fleet both multiply, but only one of them changes the writing. Lever availability differs by
-   surface: a bare agent spawn takes a model and has no effort parameter, so a fan-out that needs
-   the effort lever belongs in a workflow, whose per-agent call takes both.
+   fleet both multiply, but only one of them changes the writing. Both surfaces take both levers:
+   a non-fork agent spawn takes a model and an `effort`, and so does a workflow's per-agent call.
+   A passed `effort` replaces a named agent's pinned one, so a spawn of the pinned `object-writer`
+   omits it unless the writer asks for another level (Pointer:
+   <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>. As of: 2026-10-10. Recheck
+   trigger: that section changes precedence or which spawns honor `effort`).
 
    **A tier step-down is a per-stage decision, never a fleet default.** Mechanical legs, meaning rhyme-field enumeration, word-pool merge, syllable counting, and dedup, are reading-heavy and
    low-reasoning, and a cheaper tier is correct there. Object-writing is neither. Dropping the

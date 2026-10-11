@@ -228,8 +228,9 @@ Apply the reviewer rule under Planning Process before blast radius or presentati
    one bounded sub-agent (default `effort: medium`, capped turns). One sentence is enough.
 3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
-   sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
-   lower per invocation (the verification record in `agents/plan-reviewer.md`).
+   sub-agent: the agent definition carries bounded `effort` and `maxTurns` on every dispatch. Pass
+   no `effort` on this spawn, because a passed value replaces the pin (the verification record in
+   `agents/plan-reviewer.md`).
    When the reviewer stops at its `maxTurns` limit its output may be marked partial, and older
    clients do not mark it. A complete report ends with its `### Summary` counts, or is the literal
    `No plan gaps found.` for a clean pass; treat any other return without that section as
