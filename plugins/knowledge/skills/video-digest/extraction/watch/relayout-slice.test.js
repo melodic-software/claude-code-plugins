@@ -119,6 +119,19 @@ afterEach(() => {
 });
 
 describe("relayoutSlice", () => {
+  it("writes an upstream title with Markdown syntax as plain text in the README", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    const watchPath = path.join(sliceDir, "run-state/watch.json");
+    const watch = JSON.parse(fs.readFileSync(watchPath, "utf8"));
+    fs.writeFileSync(watchPath, JSON.stringify({ ...watch, title: "[Episode](trailer.md)\n#1" }));
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    const readme = fs.readFileSync(path.join(targetDir, "README.md"), "utf8");
+    expect(readme.split("\n")[0]).toBe("# \\[Episode\\]\\(trailer\\.md\\) \\#1");
+  });
+
   it("copies a closed slice into the corpus layout", async () => {
     const { sliceDir, targetDir } = makeFixture();
 

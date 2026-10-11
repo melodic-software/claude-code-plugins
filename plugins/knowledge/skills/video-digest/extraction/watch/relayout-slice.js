@@ -1133,6 +1133,15 @@ const CONTENTS_LINES = /** @type {const} */ ([
 ]);
 
 /**
+ * Plain text for a Markdown line: one line, with every Markdown-significant character
+ * backslash-escaped, so an upstream title never renders (or is link-checked) as syntax.
+ * @param {string} text
+ */
+export function markdownText(text) {
+  return text.replace(/\s+/g, " ").trim().replace(/[\\`*_{}[\]()<>#+\-.!|~&]/g, "\\$&");
+}
+
+/**
  * @param {{ title: string, sourceUrl: string, videoId: string, acquiredAt?: string }} meta
  * @param {Set<string>} presentTopDirs - target directories that received files
  */
@@ -1142,11 +1151,11 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
     ([dir, label]) => `- \`${dir}\`: ${label}`,
   );
   return [
-    `# ${title}`,
+    `# ${markdownText(title)}`,
     "",
     "## Provenance",
     "",
-    `- Canonical origin: <${sourceUrl}>`,
+    `- Canonical origin: <${sourceUrl.replace(/[\s<>]/g, encodeURIComponent)}>`,
     `- Video id: \`${videoId}\``,
     `- Fetched${fetched} through \`/knowledge:video-digest\` and re-laid out from its finished slice.`,
     "",
