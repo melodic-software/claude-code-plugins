@@ -326,7 +326,10 @@
           }
         },
         "previousRecommendation": {"type": "string"},
-        "revised": {"type": "string"},
+        "revised": {
+          "type": ["string", "boolean"],
+          "description": "Set by a recommendation change: its `why` as given, else true"
+        },
         "archived": {"$ref": "#/$defs/archived"},
         "state": {
           "enum": ["open", "stale", "upstream-pending", "archived"],

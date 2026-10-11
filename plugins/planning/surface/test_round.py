@@ -678,6 +678,25 @@ class TestRecReviewsAlternatives(DirCase):
         self.assert_refused("reply", "Q1", "--text", "Hi.", *self.ALTS)
 
 
+class TestRevisedReason(DirCase):
+    """A recommendation change stores its why as given, else true: the page says the
+    "Recommendation revised." phrase itself, so it is never stored as the reason."""
+
+    def test_no_why_stores_true_and_a_why_is_stored_as_given(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                rec = ["--rec", f"New by {cmd}.", "--affects", "none"]
+                rc, out, err = self.rp(cmd, "Q1", *rec, "--keep-alternatives")
+                self.assertEqual(rc, 0, out + err)
+                self.assertIs(self.q("Q1")["revised"], True)
+                rec[1] = f"Newer by {cmd}."
+                rc, out, err = self.rp(
+                    cmd, "Q1", *rec, "--keep-alternatives", "--why", "Faster."
+                )
+                self.assertEqual(rc, 0, out + err)
+                self.assertEqual(self.q("Q1")["revised"], "Faster.")
+
+
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
         args = [a for c in commits for a in ("--commit", c)]

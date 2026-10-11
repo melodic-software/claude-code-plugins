@@ -191,6 +191,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .rrange .ref:hover{border:0;text-decoration:underline}
 .ref:hover{border-color:var(--accent)}
 .sup-banner,.banner,.lockban{border-left:3px solid var(--chg);background:var(--chg-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
+.revchip{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
 .sup-banner,.lockban{border-color:var(--wait);background:var(--wait-soft)}
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
@@ -953,6 +954,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return '<li class="' + cls + (h.withdrawn ? " undone" : "") + '"><div class="hl"><span class="who">' + esc(whoLabel(h)) + (h.withdrawn ? " (undone)" : "") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(h.at)) + "</time>" +
       (mine && h.seq ? receipts(h.seq) : "") + "</div>" + (body ? '<div class="hb">' + body + "</div>" : "") + "</li>";
   }
+  function recRev(q){ // the latest recommendation revision: the rev its history line records, else the content rev
+    const r = Math.max(0, ...(q.history || []).filter(h => h.by === "claude" && h.pageSeq != null).map(h => h.rev || 0));
+    return r || q.contentRev || 0;
+  }
   function historyOf(q){
     const a = (q.history || []).map(h => Object.assign({}, h));
     const b = (S.resp.history[q.id] || []).map(h => Object.assign({by: "user"}, h));
@@ -1072,8 +1077,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
-    if (q.revised) h += '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true ? "" : q.revised) +
-      (q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "") + "</div>";
+    if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
+      const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
+      h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
+        : '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true || q.revised === "Recommendation revised." ? "" : q.revised) + prev + "</div>";
+      const rs = lsGet("revSeen", {}); if (rs[q.id] !== rr) { rs[q.id] = rr; lsSet("revSeen", rs); }
+    }
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
@@ -1521,7 +1530,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- navigation ----------
   function select(id, opts){
     if (id !== SUMMARY && !Q[id]) return;
-    if (S.sel !== id) { S.armed = null; S.vtab = null; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
+    if (S.sel !== id) { S.armed = null; S.vtab = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
     S.sel = id; lsSet("sel", id);
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));

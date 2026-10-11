@@ -32,6 +32,19 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
   }
+  if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
+    const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
+    await pick("Q1");
+    const first = await banner();
+    ok("the first open after a revision shows the full banner, with the phrase once", (first.match(/Recommendation revised\./g) || []).length === 1, first);
+    await pick("Q8"); await pick("Q1");
+    ok("a later visit shows a Revised chip in its place, with Previous kept", !/Recommendation revised/.test(await banner()) && /Revised/.test(await text("#dscroll .revchip")) && /Previous/.test(await text("#dscroll .revchip")), await banner() + " / " + await text("#dscroll .revchip"));
+    await pick("Q8");
+  }
+  if (PHASE === 3) { // the shell revised Q1 again
+    await pick("Q1");
+    ok("a further revision brings the full banner back on the next open", /Recommendation revised\./.test(await text("#dscroll .banner")) && !(await page.$("#dscroll .revchip")), await text("#dscroll .banner"));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

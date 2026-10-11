@@ -833,7 +833,7 @@ def op_reply(d, doc, a):
         set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
-        q["revised"] = a.why or "Recommendation revised."
+        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["contentRev"] = (q.get("contentRev") or 0) + 1
         if alts is not None:
             q["alternatives"] = alts
@@ -925,7 +925,7 @@ def op_revise(d, doc, a):
         set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
-        q["revised"] = a.why or "Recommendation revised."
+        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         changed.append("recommendation")
     if alts is not None:
         q["alternatives"] = alts
