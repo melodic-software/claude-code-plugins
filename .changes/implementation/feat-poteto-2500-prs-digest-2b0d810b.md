@@ -132,3 +132,13 @@ bump: minor
   Workers run where the session runs; cloud placement is the execution-target contract's. Five eval
   cases cover the refusal, the run-boundary entry, the head-SHA verdict, the structure line and the
   hold.
+- **Refactor mode subtracts first and keeps a reshape only when reading gets easier.**
+  `context/refactor.md` gains a subtraction step that lists unused imports and config keys,
+  single-caller wrappers and unreachable branches (through `/code-tidying:audit-dead-code` when it is
+  among the available skills, else a grep for callers) and commits their deletion first; says a
+  passing typecheck or lint is not a pin; keeps a move only when it removes a branch or an invalid
+  state, never when it only adds indirection; never edits a test, baseline or harness to go green
+  and asks instead, except that a plan-declared contract change retargets or deletes the
+  old-contract tests; and ends by naming where reader load fell or reverting. Under
+  `refactor_compat: deprecate` each kept adapter also names a time box and a follow-up item. Four
+  eval cases cover them.

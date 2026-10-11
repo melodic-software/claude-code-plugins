@@ -470,6 +470,60 @@
         "It runs /testing:check-visual-parity compare at each green checkpoint",
         "It treats a failing compare as a behavior change to investigate, not a baseline to re-capture"
       ]
+    },
+    {
+      "id": 36,
+      "name": "refactor-no-contract-change-asks-before-editing-a-test",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 1 of the approved plan extracts the fare calculation out of TicketController into a FareCalculator class. The plan declares no contract change. After the extract, the approval test for the fare receipt fails: its recorded receipt shows the old surcharge line order, and the recorded file looks out of date to you. Continue the phase.",
+      "expected_output": "Refactor mode. With no contract change declared, the failing approval test means the extract changed behavior, so it investigates the extract. It does not re-record the receipt, edit the test or touch the test harness to make the run pass; because the recorded receipt looks wrong, it stops and asks the user before changing it.",
+      "files": [],
+      "expectations": [
+        "It treats the failing approval test as a sign the extract changed behavior, because the plan declares no contract change",
+        "It does not re-record the receipt, edit the test or change the test harness to make the run pass",
+        "It asks the user about the recorded receipt that looks out of date instead of deciding alone to update it"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "refactor-declared-contract-change-retargets-old-contract-tests",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 2 of the approved plan replaces the positional arguments of ShelfLabel.render(sku, price, locale) with one LabelSpec object, and the plan declares this as a contract change. The private label cache helper goes away in the same phase. After the move, six tests fail: four call render with positional arguments, one asserts the cache helper's hit count, and one checks the printed price for a Swedish locale.",
+      "expected_output": "Refactor mode. Because the plan declares the contract change, it rewrites the four positional-argument tests to call render with a LabelSpec and deletes the test that only checked the removed cache helper's internals. The Swedish price test is not part of the declared change, so it treats that failure as a behavior change and investigates it rather than editing the test.",
+      "files": [],
+      "expectations": [
+        "It rewrites the four tests that call render with positional arguments so they assert the new LabelSpec contract",
+        "It deletes the test that only checks the removed cache helper's hit count",
+        "It treats the Swedish locale price failure as a behavior change to investigate, not a test to edit"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "refactor-deprecate-adapter-names-removal-condition-time-box-and-follow-up",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: the approved plan moves parseDuration from src/util/time.ts into a new src/scheduling/duration.ts module. docs/conventions/implementation.yaml sets refactor_compat: deprecate, and a partner's published plugin still imports parseDuration from the old path. Start the phase.",
+      "expected_output": "Refactor mode resolves refactor_compat: deprecate from the repository file and reports that layer. It moves parseDuration and keeps an adapter at the old path for the partner plugin. The adapter names its removal condition (the partner plugin no longer imports the old path), a time box after which it is removed regardless, and a follow-up item that tracks its removal.",
+      "files": [],
+      "expectations": [
+        "It reports refactor_compat: deprecate as supplied by docs/conventions/implementation.yaml",
+        "The kept adapter names its removal condition",
+        "The kept adapter names a time box (a date or release) after which it is removed",
+        "The kept adapter names a follow-up item that tracks its removal"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "refactor-subtraction-first-commit",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 1 of the approved plan reshapes the warehouse pick-list module into one PickPlanner type. The module still carries a branch for a paper-printer mode the app dropped last year, a buildPickList() function whose only caller passes its arguments straight to PickPlanner, and an import of a barcode config file that was deleted. /code-tidying:audit-dead-code is among the available skills. Start the phase.",
+      "expected_output": "Refactor mode. Before any structural move it runs /code-tidying:audit-dead-code on the pick-list paths to list unused code, deletes the paper-printer branch, inlines the one-caller buildPickList() wrapper and removes the import of the deleted config, and lands those deletions as the first refactor commit with the suite green. Only then does it plan and make the PickPlanner moves, and it ends by naming where a reader now has less to follow, or reverts the reshape if it cannot name a place.",
+      "files": [],
+      "expectations": [
+        "It runs /code-tidying:audit-dead-code on the pick-list paths before the first structural move",
+        "It removes the paper-printer branch, the one-caller buildPickList() wrapper and the import of the deleted config",
+        "It commits those deletions on their own as the first refactor commit, before any PickPlanner move",
+        "It ends by naming where reader load fell, or reverts the reshape when it cannot name one"
+      ]
     }
   ]
 }

@@ -304,6 +304,18 @@
         "Recognizes the run is on a cloud execution target",
         "The report contains the line live-UI step unverified on this host"
       ]
+    },
+    {
+      "id": "refactor-equivalence-01",
+      "name": "large-reshape-asks-output-diff-or-replay",
+      "prompt": "/verification:confirm refactor. The change splits the payroll module into three packages (gross pay, deductions, payslip rendering), moving 38 files and rewiring the two command-line entry points that produce payslips. No behavior change was intended. Build, tests and lint pass.",
+      "expected_output": "Refactor criterion. It classifies the change as a high-risk Restructure that reaches past what the tests cover, so beside the passing tests it asks for an output diff (old and new code run on the same payroll inputs, payslips compared) or a replay of a baseline recorded from the old code. Until that evidence exists it does not report CONFIRMED on the tests alone.",
+      "files": [],
+      "expectations": [
+        "It classifies the change as a Restructure with high risk",
+        "It asks for an output diff of old and new payslips on the same inputs, or a replay of a baseline recorded from the old code, beside the test results",
+        "It does not report CONFIRMED on passing tests alone while that equivalence evidence is missing"
+      ]
     }
   ]
 }
