@@ -213,6 +213,38 @@ produced video and screenshots on the PR from the user's own gh login.
 - Vision review stays a source of leads until the planted-defect eval measures it; the layer order
   stays judgment until then.
 
+## Findings, 2026-10-11
+
+Probes of the planted-defect eval on the `eval-browser-dispatch` lane (Claude Code 2.1.296,
+GitHub-hosted ubuntu-24.04) leave the decision unchanged but constrain how it is measured. Runs are
+in `melodic-software/claude-code-plugins` Actions.
+
+- **The eval hides a case's own files from the agent.** `Read` of the case's canary file is refused
+  and the browser cannot load it; the `evals-hidden-from-read` and `evals-hidden-from-browser`
+  graders pass (runs 38146517909, 38151389439).
+- **Narrow Bash grants match as written.** An `--allow-tools` grant such as
+  `Bash(playwright-cli -s=* goto *)` produced no permission refusal (run 38146517909).
+- **`playwright-cli` cannot run inside `claude plugin eval` Bash on Linux.** Chromium aborts with
+  `FATAL:chrome/browser/process_singleton_posix.cc:297] Check failed: . socket() failed: Operation not permitted (1)`
+  (run 38150050988): the sandbox's seccomp filter blocks `socket(AF_UNIX)`, and
+  the CLI's own daemon also uses a Unix socket on Linux. The eval writes its own sandbox settings;
+  plugin evals expose no case key or CLI flag for sandbox network options (plugin-evals docs, as of
+  2026-10-11), and a managed `sandbox.network.allowAllUnixSockets: true` policy did not lift the
+  block (run 38151389439). Pointers:
+  [plugin evals](https://code.claude.com/docs/en/plugin-evals) and the `allowAllUnixSockets` entry
+  in the [settings reference](https://code.claude.com/docs/en/settings-reference). As of:
+  2026-10-11. Recheck trigger: a Claude Code release that exposes sandbox network options to eval
+  runs.
+- **`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` breaks every eval Bash call.** With it set, a one-command
+  `echo` case fails with
+  `bwrap: Can't create file at <tmp>/home/cwd/.eval-artifacts: Read-only file system`; with it `0`, the same case runs (runs 38114987035 and 38118268413). Observed on the
+  versions above and not filed upstream.
+
+Consequences: a measured browser eval needs an MCP-driven harness
+([#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137)). The rubric's tool
+choices stand, and any catch rate or other measured figure states which path, CLI or MCP, it
+covers. The Claude in Chrome from WSL open item below is untouched by these runs.
+
 ## Open items
 
 - **Claude in Chrome from WSL.** A live test of `claude --chrome` from WSL pairing with the user's
@@ -226,5 +258,5 @@ produced video and screenshots on the PR from the user's own gh login.
   decision, and a probe; the docs cover it for VMs, not WSL.
 
 Recheck this record when cli/cli#14309 closes or gh's attachment token allowlist changes, when
-`@playwright/cli` or Playwright releases zoom or idle trimming, or when Anthropic's chrome page
-changes its WSL note.
+`@playwright/cli` or Playwright releases zoom or idle trimming, when Anthropic's chrome page
+changes its WSL note, or when `claude plugin eval` lets a run open Unix sockets.
