@@ -101,6 +101,18 @@ baselines). Recheck trigger: a benchmark measures current vision models on UI de
 injected-defect eval in this repository reports catch rates per check, or either cited Playwright
 page changes what it says about automated accessibility coverage or same-environment baselines.
 
+No catch rate per check is measured yet. On Linux, `playwright-cli` cannot run inside
+`claude plugin eval`'s Bash: the eval sandbox blocks Unix sockets, so Chromium aborts at launch, and
+no case key, CLI flag or managed `sandbox.network.allowAllUnixSockets` setting lifted the block
+(Claude Code 2.1.296, eval-lane runs 38150050988 and 38151389439; findings in the marketplace repository's ADR 0056). Browser
+eval cases therefore move to an MCP-driven harness
+([#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137)). The rubric rows
+above do not change; a catch rate quoted here names the path it measured, CLI or MCP. Pointers:
+[plugin evals](https://code.claude.com/docs/en/plugin-evals) and the `allowAllUnixSockets` entry in
+the [settings reference](https://code.claude.com/docs/en/settings-reference). As of: 2026-10-11.
+Recheck trigger: a Claude Code release that exposes sandbox network options to eval runs, or #7137
+reports catch rates.
+
 ### Recording tier (optional)
 
 Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
