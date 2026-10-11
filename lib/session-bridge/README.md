@@ -134,10 +134,13 @@ new token on the same port, and the reader reloads the page.
 
 ## The channels adapter
 
-Claude Code's native [channels](https://code.claude.com/docs/en/channels) are a research preview:
-an MCP server the session spawns pushes `notifications/claude/channel` events into it
-([channels reference](https://code.claude.com/docs/en/channels-reference)). Verified 2026-10-03;
-recheck when either page changes the flags, the `claude/channel` capability or the policy keys.
+Claude Code's native channels let an MCP server the session spawns push events into it. Status
+and flags: [channels research preview](https://code.claude.com/docs/en/channels#research-preview);
+the capability and event a server declares and emits:
+[server options](https://code.claude.com/docs/en/channels-reference#server-options) and
+[notification format](https://code.claude.com/docs/en/channels-reference#notification-format).
+As of 2026-10-11; recheck when any of those sections changes the flags, the capability or the
+event.
 
 - `session_bridge.py relay` runs `ChannelServer`, a stdio MCP server that declares the
   `claude/channel` capability and three tools taking `data_dir`: `watch`, `events` and `unwatch`.
@@ -173,15 +176,20 @@ An input it cannot read counts as failed, so an unknown never selects channels.
 
 | Check | Reads | Keeps loopback when |
 |---|---|---|
-| Provider | `CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY`, `_MANTLE`, `_ANTHROPIC_AWS` | Any is set: channels need claude.ai or Console auth |
+| Provider | `CLAUDE_CODE_USE_BEDROCK`, `_VERTEX`, `_FOUNDRY`, `_MANTLE`, `_ANTHROPIC_AWS` | Any is set |
 | Session opt-in | The argv of the nearest ancestor naming `--channels` or `--dangerously-load-development-channels` (`/proc`, else `ps`) | No entry is named, or the ancestors cannot be read (Windows) |
 | Auth | `claude auth status --json` | It cannot be read, `loggedIn` is not true, or `apiProvider` is not `firstParty` |
 | Organization | The first managed source with a policy key: the server-managed cache (`~/.claude/remote-settings.json`), then `managed-settings.json` with `managed-settings.d/*.json` | A source exists without `channelsEnabled: true`, or none exists and `subscriptionType` is `team` or `enterprise` |
 | Allowlist | `allowedChannelPlugins` in that source | The entry came by `--channels` and the list does not name its plugin and marketplace |
 
 MDM policies (a macOS plist, the Windows registry) are not read, so a policy delivered only by
-MDM reads as none. Claude Code drops channel events silently when a policy blocks them; its
-startup notice says so.
+MDM reads as none.
+
+The checks and their order are ours. The facts they test (which providers and auth carry
+channels, which plans block them until enabled, the two policy keys, and what a blocked session
+sees) are at [channels enterprise controls](https://code.claude.com/docs/en/channels#enterprise-controls),
+as of 2026-10-11; recheck when that section changes a provider, plan default or policy key. The
+provider variable list is not re-derived from that section.
 
 ## Prerequisites
 
