@@ -252,7 +252,7 @@ jobs:
       # Opt-in because the job log of this public repository is public. Prints,
       # per run, at most 20 Bash calls whose tool_result has is_error true: the
       # command cut to 300 characters, and the result text cut to its first 120
-      # and last 480 characters when longer than 600 (the end holds the daemon
+      # and last 2500 characters when longer than 2620 (the end holds the daemon
       # log), each JSON-quoted onto one line. Nothing else from the trace is printed. Trace text is
       # tool output, so workflow commands are off while it prints.
       - name: Print Bash error excerpts
@@ -277,7 +277,7 @@ jobs:
                 continue
               fi
               jq -nrR '
-                def tail_cut: if length > 600 then .[:120] + " … " + .[-480:] else . end;
+                def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
                 [inputs | fromjson? | objects] as $m
                 | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
                     | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
