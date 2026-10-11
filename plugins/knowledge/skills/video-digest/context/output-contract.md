@@ -78,7 +78,7 @@ It refuses a `watch.json` that is not an object, whose `videoId` is not a plain 
 strings. Without `--no-media` it also refuses a partly removed temp session, naming the missing
 piece: the video, an empty video, caption track or frame image, the info JSON or
 `frame-times.json` (or either one not holding a JSON object, or a `frame-times.json` record
-without a numeric or null `timestampSec`), any frame image, a frame
+without a finite number or null `timestampSec`), any frame image, a frame
 `frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
 (anchor frames carry their time in their name), or the caption tracks. It refuses a temp session
 holding several videos (an X post with more than one), naming them, since the watch does not

@@ -1227,6 +1227,41 @@ describe("checkLayoutLinks", () => {
     ]);
   });
 
+  it("says so for a path below a lane folder this slice never produced", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/vision-plan.md": "Slides: `source/decks/s1/slides.pdf`.\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/vision-plan.md")).toBe(
+      "Slides: source/decks/s1/slides.pdf (none in this slice).\n",
+    );
+  });
+
+  it("rewrites and checks Markdown files whatever the extension's case", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/notes.MD": "See `source/transcript.txt`.\n",
+        "research/more.markdown": "See [t](../source/transcript.txt).\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/research/notes.MD")).toBe(
+      "See `../../transcript/transcript.txt`.\n",
+    );
+    expect(read(targetDir, "analysis/research/more.markdown")).toBe(
+      "See [t](../../transcript/transcript.txt).\n",
+    );
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "frames/log.MARKDOWN": "[gone](key/gone.png)\n" });
+    expect(checkLayoutLinks(root)).toEqual([{ file: "frames/log.MARKDOWN", ref: "key/gone.png" }]);
+  });
+
   it("says so when prose names a lane folder this slice never produced", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "key-frames/vision-plan.md": "No deck in the `source/decks/` lane.\n" },

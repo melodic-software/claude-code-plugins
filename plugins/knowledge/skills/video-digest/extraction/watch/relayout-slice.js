@@ -104,6 +104,8 @@ const SOURCE_METADATA = new Set([
 ]);
 const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 
+/** Markdown files, by extension, in any case. */
+const MARKDOWN_FILE = /\.(?:md|markdown)$/i;
 const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
 const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 /** The slice lane directories, plus the `SLICE/` root alias. */
@@ -253,7 +255,7 @@ function sliceRootLookup(map) {
   ].sort();
   return {
     retired: path.basename(map.sliceAbs),
-    note: `split across ${splitInto.join(", ")} in this copy`,
+    note: splitInto.length > 0 ? `split across ${splitInto.join(", ")} in this copy` : NOT_RETAINED,
   };
 }
 
@@ -314,8 +316,14 @@ function lookUpReference(refPath, sourceFile, map) {
   }
   // A lane folder the layout knows but this slice never produced (prose such
   // as "no deck in `source/decks/`") names nothing to point at.
+  // A path below such a folder (`source/decks/slides.pdf`) names nothing either.
   const absentFolder = keys.find(
-    (key) => key !== null && KNOWN_LANE_FOLDERS.has(key) && !map.sliceEntries.has(key),
+    (key) =>
+      key !== null &&
+      [...KNOWN_LANE_FOLDERS].some(
+        (folder) =>
+          (key === folder || key.startsWith(`${folder}/`)) && !map.sliceEntries.has(folder),
+      ),
   );
   if (absentFolder) return { retired: absentFolder, note: "none in this slice" };
   const retired = keys.find((key) => key !== null && map.sliceEntries.has(key));
@@ -634,7 +642,8 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
   /** @type {{ file: string, ref: string }[]} */
   const unresolved = [];
   const markdown = listFiles(root).filter(
-    (file) => file.endsWith(".md") && !file.startsWith("frames/all/") && !file.startsWith("media/"),
+    (file) =>
+      MARKDOWN_FILE.test(file) && !file.startsWith("frames/all/") && !file.startsWith("media/"),
   );
   for (const file of markdown) {
     const fileDir = path.dirname(path.join(root, file));
@@ -1185,7 +1194,7 @@ export async function relayoutSlice({
       copied += 1;
     };
     for (const entry of plan) {
-      if (entry.sourceFile?.endsWith(".md")) {
+      if (entry.sourceFile && MARKDOWN_FILE.test(entry.sourceFile)) {
         const result = rewriteSliceReferences(
           fs.readFileSync(entry.from, "utf8"),
           entry.sourceFile,
