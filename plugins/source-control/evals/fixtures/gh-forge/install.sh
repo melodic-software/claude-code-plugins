@@ -18,9 +18,11 @@ set -euo pipefail
 number="$1" head="$2" base="$3" title="$4"
 
 # Refuse outside an eval run, so a scaffold run by hand never edits the operator's own ~/.zshenv.
-real_home="$(getent passwd "$(id -u)" 2>/dev/null | cut -d: -f6 || true)"
-if [[ -n "$real_home" && "$HOME" -ef "$real_home" ]]; then
-  echo "gh-forge/install.sh: HOME is the account's real home; run this only from an eval scaffold" >&2
+# ~user expands from the account database, not from HOME; an unresolved lookup refuses too.
+user="$(id -un)"
+[[ "$user" =~ ^[A-Za-z0-9._-]+$ ]] && eval "real_home=~$user" || real_home=""
+if [[ "$real_home" != /* || "$HOME" -ef "$real_home" ]]; then
+  echo "gh-forge/install.sh: HOME is the account's real home, or it could not be checked; run this only from an eval scaffold" >&2
   exit 1
 fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
