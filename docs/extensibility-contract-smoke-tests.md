@@ -88,13 +88,13 @@ the subprocess environment is identical).
   [§ Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
   and [§ Fields that run through a shell](https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell)
   (as of 2026-10-11; recheck when either section changes which components receive a value). This
-  run's reading on 2.1.207 counted monitors among them; the page now says monitors receive none.
+  run's reading on 2.1.207 counted monitors among them; those sections decide whether that holds.
 - **Authoring constraint.** A skill reads a **non-sensitive** userConfig value only through
   `${user_config.KEY}` text-substitution into its own Markdown, never from the environment of a script
   it spawns. A **sensitive** value is unreachable from a skill entirely: it is not substitutable into
   skill / agent content (spec) and is not in the subprocess environment, so only a component the
   sections above name as receiving it can consume it. Design a sensitive-value consumer as a hook or
-  MCP server, not a skill or a monitor.
+  MCP server, not a skill.
 
 ## Test C: does `claude plugin install` prompt for userConfig non-interactively?
 
@@ -121,8 +121,11 @@ claude plugin install smoketest@<marketplace> --scope local </dev/null
   `claude plugin` had no `configure` subcommand (verified against `claude plugin --help`;
   `/plugin configure` was an interactive slash command only), so headless reconfiguration was
   another `--config` install, not uninstall then reinstall. Claude Code now documents a
-  non-interactive `claude plugin configure`; the plugin-reconfiguration convention owns which route
-  setups print.
+  non-interactive `claude plugin configure`
+  ([plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+  as of 2026-10-11; recheck when that section drops the subcommand), and the
+  [plugin-reconfiguration convention § The two routes](conventions/plugin-reconfiguration/README.md#the-two-routes)
+  owns which route setups print.
 - **CI implication.** Seed every required option with `--config` at install time. A bare headless
   install leaves required options unset without failing, so the plugin would run unconfigured.
 

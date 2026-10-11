@@ -53,8 +53,7 @@ is this repository's. The notation is where the house style matches the official
 unspaced pipe, none with a spaced or bare pipe. Basis:
 [commands § All commands](https://code.claude.com/docs/en/commands#all-commands). As of:
 2026-10-11. Recheck: the legend changes, or a built-in row writes alternatives with a spaced pipe
-or outside brackets. One built-in row groups a nested set in parentheses inside its brackets; a
-plugin hint still takes no parenthetical (House rules).
+or outside brackets.
 
 **Record.** Claim: "Ellipses ("...") are used to denote that one or more occurrences of an operand
 are allowed". Basis: POSIX.1-2024 (Issue 8) XBD 12.1,

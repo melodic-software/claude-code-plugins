@@ -4,8 +4,12 @@ A versioned, marketplace-wide contract for plugin hooks to emit structured execu
 (the **producer**) emits one JSON envelope per run to a **sink** the consuming repo sets via
 `HOOK_TELEMETRY_SINK`. The signal it carries, **this hook's own `duration_ms`, outcome, and findings**,
 is what Claude Code's native OTEL cannot provide: its hook event reports all matching hooks together
-([monitoring § Hook execution complete event](https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event),
-as of 2026-10-11; recheck when that event reports one hook's duration and outcome).
+([monitoring § Hook execution complete event](https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event)),
+and its per-invocation plugin hook event excludes third-party plugin content, which covers this
+marketplace's hooks
+([§ Hook plugin metrics event](https://code.claude.com/docs/en/monitoring-usage#hook-plugin-metrics-event)).
+As of 2026-10-11; recheck when the first event reports one hook's duration and outcome, or the
+second opens to third-party marketplace plugins.
 
 This directory is the source of truth: `envelope.schema.json` (common fields), `data/<hook>.schema.json`
 (per-hook payload), `CHANGELOG.md` (version history), `examples/` (worked fixtures).
