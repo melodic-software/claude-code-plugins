@@ -25,7 +25,7 @@ dispatch.
   fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
 - **As of**: 2026-10-10
 - **Recheck trigger**: that section changes how an agent definition's `effort` ranks against the
-  session level or a per-call `effort`.
+  session level or a per-call `effort`, or which spawns honor it.
 
 **Verification.** Claim: `maxTurns: 25` in this agent definition takes effect for a plugin agent;
 at the limit the subagent stops and Claude Code returns its output marked partial, which Claude can
