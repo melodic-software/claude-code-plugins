@@ -280,6 +280,8 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 
 **Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. `gh pr create` has no option that uploads a file, so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
+**Left out.** The same section ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`.
+
 - **Pointer**: when the person asks how to add the captures, fetch GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) live for the upload routes and size limits.
 - **As of**: 2026-10-02
 - **Recheck trigger**: a gh release adds an option to `gh pr create` or `gh pr edit` that uploads a file, at which point the step attaches the captures itself.
