@@ -485,6 +485,7 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
             "gh: Bad credentials (HTTP 401)",
             "gh executable not found on PATH",
             "gh api graphql timed out after 60s",
+            "GitHub access to owner/repo is not enabled for this session",
         ):
             with self.subTest(message=message):
                 self.assertFalse(gh.is_graphql_unavailable(RuntimeError(message)))

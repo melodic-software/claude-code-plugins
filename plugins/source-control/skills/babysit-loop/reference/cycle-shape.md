@@ -71,7 +71,8 @@ is.
    here**, not eligible at any rung, exactly as an item with no record at all.
    Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable in a session served
    no GraphQL (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
-   degrade"). That is the no-close-linkage case already
+   degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
+   sessions"). That is the no-close-linkage case already
    ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
    merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
    because review-thread resolution has no REST equivalent. Report the restriction once for the

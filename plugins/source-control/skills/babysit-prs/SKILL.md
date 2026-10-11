@@ -341,8 +341,8 @@ merge-readiness as unchecked.
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
 A cloud session behind the GitHub proxy is served none of the forge's GraphQL API, and the
 refusal reads like an expired token or a missing scope while being neither: take it as a signal to
-switch APIs rather than to re-authenticate (the signal and the REST routes: provider reference
-"Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
+switch APIs rather than to re-authenticate (the signal, the REST routes and the upstream pointer:
+provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
 discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
 Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.
