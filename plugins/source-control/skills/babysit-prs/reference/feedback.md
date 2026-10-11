@@ -55,9 +55,15 @@ A matching row sets the expected classification of a bot finding before the D1-D
 dismisses a security or data finding, never changes Human Feedback below, and never overrides
 structured `CHANGES_REQUESTED` state. Babysit runs with no one to answer, so an `ask` row never
 prompts: classify the finding UNCERTAIN, reply that the repository's rubric routes it to a person,
-leave the thread unresolved, and report it as material feedback. A rubric dismissal of a blocking item
-is recorded through Feedback Dispositions below with `--reason rubric`, and the worker's report names
-the deciding row.
+leave the thread unresolved, and report it as material feedback.
+
+A disposition covers a whole feedback item, and one bot comment often packs several findings. Split
+the item into its findings first ([review-discipline.md](../../../reference/review-discipline.md) §2),
+match each finding on its own, and record `--reason rubric` for a blocking item only when every
+finding in it matched a `dismiss` row. When any finding matched no row, or matched a `fix` or `ask`
+row, record no rubric disposition: the item stays blocking and each finding takes the D1-D7 path,
+with the rows that did match applied to their own findings. The worker's report names the deciding
+row for each finding.
 
 ## Feedback Dispositions
 

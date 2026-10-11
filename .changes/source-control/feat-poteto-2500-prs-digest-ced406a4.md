@@ -41,7 +41,9 @@ bump: minor
   `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
   `high`/`medium`/`low` confidence) is read at the PR's base branch by
   `/source-control:pull-request` `monitor` and `comments` and by `/source-control:babysit-prs`, so
-  both triage a recurring bot finding the same way. It never dismisses a security or data finding,
+  both triage a recurring bot finding the same way. A row decides one finding: a bot comment holding
+  several findings is disposed of on the rubric's say only when every one of them matched a
+  `dismiss` row, so one dismissable phrase cannot clear the rest. It never dismisses a security or data finding,
   and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
   prompting. Without the section, triage is unchanged.
 - **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new

@@ -238,6 +238,9 @@ When several rows match one finding, the most cautious disposition wins: `ask`, 
 - Structured state wins: a `CHANGES_REQUESTED` review stays blocking.
 - A dismissal is an INCORRECT classification whose D5 reply quotes the row as its counter-evidence, so
   D7.5's thread-resolution rules apply unchanged.
+- A row decides one finding, never the comment that carries it. A comment holding several findings is
+  disposed of, or its thread resolved, on the rubric's say only when every finding in it matched a
+  `dismiss` row; otherwise the findings no row dismissed keep it open.
 
 **An `ask` row with no one to answer.** In an interactive session, show the user the finding and the
 row, and wait for the decision. In a run where nobody can answer (a CI lane, a
