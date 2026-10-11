@@ -97,7 +97,7 @@ When no bundled or project lane covers the target files (for example a lone `.gi
 - takes verification from the repository's documented test command;
 - names its branch `chore/tidy-adhoc-<slug>-YYYY-MM-DD`, where `<slug>` is the first glob's literal directory prefix in kebab case (`github-scripts` for `.github/scripts/*.mjs`), or `root` when the glob has no directory;
 - skips the anchor-commit lookup and hunts the whole scope, since no earlier sweep is known to cover the same globs;
-- writes no `.claude/tidy-lanes/` file, so Phase H's Summary names the globs in place of the lane and `none (ad hoc)` in place of the anchor commit.
+- writes no `.claude/tidy-lanes/` file, so Phase H's body facts name the globs in place of the lane and `none (ad hoc)` in place of the anchor commit.
 
 ## Workflow (8 phases)
 

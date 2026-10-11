@@ -4,7 +4,7 @@ bump: minor
 
 ### Fixed
 
-- `tidy` no longer describes the PR body as fixed to `Summary` and `Test plan`; it hands `/source-control:pull-request create` the facts and that skill writes the body from the repo's configured sections.
+- `tidy` no longer describes the PR body as fixed to `Summary` and `Test plan`; it hands `/source-control:pull-request create` the facts and that skill writes the body from the repo's configured sections. An ad hoc scope's globs and `none (ad hoc)` anchor go into those body facts.
 
 ### Added
 
