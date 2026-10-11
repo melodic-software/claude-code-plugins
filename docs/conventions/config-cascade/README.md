@@ -62,10 +62,12 @@ for structured configuration). `<concern>` is the owning plugin's name, or the c
 a cross-plugin concern. The root `docs/conventions` is fixed; the pointer line binds the prose home
 only and never moves a config file. The concern's prose stays in `<concern>.md` at the convention
 home. A plugin concern's schema ships at `plugins/<plugin>/schemas/<concern>.schema.json`; a
-cross-plugin convention's schema sits in its convention folder. CI validation of a committed
-`docs/conventions/*.yaml` reports and does not block; a runtime reader runs no validator and fails
-closed on a value outside the key's enum. A new surface takes this form: no fenced config block
-and no folder form.
+cross-plugin convention's schema sits in its convention folder. A schema error in a committed
+`docs/conventions/*.yaml` fails CI: the validation step runs with `continue-on-error: true` and
+feeds the job's result aggregator. A runtime reader runs no validator. It names the invalid
+value's file, key and value and drops that layer, so a valid higher layer wins, else the key's
+default; a lower layer's value is never used (ADR 0064 Decision 7). A new surface takes this form:
+no fenced config block and no folder form.
 
 Surfaces that already use another location keep working until #5906 migrates them, resolved in
 this order:
