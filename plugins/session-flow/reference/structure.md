@@ -686,11 +686,19 @@ knows is a hard failure that says "read it, do not rewrite it" (exit 3), never a
 
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser, `find-handoff`'s chain validation) and is the id the below-rail
-`claude --resume` line reopens. It is `CLAUDE_CODE_SESSION_ID`, which the Bash tool subprocess sets
-(Claude Code v2.1.132+; resolve it via Bash, skill markdown does not template-expand env vars). It
-must be a UUID with a transcript to match: `new` refuses an unset value and a non-UUID (a bridge
-session's `cse_…` id, which `CLAUDE_CODE_BRIDGE_SESSION_ID` carries and is never read), and the
-literal `unknown` shape 1 allowed is no longer a value. `transcript` is the session's own on-disk
+`claude --resume` line reopens. It is `CLAUDE_CODE_SESSION_ID`, resolved via Bash (skill markdown
+does not template-expand env vars). It must be a UUID with a transcript to match: `new` refuses an
+unset value and a non-UUID (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID` is
+never read), and the literal `unknown` shape 1 allowed is no longer a value. Which subprocesses
+carry each variable, and the form of its value, are upstream facts: read them live.
+
+- **Pointer**: [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
+  the `CLAUDE_CODE_SESSION_ID` and `CLAUDE_CODE_BRIDGE_SESSION_ID` rows.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either row changes which subprocesses carry the variable or the form of its
+  value.
+
+`transcript` is the session's own on-disk
 record, resolved by the documented `~/.claude/projects/*/<session_id>.jsonl` glob and `stat`ed at
 write; when the glob misses, the honest `unresolved (…)` value is stored (WARN on validate, FAIL
 under `--strict-transcript`) and a later reader re-runs the same glob.

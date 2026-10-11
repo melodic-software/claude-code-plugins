@@ -50,8 +50,10 @@ def claude_version_at_least(claude: str, floor: tuple[int, int, int]) -> bool:
 def permission_prompts_args(claude: str) -> list[str]:
     """`--permission-prompts none` on Claude Code >= 2.1.259, else nothing.
 
-    The flag keeps the permission mode already on the command line and denies
-    only calls that would have prompted. Older CLIs reject it as an unknown option.
+    We pass it so an unattended run never waits on a prompt; older CLIs reject it.
+    Pointer: https://code.claude.com/docs/en/cli-reference#cli-flags for what the
+    flag does. As of 2026-10-11. Recheck trigger: that table renames or drops
+    `--permission-prompts`, or a release note changes its values.
     """
     if claude_version_at_least(claude, _PERMISSION_PROMPTS_FLOOR):
         return ["--permission-prompts", "none"]

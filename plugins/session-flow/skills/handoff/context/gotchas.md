@@ -56,41 +56,42 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   verifiable evidence (a grep hit, a test exit code), not "looks good."
 - **Continuing after the user says stop.** A handoff is a save-point, never permission to keep
   implementing. Respect explicit pause/stop.
-- **Idle named subagents surviving `/clear`.** Named subagents stay live and addressable across
-  `/clear` and across sessions, unlike `/loop` and `/goal`, which a fresh conversation clears. A
-  save-point that captures TaskList but never reaps idle named agents leaves them resident for
-  later sessions. Inventory the named subagents this session spawned and any leftover names the
-  previous handoff recorded as deliberately left running. For each one, read its actual output
-  or transcript per `reference/off-thread-work.md` (inspect real state, never assume). Ones
-  whose inspected output proves no pending work: ask the operator to cancel with `x` in `/tasks`
-  (user-cancel). Do not retire with `TaskStop`; a TaskStop'd agent still auto-resumes on
-  `SendMessage` (verified snapshot in `skills/orchestrate/context/sources.md`, "SendMessage
-  worker continuation"). Record any still running (with why) so the resuming session inherits
-  the list.
-- **Saying nothing about the active `/loop`s on resume.** `/clear` starts a fresh conversation,
-  which clears every session-scoped scheduled task, so a resume prompt that reads only as a one-shot
-  continuation runs once and silently drops the recurring behavior, with no error to signal it. Each
-  re-arm is a SEPARATE follow-up message carrying the ORIGINAL loop prompt, one per surviving loop,
-  never the resume directive wrapped in `/loop`. The engine's counted entry header labels each
-  re-arm inside the save-point's own output so a consumer can find its edges (engine doc, "Emit the
-  copy/paste resume prompt"); the header is not part of what gets sent, and the follow-up message
-  itself begins with `/loop`, since a command is recognized only at a message's start. `/loop` re-runs the
-  prompt it was given on every iteration, and a save-point is an immutable record of one moment, so
-  wrapping the directive would have every later tick re-read that frozen file and replay a
-  remainder already done, instead of doing the loop's actual recurring job. The clearing behavior is
-  verified 2026-09-06 against Claude Code 2.1.263 and
-  [Run prompts on a schedule](https://code.claude.com/docs/en/scheduled-tasks#limitations), which
-  states that starting a fresh conversation clears all session-scoped tasks and that `--resume` or
-  `--continue` restores only unexpired recurring tasks and one-shots whose time has not passed.
-  Recheck when that page stops carrying that statement, or when a release note names session-scoped
-  scheduled tasks.
-- **A `/goal ...` first line inside the pasted block arms nothing.** A command is recognized only at
-  the start of a message, so a `/goal <condition>` line pasted from a rails prompt reaches the new
-  session as plain text and no goal is set, while the handoff looks complete. The goal region
-  therefore holds the condition alone, under an instruction that has the user type `/goal` and a
-  space by hand, paste the region, and check for the `◎ /goal active` indicator (engine doc, "Emit
-  the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails. Verified
-  2026-09-29 against [Keep Claude working toward a goal](https://code.claude.com/docs/en/goal),
-  which shows a goal set by running `/goal` followed by the condition and a `◎ /goal active`
-  indicator while it is active; the page does not state the message-start rule, which rests on the
-  `/loop` note above. Recheck when that page changes the syntax or the indicator text.
+- **Idle named subagents left resident.** A save-point that captures TaskList but never reaps idle
+  named agents can leave them resident for later sessions. Inventory the named subagents this
+  session spawned and any leftover names the previous handoff recorded as deliberately left
+  running. For each one, read its actual output or transcript per `reference/off-thread-work.md`
+  (inspect real state, never assume). Ones whose inspected output proves no pending work: ask the
+  operator to cancel with `x` in `/tasks` (user-cancel). Do not retire with `TaskStop`, which does
+  not stop a later `SendMessage` from resuming the agent. Record any still running (with why) so
+  the resuming session inherits the list. Which subagents survive `/clear` and which stops a later
+  message can resume are upstream behavior: read them live.
+  - **Pointer**: [Create custom subagents § Resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents)
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which stopped subagents a message resumes, or a
+    release note changes subagent lifetime across `/clear`.
+- **Saying nothing about the active `/loop`s on resume.** Treat every `/loop` as gone once the
+  user clears or resumes: a resume prompt that reads only as a one-shot continuation runs once and
+  silently drops the recurring behavior, with no error to signal it. Each re-arm is a SEPARATE
+  follow-up message carrying the ORIGINAL loop prompt, one per surviving loop, never the resume
+  directive wrapped in `/loop`. The engine's counted entry header labels each re-arm inside the
+  save-point's own output so a consumer can find its edges (engine doc, "Emit the copy/paste
+  resume prompt"); the header is not part of what gets sent, and the follow-up message itself
+  begins with `/loop`, because we never rely on a command anywhere but at the start of a message.
+  `/loop` re-runs the prompt it was given on every iteration, and a save-point is an immutable
+  record of one moment, so wrapping the directive would have every later tick re-read that frozen
+  file and replay a remainder already done, instead of doing the loop's actual recurring job.
+  Which scheduled and background tasks a resume restores is upstream behavior: read it live.
+  - **Pointer**: [Run prompts on a schedule § Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations)
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which tasks a resume restores, or a release note
+    names session-scoped scheduled tasks or `/loop` across `/clear`.
+- **A `/goal ...` first line inside the pasted block.** We never rely on a command anywhere but at
+  the start of a message (our rule; no docs section states it), so a `/goal <condition>` line
+  pasted from a rails prompt is treated as setting nothing, while the handoff looks complete. The
+  goal region therefore holds the condition alone, under an instruction that has the user type
+  `/goal` and a space by hand, paste the region, and check that the goal shows as active (engine
+  doc, "Emit the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails.
+  - **Pointer**: [Keep Claude working toward a goal § Set a goal](https://code.claude.com/docs/en/goal#set-a-goal),
+    for the command syntax and the active-goal indicator.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes the `/goal` syntax or the indicator.

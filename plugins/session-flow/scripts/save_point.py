@@ -1792,7 +1792,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     if not UUID_RE.match(session_id):
         return _die(
             1,
-            f"session id {session_id!r} is not a UUID (bridge ids such as cse_… are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
+            f"session id {session_id!r} is not a UUID (Remote Control bridge ids are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
         )
     session_id = session_id.lower()
 
