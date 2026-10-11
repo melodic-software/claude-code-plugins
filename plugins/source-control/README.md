@@ -70,6 +70,9 @@ research-gated:
   merges on approval. Never arms auto-merge.
 - **fetch-logs**. Tiered CI-log retrieval (annotations → full untruncated
   ZIP via the REST API → per-job text).
+- **view / list**. Read-only PR reads for other skills: one PR's facts
+  (with the repository's visibility) or its diff, and PRs by head branch or
+  head-branch pattern, so they need no forge CLI of their own.
 
 ### `/source-control:babysit-prs`
 

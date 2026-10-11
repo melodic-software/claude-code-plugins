@@ -277,6 +277,8 @@ printf '%s\n\n%s\n' "Closes #<N>" "$(cat /tmp/pr-body.md)" \
   | gh pr edit <PR> --body-file -
 ```
 
+The prepended line is `change-link <id> --repo <owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
+
 Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes`/`fixed`/
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
 `No related issue:` leave the body untouched.

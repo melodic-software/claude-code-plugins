@@ -354,7 +354,7 @@ Required phase shape:
 - [ ] **Sanity Check:** the item number (newly created OR pivoted-to) recorded in the phase notes; URL captured
 ````
 
-`gh pr create` does NOT need an equivalent phase-entry check, because it errors out on branches that already have an open PR, so duplicates are structurally prevented.
+Opening a PR (`/source-control:pull-request create`) does NOT need an equivalent phase-entry check, because the forge refuses a second open PR from a branch that already has one, so duplicates are structurally prevented.
 
 ## Checkbox inventory pattern
 

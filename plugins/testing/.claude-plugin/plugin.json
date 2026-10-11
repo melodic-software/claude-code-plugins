@@ -32,7 +32,7 @@
     "test_judge_model": {
       "type": "string",
       "title": "Test judge model",
-      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. The judge was not calibrated on haiku, so its verdicts may be less consistent.",
+      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. haiku is the last resort: the judge is uncalibrated on it and may favor outputs labeled as Claude's own (self-preference bias).",
       "default": "sonnet",
       "options": ["fable", "opus", "sonnet", "haiku"]
     },
@@ -46,7 +46,7 @@
     "test_judge_effort": {
       "type": "string",
       "title": "Test judge effort",
-      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels.",
+      "description": "Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels.",
       "default": "medium",
       "options": ["low", "medium", "high", "xhigh", "max"]
     },

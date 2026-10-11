@@ -1,0 +1,10 @@
+widget:
+  mode: fast
+  label: default label
+  limit: 10
+  verbose: false
+  note:
+  disable:
+    - alpha
+  tags:
+    - one
