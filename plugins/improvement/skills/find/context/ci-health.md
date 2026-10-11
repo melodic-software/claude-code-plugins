@@ -17,14 +17,23 @@ a different checkout (SKILL.md "Repo as parameter").
 ## Access probe ladder (probe in order, record the outcome)
 
 1. **GitHub MCP tools.** The `actions_*` toolset (`actions_list`, `actions_get`,
-   `get_job_logs`) in this session's tool roster. Preferred: works in cloud sessions where `gh`
-   is absent. Note: in cloud sessions the MCP server is repo-scoped to attached repos, making it
-   most reliable for the repo this invocation targets, which matches the one-repo-per-invocation
-   scope.
-2. **`gh` CLI.** `command -v gh` succeeds and `gh auth status` reports authentication.
+   `get_job_logs`) in this session's tool roster. Preferred. This recipe reads one repository per
+   invocation, the target, so a tool scoped to the session's attached repositories still covers
+   it.
+2. **`gh` CLI.** `command -v gh` succeeds and `gh auth status` reports authentication. Make the
+   calls through `gh api` REST paths, which is how every call below is written.
 3. **None.** Record the evidence-gap line
    (`gap: ci-health — no GitHub access path (no MCP actions tools, no gh)`) and rank without CI
    evidence. A missing access path is never license to estimate CI health.
+
+In a cloud session, which GitHub tools and `gh` paths are available, how they authenticate, and
+which repositories and endpoints the proxy serves are read live, not assumed.
+
+- **Pointer:** [cloud environments: work with GitHub issues and pull requests](https://code.claude.com/docs/en/cloud-environments#work-with-github-issues-and-pull-requests)
+  and [cloud environments: GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** either section changes which GitHub tools or `gh` paths a cloud session
+  has, or which repositories or endpoints the proxy serves.
 
 Derive `<owner>/<repo>` from the first configured remote URL (`git remote` /
 `git remote get-url`), not from directory names.
