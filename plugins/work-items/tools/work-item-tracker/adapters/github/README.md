@@ -108,8 +108,8 @@ Search-qualifier reference:
 Multiple qualifiers AND-combine: `label:type:chore label:recurring no:assignee sort:created-asc`.
 
 **REST form (GraphQL returns HTTP 403).** `gh issue list --search` is GraphQL, which cloud
-sessions refuse (see "View item" below). This adapter does not use `search/issues` as the
-fallback in cloud sessions either; read what the proxy serves from the "View item" pointer. List the
+sessions refuse (see "View item" below). We observed REST `search/issues` refused in cloud sessions
+too (the "View item" pointer does not cover search), so it is not the fallback. List the
 repo's issues over REST and filter client-side: `<terms>` are the query words, all of which must
 appear in the title, case-insensitively. Pull requests come back from the issues endpoint and are
 dropped.
@@ -148,7 +148,9 @@ re-authenticate.
 - **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
   [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
   live. **As of**: 2026-10-11. **Recheck trigger**: that section's GraphQL bullet changes, or a
-  release note names the GitHub proxy. The REST issues endpoint carries
+  release note names the GitHub proxy.
+
+The REST issues endpoint carries
 the same fields under the same names. Use the object-array form when substituting
 the general `gh issue view --json number,title,body,labels,assignees,comments`
 shape (`.labels[].name` / `.assignees[].login` keep working). REST `comments` is

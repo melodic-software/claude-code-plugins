@@ -61,7 +61,9 @@ of this doc alone; confirm the carve-out first.
   [settings reference § `autoMode.classifyAllShell`](https://code.claude.com/docs/en/settings-reference#automode-classifyallshell)
   and [permission modes § How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
   live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which allow rules auto
-  mode suspends, or a release note names `classifyAllShell`. `/work-items:work`'s Step 0 treats a classifier denial of
+  mode suspends, or a release note names `classifyAllShell`.
+
+`/work-items:work`'s Step 0 treats a classifier denial of
 `reclaim` as a non-blocking, report-once-and-skip condition (see
 `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` "Step 0").
 That is the current mitigation; a permission-rule fix, if one applies, still lives operator-side per
@@ -117,17 +119,19 @@ floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rat
 `git push` / `git commit` / `git add` shape.
 
 **`settings.local.json` scope on the autonomous path.** The preflight treats the **main
-checkout's** `.claude/settings.local.json` as shared by every linked worktree of the repository,
-because that is where a "Yes, don't ask again" approval lands on the harness versions this plugin
-targets.
+checkout's** `.claude/settings.local.json` as shared by the repository's linked worktrees, because
+that is where a "Yes, don't ask again" approval lands on the harness versions this plugin targets
+when Claude Code uses the repository root. It does not hold everywhere: on some platforms and
+layouts the approval stays with the worktree it was granted in, and the preflight does not detect
+that case (read which cases from the pointer below).
 
 - **Pointer**: when checking where a saved approval lands and which sessions it reaches, fetch
   [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system)
   and [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
   live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where "Yes, don't ask
-  again" saves the rule or how it resolves through worktrees.
+  again" saves the rule, how it resolves through worktrees, or which cases keep it in the worktree.
 
-The main
+Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
 preflight reads it in **every** mode, but only once it has **verified** which directory that is.
 

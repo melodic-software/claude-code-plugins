@@ -23,8 +23,9 @@
 # Effective settings (union of permissions.allow / additionalDirectories):
 #   user-global : ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json (applies everywhere)
 #   project     : <project-root>/.claude/settings.json, .../settings.local.json
-#   main-local  : <main-checkout>/.claude/settings.local.json: shared by every
-#                 worktree of the repository (reference/permission-preflight.md
+#   main-local  : <main-checkout>/.claude/settings.local.json: shared by the
+#                 repository's worktrees where Claude Code saves approvals at the
+#                 repository root, not in every case (reference/permission-preflight.md
 #                 "settings.local.json scope" holds the pointer record), so this
 #                 file is read in every mode, but only
 #                 when the main checkout is VERIFIED. When it cannot be
@@ -57,7 +58,7 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
                     The autonomous signal: unless a distinct --project-root is given,
                     coverage reads keep the MAIN checkout's settings.local.json (its
-                    rules apply in every worktree) and
+                    rules apply across worktrees where saved at the repository root) and
                     exclude only a linked-worktree cwd's own local file, which a
                     fresh worker would not inherit
   --project-root P  read project settings from P's checkout instead of the cwd's
@@ -141,8 +142,9 @@ proj_src="${project_root:-$CHECK_DIR}"
 proj_toplevel="$(git -C "$proj_src" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
 proj_base="${proj_toplevel:-$proj_src}"
 user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-# The MAIN checkout's .claude/settings.local.json is shared by every linked
-# worktree (reference/permission-preflight.md "settings.local.json scope" holds
+# The MAIN checkout's .claude/settings.local.json is shared by linked worktrees
+# where approvals save at the repository root, not in every case
+# (reference/permission-preflight.md "settings.local.json scope" holds
 # the pointer record).
 # Resolving that checkout has three outcomes, and the report distinguishes them:
 #   verified  — main_root names a directory PROVEN to be this repository's main
@@ -343,7 +345,7 @@ read_array() {
 collect() {
   # collect <jq-path> <local-mode> — union the path across user-global + tracked
   # project settings + the MAIN checkout's settings.local.json (always: its rules
-  # apply in every worktree, a fresh worker included), plus the
+  # apply across worktrees where saved at the repository root), plus the
   # project checkout's OWN settings.local.json only when <local-mode> is
   # "with-local". A rule saved inside a linked worktree by an older harness
   # (or hand-placed there) applies only to sessions started in that worktree, so
@@ -521,7 +523,7 @@ if [[ "$cov_local" == "no-local" ]]; then
   if [[ -n "$main_is_proj_base" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
   elif [[ "$main_state" == "verified" ]]; then
-    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', applies in every worktree) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', shared across worktrees where approvals save at the repository root) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
   else
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
   fi
@@ -538,7 +540,7 @@ fi
 # interactive one, which prints no header otherwise and would otherwise drop a
 # main-local deny in silence.
 if [[ "$main_state" == "unresolved" ]]; then
-  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Its rules apply in every worktree, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
+  echo "PREFLIGHT: UNREAD LAYER — the main checkout's settings.local.json was NOT read: $main_reason. Where approvals save at the repository root its rules apply in every worktree, so a grant there is not credited (a verb may be over-reported as a gap) and, worse, a DENY there is not reported at all. Findings below are incomplete. Run the preflight from the main checkout, or pass --project-root naming it, to read that layer."
 fi
 
 if [[ "${#findings[@]}" -gt 0 ]]; then
