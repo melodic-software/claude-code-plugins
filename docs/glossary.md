@@ -107,22 +107,23 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
-Bare "frontier" means this set. Two other plugins use the word only in qualified compounds, which
-keep their own meaning: **frontier model** (`multi-agent`: a most-capable model alias, as in its
-`frontier` config key and `fanout.frontier_guard`) and **current frontier** (`education:teach`:
-the concepts one step beyond a learner's floor).
+Bare "frontier" means this set, except inside two plugins that use the word for their own
+concepts: `multi-agent` (a most-capable model: its `frontier` config key, "frontier session",
+`fanout.frontier_guard`) and `education:teach` (the concepts one step beyond a learner's floor,
+its "current frontier"). Those senses hold only within those plugins.
 
 **slice**
 
-A work item cut as a vertical slice: a narrow but complete path through every layer, verifiable on
-its own and small enough to finish in one fresh context window.
-
-Avoid: slice for the topic folder; write **memory slice** in full
-
-**memory slice**
-
 The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) that holds a topic's
-plans and research. Checkout-local and never committed.
+plans and research. Checkout-local and never committed. Also written **memory slice** or **topic
+slice**; a folder nested inside one is a **sub-slice**.
+
+Avoid: slice for a work item; write **vertical slice**
+
+**vertical slice**
+
+A work item cut as a narrow but complete path through every layer, verifiable on its own and small
+enough to finish in one fresh context window.
 
 ## Rejected terms
 
@@ -138,7 +139,7 @@ Each maps to the term or doctrine that owns the concept.
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
 | sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
-| slice *(the topic-folder sense)* | **memory slice** above; bare "slice" means a work item |
+| slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
 
 ## Provenance
@@ -154,7 +155,7 @@ adopted at the finding-your-unknowns integration sign-off (2026-09-01); the deci
 [ADR 0025](adr/0025-adopt-the-unknowns-corpus-as-judgment-preserving-contract-deltas.md) and the
 shipping PR carries the full decision sheet.
 
-"work item" through "memory slice" and the slice rejected-terms row record vocabulary the
+"work item" through "vertical slice" and the slice rejected-terms row record vocabulary the
 `work-items` plugin already uses; definitions follow
 [`execution-shape.md`](../plugins/work-items/reference/execution-shape.md) "Vocabulary" and the
 tracker contract's "Containers and state". Tracked as
