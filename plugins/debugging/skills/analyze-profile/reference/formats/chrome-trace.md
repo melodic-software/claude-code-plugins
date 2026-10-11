@@ -14,7 +14,8 @@ on a trace a current Chrome saved, or when DevTools changes its save format.
 
 - `events`: one row per event in file order. `ph` is the phase (`X` complete, `B`/`E` begin and
   end, `M` metadata, `P` sample data), `ts` and `dur` are microseconds, `args` is the event's
-  arguments as JSON text with secret-shaped strings redacted.
+  arguments as JSON text with GitHub tokens, AWS access key ids and `Bearer` values redacted (only
+  those shapes; review the rest by hand).
 - `frames` and `samples`: the CPU samples DevTools embeds in `ProfileChunk` events, one profile per
   `pid:id` pair. Same columns as the `.cpuprofile` page.
 

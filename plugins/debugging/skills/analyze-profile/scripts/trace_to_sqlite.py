@@ -6,7 +6,11 @@
 Reads one Chrome trace-event file (optionally gzipped), V8 .cpuprofile or V8
 .heapsnapshot and writes the tables below to <out>.partial, renamed to <out>
 only after every row is in. It refuses to overwrite <out>. Every string value
-is checked before insert and secret-shaped text is stored as <REDACTED>.
+is checked before insert, and text matching SECRET is stored as <REDACTED>:
+GitHub tokens (ghp_, gho_, ghu_, ghs_, ghr_ and github_pat_), AWS access key
+ids (AKIA, ASIA; not the secret access key) and the value after `Bearer`.
+Nothing else is redacted: passwords, other vendors' keys, cookies, session ids
+and personal data pass through, so the output must still be reviewed by hand.
 Input larger than MAX_INPUT_BYTES, after any gzip decompression, is refused
 without reading past the limit. Every value from the file is bound as a SQL
 parameter and nothing is ever passed to a shell.
