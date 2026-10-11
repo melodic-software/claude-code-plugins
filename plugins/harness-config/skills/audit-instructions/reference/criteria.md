@@ -239,8 +239,8 @@ each only on the surfaces its row names.
   <https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting>
 - Model migration guides. The migration-guide URL is an index of per-model guides
   (<https://platform.claude.com/docs/en/about-claude/models/migration-guide>); I25 cites the Fable
-  and Mythos guide's section on migrating from Claude Opus 5:
-  <https://platform.claude.com/docs/en/models/fable-5/migration-guide#migrating-to-claude-mythos-5-and-claude-fable-5-from-claude-opus-5>.
+  guide's section on migrating from Claude Opus 5:
+  <https://platform.claude.com/docs/en/models/fable-5-1/migration-guide#migrating-from-claude-opus-5-to-claude-fable-5-1>.
   The model ranges that reject manual extended thinking (I17-c) and non-default sampling
   parameters (I25) are read from Thinking, above.
 - Claude Sonnet 5 model page, "Good to know" (the sampling-parameter constraint on the Sonnet class):
