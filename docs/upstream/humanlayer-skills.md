@@ -1,9 +1,11 @@
-# Upstream source — humanlayer/skills (show-me)
+# Upstream source — humanlayer/skills (show-me, rpi)
 
 Single source of truth for everything in this marketplace derived from
 [humanlayer/skills](https://github.com/humanlayer/skills) — "Claude Code skills from HumanLayer",
 MIT — and specifically its `plugins/show-me/skills/show-me/SKILL.md`. The `visualization` plugin's
-code-shape sketch family is inspired by and adapted from that skill. Provenance lives HERE and in
+code-shape sketch family is inspired by and adapted from that skill. The `rpi` plugin is evaluated
+below for program [#6917](https://github.com/melodic-software/claude-code-plugins/issues/6917) and
+nothing from it is adopted yet. Provenance lives HERE and in
 plugin CHANGELOGs, never in skill bodies, where it is agent-facing noise. Content citations an agent
 actually uses are not provenance records and stay in place.
 
@@ -14,13 +16,19 @@ tags. Git history of this file records *when*; this line records only *what was 
 Trigger fired and re-audited 2026-10-04: `bba9d13` (2026-09-12) is the only later change to the
 file. It adds `disable-model-invocation: true` to the frontmatter (plus a Codex
 `allow_implicit_invocation: false` sidecar) and leaves the body untouched, so no row below changes.
-Watch next: mattpocock/skills v1.3 `pr` re-hosts this skill's view menu (see
+Re-audited 2026-10-10 at `main@653b641` (2026-10-08T21:54:25Z, the merge of upstream PR #13, "Add a
+portable RPI workflow for Claude Code and Codex"): `plugins/show-me/` has no commit after `bba9d13`.
+The new `rpi` plugin carries a copy of the skill at `plugins/rpi/skills/rpi/references/show-me.md`,
+identical to the pinned file except that its frontmatter lacks `disable-model-invocation: true`, so
+no row below changes. Watch next: mattpocock/skills v1.3 `pr` re-hosts this skill's view menu (see
 [`mattpocock-skills.md`](mattpocock-skills.md), `pr` row), so a later body change here should be
 diffed against both `visualization`'s `code-shapes.md` and his `pr`.
 
-**Recheck trigger:** a change to `plugins/show-me/skills/show-me/SKILL.md` against `bba9d13` (was `6ab9013`) — re-audit
-the affected rows below. The upstream publishes no release notes and no tags, so the trigger is a
-file change rather than a release, and the audit is a diff against the pinned commit.
+**Recheck trigger:** a change to `plugins/show-me/skills/show-me/SKILL.md` against `bba9d13` (was
+`6ab9013`), or to its copy `plugins/rpi/skills/rpi/references/show-me.md` against `653b641`:
+re-audit the affected rows below. The `rpi` section has its own trigger. The upstream publishes no
+release notes and no tags, so the trigger is a file change rather than a release, and the audit is a
+diff against the pinned commit.
 
 **Adaptation posture.** Every example block and guidance sentence that fit this marketplace's
 `visualize` router was carried **verbatim**; three example blocks were **adapted** because as written
@@ -96,12 +104,82 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## Evaluated, not adopted yet: rpi and its structure-outline phase
+
+Evaluated at `main@653b641` (2026-10-08T21:54:25Z), read 2026-10-10. `plugins/rpi/` was added by
+upstream PR #13 (opened 2026-10-07, merged 2026-10-08); its eleven commits run from `e19a7a4`
+(2026-10-05, "add portable rpi workflow entry skill") to `3b53bed` (2026-10-08). `plugin.json` says
+version 1.0.0, license MIT. Files read in full: `skills/rpi/SKILL.md`, `references/workflow.md`,
+`references/show-me.md`, the create and iterate `structure-outline` and `design-discussion` processes
+and templates, `references/implement-outline/process.md` and `agents/outline-implementer-agent.md`.
+
+**What it is.** One user-invoked skill (`/rpi`, "Only use when the user explicitly invokes this skill
+by name") that routes to one `process.md` per phase: research questions, research, then a design
+discussion, or a PRD followed by a TDD, or a TDD alone, then an optional structure outline, then
+implementation. Each phase writes a numbered markdown document (`NN-<phase>-<slug>.md`) into a task
+directory under `.agents/artifacts/`, runs in its own context window by default, and ends by printing
+the next command with the task directory and the chosen flow. Five subagents (locator, analyzer,
+pattern finder, web researcher, outline implementer) ship as agents and as reference copies for
+hosts without them, so the same skill runs in Claude Code and Codex. `scripts/test-rpi-workflows.ts`
+holds 52 live workflow tests run against fixture repositories.
+
+**The structure-outline phase.** It turns the agreed design into ordered phases. Upstream text:
+"Prefer small end-to-end results that cross the relevant module or service boundaries. Each phase
+should work and be verifiable when it ends." Each phase carries its result and why it comes next, a
+**Change Outline** drawn with the show-me views (file tree, contracts, call trees, pseudocode, focused
+`diff` blocks), and **Validation** split into **Automated Verification** and **Manual Verification**
+checkboxes. An **Implementation Overview** lists one unchecked item per phase, and **Open Questions**
+holds unsettled scope. Frontmatter records `repos` with an `identifier` and `sha` for each
+repository. Loading `show-me.md` is the "planning language" Dex Horthy refers to when he compares
+html-plan to this phase ([post](https://x.com/dexhorthy/status/2107267652628672855), 2026-10-06; see
+[`html-plan.md`](html-plan.md)).
+
+**Design questions resolved with rationale.** The design discussion holds **Design Questions** (each
+with options, tradeoffs and a recommendation grounded in the codebase) and **Resolved Design
+Questions**. Upstream text: "Present one decision at a time with its options and recommendation, then
+wait for the user's answer." On a decision it moves the choice to the resolved section and records
+"the chosen approach, rationale, and why the alternatives were set aside."
+
+Relation vocabulary as in [`mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md) (DERIVED,
+PARTIAL, CONVERGENT, NONE). "Why upstream" is **stated** when the author says it (skill text, a test
+name, or HumanLayer's [Advanced Context Engineering](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)
+essay) and **inference** when it is derived from the mechanism. Disposition names the #6917
+workstream that decides the row, or says none does.
+
+| Upstream element | Why upstream (problem it removes) | Ours | Relation | Disposition |
+|---|---|---|---|---|
+| A phase chain with one document per phase, each phase in a fresh context, the next command printed with task directory and flow | The context window is "the ONLY lever you have"; compaction is "distilling them into structured artifacts" (essay). **Stated** | `/planning:interview` → `/planning:prd` → `/planning:design` → `/planning:plan` → `/work-items:decompose` → `/implementation:implement`; PLAN.md must let a cleared session execute from the file alone | CONVERGENT | **Already present.** W3 checks that every chain skill's `## Next` agrees with `/session-flow:workflow`. |
+| Research questions written separately from the request; research does not load the request or design documents ("keep the desired change in the separate request document so research stays objective") | Facts bent by the intended change. Test `research-isolation` plants decoy request and PRD files. **Stated** | None in the planning chain; `/discovery:research` was not checked | NONE | **Not assigned** to a #6917 workstream. |
+| Phase 4 of the outline: small end-to-end phases that cross module boundaries, each working and verifiable when it ends | Horizontal plans whose errors surface late. **Inference** | `/planning:plan` tracer-bullet and integration-first ordering with a sanity check per phase; `/work-items:decompose` thin vertical slices | CONVERGENT | **Already present.** |
+| Change Outline per phase drawn with the show-me views and focused diffs | Prose or file-by-file changelogs hide the structure under review. **Inference** | `/visualization:visualize` code shapes (PARTIAL from show-me, table above); not used in PLAN.md | CONVERGENT | **Under evaluation, W6:** plans use the code-shape views with `@ path:line`. |
+| Validation split into Automated and Manual Verification checkboxes; the implementer pauses for manual checks and marks a phase `✅` only after human confirmation | Running ahead on unverified work. Test `phase-pause-and-resume`. **Stated** | PLAN.md phase status tags and a mechanically verifiable sanity check per phase; no manual-check split | CONVERGENT | **Not assigned.** |
+| `repos` frontmatter with `identifier` and `sha` per document | A reader cannot tell which code a document described. **Inference** | None | NONE | **Under evaluation, W5:** plans stamp the commit they were checked at. |
+| Design Questions moved to Resolved Design Questions with the chosen approach, rationale and rejected alternatives | Settled choices re-argued in later sessions. **Inference** | `/planning:design` tracks resolved, directional and deferred decisions with a `Basis:` line; PLAN.md "Decisions made" table | CONVERGENT | **Already present** in shape. Recording why each alternative was set aside is not required by ours and is not assigned. |
+| One decision per message, then wait | Users had to type "magic words" before the agent exposed its assumptions. Reported only in a [secondary write-up](https://www.zenml.io/llmops-database/evolution-from-rpi-to-crispy-multi-stage-workflow-for-production-coding-agents) of Dex Horthy's talk, not a primary quote | `/planning:interview` asks the whole frontier as a numbered round, each with a recommendation | CONVERGENT | **Kept different:** rounds are ours by design (Pocock `grilling` rows). |
+| Document precedence for implementation: outline > TDD > PRD > design discussion > research > request, with the user's latest instruction winning | Conflicting documents with no tie-break. Test `document-precedence`. **Inference** | No stated precedence across Brief, PRD, design and PLAN.md | NONE | **Under evaluation, W4:** one artifact is declared the spec. |
+| Outline implementer stops on a mismatch with "Expected / Found / Why this matters / How should I proceed?" | Silent deviation from the plan. **Stated** | `/implementation:implement` divergence detection routes back to planning; dispatched workers carry a divergence-escalation clause | CONVERGENT | **Already present.** |
+| Task directory `.agents/artifacts/<slug>`, numbered documents, "recommend not committing the artifacts" | Writing into another task's documents. Tests `ambiguous-task-directory` and `main-branch`. **Stated** | Memory slice under `.work/` | CONVERGENT | **Already present.** |
+| Portable across Claude Code and Codex: subagent reference copies, `<rpi-invocation>` placeholders checked by `scripts/sync-rpi-references.ts` | One skill text for several hosts. **Inference** from commit `04ecf04` | Claude Code only | NONE | **Not adopted:** this marketplace targets Claude Code. |
+| Live workflow tests that drive a host on fixture repositories, each assertion naming a failure | Behavioral drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
+
+**License.** `plugins/rpi/.claude-plugin/plugin.json` says MIT and the repository LICENSE is the MIT
+notice reproduced below. Nothing from `rpi` is copied into this marketplace; if text is, the same
+notice travels with it.
+
+- **Pointer**: when re-deriving these rows, fetch
+  <https://github.com/humanlayer/skills/tree/653b6411c1f70c275a18e37673b042ff99f67ceb/plugins/rpi>
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a new commit under `plugins/rpi/` upstream after `3b53bed`
+  (<https://github.com/humanlayer/skills/commits/main/plugins/rpi>).
+
 ## Not audited
 
-The other three plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`, and
-`build-iterated-agentic-loop`, were not evaluated for this marketplace. This is not a "not adopted"
-verdict; nobody researched those lanes. Recheck trigger: a change under any of those three
-`plugins/<name>/` paths upstream, or a request for one of those lanes here.
+The other plugins in the collection, `improve-claude-md`, `narrow-react-prop-types`,
+`build-iterated-agentic-loop` and `visual-pr` (added in `4e39d8f`, 2026-09-17), were not evaluated
+for this marketplace. This is not a "not adopted" verdict; nobody researched those lanes. Recheck
+trigger: a change under any of those four `plugins/<name>/` paths upstream, or a request for one of
+those lanes here.
 
 ## Evaluated, not adopted: design-control-loop
 

@@ -10,6 +10,7 @@
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures
 # and invokes the hook as a subprocess.
+# test-scope: plugins/source-control/hooks/hooks.json
 
 set -uo pipefail
 

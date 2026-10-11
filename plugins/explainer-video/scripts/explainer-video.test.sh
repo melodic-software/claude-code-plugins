@@ -3,6 +3,7 @@
 # standard library and always run; the mux test needs ffmpeg and ffprobe. The real renders need ManimCE, ffmpeg and ffprobe and skip without them, so
 # EXPLAINER_VIDEO_REQUIRE_DEPS=1 fails the run instead: run it through the launcher, which puts the installed set
 # on the path, e.g. `python3 pydeps.py run -- -m unittest test_explainer_video_render` from this directory.
+# test-scope: plugins/explainer-video/skills/*/SKILL.md plugins/explainer-video/skills/*.py plugins/explainer-video/scripts/* plugins/explainer-video/hooks/*.sh plugins/explainer-video/requirements.txt
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
