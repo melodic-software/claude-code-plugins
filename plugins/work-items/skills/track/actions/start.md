@@ -10,7 +10,7 @@ Claim a work item through the seam (assignee + lease record).
 
 ## Workflow
 
-1. **Resolve the item.** If a number is given, build its fully-qualified ID (adapter: "Resolve item ID"). If text is given, search for it (adapter: "Search items", bare read). The search emits raw `gh` fields, so take the matched item's `number` and build its fully-qualified ID via "Resolve item ID" (the seam rejects a bare number). If multiple matches, present them and ask the user to clarify; if exactly one, proceed.
+1. **Resolve the item.** A qualified ID (`<provider>:<owner>/<repo>#<n>`) is used as is. If a number is given, build its fully-qualified ID (adapter: "Resolve item ID"). If text is given, search for it (adapter: "Search items", bare read). The search emits raw `gh` fields, so take the matched item's `number` and build its fully-qualified ID via "Resolve item ID" (the seam rejects a bare number). If multiple matches, present them and ask the user to clarify; if exactly one, proceed.
 
 1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable. `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 

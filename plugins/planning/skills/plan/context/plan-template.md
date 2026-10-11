@@ -331,27 +331,19 @@ Omit `Review:` when the phase is docs-only or trivial with no new types/contract
 
 ## Phase-entry checks for tracker writes
 
-When any phase ends in creating a work item (e.g. `gh issue create`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgment.
+When any phase ends in creating a work item (e.g. `/work-items:track add`), the plan body MUST structure that phase so the create call cannot dispatch without first verifying no duplicate exists. The pivot path (comment on the existing item) MUST be listed explicitly, not deferred to runtime judgment. Each step names a `/work-items:track` action, invoked via the Skill tool; without the `work-items` plugin, write the same three steps with the tracker's own tooling.
 
 Required phase shape:
 
 ````markdown
 ### Phase N: <name>
 
-- [ ] **Phase-entry check** (first work item, verifies no duplicate exists):
-
-  ```bash
-  gh issue list --state all --search '<key-term> in:title' --json number,title,state
-  ```
-
-- [ ] **If search returns a match** → pivot: `gh issue comment <N> --body '<...>'` instead of creating a duplicate. Skip the remaining create steps; close the phase with the comment URL as evidence
+- [ ] **Phase-entry check** (first work item, verifies no duplicate exists, open and closed):
+  `/work-items:track search "<key-term>"`
+- [ ] **If search returns a match** → pivot: `/work-items:track edit <id> --comment-file <path>` instead of creating a duplicate. Skip the remaining create steps; close the phase with the comment URL as evidence
 - [ ] **If search returns empty** → proceed with create:
-
-  ```bash
-  gh issue create --title '<title>' --body '<body>' --label '<label>'
-  ```
-
-- [ ] **Sanity Check:** the item number (newly created OR pivoted-to) recorded in the phase notes; URL captured
+  `/work-items:track add --label '<label>' --body-file <path> "<title>"`
+- [ ] **Sanity Check:** the item ID (newly created OR pivoted-to) recorded in the phase notes; URL captured
 ````
 
 Opening a PR (`/source-control:pull-request create`) does NOT need an equivalent phase-entry check, because the forge refuses a second open PR from a branch that already has one, so duplicates are structurally prevented.
