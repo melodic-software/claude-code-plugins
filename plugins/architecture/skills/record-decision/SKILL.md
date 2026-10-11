@@ -18,7 +18,7 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-is no bound: it is applied after the output has already reached context.
+is not a bound.
 
 - **Pointer**: when deciding how much of a command's output reaches context, fetch
   [tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
