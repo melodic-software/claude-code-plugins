@@ -10,7 +10,28 @@ CLAUDE_(PLUGIN_ROOT|PLUGIN_DATA|PROJECT_DIR|SKILL_DIR)
 # Fictional release feed in the ai-briefing eval fixtures: test data, not an external dependency.
 github\.com/meridian-labs/agent-cli/releases/tag/
 
-# claude.ai sign-in UI: 200 to a made-up path with a browser User-Agent, 403 without (verified 2026-10-11).
+# Fictional forge URLs in the docs-naming audit-file-names fixture tree: test data, not an external dependency.
+^https://(github\.com|raw\.githubusercontent\.com)/acme/fixture/
+
+# Fictional repository in the playwright saved-login eval prompt: test data, not an external dependency.
+^https://github\.com/acme-example/widgets$
+
+# ISO bot block on GitHub runners: 403 on the runner, 200 to a browser User-Agent from a workstation (verified 2026-10-11).
+^https://www\.iso\.org/standard/77520\.html$
+^https://www\.iso\.org/standard/63500\.html$
+
+# Publisher bot block: 403 to the runner and to a browser User-Agent; each DOI resolves in the Crossref API to the cited title (verified 2026-10-11).
+^https://doi\.org/10\.1145/3133876$
+^https://doi\.org/10\.1016/j\.intcom\.2010\.04\.004$
+^https://journals\.sagepub\.com/doi/10\.1509/jmkg\.71\.3\.039$
+
+# Cloudflare challenge: 403 to the runner and to a browser User-Agent; a rendering fetch returns the cited page (verified 2026-10-11).
+^https://queue\.acm\.org/detail\.cfm\?id=3595878$
+^https://www\.nesdev\.org/wiki/APU_Pulse$
+^https://medium\.com/jobs-to-be-done/know-the-two-very-different-interpretations-of-jobs-to-be-done-5a18b748bd89$
+^https://dba\.stackexchange\.com/questions/tagged/join$
+
+# claude.ai sign-in UI: answers 200 to a made-up path, so a passing check proves nothing about these pages (verified 2026-10-11).
 ^https://claude\.ai/code$
 ^https://claude\.ai/code/routines$
 ^https://claude\.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf$
@@ -23,7 +44,7 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 # Reddit search API bot block: 403 to lychee and to a browser User-Agent (verified 2026-10-11).
 ^https://www\.reddit\.com/r/ClaudeCode/search\.json\?q=function\+hooks\+OR\+mods$
 
-# Reddit bot block: 403 on 2026-08-21, but 200 to lychee from a residential IP on 2026-10-11; retest on a runner.
+# Reddit bot block: 403 on the GitHub runner, and a workstation gets the same 200 page for a made-up post id; the Arctic Shift archive lists all three posts, none removed (verified 2026-10-11).
 ^https://www\.reddit\.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/$
 ^https://www\.reddit\.com/r/SunoAI/comments/1g5qzes/style_order/$
 ^https://www\.reddit\.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/$
