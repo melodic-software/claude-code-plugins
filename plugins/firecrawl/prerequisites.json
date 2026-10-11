@@ -43,14 +43,14 @@
     {
       "id": "firecrawl-api-key",
       "kind": "env",
-      "need": "required",
+      "need": "optional",
       "for": [
         "skill:firecrawl"
       ],
       "detect": {
         "name": "FIRECRAWL_API_KEY"
       },
-      "degrade": "Without FIRECRAWL_API_KEY, the firecrawl binary is unauthenticated and /firecrawl:firecrawl calls fail until the key is set.",
+      "degrade": "FIRECRAWL_API_KEY missing from this session does not mean the CLI is unauthenticated: `firecrawl login` config, or a wrapper that injects the key into the CLI process only, also authenticates it. `firecrawl --status` is the real auth test; when it reports unauthenticated, /firecrawl:firecrawl calls fail until a key is set. The plugin never stores, prints or logs the key.",
       "install": {
         "docs": "https://www.firecrawl.dev/app/api-keys"
       },
