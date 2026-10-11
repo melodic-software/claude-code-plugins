@@ -132,6 +132,12 @@ for PREAMBLE_SHELL in sh zsh; do
   capture env CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" "$PREAMBLE_SHELL_BIN" -c "$PY_LINE"
   assert_not_contains "the preamble resolves Python under $PREAMBLE_SHELL" "PY=unresolved" "$RUN_OUT"
   assert_contains "the preamble prints an absolute interpreter path under $PREAMBLE_SHELL" "PY=/" "$RUN_OUT"
+  # Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} into the text before the line
+  # runs, so the variable need not be in the environment.
+  # shellcheck disable=SC2016  # the single-quoted text is the literal placeholder to replace
+  RENDERED="${PY_LINE//'${CLAUDE_PLUGIN_ROOT}'/$(cd "$SCRIPT_DIR/.." && pwd)}"
+  capture env -u CLAUDE_PLUGIN_ROOT "$PREAMBLE_SHELL_BIN" -c "$RENDERED"
+  assert_contains "the rendered preamble prints an absolute interpreter path under $PREAMBLE_SHELL" "PY=/" "$RUN_OUT"
 done
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

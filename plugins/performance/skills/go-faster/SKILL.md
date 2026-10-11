@@ -32,7 +32,7 @@ per-area checks live in [reference/areas.md](reference/areas.md), walked by the
 Resolved when this skill loaded:
 
 ```!
-HARNESS_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/harness-lib.sh" bash -c 'source "$HARNESS_LIB" && harness_require_python && echo "PY=$HARNESS_PYTHON"' || echo "PY=unresolved"
+bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/harness-lib.sh" && harness_require_python && echo "PY=$HARNESS_PYTHON"' || echo "PY=unresolved"
 echo "KEY=$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh" || echo unresolved)"
 echo "DATA=$(d="${EVAL_GO_FASTER_DATA:-}"; case "$d" in "") ;; /*) echo "$d" ;; *) echo "$PWD/$d" ;; esac || true)"
 echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$t" ]; then case "$t" in /*) echo "$t" ;; *) echo "$PWD/$t" ;; esac; else ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null | head -1; fi || true)"
