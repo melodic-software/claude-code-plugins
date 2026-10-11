@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- `/implementation:implement-dispatch` dispatches one fix brief per pull-request head, after every check and review lane on that head has finished, carrying the failing checks, the open review threads and the verifier's failed criteria together, instead of one serial round per source of findings. `/source-control:pull-request` monitor states the same rule for a delegated fix. Workers are also told never to wait with `pgrep -f` on a pattern their own command contains, and to stop their background waits before returning.
+- `/source-control:pull-request` monitor states that a delegated fix waits until every check and reviewer on the current head is terminal, then goes out as one brief carrying the head's failing checks, unresolved review threads and verifier failures together, so a late finding does not cost a second round and push.
