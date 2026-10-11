@@ -4162,6 +4162,24 @@
         "class": "bundled-workflow"
       },
       "component": {
+        "plugin": "discipline",
+        "skill": "do-your-research",
+        "kind": "skill"
+      },
+      "reason": "The workflow researches a new question on the web; ours verifies the session's own claims against primary sources, in its fan-out tier. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.284",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "35ef5a070cef5131d27447a7ec8baee7",
+        "component": "78e146b446e81e0454864de191884e30"
+      }
+    },
+    {
+      "native": {
+        "name": "deep-research",
+        "class": "bundled-workflow"
+      },
+      "component": {
         "plugin": "discovery",
         "skill": "research-verifier",
         "kind": "agent"
