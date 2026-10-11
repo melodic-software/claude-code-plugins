@@ -284,12 +284,12 @@
       "id": 23,
       "name": "ready-hands-pr-to-explain-change-per-digest-policy",
       "prompt": "/pull-request ready. PR 512 is an open draft on this branch; the base is merged and the reviews and verify gate are clean on the current head. Flip it to ready for review.",
-      "expected_output": "Before the flip, the skill invokes /review:explain-change on PR 512 with --event ready and without --requested or --policy, so the resolved digest_policy decides: off does nothing, offer offers the digest when a trigger fires, always builds it. The flip then runs whatever explain-change returned, and the report names the digest outcome.",
+      "expected_output": "After the flip, the skill invokes /review:explain-change on PR 512 with --event ready and without --requested or --policy, so the resolved digest_policy decides: off does nothing, offer offers the digest when a trigger fires, always builds it. Nothing waits on or reads the digest, and the report names the digest outcome.",
       "files": [],
       "expectations": [
-        "/review:explain-change is invoked on PR 512 with --event ready before the flip",
+        "/review:explain-change is invoked on PR 512 with --event ready after the flip, so it reads the pushed head",
         "Neither --requested nor --policy is passed, leaving the decision to the resolved digest_policy",
-        "The flip does not wait on or depend on the digest: a skip, an unanswered offer, or an unavailable skill still flips",
+        "Nothing depends on the digest: a skip, an unanswered offer, or an unavailable skill changes no other step",
         "The report names the digest outcome (skipped, offered, built, or not available)"
       ]
     }

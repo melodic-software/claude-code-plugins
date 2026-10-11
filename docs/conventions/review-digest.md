@@ -13,7 +13,7 @@ config block below is what the skill reads here.
   quiet when none does.
 - `always`: the skill builds the digest when the pull request is marked ready. At any other
   point it behaves as `offer`. `/source-control:pull-request ready` invokes the skill with
-  `--event ready` just before it marks the pull request ready.
+  `--event ready` right after it marks the pull request ready.
 
 A reader who invokes the skill directly has asked for the digest. That request is the explicit
 argument tier, so the skill builds it whatever the policy says.

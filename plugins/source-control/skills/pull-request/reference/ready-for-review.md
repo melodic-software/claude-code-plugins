@@ -22,7 +22,7 @@ Empty: stop and report. There is nothing to flip and no head a reviewer can reac
 one here.
 
 Already out of draft (`gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`): the
-flip is done, so run 2.5.2 through 2.5.4 and skip 2.5.5.
+flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4 and 2.5.5.
 
 ## 2.5.2 Refresh the base with a merge
 
@@ -80,20 +80,7 @@ subagent, never in the authoring session: hand it the pull request's diff
 Completion criterion: both reviews' findings are fixed or recorded, and the verify gate is
 clean on `git rev-parse HEAD`.
 
-## 2.5.4 Hand the pull request to the change digest
-
-When `/review:explain-change` resolves in this session, invoke it on the pull request with
-`--event ready`, adding `--blast-radius <level>` when a plan or `/review:quality-gate downstream`
-assessed one. Pass neither `--requested` nor `--policy`: the flip is not a request for the digest,
-so the resolved `digest_policy` decides, per the
-[review-digest convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/review-digest.md):
-`off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it.
-
-The digest gates nothing. No step of this phase or of [readiness.md](readiness.md) reads it, and
-2.5.5 runs whatever it returns: a skip, an offer nobody has answered yet, or a skill that does not
-resolve. A reader who accepts the offer later gets the digest then.
-
-## 2.5.5 Flip to ready
+## 2.5.4 Flip to ready
 
 When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
 replaces that push's draft run within seconds instead of after it ran to the end. Push through
@@ -118,9 +105,23 @@ Or the GitHub MCP `update_pull_request` call with `draft: false`.
 
 Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`.
 
+## 2.5.5 Hand the pull request to the change digest
+
+After the flip, so the digest reads the head the push just published: when `/review:explain-change`
+resolves in this session, invoke it on the pull request with `--event ready`, naming the blast
+radius when a plan or `/review:quality-gate downstream` assessed one. Pass neither `--requested`
+nor `--policy`: the flip is not a request for the digest, so the resolved `digest_policy` decides,
+per the
+[review-digest convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/review-digest.md):
+`off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it.
+
+The digest gates nothing: no step of this phase or of [readiness.md](readiness.md) reads it. A
+skip, an offer nobody has answered yet, or a skill that does not resolve all go on to 2.5.6, and a
+reader who accepts the offer later gets the digest then.
+
 ## 2.5.6 Report
 
 Report, in this order: the base merge, both reviews' findings and how each was
 dispositioned (or the fallback that stood in for a review), the verify gate's result with the head it
-ran on, the digest outcome (skipped, offered, built, or not available), and the flip. Then choose who watches the PR from here, per
+ran on, the flip, and the digest outcome (skipped, offered, built, or not available). Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).
