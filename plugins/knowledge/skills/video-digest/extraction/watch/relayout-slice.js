@@ -270,13 +270,21 @@ function htmlRanges(text) {
     DESTINATION_OPENER.lastIndex = at;
     return DESTINATION_OPENER.test(text);
   };
+  // A `<` after an odd run of backslashes is escaped, so it opens no HTML.
+  const escaped = (/** @type {number} */ at) => {
+    let run = 0;
+    while (text[at - 1 - run] === "\\") run += 1;
+    return run % 2 === 1;
+  };
   const tags = [...text.matchAll(HTML_START_TAG), ...text.matchAll(AUTOLINK)].filter(
     (tag) => !isDestination(Number(tag.index)),
   );
-  return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_OTHER), ...tags].map((match) => {
-    const from = /** @type {number} */ (match.index);
-    return /** @type {[number, number]} */ ([from, from + match[0].length]);
-  });
+  return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_OTHER), ...tags]
+    .filter((match) => !escaped(Number(match.index)))
+    .map((match) => {
+      const from = /** @type {number} */ (match.index);
+      return /** @type {[number, number]} */ ([from, from + match[0].length]);
+    });
 }
 
 const HTML_NAMED_REFERENCES = /** @type {Record<string, string>} */ ({
@@ -313,7 +321,7 @@ function decodeHtmlReferences(value, { attribute = false } = {}) {
   // legacy named one (amp, lt, gt, quot) unless a letter, digit or `=` follows;
   // Markdown accepts neither.
   const pattern = attribute
-    ? /&(?:#(\d{1,7});?|#[xX]([0-9A-Fa-f]{1,6});?|([A-Za-z]+);|(amp|lt|gt|quot)(?![A-Za-z0-9=]))/g
+    ? /&(?:#(\d+);?|#[xX]([0-9A-Fa-f]+);?|([A-Za-z]+);|(amp|lt|gt|quot)(?![A-Za-z0-9=]))/g
     : /&(?:#(\d{1,7})|#[xX]([0-9A-Fa-f]{1,6})|([A-Za-z]+));/g;
   return value.replace(pattern, (match, dec, hex, named, legacy) => {
     const name = named ?? legacy;

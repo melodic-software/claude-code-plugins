@@ -1403,6 +1403,20 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("reads an escaped HTML opener as text and uncapped digits in attributes", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/decks/a&b.pdf": "pdf",
+      "metadata/notes.md": [
+        '\\<a title="[t](gone.md)">',
+        '<a href="decks/a&#000000038;b.pdf">deck</a>',
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
+  });
+
   it("does not read attributes inside CDATA, declarations or processing instructions", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, {
