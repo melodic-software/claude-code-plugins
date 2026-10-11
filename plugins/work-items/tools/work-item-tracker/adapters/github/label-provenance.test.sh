@@ -44,11 +44,12 @@ if [[ "${2:-}" == graphql ]]; then
   printf '%s\n' "${GH_STUB_GRAPHQL:-$never_edited}"
   exit 0
 fi
-path="" prog=""
+path="" prog="" paginate=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --jq) prog="$2"; shift 2 ;;
-  api | --paginate) shift ;;
+  --paginate) paginate=1; shift ;;
+  api) shift ;;
   *) path="$1"; shift ;;
   esac
 done
@@ -58,7 +59,11 @@ case "$path" in
     printf '%s\n' "$GH_STUB_TIMELINE_ERR" >&2
     exit 1
   fi
+  # Like gh, --paginate applies --jq to each page and prints each result.
   jq -c "$prog" <<<"$GH_STUB_TIMELINE"
+  if ((paginate)) && [[ -n "${GH_STUB_TIMELINE_PAGE2:-}" ]]; then
+    jq -c "$prog" <<<"$GH_STUB_TIMELINE_PAGE2"
+  fi
   ;;
 */collaborators/*/permission)
   login="${path#*/collaborators/}"
@@ -98,7 +103,8 @@ run() {
   shift
   : >"$LOG"
   OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
-    GH_STUB_TIMELINE="$timeline" GH_STUB_GRAPHQL="${GRAPHQL:-}" GH_STUB_GRAPHQL_ERR="${GRAPHQL_ERR:-}" \
+    GH_STUB_TIMELINE="$timeline" GH_STUB_TIMELINE_PAGE2="${PAGE2:-}" \
+    GH_STUB_GRAPHQL="${GRAPHQL:-}" GH_STUB_GRAPHQL_ERR="${GRAPHQL_ERR:-}" \
     bash "$S" "$@" 2>/dev/null)"
   RC=$?
 }
@@ -206,6 +212,17 @@ TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10
 OUT="$(BASH_COMPAT=51 PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
   GH_STUB_TIMELINE="$TL" bash "$S" "$ID" --label "$AR" --label "$C1" 2>/dev/null)"
 assert_eq "BASH_COMPAT=51: triage-labelled C1 still refused" "false" "$(jq -r '.admitted' <<<"$OUT")"
+
+# --- a timeline split across two pages is read whole ---
+P1="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z)]"
+P2="[$(ev "$C1" dev-c 2026-10-01T10:05:00Z),$(ev "$AR" triager-d 2026-10-01T11:00:00Z)]"
+PAGE2="$P2" run "$P1" "$ID" --label "$AR" --label "$C1"
+assert_eq "two-page timeline: the work-class event on page 2 is found" "dev-c" \
+  "$(jq -r --arg l "$C1" '.labels[] | select(.label == $l) | .actor' <<<"$OUT")"
+assert_eq "two-page timeline: a later page-2 re-application decides agent-ready" "triager-d" \
+  "$(jq -r --arg l "$AR" '.labels[] | select(.label == $l) | .actor' <<<"$OUT")"
+assert_eq "two-page timeline: not admitted on the page-2 triage labeler" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_contains "the timeline read asks for every page" "$(grep timeline "$LOG")" "--paginate"
 
 # --- body edited after admission: the admitted brief is no longer the one in the body ---
 TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
