@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": [{"tool": "Read", "input": {"file_path": "/home/runner/work/r/r/.base/plugins/testing/evals/browser-probe/peek/canary.txt"}}],
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/r/r/.base/plugins/testing/evals/browser-probe/peek/canary.txt"}}],
       "why": "the READ step"
     },
     {
