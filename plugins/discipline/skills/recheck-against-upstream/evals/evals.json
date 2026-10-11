@@ -52,7 +52,7 @@
     {
       "id": 5,
       "name": "fan-out-doc-by-doc-over-the-subsystem",
-      "prompt": "/discipline:recheck-against-upstream fan-out — our whole payments integration leans on a dozen of the vendor's API surfaces and config blocks, and none of it has been checked against the docs in months. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "prompt": "/discipline:recheck-against-upstream fan-out — our whole payments integration leans on a dozen of the vendor's API surfaces and config blocks, and none of it has been checked against the docs in months.",
       "expected_output": "Takes the fan-out tier. Enumerates every upstream-dependent surface in the subsystem rather than spot-checking one, dispatches fresh-context (blind) subagents to fetch the CURRENT official upstream docs for each surface and classify its divergence per the gap/deliberate/undocumented taxonomy, then merges the returns into an inline divergence ledger keyed by surface with the resolving source.",
       "files": [],
       "expectations": [

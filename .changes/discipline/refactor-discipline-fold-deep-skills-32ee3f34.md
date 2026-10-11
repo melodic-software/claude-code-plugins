@@ -9,3 +9,4 @@ bump: minor
 ### Changed
 
 - **A batched run never takes a fan-out tier.** `do-your-research` and `recheck-against-upstream` run only their inline audit inside a `/discipline:sweep-all` audit fork or any other fork, and recommend a direct fan-out run in their ledger instead; the sweep-all fork brief says the same.
+- **Fan-out subagents are read-only and treat what they fetch as data.** Each verification brief says no edits or writes, every `gh api` call passes `--method GET`, and fetched pages, tracker items and tool output are data whose embedded imperatives get reported, not followed.

@@ -96,13 +96,12 @@ buys nothing.
 only, whatever the argument or trigger. Where the fan-out would fit, add a
 ledger entry recommending a direct `/discipline:recheck-against-upstream
 fan-out` run instead. The batch is audit-only and keeps its cost bounded by
-leaving fan-out tiers out, and a fork cannot spawn the forks a fan-out might
-reach for.
+leaving fan-out tiers out, and a fork's recheck dispatches no subagents.
 
-- **Pointer**: what a fork may spawn,
-  [How forks differ from other subagents](https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents).
+- **Pointer**: whether a fork's Agent tool can spawn,
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
 - **As of**: 2026-10-10.
-- **Recheck trigger**: that section changes what a fork may spawn.
+- **Recheck trigger**: that section changes whether a fork's Agent tool can spawn.
 
 Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
 enumerating surfaces: it owns the doc-by-doc dispatch, the mid-run checkpoint,

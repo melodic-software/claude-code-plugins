@@ -80,7 +80,7 @@
     {
       "id": 7,
       "name": "fan-out-enumerates-typed-full-inventory-and-ledger",
-      "prompt": "/discipline:do-your-research tiered — we've made a lot of load-bearing claims about the API's rate limits, auth flow, and pricing tiers this session, and the plan now rests on all of them. (This work is read-only: any `gh api` call must be a GET, so pass `--method GET` (or `-X GET`) whenever you add `-f` query fields.)",
+      "prompt": "/discipline:do-your-research tiered — we've made a lot of load-bearing claims about the API's rate limits, auth flow, and pricing tiers this session, and the plan now rests on all of them.",
       "expected_output": "Takes the fan-out tier. Enumerates a typed full inventory of the session's claims (assumptions, asserted facts, concrete specifics, load-bearing premises) as a checklist rather than spot-checking one, dispatches fresh-context (blind) subagents to verify each against a primary source, corrects every falsified or unbacked item this turn, and reports one ledger row per inventory item carrying verdict, source, source tier, consensus count, and recency where relevant.",
       "files": [],
       "expectations": [
