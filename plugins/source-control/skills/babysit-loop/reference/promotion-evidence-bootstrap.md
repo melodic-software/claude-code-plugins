@@ -54,6 +54,11 @@ files never reach it. What the helper cannot see reads as unset and fails closed
 only through a session's `--settings` file, a server-managed (remote) policy, or an MDM policy.
 Configure the four options in managed settings or user settings.
 
+The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
+helper from another directory, or starts Node with a preload such as `NODE_OPTIONS=--require`, is
+running a different program, and no check inside the helper can refuse that; the checker it
+spawns gets only `PATH` and `SystemRoot`.
+
 Never a source, for a location or for a surface itself:
 
 - `.claude/source-control.md` at any layer.
