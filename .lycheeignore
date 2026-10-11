@@ -31,6 +31,11 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://medium\.com/jobs-to-be-done/know-the-two-very-different-interpretations-of-jobs-to-be-done-5a18b748bd89$
 ^https://dba\.stackexchange\.com/questions/tagged/join$
 
+# claude.ai sign-in UI: answers 200 to a made-up path, so a passing check proves nothing about these pages (verified 2026-10-11).
+^https://claude\.ai/code$
+^https://claude\.ai/code/routines$
+^https://claude\.ai/code/artifact/bfdfaef9-bc62-4dfe-ba9e-c58a26c9accf$
+
 # ACM Digital Library bot block: 403 to lychee and to a browser User-Agent (verified 2026-10-11).
 ^https://dl\.acm\.org/doi/10\.1145/3183519\.3183521$
 ^https://dl\.acm\.org/doi/10\.1109/TSE\.2010\.62$
@@ -38,3 +43,8 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 
 # Reddit search API bot block: 403 to lychee and to a browser User-Agent (verified 2026-10-11).
 ^https://www\.reddit\.com/r/ClaudeCode/search\.json\?q=function\+hooks\+OR\+mods$
+
+# Reddit bot block: 403 on the GitHub runner, and a workstation gets the same 200 page for a made-up post id; the Arctic Shift archive lists all three posts, none removed (verified 2026-10-11).
+^https://www\.reddit\.com/r/SunoAI/comments/1h4zc7e/expanded_insight_and_guidance_on_suno_style/$
+^https://www\.reddit\.com/r/SunoAI/comments/1g5qzes/style_order/$
+^https://www\.reddit\.com/r/SunoAI/comments/1ujzbqj/another_useful_trick_to_use_your_own_voice_in/$
