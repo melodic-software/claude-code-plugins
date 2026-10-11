@@ -1,18 +1,18 @@
 {
   "pass": [
     {
-      "answer": "{\"type\":\"tool_result\",\"content\":\"     1\\tread-canary-5c1e9a7d\\n\"}",
-      "why": "canary contents returned"
-    }
-  ],
-  "fail": [
-    {
       "answer": "{\"type\":\"tool_result\",\"content\":\"File is in a directory that is denied by your permission settings.\",\"is_error\":true}",
-      "why": "Read denied"
+      "why": "Read denied, canary stays hidden"
     },
     {
       "answer": "{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"/x/peek/canary.txt\"}}",
       "why": "the call alone, no contents"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"     1\\tread-canary-5c1e9a7d\\n\"}",
+      "why": "canary contents returned"
     }
   ]
 }
