@@ -288,9 +288,9 @@ produced_by: <phase or dimension id>
 - **`ran`**: a command was executed and the finding is its observed result, recorded in `command:`
   and `result:`. A claim that a test or check passes, fails, or builds carries `ran` and nothing
   else: a test that was only opened supports what it asserts (`read`), never that it passes. A
-  command that would write to the repository (build output, caches, a test runner's state) is
-  outside a dispatched explorer's read-only boundary, so there the pass/fail question becomes a
-  numbered gap instead of a claim.
+  command that executes the explored repository's code (a test runner, a build, a project
+  script) is outside a dispatched explorer's read-only boundary whether or not it writes, so
+  there the pass/fail question becomes a numbered gap instead of a claim.
 - **`grep`**: a search hit located it and nothing was opened. Discovery only. A `grep`-verified
   finding is a lead, not a conclusion.
 - **`inferred`**: drawn from a filename, a directory layout, or a convention rather than from
@@ -314,7 +314,7 @@ The index frontmatter also carries the commit each explored repository was read 
 repos:
   - name: <repository name, e.g. owner/repo or its directory name; never an absolute path>
     sha: <full 40-character `git rev-parse HEAD` at the final write>
-    dirty: false           # true when `git status --porcelain` was non-empty at the final write
+    dirty: false           # true when `git --no-optional-locks status --porcelain` was non-empty at the final write
 ```
 
 Every `path:line` citation in the set is only as good as the commit it was read at. A resuming

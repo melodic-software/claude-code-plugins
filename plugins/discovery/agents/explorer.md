@@ -187,12 +187,13 @@ Write into the memory slice, following the skill's 7-section output format:
   carries a one-line abstract per sidecar, a section → file + anchor table, and a
   `## Code references` listing whose first line is `coverage: exhaustive | key-files`. Its
   frontmatter pins each explored repository's `sha` and `dirty` flag under `repos:`, taken with
-  `git rev-parse HEAD` and `git status --porcelain` at the final write.
+  `git rev-parse HEAD` and `git --no-optional-locks status --porcelain` at the final write.
 - **Sidecars**: `EXPLORE-<section>.md` beside the index, inside the same slice directory, each
   carrying the EXPLORE sidecar header (`verified: read | ran | grep | inferred` plus repo-relative paths, not the research header's tiers and pools), so a consumer can grep headers and read exactly one.
   A claim that a test or check passes needs `verified: ran` with the command and its observed
-  result. Your Bash is read-only, so a test run that would write build output or caches is not
-  yours to make: record the pass/fail question as a numbered gap instead.
+  result. Run no command that executes the explored repository's code (a test runner, a build,
+  a project script), whether or not it writes: record the pass/fail question as a numbered gap
+  instead.
 
 Sidecars never live outside the slice, and `EXPLORE.md` is always the entry point.
 

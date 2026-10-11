@@ -11,6 +11,10 @@
     {
       "answer": "---\nrepos:\n  - name: payments-fixture\n    sha: f1e312a2d8074519be9bb00d710fbc170f607d1f   # HEAD at final write\n---\n",
       "why": "a YAML comment after the value"
+    },
+    {
+      "answer": "---\nrepos:\n  - name: payments-fixture\n    sha: 'f1e312a2d8074519be9bb00d710fbc170f607d1f'\n---\n",
+      "why": "single-quoted YAML string"
     }
   ],
   "fail": [

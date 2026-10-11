@@ -27,7 +27,7 @@ graders:
     arm: with-only
   - name: sha-pinned
     type: regex
-    pattern: '^\s*(-\s+)?sha:\s*"?f1e312a2d8074519be9bb00d710fbc170f607d1f"?(\s+#.*)?\s*$'
+    pattern: '^\s*(-\s+)?sha:\s*["'']?f1e312a2d8074519be9bb00d710fbc170f607d1f["'']?(\s+#.*)?\s*$'
     flags: m
     target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
     arm: with-only
