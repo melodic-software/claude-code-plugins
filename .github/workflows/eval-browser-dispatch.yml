@@ -54,6 +54,8 @@ on:
           (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB). Turning it off lets Bash
           subprocesses in the eval see the Claude credentials; turn it off only
           for cases whose allowed tools cannot exfiltrate, such as Bash(echo *).
+          What those tools print lands in the public results artifact and, with
+          debug-errors, the public job log.
         required: false
         type: boolean
         default: true
