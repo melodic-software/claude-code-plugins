@@ -90,5 +90,5 @@ above the implementer's `medium`.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release.

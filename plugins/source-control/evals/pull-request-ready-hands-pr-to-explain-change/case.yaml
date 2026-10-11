@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pull-request-ready-hands-pr-to-explain-change
+context:
+  scaffold_script: scaffold.sh

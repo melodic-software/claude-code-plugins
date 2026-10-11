@@ -197,7 +197,7 @@ them is the authoritative verdict.
 **One gate serves both skills because the on-disk shape is one shape.** `artifact-shape.md` is explicit
 that the index shape, the section-keyed sidecar filenames, the sub-slice rule, and both placement rules
 are identical for exploration; what differs is the sidecar YAML **header**: tiers and publishing pools
-here, `verified: read | grep | inferred` there. The gate never opens a header. `--index-name` is
+here, `verified: read | ran | grep | inferred` there. The gate never opens a header. `--index-name` is
 therefore the whole difference between the two invocations, and it is required rather than defaulted:
 a silent `EXPLORE.md` default would grade a research slice against the wrong family and, in a slice
 that also holds an exploration, could report a research dispatch that wrote nothing as usable.

@@ -479,6 +479,13 @@ assert_present 'explorer early-emission checklist sets preload: beside the token
   'agents/explorer.md' '`preload_token` echoed, `preload:` set'
 assert_present 'explorer never reports a token it Read from disk as fired' \
   'agents/explorer.md' 'Never treat a token you found by'
+# The explore outcome gate's index-pin row reaches a dispatched run only through
+# the explorer's write instructions and the criterion its verifier is briefed
+# with; the verifier never reads artifact-shape.md.
+assert_present 'explorer write instructions require the staleness-check line' \
+  'agents/explorer.md' 'whose second is the staleness-check line'
+assert_present 'explorer verifier criterion grades the staleness line and finding abstracts' \
+  'agents/explorer.md' '^  criterion: ".*repos\[\]\.sha and dirty.*followed by the staleness-check line.*every abstract states a finding'
 assert_present 'explore SKILL.md demotes the token to file-identity' \
   'skills/explore/SKILL.md' 'file-identity, \*\*not\*\* proof that preload fired'
 assert_present 'explore SKILL.md requires the structured preload field' \
