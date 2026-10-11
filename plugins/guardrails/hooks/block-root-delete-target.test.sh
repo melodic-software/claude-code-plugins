@@ -642,6 +642,19 @@ expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -
 expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
 expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
 expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
+# A heredoc whose delimiter is quoted is inert text: bash expands nothing in its
+# body, so a backticked delete quoted there as an example runs nothing (#6625).
+expect_both "quoted heredoc body with backticked rm allowed" 0 --command $'cat <<\'EOF\'\nnote: `rm -rf /`\nEOF'
+expect_both 'double-quoted heredoc delimiter allowed' 0 --command $'cat <<"EOF"\nnote: `rm -rf /`\nEOF'
+expect_both 'backslashed heredoc delimiter allowed' 0 --command $'cat <<\\EOF\nnote: $(rm -rf /)\nEOF'
+expect_both "tab-stripped quoted heredoc allowed" 0 --command $'cat <<-\'EOF\'\n\tnote: `rm -rf /`\n\tEOF'
+expect_both "quoted heredoc inside a substitution allowed" 0 --command $'body=$(cat <<\'EOF\'\nnote: `rm -rf /`\nEOF\n)'
+# An unquoted delimiter's body IS expanded, so its substitutions still run.
+expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
+expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
+expect_both "backticked rm after a quoted heredoc ends blocks" 2 --command $'cat <<\'EOF\'\nnote\nEOF\necho `rm -rf /`'
+expect_both 'arithmetic shift is not a heredoc opener' 2 --command $'echo $((1<<2))\necho `rm -rf /`'
+expect_both 'here-string is not a heredoc opener' 2 --command $'cat <<<x\necho `rm -rf /`'
 # A live substitution nested three deep whose innermost command is harmless is
 # parsed all the way down and still allowed, so the depth cap is not a blanket.
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'

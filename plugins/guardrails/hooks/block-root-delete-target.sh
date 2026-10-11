@@ -2882,6 +2882,14 @@ rdt_brace_rec() {
 # arithmetic: its `$` is stepped over and its two parens ride the stack as
 # ordinary ones, so its `))` balances them instead of closing a substitution.
 #
+# A HEREDOC BODY whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
+# `<<-'EOF'`) is inert text: bash expands nothing in it, so a backticked
+# `rm -rf /` quoted there as an example runs nothing and is skipped (#6625). An
+# unquoted delimiter's body is still expanded, so it is scanned on its own, with
+# bodies taken in the order their openers appear, as bash reads them. An opener
+# is recognized only outside quotes and outside any ordinary paren or backtick
+# body, so `$((1<<2))` stays arithmetic.
+#
 # The stack depth is capped, and past the cap the guard REFUSES; see
 # MAX_SUBST_DEPTH. An unterminated substitution is parsed to end of text rather
 # than dropped, so a payload that never closes still fails closed.
@@ -2926,10 +2934,87 @@ rdt_scan_substitutions() {
   # Each open paren rides the stack with its KIND: 0 an ordinary paren that
   # only balances, 1 a `$( )` substitution, 2 a backtick one. Only 1 and 2
   # carry a body to parse, and only they count toward the depth cap.
-  local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0
-  local -a st_start=() st_q=() st_kind=()
+  local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0 hok hs hq
+  local -a st_start=() st_q=() st_kind=() hd_delim=() hd_strip=() hd_quoted=()
+  local hd line lc body
   while ((i < len)); do
     c="${s:i:1}"
+    # The unquoted newline that ends a line with heredoc openers on it starts
+    # their bodies. Each runs to a line that is exactly its delimiter (after
+    # leading tabs, for `<<-`), or to the end of the text.
+    if [[ -z "$q" && "$c" == $'\n' ]] && ((${#hd_delim[@]})); then
+      i=$((i + 1))
+      for ((k = 0; k < ${#hd_delim[@]}; k++)); do
+        body=""
+        while ((i < len)); do
+          line="${s:i}"
+          line="${line%%$'\n'*}"
+          i=$((i + ${#line} + 1))
+          lc="$line"
+          if ((hd_strip[k])); then
+            while [[ "$lc" == $'\t'* ]]; do lc="${lc#?}"; done
+          fi
+          [[ "$lc" == "${hd_delim[k]}" ]] && break
+          body+="$line"$'\n'
+        done
+        ((hd_quoted[k])) || rdt_scan_substitutions "$body"
+      done
+      hd_delim=()
+      hd_strip=()
+      hd_quoted=()
+      continue
+    fi
+    # A heredoc opener `<<` or `<<-`, never the here-string `<<<`. The delimiter
+    # is quoted when any part of it is quoted or backslashed, as in bash.
+    if [[ -z "$q" && "$c" == '<' && "${s:i+1:1}" == '<' && "${s:i+2:1}" != '<' ]] &&
+      { ((i == 0)) || [[ "${s:i-1:1}" != '<' ]]; }; then
+      hok=1
+      for ((k = 0; k < pd; k++)); do
+        ((st_kind[k] == 1)) || {
+          hok=0
+          break
+        }
+      done
+      if ((hok)); then
+        i=$((i + 2))
+        hs=0
+        hq=0
+        hd=""
+        if [[ "${s:i:1}" == '-' ]]; then
+          hs=1
+          i=$((i + 1))
+        fi
+        while [[ "${s:i:1}" == ' ' || "${s:i:1}" == $'\t' ]]; do i=$((i + 1)); done
+        while ((i < len)); do
+          c="${s:i:1}"
+          case "$c" in
+          ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' | '`') break ;;
+          "'" | '"')
+            hq=1
+            i=$((i + 1))
+            while ((i < len)) && [[ "${s:i:1}" != "$c" ]]; do
+              hd+="${s:i:1}"
+              i=$((i + 1))
+            done
+            i=$((i + 1))
+            ;;
+          '\')
+            hq=1
+            hd+="${s:i+1:1}"
+            i=$((i + 2))
+            ;;
+          *)
+            hd+="$c"
+            i=$((i + 1))
+            ;;
+          esac
+        done
+        hd_delim+=("$hd")
+        hd_strip+=("$hs")
+        hd_quoted+=("$hq")
+        continue
+      fi
+    fi
     # A single-quoted span performs no expansion at all; only its own closing
     # quote ends it. `$'…'` is the one spelling where a backslash still escapes.
     if [[ "$q" == "'" ]]; then
