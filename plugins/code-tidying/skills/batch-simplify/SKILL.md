@@ -33,7 +33,7 @@ line: settings or environment, plan, platform or provider, host surface; and the
 read live from [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills).
 As of: 2026-10-11. Recheck trigger: that section changes the settings that turn a bundled skill
 off. The matching row is in
-[context/bundled-simplify.md](context/bundled-simplify.md#the-bundled-simplify-skill-pointer-records)
+[context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
 (relay as of 2026-10-11; recheck when that table is renamed or moved). When `simplify` runs but
 says it ran a weaker procedure, the state is resolved but degraded, and the report relays its disclosure instead of
 calling the group fully simplified.
@@ -294,7 +294,7 @@ conflated whenever the request is "run simplify":
 
 - **`simplify` (bundled skill)**: a single-target cleanup pass that edits the code it reviews.
   What it reviews and which targets it takes are in the pointer records in
-  [context/bundled-simplify.md](context/bundled-simplify.md#the-bundled-simplify-skill-pointer-records)
+  [context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
   (relay as of 2026-10-11; recheck when that table is renamed or moved).
 - **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
@@ -311,7 +311,7 @@ one sweep would mix their diffs.
 **Availability is never assumed.** This section states what to do when a bundled surface
 resolves, never that it is present. The pointer records, including what can turn a bundled skill
 off, live in
-[context/bundled-simplify.md](context/bundled-simplify.md#the-bundled-simplify-skill-pointer-records)
+[context/bundled-simplify.md](context/bundled-simplify.md#decision-records)
 (relay as of 2026-10-11; recheck when that table is renamed or moved).
 
 ## Edge cases

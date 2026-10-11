@@ -157,7 +157,9 @@ target. It accepts one. There are two concrete reasons:
    slots rather than one (pointer: the `/simplify` row in
    [All commands](https://code.claude.com/docs/en/commands#all-commands); as of 2026-10-11,
    recheck when that row stops running review agents in parallel; record in
-   [bundled-simplify.md](bundled-simplify.md#the-bundled-simplify-skill-pointer-records)). At a 4–6 soft cap that can leave a single group in flight, not four.
+   [bundled-simplify.md](bundled-simplify.md#decision-records), relay as of 2026-10-11, recheck
+   when that table is renamed or moved). At a 4–6 soft cap that can leave a single group in
+   flight, not four.
 2. Spawn depth is limited, and what a subagent at the limit can still spawn is upstream behavior
    ([Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
    as of 2026-10-11, recheck when that section changes the depth default or the at-limit

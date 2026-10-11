@@ -6,6 +6,8 @@ behavior, the date it was checked, and the event that makes it worth checking ag
 `tidy` skill keeps its own record against the same surface in
 [../../tidy/reference/bundled-simplify.md](../../tidy/reference/bundled-simplify.md).
 
+## Decision records
+
 | Decision | Pointer | As of | Recheck trigger |
 |---|---|---|---|
 | Treat `simplify` as a bundled skill invoked by its own name, never through an alias | The `/simplify` row in [All commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | The row gains an alias or stops being labeled Skill |
