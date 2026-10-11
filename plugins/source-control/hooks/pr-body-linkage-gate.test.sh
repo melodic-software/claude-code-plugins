@@ -633,6 +633,27 @@ else
   fi
 fi
 
+# A section line ending in 20,000 blanks: the parameter-expansion trim re-scanned
+# the string at each candidate cut and took over 20 s on this body; the linear
+# trim takes well under 1 s. Same 8 s bound as the cases above.
+blank_run="$(printf '%20000s' '')"
+printf 'Closes #5\n\n## Summary\n\nx%s\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n' "$blank_run" >"$GATED/blanks.md"
+blanks_start=${EPOCHREALTIME:-}
+run "$GATED" "gh pr create -t T --body-file blanks.md"
+blanks_end=${EPOCHREALTIME:-}
+if ((RC != 0)); then
+  fail "compliant body with 20000 trailing blanks should allow, got rc=$RC"
+elif [[ -z "$blanks_start" || -z "$blanks_end" ]]; then
+  echo "SKIP: EPOCHREALTIME unavailable -- trailing-blank timing not measured"
+else
+  blanks_ms=$(awk -v s="${blanks_start/,/.}" -v e="${blanks_end/,/.}" 'BEGIN{printf "%d", (e-s)*1000}')
+  if ((blanks_ms < 8000)); then
+    ok "20000 trailing blanks judged in ${blanks_ms}ms (hooks.json timeout is 15s)"
+  else
+    fail "20000 trailing blanks took ${blanks_ms}ms -- exceeds the 15s hook timeout"
+  fi
+fi
+
 # The gate leaves nothing in TMPDIR: a compliant body, a blocked body, and the
 # 16000-line body that takes the scratch-file split.
 for tmp_case in "compliant:$GOOD:0" "blocked:$NO_RELATED:2" "dense:@dense.md:2"; do

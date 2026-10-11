@@ -146,10 +146,16 @@ strip_html_comments_to() {
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
+# Leading and trailing whitespace removed, in time linear in the length of
+# <text>. The `${s%"${s##*[![:space:]]}"}` spelling it replaced re-scanned the
+# string at each candidate cut, so 20,000 trailing blanks ran past the hooks.json
+# timeout, and a timed-out PreToolUse hook does not block. The trailing regex
+# starts each try at a non-blank, so one try scans one blank run; the shorter
+# `[[:space:]]+$` starts inside every run and is quadratic on an interior one.
 trim_to() {
   local __plv_dest="$1" s="$2"
-  s="${s#"${s%%[![:space:]]*}"}"
-  s="${s%"${s##*[![:space:]]}"}"
+  [[ "$s" =~ ^[[:space:]]+ ]] && s="${s:${#BASH_REMATCH[0]}}"
+  [[ "$s" =~ [^[:space:]][[:space:]]+$ ]] && s="${s:0:${#s}-${#BASH_REMATCH[0]}+1}"
   printf -v "$__plv_dest" '%s' "$s"
 }
 
@@ -268,10 +274,9 @@ REQUIRED_SECTIONS=(Summary Fix Verification Related)
 # so a nested `### …` subsection is content — a naive "next line starting with
 # #" reading would call such a section empty.
 #
-# Trimming is spelled inline at both per-line sites rather than through
-# `trim_to`: even a function CALL was cheap, but the stdout `trim` it replaced
-# forked, and one fork per body line put a 1000-line body past this hook's own
-# declared timeout. The inline form is kept so that cannot regress.
+# Each line is trimmed through `trim_to`, which writes with `printf -v`: the
+# stdout `trim` it replaced forked, and one fork per body line put a 1000-line
+# body past this hook's own declared timeout.
 #
 # <dest> is cleared before the heading search, so the not-found return leaves it
 # empty rather than holding whatever the caller had there.
@@ -280,9 +285,7 @@ section_content_to() {
   printf -v "$__plv_dest" '%s' ""
   linkage::split_lines "$body"
   for ((i = 0; i < ${#LINKAGE_LINES[@]}; i++)); do
-    t="${LINKAGE_LINES[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
+    trim_to t "${LINKAGE_LINES[i]}"
     # Quoted: a configured heading such as `What changed?` matches as text.
     [[ "${t,,}" =~ ^##[[:space:]]+"${heading_lc}"$ ]] && {
       start=$((i + 1))
@@ -291,9 +294,7 @@ section_content_to() {
   done
   ((start)) || return 1
   for ((i = start; i < ${#LINKAGE_LINES[@]}; i++)); do
-    t="${LINKAGE_LINES[i]}"
-    t="${t#"${t%%[![:space:]]*}"}"
-    t="${t%"${t##*[![:space:]]}"}"
+    trim_to t "${LINKAGE_LINES[i]}"
     if [[ "$t" =~ ^#+[[:space:]]+[^[:space:]] ]]; then
       lvl=0
       while [[ "${t:lvl:1}" == "#" ]]; do ((lvl++)); done
