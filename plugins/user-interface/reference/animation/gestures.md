@@ -67,8 +67,8 @@ Think in two parameters:
 
 ## Velocity hand-off: `velocity-handoff`
 
-When a gesture ends, the motion continues at the pointer's exact release velocity, so there is no
-seam between dragging and animating. Pass the release velocity as the spring's initial velocity.
+When a gesture ends, the motion continues at the pointer's exact release velocity, so the motion does
+not jump when dragging gives way to animating. Pass the release velocity as the spring's initial velocity.
 Some spring APIs take it relative to the remaining distance; look up which form the project's API
 expects.
 
