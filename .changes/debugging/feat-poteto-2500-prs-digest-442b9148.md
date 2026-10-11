@@ -17,3 +17,7 @@ bump: minor
   workaround and second-failed-fix passages in our own words, each in a structure of its own.
   Behavior is unchanged.
 - Reworded `/debugging:analyze-profile`'s pre-answer checks as a table keyed by what the draft does, and its unresolved-frame eval name, in our own words. Behavior is unchanged.
+
+### Fixed
+
+- **`/debugging:analyze-profile` keeps the profiles of one trace apart.** Each `pid:id` profile numbers its frames from 1, so the caller-path and outside-JavaScript queries on the `.cpuprofile` page now join on `profile` as well as the frame id, and the caller path takes `--param profile=`; they used to merge caller chains and double counts across profiles.

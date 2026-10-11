@@ -18,29 +18,33 @@ Recheck when the converter exits 2 on a profile a current Node.js or Chrome wrot
 
 ## Queries
 
-Run each with the read-only query script, binding values such as `:id` with `--param`:
+Run each with the read-only query script, binding values such as `:profile` and `:id` with
+`--param`:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/analyze-profile/scripts/query_profile.py" \
-  "$work/profile.db" "<query>" --param id=5
+  "$work/profile.db" "<query>" --param profile=main --param id=5
 ```
 
 Heaviest frames by self samples:
 
 ```sql
-SELECT f.id, f.name, f.url, f.line, COUNT(*) AS self_samples
+SELECT f.profile, f.id, f.name, f.url, f.line, COUNT(*) AS self_samples
 FROM samples s JOIN frames f ON f.profile = s.profile AND f.id = s.frame
 GROUP BY f.profile, f.id ORDER BY self_samples DESC LIMIT 15;
 ```
 
-Caller path above one frame (`--param id=<frame id>`):
+Every profile numbers its frames from 1, so a frame is named by its `profile` and `id` together:
+`main` here, `<pid>:<id>` in a Chrome trace.
+
+Caller path above one frame (`--param profile=<profile> --param id=<frame id>`):
 
 ```sql
-WITH RECURSIVE up(id, parent, name, url, line, depth) AS (
-  SELECT id, parent, name, url, line, 0 FROM frames WHERE id = :id
+WITH RECURSIVE up(profile, id, parent, name, url, line, depth) AS (
+  SELECT profile, id, parent, name, url, line, 0 FROM frames WHERE profile = :profile AND id = :id
   UNION ALL
-  SELECT f.id, f.parent, f.name, f.url, f.line, up.depth + 1
-  FROM frames f JOIN up ON f.id = up.parent
+  SELECT f.profile, f.id, f.parent, f.name, f.url, f.line, up.depth + 1
+  FROM frames f JOIN up ON f.profile = up.profile AND f.id = up.parent
 )
 SELECT depth, name, url, line FROM up ORDER BY depth;
 ```
@@ -48,8 +52,9 @@ SELECT depth, name, url, line FROM up ORDER BY depth;
 Share of the run spent outside JavaScript:
 
 ```sql
-SELECT f.name, COUNT(*) FROM samples s JOIN frames f ON f.id = s.frame
-WHERE f.name IN ('(program)', '(idle)', '(garbage collector)') GROUP BY f.name;
+SELECT s.profile, f.name, COUNT(*) FROM samples s
+JOIN frames f ON f.profile = s.profile AND f.id = s.frame
+WHERE f.name IN ('(program)', '(idle)', '(garbage collector)') GROUP BY s.profile, f.name;
 ```
 
 ## Resolving the symbol

@@ -400,5 +400,83 @@ class WritesAtomically(TempDirCase):
         self.assertFalse(out.exists())
 
 
+FORMATS_DIR = HERE.parent / "reference" / "formats"
+
+
+def doc_query(page, lead):
+    """The first ```sql block after the line starting with lead on a format page."""
+    text = (FORMATS_DIR / page).read_text(encoding="utf-8")
+    after = text[text.index("\n" + lead) :]
+    start = after.index("```sql\n") + len("```sql\n")
+    return after[start : after.index("```", start)]
+
+
+def chunk(pid, pid_id, nodes, samples, deltas):
+    return {
+        "name": "ProfileChunk",
+        "ph": "P",
+        "pid": pid,
+        "id": pid_id,
+        "ts": 0,
+        "args": {
+            "data": {
+                "cpuProfile": {"nodes": nodes, "samples": samples},
+                "timeDeltas": deltas,
+            }
+        },
+    }
+
+
+def node(node_id, name, parent=None):
+    entry = {"id": node_id, "callFrame": {"functionName": name, "url": ""}}
+    if parent is not None:
+        entry["parent"] = parent
+    return entry
+
+
+class FormatPageQueries(TempDirCase):
+    """The format pages' queries keep two profiles of one trace apart."""
+
+    def two_profile_db(self):
+        # Both profiles number their nodes from 1, as each pid:id profile does.
+        trace = self.write_json(
+            "two.trace.json",
+            [
+                chunk(
+                    7,
+                    "0x1",
+                    [node(1, "(root)"), node(2, "alpha", 1), node(3, "(garbage collector)", 1)],
+                    [3, 3, 2],
+                    [10, 10, 10],
+                ),
+                chunk(
+                    7,
+                    "0x2",
+                    [node(1, "(root)"), node(2, "beta", 1), node(3, "(program)", 1)],
+                    [3, 2],
+                    [10, 10],
+                ),
+            ],
+        )
+        out = self.tmp / "two.db"
+        result = run("--in", trace, "--out", out)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return out
+
+    def test_caller_path_stays_inside_one_profile(self):
+        db = self.two_profile_db()
+        sql = doc_query("cpuprofile.md", "Caller path above one frame")
+        rows = query(db, sql, {"profile": "7:0x2", "id": 2})
+        self.assertEqual([(d, n) for d, n, *_ in rows], [(0, "beta"), (1, "(root)")])
+
+    def test_outside_javascript_counts_each_sample_once(self):
+        db = self.two_profile_db()
+        sql = doc_query("cpuprofile.md", "Share of the run spent outside JavaScript")
+        self.assertEqual(
+            sorted(query(db, sql)),
+            [("7:0x1", "(garbage collector)", 2), ("7:0x2", "(program)", 1)],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
