@@ -15,8 +15,9 @@
 # code-metrics, else ~/.claude/plugins/data/code-metrics/reports (a
 # CLAUDE_PLUGIN_DATA seen here may be unset or name another plugin's data dir,
 # whose files the retention below must never prune; where the plugin variables
-# are exported is the pointer in skills/principles/SKILL.md, "Spoke paths"),
-# and <state-key> is what
+# are exported is the pointer in skills/principles/SKILL.md#spoke-paths, as of
+# 2026-10-11; recheck when that section's pointer changes), and <state-key> is
+# what
 # lib/state-key.sh prints for the working directory. One project's runs share a
 # directory, so the newest-CM_REPORTS_KEPT retention counts per project. When
 # the key cannot be derived the function says why on stderr and returns 1

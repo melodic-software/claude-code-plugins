@@ -23,10 +23,11 @@ and when it arrives as a saved file instead, is [Tools reference § Output limit
 (as of 2026-10-11; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, one command per call. The worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation", holds the dated record for why; how injected
-commands run is [Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+separate body Bash calls rather than pre-compute lines, one command per call. The dated record for
+why is the worktree skill's
+[reference/gather-block.md § The pre-compute block runs as one shell invocation](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md#the-pre-compute-block-runs-as-one-shell-invocation)
+(as of 2026-10-11; recheck when that section's record changes). How injected commands run is
+[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
 (as of 2026-10-11; recheck when that section changes how a skill's injected commands are grouped).
 
 ## Variables

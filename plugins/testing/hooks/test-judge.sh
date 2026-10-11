@@ -20,9 +20,10 @@
 #    test-judge-bg.sh job just before returning; that job waits for a dying
 #    run's lock, and a job that dies leaves its keys to the next task end.
 #    Every wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s,
-#    below the hooks.json timeout of 240 s; scripts/gen-hook-filters.sh
-#    records why that timeout binds), so the hook returns within about 2 s
-#    of TEST_JUDGE_TIMEOUT.
+#    below the hooks.json timeout of 240 s; why that timeout binds is the
+#    comment above the hooks.json template in scripts/gen-hook-filters.sh, as
+#    of 2026-10-11; recheck when that comment's background-hooks pointer
+#    changes), so the hook returns within about 2 s of TEST_JUDGE_TIMEOUT.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1) with a FLAG, or an
 #    UNKNOWN that started as a FLAG, in the relayed set: exit 2 with the fixed
