@@ -163,7 +163,7 @@ on top of it.
 
 - An autonomous-eligible item: `/work-items:work`.
 - A verified bug whose root cause is unknown: `/debugging:debug`.
-- A briefed item too large for one slice: `/work-items:decompose`.
+- A briefed item too large for one vertical slice: `/work-items:decompose`.
 - Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## AI disclaimer

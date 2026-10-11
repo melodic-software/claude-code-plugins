@@ -92,8 +92,8 @@ ways:
 blocked_by_wont_do_count, parent_id, url`
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract"), and there is
 **no `body` field** in it; `--body` exists only as a *write* parameter on `create-item`. `get-item`
-is nonetheless authoritative for `parent_id`, which is how a slice reaches its container. Reading
-the text of an item, such as a container's Brief or a slice's acceptance criteria, is therefore a
+is nonetheless authoritative for `parent_id`, which is how a vertical slice reaches its container. Reading
+the text of an item, such as a container's Brief or a vertical slice's acceptance criteria, is therefore a
 **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub;
 the provider's REST equivalent otherwise), and a surface that shows a body read must label it as
 such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed and returns
