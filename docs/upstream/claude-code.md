@@ -145,9 +145,9 @@ component work. They stay input to `/harness-ops:known-issues`, and any correcti
 one of them cites the changelog as the newer statement.
 
 The `2.1.265` through `2.1.296` read recorded the topics below. Each row names only the topic, the
-release, and the page; the release notes and the page hold their own text. The last three rows are
-not changelog-versus-page pairs: a disagreement between two docs pages, a page missing from the
-docs index, and a page not yet read.
+release, and the page; the release notes and the page hold their own text. The last two rows are
+not changelog-versus-page pairs: a disagreement between two docs pages, and a page missing from the
+docs index.
 
 | Topic | Items | Release | Page |
 |---|---|---|---|
@@ -186,4 +186,3 @@ docs index, and a page not yet read.
 | The pinned-effort exception | 267-020 | [2.1.267](https://code.claude.com/docs/en/changelog#2-1-267) | [model-config, Set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level) |
 | Version floor of the task-tool default set and `CLAUDE_CODE_ENABLE_TODO_TOOLS` | 268-016 | [2.1.268](https://code.claude.com/docs/en/changelog#2-1-268) | [env-vars](https://code.claude.com/docs/en/env-vars); [tools-reference, Task tool availability](https://code.claude.com/docs/en/tools-reference#task-tool-availability) |
 | The auto-mode classifier billing page in the docs index | 278-001 | [2.1.278](https://code.claude.com/docs/en/changelog#2-1-278) | [auto-mode-classifier-billing](https://code.claude.com/docs/en/auto-mode-classifier-billing) |
-| `agentType` in the `subagentStatusLine` payload | 293-003 | [2.1.293](https://code.claude.com/docs/en/changelog#2-1-293) | [statusline](https://code.claude.com/docs/en/statusline) |
