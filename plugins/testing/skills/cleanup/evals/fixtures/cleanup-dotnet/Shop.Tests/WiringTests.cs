@@ -40,6 +40,14 @@ public class WiringTests
     }
 
     [Fact]
+    public void Price_feed_prices_two_letter_sku()
+    {
+        using var provider = BuildProvider();
+        Assert.True(true);
+        Assert.Equal(2m, provider.GetRequiredService<IPriceFeed>().PriceOf("AB"));
+    }
+
+    [Fact]
     public void Licensed_feed_prices_a_sku()
     {
         decimal price;

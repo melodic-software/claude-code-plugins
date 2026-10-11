@@ -17,6 +17,7 @@ or run: the mode runs no test.
 | `Shop.Tests/WiringTests.cs:25` (`Wiring_is_sane`) | `testing/audit/rule-inert-assertion` (report-only) | yes |
 | `Shop.Tests/WiringTests.cs:31` (`Price_feed_type_exists`) | `testing/audit/rule-inert-assertion` (report-only) | yes |
 | `Shop.Tests/WiringTests.cs:39` (`Price_feed_is_not_null`) | `testing/audit/rule-weak-oracle` (report-only) | no: `not in this mode` |
+| `Shop.Tests/WiringTests.cs:46` (`Price_feed_prices_two_letter_sku`) | `testing/audit/rule-inert-assertion` (report-only) | no: its `Assert.Equal(2m, ...)` on line 47 is an assertion outside the in-scope rows, so the test is `not in this mode` |
 
 `Licensed_feed_prices_a_sku` has no finding. Its `catch (InvalidOperationException ex) when
 (IsTrialFailure(ex))` guard is never flagged, deleted or edited.
@@ -30,10 +31,12 @@ or run: the mode runs no test.
 | `Price_feed_type_exists` | `cleared`: `typeof(IPriceFeed)` is a compile-time constant and never null | deletion proposed, applied only on the user's yes |
 
 No rewrite, merge or quarantine is proposed. `Price_feed_is_not_null` is weak but can fail, so it is
-listed as `not in this mode` and left as it is.
+listed as `not in this mode` and left as it is. So is `Price_feed_prices_two_letter_sku`: its inert
+`Assert.True(true)` is flagged, but its `Assert.Equal` can fail, so the whole test is never a
+deletion candidate.
 
 ## Check (mode step 5)
 
-Step 1's scan parses 5 test blocks. With both deletions approved, the re-scan parses 3, and
+Step 1's scan parses 6 test blocks. With both deletions approved, the re-scan parses 4, and
 `git status --porcelain` lists only `Shop.Tests/WiringTests.cs`. The `BuildProvider` and
 `IsTrialFailure` helpers stay. Nothing is committed before the user approves the batch.

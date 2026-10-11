@@ -29,6 +29,8 @@ line the scanner flagged. Check every path, including:
 - setup and teardown: a constructor or field initializer of the test class, a `[SetUp]`,
   `beforeEach`, `setUp`, fixture or `IClassFixture` it uses;
 - a call whose result the test discards, and an awaited call;
+- any other assertion in the test besides the flagged line: one that evaluates a value the code
+  computes can fail, so the test is `can-fail`;
 - an assertion that does evaluate: read section 5 of `<plugin-root>/skills/test-value/SKILL.md`
   for what the scanner's rule means, and say so when the flagged line is not that shape.
 

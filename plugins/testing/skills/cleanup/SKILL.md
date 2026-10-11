@@ -209,11 +209,13 @@ It runs no test and no mutation tool, which keeps it safe on suites whose tests 
 It proposes no quarantine, rewrite or merge. Step 0's branch, tree and folder checks still apply;
 these steps replace steps 1 to 6, and step 7 follows unchanged.
 
-1. **Candidates.** Run the step 1 scanner command. A candidate is a row whose rule is
-   `rule-zero-assertion`, `rule-recomputed-expectation` or `rule-inert-assertion`: the per-test
-   "Cannot fail" rows of section 5 in `${CLAUDE_PLUGIN_ROOT}/skills/test-value/SKILL.md`. Every
-   other row is out of scope, `rule-conditional-assertion` included (its assertion runs, and can
-   fail, when the branch is taken), as are judge verdicts and tests the user names as flaky or
+1. **Candidates.** Run the step 1 scanner command. An in-scope row is one whose rule is
+   `rule-zero-assertion`, `rule-recomputed-expectation` or `rule-inert-assertion` (section 5 of
+   `${CLAUDE_PLUGIN_ROOT}/skills/test-value/SKILL.md` says what each means). The last two flag one
+   statement, so a test is a candidate only when it has no assertion at all or every assertion in
+   it is an in-scope row; a test with any other assertion is `not in this mode`. Every other row is
+   out of scope, `rule-conditional-assertion` included (its assertion runs, and can fail, when the
+   branch is taken), as are judge verdicts and tests the user names as flaky or
    duplicate: list each in `decisions.md` as `not in this mode` and leave it. So is a test in a
    `block_model: file` adapter's file, and a test holding a `catch ... when (...)` guard, such as a
    trial-license check: neither is deleted or edited. List expired quarantines found by the step 1
@@ -221,7 +223,7 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
 2. **Skeptic.** Per test file holding a candidate, write `<work>/skeptic-brief-<n>.md` from
    [`context/skeptic-brief.md`](context/skeptic-brief.md), with `<plugin-root>` rendered as
    `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with
-   `model: opus`, for the reason step 4 gives. Write its table to `<work>/skeptic-answer-<n>.md`
+   `model: opus`, for the reason step 4 (Classify) gives. Write its table to `<work>/skeptic-answer-<n>.md`
    and apply that file's reading rules: only a `cleared` row is a deletion candidate.
 3. **Propose.** Fill `decisions.md` with one row per candidate: test, rule, quoted line, skeptic
    verdict, action, approved-by. A `cleared` row is a row 4 deletion whose no-contract statement is
