@@ -14,10 +14,13 @@
 #                       | unresolved-conflict
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
+#   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
+#                       counts (default melodic-automation-lanes[bot])
 #
-# The role label is config.role_labels["human-gated"], default needs-human.
-# Idempotent: with the label on the PR and a bot marker for this resume key,
-# it writes nothing. Without the label (a person removed it to resume), it
+# The role label is config.role_labels["human-gated"]. A missing file or entry
+# means needs-human; a present entry that is not a non-empty string fails.
+# Idempotent: with the label on the PR and a LANES_BOT_LOGIN marker for this
+# resume key, it writes nothing. Without the label (a person removed it to resume), it
 # escalates again.
 #
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
@@ -42,18 +45,20 @@ esac
 tracker=${TRACKER_CONFIG:-.base/.work-item-tracker.json}
 label=needs-human
 if [[ -f $tracker ]]; then
-  label=$(jq -er '.config.role_labels["human-gated"] // "needs-human" | strings | select(length > 0)' "$tracker") ||
+  label=$(jq -er '.config.role_labels // {}
+    | if has("human-gated") then .["human-gated"] | strings | select(length > 0) else "needs-human" end' "$tracker") ||
     die "cannot read the human-gated role label from $tracker"
 fi
 
+bot=${LANES_BOT_LOGIN:-melodic-automation-lanes[bot]}
 issue="repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER"
 marker='<!-- work-items:escalation lane=pr-unblock kind=escalated -->'
 key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
 
 labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
 if [[ $labeled == true ]]; then
-  marked=$(gh api --paginate "$issue/comments" | jq -s --arg m "$marker" --arg k "$key_line" \
-    '[add[] | select(.user.type == "Bot") | (.body // "") | split("\n")
+  marked=$(gh api --paginate "$issue/comments" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
+    '[add[] | select(.user.login == $bot) | (.body // "") | split("\n")
       | select((.[0] | rtrimstr("\r")) == $m and (.[1] // "" | rtrimstr("\r")) == $k)] | length > 0')
   if [[ $marked == true ]]; then
     echo "already escalated for resume key $HEAD_SHA"

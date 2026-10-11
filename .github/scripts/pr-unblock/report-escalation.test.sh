@@ -72,7 +72,7 @@ setup() {
 run() {
   set +e
   (cd "$STUB/ws" && env PATH="$TMP/bin:$PATH" STUB="$STUB" GH_TOKEN=t \
-    GITHUB_REPOSITORY=o/r PR_NUMBER=42 HEAD_SHA="${2:-$HEAD_A}" \
+    GITHUB_REPOSITORY=o/r LANES_BOT_LOGIN="${LBL:-}" PR_NUMBER=42 HEAD_SHA="${2:-$HEAD_A}" \
     ESCALATION_REASON="$1" "$SUT") >"$STUB/out" 2>&1
   RC=$?
   set -e
@@ -124,6 +124,13 @@ run repeat-cap
 check "role label: unparsable config fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "role label: unparsable config writes nothing" 0 "$(writes)"
 
+for entry in false null 7 '""' '["needs-human"]'; do
+  setup '[]' '[]' "{\"config\":{\"role_labels\":{\"human-gated\":$entry}}}"
+  run repeat-cap
+  check "role label: present entry $entry fails" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+  check "role label: present entry $entry makes no gh call" '' "$(cat "$STUB/calls")"
+done
+
 # Idempotency.
 setup '[{"name":"needs-human"}]' "$(bot_marker "$HEAD_A")"
 run unresolved-conflict
@@ -142,6 +149,14 @@ check "label removed by a human, same head: escalates again" \
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
 run unresolved-conflict
 check "marker written by a user does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+
+setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" 'other-app[bot]' Bot)"
+run unresolved-conflict
+check "marker written by another bot does not count" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+
+setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" 'other-app[bot]' Bot)"
+LBL='other-app[bot]' run unresolved-conflict
+check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
 # Input validation.
 setup '[]' '[]'
