@@ -295,5 +295,6 @@ and we do not rely on a token being substituted on that route.
 - **Know where each agent's effort comes from.** Per-task effort goes through Workflow's per-call
   effort option or, where Workflow is unavailable, the Agent tool's per-call `effort`. Check the route live before relying on a "high effort"
   verification claim, and record the effective effort and its source in verification records.
-  The pointer records for both routes live in
-  [context/dual-verification.md](context/dual-verification.md), under verifier A.
+  The pointer records for both routes live under verifier A in
+  [context/dual-verification.md](context/dual-verification.md#phase-4-dual-verification) (as of
+  2026-10-11; recheck trigger: those records leave verifier A or that heading is renamed).

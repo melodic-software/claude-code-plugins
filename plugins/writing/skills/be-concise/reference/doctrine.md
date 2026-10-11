@@ -177,7 +177,8 @@ Linux kernel's patch-submission guidance says a body must describe the problem
 that motivated the work and its user-visible impact, which is the record a
 shorter body destroys. Claude Code's own Concise output style also keeps a
 floor of content in full
-([record](sources.md#claude-code-concise-output-style)).
+([record](sources.md#claude-code-concise-output-style); as of 2026-10-11;
+recheck trigger: that heading is renamed or the record leaves it).
 
 When brevity and completeness genuinely conflict, put the bottom line first and
 keep the full record below it or one link away. Do not resolve the conflict by
