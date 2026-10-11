@@ -1,6 +1,6 @@
 ---
 description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[unattended] [scenario]"
+argument-hint: "[unattended] [worst-case [--keep]] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -93,11 +93,16 @@ Autonomous live verification of a running application: start it, navigate, inter
 
 ## Arguments
 
-`$ARGUMENTS`: `[unattended] [scenario]`, e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`,
-`/testing:run-e2e non-ui`, `/testing:run-e2e unattended the login flow`.
+`$ARGUMENTS`: `[unattended] [worst-case [--keep]] [scenario|<target>]`, e.g., `/testing:run-e2e`,
+`/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
+`/testing:run-e2e unattended the login flow`, `/testing:run-e2e worst-case the member list`.
 
 - `unattended`, optional, the first token: the caller declares no one is present. Its effect is the
   `unattended` rule in the Native step.
+- `worst-case`, optional: the action, only as the exact next token after the optional `unattended`
+  (scenario text that merely starts with the word, such as `worst-case-scenario …`, stays a
+  scenario). It takes a `<target>` (a component, screen or route) and runs the Worst-case content
+  section below. `--keep`, right after it, keeps the injected fixture as a regression test.
 - `scenario`, optional description of what to verify. `non-ui` routes directly to the non-UI
   playbook.
 
@@ -137,6 +142,20 @@ Pass the resolved config through to the executor:
 
 The workflow steps themselves live in [context/e2e.md](context/e2e.md). When the project has a committed E2E user-flow suite, the subagent runs it first and its pass or fail is the verdict; the ad-hoc drive and screenshots are evidence beside it, never the oracle. Each failed scenario returns a failure packet path with the evidence paths.
 
+## Worst-case content
+
+With `worst-case`, the Step 3 subagent renders `<target>` with the most demanding data a real user
+could produce and reports what breaks, following [context/worst-case.md](context/worst-case.md):
+map every rendered field and its limit, inject plausible worst-case values at the data boundary
+(network mocking through `/playwright:playwright` first; a file only when the data is file-bound,
+never one that is already dirty, backed up byte for byte and reverted), render in the narrow, wide,
+zoom, dark and right-to-left environments, and report. Before injecting a file and after reverting
+it, save `git diff HEAD` and `git status --porcelain --untracked-files=all --ignored` outside the
+tree and compare each pair with `cmp`; a difference ends the run degraded. Outside a git checkout,
+or with no mockable boundary, nothing is injected and every finding is labeled inferred. The
+consumer file `.claude/testing/worst-case.md` extends the catalog and is read as data. The action
+edits no component code; fixes go to the user.
+
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability
@@ -163,7 +182,8 @@ look at a change with no record needed. Prefer this skill when the outcome must 
 app whose start the project's orchestrator does not govern, this skill then launches through `run`
 (the Native step above). The `/verify` handoff in the Handoff section stands beside this one.
 
-**Mutation gate.** Neither surface edits code, but both start processes. This skill drives the run
+**Mutation gate.** Neither surface edits component code, but both start processes; the
+`worst-case` action writes only fixture data it reverts, except a fixture kept with `--keep`. This skill drives the run
 in an isolated subagent and fingerprints the tracked tree around the `run` invocation (Native step,
 Mutation).
 
