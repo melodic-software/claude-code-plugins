@@ -277,7 +277,7 @@ save-point did not already need. That separates it from `/session-flow:orient`, 
 durable and off-thread state on demand; this is the free exit-side view.
 
 **One call is exempt, and only one:** the `TaskList` fetch a FORCED prompt-only save-point never
-made (unit ladder, rung 4). It reads the session's own task ledger rather than the world outside
+made (unit ladder, rung 4), in a session that has the task tools. It reads the session's own task ledger rather than the world outside
 the conversation, so it cannot turn the panel into an orientation sweep, which is the thing this
 rule exists to prevent. Nothing else is exempt: no `gh`, no ledger re-read, no artifact this turn
 has not already opened.
@@ -342,7 +342,9 @@ knows what they are looking at:
    is one of the criteria that selects prompt-only in the first place ("Choosing the path"). A
    session with a task list worth drawing was supposed to be on the full path. When prompt-only was
    FORCED by the explicit `prompt` argument, so that criterion was never tested, make the one
-   `TaskList` call rather than guessing from the conversation.
+   `TaskList` call rather than guessing from the conversation. A session with `TodoWrite` instead
+   reads the list from its latest `TodoWrite` call; one with neither has no live list on either
+   path: skip to 5 (structure.md's tool-presence branch).
 5. Completion criteria, as the units of last resort.
 6. **None of the above: emit no rail.** Give the three blocks as prose and say plainly that the
    work has no delineated units. **Never invent phases to have something to draw.** A fabricated

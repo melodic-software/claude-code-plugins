@@ -41,7 +41,7 @@ def scoped: "\(.id) (\(.scope))";
 def ids: map(.id) | join(", ");
 def auto_update_slot:
   if . == true then "on"
-  elif . == false then "off; enable it so the catalog refreshes at session start"
+  elif . == false then "off; enable it so the catalog refreshes automatically"
   else "unreadable" end;
 def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
 
@@ -189,9 +189,12 @@ def block($d):
              end
          end),
 
+      # The digest names this plugin's own row; a digest written before it did
+      # carries no row, so the note names no plugin rather than guess one.
       (if .self_updated == true then
-         (($updated + .downgraded) | map(select(.id | test("^[^@]+@") )) | .[0]) as $row
-         | "Note: this run updated \(($row.id // "this plugin") | split("@")[0]) (\($row.old // "?") → \($row.new // "?")). The algorithm that ran is the pre-update one:",
+         (if .self_update == null then "this plugin"
+          else "\(.self_update.id | split("@")[0]) (\(.self_update.old // "?") → \(.self_update.new // "?"))" end) as $what
+         | "Note: this run updated \($what). The algorithm that ran is the pre-update one:",
            "  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins",
            "  before relying on the new version."
        else empty end),

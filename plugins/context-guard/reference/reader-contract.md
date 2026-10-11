@@ -35,10 +35,9 @@ the decision, and re-date the record when any of these change. The status line's
 `used_percentage` formula, and the session usage and version the mods API reports, which the
 module maps onto them. The auto-compact trigger,
 meaning how the published default thresholds relate to the bands, and which models and environments
-compact before the model's context limit. The surfaces in the tunable table below
-(`autoCompactWindow` at top level, per model, and per subagent, `/autocompact`, `--autocompact`,
-`CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, `autoCompactEnabled`),
-including their units, ranges, and precedence. The skills substitution table
+compact before the model's context limit. The surfaces that set or turn off the auto-compact
+window (the tunable table below), including per-model values, their units, ranges, and
+precedence. The skills substitution table
 that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
 across its length, which the band rationale cites when it declines a folklore number. Where mods
 run, which decides where a snapshot can be written at all. A release note touching the status
@@ -418,37 +417,54 @@ next request, so it can trail `/context`. With auto-compact turned off, the dumb
 ### The trigger is operator-tunable
 
 The docs publish the default thresholds (pointer above), and the point at which auto-compact fires
-is a configured value the operator can read and set. Several surfaces govern it. Each row states
-what this plugin relies on; the pointer holds the units, ranges, and forms. Rows marked observed
-were run on Claude Code 2.1.296 on 2026-10-10 in a throwaway config directory; the rest follow the
-docs or the Claude Code changelog.
+is a configured value the operator can set. The table lists the surfaces we hold a decision about,
+not a closed set: the pointers hold the full set of surfaces, their units, ranges, forms, and
+precedence.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | `settings.json` key | A token count that moves the trigger. When unset, the default comes from the docs' default-thresholds table (pointer above), and we state no figure. Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `modelSettings.<model id>.autoCompactWindow` | `settings.json` key, per model | A saved per-model window (Claude Code 2.1.288). Observed 2026-10-10 on 2.1.296: wins over the top-level `autoCompactWindow` in the same file, and a project-scope top-level key still beats a user-scope per-model value. Per docs, not observed: a managed-settings window holds even after `/autocompact` saves a value. Not observed: on models other than Opus. | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `/autocompact [auto\|<tokens>]` | slash command | Writes the per-model value above at user scope. Observed 2026-10-10 on 2.1.296: runs under `-p`, and with no argument prints the effective window and its source (settings or the environment variable). Per docs, interactively it opens a dialog showing the current window. Docs for the command: [commands](https://code.claude.com/docs/en/commands). | [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
-| `--autocompact <tokens>` | CLI flag | Observed 2026-10-10 on 2.1.296: beats the settings keys above and loses to `CLAUDE_CODE_AUTO_COMPACT_WINDOW`. | [cli-reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) |
-| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). Per the changelog only; the docs are silent and we did not probe it, so we read it as unconfirmed and never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. Observed 2026-10-10 on 2.1.296: beats `--autocompact`. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above), and we state no figure; set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). The snapshot cannot see that window, and the surface is in the changelog only and not probed, so we never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. We treated `DISABLE_COMPACT` as unconfirmed by docs: it came from our 2026-08-17 probe of the shipped binary's strings (v2.1.233) and was absent from the env-vars page on 2026-08-19. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 
 We read a configured window above the model's context window as the model's window: it extends
 nothing.
 
-Precedence, highest first, for the session's own window: `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, then
-`--autocompact`, then a project-scope top-level `autoCompactWindow` (the observed case; a project-scope per-model key outranking it follows from the same-file rule but was not observed directly), then the user-scope per-model value over the user-scope
-top-level key. Every step in that order was observed except the inferred project-scope per-model case. Managed settings are per docs, not observed:
-a managed window holds even after `/autocompact` saves a value, and managed settings do not
-override `--autocompact`. To see the effective window rather than derive it, run `/autocompact`
-with no argument: observed under `-p` to print the value and its source, and per docs a dialog
-when interactive.
-
 - **Pointer**: per row above.
-- **As of**: 2026-10-10
+- **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-08-19 for the other rows,
+  including the `DISABLE_COMPACT` note.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
+
+The reader never resolves the window itself. It reads the snapshot's context fields and never a
+configured window, so it cannot tell which value is in effect: a window saved for one model or a
+top-level one. We treat a window we cannot see exactly like an unset one: no number is
+assumed, the bands stay below whatever the trigger resolves to, and `zones.json` is the operator's
+correction path when one model's window fires earlier than the bands allow.
+
+- **Pointer**: when a decision depends on where the window is stored or which value wins for the
+  active model, fetch
+  <https://code.claude.com/docs/en/settings-reference#modelsettings> and
+  <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the `modelSettings` section changes its keys or precedence, `/autocompact`
+  changes where it saves, or the reader starts reading a configured window.
+
+A dated observation, not the order of record (the pointers above hold that, and no decision here
+depends on it): on Claude Code 2.1.296, in a throwaway config directory, `/autocompact` saved the
+window at user settings `modelSettings.<model id>.autoCompactWindow`, and the effective window
+followed, highest first, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `--autocompact`, a project top-level
+`autoCompactWindow`, the user per-model value, then the user top-level key. A project per-model
+value outranking the project top-level key is inferred, not observed; managed settings follow the docs, not this probe.
+
+- **Pointer**: <https://code.claude.com/docs/en/model-config#set-the-auto-compact-window>,
+  <https://code.claude.com/docs/en/settings-reference#modelsettings>, and
+  <https://code.claude.com/docs/en/cli-reference#cli-flags> for `--autocompact`.
+- **As of**: 2026-10-10
+- **Recheck trigger**: a release note touches `/autocompact`, `--autocompact`, or `modelSettings`,
+  or those sections publish an order that differs from this one.
 
 **Normalize before comparing: the trigger is not in occupancy.** The two zone shapes answer
 different questions and must never be equated (see "Occupancy and combination rule"), and the

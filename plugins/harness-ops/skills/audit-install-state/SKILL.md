@@ -26,7 +26,7 @@ Answers four questions about a Claude Code installation, and refuses to answer a
 
 The fifth question, *so what should I delete?*, is deliberately not answered. This skill is
 report-only and never writes to the target tree. Deletion belongs to `/disk-hygiene:clean`, and
-shedding project state belongs to `claude project purge`.
+shedding project state belongs to `claude purge`.
 
 ## Scope boundary
 

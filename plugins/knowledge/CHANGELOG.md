@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.12] - 2026-10-11
+
+### Fixed
+
+- video-digest `resume` reports a closed slice as having nothing to resume and leaves its continuation prompt untouched, writes only slice-relative paths into `continuation-prompt.md`, stops before vision with a re-run instruction when the temp session dirs are gone, and rejects a slug that is not a single slice-name segment ([#6822](https://github.com/melodic-software/claude-code-plugins/issues/6822)).
+
+## [0.20.11] - 2026-10-10
+
+### Fixed
+
+- **docpage-digest's Agent-tool fallback now sets the verifier's effort.** Where the Workflow tool is unavailable, Phase 4 dispatches verifier A through the Agent tool and now passes `effort` on that call on the same terms as the Workflow call, instead of accepting whatever the agent's pin or the session level happened to be. The skill no longer says the Agent tool takes no per-call effort, which stopped being true in Claude Code 2.1.292, and both places now point at the subagents docs section on effort for the live precedence.
+
 ## [0.20.10] - 2026-10-10
 
 ### Fixed

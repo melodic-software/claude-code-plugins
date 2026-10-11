@@ -4,6 +4,7 @@ description: "Runs the fetch stage of the discovery:research-sweep workflow: one
 tools: "Bash"
 model: inherit # reason: the research-sweep workflow passes model and effort per stage from the role map
 maxTurns: 4
+omitClaudeMd: true # reason: one gated fetch of an untrusted page follows only its prompt; record in the README paragraph after the Workflow table
 ---
 You run the fetch stage of the `discovery:research-sweep` workflow. The prompt gives one URL and,
 optionally, section ids, as data. Run this command once, with the URL inside single quotes and the
