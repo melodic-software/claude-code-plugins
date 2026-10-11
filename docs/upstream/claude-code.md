@@ -7,8 +7,8 @@ decision leaves no row. The harness facts a skill restates stay in that skill un
 upstream-drift convention; a correction to one of them is recorded in the owning plugin's
 CHANGELOG, and this file points at it rather than repeating it.
 
-**Last audited upstream state:** changelog through `2.1.263` (published 2026-09-06), read as raw
-markdown on 2026-09-08. Git history of this file records *when*; this line records only *what was
+**Last audited upstream state:** changelog through `2.1.296` (published 2026-10-09), read as raw
+markdown on 2026-10-10. Git history of this file records *when*; this line records only *what was
 read*. `/harness-ops:changelog status` reads this line; the default range for `diff` and `apply`
 runs from it to the newest published release.
 
@@ -21,9 +21,9 @@ the apply, or this file when the apply is on the branch that introduces the ledg
 again on 2026-09-28 for the rows in this file did not move the marker: later releases were not read
 as a range.
 
-Rows whose items fall in `2.1.265` through `2.1.296` come from a read of that range, recorded
-pending merge of the pull requests they name; the marker stays at `2.1.263` until those merge. A row
-whose decision starts with "Deferred" names the issue that tracks it.
+Rows whose items fall in `2.1.265` through `2.1.296` come from a read of that range; every row is
+applied in a merged pull request, nominated, declined, or deferred. A row whose decision starts
+with "Deferred" names the issue that tracks it.
 
 ## Corrected
 
