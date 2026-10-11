@@ -79,13 +79,14 @@ output, do not ask); remote artifacts are always created without prompting, as s
    Every remote artifact is created unattended, so the issue-linkage decision
    is made up front, never left for an interactive prompt: use the closing
    keyword when the branch or context names an issue, otherwise an explicit
-   no-linkage reason, which is how an orphan branch, a hotfix, refactor, or
-   drift sweep with no issue in its name gets its PR. Open the PR through
-   `/source-control:pull-request create` (if that plugin is installed),
-   invoked via the Skill tool with the linkage line in its arguments so it
-   has nothing to ask. If it would still stop to ask, or the plugin is
-   absent, push with `git` and open the PR with the forge's own tooling,
-   passing the same linkage line, title, and body non-interactively.
+   no-linkage reason. For an orphan branch, a hotfix, refactor, or drift
+   sweep with no issue in its name, open the PR with the forge's own tooling,
+   passing that no-linkage reason, the title, and the body non-interactively:
+   the guaranteed non-interactive path. Route through
+   `/source-control:pull-request create` (if that plugin is installed) or a
+   work-item capability only when it can run unattended with that decision
+   passed in; if it would stop to ask, use `git` and the forge's own tooling
+   carrying the same decision instead.
 4. **Local hygiene.** Prune only what is provably safe: branches whose work is
    fully merged, worktrees with no uncommitted or stashed state and no
    irreplaceable ignored files, background work that has genuinely finished. A

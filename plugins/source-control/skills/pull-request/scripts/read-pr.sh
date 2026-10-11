@@ -9,6 +9,7 @@
 #   read-pr.sh view [<pr>] [--repo <owner/repo>] --diff   # the unified diff
 #   read-pr.sh list [--head <branch>] [--head-match <ERE>] [--state open|closed|merged|all]
 #                   [--repo <owner/repo>]                 # JSON array, open by default
+#   Either action takes --out <file> to write its output there instead of stdout.
 #
 # With no <pr>, `view` reads the current branch's pull request. `view` adds
 # `visibility` (PUBLIC, PRIVATE, INTERNAL, or UNKNOWN when the lookup fails).
@@ -37,17 +38,19 @@ LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit
 
 ACTION="${1:-}"
 case "$ACTION" in
--h | --help | "") usage ;;
+-h | --help) usage ;;
+"") die 1 "no action: view or list (use --help)" ;;
 view | list) shift ;;
 *) die 1 "unknown action $(printf '%q' "$ACTION") (use --help)" ;;
 esac
 
-PR="" REPO="" DIFF=0 HEAD="" HEAD_MATCH="" STATE=open
+PR="" REPO="" OUT="" DIFF=0 HEAD="" HEAD_MATCH="" STATE=open
 while (($# > 0)); do
   case "$1" in
   -h | --help) usage ;;
-  --repo | --head | --head-match | --state)
+  --repo | --head | --head-match | --state | --out)
     (($# >= 2)) || die 1 "$1 needs a value"
+    [[ "$1" == --out ]] && OUT="$2"
     [[ "$1" == --repo ]] && REPO="$2"
     [[ "$1" == --head ]] && HEAD="$2"
     [[ "$1" == --head-match ]] && HEAD_MATCH="$2"
@@ -79,11 +82,16 @@ command -v jq >/dev/null 2>&1 || die 5 "jq not found on PATH"
 repo_args=()
 [[ -n "$REPO" ]] && repo_args=(--repo "$REPO")
 
+# Written by the script, not copied out of tool output, so a large diff arrives whole.
+if [[ -n "$OUT" ]]; then
+  exec >"$OUT" || die 1 "cannot write $(printf '%q' "$OUT")"
+fi
+
 if [[ "$ACTION" == list ]]; then
   head_args=()
   [[ -n "$HEAD" ]] && head_args=(--head "$HEAD")
   # gh pr list returns 30 pull requests unless --limit says otherwise.
-  out=$(gh pr list --state "$STATE" --limit 1000 "${head_args[@]}" "${repo_args[@]}" --json "$LIST_FIELDS") ||
+  out=$(gh pr list --state "$STATE" --limit 1000 ${head_args[@]+"${head_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} --json "$LIST_FIELDS") ||
     die 2 "gh pr list failed"
   printf '%s' "$out" | jq --arg re "$HEAD_MATCH" '[.[] | select($re == "" or (.headRefName | test($re)))]' ||
     die 1 "--head-match is not a valid regular expression"
@@ -94,11 +102,11 @@ pr_args=()
 [[ -n "$PR" ]] && pr_args=("$PR")
 
 if [[ "$DIFF" == 1 ]]; then
-  gh pr diff "${pr_args[@]}" "${repo_args[@]}" || die 2 "gh pr diff failed"
+  gh pr diff ${pr_args[@]+"${pr_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} || die 2 "gh pr diff failed"
   exit 0
 fi
 
-facts=$(gh pr view "${pr_args[@]}" "${repo_args[@]}" --json "$VIEW_FIELDS") || die 2 "gh pr view failed"
+facts=$(gh pr view ${pr_args[@]+"${pr_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} --json "$VIEW_FIELDS") || die 2 "gh pr view failed"
 
 # Visibility over REST: GraphQL is refused in some sandboxed sessions. The host
 # and owner/repo come from the pull request's own URL.
@@ -111,7 +119,7 @@ visibility=UNKNOWN
 if [[ -n "$nwo" ]]; then
   host_args=()
   [[ "$host" != github.com ]] && host_args=(--hostname "$host")
-  v=$(gh api "${host_args[@]}" "repos/$nwo" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
+  v=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$nwo" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
   [[ "$v" =~ ^(PUBLIC|PRIVATE|INTERNAL)$ ]] && visibility="$v"
 fi
 

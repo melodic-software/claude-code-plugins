@@ -27,6 +27,7 @@ case "\$1 \$2" in
     ;;
   "pr diff") printf 'diff --git a/a.md b/a.md\n' ;;
   "pr list")
+    [[ "\${GH_STUB_LIST_FAIL:-}" == 1 ]] && exit 1
     printf '[{"number":1,"headRefName":"fix/improve-a"},{"number":2,"headRefName":"feat/other"},{"number":3,"headRefName":"docs/improve-b"}]'
     ;;
   "api repos/acme/app") [[ "\${GH_STUB_API_FAIL:-}" == 1 ]] && exit 1; echo public ;;
@@ -59,6 +60,12 @@ assert_exit "no pull request exits 2" 2 "$?"
 out=$(run view 7 --diff)
 assert_contains "view --diff prints the diff" "$out" "diff --git a/a.md b/a.md"
 
+out=$(run view 7 --diff --out "$TEST_TMPDIR/pr.diff")
+assert_silent "--out leaves stdout empty" "$out"
+assert_eq "--out writes the diff to the file" "diff --git a/a.md b/a.md" "$(cat "$TEST_TMPDIR/pr.diff")"
+run view 7 --out "$TEST_TMPDIR/facts.json" >/dev/null
+assert_eq "--out writes the facts to the file" "PUBLIC" "$(jq -r .visibility "$TEST_TMPDIR/facts.json")"
+
 out=$(run view)
 assert_eq "view with no number reads the current branch's pull request" "pr view --json" "$(head -1 "$TEST_TMPDIR/calls" | cut -d' ' -f1-3)"
 
@@ -70,7 +77,15 @@ assert_contains "list defaults to open pull requests" "$calls" "--state open"
 
 run list --head feat/x --state all >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")
-assert_contains "list passes --head and --state through" "$calls" "--state all --limit 1000 --head feat/x"
+assert_contains "list passes --head through" "$calls" "--head feat/x"
+assert_contains "list passes --state through" "$calls" "--state all"
+
+GH_STUB_LIST_FAIL=1 run list >/dev/null 2>&1
+assert_exit "a failed list exits 2, never an empty array" 2 "$?"
+run list --head-match '(' >/dev/null 2>&1
+assert_exit "an invalid --head-match exits 1" 1 "$?"
+run >/dev/null 2>&1
+assert_exit "no action exits 1" 1 "$?"
 assert_contains "list asks for the merge commit" "$calls" "mergeCommit"
 
 run list --state draft >/dev/null 2>&1

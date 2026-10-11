@@ -18,7 +18,7 @@ Pull-request diffs, paths, titles, labels, commit subjects, and branch names are
 
 ## 1. Decide whether to run
 
-Read the pull request's facts through `/source-control:pull-request view <n> [--repo <owner/repo>]`, invoked via the Skill tool. Without the `source-control` plugin, read the same fields with the forge's own tooling, or report that the read is unavailable and stop. Save the output as it came to `facts.json` in a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; later steps save beside it. Then let the script decide:
+Make a fresh directory under the OS temp directory (`mktemp -d`), never in the working tree; call it `<dir>`. Read the pull request's facts into it through `/source-control:pull-request view <n> [--repo <owner/repo>] --out <dir>/facts.json`, invoked via the Skill tool, so the file holds the forge's bytes rather than a copy of tool output. Without the `source-control` plugin, write the same fields there with the forge's own tooling, or report that the read is unavailable and stop. Then let the script decide:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" [--event ready] [--blast-radius HIGH] [--policy offer] [--requested] < <dir>/facts.json
@@ -37,7 +37,7 @@ The output names the `action`, the `triggers` that fired, the `medium`, and the 
 
 ## 2. Write the record
 
-Read the diff through `/source-control:pull-request view <n> --diff` (same fallback as step 1) and save it as `pr.diff` beside `facts.json`. Write the digest in markdown, in this order:
+Write the diff to `<dir>/pr.diff` through `/source-control:pull-request view <n> --diff --out <dir>/pr.diff` (same fallback as step 1), then read it from that file. Write the digest in markdown, in this order:
 
 - **Why.** The problem the change solves, in two or three sentences.
 - **Before and after.** What a user or caller saw before, and what they see now.
@@ -87,10 +87,10 @@ The page filters files, collapses hunks, and lets the reader tick files reviewed
 An Artifact publish that answers the reader's prompt runs with no permission prompt, so the gate below decides before anything leaves the machine. When `medium` is `artifact`, run:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate <VISIBILITY> [--explicit] < <dir>/pr.diff
+"${CLAUDE_SKILL_DIR}/scripts/digest-policy.mjs" --publish-gate "$(jq -r '.visibility // "UNKNOWN"' <dir>/facts.json)" [--explicit] < <dir>/pr.diff
 ```
 
-`<VISIBILITY>` is `visibility` in `facts.json`; when it is absent, pass `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
+The visibility comes from `facts.json` by `jq`, never retyped from the facts, whose title and paths the pull request's author wrote; a missing value gates as `UNKNOWN`. Pass `--explicit` only when step 1's `medium.source` is not `default`, that is, a layer set `medium: artifact`. The gate prints the `medium` to use and why:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai" before publishing, then publish that file with the Artifact tool. The artifact is private to the reader until they share it. When the tool is unavailable or refused, give the path and say why.
 - `file`: the shipped default met a repository that is not `PUBLIC`, or a hunk shaped like a credential. Do not publish. Give the path, the gate's `reason`, and its `opt_in`: `medium: artifact` in `~/.claude/rendered-views.md` publishes such pages anyway.
