@@ -12,6 +12,10 @@ Sources: [Auto memory](https://code.claude.com/docs/en/memory#auto-memory),
 [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands). Each section below
 names the exact section it rests on.
 
+- **As of**: 2026-10-11 (the four anchored sources above confirmed live on their pages)
+- **Recheck trigger**: one of those four pages renames, moves or drops the section its anchor
+  names, or the env-vars page gains row anchors.
+
 Refresh this file from current official docs before relying on it (re-fetch the section each
 pointer below names).
 
