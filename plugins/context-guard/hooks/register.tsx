@@ -394,6 +394,8 @@ async function refresh($: EngineInterface, st: State) {
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
+  // The kept figures still publish a compaction seen since: degraded, and dumb.
+  else if (s.compacted) s.body = { ...s.body, zone: 'dumb', evidence_degraded: true }
   st.reading = reading
   const band = bandText(reading)
   if (band !== st.band) {

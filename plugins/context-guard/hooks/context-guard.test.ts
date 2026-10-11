@@ -1419,6 +1419,17 @@ kitTest('snapshot: publishes the zone and the bands in force from zones.json, an
   expect([after.zone, after.evidence_degraded]).toEqual(['dumb', true])
 })
 
+kitTest('snapshot: a compaction whose reading has no figures still publishes degraded dumb over the kept figures', async ($, on) => {
+  const { w } = world(on, { percent: 30 })
+  await bash($)
+  expect([bodies(w).at(-1).zone, bodies(w).at(-1).evidence_degraded]).toEqual(['smart', false])
+  w.percent = undefined
+  await compact($, 'manual')
+  await bash($)
+  const kept = bodies(w).at(-1)
+  expect([kept.context_window.used_percentage, kept.zone, kept.evidence_degraded]).toEqual([30, 'dumb', true])
+})
+
 test('snapshot: before the first response the body carries the nulls the status line does', async ($, on) => {
   const { w } = world(on, { percent: undefined })
   await bash($)
