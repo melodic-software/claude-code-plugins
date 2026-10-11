@@ -1,3 +1,4 @@
+# test-scope: plugins/animation/requirements.in
 """The woodcut residuals that are authoring, not a retuned check."""
 import json
 import sys

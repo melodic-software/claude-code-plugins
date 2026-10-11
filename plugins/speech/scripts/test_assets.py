@@ -1,3 +1,4 @@
+# test-scope: plugins/speech/prerequisites.json plugins/speech/requirements.txt
 """assets.py and check.py: fetching pinned files with their hashes checked, and the read-only prerequisite report.
 
 Fetch tests serve a fixture manifest from a file:// source, so nothing reaches the network.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/disk-hygiene/hooks/hooks.json
 """Tests for the ``UserPromptExpansion`` context hook of ``/disk-hygiene:clean`` (#4215).
 
 The contract under test: the values the hook hands the skill are values the

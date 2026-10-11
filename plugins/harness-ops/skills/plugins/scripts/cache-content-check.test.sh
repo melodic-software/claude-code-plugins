@@ -4,6 +4,7 @@
 # repo standing in for a marketplace's installLocation at two commits, a fake
 # cache directory, and CACHE_CONTENT_* state files pointing at both. Mirrors
 # fleet-state.test.sh's structure.
+# test-scope: .gitattributes
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
