@@ -268,22 +268,67 @@ abstract: <one line, mirrored verbatim into the index>
 dimension: codebase        # which of the six exploration dimensions produced this
 findings:
   - finding: "<one-line finding>"
-    verified: read         # read | grep | inferred — see below
+    verified: read         # read | ran | grep | inferred — see below
     paths:                 # repo-relative, never absolute; the outcome gate checks this
       - "src/payments/rounding.ts:112-140"
+  - finding: "tests/payments/test_rounding.py passes"
+    verified: ran
+    command: "python -m pytest tests/payments/test_rounding.py -q"   # only with verified: ran
+    result: "4 passed"     # the observed output, quoted, not a reading of it
+    paths:
+      - "tests/payments/test_rounding.py"
 produced_by: <phase or dimension id>
 ---
 ```
 
 **`verified` is the whole point of the header**, and it is the local analogue of the source tier:
 
-- **`read`**: the file was opened and the finding comes from its contents. The only value a
-  conclusion-driving claim may carry, per the outcome gate's Read-verified criterion.
+- **`read`**: the file was opened and the finding comes from its contents. A conclusion-driving
+  claim carries `read` or `ran`, per the outcome gate's Read-verified criterion.
+- **`ran`**: a command was executed and the finding is its observed result, recorded in `command:`
+  and `result:`. A claim that a test or check passes, fails, or builds carries `ran` and nothing
+  else: a test that was only opened supports what it asserts (`read`), never that it passes. A
+  command that executes the explored repository's code (a test runner, a build, a project
+  script) is outside a dispatched explorer's read-only boundary whether or not it writes, so
+  there the pass/fail question becomes a numbered gap instead of a claim.
 - **`grep`**: a search hit located it and nothing was opened. Discovery only. A `grep`-verified
   finding is a lead, not a conclusion.
 - **`inferred`**: drawn from a filename, a directory layout, or a convention rather than from
   content. Always suspect; name it so a reader can discount it.
 
-Keeping these three distinct is what lets a verifier grade "conclusion-driving claims are
+Keeping these distinct is what lets a verifier grade "conclusion-driving claims are
 Read-verified, not inferred from a filename or grep hit" off the artifact instead of taking the
 run's word for it, the same job `sources[]` does for the research side.
+
+**Abstracts state the finding, not the coverage.** For exploration, the index's `abstract:` and
+each sidecar's `abstract` assert what is true ("Rounding happens once, in `rounding.ts`, after
+currency conversion"), never what was looked at ("Rounding module overview"). A reader picks one
+sidecar by its abstract, and a coverage label gives them nothing to pick on. The `section` id and
+the filename stay the fixed section names: the gate and the section → file table key on them.
+
+### `EXPLORE.md` index additions
+
+The index frontmatter also carries the commit each explored repository was read at:
+
+```yaml
+repos:
+  - name: <repository name, e.g. owner/repo or its directory name; never an absolute path>
+    sha: <full 40-character `git rev-parse HEAD` taken before the first file read>
+    dirty: false           # true when `git --no-optional-locks status --porcelain` was non-empty before the first read or at the final write, or HEAD at the final write no longer equals sha
+```
+
+Every `path:line` citation in the set is only as good as the commit it was read at, so the sha is
+taken before any file is read and checked again at the final write. `dirty: true` says some
+citations may point at content the sha cannot reproduce: uncommitted changes, or a commit that
+landed mid-run. Outside a repository the list is `repos: []`.
+
+The index body adds a **`## Code references`** section after the section → file table: the
+repo-relative paths the findings cite, grouped by area, each with a few words on its role. Its first
+line is `coverage: exhaustive` (every file in the scope that bears on the task is listed) or
+`coverage: key-files` (the entry points and load-bearing files only), so a reader knows whether a
+file missing from the list was ruled out or simply not listed. Its second line is the staleness
+check, carried in the artifact because a later session may read nothing else:
+
+```markdown
+Before relying on a citation: compare each `repos[].sha` with `git rev-parse HEAD`. On a mismatch, or `dirty: true`, run `git diff --stat <sha> -- <paths below>` and re-read every listed path that changed.
+```
