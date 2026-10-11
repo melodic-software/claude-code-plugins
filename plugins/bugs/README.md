@@ -99,8 +99,11 @@ Two surfaces with two different owners.
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
 
-Claude Code owns this value: current releases ignore plugin `userConfig` values placed in
-project or local settings, and changes route through Claude Code's own configuration prompt.
+Claude Code owns this value, and changes route through Claude Code's own configuration prompt.
+Which settings files it is read from is upstream-owned: see
+[settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+(as of 2026-10-11; recheck when that section changes which settings files option values are read
+from).
 
 **Team, the tracked `.claude/bugs.md`**, which `/bugs:scan` reads for its lanes
 (`lanes`) and its filing policy (`filing_posture`). A `## Gotchas` section in that file

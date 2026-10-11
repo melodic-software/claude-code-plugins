@@ -20,9 +20,13 @@ invocation:
 - Shallow clone, `git rev-parse --is-shallow-repository`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines: a worktree-isolated session refuses a
+compound command that contains git. The dated record for how the pre-compute block is composed is
+the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation"; how injected commands run is read at
+[skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
+As of: 2026-10-11. Recheck trigger: that section changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -190,8 +194,11 @@ within it, never above it. A `low` run over a large lane still dispatches one le
 ### Effort
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
-skill-loaded, so the substitution never ran: treat the run as `high` and use the full budget above.
+an effort level, this body was read directly instead of skill-loaded, so the substitution never
+ran: treat the run as `high` and use the full budget above. Pointer: the substitution and the
+values it can take are read at
+[skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+As of: 2026-10-11. Recheck trigger: that section renames the variable or changes its values.
 
 Effort scales the **recall stage only**. The verification gate is the precision machinery and never
 relaxes: every candidate still faces a separate fresh-context refuting subagent at every level, and
