@@ -33,8 +33,8 @@ provides one and fall back to bare `gh` otherwise (seam identity routing: `../..
 "Identity routing (GitHub adapter)"). The examples show bare `gh`; substitute your repo's bot
 wrapper for write ops if it uses one. Claim assignment always stays on bare `gh` (`@me` must be the
 session identity). Every pipeline parsing `gh` JSON on Windows/Git Bash ends with `| tr -d '\r'`
-(see "Gotchas"). `<owner>/<repo>` in a recipe is the item's own repository, taken from its
-qualified ID, so a cross-repository item is never confused with the current checkout's item of
+(see "Gotchas"). `<owner>/<repo>` in an issue recipe is the item's own repository, taken from its
+qualified ID (the current repository for a bare number), so a cross-repository item is never confused with the current checkout's item of
 the same number.
 
 ## Available `--json` fields
@@ -305,7 +305,7 @@ printf '%s\n\n%s\n' "Closes #<N>" "$(cat /tmp/pr-body.md)" \
   | gh pr edit <PR> --body-file -
 ```
 
-The prepended line is `change-link <id> --repo <owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
+The prepended line is `change-link <id> --repo <PR's owner>/<repo>`'s `closes` text (CONTRACT.md "Change links").
 
 Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes`/`fixed`/
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
