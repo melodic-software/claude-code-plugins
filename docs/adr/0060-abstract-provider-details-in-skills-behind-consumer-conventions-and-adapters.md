@@ -18,7 +18,7 @@ skills meant to be generic:
   directly instead of the work-item-tracker seam, deferred until wayfind was staffed for seam
   adoption.
 
-Neither trigger has fired. The user's standing rule now overrides both: provider details (GitHub, a
+Neither trigger has fired. A maintainer decision on 2026-10-10 now overrides both: provider details (GitHub, a
 tracker, a CI system) in any skill are implementation details, and belong behind the consumer's
 conventions, policies and adapters. That reverses recorded rulings, so it is recorded here rather
 than applied silently.
