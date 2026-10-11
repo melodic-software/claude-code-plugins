@@ -107,10 +107,11 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
-Bare "frontier" means this set, except inside two plugins that use the word for their own
-concepts: `multi-agent` (a most-capable model: its `frontier` config key, "frontier session",
-`fanout.frontier_guard`) and `education:teach` (the concepts one step beyond a learner's floor,
-its "current frontier"). Those senses hold only within those plugins.
+In work-item text, bare "frontier" means this set. The word has other senses elsewhere, each read
+from its own context and none of them this entry, among them: the most-capable model tier
+(`multi-agent`'s `frontier` config key, "frontier tier" and "frontier session" in implementation
+and PR dispatch), the questions whose prerequisites are settled (`planning:interview` and
+`planning:prd` "frontier rounds"), and a learner's next concepts (`education:teach`).
 
 **slice**
 
