@@ -59,6 +59,8 @@
 # Usage: push-branch.sh [branch-name | --pr <number>]   (defaults to the current branch)
 set -uo pipefail
 
+# portability-scope: --pr resolves the pull request's head branch and head repository through gh.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
