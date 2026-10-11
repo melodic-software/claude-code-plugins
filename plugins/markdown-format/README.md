@@ -124,9 +124,12 @@ a command hook, and we treat a hook cancelled at its timeout as having reported
 nothing.
 
 - **Pointer**: when deciding what a cancelled hook leaves behind, fetch
-  [hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts) live.
-  **As of**: 2026-10-11. **Recheck trigger**: that section changes the
-  command-hook default or what becomes of a cancelled hook's output.
+  [hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts) live; for
+  the command-hook default, fetch the `timeout` row of
+  [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields)
+  live. **As of**: 2026-10-11. **Recheck trigger**: the Timeouts section
+  changes what becomes of a cancelled hook's output, or the Common fields
+  `timeout` row changes the `command` default.
 
 `markdownlint-cli2 --fix` rewrites the file in
 place before the hook composes its report, so a cancel between the two leaves
@@ -157,11 +160,14 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. The hook exits `0` and reports a
 notice to both Claude (`additionalContext`) and you (`systemMessage`).
 
-- **Pointer**: when deciding which `PostToolUse` output field reaches Claude
-  and which reaches you, fetch
+- **Pointer**: when deciding which `PostToolUse` output field reaches Claude,
+  fetch
   [hooks: PostToolUse decision control](https://code.claude.com/docs/en/hooks#posttooluse-decision-control)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section renames or
-  re-routes `additionalContext` or `systemMessage`.
+  live; for which reaches you, fetch
+  [hooks: JSON output](https://code.claude.com/docs/en/hooks#json-output) live.
+  **As of**: 2026-10-11. **Recheck trigger**: the PostToolUse decision control
+  section renames or re-routes `additionalContext`, or the JSON output table
+  changes who is shown `systemMessage`.
 
 Each notice is shown once per session and agent and does not
 renew. The `SessionStart` probe below uses the same notice key, so its notice is

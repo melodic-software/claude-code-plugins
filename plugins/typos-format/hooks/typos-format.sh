@@ -57,8 +57,11 @@
 # canonical-marker gating): N/A — this hook has neither shape.
 #
 # KNOWN RISK (write mode only): we assume no ordering or locking between the
-# matching PostToolUse hooks of one tool call (pointer record in README.md,
-# "Known limitation (write mode only)"). With the report-only default this hook only READS, so
+# matching PostToolUse hooks of one tool call.
+# Pointer: the upstream pointer record in
+# README.md#known-limitation-write-mode-only. As of: 2026-10-11.
+# Recheck trigger: that README section is renamed or its pointer record changes.
+# With the report-only default this hook only READS, so
 # the worst concurrent outcome is a stale finding, never corruption. A consumer
 # who opts write mode ON in a repo where a sibling formatter hook also rewrites
 # the same file class (e.g. markdown-format on .md, ruff-format on .py)
@@ -369,7 +372,9 @@ fi
 # matched by COUNT — never by position.
 # Byte offsets shift as earlier corrections on the same line change its length,
 # and line numbers are no more stable: we assume sibling PostToolUse hooks run
-# concurrently (KNOWN RISK above), so a sibling formatter can reflow the file
+# concurrently (Pointer: README.md#known-limitation-write-mode-only. As of:
+# 2026-10-11. Recheck trigger: that README section is renamed or its pointer
+# record changes.), so a sibling formatter can reflow the file
 # between these two passes and carry an untouched finding to a different line.
 # A position-keyed lookup then fails to match that finding against its own scan
 # entry and reports a word typos never touched as a rewrite — a false mutation
