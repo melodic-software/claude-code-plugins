@@ -39,10 +39,13 @@ convention/config files the plugin reads.
   so how long it runs. Every stdout line from `command` reaches Claude as a notification; check
   volume for the trigger's actual lifetime and that the command runs on the consumer's platform.
   - **Pointer**: when reading a monitor's trigger values, its default, and when each starts it,
-    fetch [Monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors) live.
+    fetch [Monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors) live;
+    when checking what a running monitor's output does, fetch
+    [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) live.
   - **As of**: 2026-10-11
-  - **Recheck trigger**: that section changes the trigger values, the default, or the
-    stdout-to-notification path, or a release note names the monitors component.
+  - **Recheck trigger**: the manifest-reference section changes the trigger values or the default,
+    the components section changes how a monitor's output reaches Claude, or a release note names
+    the monitors component.
 
 ## Categories
 
