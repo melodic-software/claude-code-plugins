@@ -367,10 +367,12 @@ effort settings". What governs the category:
 - **Per-row visibility, not a blanket claim.** Some of these are silent and some announce
   themselves (a narrowed alias shows a substitution notice). Each row states which, because it
   changes what the finding is worth to the reader
-- **Placement is out of reach.** `availableModels` and `enforceAvailableModels` belong in the
-  highest-precedence managed source, and admin-deployed managed sources do not merge. Nothing in the
-  files this skill reads decides whether that holds, so report the value-level finding and leave
-  placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
+- **Placement is out of reach.** Where `availableModels` and `enforceAvailableModels` must sit, and
+  whether a lower managed source's value survives, depend on how the organization combines its
+  managed sources, a mode the files this skill reads do not decide
+  ([managed settings: how Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
+  as of 2026-10-11; recheck when that section adds or drops a combining mode or changes how a mode
+  treats these keys). So report the value-level finding and leave placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
   every file this skill reads is outside managed settings, so finding either key in one settles it
 
 ## Category I: Deep-link registration
