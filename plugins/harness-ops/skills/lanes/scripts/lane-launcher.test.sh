@@ -1661,6 +1661,45 @@ assert_eq "run-once reclaims a lock whose owner exited" 0 "$rc"
 assert_eq "the reclaiming run runs its pass" 1 "$(claude_runs)"
 assert_eq "the reclaiming run releases the lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
 
+# After a reboot the recorded pid may belong to an unrelated live process: a
+# lock recorded on another boot is reclaimed even though that pid answers.
+mkdir -p "$RO_LOCK"
+printf 'boot-before\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-after et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a lock from an earlier boot is reclaimed despite a live pid" 1 "$(claude_runs)"
+assert_eq "the reclaiming run releases the earlier boot's lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+# The same boot and a live pid: still held.
+mkdir -p "$RO_LOCK"
+printf 'boot-now\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-now et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a live owner on this boot keeps the lock" 0 "$(claude_runs)"
+assert_contains "a live owner on this boot is reported as holding it" "$out" "another run-once holds"
+rm -rf "$RO_LOCK"
+
+# A run that died between mkdir and its pid write leaves a lock with no pid.
+# A fresh one may be a run still starting, so it is held; one older than the
+# grace period is dead and reclaimed.
+mkdir -p "$RO_LOCK"
+: >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a fresh lock with an empty pid is treated as held" 0 "$(claude_runs)"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "an empty-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+assert_eq "the run that reclaimed the empty-pid lock releases it" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+mkdir -p "$RO_LOCK"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a missing-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+rm -rf "$RO_LOCK"
+
 # A lane already running as a background session is not run a second time.
 AGENTS_WORK_BG="$TMP/agents-work-bg.json"
 printf '%s\n' '[{"pid":1,"cwd":"/r","kind":"background","startedAt":1,"sessionId":"sid-bg","name":"work","status":"idle"}]' >"$AGENTS_WORK_BG"

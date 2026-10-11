@@ -1727,11 +1727,63 @@ action_status() {
 
 # --- run-once -------------------------------------------------------------------
 RUN_ONCE_LOCK=""
+remove_run_once_lock() { # <lock>: every file a holder writes, then the directory
+  rm -f "$1/pid" "$1/boot-id" "$1/acquired-at" "$1"/pid.tmp.* 2>/dev/null
+  rmdir "$1" 2>/dev/null
+}
 release_run_once_lock() {
   [[ -n "$RUN_ONCE_LOCK" ]] || return 0
-  rm -f "$RUN_ONCE_LOCK/pid" 2>/dev/null
-  rmdir "$RUN_ONCE_LOCK" 2>/dev/null
+  remove_run_once_lock "$RUN_ONCE_LOCK"
   RUN_ONCE_LOCK=""
+}
+
+# The same reclaim scheme restart-consumer.sh's lock uses. `kill -0` alone
+# cannot tell a live owner from an unrelated process that took its pid after a
+# reboot, so the lock records this boot's identity; with none to compare, a
+# live pid holds the lock for at most RUN_ONCE_LOCK_HARD_STALE_SECONDS. A lock
+# with no pid (its owner died between mkdir and the pid write) is held for
+# RUN_ONCE_LOCK_GRACE_SECONDS, dated by its acquired-at file, then reclaimed.
+RUN_ONCE_LOCK_GRACE_SECONDS=120
+RUN_ONCE_LOCK_HARD_STALE_SECONDS=86400
+run_once_boot_id() {
+  if [[ -n "${LANE_LAUNCHER_FAKE_BOOT_ID-}" ]]; then
+    printf '%s' "$LANE_LAUNCHER_FAKE_BOOT_ID"
+  elif [[ -r /proc/sys/kernel/random/boot_id ]]; then
+    tr -d '\r\n' </proc/sys/kernel/random/boot_id
+  else
+    return 1
+  fi
+}
+lock_uint() { # <file>: its non-negative integer, else 0
+  local v
+  v="$(tr -d '\r\n' <"$1" 2>/dev/null)" || v=""
+  [[ "$v" =~ ^[0-9]+$ ]] || v=0
+  printf '%s' "$v"
+}
+
+# 0 when the lock at <lock> has an owner that may still be running.
+run_once_lock_live() {
+  local lock="$1" now pid stamp recorded current
+  now="$(date +%s)"
+  pid="$(lock_uint "$lock/pid")"
+  stamp="$(lock_uint "$lock/acquired-at")"
+  if ((stamp == 0)); then
+    # Undated (a holder from before this scheme, or one still starting): date it
+    # now so a dead one ages out, and treat it as held this time.
+    printf '%s\n' "$now" >"$lock/acquired-at" 2>/dev/null
+    stamp="$now"
+  fi
+  if ((pid == 0)); then
+    ((now - stamp < RUN_ONCE_LOCK_GRACE_SECONDS))
+    return
+  fi
+  recorded="$(tr -d '\r\n' <"$lock/boot-id" 2>/dev/null)" || recorded=""
+  if current="$(run_once_boot_id)" && [[ -n "$recorded" ]]; then
+    [[ "$recorded" == "$current" ]] || return 1
+  elif ((now - stamp >= RUN_ONCE_LOCK_HARD_STALE_SECONDS)); then
+    return 1
+  fi
+  kill -0 "$pid" 2>/dev/null
 }
 
 # 0 taken · 1 held by a running owner · 2 the lock store is unusable. mkdir is
@@ -1740,20 +1792,25 @@ release_run_once_lock() {
 # scheduler entries never start a second copy, so that needs a hand-started
 # run at the scheduled second.
 take_run_once_lock() {
-  local lock="$1" pid
+  local lock="$1" pid boot
   mkdir -p "$(dirname "$lock")" 2>/dev/null
   if ! mkdir "$lock" 2>/dev/null; then
     [[ -d "$lock" ]] || return 2
-    pid="$(tr -d '\r\n' <"$lock/pid" 2>/dev/null)" || pid=""
-    [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null || return 1
+    run_once_lock_live "$lock" && return 1
+    pid="$(lock_uint "$lock/pid")"
+    ((pid)) || pid="none recorded"
     warn "reclaiming $lock: its owner (pid $pid) is no longer running"
-    rm -f "$lock/pid" 2>/dev/null
-    rmdir "$lock" 2>/dev/null
+    remove_run_once_lock "$lock"
     mkdir "$lock" 2>/dev/null || return 1
   fi
   RUN_ONCE_LOCK="$lock"
   trap release_run_once_lock EXIT
-  printf '%s\n' "$$" >"$lock/pid" 2>/dev/null || return 2
+  printf '%s\n' "$(date +%s)" >"$lock/acquired-at" 2>/dev/null || return 2
+  if boot="$(run_once_boot_id)"; then
+    printf '%s\n' "$boot" >"$lock/boot-id" 2>/dev/null || return 2
+  fi
+  # The pid goes in last and whole: a reader sees no pid or the complete one.
+  printf '%s\n' "$$" >"$lock/pid.tmp.$$" 2>/dev/null && mv -f "$lock/pid.tmp.$$" "$lock/pid" 2>/dev/null || return 2
 }
 
 _run_once_one() {

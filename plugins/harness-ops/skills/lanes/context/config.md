@@ -143,7 +143,9 @@ repository root, `local-background` from the lane's linked worktree, and nothing
 whose own trigger runs the stage there. A lane already running as a background session is skipped.
 A per-lane `mkdir` lock at `<data-dir>/lanes/<repo-key>/<lane>-run-once.lock` keeps two passes of
 one lane apart on one host: a run that finds the lock held exits `0` having run nothing, and a lock
-whose recorded owner pid has exited is reclaimed.
+whose owner is gone is reclaimed: its recorded pid has exited, it was taken on an earlier boot
+(where the host reports a boot id; elsewhere a live pid holds it for at most a day), or it holds no
+pid and is more than two minutes old.
 
 For a drain lane, the prompt file names the stage with its single-pass flag, for example
 `/work-items:work-loop --drain --single-pass` when that skill is among the available skills.
