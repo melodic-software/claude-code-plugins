@@ -144,7 +144,7 @@ else
 fi
 
 # hooks.json: the seeded event-log rows are gone and nothing else moved. The
-# real hooks.json carries no event-log row (ADR 0058), so it is the oracle.
+# real hooks.json carries no event-log row (ADR 0063), so it is the oracle.
 if [[ "$(hooks_of "$H/hooks.json")" == "$(hooks_of "$REAL_HOOKS_JSON")" ]]; then
   ok "hooks.json keeps no event-log or retention row and every other handler"
 else
