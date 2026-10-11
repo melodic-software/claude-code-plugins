@@ -963,10 +963,10 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
   adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
   the last model's weaknesses as the next model's ceiling.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
-  frontier model release, re-audit standing instruction surfaces against the new model
-  (`harness-config:audit-instructions` for the static text-vs-doctrine pass;
-  `harness-config:unhobble` for the empirical bare-baseline experiment) and delete what the model no
-  longer needs. The trigger is the model release, not the calendar.
+  Claude model release, re-audit standing instruction surfaces against the new model
+  (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
+  `harness-config:unhobble` for the empirical bare-baseline experiment, on a frontier release only)
+  and delete what the model no longer needs. The trigger is the model release, not the calendar.
 - **Evals outlive instructions.** Per-skill evals are the durable asset across this churn: keep and
   extend them until a model generation saturates them, then replace them with evals derived from
   newly observed struggles. Expect an eval to outlive the instructions it graded by roughly one to
