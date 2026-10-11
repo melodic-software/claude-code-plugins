@@ -29,14 +29,19 @@ any run with no human to answer, STOP before any claim and report that `run` is 
    branch:**` line is absent, STOP and offer to record the line (SKILL.md Step 3). The run never
    applies the per-item default silently.
 
-1. **Gate the seam.** Run `"$TRACKER" capabilities`. The run uses `list-frontier --parent`,
-   `claim`, `renew-lease` and `release`; when the manifest marks any of them unsupported, or the
-   seam cannot run, STOP and name it. Without race-safe claims a run is not safe.
+   The session runs from a worktree on a non-default branch, never the main checkout:
+   `/implementation:implement-dispatch`'s branch preflight stops on the default branch.
 
-1. **Check other holders.** From the rollup, list sibling items claimed by a holder other than
-   this session. Under `integration branch → single PR`, any such claim means another session is
-   writing the shared branch: report who holds it and STOP, the multi-session rule in the reference.
-   Under `per-item PRs`, leave those items out of the run and report them.
+1. **Gate the seam.** Run `"$TRACKER" capabilities`. When `list-frontier --parent` or `claim` is
+   unsupported, or the seam cannot run, STOP and name it: without race-safe claims a run is not
+   safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
+   cannot renew or release expire on their own.
+
+1. **Check other holders.** From the rollup, list sibling items whose assignee holds a live lease
+   other than this session's; an expired lease is not a holder (step 5 reclaims it). Under
+   `integration branch → single PR`, any live one means another session is writing the shared
+   branch: report who holds it and STOP, the multi-session rule in the reference. Under
+   `per-item PRs`, leave those items out of the run and report them.
 
 1. **Compose the item list.** One entry per frontier item, in the shape
    `/implementation:implement-dispatch` documents for `--items` (its item-list reference): `id` (the
@@ -46,8 +51,9 @@ any run with no human to answer, STOP before any claim and report that `run` is 
    run continues only on their approval of that list; an entry they cannot fence stays out.
 
 1. **Claim.** Claim each approved item through the seam (`reclaim` first, as `/work-items:track
-   start` does). A claim lost to a race (exit 7) drops that item from the list and is reported.
-   Renew the leases of items still claimed before each later dispatch.
+   start` does; a `reclaim` exit 6 means the adapter has none, so skip it). A claim lost to a race
+   (exit 7) drops that item from the list and is reported. Renew the leases of items still claimed
+   before each later dispatch and before each landing.
 
 1. **Dispatch.** Invoke `/implementation:implement-dispatch` via the Skill tool with
    `--items <that list>`, and under `integration branch → single PR` with
@@ -56,7 +62,7 @@ any run with no human to answer, STOP before any claim and report that `run` is 
    never merges and never closes an item.
 
 1. **Land one at a time.** Take the accepted rows in list order, one landing finished before the
-   next starts:
+   next starts, renewing the remaining leases before each:
    - **`integration branch → single PR`.** In a worktree checked out on the integration branch,
      never the main checkout: pull, merge the item branch, run the project's build and test gate,
      and push. A merge conflict goes to `/source-control:resolve-conflicts`. Then close the item
