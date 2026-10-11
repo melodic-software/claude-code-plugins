@@ -67,8 +67,8 @@ default zone bands, zones.json shape) are owned by
      settings hook, still runs wherever settings hooks do.
 
    - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
-     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
-   - **As of**: 2026-10-03, Claude Code 2.1.288.
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesn%E2%80%99t-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288; the doesn't-load anchor 2026-10-11.
    - **Recheck trigger**: that table changes a message, or the minimum version changes.
 4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
    writes after every tool call, so this check's own Bash calls have each given it a chance to
