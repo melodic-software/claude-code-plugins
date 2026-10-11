@@ -151,7 +151,7 @@ else {
   if (!cond.includes("docs/upstream/claude-code-lean-prompt-selector.md")) {
     problems.push("simple-system-prompt conditions do not point at the lean-prompt probe record");
   }
-  if (/lean_prompt|claude-[a-z]+-\d|opus-\d|haiku|sonnet|2\.1\.\d/i.test(cond)) {
+  if (/lean_prompt|claude-[a-z]+-\d|opus-\d|haiku|sonnet|\b2\.1\.\d/i.test(cond)) { // portability-ok: JS RegExp, not grep or sed
     problems.push("simple-system-prompt conditions restate the selector instead of pointing at the record");
   }
 }
