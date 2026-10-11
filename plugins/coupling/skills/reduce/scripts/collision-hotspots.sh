@@ -7,8 +7,9 @@
 #
 # Resolves the repository once through gh (--repo, else gh's default
 # repository), reads its last <n> PRs of every state (number, open and close
-# times, changed files), fetches heads from that repository's URL, pairs PRs whose open intervals overlap and that share a
-# file, fetches each paired PR head into refs/collision-hotspots/<run-id>/pr/<n>,
+# times, changed files), pairs PRs whose open intervals overlap and that share a
+# file, fetches each paired PR head into refs/collision-hotspots/<run-id>/pr/<n>
+# (from origin when it names that repository, else from gh's URL for it),
 # and replays every pair with `git merge-tree --write-tree`. A file is ranked
 # once at least 3 replayed pairs shared it. Output, path last on every line:
 #
@@ -76,12 +77,42 @@ git merge-tree --write-tree --name-only HEAD HEAD >/dev/null 2>&1 ||
 # one: without --repo, gh's default repository can differ from origin (a fork).
 view_args=()
 [[ -n "$repo" ]] && view_args=("$repo")
-view="$(gh repo view "${view_args[@]}" --json nameWithOwner,url)" || die "gh repo view failed$fallback"
-repo="$(jq -r '.nameWithOwner // empty' <<<"$view")" remote="$(jq -r '.url // empty' <<<"$view")"
+view="$(gh repo view "${view_args[@]}" --json nameWithOwner,url,sshUrl)" || die "gh repo view failed$fallback"
+repo="$(jq -r '.nameWithOwner // empty' <<<"$view")"
+gh_url="$(jq -r '.url // empty' <<<"$view")" gh_ssh="$(jq -r '.sshUrl // empty' <<<"$view")"
 [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "gh reported no repository name"
-[[ -n "$remote" ]] || die "gh reported no URL for $repo"
-listing="$(gh pr list --state all --limit "$prs" --json number,createdAt,closedAt,files --repo "$repo")" ||
+[[ -n "$gh_url" ]] || die "gh reported no URL for $repo"
+# gh drops the host from a bare owner/repo, so a GitHub Enterprise repository is
+# listed as host/owner/repo.
+list_repo="$repo"
+if [[ "$gh_url" =~ ^https?://([^/@]+@)?([^/:]+) && "${BASH_REMATCH[2],,}" != github.com ]]; then
+  list_repo="${BASH_REMATCH[2]}/$repo"
+fi
+listing="$(gh pr list --state all --limit "$prs" --json number,createdAt,closedAt,files --repo "$list_repo")" ||
   die "gh pr list failed$fallback"
+
+# Fetch from origin when its configured URL (https, ssh:// or scp form; insteadOf
+# is applied by the fetch, not here) names the same owner/repo: it carries the
+# clone's own credentials. Otherwise fetch gh's URL, its SSH form for an SSH origin.
+origin_url="$(git config --get remote.origin.url 2>/dev/null)" || origin_url=""
+origin_path="" origin_ssh=0
+if [[ "$origin_url" =~ ^(https?|git|ssh|git\+ssh)://([^/@]+@)?[^/]+/(.+)$ ]]; then
+  origin_path="${BASH_REMATCH[3]}"
+  [[ "${BASH_REMATCH[1]}" == *ssh* ]] && origin_ssh=1
+elif [[ "$origin_url" =~ ^([^/@]+@)?[^/:]+:([^/].*)$ ]]; then
+  origin_path="${BASH_REMATCH[2]}" origin_ssh=1
+fi
+origin_path="${origin_path%/}"
+origin_path="${origin_path%.git}"
+if [[ -n "$origin_path" && "${origin_path,,}" == "${repo,,}" ]]; then
+  remote=origin
+elif ((origin_ssh)) && [[ -n "$gh_ssh" ]]; then
+  remote="$gh_ssh"
+else
+  remote="$gh_url"
+fi
+# A fetch that needs a credential fails instead of waiting on a prompt.
+export GIT_TERMINAL_PROMPT=0
 
 # Shape and safety checks before any path is used: integer PR numbers, and no
 # control character in any path (a tab or newline would split a row).
@@ -188,7 +219,7 @@ trap 'exit 2' INT TERM HUP
 
 # PR numbers and path indexes are digits only (checked above), so the indexed
 # arrays below never evaluate untrusted text.
-wanted=()
+wanted=() fetch_err=()
 for line in "${pair_lines[@]}"; do
   IFS=$'\t' read -r a b _ <<<"$line"
   wanted[a]=1 wanted[b]=1
@@ -202,9 +233,13 @@ for ((i = 0; i < ${#numbers[@]}; i += 50)); do
   done
   # An empty --refmap stops a configured remote.<name>.fetch from also writing
   # remote-tracking refs for these heads.
-  if ! git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "${specs[@]}" 2>/dev/null; then
+  if ! git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "${specs[@]}" >/dev/null 2>&1; then
     for spec in "${specs[@]}"; do
-      git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "$spec" 2>/dev/null || true
+      if ! err="$(git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "$spec" 2>&1 >/dev/null)"; then
+        n="${spec#+refs/pull/}"
+        err="${err%%$'\n'*}"
+        fetch_err[${n%%/*}]="${err//[[:cntrl:]]/ }"
+      fi
     done
   fi
 done
@@ -213,7 +248,8 @@ for n in "${numbers[@]}"; do
   if git rev-parse --verify -q "$ns/pr/$n^{commit}" >/dev/null; then
     fetched[n]=1
   else
-    printf 'gap: PR #%s head could not be fetched; its pairs are not replayed\n' "$n"
+    printf 'gap: PR #%s head could not be fetched from %s: %s; its pairs are not replayed\n' \
+      "$n" "$remote" "${fetch_err[n]:-no error reported}"
   fi
 done
 

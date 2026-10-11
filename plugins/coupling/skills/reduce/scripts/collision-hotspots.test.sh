@@ -119,7 +119,7 @@ case "$1 $2" in
   if [[ -n "${STUB_GH_FAIL:-}" ]]; then exit 1; fi
   cat "$STUB_GH_JSON"
   ;;
-"repo view") printf '{"nameWithOwner":"%s","url":"%s"}\n' "${STUB_GH_NWO:-octo/demo}" "$STUB_GH_URL" ;;
+"repo view") printf '{"nameWithOwner":"%s","url":"%s","sshUrl":"%s"}\n' "${STUB_GH_NWO:-octo/demo}" "$STUB_GH_URL" "${STUB_GH_SSH:-}" ;;
 *) exit 1 ;;
 esac
 EOF
@@ -224,6 +224,48 @@ assert_exit "a fork clone exits 0" 0 "$RC"
 assert_not_contains "a fork clone fetches every head from gh's repository" "$OUT" "could not be fetched"
 assert_eq "a fork clone ranks from gh's repository" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
 assert_contains "a fork clone lists from the resolved repository" "$(cat "$STUB_GH_LOG")" "--repo up/stream"
+
+# origin names gh's repository (an https form, rewritten to the bare remote by
+# insteadOf, as a credential-less SSH or HTTPS clone reaches its own server)
+# while gh's own URL cannot be fetched: the heads come from origin.
+NOWHERE="$TEST_TMPDIR/nowhere.git"
+W="$(fresh_clone)"
+git -C "$W" remote set-url origin https://github.com/Octo/Demo.git
+git -C "$W" config url."$REMOTE".insteadOf https://github.com/Octo/Demo.git
+OUT="$(cd "$W" && STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
+RC=$?
+assert_exit "origin naming gh's repository exits 0" 0 "$RC"
+assert_not_contains "origin naming gh's repository fetches every head from origin" "$OUT" "could not be fetched"
+assert_eq "origin naming gh's repository ranks" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
+
+# The same with an scp-style SSH origin.
+W="$(fresh_clone)"
+git -C "$W" remote set-url origin git@github.com:octo/demo
+git -C "$W" config url."$REMOTE".insteadOf git@github.com:octo/demo
+OUT="$(cd "$W" && STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
+assert_eq "an SSH origin naming gh's repository ranks" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
+
+# An SSH origin naming another repository: gh's sshUrl is fetched, not its https url.
+W="$(fresh_clone)"
+git -C "$W" remote set-url origin git@github.com:me/fork.git
+git -C "$W" config url."$REMOTE".insteadOf git@github.com:up/stream.git
+OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_SSH=git@github.com:up/stream.git \
+  STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
+assert_eq "an SSH fork clone fetches gh's sshUrl" yes "$(has_row "$OUT" "$(printf '1\t3\tshared.txt')")"
+
+# Neither origin nor gh's URL serves the heads: the gap line carries git's error.
+W="$(fresh_clone)"
+OUT="$(cd "$W" && STUB_GH_NWO=up/stream STUB_GH_URL="$NOWHERE" STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" \
+  bash "$SCRIPT" --prs 50 2>&1)"
+assert_contains "an unfetchable head names its source and git's error" "$OUT" "gap: PR #1 head could not be fetched from $NOWHERE: "
+assert_contains "the gap line carries the error text" "$OUT" "nowhere.git"
+
+# A GitHub Enterprise URL: the listing names the host.
+W="$(fresh_clone)"
+: >"$STUB_GH_LOG"
+(cd "$W" && STUB_GH_URL=https://ghe.example.com/octo/demo STUB_GH_JSON="$LISTING" PATH="$BIN:$PATH" \
+  bash "$SCRIPT" --prs 50 --dry-run >/dev/null 2>&1)
+assert_contains "a GHES repository is listed as host/owner/repo" "$(cat "$STUB_GH_LOG")" "--repo ghe.example.com/octo/demo"
 
 # A failure after the fetch still removes the run's refs.
 W="$(fresh_clone)"
