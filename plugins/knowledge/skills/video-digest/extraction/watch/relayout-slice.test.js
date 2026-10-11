@@ -196,14 +196,61 @@ describe("relayoutSlice", () => {
     );
   });
 
-  it("keeps a README the target already has", async () => {
+  it("replaces an existing target with --replace, keeping its README", async () => {
     const { sliceDir, targetDir } = makeFixture();
-    fs.mkdirSync(targetDir, { recursive: true });
-    fs.writeFileSync(path.join(targetDir, "README.md"), "# Curated\n");
+    writeTree(targetDir, { "README.md": "# Curated\n", "stale.md": "old\n" });
 
-    await relayoutSlice({ sliceDir, targetDir });
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
 
+    expect(result.exitCode).toBe(0);
     expect(read(targetDir, "README.md")).toBe("# Curated\n");
+    expect(fs.existsSync(path.join(targetDir, "stale.md"))).toBe(false);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
+  });
+
+  it("refuses an existing target without --replace and leaves it untouched", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    writeTree(targetDir, { "stale.md": "old\n" });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(targetDir)).toEqual(["stale.md"]);
+  });
+
+  it("leaves the target untouched and no staging behind when a copy fails midway", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    writeTree(targetDir, { "README.md": "# Curated\n", "stale.md": "old\n" });
+    let calls = 0;
+
+    const result = await relayoutSlice({
+      sliceDir,
+      targetDir,
+      replace: true,
+      copyFile: (from, to) => {
+        calls += 1;
+        if (calls === 3) throw new Error("disk full");
+        fs.copyFileSync(from, to);
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(calls).toBe(3);
+    expect(fs.readdirSync(targetDir).sort()).toEqual(["README.md", "stale.md"]);
+    expect(read(targetDir, "stale.md")).toBe("old\n");
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
+  });
+
+  it("takes nothing from a temp session that still exists under --no-media", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+
+    const result = await relayoutSlice({ sliceDir, targetDir, noMedia: true });
+
+    expect(result.exitCode).toBe(0);
+    for (const rel of ["media", "frames/all", "transcript/en.vtt", "metadata/info.json"]) {
+      expect(fs.existsSync(path.join(targetDir, rel)), rel).toBe(false);
+    }
+    expect(read(targetDir, "transcript/transcript.txt")).toBe("[0:01] hello\n");
   });
 
   it("fails the link check on a missing file under a slice directory", async () => {
@@ -217,6 +264,7 @@ describe("relayoutSlice", () => {
     expect(result.unresolved).toEqual([
       { file: "analysis/recommendations/questions.md", ref: "../../frames/key/deleted.png" },
     ]);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
   });
 
   it("re-lays out an unclosed slice, media included, when its outcome checks pass", async () => {

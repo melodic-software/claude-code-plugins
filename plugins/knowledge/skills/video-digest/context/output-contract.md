@@ -59,7 +59,7 @@ material at a differently-shaped path (for example `sources/<type>/<slug>/`) lan
 `library_dir` as written, then re-lays out the slice with `relayout-slice.js`:
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media]
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media] [--replace]
 ```
 
 The media, every extracted frame, the served caption tracks and the info JSON come from the temp
@@ -71,8 +71,10 @@ session `watch.json` records, which `close` removes. To keep them, run in this o
 
 The script runs on a closed slice, or on an unclosed one whose outcome checks pass (it runs them
 itself and refuses when they fail). It refuses any slice whose temp media is gone unless
-`--no-media` is passed, which re-lays out the slice files alone; after a normal close that is the
-only way it runs.
+`--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
+tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
+It refuses an existing target unless `--replace` is passed, which replaces the target and keeps
+its `README.md`.
 
 It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`
 and the companion sources brief), `frames/all/`, `frames/key/` beside the frame logs in
@@ -81,12 +83,13 @@ companion digest), and a provenance `README.md` when the target has none. The sc
 comment is the authoritative mapping. Each slice path the copied markdown names (links and
 backticked paths) is rewritten through a path map relative to the file's new location, and one
 naming a pipeline file the layout does not keep (such as `run-state/watch.json`) becomes plain
-text saying it is not retained. It then link-checks the target and exits 1 listing every
-slice-internal path that still does not resolve. Not checked: paths under `plugins/`, `docs/`,
-`templates/` and `.claude/`, `AGENTS.md`, paths that leave the target, and backticked paths whose
-first segment is neither a top-level directory of the target nor an entry beside the naming file
-(paths into another repository). Fix what it lists by hand and re-run; it overwrites the copied
-files.
+text saying it is not retained. It builds the layout in a sibling staging directory and
+link-checks it there; it exits 1 listing every slice-internal path that still does not resolve.
+Not checked: paths under `plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths
+that leave the target, and backticked paths whose first segment is neither a top-level directory
+of the target nor an entry beside the naming file (paths into another repository). Only a passing
+check moves the staging directory into place; on any failure the staging directory is removed and
+the target is left as it was. Fix what it lists in the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

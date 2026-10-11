@@ -41,9 +41,9 @@ describe("buildTranscriptText", () => {
     expect(result.transcript).toBe("[0:04] [music] >> Hi everybody.");
   });
 
-  it("drops auto-caption words a paragraph repeats from the previous paragraph's tail", () => {
-    // The rolling caption carries "benchmarks, too." into the next cue, which
-    // opens a new paragraph after the sentence end (#6992).
+  it("drops two words a rolling caption carries into the next paragraph's cue", () => {
+    // The 51Eb4EtGqrI shape (#6992): the cue opening the new paragraph starts
+    // with the previous cue's closing words verbatim.
     const autoVtt = `WEBVTT
 
 00:00:01.000 --> 00:00:03.000
@@ -53,11 +53,65 @@ we ran the
 numbers on benchmarks, too.
 
 00:00:05.000 --> 00:00:07.000
+benchmarks, too. And then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] And then we moved on.",
+    );
+  });
+
+  it("drops two repeated words when the opening cue overlaps the previous cue in time", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.500
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
 Benchmarks too and then we moved on.
 `;
     const result = buildTranscriptText(autoVtt, true);
     expect(result.transcript).toBe(
       "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] and then we moved on.",
+    );
+  });
+
+  it("drops a repeat of three or more words compared case- and punctuation-insensitively", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+On benchmarks too and then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] and then we moved on.",
+    );
+  });
+
+  it("keeps two words the speaker genuinely repeats across a paragraph boundary", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+very good.
+
+00:00:05.000 --> 00:00:07.000
+Very good question, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] that answer was very good.\n\n[0:05] Very good question, thanks.",
     );
   });
 

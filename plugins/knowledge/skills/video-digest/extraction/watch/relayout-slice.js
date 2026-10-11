@@ -21,9 +21,14 @@
  * layout does not keep becomes plain text naming it as not retained; anything
  * else is left alone. The link check then reports what still does not resolve.
  *
- * Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media]
- * Exit: 0 copied and every slice-internal path resolves; 1 refused or
- * unresolved paths (listed on stderr); 2 usage.
+ * The layout is built in a sibling staging directory and moved into place only
+ * when the link check passes; on any failure the target is left untouched. An
+ * existing target is replaced only with `--replace`, which keeps its README.
+ * `--no-media` copies nothing from the temp session.
+ *
+ * Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media] [--replace]
+ * Exit: 0 written and every slice-internal path resolves; 1 refused, failed,
+ * or unresolved paths (listed on stderr, nothing written); 2 usage.
  */
 
 import fs from "node:fs";
@@ -407,16 +412,21 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
  *   sliceDir: string,
  *   targetDir: string,
  *   noMedia?: boolean,
+ *   replace?: boolean,
  *   verifyOutcomes?: (sliceDir: string) => number,
- * }} options - `verifyOutcomes` gates a slice that is not closed yet; it
- *   returns 0 when the slice's outcome checks pass
+ *   copyFile?: (from: string, to: string) => void,
+ * }} options - `noMedia` copies nothing from the temp session; `replace`
+ *   allows an existing target, keeping its `README.md`; `verifyOutcomes` gates
+ *   a slice that is not closed yet and returns 0 when its outcome checks pass
  * @returns {Promise<RelayoutResult>}
  */
 export async function relayoutSlice({
   sliceDir,
   targetDir,
   noMedia = false,
+  replace = false,
   verifyOutcomes = (dir) => runCheckWatchOutcomes(dir),
+  copyFile = fs.copyFileSync,
 }) {
   const slice = path.resolve(sliceDir);
   const target = path.resolve(targetDir);
@@ -446,7 +456,12 @@ export async function relayoutSlice({
     );
   }
 
-  const temp = resolveTempSession(state.tempSession ?? {});
+  if (fs.existsSync(target) && !replace) {
+    return refuse(`${target} exists; pass --replace to replace it`);
+  }
+
+  // `--no-media` takes nothing from the temp session, even when it still exists.
+  const temp = resolveTempSession(noMedia ? {} : (state.tempSession ?? {}));
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];
   const media = resolveMediaArtifacts(workFiles, state.videoId);
   if (!media.videoPath && !noMedia) {
@@ -480,7 +495,7 @@ export async function relayoutSlice({
       tempFrames.set(name, `frames/all/${name}`);
     }
   }
-  if (media.videoPath && !noMedia) {
+  if (media.videoPath) {
     plan.push({
       from: media.videoPath,
       to: `media/${state.videoId}${path.extname(media.videoPath)}`,
@@ -503,56 +518,89 @@ export async function relayoutSlice({
     sliceEntries,
   };
 
+  // Build the whole layout in a sibling staging directory and move it into
+  // place only after the link check passes, so a failure never leaves a
+  // partial target.
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const staging = fs.mkdtempSync(
+    path.join(path.dirname(target), `.${path.basename(target)}.relayout-`),
+  );
+  const discard = (/** @type {string} */ dir) => fs.rmSync(dir, { recursive: true, force: true });
   let rewrites = 0;
-  const write = (/** @type {string} */ to, /** @type {string|Buffer} */ body) => {
-    const dest = path.join(target, to);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.writeFileSync(dest, body);
-  };
-  for (const entry of plan) {
-    if (entry.sourceFile?.endsWith(".md")) {
-      const result = rewriteSliceReferences(
-        fs.readFileSync(entry.from, "utf8"),
-        entry.sourceFile,
-        entry.to,
-        map,
-      );
-      rewrites += result.rewrites;
-      write(entry.to, result.text);
-    } else {
-      fs.mkdirSync(path.dirname(path.join(target, entry.to)), { recursive: true });
-      fs.copyFileSync(entry.from, path.join(target, entry.to));
+  let copied = 0;
+  /** @type {{ file: string, ref: string }[]} */
+  let unresolved;
+  try {
+    const write = (/** @type {string} */ to, /** @type {string} */ body) => {
+      const dest = path.join(staging, to);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, body);
+      copied += 1;
+    };
+    for (const entry of plan) {
+      if (entry.sourceFile?.endsWith(".md")) {
+        const result = rewriteSliceReferences(
+          fs.readFileSync(entry.from, "utf8"),
+          entry.sourceFile,
+          entry.to,
+          map,
+        );
+        rewrites += result.rewrites;
+        write(entry.to, result.text);
+      } else {
+        fs.mkdirSync(path.dirname(path.join(staging, entry.to)), { recursive: true });
+        copyFile(entry.from, path.join(staging, entry.to));
+        copied += 1;
+      }
     }
+    if (media.metadataPath) {
+      const info = JSON.parse(fs.readFileSync(media.metadataPath, "utf8"));
+      write("metadata/info.json", `${JSON.stringify(trimInfoJson(info), null, 2)}\n`);
+    }
+
+    const existingReadme = path.join(target, "README.md");
+    if (fs.existsSync(existingReadme)) {
+      write("README.md", fs.readFileSync(existingReadme, "utf8"));
+    } else {
+      const present = new Set(
+        CONTENTS_LINES.map(([dir]) => dir).filter((dir) => fs.existsSync(path.join(staging, dir))),
+      );
+      write(
+        "README.md",
+        provenanceReadme(
+          {
+            title: state.title,
+            sourceUrl: state.sourceUrl,
+            videoId: state.videoId,
+            acquiredAt: state.tempSession?.acquiredAt,
+          },
+          present,
+        ),
+      );
+    }
+
+    unresolved = checkLayoutLinks(staging);
+  } catch (error) {
+    discard(staging);
+    return refuse(`copy failed, target left untouched: ${/** @type {Error} */ (error).message}`);
   }
-  let copied = plan.length;
-  if (media.metadataPath) {
-    const info = JSON.parse(fs.readFileSync(media.metadataPath, "utf8"));
-    write("metadata/info.json", `${JSON.stringify(trimInfoJson(info), null, 2)}\n`);
-    copied += 1;
+  if (unresolved.length > 0) {
+    discard(staging);
+    return { exitCode: 1, copied: 0, rewrites, unresolved };
   }
 
-  const readmePath = path.join(target, "README.md");
-  if (!fs.existsSync(readmePath)) {
-    const present = new Set(
-      CONTENTS_LINES.map(([dir]) => dir).filter((dir) => fs.existsSync(path.join(target, dir))),
-    );
-    write(
-      "README.md",
-      provenanceReadme(
-        {
-          title: state.title,
-          sourceUrl: state.sourceUrl,
-          videoId: state.videoId,
-          acquiredAt: state.tempSession?.acquiredAt,
-        },
-        present,
-      ),
-    );
-    copied += 1;
+  const backup = `${staging}.previous`;
+  const hadTarget = fs.existsSync(target);
+  try {
+    if (hadTarget) fs.renameSync(target, backup);
+    fs.renameSync(staging, target);
+  } catch (error) {
+    if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) fs.renameSync(backup, target);
+    discard(staging);
+    return refuse(`could not move the layout into place: ${/** @type {Error} */ (error).message}`);
   }
-
-  const unresolved = checkLayoutLinks(target);
-  return { exitCode: unresolved.length > 0 ? 1 : 0, copied, rewrites, unresolved };
+  if (hadTarget) discard(backup);
+  return { exitCode: 0, copied, rewrites, unresolved };
 }
 
 /**
@@ -561,13 +609,16 @@ export async function relayoutSlice({
  */
 export async function runRelayoutCli(args) {
   const noMedia = args.includes("--no-media");
-  const positional = args.filter((arg) => arg !== "--no-media");
+  const replace = args.includes("--replace");
+  const positional = args.filter((arg) => arg !== "--no-media" && arg !== "--replace");
   if (positional.length !== 2 || positional.some((arg) => arg.startsWith("--"))) {
-    writeStderr("Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media]");
+    writeStderr(
+      "Usage: node watch/relayout-slice.js <slice-dir> <target-dir> [--no-media] [--replace]",
+    );
     return 2;
   }
   const [sliceDir, targetDir] = positional;
-  const result = await relayoutSlice({ sliceDir, targetDir, noMedia });
+  const result = await relayoutSlice({ sliceDir, targetDir, noMedia, replace });
   if (result.copied > 0) {
     writeStdout(
       `relayout: ${result.copied} files written to ${path.resolve(targetDir)}, ` +

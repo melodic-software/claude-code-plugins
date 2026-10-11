@@ -11,7 +11,7 @@ import {
   cleanManualCaptions,
   stripCaptionHtmlEntities,
 } from "@melodic/video-digestion/transcript/manual-caption-clean";
-import { formatTranscript } from "@melodic/video-digestion/transcript/vtt-parser";
+import { formatTimestamp, formatTranscript } from "@melodic/video-digestion/transcript/vtt-parser";
 
 import { primaryEntry } from "../adapters/adapter-contract.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
@@ -34,51 +34,88 @@ function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
 
-const BOUNDARY_REPEAT_MIN_WORDS = 2;
+const BOUNDARY_REPEAT_MIN_WORDS = 3;
+const BOUNDARY_CARRY_OVER_WORDS = 2;
 const BOUNDARY_REPEAT_MAX_WORDS = 12;
 const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
+
+/** @param {string} text */
+function words(text) {
+  return text.split(/\s+/).filter(Boolean);
+}
 
 /** @param {string} word */
 function comparableWord(word) {
   return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
 }
 
-/** @param {string[]} words */
-function comparableRun(words) {
-  return words.map(comparableWord).join(" ");
+/** @param {string[]} run */
+function comparableRun(run) {
+  return run.map(comparableWord).join(" ");
+}
+
+/**
+ * True when a cue opening the paragraph stamped `stamp` carries `run` over
+ * from the cue before it: the two cues overlap in time, or the opening cue
+ * starts with the previous cue's closing words verbatim (a rolling caption).
+ *
+ * @param {string} stamp - the paragraph's `[M:SS]`
+ * @param {string[]} run - the paragraph's leading words
+ * @param {readonly { startSec: number, endSec: number, text: string }[]} cues
+ */
+function carriesOverFromPreviousCue(stamp, run, cues) {
+  const head = run.join(" ");
+  for (let index = 1; index < cues.length; index++) {
+    const cue = cues[index];
+    if (`[${formatTimestamp(cue.startSec)}]` !== stamp) continue;
+    const previous = cues[index - 1];
+    const cueWords = words(cue.text);
+    if (cueWords.slice(0, run.length).join(" ") !== head) continue;
+    if (previous.endSec > cue.startSec) return true;
+    if (words(previous.text).slice(-run.length).join(" ") === head) return true;
+  }
+  return false;
 }
 
 /**
  * Drop the words a paragraph opens with when they repeat the previous
- * paragraph's closing words: the longest run of 2 to 12 words, compared
- * case- and punctuation-insensitively. A rolling auto caption carries its
- * tail into the next cue, and the vendor formatter's case-only overlap check
- * misses a repeat that differs in punctuation. A paragraph always keeps at
- * least one word.
+ * paragraph's closing words, the longest run first: 3 to 12 words compared
+ * case- and punctuation-insensitively, or 2 words when the opening cue carries
+ * them over from the cue before it ({@link carriesOverFromPreviousCue}). A
+ * rolling auto caption carries its tail into the next cue, and the vendor
+ * formatter only drops overlaps of 3 or more words it matches ignoring case
+ * alone. A two-word repeat the speaker actually said ("very good." / "Very
+ * good question") stays. A paragraph always keeps at least one word.
  *
  * @param {string} transcript - paragraphs joined by a blank line, each `[M:SS] text`
+ * @param {readonly { startSec: number, endSec: number, text: string }[]} cues - the
+ *   cues the transcript was formatted from
  * @returns {string}
  */
-export function dropParagraphBoundaryRepeats(transcript) {
+export function dropParagraphBoundaryRepeats(transcript, cues) {
   const paragraphs = transcript.split("\n\n");
   for (let index = 1; index < paragraphs.length; index++) {
     const current = PARAGRAPH_STAMP.exec(paragraphs[index]);
     const previous = PARAGRAPH_STAMP.exec(paragraphs[index - 1]);
     if (!current || !previous) continue;
-    const previousWords = previous[2].split(/\s+/).filter(Boolean);
-    const currentWords = current[2].split(/\s+/).filter(Boolean);
+    const previousWords = words(previous[2]);
+    const currentWords = words(current[2]);
     const longest = Math.min(
       BOUNDARY_REPEAT_MAX_WORDS,
       previousWords.length,
       currentWords.length - 1,
     );
-    for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
+    for (let length = longest; length >= BOUNDARY_CARRY_OVER_WORDS; length--) {
+      const run = currentWords.slice(0, length);
+      if (comparableRun(previousWords.slice(-length)) !== comparableRun(run)) continue;
       if (
-        comparableRun(previousWords.slice(-length)) === comparableRun(currentWords.slice(0, length))
+        length < BOUNDARY_REPEAT_MIN_WORDS &&
+        !carriesOverFromPreviousCue(current[1].trim(), run, cues)
       ) {
-        paragraphs[index] = current[1] + currentWords.slice(length).join(" ");
-        break;
+        continue;
       }
+      paragraphs[index] = current[1] + currentWords.slice(length).join(" ");
+      break;
     }
   }
   return paragraphs.join("\n\n");
@@ -117,7 +154,7 @@ export function buildTranscriptText(vttText, isAutoCaption, { repairLexicon = nu
   }
 
   const formatted = formatTranscript(cues);
-  const transcript = isAutoCaption ? dropParagraphBoundaryRepeats(formatted) : formatted;
+  const transcript = isAutoCaption ? dropParagraphBoundaryRepeats(formatted, cues) : formatted;
 
   return {
     transcript,
