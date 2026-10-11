@@ -519,8 +519,8 @@ disagree with it.
   so it names no section. As of: 2026-10-01. Recheck trigger: a current model's guide stating that
   verification instructions cause over-verification.
 - **Considered for `haiku-5-5` on 2026-10-10 and declined**, on the same ground as `sonnet-5-5`:
-  we read the Haiku 5.5 guide as recommending a verification step for code-changing components
-  that skip checks, so a finding there would remove what that section recommends. Pointer: [Haiku 5.5 guide, tell coding
+  on our reading the section below backs the verification lines this row would remove, so the row
+  stays inert on a `haiku-5-5` target. Pointer: [Haiku 5.5 guide, tell coding
   agents to verify their
   changes](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#tell-coding-agents-to-verify-their-changes).
   As of: 2026-10-10. Recheck trigger: the Haiku 5.5 guide stating that verification instructions
@@ -622,10 +622,9 @@ choice, on the same reasoning I10 applies to a declined widening.
   no control for that setting (no artifact stored). As of: 2026-10-01. Recheck trigger: Claude
   Code gains a `between_tools` control, or the Sonnet 5.5 guide states the claim outside
   `between_tools`.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** We read the Haiku 5.5 guide as
-  putting thinking volume under effort rather than prompt text, and as stating neither the leakage
-  premise nor the removal for a don't-think directive. On a `haiku-5-5` target the row stays inert.
-  Pointer: [Haiku 5.5
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** Our read of the Haiku 5.5 guide that
+  day found neither this row's leakage premise nor its removal of a don't-think directive, so the
+  row stays inert on a `haiku-5-5` target. Pointer, the section nearest the topic: [Haiku 5.5
   guide, use effort to control
   thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
   As of: 2026-10-10. Recheck trigger: that guide states the leakage claim, or prescribes removing a
@@ -776,9 +775,9 @@ general think-thoroughly prompt over a hand-written plan, so an unscoped row wou
   guide, reasoning tasks with JSON
   output](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#reasoning-tasks-with-json-output).
   As of: 2026-10-01. Recheck trigger: either guide changes its position on thinking instructions.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** We read the Haiku 5.5 guide as
-  sending depth control to effort and as saying nothing about a standing think-carefully line, so
-  the row stays inert on a `haiku-5-5` target. Pointer: [Haiku 5.5 guide, use effort to control
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** Our read of the Haiku 5.5 guide that
+  day found no position on a standing think-carefully line, so the row stays inert on a
+  `haiku-5-5` target. Pointer, the section nearest the topic: [Haiku 5.5 guide, use effort to control
   thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
   As of: 2026-10-10. Recheck trigger: that section takes a position on think-carefully
   instructions.
@@ -851,9 +850,9 @@ promotion gate unmet, see "Unscoping considered" below).
   remediate as above. Pointer: [Sonnet 5.5 guide, safeguard
   refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#safeguard-refusals).
   As of: 2026-10-01. Recheck trigger: that section drops the `reasoning_extraction` category.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** The row's scope follows the models
-  whose refusal categories include `reasoning_extraction`, and the Haiku 5.5 guide's refusal
-  section does not list it for that model, so the row stays inert there. Pointer: [Haiku 5.5
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** Our read of the section below that
+  day put Haiku 5.5 outside the scope rule this row follows, so the row stays inert there. Pointer:
+  [Haiku 5.5
   guide, safeguard
   refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#safeguard-refusals).
   As of: 2026-10-10. Recheck trigger: that refusal section lists `reasoning_extraction`.
@@ -1209,16 +1208,24 @@ since each prescribes a request the model refuses.
   thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking).
   As of: 2026-10-01. Recheck trigger: either page changes which effort levels `between_tools`
   accepts, or per-message effort changes become valid with it.
-- **Widened to `haiku-5-5` on 2026-10-10, first arm only.** We read Claude Haiku 5.5's row in the
-  per-model table as the pairing shape, not the outright reject, so it joins the Opus 5 arm and
-  stays out of the second arm's set; the third arm stays Sonnet 5.5 alone. Only the API form fires
-  for it while it is in I17-a's no-effect set (read live there), whose harness disable surfaces
-  are I17-a's. Remediate as on the Opus 5 arm. Pointer: [thinking: configuring
+- **Widened to `haiku-5-5` on 2026-10-10, first arm only.** Our read of the Haiku 5.5 row placed
+  the model on the Opus 5 arm, not in the second arm's set; the third arm stays Sonnet 5.5 alone.
+  Only the API form fires for it while it is in I17-a's no-effect set (read live there), whose
+  harness disable surfaces are I17-a's. Remediate as on the Opus 5 arm. Pointer: [thinking:
+  configuring
   thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking),
-  the Haiku 5.5 row, and [Haiku 5.5 guide, use effort to control
-  thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
-  As of: 2026-10-10. Recheck trigger: the Haiku 5.5 row in that table changes its `"disabled"` or
-  `"between_tools"` cell, or Haiku 5.5 leaves I17-a's no-effect set.
+  the Haiku 5.5 row. As of: 2026-10-10. Recheck trigger: the Haiku 5.5 row in that table changes
+  its `"disabled"` or `"between_tools"` cell, or Haiku 5.5 leaves I17-a's no-effect set.
+- **Widened to `haiku-5-5` on 2026-10-10 for a second pairing, API requests only: thinking
+  disabled together with a per-message effort change.** Flag instruction text that prescribes, or
+  a code sample it tells the reader to send, a request to Claude Haiku 5.5 carrying
+  `thinking: {"type": "disabled"}` together with a per-message effort change. The reach is the
+  third arm's: instruction surfaces that prescribe Messages API requests. Remediate as on the third
+  arm: drop whichever operand the surface does not need, the disable or the per-turn change.
+  Pointer: [effort: change effort mid-conversation
+  (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta).
+  As of: 2026-10-10. Recheck trigger: that section changes which thinking settings it names for
+  Haiku 5.5 alongside a per-message effort change.
 - **Remediate:** on the Opus 5 arm, lower the effort to `high` or below, or leave thinking on, and
   state which, since the pairing has no third resolution. **On the second arm there is only one
   resolution: leave thinking on.** No effort level permits the disable on that set, so a
@@ -1325,6 +1332,13 @@ Severity `warning`.
   effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#calibrate-effort).
   As of: 2026-10-01. Recheck trigger: per-message effort leaves beta or changes its cache
   behavior, or `between_tools` starts accepting it.
+- **Nor with thinking disabled where the model's docs refuse that pairing.** Never recommend a
+  per-message effort change to a surface whose request disables thinking on a model whose docs
+  refuse that pairing; that combination is I17's second `haiku-5-5` widening, not this row.
+  Pointer: [effort: change effort mid-conversation
+  (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta).
+  As of: 2026-10-10. Recheck trigger: that section changes which models or thinking settings it
+  names alongside a per-message effort change.
 - **Reach differs by half, and this is the whole of it.** The effort half reaches every surface, with
   Claude Code surfaces carved out above. **The thinking half reaches API and Agent SDK surfaces
   only.** A Claude Code surface prescribing a mid-session thinking toggle is **out of reach of
@@ -1351,7 +1365,7 @@ Severity `warning`.
   delta chapters, and in changelog entries, which are descriptions, not prescriptions.
 - **Remediate:** name the re-read cost, and prefer choosing both dials at session start. On an API
   surface, offer the per-message effort change where the model supports it and the request does
-  not send `between_tools`.
+  not send `between_tools`, nor disable thinking on a model whose docs refuse that pairing.
 - **Source:** prompt caching, "Changing effort level" (the effort half in Claude Code). The thinking
   half, and the API effort half, point at [thinking: thinking and prompt
   caching](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-prompt-caching).
@@ -1386,15 +1400,10 @@ ranges below are Detect conditions, not a `Model scope` annotation**, for the re
   budgets](https://code.claude.com/docs/en/model-config#adaptive-reasoning-and-fixed-thinking-budgets).
   As of: 2026-10-01. Recheck trigger: a model gains or loses a 400 for `"enabled"` in that column,
   or the set of always-adaptive models changes.
-- **Widened to `haiku-5-5` on 2026-10-10**, both arms. We read Haiku 5.5 as in the always-adaptive
-  set on the harness side and in the `"enabled"` reject set on the API side, so a fixed budget on
-  that model is this row's finding either way. The Haiku 5.5 guide points a reader migrating a
-  thinking budget at effort, which is this row's remediation. Pointer: the pointers above (the
-  Haiku 5.5 row of the thinking table, the always-adaptive list in model configuration), and
-  [Haiku 5.5 guide, use
-  effort to control
-  thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
-  As of: 2026-10-10. Recheck trigger: the same as the row's trigger above.
+- **Widened to `haiku-5-5` on 2026-10-10**, both arms: our read of the pointers above that day put
+  Haiku 5.5 in this row's set on both sides, so the set above names it. Pointer: the pointers
+  above, the Haiku 5.5 row of the thinking table and the model list in model configuration. As
+  of: 2026-10-10. Recheck trigger: the same as the row's trigger above.
 - **Why this is not I17-a.** That row is about `MAX_THINKING_TOKENS=0`, the claim that thinking can
   be turned *off*, and whether the exceptions travel with it. This row is the claim that thinking
   depth can be *set to a number*. Different literal, different promise, different failure; both can
@@ -1472,11 +1481,10 @@ Severity `warning` · Model scope: `sonnet-5`.
   5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5),
   the whole page, for the negative. As of: 2026-10-01. Recheck trigger: Sonnet 5.5 leaves the
   no-effect set, or its guide states a thinking-off tool-reach coupling.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** We read the Haiku 5.5 guide as
-  stating a thinking-off tool coupling only together with a requested JSON output format, which
-  half (b) of Detect does not require, so widening would flag tool-reliant surfaces the guide does
-  not speak to. The same narrower coupling is not this row's claim, so it does not meet the
-  promotion gate either. Pointer: [Haiku 5.5 guide, use adaptive thinking with JSON output and
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** On our reading the section below is
+  narrower than half (b) of Detect, so widening would flag tool-reliant surfaces it does not speak
+  to, and it does not state this row's claim, so the promotion gate stays unmet. Pointer: [Haiku
+  5.5 guide, use adaptive thinking with JSON output and
   your own
   tools](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#json-output-with-your-own-tools).
   As of: 2026-10-10. Recheck trigger: that guide states a thinking-off tool-reach coupling with no
@@ -1964,8 +1972,8 @@ states.
   Pointer: for the set, see [thinking: sampling
   parameters](https://platform.claude.com/docs/en/build-with-claude/thinking#sampling-parameters).
   As of: 2026-10-01. Recheck trigger: a model joins or leaves that section's list.
-- **Widened to `haiku-5-5` on 2026-10-10:** that section lists Claude Haiku 5.5, so the set above
-  names it. Pointer: the same section. As of: 2026-10-10. Recheck trigger: Haiku 5.5 leaves
+- **Widened to `haiku-5-5` on 2026-10-10:** our read of that section that day put Claude Haiku
+  5.5 in this row's set, so the set above names it. Pointer: the same section. As of: 2026-10-10. Recheck trigger: Haiku 5.5 leaves
   that section's list.
 - **Remediate:** remove the parameter and steer tone and variety with system-prompt instructions
   instead. For design variety specifically, the propose-options pattern is the documented
@@ -2075,9 +2083,8 @@ gate is unmet).
   effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#calibrate-effort).
   As of: 2026-10-01. Recheck trigger: either section starts stating that effort does not reliably
   shorten the response, or stops tying higher effort to longer output.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined**, on the same ground: we read the Haiku
-  5.5 guide's effort section as tying higher effort to longer output, so widening would flag a line
-  that guide supports. Pointer: [Haiku 5.5 guide, use effort to control
+- **Considered for `haiku-5-5` on 2026-10-10 and declined**, on the same ground: on our reading
+  the section below supports the line this row would flag. Pointer: [Haiku 5.5 guide, use effort to control
   thinking](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#use-effort-to-control-thinking).
   As of: 2026-10-10. Recheck trigger: that section starts stating that effort does not reliably
   shorten the response, or stops tying higher effort to longer output.
@@ -2128,9 +2135,9 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
   As of: 2026-10-01. **Recheck trigger, restated:** a model guide asking for forced-compliance
   emphasis or a blanket tool default to be restored on a current model, which re-opens the scoping
   question; a guide describing under-triggering and prescribing a targeted condition does not.
-- **Re-read against the Haiku 5.5 guide on 2026-10-10; the arms stand.** We read its search section
-  as describing under-triggering, prescribing a targeted condition, and advising against a blanket
-  search default, which is arm 2's own position, so the row stays unscoped with no change.
+- **Re-read against the Haiku 5.5 guide on 2026-10-10; the arms stand.** On our reading the
+  section below agrees with arm 2 and asks for nothing the restated trigger watches, so the row
+  stays unscoped with no change.
   Pointer: [Haiku 5.5 guide, accurate search
   results](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#accurate-search-results).
   As of: 2026-10-10. Recheck trigger: the restated trigger above.
@@ -2364,9 +2371,8 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   work](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#tool-use-in-chat-and-knowledge-work).
   As of: 2026-10-01. Recheck trigger: a second model guide stating the claim, which meets the
   promotion gate and unscopes the row, or the section dropping it.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** We read the Haiku 5.5 guide's search
-  section as adding a targeted nudge without asking for tool-discouraging lines to be removed, so
-  it does not state this row's claim and neither widens nor unscopes the row. Pointer: [Haiku 5.5
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** On our reading the section below
+  does not state this row's claim, so it neither widens nor unscopes the row. Pointer: [Haiku 5.5
   guide, accurate search
   results](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#accurate-search-results).
   As of: 2026-10-10. Recheck trigger: that section asks for tool-discouraging language to be
@@ -2403,11 +2409,9 @@ states the claim; promotion gate unmet).
   As of: 2026-10-01. Recheck trigger: a second model guide covering the same topic, which meets
   the promotion gate and unscopes the row, or that section changing which kinds of per-step text
   it covers.
-- **Considered for `haiku-5-5` on 2026-10-10 and declined.** The Haiku 5.5 guide has a mid-turn
-  section, but we read it as covering where user words and harness notices go, not text added
-  after every tool result, which is this row's subject. The trigger above fired on the same-titled
-  section; on re-read it does not cover this row's topic, so the gate stays unmet and the row
-  neither widens nor unscopes. Pointer: [Haiku 5.5 guide, mid-turn user
+- **Considered for `haiku-5-5` on 2026-10-10 and declined.** The trigger above fired on the
+  same-titled section below; on re-read it does not cover this row's topic, text added after every
+  tool result, so the gate stays unmet and the row neither widens nor unscopes. Pointer: [Haiku 5.5 guide, mid-turn user
   messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#mid-turn-user-messages).
   As of: 2026-10-10. Recheck trigger: that section covers per-step text added after tool results.
 
