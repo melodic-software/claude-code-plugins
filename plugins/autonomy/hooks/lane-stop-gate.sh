@@ -689,7 +689,8 @@ fi
 # Already nudged once this stop cluster (stop_hook_active), yet the lane still
 # stops without signaling completion → a genuine down/stuck lane. Alert the
 # operator (member 4) and ALLOW the stop — blocking again risks a runaway loop,
-# and Claude Code hard-caps consecutive Stop blocks regardless. The one bounded
+# and Claude Code caps consecutive Stop continuations regardless (pointer record
+# in the README's lane-stop-gate section). The one bounded
 # structural nudge is the mechanism; the notification is the fail-safe handoff.
 if [[ "$STOP_ACTIVE" == "true" ]]; then
   BRANCH=""
