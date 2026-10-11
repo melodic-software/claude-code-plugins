@@ -1420,6 +1420,42 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     },
   );
 
+  it.skipIf(process.platform === "win32")(
+    "reads a reference definition's angle destination past a backslash-escaped >",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "source/decks/a>b.pdf": "pdf",
+          "key-frames/vision-plan.md": "[deck][deck]\n\n[deck]: <../source/decks/a\\>b.pdf>\n",
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "frames/vision-plan.md")).toBe(
+        "[deck][deck]\n\n[deck]: <../metadata/decks/a\\>b.pdf>\n",
+      );
+    },
+  );
+
+  it("link-checks a spaced code-span path with a raw # as one whole path", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/My #1.pdf": "pdf",
+        "key-frames/vision-plan.md": "Deck: `../source/decks/My #1.pdf`.\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.unresolved).toEqual([]);
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/vision-plan.md")).toBe(
+      "Deck: `../metadata/decks/My #1.pdf`.\n",
+    );
+  });
+
   it("maps a real path holding $ and skips only complete placeholder syntax", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {

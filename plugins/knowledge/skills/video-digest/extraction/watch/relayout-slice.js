@@ -133,24 +133,33 @@ const PLACEHOLDER = /<[^<>]*>|\$\{[^}]*\}|\{[^{}]*\}|(?:^|\/)[^/]*\*/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
 /**
- * `[label]: path` reference-style link definitions, with CommonMark's label
- * rules: up to 999 characters, backslash escapes allowed (`[a\]b]`), no
- * unescaped bracket, line endings allowed but not a blank line. The path may
- * follow one line ending. A label must also hold a non-space character,
- * checked by definitionLabelOk.
+ * The `[label]:` opening of a reference-style link definition, with
+ * CommonMark's label rules: up to 999 characters, backslash escapes allowed
+ * (`[a\]b]`), no unescaped bracket, line endings allowed but not a blank line.
+ * The destination may follow one line ending; parseDestination reads it.
  */
-const REFERENCE_DEFINITION =
-  /^( {0,3}\[(?:\\[^\n]|[^[\]\\\n]|\r?\n(?![ \t]*\r?\n)){1,999}\]:[ \t]*(?:\r?\n[ \t]*)?)(<[^>\n]+>|\S+)/dgm;
+const REFERENCE_DEFINITION_LABEL =
+  /^ {0,3}\[((?:\\[^\n]|[^[\]\\\n]|\r?\n(?![ \t]*\r?\n)){1,999})\]:[ \t]*(?:\r?\n[ \t]*)?/gm;
 
 /**
- * True when a REFERENCE_DEFINITION match has a label holding a non-space
- * character (CommonMark rejects an all-whitespace label).
+ * Every reference-style link definition in `text` whose label holds a
+ * non-space character (CommonMark rejects an all-whitespace label), its
+ * destination read by the same parser as inline links and followed by
+ * whitespace or the end of the text.
  *
- * @param {RegExpMatchArray} match
+ * @param {string} text
+ * @returns {{ from: number, to: number, raw: string, angle: boolean }[]}
  */
-function definitionLabelOk(match) {
-  const prefix = match[1];
-  return /\S/.test(prefix.slice(prefix.indexOf("[") + 1, prefix.lastIndexOf("]:")));
+function referenceDefinitions(text) {
+  const found = [];
+  for (const match of text.matchAll(REFERENCE_DEFINITION_LABEL)) {
+    if (!/\S/.test(match[1])) continue;
+    const from = /** @type {number} */ (match.index) + match[0].length;
+    const parsed = parseDestination(text, from);
+    if (parsed === null || parsed.raw === "" || /\S/.test(text[parsed.end] ?? " ")) continue;
+    found.push({ from, to: parsed.end, raw: parsed.raw, angle: parsed.angle });
+  }
+  return found;
 }
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
 const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
@@ -623,6 +632,51 @@ function skipLinkSpace(text, at) {
 }
 
 /**
+ * The link destination starting at `at`, read as CommonMark does for both
+ * inline links and reference definitions: `<...>` up to the first unescaped
+ * `>` (an unescaped `<` or a line ending makes it no destination), or a bare
+ * run with balanced parentheses up to whitespace or an unbalanced `)`, where
+ * a backslash escapes any ASCII punctuation. `raw` is the destination as
+ * written, without the angle brackets.
+ *
+ * @param {string} text
+ * @param {number} at
+ * @returns {{ raw: string, angle: boolean, end: number }|null}
+ */
+export function parseDestination(text, at) {
+  if (text[at] === "<") {
+    for (let scan = at + 1; scan < text.length; scan += 1) {
+      const char = text[scan];
+      if (char === "\\") {
+        scan += 1;
+        continue;
+      }
+      if (char === "\n" || char === "<") return null;
+      if (char === ">") return { raw: text.slice(at + 1, scan), angle: true, end: scan + 1 };
+    }
+    return null;
+  }
+  let end = at;
+  let depth = 0;
+  while (end < text.length) {
+    const char = text[end];
+    if (char === "\\" && /[!-/:-@[-`{-~]/.test(text[end + 1] ?? "")) {
+      end += 2;
+      continue;
+    }
+    if (/\s/.test(char)) break;
+    if (char === "(") depth += 1;
+    else if (char === ")") {
+      if (depth === 0) break;
+      depth -= 1;
+    }
+    end += 1;
+  }
+  if (end === at || depth !== 0) return null;
+  return { raw: text.slice(at, end), angle: false, end };
+}
+
+/**
  * Every inline link in `text`, scanned the way CommonMark reads a
  * destination: `<...>`, or a run with balanced or backslash-escaped
  * parentheses up to whitespace or the unbalanced `)`. A regex stops at the
@@ -642,47 +696,10 @@ export function inlineLinks(text) {
     let at = open + 2;
     at = skipLinkSpace(text, at);
     const destStart = at;
-    let raw;
-    let angle = false;
-    if (text[at] === "<") {
-      // The closing `>`, skipping backslash-escaped `<` and `>`; an unescaped
-      // `<` or a line ending inside means this is not an angle destination.
-      let close = -1;
-      for (let scan = at + 1; scan < text.length; scan += 1) {
-        const char = text[scan];
-        if (char === "\\") {
-          scan += 1;
-          continue;
-        }
-        if (char === "\n" || char === "<") break;
-        if (char === ">") {
-          close = scan;
-          break;
-        }
-      }
-      if (close === -1) continue;
-      angle = true;
-      raw = text.slice(at + 1, close);
-      at = close + 1;
-    } else {
-      let depth = 0;
-      while (at < text.length) {
-        const ch = text[at];
-        if (ch === "\\" && (text[at + 1] === "(" || text[at + 1] === ")")) {
-          at += 2;
-          continue;
-        }
-        if (/\s/.test(ch)) break;
-        if (ch === "(") depth += 1;
-        else if (ch === ")") {
-          if (depth === 0) break;
-          depth -= 1;
-        }
-        at += 1;
-      }
-      if (at === destStart || depth !== 0) continue;
-      raw = text.slice(destStart, at);
-    }
+    const parsed = parseDestination(text, at);
+    if (parsed === null) continue;
+    const { raw, angle } = parsed;
+    at = parsed.end;
     const destEnd = at;
     // An optional title, then the closing `)`.
     // Spaces with at most one line ending may separate the parts (CommonMark).
@@ -773,8 +790,6 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
   /** @type {string[]} */
   const spacedRefs = [];
-  const unwrap = (/** @type {string} */ target) =>
-    target.startsWith("<") ? target.slice(1, -1) : target;
   const rewrite = (/** @type {string} */ ref, fragments = true, escapedChars = "") => {
     const { refPath, suffix, encoded } = splitReference(ref, { fragments });
     const found = lookUpReference(refPath, sourceFile, map);
@@ -832,14 +847,12 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   // Reference-style definitions and HTML src/href values take the same path
   // rewrite. One naming a file the layout drops is left for the link check to
   // flag: a definition or attribute has no prose to rewrite into.
-  for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
-    if (!definitionLabelOk(match)) continue;
-    const [from, to] = /** @type {[number, number]} */ (match.indices?.[2]);
-    const target = text.slice(from, to);
-    const { dest, escapedChars } = unescapeDestination(unwrap(target));
+  for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
+    const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
+    const { dest, escapedChars } = unescapeDestination(raw);
     const rewritten = rewrite(dest, true, escapedChars);
     if (rewritten === dest) continue;
-    edits.push({ from, to, text: target.startsWith("<") ? `<${rewritten}>` : rewritten });
+    edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
   }
   for (const { from, to, group } of htmlAttributeValues(linkMasked)) {
     // An attribute value may hold character references (`&amp;`): map the
@@ -1005,7 +1018,11 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
   for (const file of markdown) {
     const fileDir = path.dirname(path.join(root, file));
     const text = fs.readFileSync(path.join(root, file), "utf8");
-    const check = (/** @type {string} */ ref, /** @type {boolean} */ isLink) => {
+    const check = (
+      /** @type {string} */ ref,
+      /** @type {boolean} */ isLink,
+      /** @type {boolean} */ knownPath = isLink,
+    ) => {
       // A backticked path may hold a raw `#` or `?` in its name: if the whole
       // span resolves, it is fine; otherwise the suffix is a fragment.
       if (!isLink) {
@@ -1016,7 +1033,7 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       if (!refPath || URL_SCHEME.test(refPath)) return;
       if (refPath.startsWith("/") || refPath.startsWith("~")) return;
       if (isAllowedMiss(refPath)) return;
-      if (!isLink && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
+      if (!knownPath && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
       const resolved = path.resolve(fileDir, refPath);
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
@@ -1027,11 +1044,10 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
     };
     const { fenceMasked, linkMasked } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
-    for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
-      if (!definitionLabelOk(match)) continue;
+    for (const { raw } of referenceDefinitions(linkMasked)) {
       // A line such as `[0:33]: implementing ...` parses as a definition but is
       // prose; only a destination that reads as a path is checked.
-      const destination = unescapeDestination(match[2].replace(/^<|>$/g, "")).dest;
+      const destination = unescapeDestination(raw).dest;
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
     for (const { from, to } of htmlAttributeValues(linkMasked)) {
@@ -1043,9 +1059,9 @@ export function checkLayoutLinks(rootDir, { sliceDirs, spacedRefs = new Map() } 
       const { core, spaced } = spanPath(span.content);
       if (core !== null && !spaced) check(core, false);
     }
-    // Spaced spans a rewrite placed (see rewriteSliceReferences) are checked
-    // like links: they are known to be paths.
-    for (const ref of spacedRefs.get(file) ?? []) check(ref, true);
+    // Spaced spans a rewrite placed (see rewriteSliceReferences) are known to
+    // be paths: checked by the backticked-path rules, whole span first.
+    for (const ref of spacedRefs.get(file) ?? []) check(ref, false, true);
   }
   return unresolved;
 }
