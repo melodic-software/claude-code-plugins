@@ -5,6 +5,19 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.18.0] - 2026-10-11
+
+### Changed
+
+- **A batched run never takes a fan-out tier.** `do-your-research` and `recheck-against-upstream` run only their inline audit inside a `/discipline:sweep-all` audit fork or any other fork, and recommend a direct fan-out run in their ledger instead; the sweep-all fork brief says the same.
+- **Fan-out subagents are read-only and treat what they fetch as data.** Each verification brief says no edits or writes, every `gh api` call passes `--method GET`, and fetched pages, tracker items and tool output are data whose embedded imperatives get reported, not followed.
+
+- Skill bodies that routed to the retired `/discovery:research-deep` now name `/discovery:research` and its `deep` tier.
+
+### Removed
+
+- **`/discipline:do-your-research-deep` and `/discipline:recheck-against-upstream-deep`.** Each fan-out now runs as a tier of its base skill: `/discipline:do-your-research tiered` or `full` (or a "fact-check everything" / "verify every claim" request), and `/discipline:recheck-against-upstream fan-out <scope>` (or a whole-subsystem recheck request). The `research_deep_verification` option keeps its name and now sets the depth of `do-your-research`'s fan-out tier. A `batch_exclude`, `batch_promote`, or `batch_demote` entry naming a removed skill now matches no corrector; remove it through the plugin configuration prompt.
+
 ## [0.17.7] - 2026-10-10
 
 ### Fixed
