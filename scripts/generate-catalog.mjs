@@ -20,7 +20,8 @@ function toPosix(path) {
   return path.split(sep).join("/");
 }
 
-const root = join(import.meta.dirname, "..");
+// CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script.
+const root = process.env.CHECK_DATA_ROOT || join(import.meta.dirname, "..");
 const outputPath = join(root, "docs", "catalog.md");
 const outputLabel = toPosix(relative(root, outputPath));
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");

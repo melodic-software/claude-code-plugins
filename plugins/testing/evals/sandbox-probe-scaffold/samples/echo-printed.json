@@ -7,6 +7,14 @@
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"sandbox-ok-7f3a\\n\"}]}]}}",
       "why": "text block with a trailing escaped newline"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"sandbox-ok-7f3a\\nwarning: example stderr line\",\"is_error\":false}]},\"parent_tool_use_id\":null,\"session_id\":\"s1\",\"tool_use_result\":{\"stdout\":\"sandbox-ok-7f3a\",\"stderr\":\"warning: example stderr line\",\"interrupted\":false}}",
+      "why": "stream-json shape: Bash joins trimmed stdout and stderr with a newline in the tool_result content"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"/bin/bash: /tmp/claude-eval-ab12/home/.bashrc: Permission denied\\n/bin/bash: /tmp/claude-eval-ab12/home/.bashrc: Permission denied\\nsandbox-ok-7f3a\",\"is_error\":false}]}}",
+      "why": "shell startup noise on two lines before the marker line"
     }
   ],
   "fail": [
@@ -21,6 +29,18 @@
     {
       "answer": "{\"type\":\"user\",\"message\":{\"content\":\"Run exactly one Bash call whose whole command is `echo sandbox-ok-7f3a`.\"}}",
       "why": "the prompt text names the marker inside a longer string"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"sandbox-ok-7f3a\"}]}}",
+      "why": "the marker in Claude's own text, not a tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"Exit code 1\\nsandbox-ok-7f3a\",\"is_error\":true}]}}",
+      "why": "a failed call whose output holds the marker"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/bin/bash: /tmp/claude-eval-ab12/home/.bashrc: Permission denied\\nran sandbox-ok-7f3a here\",\"is_error\":false}]}}",
+      "why": "the marker inside a line, not at the start of one"
     }
   ]
 }

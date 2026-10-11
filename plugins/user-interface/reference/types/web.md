@@ -6,7 +6,7 @@ the work is reading it and routing to the tools that extend it.
 ## Read the project first
 
 - Tokens: the token files and theme objects detect reports, then CSS custom properties and the
-  Tailwind or CSS-in-JS theme config.
+  utility-class or CSS-in-JS theme config.
 - Components: the component library in `package.json`, a `components.json` (shadcn), and Storybook
   stories. Reuse an existing component before writing a new one.
 - Conventions: a design-system doc, the existing screens closest to the one being designed.
@@ -16,11 +16,14 @@ Name what you found before designing, so the user can correct it.
 ## Route
 
 Take the concern (visual direction, typography and color, motion, components, design system,
-accessibility, mockups, responsive testing, writing) to the highest-ranked route that is installed
-and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
+accessibility, mockups, CSS authoring, responsive testing, writing) to the highest-ranked route
+that is installed and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
 is not used for it; offer one only for a concern the project leaves open.
 
 ## When nothing covers the concern
+
+Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
+`/user-interface:write-css`, which ships with this plugin. The lines below cover design decisions.
 
 - Layout: content first, one primary action per view, a consistent spacing scale.
 - Type: the project's fonts; otherwise the platform's system font stack, a small modular scale, line

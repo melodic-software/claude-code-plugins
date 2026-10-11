@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Your .browserslistrc includes safari >= 15.",
+      "why": "names the file"
+    },
+    {
+      "answer": "Safari 15 is in the target.",
+      "why": "names the browser"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Modern browsers support this.",
+      "why": "no target"
+    }
+  ]
+}
