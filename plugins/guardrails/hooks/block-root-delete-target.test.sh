@@ -1968,6 +1968,20 @@ expect_both 'PS a drive letter before ::$INDEX_ALLOCATION blocks as the drive' 2
   --tool PowerShell --command "Remove-Item -Recurse -Force 'C::\$INDEX_ALLOCATION'"
 expect_both 'PS single-quoted $ name alone still blocks (bare variable)' 2 \
   --tool PowerShell --command "Remove-Item -Recurse '\$X'"
+# The literal reading only adds refusals: a target refused before #6626, when
+# every `$` was read as an expansion, is refused still.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "PS refused before the literal reading still blocks: $rdt_cmd" 2 \
+    --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+Remove-Item -Recurse '$env:TEMP'
+Remove-Item -Recurse '$env:SystemDrive\'
+Remove-Item -Recurse `$env:TEMP
+Remove-Item -Recurse '$HOME\x'
+Remove-Item -Recurse '$(x)'
+cmd /c rd /s /q '$env:TEMP'
+EOF
 # Stay quiet: a literal `$` or stream suffix on a target inside the tree.
 expect_both 'PS single-quoted in-tree target holding a $ allowed' 0 \
   --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build\$old'"

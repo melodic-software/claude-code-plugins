@@ -188,8 +188,10 @@
 #     (`$env:TEMP\build`). A target whose every `$` is literal (single-quoted,
 #     or escaped by a backtick) is judged as the path it names, and a Win32
 #     stream suffix on it (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is
-#     judged as the file or directory before it; a target holding a `$`
-#     PowerShell expands is left alone, as in Bash.
+#     judged as the file or directory before it. That reading is added to the
+#     old one, which still reads every `$` as an expansion, so a literal
+#     `'$env:TEMP'` or `'$HOME\x'` is refused as before. A target holding a
+#     `$` PowerShell expands is left alone, as in Bash.
 #     Still uncovered: Start-Process/iex wrapping a delete, a command word
 #     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
 #     (`pwsh -Command '...'`), a `$( )` inside a double-quoted string, a
@@ -3156,28 +3158,30 @@ rdt_ps_cmd_split_to() {
 # as RDT_PS_LIT (#6626). A word whose every `$` is literal is judged as the
 # path it names (provenance 4), after a trailing Win32 stream suffix
 # (`::$INDEX_ALLOCATION`, `:$I30:$INDEX_ALLOCATION`) is dropped, because that
-# suffix names the file or directory before it. A literal `$` name alone
-# (`'$X'`) is still refused as a bare variable. A word holding any `$`
-# PowerShell expands is read as before.
+# suffix names the file or directory before it. That literal reading only
+# ADDS a judgment: the word is still judged the way it was before #6626, with
+# every `$` read as an expansion, so a target refused then (`'$env:TEMP'`,
+# `'$HOME\x'`) is refused still. A word holding any `$` PowerShell expands is
+# read only the old way.
 rdt_ps_operand() {
-  local w="$1" q=0 re_stream
+  local w="$1" lit="" re_stream
   if [[ -n "$RDT_PS_LIT" && "$w" == *"$RDT_PS_LIT"* ]]; then
     if [[ "$w" != *'$'* ]]; then
-      q=4
+      lit="$w"
       re_stream='^(.+):[^:/\\]*:'"$RDT_PS_LIT"'[A-Za-z0-9_]+$'
-      if [[ "$w" =~ $re_stream ]]; then
-        w="${BASH_REMATCH[1]}"
+      if [[ "$lit" =~ $re_stream ]]; then
+        lit="${BASH_REMATCH[1]}"
         # `C::$INDEX_ALLOCATION` is read as the drive, which the root arm refuses.
-        [[ "$w" =~ ^[A-Za-z]$ ]] && w+=":"
+        [[ "$lit" =~ ^[A-Za-z]$ ]] && lit+=":"
       fi
+      lit="${lit//"$RDT_PS_LIT"/\$}"
     fi
     w="${w//"$RDT_PS_LIT"/\$}"
   fi
-  if ((q == 0)); then
-    w="${w//\$\{[eE][nN][vV]:/\$\{}"
-    w="${w//\$[eE][nN][vV]:/\$}"
-  fi
-  rdt_check_operand "$w" "$q"
+  [[ -n "$lit" ]] && rdt_check_operand "$lit" 4
+  w="${w//\$\{[eE][nN][vV]:/\$\{}"
+  w="${w//\$[eE][nN][vV]:/\$}"
+  rdt_check_operand "$w" 0
 }
 
 # rdt_ps_cmd_rd: recursive cmd rd/rmdir. Remaining words are the command line.
@@ -3250,7 +3254,7 @@ rdt_ps_cmd_from() {
 # shellcheck disable=SC2016,SC2329  # literal `$(` grouping; invoked from rdt_ps_statement
 rdt_ps_ri_check() {
   local -a __w=("$@")
-  local __i=0 __rec=0 __param __raw __att
+  local __i=0 __rec=0 __param __raw __att __vm
   local -a __paths=()
   while ((__i < ${#__w[@]})); do
     local __v="${__w[__i]}"
@@ -3295,9 +3299,12 @@ rdt_ps_ri_check() {
       *) ;;
       esac
     else
-      case "$__v" in
+      # Matched with every `$` as written, literal or not, as before #6626.
+      __vm="$__v"
+      [[ -n "$RDT_PS_LIT" ]] && __vm="${__v//"$RDT_PS_LIT"/\$}"
+      case "$__vm" in
       /s | /s/q | /q/s | /sq | /qs) ;;
-      '('* | '$('*) rdt_block "pipeline-target" "$__v" ;;
+      '('* | '$('*) rdt_block "pipeline-target" "$__vm" ;;
       *) __paths+=("$__v") ;;
       esac
     fi

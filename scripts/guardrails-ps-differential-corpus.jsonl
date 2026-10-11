@@ -867,3 +867,11 @@
 "Remove-Item -Recurse -Force './build$old'"
 "Remove-Item -Recurse -Force './build::$INDEX_ALLOCATION'"
 "Remove-Item -Recurse \"D:\\rdt-x\\$name\""
+# Delete lane, refused before the literal reading of a `$` and still refused:
+# a literal `$env:`, `$HOME\` or `$(` target is also judged the old way (#6626).
+"Remove-Item -Recurse '$env:TEMP'"
+"Remove-Item -Recurse '$env:SystemDrive\\'"
+"Remove-Item -Recurse `$env:TEMP"
+"Remove-Item -Recurse '$HOME\\x'"
+"Remove-Item -Recurse '$(x)'"
+"cmd /c rd /s /q '$env:TEMP'"
