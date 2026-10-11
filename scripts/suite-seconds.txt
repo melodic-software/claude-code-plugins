@@ -6,6 +6,8 @@
 # block, a Python suite from its pytest command to the next one. A suite not
 # listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
 # selected suite runs on some leg whatever this file says.
+# plugins/planning/surface/surface.test.sh is from run 38110949149, where its
+# browser checks ran (playwright-cli comes from npm ci now).
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
 .claude/hooks/hook-telemetry-sink.test.sh 1
@@ -405,7 +407,7 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/surface/surface.test.sh 1
+plugins/planning/surface/surface.test.sh 380
 plugins/planning/surface/test_exporters.py 92
 plugins/planning/surface/test_round.py 49
 plugins/planning/surface/test_schema.py 1
