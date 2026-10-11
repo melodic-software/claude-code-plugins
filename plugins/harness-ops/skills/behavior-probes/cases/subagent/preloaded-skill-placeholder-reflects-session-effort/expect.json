@@ -12,10 +12,10 @@
   "max_turns": 8,
   "target": {
     "tool": "Bash",
-    "input_match": "echo effort=",
+    "input_match": "echo effort=(low|medium|high|xhigh|max)\\b",
     "in_subagent": true,
     "example": {
-      "command": "echo effort=${CLAUDE_EFFORT}"
+      "command": "echo effort=medium"
     }
   },
   "outcome": "ran",

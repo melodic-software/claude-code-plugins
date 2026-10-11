@@ -1,5 +1,5 @@
 {
-  "claim": "With no per-spawn effort, the subagent definition's effort: low pin applies over the session default. Read from the PreToolUse hook payload's effort.level, which the subagent's cat of effort.log returns.",
+  "claim": "With no per-spawn effort, the subagent definition's effort: low pin applies over the session effortLevel of high. Read from the PreToolUse hook payload's effort.level, which the subagent's cat of effort.log returns.",
   "tags": [
     "effort",
     "subagent",
