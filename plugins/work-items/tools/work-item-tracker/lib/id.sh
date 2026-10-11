@@ -30,6 +30,7 @@ readonly WIT_REPO_REGEX='^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
 # links"): exactly one of <id> or --branch-ref <ref>, plus optional --repo <o>/<r>.
 # Sets WIT_CL_ID, WIT_CL_REF, WIT_CL_REPO. Calls the sourcing adapter's
 # wit_usage_error (exit 2) on bad input.
+# shellcheck disable=SC2034  # WIT_CL_* are read by the sourcing change-link verb scripts
 wit_change_link_args() {
   WIT_CL_ID="" WIT_CL_REF="" WIT_CL_REPO=""
   while [[ $# -gt 0 ]]; do
