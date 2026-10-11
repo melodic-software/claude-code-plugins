@@ -23,6 +23,9 @@
 # @builtin-<version> from `claude --version`, @unknown when that prints no version. A bundled
 # skill's existence is not checked: nothing outside a running session lists them. --dir does
 # not apply to a bare name.
+#
+# The upstream behavior these rules rest on (same-name skill precedence, a session keeping the
+# plugin versions it loaded) is recorded with its docs pointers in ../SKILL.md, Gotchas.
 set -euo pipefail
 
 installed=${REPO_SWEEP_INSTALLED_PLUGINS:-$HOME/.claude/plugins/installed_plugins.json}

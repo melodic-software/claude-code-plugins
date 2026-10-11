@@ -50,6 +50,12 @@ never combined with `&&` or other commands in one call. The record for these sha
 1. If this session showed a `Plugin updated: <name> · Run /reload-plugins to apply` notice, stop:
    ask the user to run `/reload-plugins` or start a new session, then rerun `next`. Until then
    the session runs the versions it loaded, which the step's record would misname.
+   - **Pointer**: when the update notice's wording is in doubt, fetch
+     [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
+     live.
+   - **As of**: 2026-10-11
+   - **Recheck trigger**: that section changes the notice's text or when a running session
+     applies an update.
 2. Read the entry: its row from `S/catalog.sh C`, `S/catalog.sh --override <id> C`, and
    `S/catalog.sh --notes <id> C`. Resolve arguments in angle brackets for this
    repository; ask the user when more than one reading is plausible.
@@ -166,5 +172,9 @@ step commit:
    (`chezmoi --source <worktree> target-path <source-file>` maps a source file to its target).
 2. Deleted source files leave their rendered file behind: list them with `git diff --name-status
    --diff-filter=D <base>`, map each to its target, and remove it after the user approves.
-3. Settings and hook targets under `~/.claude` take effect after a restart; say so in the step
-   report.
+3. For settings and hook targets under `~/.claude`, the step report says whether each change
+   reaches the running session or waits for a restart.
+   - **Pointer**: when deciding which applied settings or hook edits need a restart, fetch
+     <https://code.claude.com/docs/en/settings#when-edits-take-effect> live.
+   - **As of**: 2026-10-11
+   - **Recheck trigger**: that section changes which keys reload into a running session.

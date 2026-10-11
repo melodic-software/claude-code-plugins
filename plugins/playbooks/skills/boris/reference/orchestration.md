@@ -12,18 +12,13 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > decision that would turn on any figure below, a new frontier-model release, or a suite version
 > bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
 > announcement for that release plus
-> [models overview](https://platform.claude.com/docs/en/about-claude/models/overview), and leave
-> these lines as history rather than restating a fresh snapshot here. **Pricing figures (Sections
-> 78, 94–95) are the same kind of snapshot**: launch-day rates, verified still current 2026-08-04.
-> Current rates are upstream-owned: resolve them from
-> [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
-> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the
-> same kind of snapshot**, verified still current 2026-08-08 against the models overview linked
-> above, which owns those fields. Resolve current specs there, never from these lines.
+> [models overview](https://platform.claude.com/docs/en/models/overview#compare-models), and leave
+> these lines as history rather than restating a fresh snapshot here. Model specs and rates are
+> not recorded in this file at all; Section 94 points at the pages that own them.
 
 ## 78. Opus 4.8: Strongest Coding Model Yet
 
-Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. Same price as 4.7. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
+Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
 
 > **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94). Opus 4.8 details remain accurate for that release.
 
@@ -95,6 +90,16 @@ Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *
 
 Add `fork: true` to a skill's frontmatter so the skill runs in its own context window, then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
 
+> **Amended:** the `fork: true` key from this tip is not a documented frontmatter field. Use the
+> field the skills page documents for running a skill in its own subagent context instead.
+>
+> - **Pointer**: when writing a skill that should run in its own context window, fetch
+>   [Run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent)
+>   and the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+>   live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: either section adds, renames or removes the field that forks a skill.
+
 ## 93. The Dynamic-Workflows Trigger Is Now "use a workflow"
 
 Correction to Section 80's launch guidance: say **"use a workflow"**, not the bare word "workflow". The single word triggered workflows when users didn't mean to. Mechanics unchanged. The documented keyword is now `ultracode`, with a direct request in your own words also accepted; see [Ask for a workflow in your prompt](https://code.claude.com/docs/en/workflows#ask-for-a-workflow-in-your-prompt) (as of 2026-10-02; recheck when that section changes the keyword).
@@ -107,7 +112,16 @@ Launched Jun 9, 2026, a "Mythos-class" model made safe for general use, in Claud
 
 Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5): SWE-Bench Pro **80.3%** → 69.2%; FrontierCode/Diamond (xhigh) **29.3%** → 13.4%; GDPval-AA **1932** → 1890; OSWorld-Verified **85.0%** → 83.4%. On starred benchmarks (cybersecurity, biology, Terminal-Bench, HLE, HealthBench) Fable performs closer to Opus 4.8 due to safety fallbacks. Those higher figures are Mythos 5. Boris confirms the safety classifiers are currently "trigger-happy" (flagging ordinary debugging as cyber/bio) and being improved.
 
-Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking; knowledge cutoff Jan 2026; no fast mode yet. <!-- ai-slop-ignore: verbatim Karpathy quotation; factual model spec, not assistant-frame disclaimer --> **Pricing: $10/M input · $50/M output, exactly 2× Opus 4.8**; cache write $12.50, cache read $1; full 1M context at standard rate. Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
+Specs and pricing are upstream-owned and not restated here.
+
+- **Pointer**: when a decision turns on this model's id, context window, output limit or
+  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#compare-models)
+  live; for its rates, fetch [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a new frontier-model release, or either section is renamed or moved.
+
+<!-- ai-slop-ignore: verbatim Karpathy quotation --> Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
 ## 95. What Fable 5 Changes for You
 
