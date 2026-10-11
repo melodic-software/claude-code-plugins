@@ -150,6 +150,8 @@ Constraints:
   `skip:` line in the handover rejects a visual choice, add it to that list before the next
   round.
 
+When `/user-interface:write-css` is installed, use it to write the CSS for a variant, since it applies the project's design system and conventions first.
+
 ### Design-canvas alternative (bundled `design` skill, run by the person)
 
 When the intent selector lands on the HTML mockup substrate, tell the user before building that

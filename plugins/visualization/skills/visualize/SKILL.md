@@ -88,6 +88,8 @@ fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 
+When the form hand-authors CSS or SVG styling and `/user-interface:write-css` is installed, use it to write the CSS, since it applies the project's design system and conventions first.
+
 When the form is a hand-tweakable visual layout, render this skill's rich page
 (or the local file or terminal form Step 3's medium pins) and offer the person the
 design canvas. The canvas is the bundled `design` skill, which is reserved for the
