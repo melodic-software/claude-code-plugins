@@ -48,20 +48,26 @@ printf '%s %s\n' "$method" "$endpoint" >>"$STUB/requests"
 case "$method $endpoint" in
 "GET repos/o/r/issues/42") cat "$STUB/issue.json" ;;
 "GET repos/o/r/issues/42/comments") cat "$STUB/comments.json" ;;
-"GET repos/o/r/pulls/42") printf '{"number":42,"head":{"sha":"%s"}}' "$(cat "$STUB/live_head")" ;;
 "POST repos/o/r/issues/42/labels")
   [[ -f $STUB/fail_labels ]] && { echo 'stub gh: label POST failed' >&2; exit 1; }
   echo '{}'
   ;;
 "POST repos/o/r/issues/42/comments")
-  [[ -f $STUB/fail_comments ]] && { echo 'stub gh: comment POST failed' >&2; exit 1; }
+  # fail_comments holds how many more comment POSTs fail.
+  left=$(cat "$STUB/fail_comments" 2>/dev/null || echo 0)
+  if ((left > 0)); then
+    echo $((left - 1)) >"$STUB/fail_comments"
+    echo 'stub gh: comment POST failed' >&2
+    exit 1
+  fi
   echo '{}'
   ;;
 *) echo "stub gh: unexpected $method $endpoint" >&2; exit 1 ;;
 esac
 EOF
 printf '#!/usr/bin/env bash\necho git >>"$STUB/calls"\nexit 1\n' >"$TMP/bin/git"
-chmod +x "$TMP/bin/gh" "$TMP/bin/git"
+printf '#!/usr/bin/env bash\necho "sleep $1" >>"$STUB/sleeps"\n' >"$TMP/bin/sleep"
+chmod +x "$TMP/bin/gh" "$TMP/bin/git" "$TMP/bin/sleep"
 
 # setup <labels-json-array> <comments-json-array> [tracker-json|none]
 setup() {
@@ -69,7 +75,6 @@ setup() {
   mkdir -p "$STUB/ws/.base"
   printf '{"number":42,"labels":%s}' "$1" >"$STUB/issue.json"
   printf '%s' "$2" >"$STUB/comments.json"
-  printf '%s' "$HEAD_A" >"$STUB/live_head"
   : >"$STUB/calls"
   : >"$STUB/requests"
   : >"$STUB/bodies"
@@ -155,8 +160,9 @@ run unresolved-conflict
 check "label removed by a human, same head: escalates again" \
   $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-# Partial failure: a failed label write posts no comment, and a retry after a
-# failed comment write posts exactly one comment.
+# Partial failure: a failed label write posts no comment; a failed comment
+# write is retried; a retry run after the label landed posts exactly one comment.
+LABEL_THEN_3_COMMENTS=$'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments'
 setup '[]' '[]'
 touch "$STUB/fail_labels"
 run unresolved-conflict
@@ -164,38 +170,49 @@ check "label write fails: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
 check "label write fails: no comment posted" 0 "$(grep -c '^POST repos/o/r/issues/42/comments$' "$STUB/requests" || true)"
 
 setup '[]' '[]'
-touch "$STUB/fail_comments"
+echo 1 >"$STUB/fail_comments"
+run unresolved-conflict
+check "comment write fails once: exit 0" 0 "$RC"
+check "comment write fails once: label, then the comment twice" \
+  $'POST repos/o/r/issues/42/labels\nPOST repos/o/r/issues/42/comments\nPOST repos/o/r/issues/42/comments' \
+  "$(grep '^POST' "$STUB/requests")"
+check "comment write fails once: backs off once" 'sleep 5' "$(cat "$STUB/sleeps" 2>/dev/null)"
+
+setup '[]' '[]'
+echo 99 >"$STUB/fail_comments"
+run unresolved-conflict
+check "comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "comment write fails every attempt: label on, three comment attempts" \
+  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
+
+setup '[]' '[]'
+echo 99 >"$STUB/fail_comments"
 run unresolved-conflict
 check "comment write fails after the label: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+check "comment write fails after the label: first run posted the label" \
+  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
 printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
-rm "$STUB/fail_comments"
+echo 0 >"$STUB/fail_comments"
 : >"$STUB/requests"
 : >"$STUB/bodies"
 run unresolved-conflict
 check "retry after a failed comment: exit 0" 0 "$RC"
 check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
-# Superseded: the PR head moved past the gated head, so nothing is written.
+# A label left by a failed comment write is explained by the next run, on a later head too.
 setup '[]' '[]'
-printf '%s' "$HEAD_B" >"$STUB/live_head"
+echo 99 >"$STUB/fail_comments"
 run unresolved-conflict
-check "head moved: exit 0" 0 "$RC"
-check "head moved: no write" 0 "$(writes)"
-has "head moved: says superseded" "superseded" "$STUB/out"
-
-# A label left by a failed comment write still gets its comment after the head moves.
-setup '[]' '[]'
-touch "$STUB/fail_comments"
-run unresolved-conflict
+check "label left, later head: first run posted the label" \
+  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
 printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
-printf '%s' "$HEAD_B" >"$STUB/live_head"
-rm "$STUB/fail_comments"
+echo 0 >"$STUB/fail_comments"
 : >"$STUB/requests"
 : >"$STUB/bodies"
-run unresolved-conflict
-check "label on, head moved: exit 0" 0 "$RC"
-check "label on, head moved: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
-has "label on, head moved: comment carries the resume key" "resume-key=$HEAD_A" "$STUB/bodies"
+run unresolved-conflict "$HEAD_B"
+check "label left, later head: exit 0" 0 "$RC"
+check "label left, later head: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
+has "label left, later head: comment carries the later resume key" "resume-key=$HEAD_B" "$STUB/bodies"
 
 setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resume-key=$HEAD_A -->" someone User)"
 run unresolved-conflict
@@ -221,6 +238,6 @@ run workflow-staged
 check "never runs git" 0 "$(grep -c '^git' "$STUB/calls" || true)"
 check "never calls the contents API" 0 "$(grep -c 'contents/' "$STUB/calls" || true)"
 check "writes only the issue comments and labels" 0 \
-  "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments|/labels)?$|^GET repos/o/r/pulls/42$' "$STUB/requests" | grep -c . || true)"
+  "$(grep -vE '^(GET|POST) repos/o/r/issues/42(/comments|/labels)?$' "$STUB/requests" | grep -c . || true)"
 
 exit "$FAILED"
