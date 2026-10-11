@@ -189,4 +189,33 @@ describe("resolveWorkArtifacts", () => {
 
     expect(resolveWorkArtifacts(workDir).vttPath.endsWith("captions.en.vtt")).toBe(true);
   });
+
+  describe("with info.json subtitles", () => {
+    /** A workDir holding both English tracks and an info.json with the given `subtitles`. */
+    function makeWorkDirWithSubtitles(subtitles) {
+      const workDir = makeWorkDir("x.en-orig.vtt");
+      fs.writeFileSync(path.join(workDir, "x.en.vtt"), "WEBVTT\n");
+      fs.writeFileSync(path.join(workDir, "meta.info.json"), JSON.stringify({ subtitles }));
+      return workDir;
+    }
+
+    it("takes .en-orig.vtt over a bare .en.vtt when no manual English track is listed", () => {
+      const workDir = makeWorkDirWithSubtitles({});
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.en-orig.vtt"));
+    });
+
+    it("keeps the bare .en.vtt when info.json lists a manual en track", () => {
+      const workDir = makeWorkDirWithSubtitles({ en: [{ ext: "vtt" }] });
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.en.vtt"));
+    });
+
+    it("still takes a caption in another language the ladder does not rank", () => {
+      const workDir = makeWorkDir("x.fr.vtt");
+      fs.writeFileSync(path.join(workDir, "meta.info.json"), JSON.stringify({ subtitles: {} }));
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.fr.vtt"));
+    });
+  });
 });

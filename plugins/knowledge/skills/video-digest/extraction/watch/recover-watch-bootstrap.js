@@ -16,6 +16,7 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { resolveSourceAdapter } from "../adapters/registry.js";
+import { selectCaptionFile } from "../acquisition/select-caption.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { MAX_FRAME_GAP_SEC, planFrameCoverage } from "../watching/compute-coverage-plan.js";
@@ -120,22 +121,56 @@ function loadExistingContactSheets(contactSheetsDir, sheetFiles, batches) {
 }
 
 /**
+ * The manual caption languages info.json lists, the signal acquisition feeds
+ * `selectCaptionFile`. `undefined` when the file is unreadable or carries no
+ * `subtitles` object, which leaves the filename classification in force.
+ *
+ * @param {string} infoPath
+ * @returns {string[] | undefined}
+ */
+function readManualLanguages(infoPath) {
+  try {
+    const subtitles = JSON.parse(fs.readFileSync(infoPath, "utf8"))?.subtitles;
+    return subtitles && typeof subtitles === "object" ? Object.keys(subtitles) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the caption through the selector acquisition uses, so recovery
+ * rebuilds the transcript from the track the original run chose: a bare
+ * `.en.vtt` that info.json does not list as manual may be YouTube's machine
+ * translation and ranks below `.en-orig.vtt`. A `.vtt` the ladder does not
+ * classify (another language) is still taken, as before.
+ *
+ * @param {string[]} vttNames
+ * @param {string} infoPath
+ * @param {import('../acquisition/select-caption.js').CaptionClass} captionClass
+ * @returns {string}
+ */
+function pickCaptionName(vttNames, infoPath, captionClass) {
+  const selected = selectCaptionFile(vttNames, captionClass, {
+    manualLanguages: readManualLanguages(infoPath),
+  });
+  if (selected.success) return selected.selection.path;
+  return vttNames.find((name) => !name.includes("-orig")) ?? vttNames[0];
+}
+
+/**
  * @param {string} workDir
+ * @param {import('../acquisition/select-caption.js').CaptionClass} [captionClass] the source adapter's declared class
  * @returns {{ videoPath: string, vttPath: string, infoPath: string }}
  */
-export function resolveWorkArtifacts(workDir) {
+export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") {
   const entries = fs.readdirSync(workDir);
   const videoPath = entries.find((name) => name.endsWith(".mp4"));
-  // Prefer a manual/cleaned caption, but fall back to the `*-orig.vtt` the
-  // caption ladder keeps for auto-caption-only videos — the original
-  // acquisition used it, so recovery must accept it too.
-  const vttPath =
-    entries.find((name) => name.endsWith(".vtt") && !name.includes("-orig")) ??
-    entries.find((name) => name.endsWith(".vtt"));
   const infoPath = entries.find((name) => name.endsWith(".info.json"));
-  if (!videoPath || !vttPath || !infoPath) {
+  const vttNames = entries.filter((name) => name.endsWith(".vtt"));
+  if (!videoPath || vttNames.length === 0 || !infoPath) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);
   }
+  const vttPath = pickCaptionName(vttNames, path.join(workDir, infoPath), captionClass);
   return {
     videoPath: path.join(workDir, videoPath),
     vttPath: path.join(workDir, vttPath),
@@ -204,7 +239,7 @@ export async function recoverWatchBootstrapCli(argv) {
   }
   const adapter = resolveSourceAdapter(sourceUrl);
 
-  const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir);
+  const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir, adapter.captionClass);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
   const cues = normalizeVttCues(vttText);
