@@ -33,7 +33,7 @@
 #   remove-shims.sh --help
 #
 # Exit: 0 shims removed and every canary passed; 1 refused, or removed and
-# restored; 2 usage error.
+# restored; 2 usage error, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 

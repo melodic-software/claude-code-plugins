@@ -46,6 +46,12 @@ assert_eq "the comparison is numeric, not lexical" "0" "$(status_of ip_ver_gt 2.
 assert_eq "a newer minor beats a larger third component" "0" "$(status_of ip_ver_gt 2.2.0 2.1.999)"
 assert_eq "a leading zero is decimal, not octal" "0" "$(status_of ip_ver_ge 2.1.09 2.1.8)"
 assert_eq "a missing component counts as 0" "0" "$(status_of ip_ver_ge 2.1 2.1.0)"
+# shellcheck disable=SC2016 # the payload must reach the comparator unexpanded
+payload='1+a[$(touch "$TMP/ran")]'
+assert_eq "a non-numeric component returns 2" "2" "$(status_of ip_ver_ge "2.1.$payload" 2.1.0)"
+assert_eq "and is not evaluated as arithmetic" "absent" \
+  "$([[ -e "$TMP/ran" ]] && echo present || echo absent)"
+assert_eq "a non-numeric side is not strictly newer" "2" "$(status_of ip_ver_gt 2.1.0 2.x.0)"
 
 # --------------------------------------------------------------------------
 # ip_version_in
@@ -68,6 +74,10 @@ cat >"$TMP/record.md" <<'EOF'
 EOF
 assert_eq "the newest measured stamp wins, and changelog versions never count" "2.1.278" \
   "$(ip_mechanics_measured_max "$TMP/record.md")"
+
+printf '| A | *(measured 2.1.268; Write unmeasured)* |\n' >"$TMP/later-word.md"
+assert_eq "a later word ending in measured does not hide the stamp" "2.1.268" \
+  "$(ip_mechanics_measured_max "$TMP/later-word.md")"
 
 printf '| A | *(doc)* |\n| B | *(measured)* |\n| C | *(changelog 2.1.288)* |\n' >"$TMP/none.md"
 assert_eq "a record with no versioned measurement yields nothing" "" \

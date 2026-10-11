@@ -32,8 +32,8 @@
 #   cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
 #   cutover-check.sh --help
 #
-# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage or an
-# unparsable record.
+# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage, an
+# unparsable record, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 

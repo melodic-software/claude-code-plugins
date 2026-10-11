@@ -228,6 +228,17 @@ ERR=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/broken-sources.md" 2>&1 >/d
 assert_eq "an unparsable record exits 2 rather than skipping the check" 2 "$rc"
 assert_contains "and says which record it could not parse" "$ERR" "cannot parse"
 
+# A copy without the plugin's scripts/lib has no comparator: exit 2, never a
+# condition graded without one.
+NOLIB="$TMP/nolib/skills/migrate/scripts"
+mkdir -p "$NOLIB"
+cp "$SCRIPT" "$NOLIB/cutover-check.sh"
+rc=0
+OUT=$(bash "$NOLIB/cutover-check.sh" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary 2>&1) || rc=$?
+assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
+assert_not_contains "and grades nothing without a comparator" "$OUT" "[MET]"
+
 # --- Case 2: every graded condition met -----------------------------------
 
 rc=0

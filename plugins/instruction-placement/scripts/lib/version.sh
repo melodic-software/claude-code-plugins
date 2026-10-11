@@ -13,7 +13,9 @@
 
 # `a >= b` over dotted numeric versions. `sort -V` would do it and is GNU-only.
 # A missing component counts as 0, and 10# keeps a leading zero from reading as
-# octal.
+# octal. A non-numeric component returns 2 before it reaches the arithmetic,
+# where bash would evaluate it as an expression: a version read from a plugin
+# manifest is not trusted text. Callers that test only for success fail closed.
 ip_ver_ge() {
   local -a a b
   local i x y
@@ -22,14 +24,16 @@ ip_ver_ge() {
   for i in 0 1 2; do
     x="${a[i]:-0}"
     y="${b[i]:-0}"
+    [[ "$x" =~ ^[0-9]+$ && "$y" =~ ^[0-9]+$ ]] || return 2
     ((10#$x > 10#$y)) && return 0
     ((10#$x < 10#$y)) && return 1
   done
   return 0
 }
 
-# `a > b`, strictly.
+# `a > b`, strictly. Returns 2, not success, when either side is not numeric.
 ip_ver_gt() {
+  ip_ver_ge "$1" "$2" || return
   ! ip_ver_ge "$2" "$1"
 }
 
@@ -47,17 +51,20 @@ ip_version_in() {
 # the word `measured`, up to the marker's next comma, count: in `*(changelog
 # 2.1.288, measured 2.1.268)*` the 2.1.288 is a release note, not a
 # measurement, and reading it would hide a stale record behind a version
-# nothing was measured on. A version-less `*(measured)*` names nothing.
+# nothing was measured on. A version-less `*(measured)*` names nothing. The
+# first standalone `measured` in a marker is the stamp: a later word such as
+# `unmeasured` does not move the cut past it.
 ip_mechanics_measured_max() {
-  local file="$1" max="" v
+  local file="$1" max="" marker rest v
   [[ -r "$file" ]] || return 0
-  while IFS= read -r v; do
-    if [[ -z "$max" ]] || ip_ver_gt "$v" "$max"; then max="$v"; fi
-  done < <(
-    grep -oE '\*\([^)]*\)\*' "$file" 2>/dev/null |
-      grep -E '(^|[^[:alnum:]-])measured' |
-      sed -E 's/.*measured//; s/,.*//' |
-      grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
-  )
+  while IFS= read -r marker; do
+    [[ "$marker" =~ (^|[^[:alnum:]-])measured([^,]*) ]] || continue
+    rest="${BASH_REMATCH[2]}"
+    while [[ "$rest" =~ ([0-9]+\.[0-9]+\.[0-9]+)(.*) ]]; do
+      v="${BASH_REMATCH[1]}"
+      rest="${BASH_REMATCH[2]}"
+      if [[ -z "$max" ]] || ip_ver_gt "$v" "$max"; then max="$v"; fi
+    done
+  done < <(grep -oE '\*\([^)]*\)\*' "$file" 2>/dev/null)
   printf '%s' "$max"
 }

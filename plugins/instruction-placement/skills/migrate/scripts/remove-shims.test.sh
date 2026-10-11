@@ -199,6 +199,17 @@ rc=0
 bash "$SCRIPT" --root "$TMP" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "an unknown argument exits 2" 2 "$rc"
 
+# A copy without the plugin's scripts/lib has no comparator: exit 2 before it
+# prints a price or reads an installed version.
+NOLIB="$TMP/nolib/skills/migrate/scripts"
+mkdir -p "$NOLIB" "$TMP/nolib-repo"
+git -C "$TMP/nolib-repo" init -q
+cp "$SCRIPT" "$NOLIB/remove-shims.sh"
+rc=0
+OUT=$(bash "$NOLIB/remove-shims.sh" --root "$TMP/nolib-repo" --confirm 2>&1) || rc=$?
+assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
+assert_not_contains "and prints no price" "$OUT" "=== remove-shims"
+
 # --- Case 2: without --confirm it prints the price and removes nothing ----
 
 READY="$TMP/ready"
