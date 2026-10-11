@@ -247,11 +247,11 @@
     {
       "id": 16,
       "name": "babysit-loop-default-trip-keeps-working-and-reports-options",
-      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 3 minutes ago whose five-hour window reads 97% with a resets_at two hours out. PR #51 is green and needs a rebase.",
-      "expected_output": "The lane reads LOOP_LANE_RATE_LIMIT_PAUSE from its environment (printenv) and finds it unset, so the 97% reading does not pause, slow, or stop the lane: it sets no rate_limit_latch and no paused_until, keeps its normal schedule, and handles PR #51 as on any cycle, with no lower model, effort, or review depth. The cycle report states the five-hour window, its used_percentage and its resets_at, and the operator's options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start. Durable state still carries rate_limit_latch=true, a future paused_until and a latched_account, left by a run under the former default-on pause. The snapshot file holds one snapshot captured 3 minutes ago whose five-hour window reads 97% with a resets_at two hours out. PR #51 is green and needs a rebase.",
+      "expected_output": "The lane reads LOOP_LANE_RATE_LIMIT_PAUSE from its environment (printenv) and finds it unset, so it clears the legacy rate_limit_latch, paused_until and latched_account together at cycle start, and the 97% reading does not pause, slow, or stop the lane: it sets no new latch or paused_until, keeps its normal schedule, and handles PR #51 as on any cycle, with no lower model, effort, or review depth. The cycle report states the five-hour window, its used_percentage and its resets_at, and the operator's options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
       "files": [],
       "expectations": [
-        "Sets no rate_limit_latch and no paused_until and keeps its normal schedule",
+        "Clears the legacy rate_limit_latch, paused_until and latched_account together at cycle start, sets no new latch, and keeps its normal schedule",
         "Handles PR #51 this cycle without lowering model, effort, or review depth",
         "Reports the five-hour window, its used_percentage and its resets_at in the cycle report",
         "Names the options: continue, switch accounts (an operator action the lane never performs), or opt in to pausing",

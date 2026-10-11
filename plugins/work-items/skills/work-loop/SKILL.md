@@ -195,6 +195,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
 switch that resumes the lane). While paused, apply the floor's **Account switch** bullet at pause
 entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
 owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
+A lane not opted in clears all three together at cycle start when its block carries them (left by
+the former default-on pause).
 
 ## Cycle shape
 
