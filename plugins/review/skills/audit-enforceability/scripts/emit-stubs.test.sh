@@ -238,6 +238,16 @@ bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out7c" --sca
 assert_eq "case 7: a first field that is not a rank exits 2" "2" "$?"
 assert_eq "case 7: a first field that is not a rank writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out7c")"
 
+# An empty rank is refused before it reaches an array subscript, with one clean
+# line naming the TSV line and no shell error.
+printf '\tstyle\tjudgment\teditorconfig-severity\tnowhere\n' >"$TEST_TMPDIR/classes-empty.tsv"
+empty_err="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out7d" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-empty.tsv" 2>&1 >/dev/null)"
+assert_eq "case 7: an empty rank exits 2" "2" "$?"
+assert_eq "case 7: an empty rank writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out7d")"
+assert_eq "case 7: an empty rank is refused in one line naming the TSV line" \
+  "refusing: --classes line 1 has an empty rank. Nothing was written." "$empty_err"
+
 # --- Case 8: a re-run never overwrites ----------------------------------------
 
 before_first="$(cat "$OUT1"/01-editorconfig-severity-src-api-ordering.cs-14.md)"
