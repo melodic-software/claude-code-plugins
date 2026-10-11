@@ -214,6 +214,7 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         "Earlier versions of ~/.claude.json kept when the file is rewritten",
     ),
     "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
+    "feedback": (SWEPT, "drafts/ holds queued Claude-drafted feedback for /feedback"),
     "todos": (
         SWEPT,
         "Legacy; no longer written. Sweep removes contents then the directory",

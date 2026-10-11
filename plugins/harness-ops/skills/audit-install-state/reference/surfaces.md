@@ -45,9 +45,9 @@ Four facts about it that change how a finding should be read:
     file as a pause cause.
 - **Managed settings can supply the value**, from a machine-scope path that varies by OS.
   - **Pointer**: when locating the managed file on a host, fetch
-    [managed settings](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
-    live; that page links each delivery mechanism's location. **As of**: 2026-10-11.
-    **Recheck trigger**: that page moves or renames the managed file locations.
+    [managed settings: where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy)
+    live; that section names each delivery mechanism's location. **As of**: 2026-10-11.
+    **Recheck trigger**: that section moves or renames the managed file locations.
 - **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp
   observed to advance when the sweep runs, and the engine reports its age. No upstream page names
   the file (claude-directory.md, settings-reference.md, monitoring-usage.md, and the CHANGELOG
@@ -60,12 +60,12 @@ Four facts about it that change how a finding should be read:
 
 The engine classifies these top-level names under `~/.claude/` as `product-managed-swept`:
 `projects`, `file-history`, `plans`, `debug`, `paste-cache`, `image-cache`, `uploads`, `dev-mods`,
-`session-env`, `tasks`, `shell-snapshots`, `backups`, `feedback-bundles`, `usage-data`, and the
-legacy `todos`, `statsig`, `logs`. Swept paths nested under another name (set-aside transcripts
-under `projects/`, the claude.ai-sync trash under `skills/` and `plugins/`, and the
-`installed_plugins` set-aside copies under `plugins/`) take their parent's classification; the
-engine keys on the top-level name only. Read what each holds from the pointer at the top of this
-file.
+`session-env`, `tasks`, `shell-snapshots`, `backups`, `feedback-bundles`, `feedback` (its swept
+path is `feedback/drafts/`), `usage-data`, and the legacy `todos`, `statsig`, `logs`. Swept paths
+nested under another name (set-aside transcripts under `projects/`, the claude.ai-sync trash under
+`skills/` and `plugins/`, and the `installed_plugins` set-aside copies under `plugins/`) take their
+parent's classification; the engine keys on the top-level name only. Read what each holds from the
+pointer at the top of this file.
 
 One firing rule of ours rides on a row: **`image-cache/` sweeps other sessions' directories
 whatever their age**, so an old `image-cache/<session>/` disappearing immediately is expected,

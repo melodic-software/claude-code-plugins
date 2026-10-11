@@ -2139,11 +2139,9 @@ def concurrency_ceilings(root: Path, process_env: dict | None = None) -> dict:
         ),
     }
     ceilings["trap"] = (
-        "The observer flag is read through a JavaScript truthiness test on the raw string, and "
-        'the string "0" is truthy. Setting it to 0 reads like a disable in a settings file and '
-        "is a silent no-op; only removing the variable disables it. Never advise setting one to "
-        "0. The two subagent caps are not truthiness-gated: they can be adjusted but not "
-        "disabled, by any value or by removal."
+        "These flags are read through a JavaScript truthiness test on the raw string, and the "
+        'string "0" is truthy. Setting one to 0 reads like a disable in a settings file and is '
+        "a silent no-op; only removing the variable disables it. Never advise setting one to 0."
     )
     return ceilings
 
