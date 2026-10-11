@@ -66,7 +66,7 @@ answered normally.
 
 How a user connects an MCP server or a claude.ai connector:
 [MCP: installing MCP servers](https://code.claude.com/docs/en/mcp#installing-mcp-servers) and
-[MCP: use MCP servers from claude.ai](https://code.claude.com/docs/en/mcp#use-mcp-servers-from-claudeai);
+[MCP: use MCP servers from claude.ai](https://code.claude.com/docs/en/mcp#use-mcp-servers-from-claude-ai);
 `/mcp` shows what is connected. As of 2026-10-11. Recheck when those sections are renamed or the
 way to connect changes.
 
