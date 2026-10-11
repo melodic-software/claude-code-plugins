@@ -106,10 +106,13 @@ function flowSequence(text, line) {
   let current = "";
   let q = null;
   let depth = 0;
-  for (const ch of body) {
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
     if (q) {
       current += ch;
-      if (ch === q) q = null;
+      // A backslash escape in "..." and a doubled quote in '...' stay inside the item.
+      if ((q === '"' && ch === "\\") || (q === "'" && ch === "'" && body[i + 1] === "'")) current += body[++i] ?? "";
+      else if (ch === q) q = null;
       continue;
     }
     if (ch === "'" || ch === '"') q = ch;
