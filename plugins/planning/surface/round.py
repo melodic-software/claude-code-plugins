@@ -4,8 +4,10 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add             add a question (from --file JSON or flags)
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
+  group-order     reorder the groups (every group id once, in the new order)
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation, alternatives, commitments or dependencies
+  revise          change a question's wording, recommendation, alternatives, commitments,
+                  dependencies or group
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
@@ -760,6 +762,29 @@ def op_group(d, doc, a):
     return [], f"group {a.id} saved"
 
 
+def op_group_order(d, doc, a):
+    """Reorder the groups to the full list of their ids; the rail lists groups in this order."""
+    ids, known = list(a.ids or []), [g["id"] for g in doc["groups"]]
+    repeated = sorted({i for i in ids if ids.count(i) > 1})
+    unknown = [i for i in ids if i not in known]
+    missing = [i for i in known if i not in ids]
+    if repeated or unknown or missing:
+        sys.exit(
+            "refused: group-order takes every group id once; "
+            + "; ".join(
+                f"{label}: {', '.join(v)}"
+                for label, v in (
+                    ("repeated", repeated),
+                    ("unknown", unknown),
+                    ("missing", missing),
+                )
+                if v
+            )
+        )
+    doc["groups"].sort(key=lambda g: ids.index(g["id"]))
+    return [], f"group order {', '.join(ids)}"
+
+
 def set_resolution(d, q, text):
     """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
     one counts."""
@@ -902,6 +927,8 @@ def op_revise(d, doc, a):
     elif a.keepAlternatives:
         sys.exit(f"refused: {a.id} keepAlternatives goes with a rec change")
     deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
+    if a.group is not None and a.group not in {g["id"] for g in doc["groups"]}:
+        sys.exit(f"refused: unknown group {a.group!r} for {a.id}")
     alts = None if a.alt is None else checked_alts(a.id, a.alt)
     if a.rec is not None or alts is not None:
         check_rec_alts(
@@ -944,7 +971,18 @@ def op_revise(d, doc, a):
             q["dependsOn"] = deps
         else:
             q.pop("dependsOn")
-    if not changed and not moved:
+    regroup = None
+    if a.group is not None and a.group != q.get("group"):
+        regroup = f"{q.get('group') or 'none'} -> {a.group}"
+        old, q["group"] = q.get("group"), a.group
+        for gid in (old, a.group):
+            g = next((x for x in doc["groups"] if x["id"] == gid), None)
+            if g and "summaryOf" in g and g["summaryOf"] != group_members(doc, gid):
+                warn(
+                    f"group {gid} summary predates moving {a.id}; refresh it with: "
+                    f"round.py group {gid} --summary ..."
+                )
+    if not changed and not moved and not regroup:
         sys.exit("nothing to revise")
     lines = []
     if changed:
@@ -976,6 +1014,11 @@ def op_revise(d, doc, a):
             }
         )
         changed.append(f"dependencies ({moved})")
+    if regroup:
+        lines.append(
+            {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
+        )
+        changed.append(f"group ({regroup})")
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
@@ -1364,6 +1407,7 @@ OP_ARGS = {
             "alternatives": None,
             "commits": None,
             "dependsOn": None,
+            "group": None,
             "seq": None,
             "affects": None,
             "keepAlternatives": False,
@@ -1387,6 +1431,7 @@ OP_ARGS = {
         op_group,
         {"id": None, "title": None, "summary": None, "dependsOn": None},
     ),
+    "group-order": (op_group_order, {"ids": None}),
     "meta": (op_meta, {"set": None}),
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
@@ -2046,6 +2091,12 @@ def main(argv=None):
     )
     s.set_defaults(fn=write_op(op_group, "group"))
 
+    s = sub.add_parser(
+        "group-order", help="reorder the groups: every group id once, in the new order"
+    )
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.set_defaults(fn=write_op(op_group_order, "group-order"))
+
     affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
     keep_help = (
         "with --rec and no --alt: the current alternatives were checked against the new "
@@ -2117,6 +2168,7 @@ def main(argv=None):
         action="append",
         help="question id, repeatable; replaces all dependencies; `--depends none` alone clears them",
     )
+    s.add_argument("--group", help="move the question to this existing group")
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
     )

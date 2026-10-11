@@ -697,6 +697,53 @@ class TestRevisedReason(DirCase):
                 self.assertEqual(self.q("Q1")["revised"], "Faster.")
 
 
+class TestRegroup(DirCase):
+    """#5914: revise --group moves a question between existing groups, and group-order reorders
+    the groups, both in place: the question keeps its id, thread and answer."""
+
+    def test_revise_group_moves_the_question_and_logs_it(self):
+        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["group"], "g2")
+        self.assertEqual(q["history"][-1]["kind"], "group")
+        self.assertEqual(q["history"][-1]["text"], "Group: g1 -> g2.")
+        self.assertIn("group (g1 -> g2)", out)
+
+    def test_a_move_warns_on_a_summary_written_for_the_old_members(self):
+        rc, out, err = self.rp("group", "g1", "--summary", "Q1 and Q2.")
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("group g1 summary predates moving Q1", out + err)
+
+    def test_unknown_group_or_a_no_op_move_is_refused(self):
+        self.assertIn(
+            "unknown group", self.assert_refused("revise", "Q1", "--group", "g9")
+        )
+        self.assertIn(
+            "nothing to revise", self.assert_refused("revise", "Q1", "--group", "g1")
+        )
+
+    def test_group_order_reorders_the_groups(self):
+        rc, out, err = self.rp("group-order", "g2", "g1")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual([g["id"] for g in self.doc()["groups"]], ["g2", "g1"])
+
+    def test_group_order_needs_every_group_once(self):
+        for ids, word in ((["g2"], "missing: g1"), (["g2", "g1", "g9"], "unknown: g9"), (["g2", "g1", "g2"], "repeated: g2")):  # fmt: skip
+            with self.subTest(ids=ids):
+                self.assertIn(word, self.assert_refused("group-order", *ids))
+
+    def test_apply_takes_both_ops(self):
+        ops = [{"op": "group-order", "ids": ["g2", "g1"]}, {"op": "revise", "id": "Q3", "group": "g1"}]  # fmt: skip
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": ops}))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        self.assertEqual([g["id"] for g in doc["groups"]], ["g2", "g1"])
+        self.assertEqual(self.q("Q3")["group"], "g1")
+
+
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
         args = [a for c in commits for a in ("--commit", c)]
