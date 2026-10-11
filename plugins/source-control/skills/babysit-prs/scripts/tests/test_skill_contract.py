@@ -473,7 +473,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("leave it draft and report why", drafts)
 
     def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
-        # A bare `gh pr ready` flips the draft and nothing else; the ready step
+        # A bare draft flip changes the draft state and nothing else; the ready step
         # is what merges the base first, so the flip must go through it in both
         # homes.
         drafts = _paragraph_containing(
@@ -488,7 +488,7 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertIn("/source-control:pull-request ready", text)
         self.assertNotIn("marked ready with `gh pr ready`", zero_blocker)
-        self.assertIn("rather than a bare `gh pr ready`", policy)
+        self.assertIn("rather than a bare draft flip", policy)
 
 
 if __name__ == "__main__":

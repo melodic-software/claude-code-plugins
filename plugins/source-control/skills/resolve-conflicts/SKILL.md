@@ -65,7 +65,7 @@ with every unmerged path. Either way, every unmerged path still ends up in the r
      [pseudorefs](https://git-scm.com/docs/gitrevisions). Current Git also documents `git log
      --merge` as selecting the first present operation ref, but keeping the refs explicit makes the
      operation and orientation reviewable instead of hiding which counterpart supplied the history.
-   - Read the commit messages; when `gh` is available and the commits came through PRs, pull the PR title/body and any linked issue, the WHY often lives there, not in the diff.
+   - Read the commit messages; when the forge CLI is available and the commits came through PRs, pull the PR title/body and any linked issue, the WHY often lives there, not in the diff.
    - When the inline markers lack base context, re-materialize the file with it: `git checkout --merge --conflict=zdiff3 -- <path>` (or read the base directly via `git show :1:<path>`).
    - Write down, per side, one sentence of intent. If you cannot state a side's intent, you have not read enough history to resolve the hunk.
 
@@ -90,7 +90,7 @@ When resolution stalls (intent unrecoverable from history, both sides' authors u
 
 ## Adapting to your environment (graceful degrade)
 
-Everything runs on plain `git`. Adjacent capabilities are optional: `gh` enriches intent archaeology with PR/issue context (skipped with a note when unavailable); build/test/lint gates use your verification skills when installed, or the project's documented commands inline. The consuming project's `CLAUDE.md` and rules win on integration convention (merge vs rebase, conflict style), this skill reads them, never overrides them.
+Everything runs on plain `git`. Adjacent capabilities are optional: the forge CLI enriches intent archaeology with PR/issue context (skipped with a note when unavailable); build/test/lint gates use your verification skills when installed, or the project's documented commands inline. The consuming project's `CLAUDE.md` and rules win on integration convention (merge vs rebase, conflict style), this skill reads them, never overrides them.
 
 ## Next
 
