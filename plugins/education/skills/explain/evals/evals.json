@@ -198,13 +198,13 @@
       "id": 16,
       "name": "no-framing-labels-or-pacing-narration",
       "prompt": "/education:explain what a race condition is",
-      "expected_output": "A plain explanation with no framing labels and no pacing narration: no 'Key insight:' or 'The big idea:' headings, no 'Let's pause here' or 'Take a moment to think', no 'Step 1 of 3' progress lines, no say-it-back request and no quiz. The one-line offer of the next rung and the /education:teach handoff line are kept.",
+      "expected_output": "The answer explains race conditions directly. It does not quiz the reader or ask them to restate the idea, does not put a role tag such as 'Key insight:' or 'The big idea:' in front of a sentence, and does not comment on its own progress ('Let's pause here', 'Take a moment to think', 'Step 1 of 3'). Two reader-facing lines remain: the single offer of the next rung and the /education:teach handoff.",
       "files": [],
       "expectations": [
-        "Contains no framing label such as 'Key insight', 'The big idea' or 'Bottom line' introducing a sentence",
-        "Contains no pacing narration such as 'let's pause', 'take a moment' or step-of-total progress lines",
-        "Asks no comprehension question and requests no say-it-back",
-        "Keeps exactly one rung-offer line and the /education:teach handoff line"
+        "Asks the reader no comprehension question and does not ask them to explain it back",
+        "No sentence is introduced by a role tag such as 'Key insight', 'The big idea' or 'Bottom line'",
+        "Has no line commenting on pace or progress, such as 'let's pause', 'take a moment' or a step-of-total count",
+        "Keeps the /education:teach handoff line and exactly one rung-offer line"
       ]
     }
   ]

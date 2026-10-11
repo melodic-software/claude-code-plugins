@@ -867,7 +867,7 @@ either layer, and those rows say so.
 | Decorative emojis | `rule-emoji-formatting` |
 | Curly quotes | `rule-curly-artifacts` |
 | Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
-| Adding soul (voice); plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
+| The plain-speech questions a fix asks (who acts, whether an adverb props up the verb, whether a sentence needs rereading, whether a claim names a feeling where a mechanism belongs), and giving prose an author's voice | `rewrite-guide.md`, "Plain speech" and "Adding voice": disciplines applied while rewriting, not tells to detect. A claim naming a feeling where a mechanism belongs is also caught by `rule-mechanism-free-claims` below |
 
 ### rule-chatbot-artifacts: Chat-turn residue and sycophancy
 

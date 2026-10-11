@@ -59,6 +59,7 @@ bump: minor
   default, stated explicitly) and `summary-test-plan` (the previous default). A repository that wants
   the old body sets `summary-test-plan`; a repository that already sets a heading list sees no
   change. `/source-control:setup` reports and recommends the new default.
+- **The briefing body's link-don't-recite line is reworded in our own words.** `/source-control:pull-request create` behaves as before.
 
 ### Fixed
 

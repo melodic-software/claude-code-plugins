@@ -51,16 +51,17 @@ should reach it without the user naming a command. Auto-trigger is best-effort;
    could not find stays "not found", in plain words. When those skills are not
    available, read the subsystem's files yourself and cite them; state a reason
    for a design choice only when a file you read gives it.
-3. **Land at the starting rung.** At rung 1 (`plain`), use one concrete analogy
-   from everyday life. No jargon, no term that itself needs prior knowledge.
-   Short. If a technical word is unavoidable, define it inline in ordinary words
-   the first time. At rung 3 (`peer`), open with one precise sentence defining
-   the object, as an engineer in the field would say it, then apply that
-   definition to the user's example at full precision.
-   **Done when**, at rung 1, the explanation contains one everyday analogy whose
-   structure maps to the object, a "what it's actually doing" line, and no
-   leftover term that is not defined inline in ordinary words; at rung 3, its
-   first sentence is that precise definition.
+3. **Land at the starting rung.** Rung 3 (`peer`) speaks the field's own
+   language: its first sentence gives an exact definition of the object in the
+   terms a practitioner uses, and the rest works the user's example through
+   that definition without loosening it. Rung 1 (`plain`) stays brief and rests
+   on a single concrete analogy taken from ordinary life. It carries no jargon
+   and no term that presumes background; a technical word that cannot be
+   avoided gets an ordinary-words gloss where it first appears.
+   **Done when** a rung 3 answer opens with that exact definition, and a rung 1
+   answer has an everyday analogy whose parts correspond to the object's, a
+   "what it's actually doing" line, and no term left without its
+   ordinary-words gloss.
 4. **Close with the handoff line** (see "Handoff").
    **Done when** the response ends with the single standard `/education:teach`
    invitation line, followed by the one-line starting-rung report.
@@ -124,13 +125,14 @@ Offer one other rung as a one-line invitation, not a wall of text. From a
 high-school one?" From a `peer` start, offer the plain version instead of a
 higher rung: "Want the plain version?"
 
-## Register. No framing labels or pacing narration
+## Register: content only, no stagecraft
 
-State the explanation directly. No labels that announce a sentence ("Key
-insight:", "The big idea:", "Bottom line:"), no pacing narration ("let's
-pause here", "take a moment", "step 2 of 4"), no comprehension questions and no
-request to say it back. The single one-line rung offer and the handoff line are
-the only lines addressed to the reader about what comes next.
+Every sentence explains. Three kinds of line are out. A check on the reader:
+a comprehension question, or asking them to restate it. A tag in front of a
+sentence naming its role ("Key insight:", "The big idea:", "Bottom line:").
+Commentary on the explanation's own tempo ("let's pause here", "take a
+moment", "step 2 of 4"). Two lines may speak to the reader about what follows,
+the one-line rung offer and the handoff line, and no others.
 
 ## Feynman gap check
 

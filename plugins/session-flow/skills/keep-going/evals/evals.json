@@ -120,13 +120,13 @@
       "id": 10,
       "name": "resume-another-agents-trail-names-a-verdict",
       "prompt": "keep going on the cache migration. A background agent worked on it overnight on branch feat/cache-v2; its last message says the migration is done and recommends switching the default store, but it never opened a PR.",
-      "expected_output": "The skill reads the other agent's trail from its durable state (the branch, its commits and any PR) rather than an agent id, checks the trail against the original goal, and names exactly one of four verdicts: continue, ship the finished recommendation, ratify, or restart. Here the likely verdict is ship the finished recommendation after verifying the claimed migration. Its report says what it inherited from the trail as-is and what it redid, and why.",
+      "expected_output": "Before acting, the skill confirms on feat/cache-v2 that the migration the overnight agent called done really is done. It finds that work through the branch, its commits and any PR, never through an agent id, and it measures the trail against the original goal. It then picks a single verdict out of four (continue, ship the finished recommendation, ratify, restart); for a finished recommendation nobody delivered, ship the finished recommendation is the expected pick once the migration claim checks out. The report separates work kept from the trail from work redone, giving a reason for each redo.",
       "files": [],
       "expectations": [
-        "Locates the prior work through the branch, its commits or a PR, not through an agent or task id",
-        "Names exactly one verdict from continue, ship the finished recommendation, ratify, or restart, and says why",
-        "Verifies the inherited claim that the migration is done against the branch before acting on it",
-        "Reports what it inherited from the trail versus what it redid"
+        "Checks the claim that the migration is complete against the branch before relying on it",
+        "Finds the overnight work by its branch, commits or a PR rather than by an agent or task id",
+        "Picks one and only one verdict among continue, ship the finished recommendation, ratify and restart, and gives the reason",
+        "Its report separates what was taken over from the trail from what was redone"
       ]
     }
   ]

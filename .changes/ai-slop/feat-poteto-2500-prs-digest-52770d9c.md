@@ -29,3 +29,4 @@ bump: minor
   anchor), and the detector test fixtures for those rules are renamed to match. No rule,
   threshold or rule id changed. The README, catalog and guide record where that section's tells
   came from by pointing at the marketplace's upstream ledger.
+- **The catalog's overlap-map row for plain speech and voice is reworded in our own words.** It now names the rewrite guide's "Plain speech" and "Adding voice" sections and still routes the mechanism-over-feeling case to `rule-mechanism-free-claims`. No rule changed.

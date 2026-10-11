@@ -90,50 +90,49 @@ itself the thing this skill removes.
      the mechanism supports one (a workflow resume reuses the cached
      prefix instead of redoing work).
    - **Dead but safe to redo** → restart it (subject to the autonomy
-     policy below), shaped by why it died, as the evidence shows it:
-     - it ran out of room (a turn, context or time budget) → rerun a
-       smaller piece of the work;
-     - a passing fault outside it (a dropped connection, a server error,
-       a limit that has since reset) → rerun it unchanged;
-     - an error that will repeat (the same command fails the same way,
-       a bad input) → change the input or the approach first;
-     - no clear cause → one rerun, to see whether it repeats.
+     policy below). Read from the evidence why it died, and fit the
+     restart to that cause. If the same command fails identically each
+     time, or the input itself is bad, a plain rerun only reproduces the
+     failure, so change the input or the approach before restarting. If
+     it hit a ceiling on turns, context or wall-clock time, restart it on
+     a narrower slice of the work. If the cause sat outside the work, such
+     as a network drop, a 5xx from a server, or a rate limit that has
+     reset since, restart it exactly as it was. If the evidence points at
+     no cause, rerun once and watch whether the failure comes back.
 
-     Two retries per item at most. After the second failure, stop
-     retrying it: record it as abandoned, with the last evidence, and
-     replan the remaining work without it.
+     Each item gets at most two retries. When the second one also fails,
+     the item is abandoned: record it with its last evidence, and replan
+     what remains so it no longer depends on that item.
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
 5. **Reconcile the main thread.** Restate where the primary task
    actually stood, grounded in a fresh read of any plan / checklist /
    task artifact backing it, not a prior turn's claim, and continue it.
-6. **Report.** Lead with anything waiting on the user (a gated kill or
-   re-fire, a goal question), then one list: recovered, restarted,
-   still-running, abandoned, and lost / unrecoverable. When the work came
-   from another agent's trail, add the verdict and what you inherited
-   versus redid (next section).
+6. **Report.** Open with whatever needs the user: a gated kill or
+   re-fire, or a question about the goal. Below it, one list sorts every
+   item as still-running, recovered, restarted, abandoned, or lost /
+   unrecoverable. Work picked up from another agent's trail adds its
+   verdict and the split between inherited and redone work (next
+   section).
 
 ## Picking up another agent's trail
 
-When the work being resumed was done by another session or agent (a
-background agent's branch, a worker's output, a handoff someone else
-wrote), its record is your starting point: read it rather than repeat
-it. After step 3's goal check, name one verdict for the trail:
+Sometimes the resumed work belongs to a different session or agent: a
+branch a background agent pushed, a worker's return, a handoff file you
+did not write. Its record is where you begin, and repeating what it
+already records wastes the run. Once step 3 has checked the goal, judge
+the trail by where it ended and give it exactly one verdict:
 
-- **Continue**: the work stopped partway and its direction still serves
-  the goal. Resume from the point it reached.
-- **Ship the finished recommendation**: the trail reached a conclusion
-  or a finished change that was never delivered. Check it against the
-  real artifact, then deliver it.
-- **Ratify**: the trail reached a conclusion someone has to accept.
-  Test it against current evidence and say whether it holds, and where
-  it does not.
-- **Restart**: the trail failed, or it served a goal that drifted. Start
-  again from the goal and say why the trail was set aside.
+| Where the trail ended | Verdict | What you do |
+|---|---|---|
+| At a conclusion that someone must accept | **Ratify** | Hold the conclusion up against today's evidence; report whether it stands, naming each place it fails |
+| At a finished change or recommendation nobody delivered | **Ship the finished recommendation** | Confirm it on the real artifact, then deliver it |
+| Partway, still pointed at the goal | **Continue** | Pick up at the point it reached |
+| In failure, or aimed at a goal that has since drifted | **Restart** | Begin again from the goal, stating why the trail was dropped |
 
-A claim the trail makes about itself ("tests pass", "done") is
-something to check on the artifact, not proof. In the report, list what
-you inherited as-is and what you redid, with the reason for each redo;
-redoing work the trail already proved is waste.
+The trail's own status lines ("tests pass", "done") are claims; confirm
+them on the artifact before relying on them. The report keeps two lists:
+items taken over as found, and items redone, each redo with its reason.
+Redoing something the trail had already proved buys nothing.
 
 ## Zone input (presence-gated, conservative)
 

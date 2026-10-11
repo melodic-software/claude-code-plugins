@@ -150,15 +150,15 @@
       "id": 13,
       "name": "retro-lenses-three-runs-parallel-lenses",
       "prompt": "/session-flow:retro. This repository's docs/conventions/session-flow.yaml has the single line `retro_lenses: 3`, and I never set the session-flow user option. The session was short: about twenty minutes renaming a config loader in a Go service.",
-      "expected_output": "The retro resolves retro_lenses to 3 from docs/conventions/session-flow.yaml after the setup check, and reports that line. Before the Phase 2 tables it spawns three subagents in the same turn, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, each given the parsed transcript and Phase 1 metrics. It merges their findings into one list, then presents the Phase 2 output and the health scores from that merged list. The short session does not reduce the count.",
+      "expected_output": "After the setup check, the retro reports one line resolving retro_lenses to 3 from docs/conventions/session-flow.yaml. A twenty-minute session still gets all three lens subagents, launched together in a single turn before any Phase 2 table appears; every one receives the Phase 1 metrics and the parsed transcript. One lens covers the tools and steps used, one the paths the session never took, and one the choices it made with their reasons. Their findings are folded into a single list, and both the Phase 2 output and the health scores are drawn from it.",
       "files": [],
       "narration": true,
       "expectations": [
         "States one line giving retro_lenses as 3 and naming docs/conventions/session-flow.yaml as the supplying layer",
-        "Spawns three subagents in one turn for the analysis, one per lens, before presenting the Phase 2 findings",
-        "The three lenses cover the session's decisions and reasons, the tools and steps it used, and the approaches it did not try",
-        "The Phase 2 tables and the session health scores come from the merged findings of the three lenses, not from one of them alone",
-        "Does not skip the lenses or run fewer than three because the session was short"
+        "Before any Phase 2 finding is shown, launches the analysis as three subagents in a single turn, one lens each",
+        "Between them the lenses cover the tools and steps the session used, the approaches it left untried, and its decisions with their reasons",
+        "Both the Phase 2 tables and the health scores are built from the merged list of all three lenses, never from a single lens",
+        "The short session is no reason to skip the lenses or run fewer than three"
       ]
     },
     {
