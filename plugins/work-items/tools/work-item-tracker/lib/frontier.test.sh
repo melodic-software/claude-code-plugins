@@ -122,6 +122,18 @@ IDS="$(frontier_ids false <<<"$WORK_CLASS")"
 assert_eq "default frontier still surfaces C4/C5 for the attended lane" \
   "github:o/r#1,github:o/r#2,github:o/r#3,github:o/r#4,github:o/r#5" "$IDS"
 
+# A signal-filed item is C5 by rule: the provenance label floors it whatever its
+# work-class label says, and the attended lane still sees it.
+SIGNAL='{"schema_version":"1.0","items":[
+  {"id":"github:o/r#1","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped"],"blocked_by_count":0},
+  {"id":"github:o/r#6","state":"open","assignees":[],"labels":["agent-ready","work-class: scoped","provenance: signal"],"blocked_by_count":0}]}'
+IDS="$(frontier_ids true <<<"$SIGNAL")"
+assert_eq "autonomous frontier drops provenance: signal even when agent-ready and scoped" \
+  "github:o/r#1" "$IDS"
+IDS="$(frontier_ids false <<<"$SIGNAL")"
+assert_eq "default frontier still surfaces a provenance: signal item" \
+  "github:o/r#1,github:o/r#6" "$IDS"
+
 # C3 scoped is deliberately NOT in the floor (the admission gate owns it), so it
 # must survive this filter.
 SCOPED='{"schema_version":"1.0","items":[

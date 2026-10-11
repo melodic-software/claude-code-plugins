@@ -28,8 +28,8 @@ Every line you write spends two budgets, and cutting one can overspend the other
 - **Context load**. Tokens the agent pays, every session for always-loaded surfaces. Governed
   marketplace-wide by plugin-philosophy's Instruction economy: an instruction earns its place
   with observed-stumble evidence, or it goes.
-- **Cognitive load**. Attention the human maintainer pays. The human is the index of the doc
-  set: they must be able to hold where things live. Ten tiny fragment files can be cheaper for
+- **Cognitive load**. Attention the human maintainer pays. The maintainer keeps the map of the
+  doc set in their head: they must be able to hold where things live. Ten tiny fragment files can be cheaper for
   the agent and ruinous for the human; one 500-line file the reverse. When the two budgets
   conflict, say which one you spent and why.
 
@@ -65,7 +65,7 @@ or a launch flag.
 A pointer is a routing instruction; the reader decides whether to follow it from the pointer
 text alone, without opening the target.
 
-- **Front-load the leading word.** Open with the term the reader is matching on ("Deploys:
+- **Put the matching term first.** Open with the term the reader is matching on ("Deploys:
   see…", never "See the following doc for information about deploys").
 - **Cover the branches.** State when to follow it AND what the reader gets ("for tracked-changes
   output specifically, read X"), so both the follow and the skip are informed decisions.
@@ -130,8 +130,8 @@ with different invocation modes is a different axis with its own decision rubric
 
 Write what to do, not what to avoid: a prohibition drags the banned behavior into context, and
 pretrained leading words are the compact anchors that steer ("Prefer X" over "Never do Y unless").
-Keep a negation only when the positive form genuinely loses the constraint, then pair it with
-the positive alternative in the same sentence. A design exclusion is the exception that stays
+Keep a negation only when the positive form genuinely loses the constraint, and state the
+positive alternative in the same sentence as the negation. A design exclusion is the exception that stays
 negative: name the specific styles to leave out ("no hero banner, no pill-shaped buttons"),
 since "avoid a generic look" swaps one default for another.
 

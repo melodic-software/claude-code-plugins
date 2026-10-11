@@ -21,7 +21,10 @@
 # means needs-human; a present entry that is not a non-empty string fails.
 # Idempotent: with the label on the PR and a LANES_BOT_LOGIN marker for this
 # resume key, it writes nothing. Without the label (a person removed it to resume), it
-# escalates again.
+# escalates again. The label is written before the comment, so a retry after a
+# failure between the two finds the label and posts at most one comment. The
+# comment write is tried three times, so a transient failure does not leave the
+# label without its explanation.
 #
 # Exit: 0 when escalated or already escalated; 1 on bad input or API failure.
 set -euo pipefail
@@ -83,8 +86,12 @@ gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER
 \`\`\`
 EOF
 
-gh api -X POST "$issue/comments" -F "body=@$body" >/dev/null
 if [[ $labeled != true ]]; then
   gh api -X POST "$issue/labels" -f "labels[]=$label" >/dev/null
 fi
+for attempt in 1 2 3; do
+  gh api -X POST "$issue/comments" -F "body=@$body" >/dev/null && break
+  ((attempt < 3)) || die "cannot post the escalation comment after $attempt attempts; the $label label is on"
+  sleep $((attempt * 5))
+done
 echo "escalated: $ESCALATION_REASON, label $label, resume key $HEAD_SHA"

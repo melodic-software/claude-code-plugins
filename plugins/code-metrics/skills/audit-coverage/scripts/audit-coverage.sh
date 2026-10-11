@@ -84,7 +84,7 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 # `coverage.artifacts` and `coverage.path_prefix_strip` from the resolved
 # config, one entry per line.
 config_list() {
-  "${PY[@]}" -c '
+  "${PY[@]}" -I -c '
 import json, sys
 document = json.load(open(sys.argv[1]))
 node = document.get("coverage") or {}
@@ -193,7 +193,7 @@ fi
 # the files a complexity collector happened to emit rows for: a file with no
 # functions, or a lane whose collector is absent, still gets its file-level
 # coverage; complexity is needed only for CRAP.
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import json, sys
 document = json.load(open(sys.argv[1]))
 json.dump(document.get("scope") or {}, open(sys.argv[2], "w"))
