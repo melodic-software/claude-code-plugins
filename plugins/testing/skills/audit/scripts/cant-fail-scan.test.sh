@@ -50,7 +50,7 @@ assert_matches() {
   # about the SHAPE of a field's value: a substring check on a prefix of that
   # value passes for every malformed value sharing the prefix, which is the
   # can't-fail shape this scanner exists to find.
-  if printf '%s\n' "$2" | LC_ALL=C grep -qE "$3"; then
+  if LC_ALL=C grep -qE "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "expected output to match ERE: $3"
