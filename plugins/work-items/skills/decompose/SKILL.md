@@ -224,7 +224,7 @@ tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plu
 
 ## Re-decompose (rerouting)
 
-Read [context/re-decompose.md](context/re-decompose.md) when the target item already carries vertical slices
-from a previous decomposition, or when `/work-items:ship` routes here because the vertical slices no longer
+Read [context/re-decompose.md](context/re-decompose.md) when the target item already carries child items
+from a previous decomposition, or when `/work-items:ship` routes here because the items no longer
 fit the spec: it owns the reroute flow, what is preserved, what is retired, and the cases that are
 an ordinary edit or a new spec rather than a reroute. A first-pass decomposition never reaches it.
