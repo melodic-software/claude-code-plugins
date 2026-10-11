@@ -35,8 +35,10 @@ concurrency:
 jobs:
   resolve-conflicts:
     # The per-PR write queue sits on the job behind this if:, so a run that
-    # does nothing never waits in it.
-    if: inputs.pr-number != ''
+    # does nothing, or a dispatch the lanes App sent, never waits in it.
+    if: >-
+      inputs.pr-number != ''
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
     permissions:
       contents: read
       pull-requests: read
@@ -58,8 +60,9 @@ jobs:
 
   report-escalation:
     needs: resolve-conflicts
-    # escalation-reason is set only by the write runner's own steps.
-    if: needs.resolve-conflicts.outputs.escalation-reason != ''
+    # escalation-reason is set only by the write runner's own steps. A later
+    # failure in that run (a red revoke step) still escalates.
+    if: ${{ !cancelled() && needs.resolve-conflicts.outputs.escalation-reason != '' }}
     permissions:
       contents: read
       pull-requests: read
