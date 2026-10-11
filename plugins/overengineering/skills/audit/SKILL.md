@@ -309,11 +309,8 @@ findings" the template uses when an artifact will carry the rest.
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+writing it into a brief. `${CLAUDE_PLUGIN_ROOT}/reference/spoke-paths.md` records why, with the
+pointer to recheck it against.
 
 ## Gotchas
 
