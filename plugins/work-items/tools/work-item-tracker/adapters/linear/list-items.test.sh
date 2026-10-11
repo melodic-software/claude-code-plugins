@@ -84,6 +84,23 @@ rc="$(lin_run "$S")"
 assert_eq "paged listing → exit 0" "0" "$rc"
 assert_eq "both pages collected" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_contains "the cursor is sent on the second call" "$(lin_bodies)" '"after":"cursor-1"'
+assert_eq "a listing whose last page arrived carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
+
+# --- the declared ceiling ends the walk and the envelope says so ---
+# A fixture copy of the adapter declares a ceiling of 2, so two one-item pages reach it
+# while Linear still reports a next page.
+FIX_ADAPTER="$LIN_FIX/adapter"
+mkdir -p "$FIX_ADAPTER"
+cp "$D"/*.sh "$FIX_ADAPTER/"
+jq '.limits.list_items_max = 2' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+lin_reset
+seed_page "[$(lin_issue_json 12 started)]" true "cursor-1"
+seed_page "[$(lin_issue_json 13 started)]" true "cursor-2"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
+assert_eq "a walk stopped at the ceiling → exit 0 (documented truncation)" "0" "$rc"
+assert_eq "the ceiling's worth of items" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$(lin_out)")"
+assert_contains "and stderr announces it" "$(lin_err)" "ceiling of 2 items"
 
 # An empty result is an empty envelope, never an error.
 lin_reset

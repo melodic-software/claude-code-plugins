@@ -26,4 +26,26 @@ assert_eq "--repo leaves the stored namespace on the item" "local-markdown:local
   "$(jq -r '.items[0].id' <<<"$LISTED")"
 rm -rf "$STORE"
 
+# --- the envelope reports truncation at the declared ceiling ---
+# A fixture copy of the adapter declares a ceiling of 2. `truncated` turns on a
+# MATCHING item past the ceiling: a closed item there leaves an open listing complete.
+FIX="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+mkdir -p "$FIX/adapters"
+cp -R "$(dirname "$S")" "$FIX/adapters/local-markdown"
+cp -R "$(dirname "$S")/../../lib" "$FIX/lib"
+jq '.limits.list_items_max = 2' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/local-markdown/capabilities.json"
+FS="$FIX/adapters/local-markdown/list-items.sh"
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+for t in one two; do
+  WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "$t" >/dev/null
+done
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
+assert_eq "exactly the ceiling's worth of open items: truncated is false" "false" "$(jq -c '.truncated' <<<"$LISTED")"
+WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "three" >/dev/null
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
+assert_eq "an open item past the ceiling: truncated is true" "true" "$(jq -c '.truncated' <<<"$LISTED")"
+assert_eq "past the ceiling: only the ceiling's worth of items" "2" "$(jq '.items | length' <<<"$LISTED")"
+LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS" --state closed)"
+assert_eq "no closed item past the ceiling: the closed listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
+
 [[ $FAILED -eq 0 ]] || exit 1

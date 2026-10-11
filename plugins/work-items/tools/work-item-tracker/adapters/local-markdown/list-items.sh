@@ -33,13 +33,20 @@ esac
 wit_need_storage
 limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.json")"
 
-emitted=0
-{
-  for n in $(wit_item_numbers); do
-    ((emitted < limit)) || break
-    item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
-    wit_state_matches "$state" "$item_state" || continue
-    wit_emit_local_item "$n" true
-    emitted=$((emitted + 1))
-  done
-} | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'
+# `truncated` is true only when a matching item past the ceiling exists, so a store
+# holding exactly `limit` matches still reads as complete.
+emitted=0 truncated=false rows=""
+for n in $(wit_item_numbers); do
+  item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
+  wit_state_matches "$state" "$item_state" || continue
+  if ((emitted >= limit)); then
+    truncated=true
+    break
+  fi
+  row="$(wit_emit_local_item "$n" true)" || continue
+  rows+="$row"$'\n'
+  emitted=$((emitted + 1))
+done
+printf '%s' "$rows" |
+  jq -c -s --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$truncated" \
+    '{schema_version: $sv, items: ., truncated: $truncated}'

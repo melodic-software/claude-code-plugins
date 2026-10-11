@@ -64,6 +64,7 @@ QUERY='query($teams: [String!], $first: Int!, $after: String) {
 ITEMS='[]'
 CURSOR=""
 COUNT=0
+TRUNCATED=false
 while :; do
   wit_linear_gql "$QUERY" \
     "$(jq -cn --argjson t "$TEAMS" --argjson f "$WIT_LINEAR_PAGE_SIZE" --arg a "$CURSOR" \
@@ -91,10 +92,12 @@ while :; do
   CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$PAGE")"
   [[ -n "$CURSOR" ]] || break
   # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED
-  # truncation, not an error — but never a silent one.
+  # truncation, not an error — but never a silent one: stderr says so and the envelope
+  # carries `truncated: true`.
   if ((COUNT >= WIT_LINEAR_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items; results are truncated\n' \
       "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
+    TRUNCATED=true
     break
   fi
 done
@@ -102,7 +105,8 @@ done
 # ITEMS travels on STDIN, not argv: this is where the array is largest, so it is the likeliest
 # place to exceed ARG_MAX, and a failed exec here would otherwise emit nothing while the
 # caller read the empty output as "no items".
-jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}' <<<"$ITEMS" || {
+jq -c --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$TRUNCATED" \
+  '{schema_version: $sv, items: ., truncated: $truncated}' <<<"$ITEMS" || {
   printf 'list-items.sh: could not emit the item envelope\n' >&2
   exit "$EX_INTERNAL"
 }
