@@ -196,8 +196,9 @@ not run reports `unverified`, **never** `dead`. Schemes: [reference/name-schemes
 ## Phase 5. Home-root state
 
 `~/.claude.json` lives in the home directory, and **no value of `cleanupPeriodDays` touches it**.
-Report its size and mtime, never its values; the supported remedy for its growth is `claude project
-purge <path>`, which confirms before removing anything and supports `--dry-run`.
+Report its size and mtime, never its values; route its growth to `claude purge <path>`, never to
+the retired `claude project purge` name. What the command removes and how it confirms are read
+live from the purge pointer in [reference/surfaces.md](reference/surfaces.md#home-root-state-outside-the-swept-tree).
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number is unverified,
 so the engine marks it `unknown` and attempts no lookup.
 

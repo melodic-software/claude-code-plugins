@@ -1,9 +1,16 @@
 # What lives in a Claude Code installation directory, and who owns it
 
-Basis for every row: <https://code.claude.com/docs/en/claude-directory>, read through the raw
-markdown endpoint (`.../claude-directory.md`), not a summarizing fetch. Verified 2026-08-26.
-Recheck trigger: a release note or docs change naming `cleanupPeriodDays`, a swept path, or the
-`claude-directory` page itself.
+This file holds our classification of the paths under `~/.claude`; the engine's runtime copy of it
+is `SURFACE_TABLE` in [`scripts/install_state.py`](../scripts/install_state.py). Neither restates
+what upstream says each path contains or how long it lives: read that live.
+
+- **Pointer**: when classifying a path, or checking whether a path is swept, kept, or listed at
+  all, fetch [claude directory: application data](https://code.claude.com/docs/en/claude-directory#application-data)
+  live through the raw markdown endpoint (`.../claude-directory.md`), never a summarizing fetch.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a release note or docs change naming `cleanupPeriodDays` or a swept or kept
+  path, or a path in a real install that the engine reports as `unclassified` while that section
+  lists it.
 
 The distinction this file exists to make: **a path Claude Code already manages is not a cleanup
 candidate, however old its contents look.** Hand-pruning a swept path fights the product's own
@@ -11,31 +18,36 @@ retention sweep and produces churn, not space.
 
 ## The retention sweep
 
-`cleanupPeriodDays` governs it. Default 30 days, minimum 1; `0` fails with a validation error. Files
-under the swept paths below are deleted at startup once older than that window.
+`cleanupPeriodDays` governs it. The engine reports the configured value, or the documented default
+when the setting is absent, and treats a value the product would reject as a configuration error.
 
-Three facts about it that change how a finding should be read:
+- **Pointer**: when reporting the window, its default or its accepted range, fetch
+  [settings reference: cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes its default, minimum, or
+  validation.
 
-- **A managed source that cannot be parsed refuses startup.** When a managed settings file,
-  drop-in, MDM plist, or HKLM value is present but cannot be parsed as a JSON object, Claude Code
-  refuses to start (exit 1, source named, from v2.1.259) and prints an error naming the source,
-  even when another admin source has a valid policy. `audit-install-state` reports that as
-  `managed-settings-unparsable-refuses-start`, not a silent lack of enforcement.
-  **Claim, basis, as of, recheck:** that sentence,
-  [managed settings](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped),
-  2026-09-28, and a re-fetch of that section that stops naming those four sources.
-- **A user settings file that cannot be parsed pauses the retention sweep.** If Claude Code cannot
-  safely determine the retention period, it pauses the age-based sweep. When the cause is a
-  settings file that cannot be read or parsed, it also warns in `/status` until the file is fixed.
-  When managed settings provide `cleanupPeriodDays`, the sweep runs at the managed value.
-  **Claim, basis, as of, recheck:** that sentence,
-  [claude-directory](https://code.claude.com/docs/en/claude-directory) ("Paused sweep"),
-  2026-09-28, and a re-fetch of that bullet that stops warning in `/status` or stops naming a
-  parsed settings file as a pause cause. A JSON syntax error in user settings is a retention
-  outage, not only a config error. The engine reports it as `error`. It is not the managed-source
-  refusal above.
-- **Managed settings can supply the value**, at a machine-scope path that varies by OS
-  (`/Library/Application Support/ClaudeCode/`, `/etc/claude-code/`, `%ProgramFiles%\ClaudeCode\`).
+Four facts about it that change how a finding should be read:
+
+- **A managed source that cannot be parsed is a startup failure, not a silent lack of
+  enforcement.** `audit-install-state` reports it as
+  `managed-settings-unparsable-refuses-start`.
+  - **Pointer**: when a managed source is present but does not parse, fetch
+    [managed settings: find entries Claude Code dropped](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
+    live for which sources count and what the product does. **As of**: 2026-10-11. **Recheck
+    trigger**: that section stops describing a refused start for an unparsable managed source.
+- **A user settings file that cannot be parsed can pause the retention sweep.** We treat a JSON
+  syntax error in user settings as a retention outage, not only a config error. The engine reports
+  it as `error`. It is not the managed-source refusal above.
+  - **Pointer**: when a settings error coincides with old swept files, fetch
+    [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+    live and read its paused-sweep bullet for the pause causes and where the warning shows.
+    **As of**: 2026-10-11. **Recheck trigger**: that bullet stops naming an unparsable settings
+    file as a pause cause.
+- **Managed settings can supply the value**, from a machine-scope path that varies by OS.
+  - **Pointer**: when locating the managed file on a host, fetch
+    [managed settings](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
+    live; that page links each delivery mechanism's location. **As of**: 2026-10-11.
+    **Recheck trigger**: that page moves or renames the managed file locations.
 - **`.last-cleanup` is an undocumented sentinel the engine reads.** It carries an ISO timestamp
   observed to advance when the sweep runs, and the engine reports its age. No upstream page names
   the file (claude-directory.md, settings-reference.md, monitoring-usage.md, and the CHANGELOG
@@ -46,25 +58,18 @@ Three facts about it that change how a finding should be read:
 
 ## Cleaned up automatically (age-swept)
 
-| Path under `~/.claude/` | Contents |
-|---|---|
-| `projects/<project>/<session>.jsonl` | Full conversation transcript |
-| `projects/<project>/<session>/subagents/` | Subagent transcripts, removed with the parent |
-| `projects/<project>/<session>/tool-results/` | Large tool outputs spilled to separate files |
-| `file-history/<session>/` | Pre-edit snapshots for checkpoint restore |
-| `plans/` | Plan files written during plan mode |
-| `debug/` | Per-session debug logs (`--debug` / `/debug` only) |
-| `paste-cache/` | Large pastes |
-| `image-cache/` | Attached images. **Different sweep rule:** on each sweep the directories of all *other* sessions are removed whatever their age, so an old `image-cache/<session>/` disappearing immediately is expected, never an `age-exceeds-window` signal |
-| `uploads/<session>/` | Remote Control / web attachments |
-| `feedback/drafts/` | Feedback drafts, swept after `cleanupPeriodDays` **or** 30 days, whichever is shorter |
-| `usage-data/` | `/insights` reports and cached analysis data |
-| `session-env/` | Per-session environment metadata |
-| `tasks/` | Per-session task lists |
-| `shell-snapshots/` | Shell state captured at startup; removed on clean exit |
-| `backups/` | Timestamped copies of `~/.claude.json` before config migrations |
-| `feedback-bundles/` | Redacted transcript archives written by `/feedback` |
-| `todos/`, `statsig/`, `logs/` | Legacy; no longer written. Contents then the directory are removed |
+The engine classifies these top-level names under `~/.claude/` as `product-managed-swept`:
+`projects`, `file-history`, `plans`, `debug`, `paste-cache`, `image-cache`, `uploads`, `dev-mods`,
+`session-env`, `tasks`, `shell-snapshots`, `backups`, `feedback-bundles`, `usage-data`, and the
+legacy `todos`, `statsig`, `logs`. Swept paths nested under another name (set-aside transcripts
+under `projects/`, the claude.ai-sync trash under `skills/` and `plugins/`, and the
+`installed_plugins` set-aside copies under `plugins/`) take their parent's classification; the
+engine keys on the top-level name only. Read what each holds from the pointer at the top of this
+file.
+
+One firing rule of ours rides on a row: **`image-cache/` sweeps other sessions' directories
+whatever their age**, so an old `image-cache/<session>/` disappearing immediately is expected,
+never an `age-exceeds-window` signal.
 
 ### The unit of retention is not always the file
 
@@ -74,9 +79,8 @@ This is the row most likely to generate a wrong finding, so it gets its own head
 The step from it to "the sweep is failing" is an inference, and for several of these paths it is a
 wrong one:
 
-- **`file-history/`** retains the **100 most recent checkpoints**. Snapshots no retained checkpoint
-  references are deleted, *except each file's first snapshot, which is kept regardless of age.*
-  Old mtimes here are the documented behavior.
+- **`file-history/`** retains by checkpoint count, not by age, and keeps some snapshots regardless
+  of age. Old mtimes here are the documented behavior, never evidence of a stalled sweep.
 - **`projects/<session>/subagents/` and `tool-results/`** are removed *with their parent transcript*.
   A contained file's own mtime is not the unit.
 - **`session-env/`, `tasks/`, `debug/`** are per-session. The session directory ages out, not each
@@ -86,39 +90,57 @@ For every other swept path the granularity is simply not documented per-file. Th
 emits `age-exceeds-window` with `evidence: inferred` and the sweep unit inline, never a verdict that
 reads as a deletion authorization.
 
-Absence is evidence too: `todos/`, `statsig/`, `logs/`, `image-cache/` and `feedback-bundles/` not
-existing is positive proof the sweep completed, including its remove-the-empty-directory step.
+- **Pointer**: when stating what `file-history/` retains, fetch its row in
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that row changes its retention unit.
+
+Absence is evidence only for the legacy directories: `todos/`, `statsig/` and `logs/` missing on an
+install old enough to have written them shows the sweep completed, including its
+remove-the-empty-directory step. Do not read the absence of `image-cache/` or `feedback-bundles/`
+that way: current versions write neither on every install, so their absence proves nothing about
+the sweep.
 
 ## Kept until you delete them
 
-Not covered by automatic cleanup; persist indefinitely.
+The engine classifies `history.jsonl`, `stats-cache.json`, `remote-settings.json`,
+`policy-limits.json` and `cache/` as `product-managed-kept`: not removed by the age sweep. One of
+them has a conditional exception (`history.jsonl` under one configuration), so never state as fact
+that a kept path grows forever; read its row first.
 
-| Path | Contents |
-|---|---|
-| `history.jsonl` | Every prompt typed, with timestamp and project path |
-| `stats-cache.json` | Aggregated token and cost counts shown by `/usage` |
-| `remote-settings.json` | Cached server-managed settings for your organization |
-| `cache/changelog.md` | Cached Claude Code changelog |
-| `policy-limits.json` | Cached feature policy settings |
+- **Pointer**: when judging whether a kept path is ever trimmed, fetch
+  [claude directory: kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them)
+  live. **As of**: 2026-10-11. **Recheck trigger**: a row gains or loses a trimming exception.
 
-Upstream adds: "Other small cache and lock files appear depending on which features you use and are
-safe to delete." That sentence is not a license to delete anything a table does not name. See
-"unclassified" below.
+Upstream also lists state files to keep that no table names, and the engine classifies them:
+`.credentials.json` and `daemon/` as `secret`, `agent-memory/` as `authored`, and `jobs/` as
+`product-managed-kept`. Any other file the tables do not name is `unclassified`, never a license to
+delete. See "unclassified" below.
+
+- **Pointer**: when deciding whether an unlisted file is safe to remove, fetch
+  [claude directory: state files to keep](https://code.claude.com/docs/en/claude-directory#state-files-to-keep)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that list gains or drops an entry.
 
 ## Session-scoped, explicitly not age-swept
 
-`sessions/` holds one small file per running session, used to detect concurrent sessions and
-crashes. Claude Code removes each file when its session exits and clears crash leftovers on the next
-launch. **Hand-deleting these confuses concurrent-session detection.**
+`sessions/` holds one small file per running session, which Claude Code manages itself.
+**Hand-deleting these confuses concurrent-session detection.**
 
 They also churn during an audit. A file present in one listing and gone in the next is the
 documented behavior, not a discrepancy, and it means any orphan count keyed on sessions carries a
 margin of error, because a session whose record vanished mid-run is *unknown*, not *dead*.
 
+- **Pointer**: when explaining `sessions/` lifetime, fetch its bullet under
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  live. **As of**: 2026-10-11. **Recheck trigger**: `sessions/` joins the age sweep.
+
 ## Never delete
 
-Upstream is explicit: don't delete `~/.claude.json`, `~/.claude/settings.json`, or
-`~/.claude/plugins/`. Those hold auth, preferences, and installed plugins.
+We never route `~/.claude.json`, `~/.claude/settings.json`, or `~/.claude/plugins/` to deletion.
+
+- **Pointer**: when a user asks whether one of these may go, fetch
+  [claude directory: clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data)
+  live; its closing paragraph names the files never to delete. **As of**: 2026-10-11. **Recheck
+  trigger**: that paragraph adds or drops a file.
 
 ## Home-root state, outside the swept tree
 

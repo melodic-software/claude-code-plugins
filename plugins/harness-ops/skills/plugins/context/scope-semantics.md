@@ -253,10 +253,19 @@ section above records as unreapable.
 **Nothing on either side of the boundary reaps the result.** `git worktree remove` deletes the
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
 record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
-product's own retention sweep as not covering them either: as of 2026-09-05 its list named nothing
-under `~/.claude/plugins/` (pointer:
-[Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically);
-recheck when that list names a path under `~/.claude/plugins/`). We treat the per-project records as a live, maintained mechanism rather than vestigial state,
+product's own retention sweep as not covering them either. The swept-path list now names paths
+under `~/.claude/plugins/`, but they are the claude.ai-sync trash and the dated copies taken when
+`installed_plugins.json` is rewritten, not the live per-project records. A dropped record's
+set-aside copy aging out is cleanup of the copy; it is no evidence that a stranded record in the
+live file is ever reaped, so the claim above stands until a probe shows otherwise.
+
+- **Pointer**: when deciding whether the sweep reaps a project-scope record, fetch
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  live and read its `plugins/` rows. **As of**: 2026-10-11. **Recheck trigger**: that list names
+  the live `installed_plugins.json` records, or describes when Claude Code drops a project-scope
+  record on its own.
+
+We treat the per-project records as a live, maintained mechanism rather than vestigial state,
 because the [2.1.224 changelog entry](https://code.claude.com/docs/en/changelog#2-1-224) fixes a
 defect in them. Nothing between 2.1.200 and 2.1.261 adds a prune-by-path verb.
 

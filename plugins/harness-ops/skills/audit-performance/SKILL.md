@@ -251,9 +251,15 @@ spawns. Read `fan_out` in this order:
 5. **`fan_out.concurrency_ceilings`**. Spawn depth multiplies against the per-session concurrency
    limit, and every subagent carries the same statusline and hook fan-out as its parent, so two
    individually modest settings can license a very large population. Report effective values
-   against documented defaults. **Never advise setting one of these to 0**: they are read through
-   a truthiness test on the raw string, the string `"0"` is truthy, and only removing the
-   variable disables it.
+   against documented defaults. **Never present any value, or removing the variable, as
+   disabling either cap**: both caps can be adjusted, neither can be turned off. The engine's
+   `trap` string beside them describes the observer flag's truthiness gate, not these caps.
+   - **Pointer**: when judging what a cap value does, fetch
+     [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
+     and
+     [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+     live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which values it
+     accepts, or documents a way to disable its cap.
 6. **`fan_out.statusline`**. Reported, never rendered. `refresh_interval_seconds` is in SECONDS
    with a documented minimum of 1; reading it as milliseconds inverts the conclusion. Its
    `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, Git

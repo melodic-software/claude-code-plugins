@@ -22,15 +22,19 @@ evidence of absence. `/harness-ops:known-issues` is the live-search complement.
 ## Version regressions fixed in 2.1.2xx (suspect 2)
 
 An installation running a version below these carries known, fixed slowness. Capture the version
-before any reinstall.
+before any reinstall. Our reading of why each matters, in our words:
 
-| Fixed in | What it fixed | Why it matters |
-|---|---|---|
-| v2.1.216 (2026-07-20) | Message-normalization cost grew **quadratically** with conversation turns, causing multi-second stalls in long sessions and slow resumes | The single strongest alternative explanation for "it got slower over weeks" |
-| v2.1.208 (2026-07-14) | Per-tool-call CPU with many MCP tools (up to 7x), transcript size (up to 79x in edit-heavy sessions), unbounded file-edit read cache (now 16 MB) | Couples suspect 2 to suspect 3: big fleets hurt far more on older versions |
-| v2.1.207 (2026-07-11) | Terminal freezing / keystroke lag while streaming long output; Windows process creation via kernel32 instead of PowerShell | Direct keystroke-lag fix; also removed a per-spawn security-tool trigger on Windows |
-| v2.1.203 (2026-07-07) | Per-turn CPU/memory regression (context indicator re-analyzed the whole transcript every turn) | n/a |
-| v2.1.221 (2026-08-10) | Fewer event-loop stalls; Windows startup improvement | n/a |
+| Release | Why it matters to this audit |
+|---|---|
+| [v2.1.216](https://code.claude.com/docs/en/changelog#2-1-216) | The single strongest alternative explanation for "it got slower over weeks" in long or resumed sessions |
+| [v2.1.208](https://code.claude.com/docs/en/changelog#2-1-208) | Couples suspect 2 to suspect 3: big MCP fleets and edit-heavy sessions hurt far more on older versions |
+| [v2.1.207](https://code.claude.com/docs/en/changelog#2-1-207) | Direct keystroke-lag fix, plus a Windows process-creation change that bears on per-spawn security-tool cost |
+| [v2.1.203](https://code.claude.com/docs/en/changelog#2-1-203) | A per-turn CPU and memory regression |
+| [v2.1.221](https://code.claude.com/docs/en/changelog#2-1-221) | Event-loop stalls and Windows startup |
+
+- **Pointer**: when telling an operator what a release fixed, fetch its linked changelog entry
+  live. **As of**: 2026-10-11. **Recheck trigger**: a later release note names a performance
+  regression in one of these areas, or the changelog drops a version anchor.
 
 - **The probed binary may not be your daily `claude`.** `cli.version` is whatever
   `shutil.which("claude")` found on the ENGINE PROCESS PATH, which is not the operator's login
@@ -39,34 +43,43 @@ before any reinstall.
   `~/.claude/local/`. The report names `probe_path`, `resolved_path`, the containment base it
   tested against, and every `claude` it found on PATH, and raises `cli-probe-project-local` and
   `cli-multiple-on-path` so the ambiguity is visible rather than averaged into a version claim.
-  Multiple installs cause version mismatches and unexpected behavior and the install docs say to
-  keep exactly one; `which -a claude` (or `where.exe claude`) lists them, and `claude doctor` is
-  the first-party authority on which to keep, so both findings route there rather than convicting
-  a layout this engine cannot classify.
-  ([troubleshoot-install](https://code.claude.com/docs/en/troubleshoot-install), fetched
-  2026-09-11; recheck when the install docs publish a binary path for a second install method.)
+  We route both findings to the install docs' conflicting-installations check rather than
+  convicting a layout this engine cannot classify.
+  - **Pointer**: when an operator has more than one `claude`, fetch
+    [troubleshoot install: check for conflicting installations](https://code.claude.com/docs/en/troubleshoot-install#check-for-conflicting-installations)
+    live for how to list them and which to keep. **As of**: 2026-10-11. **Recheck trigger**: that
+    section publishes a binary path for a second install method, or changes which tool decides.
 
 ## Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)
 
-- **Retention sweep cost is a daily stat-walk of the whole tree.** Fires ~5 s after the first
-  launch of the day (24 h sentinel: `.last-cleanup`; defers 10 min while the user was active in
-  the last 60 s), then runs ~30 sequential sub-sweeps doing a stat (and past the window, an <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
-  unlink) per file. Async and yielding, so the harm mode is sustained background I/O, amplified
-  per-operation by antivirus filter drivers, not a blocked event loop.
-- **An unparsable user `settings.json` pauses the entire sweep and warns in `/status`.** Nothing
-  is cleaned for as long as the error persists. The surfaces are the Settings Error dialog,
-  `/status`, `/doctor`, and this skill's `sweep_health`. A managed settings file, drop-in, MDM
-  plist, or HKLM value that cannot be parsed refuses startup instead (exit 1, source named, from
-  v2.1.259). The tree then grows without bound while looking normal.
-- **Never swept, grow forever:** `history.jsonl` (every prompt ever typed) and the home-root
-  `~/.claude.json`. The supported shrink lever for the latter is `claude purge <path>`;
-  a community report (Medium, 2026-07) confirmed surgically pruning one project's metadata from
+These are our own reading of the v2.1.228 bundle; no probe script holds the evidence, so the
+timings and counts are not restated here, and a claim that needs one is re-derived first.
+
+- **Retention sweep cost is a periodic stat-walk of the whole tree.** We read it as async and <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
+  yielding, so the harm mode is sustained background I/O, amplified per-operation by antivirus
+  filter drivers, not a blocked event loop. `.last-cleanup` is the sentinel the engine reads.
+- **An unparsable settings file can stop cleanup while the tree looks normal.** We treat a user
+  settings parse error as a retention outage and a managed-source parse error as a refused start;
+  the surfaces are the Settings Error dialog, `/status`, `/doctor`, and this skill's
+  `sweep_health`. The record parts for both live in `audit-install-state`'s
+  `reference/surfaces.md` under "The retention sweep"; read the pause causes live there.
+- **Not age-swept:** the home-root `~/.claude.json`, and `history.jsonl` outside one configuration
+  that trims it. Never tell an operator either grows forever without reading the kept-paths row
+  first. The supported shrink lever for `~/.claude.json` is `claude purge <path>`; a community
+  report (Medium, 2026-07) confirmed surgically pruning one project's metadata from
   `~/.claude.json` fully cured an input-lag case.
-- **`cleanupPeriodDays` default 30** (minimum 1). Raising it far preserves transcripts by growing
-  the live tree, which is the wrong lever for preservation.
-- **Resumed mega-sessions:** `--continue`/`--resume` loads the full transcript with no cap, and
-  Windows builds force a full-viewport repaint per frame, so per-keystroke render cost scales
-  with mounted transcript size. Session hygiene (fresh sessions, `/clear`) bounds it.
+  - **Pointer**: when stating whether `history.jsonl` is ever trimmed, fetch
+    [claude directory: kept until you delete them](https://code.claude.com/docs/en/claude-directory#kept-until-you-delete-them)
+    live. **As of**: 2026-10-11. **Recheck trigger**: that row's trimming exception changes.
+- **`cleanupPeriodDays` is the wrong lever for preservation.** Raising it far preserves
+  transcripts by growing the live tree.
+  - **Pointer**: when quoting its default or range, fetch
+    [settings reference: cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)
+    live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes its default or minimum.
+- **Resumed mega-sessions:** we read `--continue`/`--resume` as mounting the whole transcript and
+  Windows builds as repainting the full viewport, so per-keystroke render cost scales with mounted
+  transcript size. Session hygiene (fresh sessions, `/clear`) bounds it. Recheck when a release
+  note names resume loading or Windows rendering.
 
 ## The "nuke ~/.claude" folk remedy: evidence status
 
