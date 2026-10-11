@@ -4,6 +4,17 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by `/claude-config:audit-permission-grants` (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## [1.6.1] - 2026-10-10
+
+Wording only; the principle, the three anti-patterns, and the correct pattern are unchanged.
+
+- **"Auto mode is the built-in default" no longer restates which sessions start in auto mode.**
+  The quoted version floors and one-time offer, and the claim that the default is plan-scoped and
+  skips provider-routed sessions, are replaced by our assumption (any session may start in auto
+  mode, and our unattended lanes launch in it) with a pointer to the permission-modes section that
+  says which mode a session starts in, plus a source-conflict record for the release that first did
+  so.
+
 ## [1.6.0] - 2026-10-08
 
 Additive; the principle, the three anti-patterns, and the correct pattern are unchanged.

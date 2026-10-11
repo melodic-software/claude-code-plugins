@@ -643,6 +643,16 @@ jobs:
         continue-on-error: true
         run: python3 scripts/check-code-metrics-skill-prose.py
 
+      # A `path:N` citation in markdown goes stale when the CITED file shrinks,
+      # usually in a change that never touches the citing file, so the scan is
+      # whole-repository and ungated. It fails only the mechanical case, a line
+      # past the end of the file; whether the line still says what the citation
+      # claims is left to review.
+      - name: Check markdown line citations stay inside the cited file
+        id: line_citations
+        continue-on-error: true
+        run: python3 scripts/check-line-citations.py
+
       # The review-disposition-and-resolution contract is canonical in ONE file
       # and restated across half a dozen others; nothing checked that the
       # copies agreed. #1633 shipped seven such defects across five review
@@ -1072,6 +1082,7 @@ jobs:
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
+            line-citations=${{ steps.line_citations.outcome }}
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             stale-base-overlap=${{ steps.stale_base.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
@@ -2162,14 +2173,15 @@ jobs:
       #
       # THE WINDOW IS PINNED TO THE TIGHTER BASIS, 750,000 tokens, which is
       # what #3505 exhibited live. The budget is a FRACTION of the live
-      # context window, so the same 0.05 buys 150,000 chars there and 200,000
-      # on a 1M-token model. Measuring the 1M basis would put this WARN roughly
+      # context window, so the same fraction buys a third more characters on
+      # a 1M-token model than at 750k. Measuring the 1M basis would put this
+      # WARN roughly
       # a month after the 750k consumers had already overflowed, and a tripwire
       # that fires after the failure it exists to predict is worse than none.
-      # (Neither basis speaks for a 200k-window consumer, who is over the
-      # 40,000-char budget today; docs/cloud-sessions.md records that.)
+      # (Neither basis speaks for a 200k-window consumer, whose budget the
+      # fleet overflows today; docs/cloud-sessions.md records that.)
       # Report-only for the same reason its sibling is. The fix for the
-      # aggregate is the per-skill description trim, which #3526 owns.
+      # aggregate is the per-skill description trim, which #6846 owns.
       - name: Report the skill-listing budget at this repo's configured fraction
         id: listing_budget_configured
         continue-on-error: true

@@ -59,7 +59,7 @@ before any reinstall.
   plist, or HKLM value that cannot be parsed refuses startup instead (exit 1, source named, from
   v2.1.259). The tree then grows without bound while looking normal.
 - **Never swept, grow forever:** `history.jsonl` (every prompt ever typed) and the home-root
-  `~/.claude.json`. The supported shrink lever for the latter is `claude project purge <path>`;
+  `~/.claude.json`. The supported shrink lever for the latter is `claude purge <path>`;
   a community report (Medium, 2026-07) confirmed surgically pruning one project's metadata from
   `~/.claude.json` fully cured an input-lag case.
 - **`cleanupPeriodDays` default 30** (minimum 1). Raising it far preserves transcripts by growing
