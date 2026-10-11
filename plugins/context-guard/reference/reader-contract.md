@@ -385,22 +385,19 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**The defaults are published by the docs, and we state none of them here.** The default threshold
-depends on the model, the window it runs with, and the environment, so the docs table is where it is
-published and we keep no figure of our own; it is a documentation pointer, not something read at run time. For the current thresholds, see
+**The docs publish the default thresholds; we state no figure.** The default depends on the model,
+the window it runs with, and the environment. This is a documentation pointer, not something read
+at run time: the docs' default-thresholds table,
 [Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
-**As of:** 2026-10-10, our rule is that the shipped `dumb` band must sit below the default trigger
-the table gives for the model in use, which the bands-below-the-trigger rule below protects.
-**Recheck trigger:** that section is renamed or removed, or publishes a default at or below the
-`dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
+**As of:** 2026-10-10. **Recheck trigger:** that table changes, or its section is renamed or
+removed. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
 implies a percentage default that no page publishes as a number; for that variable, see
 [Claude Code environment variables](https://code.claude.com/docs/en/env-vars). The empirical
 check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
 entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
 1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
-with a declared margin: the dumb band leads the default trigger that the docs publish for the model
-in use ([default-auto-compact-thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)),
-and we state no figure for that margin. The trigger is **model- and environment-dependent**, so no single band set is
+with a declared margin: the dumb band leads the default trigger that table gives for the model in
+use. The trigger is **model- and environment-dependent**, so no single band set is
 correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent decisions. We read the statusline percentage as of the last API response, not the
@@ -423,7 +420,7 @@ precedence.
 
 | Surface | Kind | What this plugin relies on | Pointer |
 |---|---|---|---|
-| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above), and we state no figure; set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
+| `autoCompactWindow` | settings key (top level or per model) | A token count that moves the trigger for the model it applies to. Unset, the default is the docs' default-thresholds table (pointer above); set where we cannot see it, we assume no number (below). Normalize it into the percentage shape before comparing (below). | [settings-reference: `autoCompactWindow`](https://code.claude.com/docs/en/settings-reference#autocompactwindow); [settings-reference: `modelSettings`](https://code.claude.com/docs/en/settings-reference#modelsettings); [model-config: Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). The snapshot cannot see that window, and the surface is in the changelog only and not probed, so we never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
