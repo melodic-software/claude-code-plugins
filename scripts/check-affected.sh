@@ -11,9 +11,9 @@
 #
 # Each check calls the script or tool CI calls; none restates a check's logic.
 # The changed set is <merge-base of HEAD and the base>..HEAD, committed work
-# only, because that is what a push sends. The file linters read the working
-# tree, so when a changed file has uncommitted edits they SKIP rather than
-# judge content the push would not send.
+# only, because that is what a push sends. The checks read the working tree,
+# so when a changed file has uncommitted edits every check SKIPs rather than
+# judge content the push would not send; CI checks the pushed commit.
 #
 #   - markdown:            markdownlint-cli2 on changed .md
 #   - shellcheck:          shellcheck --rcfile .shellcheckrc on changed .sh/.bash
@@ -102,12 +102,20 @@ merge_base="$(git merge-base HEAD "$base" 2>/dev/null)" || {
   echo "check-affected: cannot compute the merge-base of HEAD and $base" >&2
   exit 2
 }
-changed_raw="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)" || {
+# Deleted paths still select their plugin for validate-plugins, as in CI; the
+# file linters get only paths that exist.
+if ! all_raw="$(git diff --name-only "$merge_base" HEAD)" ||
+  ! changed_raw="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)"; then
   echo "check-affected: git diff against $merge_base failed" >&2
   exit 2
-}
+fi
 mapfile -t changed <<<"$changed_raw"
 [[ -n "${changed[0]-}" ]] || changed=()
+
+if ((${#changed[@]})) && ! git diff --quiet HEAD -- "${changed[@]}"; then
+  echo "check-affected: SKIP every check (uncommitted edits to changed files; the checks read the working tree, a push sends HEAD, and CI checks the pushed commit). Commit or stash them, then rerun." >&2
+  exit 0
+fi
 
 declare -a md=() sh=() py=() shebang=() plugins=()
 for f in ${changed[@]+"${changed[@]}"}; do
@@ -117,6 +125,9 @@ for f in ${changed[@]+"${changed[@]}"}; do
   *.py) py+=("$f") ;;
   *) ;;
   esac
+  [[ -f "$f" && "$(head -c 2 "$f")" == '#!' ]] && shebang+=("$f")
+done
+while IFS= read -r f; do
   case "$f" in
   plugins/*/*)
     p="${f#plugins/}"
@@ -125,21 +136,9 @@ for f in ${changed[@]+"${changed[@]}"}; do
     ;;
   *) ;;
   esac
-  [[ -f "$f" && "$(head -c 2 "$f")" == '#!' ]] && shebang+=("$f")
-done
+done <<<"$all_raw"
 
-# The file linters read disk; uncommitted edits to a changed file would make
-# them judge content other than what a push sends.
-dirty=0
-if ((${#changed[@]})) && ! git diff --quiet HEAD -- "${changed[@]}"; then
-  dirty=1
-  md=() sh=() py=() shebang=()
-  dirty_reason="uncommitted edits to changed files; commit or stash them, then rerun"
-fi
-
-if ((dirty)); then
-  skip markdown "$dirty_reason"
-elif ((${#md[@]} == 0)); then
+if ((${#md[@]} == 0)); then
   skip markdown "no changed .md"
 elif ! command -v markdownlint-cli2 >/dev/null 2>&1; then
   skip markdown "markdownlint-cli2 not installed"
@@ -148,9 +147,7 @@ else
     markdownlint-cli2 --config .markdownlint-cli2.jsonc "${md[@]}"
 fi
 
-if ((dirty)); then
-  skip shellcheck "$dirty_reason"
-elif ((${#sh[@]} == 0)); then
+if ((${#sh[@]} == 0)); then
   skip shellcheck "no changed shell"
 elif ! command -v shellcheck >/dev/null 2>&1; then
   skip shellcheck "shellcheck not installed"
@@ -197,9 +194,7 @@ else
     scripts/validate-plugins.sh --only "${plugins[*]}"
 fi
 
-if ((dirty)); then
-  skip ruff "$dirty_reason"
-elif ((${#py[@]} == 0)); then
+if ((${#py[@]} == 0)); then
   skip ruff "no changed .py"
 else
   run_check ruff "scripts/run-ruff.sh check ${py[*]}" scripts/run-ruff.sh check "${py[@]}"

@@ -3,7 +3,10 @@
 # run scripts/check-affected.sh and block the push (exit 2, summary on stderr)
 # when a check fails, so a lint finding costs a local run instead of a CI round.
 #
-# Wired in .claude/settings.json with `if: "Bash(git push *)"`. That filter is
+# Wired in .claude/settings.json with `if: "Bash(git push *)"`, which also
+# matches a bare `git push`: a trailing ` *` that is the rule's only wildcard
+# matches the bare command
+# (https://code.claude.com/docs/en/permissions#wildcard-patterns). That filter is
 # best-effort and also fires on any command holding $(), backticks or $VAR
 # (https://code.claude.com/docs/en/hooks#bash-if-matching), so this script
 # re-checks that a subcommand really is `git push` before it spends a run
@@ -12,11 +15,20 @@
 #
 # Stays quiet (exit 0) on: no real push; a push that only deletes remote refs,
 # only pushes tags, or is a dry run; a push after a `cd`/`pushd` in the same
-# command, whose directory this parser does not track; a repository that is not
-# this project (another clone's scripts/check-affected.sh never runs here); a
-# repository with no scripts/check-affected.sh; a payload it cannot read; and a
-# check-affected run that could not start (exit 2), since an unreadable state is
-# not a finding.
+# command, whose directory this parser does not track; a push from any working
+# tree other than the session's project directory, including another worktree
+# of the same clone; a tree with no scripts/check-affected.sh; a payload it
+# cannot read; and a check-affected run that could not start (exit 2), since an
+# unreadable state is not a finding.
+#
+# Trust model: it runs scripts/check-affected.sh only from the working tree that
+# holds the .claude/settings.json registering this hook and this hook script
+# itself. Claude Code runs a project settings file's hooks once the folder is
+# trusted, and always in a -p or SDK session
+# (https://code.claude.com/docs/en/hooks#workspace-trust), so whatever branch is
+# checked out there already decides what this hook does; pinning the script to a
+# ref would not narrow that. Running only from that tree adds no code from a
+# tree the session did not load its hooks from.
 #
 # It checks the checked-out HEAD, not a ref the push names: `git push origin
 # other-branch` from another branch, or a tag pushed by bare name, is judged by
@@ -186,11 +198,10 @@ main() {
   push_dir_to dir "$cmd" || exit 0
   [[ "$dir" == /* ]] || dir="${cwd:-.}/$dir"
   top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
-  # Run only this project's own script (any of its worktrees), never one from a
-  # repository the command points elsewhere.
+  # Run only the project directory's own script (the trust model above), never
+  # one from another worktree or repository the command points at.
   [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
-  [[ "$(git -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" == \
-    "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" ]] || exit 0
+  [[ "$top" == "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" ]] || exit 0
   [[ -x "$top/scripts/check-affected.sh" ]] || exit 0
   rc=0
   out="$(cd "$top" && bash scripts/check-affected.sh 2>&1)" || rc=$?

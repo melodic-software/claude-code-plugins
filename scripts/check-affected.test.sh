@@ -84,10 +84,27 @@ git_test_config "$repo" update-index --chmod=+x tool
 git_test_config "$repo" commit -q -m chmod
 
 printf 'edit\n' >>"$repo/notes.txt"
-run -- --base base
-check "uncommitted edits to a changed file skip the file linters" \
-  '[[ $RC == 0 && $ERR == *"SKIP markdown (uncommitted edits"* && $ERR == *"SKIP shellcheck (uncommitted edits"* ]]'
+run STUB_CHECK_SHELL_PORTABILITY=1 -- --base base
+check "uncommitted edits to a changed file skip every check, not just the file linters" \
+  '[[ $RC == 0 && $ERR == *"SKIP every check (uncommitted edits"* && $ERR != *"ran"* ]]'
 git_test_config "$repo" checkout -q -- notes.txt
+
+# validate-plugins runs only when a claude CLI resolves; a stub stands in.
+mkdir -p "$tmp/bin" "$repo/plugins/demo"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin/claude"
+printf '#!/usr/bin/env bash\necho "validate-plugins ran: $*" >&2\nexit "${STUB_VALIDATE_PLUGINS:-0}"\n' \
+  >"$repo/scripts/validate-plugins.sh"
+chmod +x "$tmp/bin/claude" "$repo/scripts/validate-plugins.sh"
+printf 'x\n' >"$repo/plugins/demo/keep.md"
+printf 'x\n' >"$repo/plugins/demo/required.json"
+git_test_config "$repo" add -A
+git_test_config "$repo" commit -q -m plugin
+git_test_config "$repo" branch -qf base
+git_test_config "$repo" rm -q plugins/demo/required.json
+git_test_config "$repo" commit -q -m delete
+run PATH="$tmp/bin:$PATH" STUB_VALIDATE_PLUGINS=1 -- --base base
+check "a branch that only deletes a plugin file still validates that plugin" \
+  '[[ $RC == 1 && $ERR == *"FAIL validate-plugins"* && $ERR == *"validate-plugins ran: --only demo"* ]]'
 
 git_test_config "$repo" remote add origin "$tmp/missing-remote"
 git_test_config "$repo" update-ref refs/remotes/origin/main "$(git_test_config "$repo" rev-parse base)"

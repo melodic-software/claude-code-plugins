@@ -117,5 +117,10 @@ run_hook "$tmp" "git -C '$other' push origin feat/x"
 expect "another repository's check-affected.sh never runs" 0 0
 run_hook "$other" 'git push origin feat/x'
 expect "a session cwd in another repository stays quiet" 0 0
+git_test_config "$fixture" add -A
+git_test_config "$fixture" commit -q -m stub
+git_test_config "$fixture" worktree add -q -b wt "$tmp/wt"
+run_hook "$tmp/wt" 'git push origin wt'
+expect "another worktree of the project's clone stays quiet" 0 0
 
 test_harness::report
