@@ -278,7 +278,7 @@ Very good question, thanks.
 00:00:01.000 --> 00:00:03.000
 we ran the
 
-00:00:03.000 --> 00:00:05.000
+00:00:03.000 --> 00:00:05.500
 numbers again.
 
 00:00:05.000 --> 00:00:07.000
@@ -294,7 +294,7 @@ Again we moved on.
 00:00:01.000 --> 00:00:03.000
 We ran the numbers on benchmarks, too.
 
-00:00:05.000 --> 00:00:07.000
+00:00:02.500 --> 00:00:07.000
 Benchmarks too, and then we moved on.
 `;
     const result = buildTranscriptText(manualVtt, false);

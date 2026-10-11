@@ -47,15 +47,20 @@ function tokens(text) {
 function comparableWord(word) {
   // Apostrophes in any form (', ’, ʼ) drop out, so don't, don’t and dont match.
   // Only sentence punctuation at either end goes, so C++. and C# stay distinct.
-  return word.toLowerCase().replace(/['\u2019\u02BC]/g, "").replace(EDGE_PUNCTUATION, "");
+  const plain = word.toLowerCase().replace(/['\u2019\u02BC]/g, "");
+  let start = 0;
+  let end = plain.length;
+  while (start < end && EDGE_PUNCTUATION.has(plain[start])) start++;
+  while (end > start && EDGE_PUNCTUATION.has(plain[end - 1])) end--;
+  return plain.slice(start, end);
 }
 
 /**
- * Sentence punctuation (quotes, brackets, ellipses) at a word's ends. Hyphens
- * and dashes stay, so C-- and C never compare equal.
+ * Sentence punctuation (quotes, brackets, ellipses) trimmed from a word's ends
+ * by a scan rather than a regex, so a long punctuation run costs linear time.
+ * Hyphens and dashes stay, so C-- and C never compare equal.
  */
-const EDGE_PUNCTUATION =
-  /^[.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[\]{}\u2026]+|[.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[\]{}\u2026]+$/g;
+const EDGE_PUNCTUATION = new Set('.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[]{}\u2026');
 
 /**
  * The lexical words of `text`: punctuation-only tokens such as `>>` are not
