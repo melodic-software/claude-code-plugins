@@ -56,7 +56,8 @@ is.
 3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
    compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
-   provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
+   provider's own computed close-linkage,
+   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labeling takes triage or write

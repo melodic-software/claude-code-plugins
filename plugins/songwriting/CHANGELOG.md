@@ -3,6 +3,12 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.9] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's links to two retired help.suno.com articles: they now point at the archived copies the `suno` skill already cites.
+
 ## [1.6.8] - 2026-10-11
 
 ### Changed
