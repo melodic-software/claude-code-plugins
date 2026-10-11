@@ -158,7 +158,7 @@ docs index.
 | Terminals that implement OSC 7501 | 295-003 | [2.1.295](https://code.claude.com/docs/en/changelog#2-1-295) | [terminal-config, See session status in your terminal](https://code.claude.com/docs/en/terminal-config#see-session-status-in-your-terminal) |
 | `CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL` | 296-004 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [env-vars](https://code.claude.com/docs/en/env-vars); [workflows](https://code.claude.com/docs/en/workflows) |
 | `CLAUDE_CODE_OVERLOADED_RETRY_MAX_DELAY_MS` | 296-005 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [env-vars](https://code.claude.com/docs/en/env-vars) |
-| `autoCompactWindow` in subagent frontmatter and `--agents` | 296-003 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [sub-agents](https://code.claude.com/docs/en/sub-agents) |
+| `autoCompactWindow` in subagent frontmatter and `--agents` | 296-003 | [2.1.296](https://code.claude.com/docs/en/changelog#2-1-296) | [sub-agents, Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) |
 | WebFetch read-on notice and `offset` input | 290-047 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [tools-reference, WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) |
 | What attaches a subdirectory AGENTS.md | 290-132 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [memory, AGENTS.md](https://code.claude.com/docs/en/memory#agents-md) |
 | `/code-review` effort coverage per model | 290-030 | [2.1.290](https://code.claude.com/docs/en/changelog#2-1-290) | [code-review](https://code.claude.com/docs/en/code-review) |
