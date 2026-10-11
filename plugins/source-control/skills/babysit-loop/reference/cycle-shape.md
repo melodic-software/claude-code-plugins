@@ -29,15 +29,16 @@ is.
    context is compaction-lossy, the comment is the source of truth for the counters); classify
    guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
    `node <plugin-root>/skills/babysit-loop/scripts/lane-snapshot.mjs --repo <owner/repo>`. It reads
-   every page of open PRs and open issues and prints them only when every page read and the PR
-   list matches the PRs the issue list names (a mismatch is re-read once): open PRs with head SHAs (`headRefOid`), last-activity timestamps,
+   every page of open PRs and open issues through GraphQL cursor pagination and prints them only
+   when every page read and each list is whole: no number repeats and the count read equals the
+   `totalCount` every page reported (an incomplete read is re-read once): open PRs with head SHAs (`headRefOid`), last-activity timestamps,
    draft state, labels, and the provenance fields the rung partition consumes
    (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot
    type the trust test's listed-bot arm reads), and open issues with the same author-association /
    login / bot-type fields the issue-author test consumes. A `null` provenance field is a field
    GitHub did not return, and the tests below fail closed on it.
    **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
-   failure and 4 two reads whose lists disagreed (the queue kept moving), and both print
+   failure and 4 a list incomplete on two reads (the queue kept moving), and both print
    nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, hold
    `cycle` and `backoff_level`, and invoke no mechanic. Count the cycle as one with no progress
    and work in view (fail closed: the queue is unknown, not empty), so `no_progress_streak`
