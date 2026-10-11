@@ -104,12 +104,11 @@ Dispatch rules:
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
-   fleet both multiply, but only one of them changes the writing. A bare agent spawn takes
-   `effort` as a workflow's per-agent call does, so a fan-out that needs the lever no longer moves
-   to a workflow for it. Which level a spawn runs at, with or without a per-call `effort`, against
-   the `effort` field in the `object-writer` agent's frontmatter, comes from the pointer below.
+   fleet both multiply, but only one of them changes the writing. An agent spawn can carry
+   its own `effort`, so a fan-out that needs the lever does not need a workflow for it. A spawn of
+   `object-writer` omits `effort` unless the writer asks for another level.
 
-   - **Pointer**: before relying on the effort of a bare agent spawn, whether or not it passes
+   - **Pointer**: before relying on the effort of an agent spawn, whether or not it passes
      `effort`, fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
    - **As of**: 2026-10-10
    - **Recheck trigger**: that section changes which spawns take a per-call `effort` or how it
