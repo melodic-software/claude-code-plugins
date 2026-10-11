@@ -255,7 +255,7 @@
       "id": 20,
       "name": "item-list-runs-without-plan-and-holds-unlanded-dependent",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. Plan the first wave.",
+      "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. I wrote this list in the item-list shape and approve it. Plan the first wave.",
       "expected_output": "Runs the list without asking for a plan. F1 and F3 are ready and go out together with disjoint fences; F2 is held because its declared blocker F1 has not landed on the base, and the run returns F2 as held with that reason rather than dispatching it on F1's unmerged branch. Each dispatched item gets its own fresh-context verifier with its acceptance check as the criteria.",
       "files": [],
       "expectations": [

@@ -13,8 +13,8 @@ Repo: /srv/dev/billing, default branch `main`. I'm the orchestrator and stay on 
 
 Item list:
 
-- id: acme/billing#41. title: Half-even rounding helper. targets: billing/rounding.py. acceptance: `round_half_even(2.675)` returns 2.68; `pytest tests/test_rounding.py` passes. branch: feat/41-rounding.
-- id: acme/billing#42. title: Invoice totals use the helper. targets: billing/invoice.py. acceptance: invoice totals round half-even; `pytest tests/test_invoice.py` passes. branch: feat/42-invoice.
-- id: acme/billing#43. title: Tax lines use the helper's constants. targets: billing/tax.py. acceptance: `pytest tests/test_tax.py` passes. branch: feat/43-tax.
+- id: github:acme/billing#41. title: Half-even rounding helper. targets: billing/rounding.py. acceptance: `round_half_even(2.675)` returns 2.68; `pytest tests/test_rounding.py` passes. branch: feat/41-rounding.
+- id: github:acme/billing#42. title: Invoice totals use the helper. targets: billing/invoice.py. acceptance: invoice totals round half-even; `pytest tests/test_invoice.py` passes. branch: feat/42-invoice.
+- id: github:acme/billing#43. title: Tax lines use the helper's constants. targets: billing/tax.py. acceptance: `pytest tests/test_tax.py` passes. branch: feat/43-tax.
 
-The tracker seam's `get-item` already returned: #41 open, blocked_by_count 0; #42 open, blocked_by_count 1 (blocked by #41); #43 open, blocked_by_count 0.
+I wrote this list. The tracker seam's `list-frontier` probe exited 0, and its `get-item` already returned: github:acme/billing#41 open, blocked_by_count 0; github:acme/billing#42 open, blocked_by_count 1 (blocked by #41); github:acme/billing#43 open, blocked_by_count 0.
