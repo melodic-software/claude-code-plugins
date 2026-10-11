@@ -27,7 +27,6 @@ dialog,
   opacity: 0;
   transition:
     opacity 0.2s var(--ease-out, ease-out),
-    translate 0.2s var(--ease-out, ease-out),
     display 0.2s allow-discrete,
     overlay 0.2s allow-discrete;
 }
@@ -53,7 +52,14 @@ dialog[open]::backdrop { opacity: 1; }
 
 @media (prefers-reduced-motion: no-preference) {
   dialog,
-  [popover] { translate: 0 0.5rem; }
+  [popover] {
+    translate: 0 0.5rem;
+    transition:
+      opacity 0.2s var(--ease-out, ease-out),
+      translate 0.2s var(--ease-out, ease-out),
+      display 0.2s allow-discrete,
+      overlay 0.2s allow-discrete;
+  }
 
   dialog[open] { translate: 0 0; }
 

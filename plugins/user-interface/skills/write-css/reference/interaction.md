@@ -150,7 +150,7 @@ Rules:
 - No element between the card and the link may be positioned; the overlay would size itself to
   that element.
 - The link's own ring is made transparent, never removed (`one-focus-ring-with-focus-visible`).
-  Write the full `2px solid transparent`: one engine ignores `outline-color` on its default ring.
+  Write the full `2px solid transparent`, so no engine's default outline style shows through.
 - Text under the overlay cannot be selected. Accept it.
 - Put hover styles on `.card:hover`, inside the query from `hover-styles-only-where-hover-exists`.
 

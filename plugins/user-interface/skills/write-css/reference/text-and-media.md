@@ -99,9 +99,9 @@ Rules:
 - Leave the background color off an image with transparent areas; it shows through.
 - A fixed-size image in a flex row needs both sizes, as the avatar has. With only a width it
   stretches to the row height.
-- In WebKit (tested 2026-10-01) a failed image ignores `aspect-ratio` and draws a square box. Where
-  a failed load must not move the layout, put the ratio on a wrapper and give the image
-  `inline-size: 100%` and `block-size: 100%`.
+- Where a failed load must not move the layout, put the ratio on a wrapper and give the image
+  `inline-size: 100%` and `block-size: 100%`, rather than relying on a broken image's own
+  `aspect-ratio`.
 - A theme-aware `--border-subtle` built with `light-dark()` needs the `color-scheme` from
   `one-set-of-color-tokens-for-light-and-dark` (`foundations.md`), or the outline stays dark on a
   dark page.

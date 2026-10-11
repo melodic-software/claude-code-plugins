@@ -249,8 +249,8 @@ Rules:
 - Keep `anchor-scope` on the component root. Without it an anchor name is global, and two navs on
   one page both follow the last active item.
 - The list needs `position: relative`, so the bar is positioned against the box holding the items.
-- For a vertical list swap the axes: `inset-block-start: anchor(top)` and
-  `block-size: anchor-size(height)`, and transition those two.
+- For a vertical list swap the axes: `inset-block-start: anchor(start)` and
+  `block-size: anchor-size(block)`, and transition those two.
 - Give the active item a second cue such as weight or color. Without anchor positioning the
-  `anchor()` declarations drop and the bar has no width; some engines place the bar without
-  sliding it.
+  `anchor()` declarations drop and the bar has no width. Whether an engine slides the bar or only
+  places it is read from the compat entries this section links.

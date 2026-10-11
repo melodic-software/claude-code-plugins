@@ -142,8 +142,8 @@ controls the format.
 Rules:
 
 - Write grays, white and black with `none` as the hue, as in `oklch(98% 0 none)`. A written hue of
-  `0` is red and pulls every mix toward red: half `oklch(1 0 0)` and half a blue at hue 264 came
-  out at hue 312 in Chrome and Safari; with `none`, or the keyword `white`, it stayed at 264.
+  `0` is red and pulls every mix toward red; with `none`, or the keyword `white`, a mix keeps the
+  other color's hue.
 
 ## One set of color tokens for light and dark: `one-set-of-color-tokens-for-light-and-dark`
 
@@ -258,7 +258,7 @@ Rules:
 - Change an input in the rule that declares the steps. A step takes its value where it is declared,
   so a ratio set on a descendant changes nothing below it.
 - Derive sizes below step 0 from step 0 and the narrow ratio, as `--step--1` does. With both ratios
-  a small size shrinks as the screen grows.
+  a small size can shrink as the screen grows.
 - Check the top step against the 2.5 limit in `fluid-sizes-with-clamp`: step `n` passes when
   `(size-wide / size-narrow) × (ratio-wide / ratio-narrow)ⁿ` is 2.5 or less. The example gives
   1.31 at step 4.
