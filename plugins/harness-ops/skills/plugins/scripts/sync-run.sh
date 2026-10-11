@@ -89,7 +89,8 @@
 #   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
-#   `{total, paths, by_parent:[{parent,count,paths}], more_parents, list_file}`,
+#   `{total, paths, project, by_parent:[{parent,count,paths}], more_parents, list_file}`,
+#   `project` counting the project-scope records among `total`,
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
@@ -1410,6 +1411,7 @@ report_extras() {
                                 | sort_by(-.count, .parent)) as $groups
                                | {total: ($absent | length),
                                   paths: ($absent | map(.projectPath) | unique | length),
+                                  project: ($absent | map(select(.scope == "project")) | length),
                                   by_parent: $groups[:$cap],
                                   more_parents: ([0, ($groups | length) - $cap] | max),
                                   list_file: (if $list_file == "" then null else $list_file end)}),
