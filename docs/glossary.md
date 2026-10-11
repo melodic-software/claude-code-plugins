@@ -107,6 +107,11 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
+Bare "frontier" means this set. Two other plugins use the word only in qualified compounds, which
+keep their own meaning: **frontier model** (`multi-agent`: a most-capable model alias, as in its
+`frontier` config key and `fanout.frontier_guard`) and **current frontier** (`education:teach`:
+the concepts one step beyond a learner's floor).
+
 **slice**
 
 A work item cut as a vertical slice: a narrow but complete path through every layer, verifiable on
