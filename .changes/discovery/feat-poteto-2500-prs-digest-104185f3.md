@@ -27,4 +27,5 @@ bump: minor
 
 ### Fixed
 
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
 - **`/discovery:setup` runs the shared `lib/setup-apply.mjs`.** A key the schema does not list in `docs/conventions/discovery.yaml` is named in one warning and ignored: `--check` still prints the valid keys (exit 1), and `apply` writes beside it and keeps its line as written; such a key set twice or holding a map or list is still refused. `apply` and `--check` now refuse a root that is `$HOME` or an ancestor of it, a CRLF file is written back with CRLF (one mixing CRLF and LF is refused), and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`). Its key-line and comment scans run in time linear in the line length, where two regexes backtracked quadratically on a long run of spaces.
