@@ -313,7 +313,7 @@ assert_eq "both arms get identical filler volume (control)" \
 assert_eq "both arms get identical filler volume (treatment)" \
   "6" "$(grep -c '^## Repository practice ' "$treatment_agents" | tr -d ' ')"
 
-# The task edits an EXISTING .cs file; that is what makes the read-trigger fire.
+# The task edits an EXISTING .cs file; that is what loads the rule before the edit.
 # The seed must be present and byte-identical in both arms.
 if [[ -f "$kept/control/src/Billing.cs" ]] &&
   cmp -s "$kept/control/src/Billing.cs" "$kept/treatment/src/Billing.cs"; then

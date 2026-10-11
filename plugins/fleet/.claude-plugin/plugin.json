@@ -1,6 +1,6 @@
 {
   "name": "fleet",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Agent-to-agent reach across a personal fleet (fleet:reach): from any Claude Code lane (WSL or native Windows, any machine), run a script, prompt, or query and wait, message a session, or start a named session in another lane. Each lane signs into its own Claude account, so built-in peer tools see only their own lane. Carries the route matrix for headless turns in the target lane, target resolution from the fleet manifest, and a posture that keeps agent launches prompting.",
   "author": {
     "name": "Melodic Software",
