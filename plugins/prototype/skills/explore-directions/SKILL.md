@@ -102,12 +102,16 @@ design problems a populated one would expose.
 
 When the intent selector routes here, no app or dev server, no app yet, or a non-dev exploring,
 the variants live in one self-contained `file://` HTML page with synthetic data and an in-page
-switcher. Assemble one per task (there is no canned template to copy):
+switcher. Assemble one per task:
 
-1. **N variant containers**. One block per variant, all in the single page.
-2. **An in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL; toggle
-   container visibility in memory instead. Give it a floating control bar with left/right arrows
-   and keyboard nav, modeled on the real-stack switcher in step 4 below.
+1. **N variant containers**. One block per variant, all in the single page, each marked with
+   `data-variant` (its key) and `data-variant-label` (its name).
+2. **The bundled in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL.
+   Inline [assets/variant-switcher.html](assets/variant-switcher.html) whole, just before
+   `</body>`: it shows one variant at a time, switches on its arrows, number keys and left/right
+   arrow keys with wraparound, replays a variant's entrance, ignores keys while a field has
+   focus, and runs under the CSP below. It is chrome, not a contestant: leave its look alone, and
+   move it to the top only when a variant occupies the bottom center.
 3. **A copy-out terminator**, a small control that lifts the winning-variant key plus notes back
    out as text you can paste into your durable answer.
 
@@ -178,6 +182,10 @@ the repo references it. The surface facts and their verified-on record live in
 Default to **3 variants**. More than 5 stops being radically different and starts being noise. Cap
 there.
 
+Before building, give each variant a name that describes its direction ("Quiet", "Dense",
+"Editorial", never "Option A") and the axis it diverges on (layout, density, personality, motion,
+interaction model) in a phrase.
+
 Write the plan in one line: "Three variants of the settings page, switchable via `?variant=`, on
 the existing `/settings` route."
 
@@ -222,7 +230,9 @@ Requirements:
 
 ### 5. Hand it over
 
-Surface the URL and variant keys. Interesting feedback is usually "I want the header from B with
+Surface the URL and variant keys, with one row per variant: its name, its axis, when it is the
+right choice, and what it costs. Sell each honestly and never pre-pick a favorite; asked which you
+would choose, answer from the product's personality and how often people will use it. Interesting feedback is usually "I want the header from B with
 the sidebar from C". That's the actual design discovered. Close the handover with a
 machine-legible reply template the user fills, so their reaction comes back as the next prompt
 rather than prose to re-parse (on the mockup substrate this is what the copy-out terminator
